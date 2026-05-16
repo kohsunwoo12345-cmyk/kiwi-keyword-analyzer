@@ -1,3 +1,5 @@
+export const runtime = 'edge'
+
 /**
  * /api/suggest
  * 네이워 자동완성 기반 실제 키워드 추천

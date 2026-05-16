@@ -7,7 +7,7 @@
  * - OpenAPI: 블로그/카페 발행량 (클라이언트 ID/Secret 필요)
  */
 
-import crypto from 'crypto'
+// Edge Runtime 호환: Node.js crypto 대신 Web Crypto API 사용
 
 // ──────────────────────────────────────────────
 // 환경 변수
@@ -49,15 +49,21 @@ function getEnv() {
 // ──────────────────────────────────────────────
 // HMAC 서명 (검색광고 API)
 // ──────────────────────────────────────────────
-function makeSignature(timestamp: number, method: string, path: string, secretKey: string): string {
+// Web Crypto API 기반 HMAC-SHA256 (Edge Runtime 호환)
+async function makeSignature(timestamp: number, method: string, path: string, secretKey: string): Promise<string> {
   const message = `${timestamp}.${method}.${path}`
-  return crypto.createHmac('sha256', secretKey).update(message).digest('base64')
+  const enc = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw', enc.encode(secretKey), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  )
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message))
+  return btoa(String.fromCharCode(...new Uint8Array(sig)))
 }
 
-function adHeaders(method: string, path: string) {
+async function adHeaders(method: string, path: string) {
   const env = getEnv()
   const timestamp = Date.now()
-  const signature = makeSignature(timestamp, method, path, env.adSecretKey)
+  const signature = await makeSignature(timestamp, method, path, env.adSecretKey)
   return {
     'Content-Type': 'application/json; charset=UTF-8',
     'X-Timestamp': String(timestamp),
@@ -347,7 +353,7 @@ export async function fetchKeywordStats(keywords: string[]): Promise<KeywordStat
     params.set('showDetail', '1')
 
     const res = await fetch(`${AD_API_BASE}${path}?${params}`, {
-      headers: adHeaders('GET', path),
+      headers: await adHeaders('GET', path),
     })
     if (!res.ok) throw new Error(`AD API error: ${res.status}`)
     const json = await res.json() as { keywordList: KeywordStat[] }

@@ -1,3 +1,5 @@
+export const runtime = 'edge'
+
 /**
  * /api/trends
  * 네이버 쇼핑 인사이트 실제 트렌드 데이터 제공 API

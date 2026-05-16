@@ -1,3 +1,5 @@
+export const runtime = 'edge'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { analyzeKeyword } from '@/lib/naver-api'
 import { calcKeywordGrade, calcSaturation } from '@/lib/utils'

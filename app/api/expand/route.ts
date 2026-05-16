@@ -1,3 +1,5 @@
+export const runtime = 'edge'
+
 /**
  * /api/expand
  * 네이버 자동완성 API를 활용한 실제 연관 키워드 확장
