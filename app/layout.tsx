@@ -7,8 +7,8 @@ import { Footer } from '@/components/layout/Footer'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: '키위분석 — 네이버 키워드 분석 도구',
-  description: '키워드 분석, 검색 순위 추적, 영향력 순위, 트렌드 등 네이버 SEO 필수 도구 모음',
+  title: '모토진단 — 오토바이 OBD-II 진단 도구',
+  description: '노트북과 ELM327 어댑터로 오토바이 고장코드 · 실시간 데이터 · 주행 로그를 확인하는 웹 진단 도구',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
