@@ -255,16 +255,33 @@ export async function trackPwa(input: { endpoint?: string; platform?: string; al
   await postJson('/api/pwa/track', input)
 }
 
+/* ───────── 공개 폼 (비로그인 사용 가능) ───────── */
+/** 문의하기 접수 */
+export async function sendContact(input: {
+  name: string; email?: string; phone?: string; company?: string; message: string
+}): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/contact', input)
+}
+/** 랜딩 DB 수집 데모 (실제로 D1에 저장) */
+export async function collectLead(input: {
+  name: string; phone?: string; email?: string; source?: string
+}): Promise<{ ok: boolean; error?: string; total?: number }> {
+  return postJson('/api/leads/collect', input)
+}
+
 /* ───────── 승인 관리 (관리자) ───────── */
 export interface PlanReq { id: string; user_id: string; name: string | null; email: string | null; from_plan: string | null; to_plan: string; status: string; memo: string | null; created_at: string; decided_at: string | null }
 export interface SenderReq { id: string; user_id: string; name: string | null; email: string | null; phone: string; label: string | null; status: string; created_at: string; decided_at: string | null }
 export interface PointReq { id: string; user_id: string; name: string | null; email: string | null; amount: number; memo: string | null; status: string; created_at: string; decided_at: string | null }
 export interface CreditReq { id: string; user_id: string; name: string | null; email: string | null; amount: number; price: number; memo: string | null; status: string; created_at: string; decided_at: string | null }
+export interface ContactMsg { id: string; name: string | null; email: string | null; phone: string | null; company: string | null; message: string | null; status: string; created_at: string }
+export interface PublicLead { id: string; name: string | null; phone: string | null; email: string | null; source: string | null; country: string | null; created_at: string }
 
 export async function adminApprovals(): Promise<{
   ok: boolean; error?: string
   planRequests: PlanReq[]; senderNumbers: SenderReq[]; pointRequests: PointReq[]; creditRequests: CreditReq[]; signups: User[]
-  stats?: { pendingPlans: number; pendingSenders: number; pendingPoints: number; pendingCredits: number; totalMembers: number }
+  contacts: ContactMsg[]; leads: PublicLead[]
+  stats?: { pendingPlans: number; pendingSenders: number; pendingPoints: number; pendingCredits: number; totalMembers: number; newContacts: number; leadsTotal: number }
 }> {
   try {
     const r = await fetch('/api/admin/approvals', { credentials: 'include' })
@@ -273,10 +290,10 @@ export async function adminApprovals(): Promise<{
       ok: !!d.ok, error: d.error,
       planRequests: d.planRequests || [], senderNumbers: d.senderNumbers || [],
       pointRequests: d.pointRequests || [], creditRequests: d.creditRequests || [],
-      signups: d.signups || [], stats: d.stats,
+      signups: d.signups || [], contacts: d.contacts || [], leads: d.leads || [], stats: d.stats,
     }
   } catch {
-    return { ok: false, error: '네트워크 오류', planRequests: [], senderNumbers: [], pointRequests: [], creditRequests: [], signups: [] }
+    return { ok: false, error: '네트워크 오류', planRequests: [], senderNumbers: [], pointRequests: [], creditRequests: [], signups: [], contacts: [], leads: [] }
   }
 }
 export async function adminApprovalAction(

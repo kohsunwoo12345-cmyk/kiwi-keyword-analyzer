@@ -286,6 +286,31 @@ export async function ensureSchema(db: D1Database) {
       created_at TEXT NOT NULL
     )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_install_ts ON app_installs(created_at)`),
+    // 공개: 문의하기 메시지
+    db.prepare(`CREATE TABLE IF NOT EXISTS contact_messages (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      email TEXT,
+      phone TEXT,
+      company TEXT,
+      message TEXT,
+      ip TEXT,
+      status TEXT DEFAULT 'new',   -- new | read | done
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_contact_ts ON contact_messages(created_at)`),
+    // 공개: 랜딩 DB 수집 리드 (기능 데모)
+    db.prepare(`CREATE TABLE IF NOT EXISTS public_leads (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      phone TEXT,
+      email TEXT,
+      source TEXT,
+      ip TEXT,
+      country TEXT,
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_lead_ts ON public_leads(created_at)`),
   ])
   // 기존 테이블에 신규 컬럼 보강 (누락된 것만 추가)
   await addMissingColumns(db, 'users', {

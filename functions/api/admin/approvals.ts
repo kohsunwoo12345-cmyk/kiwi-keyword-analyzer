@@ -59,10 +59,20 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     .all()).results || []
   const signups = signupRows.map((u: any) => publicUser(u))
 
+  // 공개 폼 수집: 문의 + 랜딩 DB 리드
+  const contacts = (await db
+    .prepare('SELECT id, name, email, phone, company, message, status, created_at FROM contact_messages ORDER BY created_at DESC LIMIT 200')
+    .all()).results || []
+  const leads = (await db
+    .prepare('SELECT id, name, phone, email, source, country, created_at FROM public_leads ORDER BY created_at DESC LIMIT 200')
+    .all()).results || []
+
   const pendingPlans = planRequests.filter((r: any) => r.status === 'pending').length
   const pendingSenders = senderNumbers.filter((r: any) => r.status === 'pending').length
   const pendingPoints = pointRequests.filter((r: any) => r.status === 'pending').length
   const pendingCredits = creditRequests.filter((r: any) => r.status === 'pending').length
+
+  const newContacts = contacts.filter((c: any) => c.status === 'new').length
 
   return json({
     ok: true,
@@ -71,7 +81,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     pointRequests,
     creditRequests,
     signups,
-    stats: { pendingPlans, pendingSenders, pendingPoints, pendingCredits, totalMembers: signups.length },
+    contacts,
+    leads,
+    stats: { pendingPlans, pendingSenders, pendingPoints, pendingCredits, totalMembers: signups.length, newContacts, leadsTotal: leads.length },
   })
 }
 

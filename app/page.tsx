@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
+import { HomeAuthGate } from '@/components/HomeAuthGate'
 import { Button, SectionTag } from '@/components/ui'
 import { Reveal, Counter, Marquee } from '@/components/motion'
 import { LogoMark } from '@/components/Brand'
@@ -54,6 +55,7 @@ const previewBars = [38, 52, 44, 68, 59, 74, 82, 71, 90, 84, 96, 100]
 export default function Home() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-[var(--bg)]">
+      <HomeAuthGate />
       <Navbar />
 
       {/* ===== HERO ===== */}
@@ -209,7 +211,7 @@ export default function Home() {
                   className={wide ? 'sm:col-span-2 lg:col-span-1' : ''}
                 >
                   <Link
-                    href={`/dashboard/${f.slug}`}
+                    href={`/features/${f.slug}`}
                     className="group card hover-lift relative block h-full overflow-hidden p-7"
                   >
                     <div

@@ -15,6 +15,9 @@ import {
   Mail,
   Building2,
   CreditCard,
+  Inbox,
+  Database,
+  MapPin,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { StatCard, Panel, Badge, Button } from '@/components/ui'
@@ -27,6 +30,8 @@ import {
   type PointReq,
   type CreditReq,
   type User,
+  type ContactMsg,
+  type PublicLead,
 } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -107,12 +112,16 @@ export default function AdminApprovalsPage() {
   const [pointRequests, setPointRequests] = useState<PointReq[]>([])
   const [creditRequests, setCreditRequests] = useState<CreditReq[]>([])
   const [signups, setSignups] = useState<User[]>([])
+  const [contacts, setContacts] = useState<ContactMsg[]>([])
+  const [leads, setLeads] = useState<PublicLead[]>([])
   const [stats, setStats] = useState<{
     pendingPlans: number
     pendingSenders: number
     pendingPoints: number
     pendingCredits: number
     totalMembers: number
+    newContacts?: number
+    leadsTotal?: number
   }>({
     pendingPlans: 0,
     pendingSenders: 0,
@@ -141,6 +150,8 @@ export default function AdminApprovalsPage() {
       setPointRequests(r.pointRequests)
       setCreditRequests(r.creditRequests)
       setSignups(r.signups)
+      setContacts(r.contacts)
+      setLeads(r.leads)
       setStats(
         r.stats ?? {
           pendingPlans: r.planRequests.filter((p) => p.status === 'pending').length,
@@ -683,6 +694,117 @@ export default function AdminApprovalsPage() {
                           : query.trim()
                           ? '검색 결과가 없습니다.'
                           : '가입한 회원이 없습니다.'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        </Reveal>
+
+        {/* 문의 접수 (공개 문의 폼) */}
+        <Reveal>
+          <Panel
+            title={
+              <span className="flex items-center gap-2">
+                <Inbox size={16} className="text-sky-600" /> 문의 접수
+                {(stats.newContacts ?? 0) > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
+                    새 문의 {stats.newContacts}
+                  </span>
+                )}
+              </span>
+            }
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border-soft)] text-left text-xs text-[var(--text-dim)]">
+                    <th className="pb-2.5 font-medium">이름</th>
+                    <th className="pb-2.5 font-medium">연락처</th>
+                    <th className="pb-2.5 font-medium">회사</th>
+                    <th className="pb-2.5 font-medium">문의 내용</th>
+                    <th className="pb-2.5 font-medium">접수일</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contacts.map((c) => (
+                    <tr key={c.id} className="border-b border-[var(--border-soft)] last:border-0 align-top hover:bg-slate-50">
+                      <td className="py-3 font-medium">{c.name || '-'}</td>
+                      <td className="py-3 text-[var(--text-soft)]">
+                        <div className="flex flex-col">
+                          {c.email && <span className="flex items-center gap-1.5"><Mail size={12} className="text-[var(--text-dim)]" />{c.email}</span>}
+                          {c.phone && <span className="flex items-center gap-1.5 font-mono"><Phone size={12} className="text-[var(--text-dim)]" />{c.phone}</span>}
+                          {!c.email && !c.phone && '-'}
+                        </div>
+                      </td>
+                      <td className="py-3 text-[var(--text-soft)]">{c.company || '-'}</td>
+                      <td className="max-w-[360px] py-3 text-[var(--text-soft)]">
+                        <p className="whitespace-pre-wrap break-words">{c.message || '-'}</p>
+                      </td>
+                      <td className="whitespace-nowrap py-3 text-[var(--text-soft)]">
+                        {fmtDate(c.created_at)}
+                        <span className="ml-1 text-xs text-[var(--text-dim)]">· {timeAgo(c.created_at)}</span>
+                      </td>
+                    </tr>
+                  ))}
+                  {contacts.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-10 text-center text-[var(--text-dim)]">
+                        {loading ? '불러오는 중…' : '접수된 문의가 없습니다.'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        </Reveal>
+
+        {/* 랜딩 DB 수집 리드 (공개 데모 폼) */}
+        <Reveal>
+          <Panel
+            title={
+              <span className="flex items-center gap-2">
+                <Database size={16} className="text-violet-600" /> 랜딩 DB 수집 리드
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                  누적 {leads.length}건
+                </span>
+              </span>
+            }
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border-soft)] text-left text-xs text-[var(--text-dim)]">
+                    <th className="pb-2.5 font-medium">이름</th>
+                    <th className="pb-2.5 font-medium">전화</th>
+                    <th className="pb-2.5 font-medium">이메일</th>
+                    <th className="pb-2.5 font-medium">유입 경로</th>
+                    <th className="pb-2.5 font-medium">지역</th>
+                    <th className="pb-2.5 font-medium">수집일</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leads.map((l) => (
+                    <tr key={l.id} className="border-b border-[var(--border-soft)] last:border-0 hover:bg-slate-50">
+                      <td className="py-3 font-medium">{l.name || '-'}</td>
+                      <td className="whitespace-nowrap py-3 font-mono text-[var(--text-soft)]">{l.phone || '-'}</td>
+                      <td className="py-3 text-[var(--text-soft)]">{l.email || '-'}</td>
+                      <td className="py-3">
+                        <Badge className="border-violet-200 bg-violet-50 text-violet-700">{l.source || 'landing'}</Badge>
+                      </td>
+                      <td className="py-3 text-[var(--text-soft)]">
+                        <span className="flex items-center gap-1"><MapPin size={12} className="text-[var(--text-dim)]" />{l.country || '-'}</span>
+                      </td>
+                      <td className="whitespace-nowrap py-3 text-[var(--text-soft)]">{fmtDate(l.created_at)}</td>
+                    </tr>
+                  ))}
+                  {leads.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-10 text-center text-[var(--text-dim)]">
+                        {loading ? '불러오는 중…' : '수집된 리드가 없습니다.'}
                       </td>
                     </tr>
                   )}
