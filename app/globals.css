@@ -223,10 +223,32 @@ body {
 }
 .animate-ping-ring { animation: ping-ring 2.4s cubic-bezier(0, 0, 0.2, 1) infinite; }
 
+/* ===== Orbit hero ===== */
+/* 아이콘이 중심을 공전하면서도 항상 수평 유지 (위치 회전 + 역회전 결합) */
+@keyframes orbit-move {
+  from { transform: translate(-50%, -50%) rotate(0deg) translateX(var(--r)) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg) translateX(var(--r)) rotate(-360deg); }
+}
+.orbit-item {
+  position: absolute; top: 50%; left: 50%;
+  animation: orbit-move var(--dur, 40s) linear infinite;
+  animation-delay: var(--delay, 0s);
+}
+.orbit-item.rev { animation-direction: reverse; }
+@keyframes core-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 60px 10px rgba(124,58,237,0.55), 0 0 120px 30px rgba(99,102,241,0.35); }
+  50% { transform: scale(1.05); box-shadow: 0 0 90px 20px rgba(124,58,237,0.7), 0 0 160px 46px rgba(99,102,241,0.45); }
+}
+.orbit-core { animation: core-pulse 4.5s ease-in-out infinite; }
+@keyframes node-pan { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-10px,-6px); } }
+@keyframes dash-flow { to { stroke-dashoffset: -24; } }
+
 @media (prefers-reduced-motion: reduce) {
   .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
   .marquee-track, .animate-gradient, .animate-drift, .animate-drift-slow,
-  .animate-aurora, .animate-bob, .animate-float, .animate-spin-slow, .animate-ping-ring {
+  .animate-aurora, .animate-bob, .animate-float, .animate-spin-slow, .animate-ping-ring,
+  .orbit-item, .orbit-core {
     animation: none !important;
   }
+  .orbit-item { transform: translate(-50%, -50%) rotate(var(--a, 0deg)) translateX(var(--r)) rotate(calc(-1 * var(--a, 0deg))); }
 }

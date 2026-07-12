@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { Menu, X, ArrowRight, ChevronDown, LayoutDashboard, Sparkles } from 'lucide-react'
+import { Menu, X, ArrowRight, ChevronDown, LayoutDashboard } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { Logo } from '@/components/Brand'
+import { MegaNodeStudio } from '@/components/MegaNodeStudio'
 import { FEATURES } from '@/lib/features'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
@@ -152,30 +153,8 @@ export function Navbar() {
               </div>
             </div>
 
-            {/* promo */}
-            <Link
-              href="/features/video"
-              onClick={() => setMega(false)}
-              className="group relative flex flex-col justify-between overflow-hidden rounded-2xl p-6 text-white shadow-lg"
-              style={{ background: 'linear-gradient(140deg,#7c3aed,#6366f1,#22d3ee)' }}
-            >
-              <div className="animate-drift pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/20 blur-2xl" />
-              <div className="relative">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold backdrop-blur">
-                  <Sparkles size={12} /> NEW
-                </span>
-                <h4 className="mt-3 text-lg font-bold leading-snug">
-                  텍스트만으로
-                  <br />
-                  광고 영상 자동 생성
-                </h4>
-                <p className="mt-2 text-sm text-white/80">AI 영상 제작으로 소재 제작 시간을 90% 줄이세요.</p>
-              </div>
-              <span className="relative mt-6 inline-flex items-center gap-1.5 text-sm font-semibold">
-                지금 살펴보기
-                <ArrowRight size={15} className="transition-transform duration-300 group-hover:translate-x-1" />
-              </span>
-            </Link>
+            {/* promo: NODE STUDIO 애니메이션 */}
+            <MegaNodeStudio onNavigate={() => setMega(false)} />
           </div>
         </div>
       </div>
