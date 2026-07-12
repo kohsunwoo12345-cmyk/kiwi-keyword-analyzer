@@ -27,13 +27,13 @@ export function Navbar() {
     <header
       className={cn(
         'fixed top-0 inset-x-0 z-50 transition-all duration-300',
-        scrolled ? 'glass border-b border-[var(--border)]' : 'bg-transparent',
+        scrolled ? 'glass border-b border-[var(--border)] shadow-sm' : 'bg-transparent',
       )}
     >
       <div className="mx-auto max-w-7xl px-5">
         <div className="flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
-            <span className="grid h-9 w-9 place-items-center rounded-xl brand-gradient shadow-lg shadow-violet-900/40">
+            <span className="grid h-9 w-9 place-items-center rounded-xl brand-gradient shadow-lg shadow-violet-500/30">
               <Sparkles size={18} className="text-white" />
             </span>
             <span className="text-lg font-bold tracking-tight">
@@ -46,7 +46,7 @@ export function Navbar() {
               <Link
                 key={n.href}
                 href={n.href}
-                className="rounded-lg px-3.5 py-2 text-sm font-medium text-[var(--text-soft)] transition-colors hover:text-white"
+                className="rounded-lg px-3.5 py-2 text-sm font-medium text-[var(--text-soft)] transition-colors hover:text-[var(--text)]"
               >
                 {n.label}
               </Link>
@@ -80,7 +80,7 @@ export function Navbar() {
                 key={n.href}
                 href={n.href}
                 onClick={() => setOpen(false)}
-                className="block rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--text-soft)] hover:bg-white/5 hover:text-white"
+                className="block rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--text-soft)] hover:bg-slate-100 hover:text-[var(--text)]"
               >
                 {n.label}
               </Link>

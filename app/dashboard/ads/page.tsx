@@ -77,7 +77,7 @@ export default function AdsPage() {
               </thead>
               <tbody>
                 {adCampaigns.map((c) => (
-                  <tr key={c.name} className="border-b border-[var(--border-soft)] hover:bg-white/[0.02]">
+                  <tr key={c.name} className="border-b border-[var(--border-soft)] hover:bg-slate-50">
                     <td className="px-3 py-3 font-medium">{c.name}</td>
                     <td className="px-3 py-3">
                       <span
@@ -91,7 +91,7 @@ export default function AdsPage() {
                     <td className="px-3 py-3">
                       <span
                         className={`font-bold ${
-                          c.roas >= 5 ? 'text-emerald-400' : c.roas >= 3 ? 'text-amber-400' : 'text-rose-400'
+                          c.roas >= 5 ? 'text-emerald-600' : c.roas >= 3 ? 'text-amber-600' : 'text-rose-500'
                         }`}
                       >
                         {c.roas}x
@@ -103,8 +103,8 @@ export default function AdsPage() {
                       <Badge
                         className={
                           c.status === '운영중'
-                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                            : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : 'border-amber-200 bg-amber-50 text-amber-700'
                         }
                       >
                         {c.status}

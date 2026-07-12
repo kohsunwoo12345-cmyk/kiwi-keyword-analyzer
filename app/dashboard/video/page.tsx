@@ -93,8 +93,8 @@ export default function VideoPage() {
                     onClick={() => setStyle(s.name)}
                     className={`rounded-xl border p-3 text-left transition-all ${
                       style === s.name
-                        ? 'border-violet-500/60 bg-violet-500/10'
-                        : 'border-[var(--border)] hover:border-white/20'
+                        ? 'border-violet-400 bg-violet-50 text-violet-700'
+                        : 'border-[var(--border)] hover:border-violet-200'
                     }`}
                   >
                     <div className="text-lg">{s.emoji}</div>
@@ -116,8 +116,8 @@ export default function VideoPage() {
                     onClick={() => setMotion(m)}
                     className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                       motion === m
-                        ? 'border-violet-500/60 bg-violet-500/15 text-violet-300'
-                        : 'border-[var(--border)] text-[var(--text-soft)] hover:text-white'
+                        ? 'border-violet-400 bg-violet-50 text-violet-700'
+                        : 'border-[var(--border)] text-[var(--text-soft)] hover:text-[var(--text)]'
                     }`}
                   >
                     {m}
@@ -135,8 +135,8 @@ export default function VideoPage() {
                     onClick={() => setRatio(r)}
                     className={`rounded-lg border px-2 py-2 text-xs font-medium transition-colors ${
                       ratio.label === r.label
-                        ? 'border-violet-500/60 bg-violet-500/15 text-violet-300'
-                        : 'border-[var(--border)] text-[var(--text-soft)] hover:text-white'
+                        ? 'border-violet-400 bg-violet-50 text-violet-700'
+                        : 'border-[var(--border)] text-[var(--text-soft)] hover:text-[var(--text)]'
                     }`}
                   >
                     {r.label}
@@ -166,7 +166,7 @@ export default function VideoPage() {
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
                     <div className="h-12 w-12 animate-spin-slow rounded-full border-2 border-violet-500/30 border-t-violet-500" />
                     <div className="w-3/4">
-                      <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
                         <div
                           className="h-full brand-gradient transition-all"
                           style={{ width: `${progress}%` }}

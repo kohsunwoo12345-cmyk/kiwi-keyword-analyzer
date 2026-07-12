@@ -17,15 +17,16 @@ import {
   YAxis,
 } from 'recharts'
 
-const AXIS = { stroke: '#4b4b5e', fontSize: 11 }
-const GRID = '#22222e'
+const AXIS = { stroke: '#96a0b3', fontSize: 11 }
+const GRID = '#eef0f6'
 
 const tooltipStyle = {
-  background: '#16161f',
-  border: '1px solid #262633',
+  background: '#ffffff',
+  border: '1px solid #e8eaf1',
   borderRadius: 12,
   fontSize: 12,
-  color: '#ededf2',
+  color: '#14161f',
+  boxShadow: '0 8px 24px -8px rgba(20,22,31,0.15)',
 }
 
 export function AreaTrend({

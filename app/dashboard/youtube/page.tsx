@@ -22,7 +22,7 @@ function ViralBar({ score }: { score: number }) {
   const color = score >= 90 ? '#ef4444' : score >= 75 ? '#f59e0b' : '#22c55e'
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-white/10">
+      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
         <div className="h-full rounded-full" style={{ width: `${score}%`, background: color }} />
       </div>
       <span className="text-xs font-semibold" style={{ color }}>
@@ -87,7 +87,7 @@ export default function YoutubePage() {
                 </thead>
                 <tbody>
                   {ytVideos.map((v) => (
-                    <tr key={v.title} className="border-b border-[var(--border-soft)] hover:bg-white/[0.02]">
+                    <tr key={v.title} className="border-b border-[var(--border-soft)] hover:bg-slate-50">
                       <td className="px-3 py-3 font-medium">{v.title}</td>
                       <td className="px-3 py-3 text-[var(--text-soft)]">{formatNumber(v.views)}</td>
                       <td className="px-3 py-3 text-[var(--text-soft)]">{v.ctr}%</td>
@@ -113,15 +113,15 @@ export default function YoutubePage() {
                     <Badge
                       className={
                         k.comp === '낮음'
-                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                           : k.comp === '보통'
-                          ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
-                          : 'border-rose-500/30 bg-rose-500/10 text-rose-300'
+                          ? 'border-amber-200 bg-amber-50 text-amber-700'
+                          : 'border-rose-200 bg-rose-50 text-rose-700'
                       }
                     >
                       {k.comp}
                     </Badge>
-                    <span className="flex items-center gap-1 text-sm font-bold text-red-400">
+                    <span className="flex items-center gap-1 text-sm font-bold text-red-500">
                       <Flame size={14} /> {k.viral}
                     </span>
                   </div>
@@ -137,7 +137,7 @@ export default function YoutubePage() {
               <div key={c.name} className="card-2 p-4">
                 <div className="flex items-center justify-between">
                   <p className="font-semibold">{c.name}</p>
-                  <span className="flex items-center gap-1 text-xs font-semibold text-emerald-400">
+                  <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
                     <TrendingUp size={13} /> {c.growth}%
                   </span>
                 </div>

@@ -40,11 +40,11 @@ function diagnose(vol: number, docs: number) {
 }
 
 const indexColor: Record<string, string> = {
-  'S': 'border-violet-500/30 bg-violet-500/10 text-violet-300',
-  'A+': 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
-  'A': 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
-  'A-': 'border-green-500/30 bg-green-500/10 text-green-300',
-  'B+': 'border-sky-500/30 bg-sky-500/10 text-sky-300',
+  'S': 'border-violet-200 bg-violet-50 text-violet-700',
+  'A+': 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  'A': 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  'A-': 'border-green-200 bg-green-50 text-green-700',
+  'B+': 'border-sky-200 bg-sky-50 text-sky-700',
 }
 
 export default function BlogPage() {
@@ -129,7 +129,7 @@ export default function BlogPage() {
               <div className="card-2 p-4">
                 <p className="text-xs text-[var(--text-dim)]">상위노출 가능성</p>
                 <p className="mt-1 text-2xl font-bold">{result.chance}%</p>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
                   <div
                     className="h-full rounded-full transition-all"
                     style={{ width: `${result.chance}%`, background: result.color }}
@@ -159,11 +159,11 @@ export default function BlogPage() {
                 </thead>
                 <tbody>
                   {blogPosts.map((p) => (
-                    <tr key={p.title} className="border-b border-[var(--border-soft)] hover:bg-white/[0.02]">
+                    <tr key={p.title} className="border-b border-[var(--border-soft)] hover:bg-slate-50">
                       <td className="px-3 py-3">
                         <span
                           className={`grid h-7 w-7 place-items-center rounded-lg text-xs font-bold ${
-                            p.rank <= 3 ? 'bg-emerald-500/15 text-emerald-300' : 'bg-white/5 text-[var(--text-soft)]'
+                            p.rank <= 3 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-[var(--text-soft)]'
                           }`}
                         >
                           {p.rank}
@@ -175,7 +175,7 @@ export default function BlogPage() {
                         <span className="ml-1 text-xs text-[var(--text-dim)]">({formatNumber(p.vol)})</span>
                       </td>
                       <td className="px-3 py-3">
-                        <Badge className={indexColor[p.index] || 'border-white/10 bg-white/5 text-[var(--text-soft)]'}>
+                        <Badge className={indexColor[p.index] || 'border-[var(--border)] bg-slate-100 text-[var(--text-soft)]'}>
                           {p.index}
                         </Badge>
                       </td>
@@ -188,8 +188,8 @@ export default function BlogPage() {
 
           <Panel title="유입 & 순위 추이 (4주)">
             <AreaTrend data={blogTrend} keys={['유입']} colors={['#10b981']} height={180} />
-            <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-              <p className="text-sm font-semibold text-emerald-300">📈 C-Rank 대응 리포트</p>
+            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-sm font-semibold text-emerald-700">📈 C-Rank 대응 리포트</p>
               <p className="mt-1.5 text-xs leading-relaxed text-[var(--text-soft)]">
                 주제 집중도가 높아 C-Rank 점수가 상승 중입니다. &lsquo;마케팅 자동화&rsquo; 계열
                 키워드로 주 2회 발행 시 4주 내 1페이지 진입이 예상됩니다.

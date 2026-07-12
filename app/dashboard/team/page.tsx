@@ -16,10 +16,10 @@ interface Task {
 
 const COLS = ['할 일', '진행 중', '완료']
 const TAG_COLORS: Record<string, string> = {
-  광고: 'bg-fuchsia-500/15 text-fuchsia-300',
-  콘텐츠: 'bg-violet-500/15 text-violet-300',
-  분석: 'bg-sky-500/15 text-sky-300',
-  디자인: 'bg-amber-500/15 text-amber-300',
+  광고: 'bg-fuchsia-100 text-fuchsia-700',
+  콘텐츠: 'bg-violet-100 text-violet-700',
+  분석: 'bg-sky-100 text-sky-700',
+  디자인: 'bg-amber-100 text-amber-700',
 }
 
 const SEED: Task[] = [
@@ -123,7 +123,7 @@ export default function TeamPage() {
               <div key={col} className="card p-3">
                 <div className="mb-3 flex items-center justify-between px-1">
                   <span className="text-sm font-semibold">{col}</span>
-                  <span className="rounded-full bg-white/5 px-2 py-0.5 text-xs text-[var(--text-dim)]">
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-[var(--text-dim)]">
                     {tasks.filter((t) => t.col === ci).length}
                   </span>
                 </div>
@@ -135,12 +135,12 @@ export default function TeamPage() {
                         <div className="mb-2 flex items-center justify-between">
                           <span
                             className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${
-                              TAG_COLORS[t.tag] || 'bg-white/5 text-[var(--text-soft)]'
+                              TAG_COLORS[t.tag] || 'bg-slate-100 text-[var(--text-soft)]'
                             }`}
                           >
                             {t.tag}
                           </span>
-                          <span className="grid h-6 w-6 place-items-center rounded-full bg-white/5 text-[11px] font-semibold">
+                          <span className="grid h-6 w-6 place-items-center rounded-full bg-slate-100 text-[11px] font-semibold">
                             {t.assignee[0]}
                           </span>
                         </div>
@@ -149,7 +149,7 @@ export default function TeamPage() {
                           <button
                             onClick={() => move(t.id, -1)}
                             disabled={ci === 0}
-                            className="grid h-6 w-6 place-items-center rounded-md text-[var(--text-dim)] hover:bg-white/5 hover:text-white disabled:opacity-20"
+                            className="grid h-6 w-6 place-items-center rounded-md text-[var(--text-dim)] hover:bg-slate-100 hover:text-[var(--text)] disabled:opacity-20"
                           >
                             <ChevronLeft size={15} />
                           </button>
@@ -157,7 +157,7 @@ export default function TeamPage() {
                           <button
                             onClick={() => move(t.id, 1)}
                             disabled={ci === 2}
-                            className="grid h-6 w-6 place-items-center rounded-md text-[var(--text-dim)] hover:bg-white/5 hover:text-white disabled:opacity-20"
+                            className="grid h-6 w-6 place-items-center rounded-md text-[var(--text-dim)] hover:bg-slate-100 hover:text-[var(--text)] disabled:opacity-20"
                           >
                             <ChevronRight size={15} />
                           </button>
@@ -178,8 +178,8 @@ export default function TeamPage() {
             </span>
             <div>
               <p className="font-semibold">AI 마케팅 어시스턴트</p>
-              <p className="flex items-center gap-1 text-xs text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> 온라인
+              <p className="flex items-center gap-1 text-xs text-emerald-600">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> 온라인
               </p>
             </div>
           </div>
@@ -222,7 +222,7 @@ export default function TeamPage() {
                   onClick={() => {
                     setInput(q)
                   }}
-                  className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--panel-2)] px-2.5 py-1 text-xs text-[var(--text-soft)] hover:border-violet-500/50 hover:text-white"
+                  className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--panel-2)] px-2.5 py-1 text-xs text-[var(--text-soft)] hover:border-violet-500/50 hover:text-[var(--text)]"
                 >
                   <Sparkles size={11} /> {q}
                 </button>

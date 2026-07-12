@@ -163,7 +163,7 @@ export default function LeadsPage() {
               </Button>
             </form>
             {toast && (
-              <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-300 animate-fade-in">
+              <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2.5 text-sm text-emerald-700 animate-fade-in">
                 {toast}
               </div>
             )}
@@ -198,14 +198,14 @@ export default function LeadsPage() {
                 </thead>
                 <tbody>
                   {filtered.map((l) => (
-                    <tr key={l.id} className="border-b border-[var(--border-soft)] hover:bg-white/[0.02]">
+                    <tr key={l.id} className="border-b border-[var(--border-soft)] hover:bg-slate-50">
                       <td className="px-3 py-3 font-medium">{l.name}</td>
                       <td className="px-3 py-3 text-[var(--text-soft)]">
                         <div>{l.phone}</div>
                         <div className="text-xs text-[var(--text-dim)]">{l.email || '—'}</div>
                       </td>
                       <td className="px-3 py-3">
-                        <Badge className="border-violet-500/30 bg-violet-500/10 text-violet-300">
+                        <Badge className="border-violet-200 bg-violet-50 text-violet-700">
                           {l.interest}
                         </Badge>
                       </td>
@@ -214,7 +214,7 @@ export default function LeadsPage() {
                       <td className="px-3 py-3">
                         <button
                           onClick={() => remove(l.id)}
-                          className="grid h-7 w-7 place-items-center rounded-lg text-[var(--text-dim)] hover:bg-rose-500/10 hover:text-rose-400"
+                          className="grid h-7 w-7 place-items-center rounded-lg text-[var(--text-dim)] hover:bg-rose-500/10 hover:text-rose-500"
                         >
                           <Trash2 size={15} />
                         </button>

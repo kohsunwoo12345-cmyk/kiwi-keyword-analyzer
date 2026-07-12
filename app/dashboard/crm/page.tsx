@@ -9,10 +9,10 @@ import { crmStages, crmCustomers } from '@/lib/mock'
 import { formatNumber } from '@/lib/utils'
 
 const tagColor: Record<string, string> = {
-  VIP: 'border-violet-500/30 bg-violet-500/10 text-violet-300',
-  신규: 'border-sky-500/30 bg-sky-500/10 text-sky-300',
-  재구매: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
-  휴면: 'border-white/10 bg-white/5 text-[var(--text-dim)]',
+  VIP: 'border-violet-200 bg-violet-50 text-violet-700',
+  신규: 'border-sky-200 bg-sky-50 text-sky-700',
+  재구매: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  휴면: 'border-[var(--border)] bg-slate-100 text-[var(--text-dim)]',
 }
 
 const ltv = [
@@ -97,7 +97,7 @@ export default function CrmPage() {
                 </thead>
                 <tbody>
                   {crmCustomers.map((c) => (
-                    <tr key={c.email} className="border-b border-[var(--border-soft)] hover:bg-white/[0.02]">
+                    <tr key={c.email} className="border-b border-[var(--border-soft)] hover:bg-slate-50">
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-2.5">
                           <span className="grid h-8 w-8 place-items-center rounded-full brand-gradient text-xs font-bold text-white">
@@ -136,8 +136,8 @@ export default function CrmPage() {
                       onClick={() => setSegment(s)}
                       className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                         segment === s
-                          ? 'border-amber-500/50 bg-amber-500/15 text-amber-300'
-                          : 'border-[var(--border)] text-[var(--text-soft)] hover:text-white'
+                          ? 'border-amber-300 bg-amber-100 text-amber-700'
+                          : 'border-[var(--border)] text-[var(--text-soft)] hover:text-[var(--text)]'
                       }`}
                     >
                       {s}
@@ -173,7 +173,7 @@ export default function CrmPage() {
                 <span className="flex items-center gap-2 text-[var(--text-soft)]">
                   <MessageSquare size={15} /> 예상 발송
                 </span>
-                <span className="font-semibold text-amber-300">{formatNumber(targetCount * 248)}명</span>
+                <span className="font-semibold text-amber-600">{formatNumber(targetCount * 248)}명</span>
               </div>
 
               <Button onClick={sendCampaign} className="w-full !bg-gradient-to-br !from-amber-500 !to-orange-500">
@@ -181,7 +181,7 @@ export default function CrmPage() {
               </Button>
 
               {sent && (
-                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-300 animate-fade-in">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2.5 text-sm text-emerald-700 animate-fade-in">
                   {sent}
                 </div>
               )}

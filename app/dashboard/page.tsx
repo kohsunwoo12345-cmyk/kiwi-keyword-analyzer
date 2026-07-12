@@ -87,7 +87,7 @@ export default function DashboardHome() {
                 <Link
                   key={f.slug}
                   href={`/dashboard/${f.slug}`}
-                  className="group card p-5 transition-all hover:-translate-y-0.5 hover:border-white/20"
+                  className="group card hover-lift p-5"
                 >
                   <div
                     className={`inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${f.color}`}

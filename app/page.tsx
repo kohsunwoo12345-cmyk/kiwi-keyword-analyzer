@@ -87,9 +87,10 @@ export default function Home() {
 
       {/* ===== HERO ===== */}
       <section className="relative overflow-hidden pt-36 pb-24">
-        <div className="absolute inset-0 grid-bg opacity-40" />
-        <div className="pointer-events-none absolute -top-40 left-1/2 h-[540px] w-[900px] -translate-x-1/2 rounded-full bg-violet-600/20 blur-[130px]" />
-        <div className="pointer-events-none absolute top-40 right-0 h-[300px] w-[400px] rounded-full bg-cyan-500/10 blur-[120px]" />
+        <div className="absolute inset-0 grid-bg opacity-60" />
+        <div className="pointer-events-none absolute -top-40 left-1/2 h-[540px] w-[900px] -translate-x-1/2 rounded-full bg-violet-300/40 blur-[130px]" />
+        <div className="pointer-events-none absolute top-40 right-0 h-[320px] w-[420px] rounded-full bg-cyan-200/40 blur-[120px]" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-[var(--bg)]" />
 
         <div className="relative mx-auto max-w-5xl px-5 text-center">
           <div className="flex justify-center animate-fade-up">
@@ -114,30 +115,30 @@ export default function Home() {
             <Button href="/dashboard" size="lg">
               무료로 시작하기 <ArrowRight size={18} />
             </Button>
-            <Button href="#features" variant="soft" size="lg">
+            <Button href="#features" variant="outline" size="lg">
               <Play size={16} /> 기능 둘러보기
             </Button>
           </div>
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-[var(--text-dim)] animate-fade-up delay-400">
             <span className="flex items-center gap-1.5">
-              <Check size={15} className="text-emerald-400" /> 신용카드 불필요
+              <Check size={15} className="text-emerald-500" /> 신용카드 불필요
             </span>
             <span className="flex items-center gap-1.5">
-              <Check size={15} className="text-emerald-400" /> 3분 만에 세팅
+              <Check size={15} className="text-emerald-500" /> 3분 만에 세팅
             </span>
             <span className="flex items-center gap-1.5">
-              <Check size={15} className="text-emerald-400" /> 언제든 해지
+              <Check size={15} className="text-emerald-500" /> 언제든 해지
             </span>
           </div>
 
           {/* dashboard preview */}
           <div className="relative mx-auto mt-16 max-w-4xl animate-fade-up delay-500">
-            <div className="glow overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)]">
+            <div className="glow overflow-hidden rounded-2xl border border-[var(--border)] bg-white">
               <div className="flex items-center gap-1.5 border-b border-[var(--border)] bg-[var(--panel-2)] px-4 py-3">
-                <span className="h-3 w-3 rounded-full bg-rose-400/70" />
-                <span className="h-3 w-3 rounded-full bg-amber-400/70" />
-                <span className="h-3 w-3 rounded-full bg-emerald-400/70" />
+                <span className="h-3 w-3 rounded-full bg-rose-400" />
+                <span className="h-3 w-3 rounded-full bg-amber-400" />
+                <span className="h-3 w-3 rounded-full bg-emerald-400" />
                 <span className="ml-3 text-xs text-[var(--text-dim)]">app.bivience.com/dashboard</span>
               </div>
               <div className="grid gap-3 p-5 sm:grid-cols-4">
@@ -152,7 +153,7 @@ export default function Home() {
                     <div
                       key={i}
                       className="flex-1 rounded-t brand-gradient"
-                      style={{ height: `${h * 0.6}px`, opacity: 0.4 + (i / 12) * 0.6 }}
+                      style={{ height: `${h * 0.6}px`, opacity: 0.45 + (i / 12) * 0.55 }}
                     />
                   ))}
                 </div>
@@ -162,8 +163,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ===== LOGOS / TRUST ===== */}
-      <section className="border-y border-[var(--border)] bg-[var(--bg-soft)] py-8">
+      {/* ===== TRUST ===== */}
+      <section className="border-y border-[var(--border)] bg-white py-8">
         <div className="mx-auto max-w-6xl px-5">
           <p className="text-center text-xs font-medium uppercase tracking-widest text-[var(--text-dim)]">
             메타 · 구글 · 네이버 · 유튜브 · 카카오 데이터 통합 연동
@@ -192,12 +193,12 @@ export default function Home() {
                 <Link
                   key={f.slug}
                   href={`/dashboard/${f.slug}`}
-                  className={`group card relative overflow-hidden p-7 transition-all duration-300 hover:-translate-y-1 hover:border-white/20 ${
+                  className={`group card hover-lift relative overflow-hidden p-7 ${
                     wide ? 'sm:col-span-2 lg:col-span-1' : ''
                   }`}
                 >
                   <div
-                    className="absolute -right-8 -top-8 h-28 w-28 rounded-full opacity-20 blur-2xl transition-opacity group-hover:opacity-40"
+                    className="absolute -right-8 -top-8 h-28 w-28 rounded-full opacity-15 blur-2xl transition-opacity group-hover:opacity-30"
                     style={{ background: f.accent }}
                   />
                   <div className="relative">
@@ -213,7 +214,7 @@ export default function Home() {
                       <h3 className="text-lg font-semibold">{f.title}</h3>
                     </div>
                     <p className="mt-2.5 text-sm leading-relaxed text-[var(--text-soft)]">{f.desc}</p>
-                    <div className="mt-5 flex items-center gap-1.5 text-sm font-semibold text-violet-400 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="mt-5 flex items-center gap-1.5 text-sm font-semibold text-violet-600 opacity-0 transition-opacity group-hover:opacity-100">
                       살펴보기 <ArrowRight size={15} />
                     </div>
                   </div>
@@ -225,7 +226,7 @@ export default function Home() {
       </section>
 
       {/* ===== HOW IT WORKS ===== */}
-      <section id="how" className="relative border-t border-[var(--border)] bg-[var(--bg-soft)] py-28">
+      <section id="how" className="relative border-t border-[var(--border)] bg-white py-28">
         <div className="mx-auto max-w-7xl px-5">
           <div className="mx-auto max-w-2xl text-center">
             <SectionTag>작동 방식</SectionTag>
@@ -251,8 +252,8 @@ export default function Home() {
             ].map((c) => {
               const Icon = c.icon
               return (
-                <div key={c.t} className="flex gap-4 rounded-2xl p-5">
-                  <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-400">
+                <div key={c.t} className="flex gap-4 rounded-2xl bg-[var(--bg)] p-5">
+                  <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-600">
                     <Icon size={20} />
                   </span>
                   <div>
@@ -283,8 +284,8 @@ export default function Home() {
                 key={p.name}
                 className={`relative flex flex-col rounded-2xl border p-8 ${
                   p.highlight
-                    ? 'border-violet-500/50 bg-gradient-to-b from-violet-500/10 to-transparent glow'
-                    : 'border-[var(--border)] bg-[var(--panel)]'
+                    ? 'border-violet-300 bg-gradient-to-b from-violet-50 to-white shadow-lg shadow-violet-200/50'
+                    : 'border-[var(--border)] bg-white shadow-sm'
                 }`}
               >
                 {p.highlight && (
@@ -301,7 +302,7 @@ export default function Home() {
                 <ul className="mt-6 flex-1 space-y-3">
                   {p.features.map((f) => (
                     <li key={f} className="flex items-start gap-2.5 text-sm">
-                      <Check size={17} className="mt-0.5 flex-shrink-0 text-violet-400" />
+                      <Check size={17} className="mt-0.5 flex-shrink-0 text-violet-600" />
                       <span className="text-[var(--text-soft)]">{f}</span>
                     </li>
                   ))}
@@ -321,20 +322,28 @@ export default function Home() {
 
       {/* ===== CTA ===== */}
       <section className="px-5 pb-28">
-        <div className="relative mx-auto max-w-5xl overflow-hidden rounded-3xl border border-violet-500/30 bg-gradient-to-br from-violet-600/20 via-[var(--panel)] to-indigo-600/10 px-8 py-16 text-center">
-          <div className="pointer-events-none absolute -top-20 left-1/2 h-64 w-96 -translate-x-1/2 rounded-full bg-violet-600/30 blur-[100px]" />
+        <div className="relative mx-auto max-w-5xl overflow-hidden rounded-3xl brand-gradient px-8 py-16 text-center shadow-xl shadow-violet-300/50">
+          <div className="pointer-events-none absolute -top-16 left-1/2 h-64 w-96 -translate-x-1/2 rounded-full bg-white/20 blur-[90px]" />
           <div className="relative">
-            <h2 className="text-balance text-4xl font-bold tracking-tight sm:text-5xl">
-              지금 바로 <span className="brand-text">바이전시</span>를 시작하세요
+            <h2 className="text-balance text-4xl font-bold tracking-tight text-white sm:text-5xl">
+              지금 바로 바이전시를 시작하세요
             </h2>
-            <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-[var(--text-soft)]">
+            <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-white/85">
               흩어진 마케팅 도구는 이제 그만. 하나의 플랫폼에서 수집하고 분석하고 성장하세요.
             </p>
             <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button href="/dashboard" size="lg">
+              <Button
+                href="/dashboard"
+                size="lg"
+                className="!bg-white !text-violet-700 !shadow-lg hover:!brightness-100 hover:!bg-violet-50"
+              >
                 무료로 시작하기 <ArrowRight size={18} />
               </Button>
-              <Button href="#pricing" variant="soft" size="lg">
+              <Button
+                href="#pricing"
+                size="lg"
+                className="!bg-white/15 !text-white !border !border-white/30 hover:!bg-white/25"
+              >
                 요금제 보기
               </Button>
             </div>

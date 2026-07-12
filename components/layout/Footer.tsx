@@ -4,7 +4,7 @@ import { FEATURES } from '@/lib/features'
 
 export function Footer() {
   return (
-    <footer className="border-t border-[var(--border)] bg-[var(--bg-soft)]">
+    <footer className="border-t border-[var(--border)] bg-white">
       <div className="mx-auto max-w-7xl px-5 py-14">
         <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr]">
           <div>
@@ -23,13 +23,13 @@ export function Footer() {
           </div>
 
           <div>
-            <h4 className="text-sm font-semibold text-white">기능</h4>
+            <h4 className="text-sm font-semibold text-[var(--text)]">기능</h4>
             <ul className="mt-4 space-y-2.5">
               {FEATURES.slice(0, 4).map((f) => (
                 <li key={f.slug}>
                   <Link
                     href={`/dashboard/${f.slug}`}
-                    className="text-sm text-[var(--text-soft)] transition-colors hover:text-white"
+                    className="text-sm text-[var(--text-soft)] transition-colors hover:text-violet-600"
                   >
                     {f.title}
                   </Link>
@@ -39,13 +39,13 @@ export function Footer() {
           </div>
 
           <div>
-            <h4 className="text-sm font-semibold text-white">더보기</h4>
+            <h4 className="text-sm font-semibold text-[var(--text)]">더보기</h4>
             <ul className="mt-4 space-y-2.5">
               {FEATURES.slice(4).map((f) => (
                 <li key={f.slug}>
                   <Link
                     href={`/dashboard/${f.slug}`}
-                    className="text-sm text-[var(--text-soft)] transition-colors hover:text-white"
+                    className="text-sm text-[var(--text-soft)] transition-colors hover:text-violet-600"
                   >
                     {f.title}
                   </Link>
