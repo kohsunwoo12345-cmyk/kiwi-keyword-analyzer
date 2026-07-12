@@ -1,3 +1,14 @@
 name = "wearesuperplace"
 compatibility_date = "2024-09-23"
 pages_build_output_dir = "out"
+
+# D1 데이터베이스 (인증/회원 DB) — 변수명 DB
+[[d1_databases]]
+binding = "DB"
+database_name = "bygency"
+database_id = "582b5cd9-65c5-4cd6-9243-d1fc5a8ce41c"
+
+# R2 버킷 (파일 저장) — 변수명 BUCKET
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "bygencyR2"
