@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  Mail,
   MessageSquare,
   Send,
   PenSquare,
@@ -79,6 +80,13 @@ export const NAV_CATEGORIES: NavCategory[] = [
     ],
   },
   {
+    id: 'email',
+    title: '이메일',
+    icon: Mail,
+    accent: '#0ea5e9',
+    items: [{ title: '이메일 발송', href: '/dashboard_USE17237_612/email', icon: Mail }],
+  },
+  {
     id: 'landing',
     title: '랜딩페이지 제작',
     icon: Palette,
@@ -148,5 +156,12 @@ export const NAV_CATEGORIES: NavCategory[] = [
       { title: '회의록', href: '/dashboard_USE17237_612/team/meeting-notes', icon: ClipboardList },
       { title: '메모', href: '/dashboard_USE17237_612/team/notes', icon: StickyNote },
     ],
+  },
+  {
+    id: 'report',
+    title: '통합 리포트',
+    icon: BarChart3,
+    accent: '#8b5cf6',
+    items: [{ title: '통합 리포트', href: '/dashboard_USE17237_612/report', icon: BarChart3 }],
   },
 ]

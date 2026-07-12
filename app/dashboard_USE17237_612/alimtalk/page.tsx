@@ -1,9 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { MessageCircle, LayoutTemplate, BarChart3, Check, Send } from 'lucide-react'
+import { MessageCircle, LayoutTemplate, BarChart3, Check, Send, Settings2, ChevronDown } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { StatCard, Panel, Button } from '@/components/ui'
+import { useAuth, sendAlimtalk } from '@/lib/auth'
 
 const inputCls =
   'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-amber-500'
@@ -60,17 +61,24 @@ function fillVars(body: string, vars: Record<string, string>) {
     .replace(/#\{매장명\}/g, vars.매장명 || '#{매장명}')
 }
 
+type Toast = { text: string; tone: 'emerald' | 'amber' | 'rose' }
+
 export default function AlimtalkSendPage() {
+  const { user, setUser } = useAuth()
   const [profile, setProfile] = useState(PROFILES[0])
   const [templateId, setTemplateId] = useState(TEMPLATES[0].id)
   const [targets, setTargets] = useState<string[]>(['VIP 고객'])
   const [directInput, setDirectInput] = useState('')
+  const [pfId, setPfId] = useState('')
+  const [solapiTemplateId, setSolapiTemplateId] = useState('')
+  const [showSettings, setShowSettings] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [vars, setVars] = useState<Record<string, string>>({
     이름: '김지연',
     예약일시: '2026-07-15 14:00',
     매장명: '바이전시 강남점',
   })
-  const [sent, setSent] = useState('')
+  const [toast, setToast] = useState<Toast | null>(null)
 
   const template = useMemo(
     () => TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0],
@@ -83,12 +91,44 @@ export default function AlimtalkSendPage() {
     setTargets((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]))
   }
 
-  const estimated =
-    targets.length * 1240 + (directInput.trim() ? directInput.split(/[\n,]/).filter((s) => s.trim()).length : 0)
+  const directNums = directInput.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
 
-  function send() {
-    setSent(`${profile} 발신프로필로 [${template.name}] 알림톡이 ${estimated.toLocaleString()}명에게 발송 예약되었습니다 ✓`)
-    setTimeout(() => setSent(''), 3200)
+  const estimated = targets.length * 1240 + directNums.length
+
+  function flash(t: Toast, ms = 4200) {
+    setToast(t)
+    setTimeout(() => setToast(null), ms)
+  }
+
+  async function send() {
+    const preview = fillVars(template.body, vars)
+
+    // 실제 발송 경로: "직접 입력"에 번호가 있으면 Solapi 알림톡 실발송
+    if (directNums.length > 0) {
+      setBusy(true)
+      const r = await sendAlimtalk({
+        to: directNums,
+        text: preview,
+        pfId: pfId.trim() || undefined,
+        templateId: solapiTemplateId.trim() || undefined,
+      })
+      setBusy(false)
+      if (typeof r.credits === 'number' && user) setUser({ ...user, credits: r.credits })
+      if (r.ok) {
+        flash({ text: `발송 완료 · 성공 ${r.sent ?? 0}/${r.total ?? directNums.length}건`, tone: 'emerald' })
+      } else if (r.configured === false) {
+        flash({ text: r.note || '알림톡(Solapi)이 설정되지 않아 발송되지 않았습니다 (크레딧 환불됨).', tone: 'amber' })
+      } else {
+        flash({ text: r.error || '알림톡 발송에 실패했습니다.', tone: 'rose' })
+      }
+      return
+    }
+
+    // 그룹 발송은 데모 (주소록 실번호 미보유). 실제 발송은 "직접 입력" 모드에서.
+    flash({
+      text: `${profile} 발신프로필로 [${template.name}] 알림톡이 ${estimated.toLocaleString()}명에게 발송 예약되었습니다 (그룹 발송은 데모 — 실제 발송은 "직접 입력"으로) ✓`,
+      tone: 'emerald',
+    })
   }
 
   const preview = fillVars(template.body, vars)
@@ -159,6 +199,48 @@ export default function AlimtalkSendPage() {
                   placeholder="직접 입력 (전화번호를 쉼표 또는 줄바꿈으로 구분)"
                   className={`mt-2 resize-none ${inputCls}`}
                 />
+                <p className="mt-1 text-[11px] text-emerald-600">
+                  직접 입력한 번호는 실제로 발송됩니다 (건당 1 크레딧, 실패분 자동 환불). 위 그룹 선택은 데모입니다.
+                </p>
+              </div>
+
+              {/* Solapi 알림톡 설정 (채널 pfId + 템플릿 templateId) */}
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)]">
+                <button
+                  type="button"
+                  onClick={() => setShowSettings((s) => !s)}
+                  className="flex w-full items-center justify-between px-3.5 py-2.5 text-xs font-medium text-[var(--text-soft)]"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Settings2 size={13} /> 알림톡 설정 (채널 · 템플릿 ID)
+                  </span>
+                  <ChevronDown size={14} className={`transition-transform ${showSettings ? 'rotate-180' : ''}`} />
+                </button>
+                {showSettings && (
+                  <div className="space-y-2 border-t border-[var(--border)] px-3.5 py-3">
+                    <div>
+                      <label className="mb-1 block text-[11px] text-[var(--text-dim)]">채널 pfId (발신 프로필)</label>
+                      <input
+                        value={pfId}
+                        onChange={(e) => setPfId(e.target.value)}
+                        placeholder="예: KA01PF..."
+                        className={inputCls}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] text-[var(--text-dim)]">템플릿 templateId</label>
+                      <input
+                        value={solapiTemplateId}
+                        onChange={(e) => setSolapiTemplateId(e.target.value)}
+                        placeholder="예: KA01TP..."
+                        className={inputCls}
+                      />
+                    </div>
+                    <p className="text-[11px] text-[var(--text-dim)]">
+                      Solapi 알림톡은 승인된 채널 pfId와 템플릿 templateId가 필요합니다. 비워두면 서버 기본값을 사용합니다.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -181,17 +263,34 @@ export default function AlimtalkSendPage() {
               </div>
 
               <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm">
-                <span className="text-[var(--text-soft)]">예상 발송 인원</span>
+                <span className="text-[var(--text-soft)]">
+                  예상 발송 인원
+                  {directNums.length > 0 && (
+                    <span className="ml-1 text-emerald-600">· 실발송 {directNums.length}건</span>
+                  )}
+                </span>
                 <span className="font-semibold text-amber-600">{estimated.toLocaleString()}명</span>
               </div>
 
-              <Button onClick={send} className="w-full !bg-gradient-to-br !from-amber-500 !to-orange-500">
-                <Send size={16} /> 알림톡 발송
+              <Button
+                onClick={send}
+                disabled={busy}
+                className="w-full !bg-gradient-to-br !from-amber-500 !to-orange-500"
+              >
+                <Send size={16} /> {busy ? '발송 중…' : '알림톡 발송'}
               </Button>
 
-              {sent && (
-                <div className="animate-fade-in rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2.5 text-sm text-emerald-700">
-                  {sent}
+              {toast && (
+                <div
+                  className={`animate-fade-in rounded-xl border px-3 py-2.5 text-sm ${
+                    toast.tone === 'emerald'
+                      ? 'border-emerald-200 bg-emerald-100 text-emerald-700'
+                      : toast.tone === 'amber'
+                        ? 'border-amber-200 bg-amber-100 text-amber-700'
+                        : 'border-rose-200 bg-rose-100 text-rose-700'
+                  }`}
+                >
+                  {toast.text}
                 </div>
               )}
             </div>

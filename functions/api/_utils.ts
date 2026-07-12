@@ -209,6 +209,18 @@ export async function ensureSchema(db: D1Database) {
       decided_at TEXT
     )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_creditreq_status ON credit_requests(status, created_at)`),
+    // 결제: Toss 크레딧 자동충전 주문
+    db.prepare(`CREATE TABLE IF NOT EXISTS credit_orders (
+      order_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      credits INTEGER NOT NULL,
+      amount INTEGER NOT NULL,
+      status TEXT DEFAULT 'pending',  -- pending | paid | failed
+      payment_key TEXT,
+      created_at TEXT NOT NULL,
+      paid_at TEXT
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_order_user ON credit_orders(user_id, created_at)`),
     // 보안: 허용 IP 화이트리스트
     db.prepare(`CREATE TABLE IF NOT EXISTS ip_whitelist (
       ip TEXT PRIMARY KEY,

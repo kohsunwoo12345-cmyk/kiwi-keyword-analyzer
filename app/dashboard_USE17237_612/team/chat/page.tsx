@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { MessageCircle, Send, Users } from 'lucide-react'
+import { MessageCircle, Send, Users, Sparkles } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
+import { aiGenerate } from '@/lib/auth'
 
 interface Msg {
   id: string
@@ -27,12 +28,15 @@ const MEMBERS = [
   { name: '정예린', role: '광고', status: 'offline' as const },
 ]
 
+const AI_NAME = 'AI 어시스턴트'
+
 const AVATAR_COLORS: Record<string, string> = {
   김지훈: 'from-violet-500 to-fuchsia-500',
   이수민: 'from-sky-500 to-blue-500',
   박현우: 'from-emerald-500 to-green-500',
   최민지: 'from-amber-500 to-orange-500',
   정예린: 'from-rose-500 to-pink-500',
+  [AI_NAME]: 'from-indigo-500 to-violet-500',
 }
 
 function avatarClass(name: string) {
@@ -88,7 +92,7 @@ function Avatar({ name, size = 36 }: { name: string; size?: number }) {
       className={`grid flex-shrink-0 place-items-center rounded-full bg-gradient-to-br ${avatarClass(name)} font-semibold text-white`}
       style={{ height: size, width: size, fontSize: size * 0.4 }}
     >
-      {name === '나' ? '나' : name[0]}
+      {name === AI_NAME ? <Sparkles size={size * 0.5} /> : name === '나' ? '나' : name[0]}
     </span>
   )
 }
@@ -97,31 +101,60 @@ export default function TeamChatPage() {
   const [active, setActive] = useState('general')
   const [store, setStore] = useState<Record<string, Msg[]>>(SEED)
   const [input, setInput] = useState('')
+  const [typing, setTyping] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
 
   const messages = store[active]
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, typing])
 
-  function send() {
-    if (!input.trim()) return
+  function appendMsg(ch: string, msg: Msg) {
+    setStore((prev) => ({ ...prev, [ch]: [...prev[ch], msg] }))
+  }
+
+  function rid(prefix: string) {
+    return prefix + Math.random().toString(36).slice(2, 7)
+  }
+
+  async function send() {
+    if (!input.trim() || typing) return
     const ch = active
     const text = input.trim()
-    setStore((prev) => ({
-      ...prev,
-      [ch]: [...prev[ch], { id: 'u' + Math.random().toString(36).slice(2, 7), author: '나', mine: true, text, time: now() }],
-    }))
+    appendMsg(ch, { id: rid('u'), author: '나', mine: true, text, time: now() })
     setInput('')
-    const pool = REPLIES[ch]
-    const reply = pool[Math.floor(Math.random() * pool.length)]
-    setTimeout(() => {
-      setStore((prev) => ({
-        ...prev,
-        [ch]: [...prev[ch], { id: 'r' + Math.random().toString(36).slice(2, 7), author: reply.author, mine: false, text: reply.text, time: now() }],
-      }))
-    }, 1100)
+
+    // 실제 OpenAI 응답 (크레딧 1개 차감/실패 시 환불)
+    setTyping(true)
+    let r: Awaited<ReturnType<typeof aiGenerate>>
+    try {
+      r = await aiGenerate({
+        prompt: text,
+        system: '당신은 BYGENCY의 마케팅 AI 어시스턴트입니다. 한국어로 간결하고 실용적인 마케팅 조언을 제공합니다.',
+        feature: 'AI 챗봇',
+        cost: 1,
+      })
+    } catch {
+      r = { ok: false, error: '네트워크 오류가 발생했습니다.' }
+    }
+    setTyping(false)
+
+    if (r.ok && r.text) {
+      appendMsg(ch, { id: rid('a'), author: AI_NAME, mine: false, text: r.text, time: now() })
+    } else {
+      // graceful fallback: 안내 + 기존 캔드 응답으로 대화 유지
+      const pool = REPLIES[ch]
+      const canned = pool[Math.floor(Math.random() * pool.length)]
+      const note = r.error ? `AI 응답을 불러오지 못했어요 (${r.error}).` : 'AI 응답을 불러오지 못했어요.'
+      appendMsg(ch, {
+        id: rid('a'),
+        author: AI_NAME,
+        mine: false,
+        text: `${note} ${canned.text}`,
+        time: now(),
+      })
+    }
   }
 
   const statusColor = { online: 'bg-emerald-500', away: 'bg-amber-500', offline: 'bg-slate-300' }
@@ -217,6 +250,23 @@ export default function TeamChatPage() {
                 </div>
               </div>
             ))}
+
+            {typing && (
+              <div className="flex gap-3">
+                <Avatar name={AI_NAME} />
+                <div className="flex flex-col">
+                  <div className="mb-1 flex items-center gap-2 text-xs">
+                    <span className="font-semibold">{AI_NAME}</span>
+                    <span className="text-[var(--text-dim)]">입력 중…</span>
+                  </div>
+                  <div className="flex items-center gap-1 rounded-2xl bg-[var(--panel-2)] px-3.5 py-3">
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--text-dim)] [animation-delay:-0.3s]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--text-dim)] [animation-delay:-0.15s]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--text-dim)]" />
+                  </div>
+                </div>
+              </div>
+            )}
             <div ref={endRef} />
           </div>
 
@@ -226,16 +276,21 @@ export default function TeamChatPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && send()}
+                disabled={typing}
                 placeholder={`#${CHANNELS.find((c) => c.id === active)?.name} 에 메시지 보내기...`}
-                className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500"
+                className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500 disabled:opacity-60"
               />
               <button
                 onClick={send}
-                className="grid place-items-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-500 px-4 text-white transition-all hover:brightness-105"
+                disabled={typing || !input.trim()}
+                className="grid place-items-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-500 px-4 text-white transition-all hover:brightness-105 disabled:opacity-60"
               >
                 <Send size={18} />
               </button>
             </div>
+            <p className="mt-2 flex items-center gap-1.5 pl-1 text-[11px] text-[var(--text-dim)]">
+              <Sparkles size={11} className="text-indigo-500" /> AI 어시스턴트 응답 · 1 크레딧/메시지 (실패 시 자동 환불)
+            </p>
           </div>
         </div>
       </div>

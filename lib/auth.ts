@@ -288,6 +288,33 @@ export async function aiGenerate(input: {
   return postJson('/api/ai/generate', input)
 }
 
+/* ───────── 실제 분석 (네이버 API) ───────── */
+export interface BlogAnalysis { ok: boolean; error?: string; refunded?: boolean; keyword?: string; total?: number; difficulty?: string; grade?: string; exposureChance?: number; items?: { title: string; link: string; blogger: string; postdate: string; desc: string }[]; credits?: number }
+export async function analyzeBlog(keyword: string): Promise<BlogAnalysis> {
+  return postJson('/api/analyze/blog', { keyword })
+}
+export interface PlaceAnalysis { ok: boolean; error?: string; refunded?: boolean; keyword?: string; total?: number; items?: { rank: number; title: string; category: string; address: string; telephone: string; link: string }[]; credits?: number }
+export async function analyzePlace(keyword: string): Promise<PlaceAnalysis> {
+  return postJson('/api/analyze/place', { keyword })
+}
+
+/* ───────── 결제 (Toss Payments) ───────── */
+export interface PrepareResult { ok: boolean; error?: string; orderId?: string; amount?: number; credits?: number; orderName?: string; clientKey?: string; customerEmail?: string; customerName?: string }
+export async function preparePayment(credits: number): Promise<PrepareResult> {
+  return postJson('/api/payments/prepare', { credits })
+}
+export async function confirmPayment(input: { paymentKey: string; orderId: string; amount: number }): Promise<{ ok: boolean; error?: string; credits?: number; user?: User }> {
+  return postJson('/api/payments/confirm', input)
+}
+
+/* ───────── 이메일 (Resend) / 알림톡 (Solapi Kakao) ───────── */
+export async function sendEmail(input: { to: string | string[]; subject: string; html: string }): Promise<{ ok: boolean; error?: string; sent?: number; credits?: number; refunded?: boolean }> {
+  return postJson('/api/email/send', input)
+}
+export async function sendAlimtalk(input: { to: string | string[]; text: string; pfId?: string; templateId?: string; variables?: Record<string, string> }): Promise<{ ok: boolean; error?: string; sent?: number; failed?: number; total?: number; configured?: boolean; note?: string; credits?: number }> {
+  return postJson('/api/alimtalk/send', input)
+}
+
 /** 실제 문자 발송 (Solapi). 건당 1 크레딧 차감, 실패분 자동 환불 */
 export async function sendSmsCampaign(to: string | string[], text: string): Promise<{
   ok: boolean; error?: string; sent?: number; failed?: number; total?: number

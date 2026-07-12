@@ -9,12 +9,15 @@ import {
   Plus,
   Trophy,
   Target,
+  Loader2,
+  ExternalLink,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { AreaTrend } from '@/components/dash/Charts'
 import { StatCard, Panel, Button, Badge } from '@/components/ui'
 import { useLocalStorage } from '@/lib/useLocalStorage'
-import { cn } from '@/lib/utils'
+import { cn, formatNumber } from '@/lib/utils'
+import { useAuth, analyzePlace, type PlaceAnalysis } from '@/lib/auth'
 
 interface PlaceRow {
   id: number
@@ -56,11 +59,49 @@ const rankTrend = [
   { name: '14일', 평균순위: 4.2 },
 ]
 
+// 네이버 응답 제목의 <b> 등 태그 제거
+function stripTags(s: string): string {
+  return (s || '').replace(/<[^>]*>/g, '').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+}
+
 export default function PlaceRankPage() {
+  const { user, setUser } = useAuth()
   const [rows, setRows] = useLocalStorage<PlaceRow[]>('bivience_place_keywords', SEED)
   const [keyword, setKeyword] = useState('')
   const [place, setPlace] = useState('')
   const [region, setRegion] = useState(REGIONS[0])
+
+  // 실제 네이버 플레이스 순위 조회
+  const [searchKw, setSearchKw] = useState('강남 피부과')
+  const [loading, setLoading] = useState(false)
+  const [real, setReal] = useState<PlaceAnalysis | null>(null)
+  const [note, setNote] = useState<string | null>(null)
+
+  async function runSearch() {
+    const kw = searchKw.trim()
+    if (!kw || loading) return
+    setLoading(true)
+    setNote(null)
+    try {
+      const r = await analyzePlace(kw)
+      if (r.ok) {
+        setReal(r)
+        if (typeof r.credits === 'number' && user) {
+          setUser({ ...user, credits: r.credits })
+        }
+      } else {
+        setReal(null)
+        setNote(
+          (r.error || '조회에 실패했습니다.') + (r.refunded ? ' (크레딧은 환불되었습니다)' : ''),
+        )
+      }
+    } catch {
+      setReal(null)
+      setNote('네트워크 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const add = () => {
     if (!keyword.trim() || !place.trim()) return
@@ -92,6 +133,106 @@ export default function PlaceRankPage() {
       />
 
       <div className="space-y-6 p-6 lg:p-8">
+        {/* 실제 네이버 플레이스 순위 조회 */}
+        <Panel title="네이버 플레이스 실시간 순위 조회">
+          <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-[var(--text-soft)]">키워드</label>
+              <input
+                value={searchKw}
+                onChange={(e) => setSearchKw(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') runSearch()
+                }}
+                placeholder="예) 강남 피부과"
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div className="flex flex-col items-stretch gap-1.5">
+              <span className="text-right text-xs text-[var(--text-dim)]">
+                보유 크레딧 {formatNumber(user?.credits ?? 0)}개
+              </span>
+              <Button
+                className="!bg-gradient-to-br !from-emerald-500 !to-green-500"
+                onClick={runSearch}
+                disabled={loading}
+              >
+                {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                순위 조회 · 1 크레딧
+              </Button>
+            </div>
+          </div>
+
+          {note && (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-700">
+              {note}
+            </div>
+          )}
+
+          {real?.ok && (
+            <div className="mt-5 space-y-3">
+              <p className="text-sm text-[var(--text-soft)]">
+                <span className="font-semibold text-[var(--text)]">&lsquo;{real.keyword}&rsquo;</span> 검색 결과 총{' '}
+                <span className="font-semibold text-emerald-600">{formatNumber(real.total ?? 0)}</span>건
+              </p>
+              <div className="-mx-2 overflow-x-auto">
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead>
+                    <tr className="border-b border-[var(--border)] text-left text-xs text-[var(--text-dim)]">
+                      <th className="px-3 py-2.5 font-medium">순위</th>
+                      <th className="px-3 py-2.5 font-medium">업체명</th>
+                      <th className="px-3 py-2.5 font-medium">카테고리</th>
+                      <th className="px-3 py-2.5 font-medium">주소</th>
+                      <th className="px-3 py-2.5 font-medium">전화</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(real.items ?? []).map((it, i) => (
+                      <tr
+                        key={`${it.rank}-${i}`}
+                        className="border-b border-[var(--border-soft)] hover:bg-slate-50"
+                      >
+                        <td className="px-3 py-3">
+                          <span
+                            className={cn(
+                              'grid h-7 w-7 place-items-center rounded-lg text-xs font-bold',
+                              it.rank <= 3
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-slate-100 text-[var(--text-soft)]',
+                            )}
+                          >
+                            {it.rank}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 font-medium">
+                          {it.link ? (
+                            <a
+                              href={it.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-emerald-700 hover:underline"
+                            >
+                              {stripTags(it.title)}
+                              <ExternalLink size={13} className="shrink-0 opacity-60" />
+                            </a>
+                          ) : (
+                            stripTags(it.title)
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-[var(--text-soft)]">{it.category || '-'}</td>
+                        <td className="px-3 py-3 text-[var(--text-soft)]">{it.address || '-'}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-[var(--text-dim)]">
+                          {it.telephone || '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </Panel>
+
         {/* 등록 폼 */}
         <Panel title="키워드 · 업체 등록">
           <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end">

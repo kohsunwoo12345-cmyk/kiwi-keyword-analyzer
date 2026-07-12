@@ -23,10 +23,27 @@ import {
   accountOverview,
   requestCredit,
   myCreditRequests,
+  preparePayment,
+  confirmPayment,
   CREDIT_PACKAGES,
   CREDIT_COSTS,
   type Tx,
 } from '@/lib/auth'
+
+/* ---------- Toss Payments SDK loader (static-export safe) ---------- */
+function loadTossSdk(): Promise<any> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined') return reject(new Error('no window'))
+    if ((window as any).TossPayments) return resolve((window as any).TossPayments)
+    const s = document.createElement('script')
+    s.src = 'https://js.tosspayments.com/v1/payment'
+    s.onload = () => resolve((window as any).TossPayments)
+    s.onerror = () => reject(new Error('Toss SDK 로드 실패'))
+    document.head.appendChild(s)
+  })
+}
+
+const CREDITS_PATH = '/dashboard_USE17237_612/credits'
 
 /* ---------- date helper ---------- */
 function pad(n: number) {
@@ -61,7 +78,7 @@ interface CreditReqRow {
 }
 
 export default function CreditsPage() {
-  const { user, ready } = useAuth()
+  const { user, ready, setUser } = useAuth()
 
   const [loading, setLoading] = useState(true)
   const [transactions, setTransactions] = useState<Tx[]>([])
@@ -74,6 +91,13 @@ export default function CreditsPage() {
   const [busy, setBusy] = useState(false)
   const [okMsg, setOkMsg] = useState(false)
   const [errMsg, setErrMsg] = useState<string | null>(null)
+
+  // card (Toss) real-time payment
+  const [cardBusy, setCardBusy] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [paySuccess, setPaySuccess] = useState<number | null>(null)
+  const [payInfo, setPayInfo] = useState<string | null>(null)
+  const [payErr, setPayErr] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -93,6 +117,40 @@ export default function CreditsPage() {
   }
   useEffect(() => {
     loadRequests()
+  }, [])
+
+  // Handle return from Toss (successUrl / failUrl append query params)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const paymentKey = params.get('paymentKey')
+    const orderId = params.get('orderId')
+    const amount = params.get('amount')
+
+    if (paymentKey && orderId && amount) {
+      setConfirming(true)
+      setPayErr(null)
+      setPayInfo(null)
+      confirmPayment({ paymentKey, orderId, amount: Number(amount) }).then((r) => {
+        setConfirming(false)
+        if (r.ok) {
+          setPaySuccess(r.credits ?? null)
+          if (r.user) setUser(r.user)
+          loadRequests()
+          accountOverview().then((d) => setTransactions(d.transactions))
+        } else {
+          setPayErr(r.error || '결제 승인에 실패했습니다.')
+        }
+        window.history.replaceState({}, '', CREDITS_PATH)
+      })
+      return
+    }
+
+    if (params.get('tossfail') === '1') {
+      setPayErr(params.get('message') || '카드 결제가 취소되었거나 실패했습니다.')
+      window.history.replaceState({}, '', CREDITS_PATH)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const inputCls =
@@ -140,6 +198,56 @@ export default function CreditsPage() {
       setTimeout(() => setOkMsg(false), 6000)
     } else {
       setErrMsg(r.error || '충전 신청에 실패했습니다.')
+    }
+  }
+
+  // 카드 즉시 충전 (Toss) — real-time payment
+  async function payWithCard() {
+    setPaySuccess(null)
+    setPayInfo(null)
+    setPayErr(null)
+    const { credits, price } = resolveSelection()
+    if (!credits || credits <= 0) {
+      setPayErr('충전할 크레딧 수량을 입력하세요.')
+      return
+    }
+    setCardBusy(true)
+    const p = await preparePayment(credits)
+    if (!p.ok) {
+      setCardBusy(false)
+      setPayErr(p.error || '결제 준비에 실패했습니다.')
+      return
+    }
+
+    // No client key configured → gracefully fall back to approval flow
+    if (!p.clientKey) {
+      const r = await requestCredit(credits, price || undefined)
+      setCardBusy(false)
+      if (r.ok) {
+        setPayInfo('카드 결제가 아직 설정되지 않았습니다. 승인 충전으로 진행합니다.')
+        loadRequests()
+      } else {
+        setPayErr(r.error || '충전 신청에 실패했습니다.')
+      }
+      return
+    }
+
+    // Real Toss card payment → redirects to Toss checkout
+    try {
+      const TossPayments = await loadTossSdk()
+      const toss = TossPayments(p.clientKey)
+      await toss.requestPayment('카드', {
+        amount: p.amount,
+        orderId: p.orderId,
+        orderName: p.orderName,
+        customerName: p.customerName,
+        customerEmail: p.customerEmail,
+        successUrl: window.location.origin + CREDITS_PATH + '?tosssuccess=1',
+        failUrl: window.location.origin + CREDITS_PATH + '?tossfail=1',
+      })
+    } catch (e: any) {
+      setCardBusy(false)
+      setPayErr(e?.message || '카드 결제를 시작할 수 없습니다.')
     }
   }
 
@@ -291,14 +399,85 @@ export default function CreditsPage() {
               </div>
             )}
 
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-[var(--text-dim)]">
-                한 번에 하나의 충전 신청만 대기할 수 있습니다.
-              </p>
-              <Button onClick={submitCharge} disabled={busy}>
-                <Sparkles size={16} /> {busy ? '신청 중...' : '충전 신청'}
-              </Button>
+            {/* 결제 방식 선택: 즉시 카드결제 vs 승인 충전 */}
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {/* 카드로 즉시 충전 (Toss) */}
+              <div className="flex flex-col rounded-2xl border border-amber-300 bg-amber-50/50 p-4">
+                <div className="flex items-start gap-3">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-amber-500 text-white">
+                    <Zap size={17} />
+                  </span>
+                  <div>
+                    <p className="flex items-center gap-1.5 text-sm font-semibold">
+                      카드로 즉시 충전
+                      <span className="rounded-full border border-amber-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-amber-600">
+                        Toss
+                      </span>
+                    </p>
+                    <p className="mt-0.5 text-xs text-[var(--text-dim)]">
+                      카드로 결제하면 즉시 크레딧이 지급됩니다.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={payWithCard}
+                  disabled={cardBusy || confirming}
+                  className="mt-3 w-full justify-center"
+                >
+                  <CreditCard size={16} />{' '}
+                  {cardBusy ? '결제창 여는 중...' : confirming ? '결제 확인 중...' : '카드로 결제하기'}
+                </Button>
+              </div>
+
+              {/* 충전 신청 (관리자 승인) */}
+              <div className="flex flex-col rounded-2xl border border-[var(--border)] p-4">
+                <div className="flex items-start gap-3">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-500">
+                    <Clock size={17} />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold">충전 신청 (관리자 승인)</p>
+                    <p className="mt-0.5 text-xs text-[var(--text-dim)]">
+                      신청 후 관리자가 승인하면 크레딧이 지급됩니다.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={submitCharge}
+                  disabled={busy}
+                  variant="outline"
+                  className="mt-3 w-full justify-center"
+                >
+                  <Sparkles size={16} /> {busy ? '신청 중...' : '충전 신청'}
+                </Button>
+              </div>
             </div>
+
+            {/* 카드 결제(Toss) 피드백 */}
+            {confirming && (
+              <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
+                <Clock size={15} /> 결제를 확인하는 중입니다...
+              </div>
+            )}
+            {paySuccess !== null && (
+              <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2.5 text-sm font-semibold text-emerald-700">
+                <Check size={15} /> {ko(paySuccess)} 크레딧이 충전되었습니다.
+              </div>
+            )}
+            {payInfo && (
+              <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
+                <AlertCircle size={15} /> {payInfo}
+              </div>
+            )}
+            {payErr && (
+              <div className="mt-4 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
+                <AlertCircle size={15} /> {payErr}
+              </div>
+            )}
+
+            <p className="mt-4 text-xs text-[var(--text-dim)]">
+              한 번에 하나의 충전 신청만 대기할 수 있습니다. 카드 결제는 승인 없이 즉시 처리됩니다.
+            </p>
           </Panel>
         </Reveal>
 
