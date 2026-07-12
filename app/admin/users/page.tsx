@@ -19,11 +19,29 @@ import {
   MessageSquare,
   LayoutTemplate,
   LogIn,
+  Coins,
+  CreditCard,
+  KeyRound,
+  Send,
+  Bell,
+  Receipt,
+  RefreshCw,
+  Phone,
+  Mail,
+  Building2,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { StatCard, Panel, Badge, Button } from '@/components/ui'
 import { Reveal } from '@/components/motion'
-import { adminUsers, adminAction, type User } from '@/lib/auth'
+import {
+  adminUsers,
+  adminAction,
+  adminUserDetail,
+  type User,
+  type Tx,
+  type Noti,
+  type ActivityRow,
+} from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 const ACCENT = '#7c3aed'
@@ -74,6 +92,22 @@ function planBadgeClass(plan: User['plan']) {
     ? 'border-violet-200 bg-violet-50 text-violet-700'
     : 'border-slate-200 bg-slate-50 text-slate-600'
 }
+function fmtNum(n: number) {
+  return n.toLocaleString('ko-KR')
+}
+function txKindLabel(kind: Tx['kind']) {
+  return kind === 'point' ? '포인트' : kind === 'credit' ? '크레딧' : '구매'
+}
+function txKindBadgeClass(kind: Tx['kind']) {
+  return kind === 'point'
+    ? 'border-violet-200 bg-violet-50 text-violet-700'
+    : kind === 'credit'
+    ? 'border-sky-200 bg-sky-50 text-sky-700'
+    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+}
+
+const INPUT_CLS =
+  'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2 text-sm outline-none focus:border-violet-500'
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -92,6 +126,163 @@ export default function AdminUsersPage() {
   useEffect(() => {
     reload()
   }, [])
+
+  // ---- 드로어 상세 (실데이터) ----
+  type Detail = { activity: ActivityRow[]; transactions: Tx[]; notifications: Noti[] }
+  const [detail, setDetail] = useState<Detail | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
+
+  // 관리 폼 상태
+  const [amount, setAmount] = useState('')
+  const [memo, setMemo] = useState('')
+  const [planSel, setPlanSel] = useState<User['plan']>('Starter')
+  const [newPw, setNewPw] = useState('')
+  const [notifyTitle, setNotifyTitle] = useState('')
+  const [notifyBody, setNotifyBody] = useState('')
+  const [notifySms, setNotifySms] = useState(false)
+  const [notifyPhone, setNotifyPhone] = useState('')
+
+  function showToast(msg: string, kind: 'ok' | 'err' = 'ok') {
+    setToast({ msg, kind })
+  }
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 3400)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  function applyDetail(d: Awaited<ReturnType<typeof adminUserDetail>>) {
+    if (!d.ok) return
+    setDetail({ activity: d.activity, transactions: d.transactions, notifications: d.notifications })
+    if (d.user) {
+      const fresh = d.user
+      setUsers((prev) => prev.map((u) => (u.id === fresh.id ? fresh : u)))
+    }
+  }
+  function reloadDetail() {
+    if (!drawerId) return
+    setDetailLoading(true)
+    adminUserDetail(drawerId).then((d) => {
+      applyDetail(d)
+      setDetailLoading(false)
+    })
+  }
+
+  // 드로어 열릴 때 상세 로드 + 폼 초기화
+  useEffect(() => {
+    if (!drawerId) {
+      setDetail(null)
+      return
+    }
+    setDetail(null)
+    setDetailLoading(true)
+    adminUserDetail(drawerId).then((d) => {
+      applyDetail(d)
+      setDetailLoading(false)
+    })
+    const cur = users.find((u) => u.id === drawerId)
+    setAmount('')
+    setMemo('')
+    setNewPw('')
+    setNotifyTitle('')
+    setNotifyBody('')
+    setNotifySms(false)
+    setPlanSel(cur?.plan ?? 'Starter')
+    setNotifyPhone(cur?.phone ?? '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawerId])
+
+  async function runAction(
+    fn: () => Promise<{ ok: boolean; error?: string }>,
+    okMsg: string,
+    onOk?: () => void,
+  ) {
+    setBusy(true)
+    const r = await fn()
+    setBusy(false)
+    if (r.ok) {
+      showToast(okMsg, 'ok')
+      onOk?.()
+      reloadDetail()
+      reload()
+    } else {
+      showToast(r.error || '처리 중 오류가 발생했습니다.', 'err')
+    }
+    return r
+  }
+
+  function submitTx(kind: 'points' | 'credits') {
+    if (!drawerId) return
+    const amt = Number(amount)
+    if (!amount.trim() || Number.isNaN(amt) || amt === 0) {
+      showToast('0이 아닌 금액을 입력하세요.', 'err')
+      return
+    }
+    const unit = kind === 'points' ? '포인트' : '크레딧'
+    runAction(
+      () => adminAction(kind, drawerId, { amount: amt, memo: memo.trim() || undefined }),
+      `${fmtNum(Math.abs(amt))}${kind === 'points' ? 'P' : '개'} ${unit} ${amt > 0 ? '지급' : '차감'} 완료`,
+      () => {
+        setAmount('')
+        setMemo('')
+      },
+    )
+  }
+  function submitPlan() {
+    if (!drawerId) return
+    runAction(() => adminAction('plan', drawerId, { plan: planSel }), `플랜이 ${planSel}(으)로 변경되었습니다`)
+  }
+  function submitPassword() {
+    if (!drawerId) return
+    if (newPw.length < 8) {
+      showToast('비밀번호는 8자 이상이어야 합니다.', 'err')
+      return
+    }
+    runAction(() => adminAction('password', drawerId, { password: newPw }), '비밀번호가 변경되었습니다', () =>
+      setNewPw(''),
+    )
+  }
+  function submitNotify() {
+    if (!drawerId) return
+    if (!notifyBody.trim()) {
+      showToast('발송할 내용을 입력하세요.', 'err')
+      return
+    }
+    if (notifySms && !notifyPhone.trim()) {
+      showToast('문자 발송할 전화번호를 입력하세요.', 'err')
+      return
+    }
+    setBusy(true)
+    adminAction('notify', drawerId, {
+      title: notifyTitle.trim() || undefined,
+      body: notifyBody.trim(),
+      sms: notifySms,
+      phone: notifyPhone.trim() || undefined,
+    }).then((r) => {
+      setBusy(false)
+      if (r.ok) {
+        let msg = '대시보드 알림이 저장되었습니다.'
+        if (notifySms) {
+          msg += r.sms?.sent ? ' 문자 발송됨.' : ` 문자 미발송${r.sms?.reason ? ': ' + r.sms.reason : ''}.`
+        }
+        showToast(msg, 'ok')
+        setNotifyTitle('')
+        setNotifyBody('')
+        reloadDetail()
+        reload()
+      } else {
+        showToast(r.error || '발송에 실패했습니다.', 'err')
+      }
+    })
+  }
+  function confirmRemove(id: string) {
+    if (typeof window !== 'undefined' && !window.confirm('정말 이 회원을 강제 탈퇴시키겠습니까? 되돌릴 수 없습니다.'))
+      return
+    removeUser(id)
+    showToast('회원이 탈퇴 처리되었습니다.', 'ok')
+  }
 
   const online = users.filter((u) => watchOf(u).online && u.status === 'active')
   const newToday = users.filter((u) => fmtDate(u.createdAt) === TODAY)

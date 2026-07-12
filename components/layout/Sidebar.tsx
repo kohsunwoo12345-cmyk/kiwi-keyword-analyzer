@@ -204,7 +204,10 @@ function UserFooter() {
           <Shield size={15} /> 관리자 콘솔
         </Link>
       )}
-      <div className="card-2 flex items-center gap-3 p-3">
+      <Link
+        href="/dashboard/profile"
+        className="card-2 flex items-center gap-3 p-3 transition-all hover:border-violet-300 hover:bg-violet-50/50"
+      >
         <span className="grid h-9 w-9 place-items-center rounded-full brand-gradient text-sm font-bold text-white">
           {name[0]}
         </span>
@@ -212,7 +215,7 @@ function UserFooter() {
           <p className="truncate text-sm font-semibold">{name}님</p>
           <p className="truncate text-xs text-[var(--text-dim)]">{sub}</p>
         </div>
-      </div>
+      </Link>
       <button
         onClick={async () => {
           await logout()

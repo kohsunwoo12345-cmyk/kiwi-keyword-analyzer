@@ -8,6 +8,9 @@ import {
   publicUser,
   ADMIN_EMAIL,
   resolveDB,
+  logActivity,
+  applyBalance,
+  addNotification,
 } from './_utils'
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -35,13 +38,19 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   await db
     .prepare(
-      `INSERT INTO users (id, name, email, password_hash, company, plan, role, status, created_at, last_active)
-       VALUES (?, ?, ?, ?, ?, 'Starter', ?, 'active', ?, ?)`,
+      `INSERT INTO users (id, name, email, password_hash, company, plan, role, status, points, credits, created_at, last_active)
+       VALUES (?, ?, ?, ?, ?, 'Starter', ?, 'active', 0, 0, ?, ?)`,
     )
     .bind(id, name, email, ph, company, role, now, now)
     .run()
 
+  await logActivity(db, id, 'signup', '회원 가입')
+  // 웰컴 보너스
+  await applyBalance(db, id, 'point', 1000, '가입 축하 포인트')
+  await applyBalance(db, id, 'credit', 10, '가입 축하 크레딧')
+  await addNotification(db, id, 'BYGENCY에 오신 것을 환영합니다 🎉', '가입 축하 포인트 1,000P와 크레딧 10개가 지급되었어요. 지금 바로 시작해보세요!')
+
   const token = await createSession(db, id)
-  const user = publicUser({ id, name, email, company, plan: 'Starter', role, status: 'active', created_at: now, last_active: now })
-  return json({ ok: true, user }, 200, { 'Set-Cookie': sessionCookie(token) })
+  const fresh: any = await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first()
+  return json({ ok: true, user: publicUser(fresh) }, 200, { 'Set-Cookie': sessionCookie(token) })
 }

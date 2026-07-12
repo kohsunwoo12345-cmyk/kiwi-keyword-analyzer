@@ -89,7 +89,7 @@ export function json(data: unknown, status = 200, headers: Record<string, string
   })
 }
 
-/** users/sessions 테이블이 없으면 생성 (최초 요청 시 자동 부트스트랩) */
+/** 스키마 자동 부트스트랩 (users/sessions/transactions/activity_log/notifications) */
 export async function ensureSchema(db: D1Database) {
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS users (
@@ -98,9 +98,12 @@ export async function ensureSchema(db: D1Database) {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       company TEXT,
+      phone TEXT,
       plan TEXT DEFAULT 'Starter',
       role TEXT DEFAULT 'user',
       status TEXT DEFAULT 'active',
+      points INTEGER DEFAULT 0,
+      credits INTEGER DEFAULT 0,
       created_at TEXT NOT NULL,
       last_active TEXT
     )`),
@@ -111,7 +114,95 @@ export async function ensureSchema(db: D1Database) {
       expires_at TEXT NOT NULL
     )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`),
+    // 거래(포인트·크레딧·구매) 내역
+    db.prepare(`CREATE TABLE IF NOT EXISTS transactions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      kind TEXT NOT NULL,        -- point | credit | purchase
+      amount INTEGER NOT NULL,   -- 양수=지급/충전, 음수=차감
+      balance_after INTEGER,
+      memo TEXT,
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_tx_user ON transactions(user_id, created_at)`),
+    // 활동 로그
+    db.prepare(`CREATE TABLE IF NOT EXISTS activity_log (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      type TEXT NOT NULL,        -- login | password | plan | point | credit | notify | signup | page
+      detail TEXT,
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_act_user ON activity_log(user_id, created_at)`),
+    // 알림 (사용자 대시보드)
+    db.prepare(`CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT,
+      body TEXT,
+      read INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_noti_user ON notifications(user_id, created_at)`),
   ])
+  // 기존 users 테이블에 신규 컬럼 보강 (누락된 것만 추가)
+  try {
+    const info = await db.prepare('PRAGMA table_info(users)').all()
+    const cols = new Set((info.results || []).map((r: any) => r.name))
+    const need: Record<string, string> = {
+      phone: 'phone TEXT',
+      points: 'points INTEGER DEFAULT 0',
+      credits: 'credits INTEGER DEFAULT 0',
+    }
+    for (const [name, ddl] of Object.entries(need)) {
+      if (!cols.has(name)) {
+        await db.prepare(`ALTER TABLE users ADD COLUMN ${ddl}`).run().catch(() => {})
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 활동 로그 기록 */
+export async function logActivity(db: D1Database, userId: string, type: string, detail = '') {
+  try {
+    await db
+      .prepare(`INSERT INTO activity_log (id, user_id, type, detail, created_at) VALUES (?, ?, ?, ?, ?)`)
+      .bind('a_' + crypto.randomUUID().slice(0, 16), userId, type, detail, new Date().toISOString())
+      .run()
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 포인트/크레딧 지급·차감 + 거래내역 + 로그 (kind: point|credit|purchase) */
+export async function applyBalance(
+  db: D1Database,
+  userId: string,
+  kind: 'point' | 'credit' | 'purchase',
+  amount: number,
+  memo = '',
+) {
+  const col = kind === 'credit' ? 'credits' : 'points' // purchase 는 포인트 사용으로 기록
+  const row: any = await db.prepare(`SELECT ${col} AS bal FROM users WHERE id = ?`).bind(userId).first()
+  if (!row) return { ok: false, error: '사용자를 찾을 수 없습니다.' }
+  const balanceAfter = (row.bal || 0) + amount
+  await db.prepare(`UPDATE users SET ${col} = ? WHERE id = ?`).bind(balanceAfter, userId).run()
+  await db
+    .prepare(`INSERT INTO transactions (id, user_id, kind, amount, balance_after, memo, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    .bind('t_' + crypto.randomUUID().slice(0, 16), userId, kind, amount, balanceAfter, memo, new Date().toISOString())
+    .run()
+  await logActivity(db, userId, kind, `${amount > 0 ? '+' : ''}${amount} ${kind}${memo ? ' · ' + memo : ''}`)
+  return { ok: true, balanceAfter }
+}
+
+/** 알림 생성 */
+export async function addNotification(db: D1Database, userId: string, title: string, body: string) {
+  await db
+    .prepare(`INSERT INTO notifications (id, user_id, title, body, read, created_at) VALUES (?, ?, ?, ?, 0, ?)`)
+    .bind('n_' + crypto.randomUUID().slice(0, 16), userId, title, body, new Date().toISOString())
+    .run()
 }
 
 const enc = new TextEncoder()
@@ -173,9 +264,12 @@ export function publicUser(u: any) {
     name: u.name,
     email: u.email,
     company: u.company || '',
+    phone: u.phone || '',
     plan: u.plan || 'Starter',
     role: isAdmin ? 'admin' : 'user',
     status: u.status || 'active',
+    points: u.points || 0,
+    credits: u.credits || 0,
     createdAt: u.created_at,
     lastActive: u.last_active,
   }

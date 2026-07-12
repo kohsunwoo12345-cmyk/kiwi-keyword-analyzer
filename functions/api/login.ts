@@ -11,6 +11,7 @@ import {
   ADMIN_EMAIL,
   adminPassword,
   resolveDB,
+  logActivity,
 } from './_utils'
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -46,6 +47,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
     const fresh: any = await db.prepare('SELECT * FROM users WHERE email = ?').bind(email).first()
     const token = await createSession(db, fresh.id)
+    await logActivity(db, fresh.id, 'login', '관리자 로그인')
     return json({ ok: true, user: publicUser(fresh) }, 200, { 'Set-Cookie': sessionCookie(token) })
   }
 
@@ -58,5 +60,6 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   await db.prepare('UPDATE users SET last_active = ? WHERE id = ?').bind(now, row.id).run()
   const token = await createSession(db, row.id)
+  await logActivity(db, row.id, 'login', '로그인')
   return json({ ok: true, user: publicUser(row) }, 200, { 'Set-Cookie': sessionCookie(token) })
 }

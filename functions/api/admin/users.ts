@@ -1,4 +1,18 @@
-import { Env, json, ensureSchema, seedAdmin, getSessionUser, publicUser, ADMIN_EMAIL, resolveDB } from '../_utils'
+import {
+  Env,
+  json,
+  ensureSchema,
+  seedAdmin,
+  getSessionUser,
+  publicUser,
+  ADMIN_EMAIL,
+  resolveDB,
+  hashPassword,
+  logActivity,
+  applyBalance,
+  addNotification,
+} from '../_utils'
+import { sendSms } from '../_solapi'
 
 async function requireAdmin(request: Request, db: D1Database) {
   const me: any = await getSessionUser(request, db)
@@ -50,14 +64,49 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   if (action === 'suspend') {
     await db.prepare("UPDATE users SET status = 'suspended' WHERE id = ?").bind(id).run()
+    await logActivity(db, id, 'status', '관리자에 의해 계정 정지')
   } else if (action === 'activate') {
     await db.prepare("UPDATE users SET status = 'active' WHERE id = ?").bind(id).run()
+    await logActivity(db, id, 'status', '관리자에 의해 정지 해제')
   } else if (action === 'delete') {
-    await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id).run()
-    await db.prepare('DELETE FROM users WHERE id = ?').bind(id).run()
+    await db.batch([
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
+      db.prepare('DELETE FROM transactions WHERE user_id = ?').bind(id),
+      db.prepare('DELETE FROM activity_log WHERE user_id = ?').bind(id),
+      db.prepare('DELETE FROM notifications WHERE user_id = ?').bind(id),
+      db.prepare('DELETE FROM users WHERE id = ?').bind(id),
+    ])
   } else if (action === 'plan') {
     const plan = ['Starter', 'Pro', 'Business'].includes(body.plan) ? body.plan : 'Starter'
     await db.prepare('UPDATE users SET plan = ? WHERE id = ?').bind(plan, id).run()
+    await logActivity(db, id, 'plan', `플랜 변경 → ${plan}`)
+  } else if (action === 'password') {
+    const pw = String(body.password || '')
+    if (pw.length < 8) return json({ ok: false, error: '비밀번호는 8자 이상이어야 합니다.' }, 400)
+    const ph = await hashPassword(pw)
+    await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(ph, id).run()
+    await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id).run() // 기존 세션 만료
+    await logActivity(db, id, 'password', '관리자에 의해 비밀번호 변경')
+  } else if (action === 'points' || action === 'credits') {
+    const amount = Math.round(Number(body.amount || 0))
+    if (!amount) return json({ ok: false, error: '금액을 입력하세요.' }, 400)
+    const kind = action === 'credits' ? 'credit' : 'point'
+    const r = await applyBalance(db, id, kind, amount, String(body.memo || '관리자 지급'))
+    if (!r.ok) return json(r, 400)
+  } else if (action === 'notify') {
+    const title = String(body.title || 'BYGENCY 안내')
+    const bodyText = String(body.body || '')
+    if (!bodyText) return json({ ok: false, error: '내용을 입력하세요.' }, 400)
+    await addNotification(db, id, title, bodyText)
+    await logActivity(db, id, 'notify', `알림 발송: ${title}`)
+    // 문자(Solapi) 병행 발송: phone + Solapi 환경변수 있을 때
+    let sms: any = { sent: false }
+    if (body.sms) {
+      const target: any = await db.prepare('SELECT phone FROM users WHERE id = ?').bind(id).first()
+      const phone = String(body.phone || target?.phone || '').replace(/[^0-9]/g, '')
+      sms = await sendSms(env, phone, `[BYGENCY] ${bodyText}`)
+    }
+    return json({ ok: true, sms })
   } else {
     return json({ ok: false, error: '알 수 없는 작업입니다.' }, 400)
   }
