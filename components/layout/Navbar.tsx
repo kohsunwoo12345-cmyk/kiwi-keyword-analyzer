@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { Sparkles, Menu, X } from 'lucide-react'
+import { Menu, X, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui'
+import { Logo } from '@/components/Brand'
 import { cn } from '@/lib/utils'
 
 const NAV = [
@@ -26,39 +27,34 @@ export function Navbar() {
   return (
     <header
       className={cn(
-        'fixed top-0 inset-x-0 z-50 transition-all duration-300',
+        'fixed top-0 inset-x-0 z-50 transition-all duration-500',
         scrolled ? 'glass border-b border-[var(--border)] shadow-sm' : 'bg-transparent',
       )}
     >
       <div className="mx-auto max-w-7xl px-5">
         <div className="flex h-16 items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
-            <span className="grid h-9 w-9 place-items-center rounded-xl brand-gradient shadow-lg shadow-violet-500/30">
-              <Sparkles size={18} className="text-white" />
-            </span>
-            <span className="text-lg font-bold tracking-tight">
-              바이<span className="brand-text">전시</span>
-            </span>
-          </Link>
+          <Logo size={32} className="transition-transform duration-300 hover:scale-[1.03]" />
 
           <nav className="hidden items-center gap-1 md:flex">
             {NAV.map((n) => (
               <Link
                 key={n.href}
                 href={n.href}
-                className="rounded-lg px-3.5 py-2 text-sm font-medium text-[var(--text-soft)] transition-colors hover:text-[var(--text)]"
+                className="group relative rounded-lg px-3.5 py-2 text-sm font-medium text-[var(--text-soft)] transition-colors hover:text-[var(--text)]"
               >
                 {n.label}
+                <span className="absolute inset-x-3.5 -bottom-0.5 h-0.5 origin-left scale-x-0 rounded-full brand-gradient transition-transform duration-300 group-hover:scale-x-100" />
               </Link>
             ))}
           </nav>
 
           <div className="hidden items-center gap-2 md:flex">
-            <Button href="/dashboard" variant="ghost" size="sm">
+            <Button href="/login" variant="ghost" size="sm">
               로그인
             </Button>
-            <Button href="/dashboard" size="sm">
+            <Button href="/signup" size="sm" className="group">
               무료로 시작하기
+              <ArrowRight size={15} className="transition-transform duration-300 group-hover:translate-x-0.5" />
             </Button>
           </div>
 
@@ -85,9 +81,14 @@ export function Navbar() {
                 {n.label}
               </Link>
             ))}
-            <Button href="/dashboard" className="mt-2 w-full">
-              무료로 시작하기
-            </Button>
+            <div className="flex gap-2 pt-2">
+              <Button href="/login" variant="outline" className="flex-1">
+                로그인
+              </Button>
+              <Button href="/signup" className="flex-1">
+                시작하기
+              </Button>
+            </div>
           </div>
         </div>
       )}

@@ -3,8 +3,11 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
-import { Sparkles, Menu, X, ChevronDown, LogOut } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Menu, X, ChevronDown, LogOut, Shield } from 'lucide-react'
 import { NAV_HOME, NAV_CATEGORIES, type NavCategory } from '@/lib/nav'
+import { Logo } from '@/components/Brand'
+import { useAuth, logout } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 function useActiveCat(pathname: string | null) {
@@ -141,16 +144,7 @@ function CategoryBlock({
 }
 
 function Brand() {
-  return (
-    <Link href="/" className="flex items-center gap-2.5">
-      <span className="grid h-9 w-9 place-items-center rounded-xl brand-gradient shadow-lg shadow-violet-500/30">
-        <Sparkles size={18} className="text-white" />
-      </span>
-      <span className="text-lg font-bold tracking-tight">
-        바이<span className="brand-text">전시</span>
-      </span>
-    </Link>
-  )
+  return <Logo size={30} />
 }
 
 export function Sidebar() {
@@ -188,24 +182,46 @@ export function Sidebar() {
         <div className="flex-1 overflow-y-auto p-3 no-scrollbar">
           <SidebarBody />
         </div>
-        <div className="space-y-2 border-t border-[var(--border)] p-3">
-          <div className="card-2 flex items-center gap-3 p-3">
-            <span className="grid h-9 w-9 place-items-center rounded-full brand-gradient text-sm font-bold text-white">
-              마
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">마케터님</p>
-              <p className="truncate text-xs text-[var(--text-dim)]">MARKETER</p>
-            </div>
-          </div>
-          <Link
-            href="/"
-            className="flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-[var(--text-soft)] transition-colors hover:bg-slate-100 hover:text-[var(--text)]"
-          >
-            <LogOut size={15} /> 로그아웃
-          </Link>
-        </div>
+        <UserFooter />
       </aside>
     </>
+  )
+}
+
+function UserFooter() {
+  const router = useRouter()
+  const { user } = useAuth()
+  const name = user?.name || '마케터'
+  const sub = user?.role === 'admin' ? 'ADMIN' : (user?.plan ? `${user.plan} 플랜` : 'MARKETER')
+
+  return (
+    <div className="space-y-2 border-t border-[var(--border)] p-3">
+      {user?.role === 'admin' && (
+        <Link
+          href="/admin"
+          className="flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+        >
+          <Shield size={15} /> 관리자 콘솔
+        </Link>
+      )}
+      <div className="card-2 flex items-center gap-3 p-3">
+        <span className="grid h-9 w-9 place-items-center rounded-full brand-gradient text-sm font-bold text-white">
+          {name[0]}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">{name}님</p>
+          <p className="truncate text-xs text-[var(--text-dim)]">{sub}</p>
+        </div>
+      </div>
+      <button
+        onClick={() => {
+          logout()
+          router.push('/login')
+        }}
+        className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-[var(--text-soft)] transition-colors hover:bg-slate-100 hover:text-[var(--text)]"
+      >
+        <LogOut size={15} /> 로그아웃
+      </button>
+    </div>
   )
 }

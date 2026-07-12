@@ -1,0 +1,427 @@
+'use client'
+
+import { useMemo, useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import {
+  User as UserIcon,
+  Mail,
+  Building2,
+  Lock,
+  Eye,
+  EyeOff,
+  ArrowLeft,
+  ArrowRight,
+  AlertCircle,
+  Check,
+  Sparkles,
+  TrendingUp,
+  ShieldCheck,
+  Zap,
+} from 'lucide-react'
+import { Logo, LogoMark } from '@/components/Brand'
+import { Button } from '@/components/ui'
+import { Counter } from '@/components/motion'
+import { signup } from '@/lib/auth'
+
+const inputBase =
+  'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] pl-11 pr-3.5 py-3 text-sm outline-none transition-colors focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10 placeholder:text-[var(--text-dim)]'
+
+const BENEFITS = [
+  '랜딩페이지 노코드 빌더로 DB 자동 수집',
+  '유튜브·블로그·광고 성과 통합 분석 대시보드',
+  '문자·알림톡 CRM으로 재구매까지 자동화',
+  '카드 등록 없이 14일 무료 체험',
+]
+
+const PROMO_STATS = [
+  { to: 5200, suffix: '+', label: '활성 마케터' },
+  { to: 38, suffix: '%', label: '평균 전환율 상승' },
+  { to: 2.7, decimals: 1, suffix: 'x', label: 'ROAS 개선' },
+]
+
+function scorePassword(pw: string): number {
+  if (!pw) return 0
+  let s = 0
+  if (pw.length >= 8) s++
+  if (pw.length >= 12) s++
+  if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) s++
+  if (/\d/.test(pw)) s++
+  if (/[^A-Za-z0-9]/.test(pw)) s++
+  return Math.min(3, Math.ceil(s / 2)) // 0~3
+}
+
+const STRENGTH = [
+  { label: '', color: '' },
+  { label: '약함', color: 'bg-rose-500 text-rose-600' },
+  { label: '보통', color: 'bg-amber-500 text-amber-600' },
+  { label: '강함', color: 'bg-emerald-500 text-emerald-600' },
+]
+
+export default function SignupPage() {
+  const router = useRouter()
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [company, setCompany] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [agree, setAgree] = useState(false)
+  const [showPw, setShowPw] = useState(false)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [formError, setFormError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const strength = useMemo(() => scorePassword(password), [password])
+
+  function validate(): boolean {
+    const e: Record<string, string> = {}
+    if (!name.trim()) e.name = '이름을 입력해 주세요.'
+    if (!email.trim()) e.email = '이메일을 입력해 주세요.'
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+      e.email = '올바른 이메일 형식이 아닙니다.'
+    if (!password) e.password = '비밀번호를 입력해 주세요.'
+    else if (password.length < 8) e.password = '비밀번호는 8자 이상이어야 합니다.'
+    if (confirm !== password) e.confirm = '비밀번호가 일치하지 않습니다.'
+    if (!agree) e.agree = '약관에 동의해 주세요.'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
+
+  function onSubmit(ev: React.FormEvent) {
+    ev.preventDefault()
+    setFormError('')
+    if (!validate()) return
+    setLoading(true)
+    setTimeout(() => {
+      const res = signup({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+        company: company.trim() || undefined,
+      })
+      if (!res.ok || !res.user) {
+        setFormError(res.error || '회원가입에 실패했습니다.')
+        setLoading(false)
+        return
+      }
+      router.push('/dashboard')
+    }, 500)
+  }
+
+  return (
+    <main className="relative min-h-screen overflow-hidden bg-[var(--bg)]">
+      {/* ---- 배경 장식 ---- */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 grid-bg opacity-60" />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-44 -left-32 h-[30rem] w-[30rem] rounded-full bg-violet-400/25 blur-[120px] animate-drift"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -bottom-48 right-1/3 h-[32rem] w-[32rem] rounded-full bg-cyan-300/20 blur-[130px] animate-drift-slow"
+      />
+
+      {/* ---- 좌상단 홈으로 ---- */}
+      <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-5 py-5 sm:px-8">
+        <Logo size={30} />
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-white/70 px-3.5 py-2 text-sm font-medium text-[var(--text-soft)] backdrop-blur transition-colors hover:border-violet-300 hover:text-[var(--text)]"
+        >
+          <ArrowLeft size={15} />
+          홈으로
+        </Link>
+      </div>
+
+      <div className="relative z-[1] grid min-h-screen place-items-center px-5 py-24">
+        <div className="grid w-full max-w-5xl items-stretch gap-8 lg:grid-cols-2">
+          {/* ---- 좌: 브랜드 프로모 패널 (lg 이상) ---- */}
+          <aside className="relative hidden overflow-hidden rounded-3xl brand-gradient p-9 text-white lg:flex lg:flex-col">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -top-20 -right-16 h-72 w-72 rounded-full bg-white/15 blur-3xl animate-drift"
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -bottom-24 -left-10 h-72 w-72 rounded-full bg-cyan-200/20 blur-3xl animate-drift-slow"
+            />
+            <div className="relative flex h-full flex-col">
+              <div className="flex items-center gap-2.5">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/15 backdrop-blur">
+                  <LogoMark size={26} />
+                </span>
+                <span className="text-lg font-black tracking-[0.14em]">BYGENCY</span>
+              </div>
+
+              <div className="mt-10">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold backdrop-blur">
+                  <Sparkles size={13} />
+                  올인원 마케팅 플랫폼
+                </span>
+                <h2 className="mt-5 text-[1.7rem] font-bold leading-snug tracking-tight text-balance">
+                  DB 수집부터 분석·CRM까지,
+                  <br />한 곳에서 매출을 만듭니다.
+                </h2>
+                <p className="mt-3 text-sm leading-relaxed text-white/80">
+                  흩어진 마케팅 데이터를 하나로 모아 무엇이 매출을 만드는지 보여드려요. 지금 무료로
+                  시작하세요.
+                </p>
+              </div>
+
+              <ul className="mt-8 space-y-3">
+                {BENEFITS.map((b) => (
+                  <li key={b} className="flex items-start gap-2.5 text-sm text-white/90">
+                    <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/20">
+                      <Check size={13} />
+                    </span>
+                    {b}
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-auto grid grid-cols-3 gap-3 border-t border-white/15 pt-6">
+                {PROMO_STATS.map((s) => (
+                  <div key={s.label}>
+                    <div className="text-2xl font-bold tracking-tight">
+                      <Counter to={s.to} decimals={s.decimals ?? 0} suffix={s.suffix} />
+                    </div>
+                    <div className="mt-1 text-[11px] leading-tight text-white/70">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          {/* ---- 우: 회원가입 폼 ---- */}
+          <div className="animate-fade-up">
+            <div className="card px-7 py-8 shadow-[0_24px_70px_-24px_rgba(20,22,31,0.22)] sm:px-9">
+              <div className="lg:hidden">
+                <Logo size={32} href={null} />
+              </div>
+              <h1 className="mt-5 text-2xl font-bold tracking-tight lg:mt-0">무료로 시작하기</h1>
+              <p className="mt-2 text-sm text-[var(--text-soft)]">
+                14일 무료 체험, 카드 등록이 필요 없어요.
+              </p>
+
+              {formError && (
+                <div className="mt-6 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-600">
+                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                  <span>{formError}</span>
+                </div>
+              )}
+
+              <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
+                <Field
+                  id="name"
+                  label="이름"
+                  icon={UserIcon}
+                  value={name}
+                  onChange={setName}
+                  placeholder="홍길동"
+                  error={errors.name}
+                  autoComplete="name"
+                />
+                <Field
+                  id="email"
+                  label="이메일"
+                  icon={Mail}
+                  type="email"
+                  value={email}
+                  onChange={setEmail}
+                  placeholder="you@company.com"
+                  error={errors.email}
+                  autoComplete="email"
+                />
+                <Field
+                  id="company"
+                  label="회사명"
+                  optional
+                  icon={Building2}
+                  value={company}
+                  onChange={setCompany}
+                  placeholder="(주)바이전시"
+                  autoComplete="organization"
+                />
+
+                {/* 비밀번호 */}
+                <div>
+                  <label htmlFor="password" className="mb-1.5 block text-sm font-medium">
+                    비밀번호
+                  </label>
+                  <div className="relative">
+                    <Lock
+                      size={17}
+                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-dim)]"
+                    />
+                    <input
+                      id="password"
+                      type={showPw ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="8자 이상 입력"
+                      autoComplete="new-password"
+                      className={inputBase + ' pr-11'}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPw((v) => !v)}
+                      aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 표시'}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-[var(--text-dim)] transition-colors hover:bg-slate-100 hover:text-[var(--text-soft)]"
+                    >
+                      {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
+                  {/* 강도 표시 */}
+                  {password && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className="flex flex-1 gap-1.5">
+                        {[1, 2, 3].map((i) => (
+                          <span
+                            key={i}
+                            className={
+                              'h-1.5 flex-1 rounded-full transition-colors ' +
+                              (i <= strength ? STRENGTH[strength].color.split(' ')[0] : 'bg-slate-200')
+                            }
+                          />
+                        ))}
+                      </div>
+                      <span
+                        className={
+                          'text-xs font-semibold ' + STRENGTH[strength].color.split(' ')[1]
+                        }
+                      >
+                        {STRENGTH[strength].label}
+                      </span>
+                    </div>
+                  )}
+                  {errors.password && (
+                    <p className="mt-1.5 text-xs text-rose-600">{errors.password}</p>
+                  )}
+                </div>
+
+                {/* 비밀번호 확인 */}
+                <div>
+                  <label htmlFor="confirm" className="mb-1.5 block text-sm font-medium">
+                    비밀번호 확인
+                  </label>
+                  <div className="relative">
+                    <Lock
+                      size={17}
+                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-dim)]"
+                    />
+                    <input
+                      id="confirm"
+                      type={showPw ? 'text' : 'password'}
+                      value={confirm}
+                      onChange={(e) => setConfirm(e.target.value)}
+                      placeholder="비밀번호를 다시 입력"
+                      autoComplete="new-password"
+                      className={inputBase}
+                    />
+                    {confirm && confirm === password && (
+                      <Check
+                        size={17}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-emerald-500"
+                      />
+                    )}
+                  </div>
+                  {errors.confirm && (
+                    <p className="mt-1.5 text-xs text-rose-600">{errors.confirm}</p>
+                  )}
+                </div>
+
+                {/* 약관 동의 */}
+                <div>
+                  <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--text-soft)] select-none">
+                    <input
+                      type="checkbox"
+                      checked={agree}
+                      onChange={(e) => setAgree(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-[var(--border)] accent-violet-600"
+                    />
+                    <span>
+                      <Link href="/signup" className="font-medium text-violet-600 hover:text-violet-700">
+                        이용약관
+                      </Link>{' '}
+                      및{' '}
+                      <Link href="/signup" className="font-medium text-violet-600 hover:text-violet-700">
+                        개인정보 처리방침
+                      </Link>
+                      에 동의합니다. <span className="text-rose-500">(필수)</span>
+                    </span>
+                  </label>
+                  {errors.agree && <p className="mt-1.5 text-xs text-rose-600">{errors.agree}</p>}
+                </div>
+
+                <Button type="submit" size="lg" disabled={loading} className="mt-1 w-full">
+                  {loading ? '가입 중…' : '무료로 시작하기'}
+                  {!loading && <ArrowRight size={17} />}
+                </Button>
+              </form>
+            </div>
+
+            <p className="mt-6 text-center text-sm text-[var(--text-soft)]">
+              이미 계정이 있으신가요?{' '}
+              <Link
+                href="/login"
+                className="font-semibold text-violet-600 transition-colors hover:text-violet-700"
+              >
+                로그인
+              </Link>
+            </p>
+          </div>
+        </div>
+      </div>
+    </main>
+  )
+}
+
+/* ---------- 재사용 입력 필드 ---------- */
+function Field({
+  id,
+  label,
+  icon: Icon,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+  error,
+  optional,
+  autoComplete,
+}: {
+  id: string
+  label: string
+  icon: typeof Mail
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  type?: string
+  error?: string
+  optional?: boolean
+  autoComplete?: string
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1.5 block text-sm font-medium">
+        {label}
+        {optional && <span className="ml-1.5 text-xs font-normal text-[var(--text-dim)]">(선택)</span>}
+      </label>
+      <div className="relative">
+        <Icon
+          size={17}
+          className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-dim)]"
+        />
+        <input
+          id={id}
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          className={inputBase}
+        />
+      </div>
+      {error && <p className="mt-1.5 text-xs text-rose-600">{error}</p>}
+    </div>
+  )
+}

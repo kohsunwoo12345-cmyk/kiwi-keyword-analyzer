@@ -148,3 +148,85 @@ body {
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }
+
+/* ---- scroll reveal ---- */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+.reveal.in-view {
+  opacity: 1;
+  transform: none;
+}
+.reveal-left { transform: translateX(-32px); }
+.reveal-right { transform: translateX(32px); }
+.reveal-scale { transform: scale(0.94); }
+.reveal-left.in-view,
+.reveal-right.in-view,
+.reveal-scale.in-view { transform: none; }
+
+/* ---- marquee ---- */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee 26s linear infinite;
+}
+.marquee-mask {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+/* ---- animated gradient text/bg ---- */
+@keyframes gradientPan {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.animate-gradient {
+  background-size: 220% 220%;
+  animation: gradientPan 8s ease infinite;
+}
+
+/* ---- floating blobs (slow drift) ---- */
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(24px, -18px) scale(1.06); }
+  66% { transform: translate(-18px, 14px) scale(0.96); }
+}
+.animate-drift { animation: drift 16s ease-in-out infinite; }
+.animate-drift-slow { animation: drift 24s ease-in-out infinite; }
+
+/* ---- aurora sweep ---- */
+@keyframes aurora {
+  0% { transform: translateX(-30%) rotate(8deg); opacity: 0.5; }
+  50% { transform: translateX(30%) rotate(8deg); opacity: 0.85; }
+  100% { transform: translateX(-30%) rotate(8deg); opacity: 0.5; }
+}
+.animate-aurora { animation: aurora 12s ease-in-out infinite; }
+
+/* ---- soft bob for badges/cards ---- */
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.animate-bob { animation: bob 4s ease-in-out infinite; }
+
+@keyframes ping-ring {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  80%, 100% { transform: scale(2.2); opacity: 0; }
+}
+.animate-ping-ring { animation: ping-ring 2.4s cubic-bezier(0, 0, 0.2, 1) infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .marquee-track, .animate-gradient, .animate-drift, .animate-drift-slow,
+  .animate-aurora, .animate-bob, .animate-float, .animate-spin-slow, .animate-ping-ring {
+    animation: none !important;
+  }
+}
