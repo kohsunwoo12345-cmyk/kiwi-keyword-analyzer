@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Users,
   UserCheck,
@@ -25,7 +25,6 @@ import {
   Send,
   Bell,
   Receipt,
-  RefreshCw,
   Phone,
   Mail,
   Building2,
@@ -655,67 +654,240 @@ export default function AdminUsersPage() {
 
                     {/* account info (실데이터) */}
                     <div>
-                      <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--text-dim)]">
-                        <Server size={12} /> 계정 정보
-                      </p>
+                      <SectionLabel icon={Server}>계정 정보</SectionLabel>
                       <div className="card-2 divide-y divide-[var(--border-soft)] p-0 text-sm">
-                        <Row icon={Globe} label="회원 ID" value={u.id} />
-                        <Row icon={Server} label="플랜" value={u.plan} />
+                        <Row icon={Mail} label="이메일" value={u.email} />
+                        <Row icon={Building2} label="회사" value={u.company || '소속 없음'} />
+                        <Row icon={Phone} label="전화" value={u.phone || '미등록'} />
                         <Row icon={Shield} label="권한" value={u.role === 'admin' ? '관리자' : '일반 회원'} />
                         <Row icon={Activity} label="상태" value={u.status === 'active' ? '활성' : '정지'} />
                         <Row icon={Clock} label="가입일" value={fmtDateTime(u.createdAt)} />
-                        <Row icon={Clock} label="최근 접속" value={fmtDateTime(u.lastActive)} />
+                        <Row icon={Clock} label="최근 접속" value={u.lastActive ? fmtDateTime(u.lastActive) : '기록 없음'} />
                       </div>
                     </div>
 
-                    {/* activity log (실데이터: 가입/최근 로그인) */}
+                    {/* 포인트 · 크레딧 */}
                     <div>
-                      <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--text-dim)]">
-                        <Activity size={12} /> 활동 기록
-                      </p>
-                      <div className="space-y-2">
-                        {u.lastActive && u.lastActive !== u.createdAt && (
-                          <div className="flex items-start gap-3">
-                            <span className="mt-0.5 grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg bg-sky-50 text-sky-600">
-                              <LogIn size={14} />
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium">최근 로그인</p>
-                              <p className="truncate text-xs text-[var(--text-soft)]">{fmtDateTime(u.lastActive)}</p>
-                            </div>
-                            <span className="flex-shrink-0 text-[11px] text-[var(--text-dim)]">{w.lastSeen}</span>
-                          </div>
-                        )}
-                        <div className="flex items-start gap-3">
-                          <span className="mt-0.5 grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-600">
-                            <UserPlus size={14} />
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium">회원 가입</p>
-                            <p className="truncate text-xs text-[var(--text-soft)]">{fmtDateTime(u.createdAt)}</p>
-                          </div>
-                          <span className="flex-shrink-0 text-[11px] text-[var(--text-dim)]">{timeAgo(u.createdAt)}</span>
+                      <SectionLabel icon={Coins}>포인트 · 크레딧</SectionLabel>
+                      <div className="mb-3 grid grid-cols-2 gap-2">
+                        <Metric label="보유 포인트" value={`${fmtNum(u.points)}P`} />
+                        <Metric label="보유 크레딧" value={`${fmtNum(u.credits)}개`} />
+                      </div>
+                      <div className="card-2 space-y-2 p-3">
+                        <input
+                          type="number"
+                          value={amount}
+                          onChange={(e) => setAmount(e.target.value)}
+                          placeholder="금액 (음수 입력 시 차감)"
+                          className={INPUT_CLS}
+                        />
+                        <input
+                          value={memo}
+                          onChange={(e) => setMemo(e.target.value)}
+                          placeholder="메모 (선택)"
+                          className={INPUT_CLS}
+                        />
+                        <div className="flex gap-2">
+                          <Button variant="soft" size="sm" className="flex-1" disabled={busy} onClick={() => submitTx('points')}>
+                            <Coins size={15} /> 포인트 지급
+                          </Button>
+                          <Button variant="soft" size="sm" className="flex-1" disabled={busy} onClick={() => submitTx('credits')}>
+                            <CreditCard size={15} /> 크레딧 지급
+                          </Button>
                         </div>
                       </div>
                     </div>
 
-                    {/* actions */}
+                    {/* 플랜 변경 */}
+                    <div>
+                      <SectionLabel icon={Server}>플랜 변경</SectionLabel>
+                      <div className="flex gap-2">
+                        <select
+                          value={planSel}
+                          onChange={(e) => setPlanSel(e.target.value as User['plan'])}
+                          className={INPUT_CLS}
+                        >
+                          <option value="Starter">Starter</option>
+                          <option value="Pro">Pro</option>
+                          <option value="Business">Business</option>
+                        </select>
+                        <Button variant="outline" size="sm" disabled={busy || planSel === u.plan} onClick={submitPlan}>
+                          변경
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* 비밀번호 변경 */}
+                    <div>
+                      <SectionLabel icon={KeyRound}>비밀번호 변경</SectionLabel>
+                      <div className="flex gap-2">
+                        <input
+                          type="password"
+                          value={newPw}
+                          onChange={(e) => setNewPw(e.target.value)}
+                          placeholder="새 비밀번호 (8자 이상)"
+                          className={INPUT_CLS}
+                          autoComplete="new-password"
+                        />
+                        <Button variant="outline" size="sm" disabled={busy} onClick={submitPassword}>
+                          재설정
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* 안내 발송 */}
+                    <div>
+                      <SectionLabel icon={Send}>안내 발송 (알림 · 문자)</SectionLabel>
+                      <div className="card-2 space-y-2 p-3">
+                        <input
+                          value={notifyTitle}
+                          onChange={(e) => setNotifyTitle(e.target.value)}
+                          placeholder="제목 (선택)"
+                          className={INPUT_CLS}
+                        />
+                        <textarea
+                          value={notifyBody}
+                          onChange={(e) => setNotifyBody(e.target.value)}
+                          placeholder="안내 내용을 입력하세요."
+                          rows={3}
+                          className={cn(INPUT_CLS, 'resize-none')}
+                        />
+                        <label className="flex items-center gap-2 text-sm text-[var(--text-soft)]">
+                          <input
+                            type="checkbox"
+                            checked={notifySms}
+                            onChange={(e) => setNotifySms(e.target.checked)}
+                            className="h-4 w-4 rounded border-[var(--border)] accent-violet-600"
+                          />
+                          문자도 발송 (Solapi)
+                        </label>
+                        {notifySms && (
+                          <input
+                            value={notifyPhone}
+                            onChange={(e) => setNotifyPhone(e.target.value)}
+                            placeholder="수신 전화번호"
+                            className={INPUT_CLS}
+                          />
+                        )}
+                        <Button variant="primary" size="sm" className="w-full" disabled={busy} onClick={submitNotify}>
+                          <Send size={15} /> 발송
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* 거래 내역 (실데이터) */}
+                    <div>
+                      <SectionLabel icon={Receipt}>거래 내역</SectionLabel>
+                      {detailLoading && !detail ? (
+                        <p className="py-4 text-center text-xs text-[var(--text-dim)]">불러오는 중…</p>
+                      ) : detail && detail.transactions.length > 0 ? (
+                        <div className="card-2 overflow-x-auto p-0">
+                          <table className="w-full min-w-[360px] text-xs">
+                            <thead>
+                              <tr className="border-b border-[var(--border-soft)] text-left text-[var(--text-dim)]">
+                                <th className="px-3 py-2 font-medium">일시</th>
+                                <th className="px-3 py-2 font-medium">종류</th>
+                                <th className="px-3 py-2 text-right font-medium">증감</th>
+                                <th className="px-3 py-2 text-right font-medium">잔액</th>
+                                <th className="px-3 py-2 font-medium">메모</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {detail.transactions.map((t, i) => (
+                                <tr key={i} className="border-b border-[var(--border-soft)] last:border-0">
+                                  <td className="whitespace-nowrap px-3 py-2 text-[var(--text-soft)]">{fmtDateTime(t.created_at)}</td>
+                                  <td className="px-3 py-2">
+                                    <Badge className={txKindBadgeClass(t.kind)}>{txKindLabel(t.kind)}</Badge>
+                                  </td>
+                                  <td
+                                    className={cn(
+                                      'px-3 py-2 text-right font-semibold',
+                                      t.amount >= 0 ? 'text-emerald-600' : 'text-rose-600',
+                                    )}
+                                  >
+                                    {t.amount >= 0 ? '+' : '−'}
+                                    {fmtNum(Math.abs(t.amount))}
+                                  </td>
+                                  <td className="px-3 py-2 text-right text-[var(--text-soft)]">
+                                    {t.balance_after != null ? fmtNum(t.balance_after) : '-'}
+                                  </td>
+                                  <td className="px-3 py-2 text-[var(--text-soft)]">{t.memo || '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="py-4 text-center text-xs text-[var(--text-dim)]">거래 내역이 없습니다.</p>
+                      )}
+                    </div>
+
+                    {/* 알림 내역 (실데이터) */}
+                    <div>
+                      <SectionLabel icon={Bell}>알림 내역</SectionLabel>
+                      {detail && detail.notifications.length > 0 ? (
+                        <div className="space-y-2">
+                          {detail.notifications.map((n, i) => (
+                            <div key={n.id ?? i} className="card-2 p-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-sm font-medium">{n.title || '알림'}</p>
+                                <span className="flex-shrink-0 text-[11px] text-[var(--text-dim)]">{timeAgo(n.created_at)}</span>
+                              </div>
+                              {n.body && <p className="mt-0.5 text-xs text-[var(--text-soft)]">{n.body}</p>}
+                              <div className="mt-1.5">
+                                {n.read ? (
+                                  <span className="text-[10px] text-[var(--text-dim)]">읽음</span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">
+                                    안읽음
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="py-4 text-center text-xs text-[var(--text-dim)]">알림 내역이 없습니다.</p>
+                      )}
+                    </div>
+
+                    {/* 활동 로그 (실데이터) */}
+                    <div>
+                      <SectionLabel icon={Activity}>활동 로그</SectionLabel>
+                      {detail && detail.activity.length > 0 ? (
+                        <div className="space-y-2">
+                          {detail.activity.map((a, i) => (
+                            <div key={i} className="flex items-start gap-3">
+                              <span className="mt-0.5 grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg bg-sky-50 text-sky-600">
+                                <LogIn size={14} />
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <span className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                                  {a.type}
+                                </span>
+                                {a.detail && <p className="mt-0.5 truncate text-xs text-[var(--text-soft)]">{a.detail}</p>}
+                              </div>
+                              <span className="flex-shrink-0 text-[11px] text-[var(--text-dim)]">{timeAgo(a.created_at)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="py-4 text-center text-xs text-[var(--text-dim)]">활동 기록이 없습니다.</p>
+                      )}
+                    </div>
+
+                    {/* 계정 상태 관리 + 강제 탈퇴 */}
                     <div className="flex gap-2 border-t border-[var(--border)] pt-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => toggleSuspend(u.id)}
-                      >
+                      <Button variant="outline" size="sm" className="flex-1" onClick={() => toggleSuspend(u.id)}>
                         <Ban size={15} /> {u.status === 'active' ? '계정 정지' : '정지 해제'}
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         className="flex-1 !border-rose-200 !text-rose-600 hover:!bg-rose-50"
-                        onClick={() => removeUser(u.id)}
+                        onClick={() => confirmRemove(u.id)}
                       >
-                        <Trash2 size={15} /> 삭제
+                        <Trash2 size={15} /> 강제 탈퇴
                       </Button>
                     </div>
                   </div>
@@ -725,7 +897,29 @@ export default function AdminUsersPage() {
           </aside>
         </div>
       )}
+
+      {/* toast */}
+      {toast && (
+        <div
+          className={cn(
+            'fixed bottom-5 right-5 z-[60] max-w-sm rounded-xl border px-4 py-3 text-sm font-medium shadow-lg animate-fade-in',
+            toast.kind === 'ok'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-rose-200 bg-rose-50 text-rose-700',
+          )}
+        >
+          {toast.msg}
+        </div>
+      )}
     </div>
+  )
+}
+
+function SectionLabel({ icon: Icon, children }: { icon: typeof Globe; children: ReactNode }) {
+  return (
+    <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--text-dim)]">
+      <Icon size={12} /> {children}
+    </p>
   )
 }
 
