@@ -56,7 +56,10 @@ export function AppIcon({ size = 36, className }: { size?: number; className?: s
       alt="BYGENCY"
       width={size}
       height={size}
-      className={cn('rounded-[26%] ring-1 ring-black/5 shadow-sm', className)}
+      className={cn(
+        'rounded-[24%] bg-white ring-1 ring-slate-200 shadow-[0_3px_10px_rgba(20,22,31,0.14)]',
+        className,
+      )}
       style={{ width: size, height: size }}
     />
   )
