@@ -8,7 +8,7 @@ binding = "DB"
 database_name = "bygency"
 database_id = "582b5cd9-65c5-4cd6-9243-d1fc5a8ce41c"
 
-# R2 버킷 (파일 저장) — 변수명 BUCKET (R2 버킷명은 소문자만 허용)
-[[r2_buckets]]
-binding = "BUCKET"
-bucket_name = "bygencyr2"
+# R2 버킷 — 실제 버킷명 확인 후 다시 활성화 (bygencyr2 미존재로 배포 실패하여 임시 제거)
+# [[r2_buckets]]
+# binding = "BUCKET"
+# bucket_name = "<정확한-소문자-버킷명>"
