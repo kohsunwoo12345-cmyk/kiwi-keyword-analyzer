@@ -18,6 +18,9 @@ import {
   ShieldCheck,
   Check,
   AlertCircle,
+  Phone,
+  MessageSquare,
+  Clock,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button, Badge } from '@/components/ui'
@@ -25,10 +28,15 @@ import {
   accountOverview,
   changePassword,
   markNotificationsRead,
+  requestPlan,
+  myPlanRequests,
+  mySenders,
+  registerSender,
   type User,
   type Tx,
   type Noti,
   type ActivityRow,
+  type MySender,
 } from '@/lib/auth'
 
 /* ---------- date helpers ---------- */
@@ -78,6 +86,18 @@ const PLAN_META: Record<
     perks: ['모든 Pro 기능', '무제한 리포트', '전담 매니저', 'API 액세스', '팀 협업'],
   },
 }
+
+/* ---------- request/sender status meta ---------- */
+const STATUS_META: Record<string, { label: string; badge: string }> = {
+  pending: { label: '대기', badge: 'border-amber-200 bg-amber-50 text-amber-700' },
+  approved: { label: '승인', badge: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+  rejected: { label: '거절', badge: 'border-rose-200 bg-rose-50 text-rose-700' },
+}
+function statusMeta(s: string) {
+  return STATUS_META[s] || { label: s || '-', badge: 'border-slate-200 bg-slate-50 text-slate-600' }
+}
+
+const ALL_PLANS = ['Starter', 'Pro', 'Business'] as const
 
 /* ---------- activity meta ---------- */
 const ACT_META: Record<
@@ -161,6 +181,24 @@ export default function ProfilePage() {
   const [pwOk, setPwOk] = useState(false)
   const [pwErr, setPwErr] = useState<string | null>(null)
 
+  // plan upgrade
+  const [toPlan, setToPlan] = useState<(typeof ALL_PLANS)[number]>('Pro')
+  const [planMemo, setPlanMemo] = useState('')
+  const [planBusy, setPlanBusy] = useState(false)
+  const [planOk, setPlanOk] = useState(false)
+  const [planErr, setPlanErr] = useState<string | null>(null)
+  const [planReqs, setPlanReqs] = useState<
+    { from_plan: string; to_plan: string; status: string; created_at: string; decided_at: string | null }[]
+  >([])
+
+  // sender registration
+  const [senderPhone, setSenderPhone] = useState('')
+  const [senderLabel, setSenderLabel] = useState('')
+  const [senderBusy, setSenderBusy] = useState(false)
+  const [senderOk, setSenderOk] = useState(false)
+  const [senderErr, setSenderErr] = useState<string | null>(null)
+  const [senders, setSenders] = useState<MySender[]>([])
+
   useEffect(() => {
     let alive = true
     accountOverview().then((d) => {
@@ -176,6 +214,59 @@ export default function ProfilePage() {
       alive = false
     }
   }, [])
+
+  async function loadPlanReqs() {
+    const r = await myPlanRequests()
+    if (r.ok) setPlanReqs(r.requests || [])
+  }
+  async function loadSenders() {
+    const r = await mySenders()
+    if (r.ok) setSenders(r.senders || [])
+  }
+
+  useEffect(() => {
+    loadPlanReqs()
+    loadSenders()
+  }, [])
+
+  async function submitPlan(e: FormEvent) {
+    e.preventDefault()
+    setPlanOk(false)
+    setPlanErr(null)
+    setPlanBusy(true)
+    const r = await requestPlan(toPlan, planMemo.trim() || undefined)
+    setPlanBusy(false)
+    if (r.ok) {
+      setPlanOk(true)
+      setPlanMemo('')
+      loadPlanReqs()
+      setTimeout(() => setPlanOk(false), 5000)
+    } else {
+      setPlanErr(r.error || '신청에 실패했습니다.')
+    }
+  }
+
+  async function submitSender(e: FormEvent) {
+    e.preventDefault()
+    setSenderOk(false)
+    setSenderErr(null)
+    if (!senderPhone.trim()) {
+      setSenderErr('전화번호를 입력하세요.')
+      return
+    }
+    setSenderBusy(true)
+    const r = await registerSender(senderPhone.trim(), senderLabel.trim() || undefined)
+    setSenderBusy(false)
+    if (r.ok) {
+      setSenderOk(true)
+      setSenderPhone('')
+      setSenderLabel('')
+      loadSenders()
+      setTimeout(() => setSenderOk(false), 5000)
+    } else {
+      setSenderErr(r.error || '등록에 실패했습니다.')
+    }
+  }
 
   async function submitPassword(e: FormEvent) {
     e.preventDefault()
@@ -389,6 +480,169 @@ export default function ProfilePage() {
                     <Button href="/#pricing" variant="soft" className="w-full">
                       <ArrowUpCircle size={16} /> 플랜 업그레이드
                     </Button>
+                  )}
+                </div>
+              </Panel>
+            </div>
+
+            {/* 3.5 플랜 업그레이드 신청 & 발신번호 등록 */}
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* A) 플랜 업그레이드 신청 */}
+              <Panel title={<span className="flex items-center gap-2"><ArrowUpCircle size={16} className="text-violet-600" /> 플랜 업그레이드 신청</span>}>
+                <form onSubmit={submitPlan} className="space-y-3">
+                  <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm">
+                    <span className="text-[var(--text-soft)]">현재 플랜</span>
+                    <Badge className={PLAN_META[user.plan]?.badge || 'border-slate-200 bg-slate-50 text-slate-600'}>
+                      <Crown size={12} /> {user.plan}
+                    </Badge>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">신청 플랜</label>
+                    <select
+                      value={toPlan}
+                      onChange={(e) => setToPlan(e.target.value as (typeof ALL_PLANS)[number])}
+                      className={inputCls}
+                    >
+                      {ALL_PLANS.map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">
+                      메모 <span className="text-[var(--text-dim)]">(선택)</span>
+                    </label>
+                    <input
+                      value={planMemo}
+                      onChange={(e) => setPlanMemo(e.target.value)}
+                      className={inputCls}
+                      placeholder="요청 사항을 남겨주세요"
+                    />
+                  </div>
+
+                  {planOk && (
+                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2.5 text-sm text-emerald-700">
+                      <Check size={15} /> 신청이 접수되었습니다. 관리자 승인 후 반영됩니다.
+                    </div>
+                  )}
+                  {planErr && (
+                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
+                      <AlertCircle size={15} /> {planErr}
+                    </div>
+                  )}
+
+                  <Button type="submit" disabled={planBusy} className="w-full">
+                    {planBusy ? '신청 중...' : '업그레이드 신청'}
+                  </Button>
+                </form>
+
+                <div className="mt-5">
+                  <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
+                    <Clock size={13} /> 신청 내역
+                  </p>
+                  {planReqs.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-[var(--text-dim)]">신청 내역이 없습니다</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {planReqs.map((r, i) => {
+                        const m = statusMeta(r.status)
+                        return (
+                          <li
+                            key={i}
+                            className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-soft)] px-3.5 py-2.5"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium">
+                                {r.from_plan} → {r.to_plan}
+                              </p>
+                              <p className="mt-0.5 text-xs text-[var(--text-dim)]">{fmtDate(r.created_at)}</p>
+                            </div>
+                            <Badge className={m.badge}>{m.label}</Badge>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </Panel>
+
+              {/* B) 발신번호 등록 */}
+              <Panel title={<span className="flex items-center gap-2"><MessageSquare size={16} className="text-sky-600" /> 발신번호 등록</span>}>
+                <p className="mb-3 rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm text-[var(--text-soft)]">
+                  문자 발송에 사용할 발신번호를 등록하면 관리자 승인 후 사용할 수 있어요.
+                </p>
+                <form onSubmit={submitSender} className="space-y-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">전화번호</label>
+                    <div className="relative">
+                      <Phone
+                        size={16}
+                        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-dim)]"
+                      />
+                      <input
+                        value={senderPhone}
+                        onChange={(e) => setSenderPhone(e.target.value)}
+                        className={inputCls + ' pl-10'}
+                        placeholder="010-0000-0000"
+                        inputMode="tel"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">
+                      라벨 <span className="text-[var(--text-dim)]">(선택)</span>
+                    </label>
+                    <input
+                      value={senderLabel}
+                      onChange={(e) => setSenderLabel(e.target.value)}
+                      className={inputCls}
+                      placeholder="예: 대표번호, 마케팅팀"
+                    />
+                  </div>
+
+                  {senderOk && (
+                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2.5 text-sm text-emerald-700">
+                      <Check size={15} /> 발신번호가 접수되었습니다. 관리자 승인 후 사용할 수 있어요.
+                    </div>
+                  )}
+                  {senderErr && (
+                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
+                      <AlertCircle size={15} /> {senderErr}
+                    </div>
+                  )}
+
+                  <Button type="submit" disabled={senderBusy} className="w-full">
+                    {senderBusy ? '등록 중...' : '등록 신청'}
+                  </Button>
+                </form>
+
+                <div className="mt-5">
+                  <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
+                    <Phone size={13} /> 등록 목록
+                  </p>
+                  {senders.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-[var(--text-dim)]">등록된 발신번호가 없습니다</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {senders.map((s) => {
+                        const m = statusMeta(s.status)
+                        return (
+                          <li
+                            key={s.id}
+                            className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-soft)] px-3.5 py-2.5"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium">
+                                {s.phone}
+                                {s.label ? <span className="ml-1.5 text-[var(--text-soft)]">· {s.label}</span> : null}
+                              </p>
+                              <p className="mt-0.5 text-xs text-[var(--text-dim)]">{fmtDate(s.created_at)}</p>
+                            </div>
+                            <Badge className={m.badge}>{m.label}</Badge>
+                          </li>
+                        )
+                      })}
+                    </ul>
                   )}
                 </div>
               </Panel>

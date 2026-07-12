@@ -67,6 +67,7 @@ export async function signup(input: {
   email: string
   password: string
   company?: string
+  phone?: string
 }): Promise<AuthResult> {
   return postJson('/api/signup', input)
 }
@@ -192,4 +193,76 @@ export async function changePassword(current: string, next: string): Promise<{ o
 /** 사용자 본인: 알림 읽음 처리 */
 export async function markNotificationsRead(): Promise<void> {
   await postJson('/api/account/overview', { action: 'read-notifications' })
+}
+
+/* ───────── 보안 (관리자) ───────── */
+export interface BlockedIp { ip: string; reason: string | null; source: string | null; created_at: string }
+export interface SecLog { ts: string; ip: string; method: string; path: string; status: number; severity: string; detail: string }
+
+export async function adminSecurity(): Promise<{
+  ok: boolean; error?: string
+  blocked: BlockedIp[]; logs: SecLog[]
+  stats?: { blockedCount: number; events24: number; threats24: number }
+}> {
+  try {
+    const r = await fetch('/api/admin/security', { credentials: 'include' })
+    const d = await r.json()
+    return { ok: !!d.ok, error: d.error, blocked: d.blocked || [], logs: d.logs || [], stats: d.stats }
+  } catch {
+    return { ok: false, error: '네트워크 오류', blocked: [], logs: [] }
+  }
+}
+export async function adminSecurityAction(
+  action: 'block' | 'unblock' | 'clear-logs',
+  extra?: { ip?: string; reason?: string },
+): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/admin/security', { action, ...extra })
+}
+
+/* ───────── 승인 관리 (관리자) ───────── */
+export interface PlanReq { id: string; user_id: string; name: string | null; email: string | null; from_plan: string | null; to_plan: string; status: string; memo: string | null; created_at: string; decided_at: string | null }
+export interface SenderReq { id: string; user_id: string; name: string | null; email: string | null; phone: string; label: string | null; status: string; created_at: string; decided_at: string | null }
+
+export async function adminApprovals(): Promise<{
+  ok: boolean; error?: string
+  planRequests: PlanReq[]; senderNumbers: SenderReq[]
+  stats?: { pendingPlans: number; pendingSenders: number }
+}> {
+  try {
+    const r = await fetch('/api/admin/approvals', { credentials: 'include' })
+    const d = await r.json()
+    return { ok: !!d.ok, error: d.error, planRequests: d.planRequests || [], senderNumbers: d.senderNumbers || [], stats: d.stats }
+  } catch {
+    return { ok: false, error: '네트워크 오류', planRequests: [], senderNumbers: [] }
+  }
+}
+export async function adminApprovalAction(
+  type: 'plan' | 'sender',
+  id: string,
+  decision: 'approve' | 'reject',
+): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/admin/approvals', { type, id, decision })
+}
+
+/* ───────── 신청 (사용자 본인) ───────── */
+export async function requestPlan(to_plan: string, memo?: string): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/account/plan-request', { to_plan, memo })
+}
+export async function myPlanRequests(): Promise<{ ok: boolean; requests: any[] }> {
+  try {
+    const r = await fetch('/api/account/plan-request', { credentials: 'include' })
+    const d = await r.json()
+    return { ok: !!d.ok, requests: d.requests || [] }
+  } catch { return { ok: false, requests: [] } }
+}
+export interface MySender { id: string; phone: string; label: string | null; status: string; created_at: string; decided_at: string | null }
+export async function mySenders(): Promise<{ ok: boolean; senders: MySender[] }> {
+  try {
+    const r = await fetch('/api/account/sender', { credentials: 'include' })
+    const d = await r.json()
+    return { ok: !!d.ok, senders: d.senders || [] }
+  } catch { return { ok: false, senders: [] } }
+}
+export async function registerSender(phone: string, label?: string): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/account/sender', { phone, label })
 }

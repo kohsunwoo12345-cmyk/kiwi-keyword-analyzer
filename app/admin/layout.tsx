@@ -9,6 +9,8 @@ import {
   Activity,
   Settings,
   Shield,
+  ShieldAlert,
+  BadgeCheck,
   Menu,
   X,
   ArrowLeft,
@@ -20,6 +22,8 @@ const NAV = [
   { title: '관리자 대시보드', href: '/admin', icon: LayoutDashboard },
   { title: '회원 관리', href: '/admin/users', icon: Users },
   { title: '실시간 모니터링', href: '/admin/users', icon: Activity, exactHref: '/admin/users#live' },
+  { title: '보안', href: '/admin/security', icon: ShieldAlert },
+  { title: '승인 관리', href: '/admin/approvals', icon: BadgeCheck },
   { title: '설정', href: '#', icon: Settings },
 ]
 

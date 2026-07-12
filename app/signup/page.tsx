@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   User as UserIcon,
   Mail,
+  Phone,
   Building2,
   Lock,
   Eye,
@@ -62,6 +63,7 @@ export default function SignupPage() {
   const router = useRouter()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [company, setCompany] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -98,6 +100,7 @@ export default function SignupPage() {
         email: email.trim(),
         password,
         company: company.trim() || undefined,
+        phone: phone.trim() || undefined,
       })
       if (!res.ok || !res.user) {
         setFormError(res.error || '회원가입에 실패했습니다.')
@@ -231,6 +234,17 @@ export default function SignupPage() {
                   placeholder="you@company.com"
                   error={errors.email}
                   autoComplete="email"
+                />
+                <Field
+                  id="phone"
+                  label="전화번호"
+                  optional
+                  icon={Phone}
+                  type="tel"
+                  value={phone}
+                  onChange={setPhone}
+                  placeholder="010-0000-0000"
+                  autoComplete="tel"
                 />
                 <Field
                   id="company"

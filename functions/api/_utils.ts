@@ -144,6 +144,48 @@ export async function ensureSchema(db: D1Database) {
       created_at TEXT NOT NULL
     )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_noti_user ON notifications(user_id, created_at)`),
+    // 보안: 차단 IP
+    db.prepare(`CREATE TABLE IF NOT EXISTS blocked_ips (
+      ip TEXT PRIMARY KEY,
+      reason TEXT,
+      source TEXT,               -- manual | auto
+      created_at TEXT NOT NULL
+    )`),
+    // 보안: 접근/위협 로그
+    db.prepare(`CREATE TABLE IF NOT EXISTS security_log (
+      id TEXT PRIMARY KEY,
+      ts TEXT NOT NULL,
+      ip TEXT,
+      method TEXT,
+      path TEXT,
+      status INTEGER,
+      severity TEXT,             -- info | warn | high
+      detail TEXT
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_seclog_ts ON security_log(ts)`),
+    // 승인: 플랜 변경 요청
+    db.prepare(`CREATE TABLE IF NOT EXISTS plan_requests (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      from_plan TEXT,
+      to_plan TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',  -- pending | approved | rejected
+      memo TEXT,
+      created_at TEXT NOT NULL,
+      decided_at TEXT
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_planreq_status ON plan_requests(status, created_at)`),
+    // 승인: 발신번호 등록 요청
+    db.prepare(`CREATE TABLE IF NOT EXISTS sender_numbers (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      label TEXT,
+      status TEXT DEFAULT 'pending',  -- pending | approved | rejected
+      created_at TEXT NOT NULL,
+      decided_at TEXT
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_sender_status ON sender_numbers(status, created_at)`),
   ])
   // 기존 users 테이블에 신규 컬럼 보강 (누락된 것만 추가)
   try {
@@ -203,6 +245,58 @@ export async function addNotification(db: D1Database, userId: string, title: str
     .prepare(`INSERT INTO notifications (id, user_id, title, body, read, created_at) VALUES (?, ?, ?, ?, 0, ?)`)
     .bind('n_' + crypto.randomUUID().slice(0, 16), userId, title, body, new Date().toISOString())
     .run()
+}
+
+/* ───────── 보안 ───────── */
+export function clientIp(request: Request): string {
+  return (
+    request.headers.get('CF-Connecting-IP') ||
+    (request.headers.get('X-Forwarded-For') || '').split(',')[0].trim() ||
+    'unknown'
+  )
+}
+
+export async function isBlocked(db: D1Database, ip: string): Promise<boolean> {
+  if (!ip || ip === 'unknown') return false
+  const row = await db.prepare('SELECT ip FROM blocked_ips WHERE ip = ?').bind(ip).first()
+  return !!row
+}
+
+export async function logSecurity(
+  db: D1Database,
+  o: { ip: string; method?: string; path?: string; status?: number; severity?: string; detail?: string },
+) {
+  try {
+    await db
+      .prepare(`INSERT INTO security_log (id, ts, ip, method, path, status, severity, detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(
+        's_' + crypto.randomUUID().slice(0, 16),
+        new Date().toISOString(),
+        o.ip || 'unknown',
+        o.method || '',
+        o.path || '',
+        o.status || 0,
+        o.severity || 'info',
+        o.detail || '',
+      )
+      .run()
+    // 로그 상한 유지 (최근 2000건)
+    await db
+      .prepare(`DELETE FROM security_log WHERE id NOT IN (SELECT id FROM security_log ORDER BY ts DESC LIMIT 2000)`)
+      .run()
+      .catch(() => {})
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 관리자 세션 가드 (공용) */
+export async function requireAdminUser(request: Request, db: D1Database) {
+  const me: any = await getSessionUser(request, db)
+  if (!me) return { error: json({ ok: false, error: '로그인이 필요합니다.' }, 401) }
+  if (me.email !== ADMIN_EMAIL && me.role !== 'admin')
+    return { error: json({ ok: false, error: '관리자 권한이 필요합니다.' }, 403) }
+  return { me }
 }
 
 const enc = new TextEncoder()
