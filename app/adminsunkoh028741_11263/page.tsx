@@ -10,27 +10,53 @@ import {
   CreditCard,
   Crown,
   ChevronRight,
+  KeyRound,
+  Coins,
+  Wallet,
+  Bell,
+  Phone,
+  CheckCircle2,
+  XCircle,
+  FileText,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { AreaTrend, Donut } from '@/components/dash/Charts'
 import { Panel, Badge, Button } from '@/components/ui'
 import { Reveal, Counter } from '@/components/motion'
-import { adminUsers, type User } from '@/lib/auth'
+import {
+  adminUsers,
+  adminActivity,
+  adminApprovals,
+  adminApprovalAction,
+  type User,
+  type GlobalActivityRow,
+  type CreditReq,
+} from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 const ACCENT = '#7c3aed'
 
-const PLAN_COLORS: Record<User['plan'], string> = {
+const PLAN_COLORS: Record<string, string> = {
+  '없음': '#cbd5e1',
   Starter: '#94a3b8',
   Pro: '#7c3aed',
   Business: '#0ea5e9',
 }
 
-const FEED_STYLE = {
-  가입: { icon: UserPlus, badge: 'border-emerald-200 bg-emerald-50 text-emerald-700', ring: 'from-emerald-500 to-green-500' },
-  로그인: { icon: LogIn, badge: 'border-sky-200 bg-sky-50 text-sky-700', ring: 'from-sky-500 to-cyan-500' },
-  결제: { icon: CreditCard, badge: 'border-amber-200 bg-amber-50 text-amber-700', ring: 'from-amber-500 to-orange-500' },
-} as const
+// activity_log type → 표시 스타일
+const ACT_STYLE: Record<string, { label: string; icon: any; badge: string; ring: string }> = {
+  signup: { label: '가입', icon: UserPlus, badge: 'border-emerald-200 bg-emerald-50 text-emerald-700', ring: 'from-emerald-500 to-green-500' },
+  login: { label: '로그인', icon: LogIn, badge: 'border-sky-200 bg-sky-50 text-sky-700', ring: 'from-sky-500 to-cyan-500' },
+  password: { label: '비밀번호', icon: KeyRound, badge: 'border-rose-200 bg-rose-50 text-rose-700', ring: 'from-rose-500 to-red-500' },
+  point: { label: '포인트', icon: Coins, badge: 'border-amber-200 bg-amber-50 text-amber-700', ring: 'from-amber-500 to-orange-500' },
+  credit: { label: '크레딧', icon: Wallet, badge: 'border-violet-200 bg-violet-50 text-violet-700', ring: 'from-violet-500 to-fuchsia-500' },
+  plan: { label: '플랜', icon: Crown, badge: 'border-indigo-200 bg-indigo-50 text-indigo-700', ring: 'from-indigo-500 to-violet-500' },
+  notify: { label: '알림', icon: Bell, badge: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700', ring: 'from-fuchsia-500 to-pink-500' },
+  sender: { label: '발신번호', icon: Phone, badge: 'border-cyan-200 bg-cyan-50 text-cyan-700', ring: 'from-cyan-500 to-sky-500' },
+}
+function actStyle(type: string) {
+  return ACT_STYLE[type] || { label: type || '활동', icon: FileText, badge: 'border-slate-200 bg-slate-50 text-slate-600', ring: 'from-slate-400 to-slate-500' }
+}
 
 function fmtDate(iso: string) {
   if (!iso) return '—'
@@ -49,26 +75,56 @@ function ago(iso: string | null) {
   return `${Math.floor(h / 24)}일 전`
 }
 
-function planBadgeClass(plan: User['plan']) {
+function planBadgeClass(plan: string) {
   return plan === 'Business'
     ? 'border-sky-200 bg-sky-50 text-sky-700'
     : plan === 'Pro'
     ? 'border-violet-200 bg-violet-50 text-violet-700'
     : 'border-slate-200 bg-slate-50 text-slate-600'
 }
+function planLabel(plan: string) {
+  return !plan || plan === '없음' ? '미가입' : plan
+}
 
 const DAY_MS = 86_400_000
 
 export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([])
+  const [activity, setActivity] = useState<GlobalActivityRow[]>([])
+  const [creditPending, setCreditPending] = useState<CreditReq[]>([])
   const [ready, setReady] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
 
+  function loadApprovals() {
+    adminApprovals().then((r) => setCreditPending(r.creditRequests.filter((c) => c.status === 'pending')))
+  }
   useEffect(() => {
     adminUsers().then((r) => {
       setUsers(r.users)
       setReady(true)
     })
+    adminActivity(60).then((r) => setActivity(r.activity))
+    loadApprovals()
   }, [])
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 3000)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  async function decideCredit(id: string, decision: 'approve' | 'reject') {
+    setBusy(id + decision)
+    const r = await adminApprovalAction('credit', id, decision)
+    setBusy(null)
+    if (r.ok) {
+      setToast(decision === 'approve' ? '크레딧 충전을 승인했습니다.' : '충전 신청을 반려했습니다.')
+      loadApprovals()
+      adminActivity(60).then((r) => setActivity(r.activity))
+    } else {
+      setToast(r.error || '처리 실패')
+    }
+  }
 
   const now = Date.now()
   const total = users.length
@@ -108,17 +164,6 @@ export default function AdminDashboard() {
     [users],
   )
 
-  // 실제 활동 피드: 가입(createdAt) + 로그인(lastActive)
-  const feed = useMemo(() => {
-    const events: { kind: keyof typeof FEED_STYLE; name: string; detail: string; t: number }[] = []
-    for (const u of users) {
-      if (u.createdAt) events.push({ kind: '가입', name: u.name, detail: `${u.email} · 신규 가입`, t: +new Date(u.createdAt) })
-      if (u.lastActive && u.lastActive !== u.createdAt)
-        events.push({ kind: '로그인', name: u.name, detail: `${u.plan} 플랜 · 로그인`, t: +new Date(u.lastActive) })
-    }
-    return events.sort((a, b) => b.t - a.t).slice(0, 10)
-  }, [users])
-
   return (
     <div className="animate-fade-in">
       <PageHeader
@@ -142,6 +187,74 @@ export default function AdminDashboard() {
             <StatBox label="최근 접속 (24h)" value={activeRecently} icon={Activity} color="#0ea5e9" live />
             <StatBox label="유료 회원" value={paid} icon={Crown} color="#f59e0b" />
           </div>
+        </Reveal>
+
+        {/* 크레딧 충전 승인 대기 */}
+        <Reveal>
+          <Panel
+            title={
+              <span className="flex items-center gap-2">
+                <Wallet size={16} className="text-amber-500" /> 크레딧 충전 승인
+                {creditPending.length > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                    {creditPending.length}건 대기
+                  </span>
+                )}
+              </span>
+            }
+            action={
+              <Button href="/adminsunkoh028741_11263/approvals" variant="ghost" size="sm">
+                승인 관리 <ChevronRight size={15} />
+              </Button>
+            }
+          >
+            {creditPending.length === 0 ? (
+              <p className="py-8 text-center text-sm text-[var(--text-dim)]">
+                {ready ? '대기 중인 크레딧 충전 신청이 없습니다.' : '불러오는 중…'}
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {creditPending.map((c) => (
+                  <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border-soft)] p-3 hover:bg-slate-50">
+                    <div className="flex items-center gap-3">
+                      <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-amber-500 to-orange-500 text-sm font-bold text-white">
+                        {(c.name || c.email || '?').slice(0, 1).toUpperCase()}
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold">{c.name || '이름 없음'}</p>
+                        <p className="text-xs text-[var(--text-dim)]">{c.email || '-'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center gap-1 font-bold text-amber-600">
+                        <Coins size={14} /> {c.amount.toLocaleString()}개
+                      </span>
+                      {c.price > 0 && <span className="text-xs text-[var(--text-soft)]">{c.price.toLocaleString()}원</span>}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        className="!bg-gradient-to-br !from-emerald-500 !to-green-500"
+                        disabled={busy !== null}
+                        onClick={() => decideCredit(c.id, 'approve')}
+                      >
+                        <CheckCircle2 size={15} /> 승인
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="!border-rose-200 !text-rose-600 hover:!bg-rose-50"
+                        disabled={busy !== null}
+                        onClick={() => decideCredit(c.id, 'reject')}
+                      >
+                        <XCircle size={15} /> 반려
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
         </Reveal>
 
         <Reveal>
@@ -184,8 +297,8 @@ export default function AdminDashboard() {
               }
             >
               <div className="-mr-1 max-h-[420px] space-y-1 overflow-y-auto pr-1 no-scrollbar">
-                {feed.map((f, i) => {
-                  const s = FEED_STYLE[f.kind]
+                {activity.map((a, i) => {
+                  const s = actStyle(a.type)
                   const Icon = s.icon
                   return (
                     <div key={i} className="flex items-start gap-3 rounded-xl p-2.5 transition-colors hover:bg-slate-50">
@@ -194,16 +307,16 @@ export default function AdminDashboard() {
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm">
-                          <span className="font-semibold">{f.name}</span>
-                          <span className={cn('ml-2 rounded border px-1.5 py-0.5 text-[10px] font-medium', s.badge)}>{f.kind}</span>
+                          <span className="font-semibold">{a.name || a.email || '알 수 없음'}</span>
+                          <span className={cn('ml-2 rounded border px-1.5 py-0.5 text-[10px] font-medium', s.badge)}>{s.label}</span>
                         </p>
-                        <p className="mt-0.5 truncate text-xs text-[var(--text-soft)]">{f.detail}</p>
+                        <p className="mt-0.5 truncate text-xs text-[var(--text-soft)]">{a.detail || a.email || '-'}</p>
                       </div>
-                      <span className="flex-shrink-0 text-[11px] text-[var(--text-dim)]">{ago(new Date(f.t).toISOString())}</span>
+                      <span className="flex-shrink-0 text-[11px] text-[var(--text-dim)]">{ago(a.created_at)}</span>
                     </div>
                   )
                 })}
-                {ready && feed.length === 0 && (
+                {ready && activity.length === 0 && (
                   <p className="py-8 text-center text-sm text-[var(--text-dim)]">아직 활동 기록이 없습니다.</p>
                 )}
               </div>
@@ -242,7 +355,7 @@ export default function AdminDashboard() {
                         </td>
                         <td className="py-3 text-[var(--text-soft)]">{u.email}</td>
                         <td className="py-3">
-                          <Badge className={planBadgeClass(u.plan)}>{u.plan}</Badge>
+                          <Badge className={planBadgeClass(u.plan)}>{planLabel(u.plan)}</Badge>
                         </td>
                         <td className="py-3 text-[var(--text-soft)]">{fmtDate(u.createdAt)}</td>
                         <td className="py-3">
@@ -268,6 +381,12 @@ export default function AdminDashboard() {
           </div>
         </Reveal>
       </div>
+
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-[60] max-w-sm rounded-xl border border-emerald-200 bg-emerald-100 px-4 py-3 text-sm font-medium text-emerald-700 shadow-lg animate-fade-in">
+          {toast}
+        </div>
+      )}
     </div>
   )
 }

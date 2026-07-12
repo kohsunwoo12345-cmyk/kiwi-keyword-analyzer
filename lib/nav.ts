@@ -41,7 +41,7 @@ export interface NavCategory {
 
 export const NAV_HOME: NavItem = {
   title: '홈',
-  href: '/dashboard',
+  href: '/dashboard_USE17237_612',
   icon: LayoutDashboard,
 }
 
@@ -52,8 +52,8 @@ export const NAV_CATEGORIES: NavCategory[] = [
     icon: Coins,
     accent: '#f59e0b',
     items: [
-      { title: '크레딧 충전', href: '/dashboard/credits', icon: Wallet },
-      { title: '이용·충전 내역', href: '/dashboard/credits#history', icon: Coins },
+      { title: '크레딧 충전', href: '/dashboard_USE17237_612/credits', icon: Wallet },
+      { title: '이용·충전 내역', href: '/dashboard_USE17237_612/credits#history', icon: Coins },
     ],
   },
   {
@@ -62,9 +62,9 @@ export const NAV_CATEGORIES: NavCategory[] = [
     icon: MessageSquare,
     accent: '#6366f1',
     items: [
-      { title: '문자 발송', href: '/dashboard/sms', icon: Send },
-      { title: '문자 작성', href: '/dashboard/sms/compose', icon: PenSquare },
-      { title: '발송 이력·통계', href: '/dashboard/sms/logs', icon: BarChart3 },
+      { title: '문자 발송', href: '/dashboard_USE17237_612/sms', icon: Send },
+      { title: '문자 작성', href: '/dashboard_USE17237_612/sms/compose', icon: PenSquare },
+      { title: '발송 이력·통계', href: '/dashboard_USE17237_612/sms/logs', icon: BarChart3 },
     ],
   },
   {
@@ -73,9 +73,9 @@ export const NAV_CATEGORIES: NavCategory[] = [
     icon: MessageCircle,
     accent: '#f59e0b',
     items: [
-      { title: '알림톡 발송', href: '/dashboard/alimtalk', icon: MessageCircle },
-      { title: '알림톡 템플릿', href: '/dashboard/alimtalk/templates', icon: LayoutTemplate },
-      { title: '발송 통계', href: '/dashboard/alimtalk/logs', icon: BarChart3 },
+      { title: '알림톡 발송', href: '/dashboard_USE17237_612/alimtalk', icon: MessageCircle },
+      { title: '알림톡 템플릿', href: '/dashboard_USE17237_612/alimtalk/templates', icon: LayoutTemplate },
+      { title: '발송 통계', href: '/dashboard_USE17237_612/alimtalk/logs', icon: BarChart3 },
     ],
   },
   {
@@ -85,8 +85,8 @@ export const NAV_CATEGORIES: NavCategory[] = [
     accent: '#7c3aed',
     badge: 'HOT',
     items: [
-      { title: '랜딩페이지 제작', href: '/dashboard/landing', icon: Palette },
-      { title: '랜딩 성과분석', href: '/dashboard/landing/analytics', icon: BarChart3 },
+      { title: '랜딩페이지 제작', href: '/dashboard_USE17237_612/landing', icon: Palette },
+      { title: '랜딩 성과분석', href: '/dashboard_USE17237_612/landing/analytics', icon: BarChart3 },
     ],
   },
   {
@@ -95,8 +95,8 @@ export const NAV_CATEGORIES: NavCategory[] = [
     icon: Clapperboard,
     accent: '#a855f7',
     items: [
-      { title: 'AI 영상 제작', href: '/dashboard/video', icon: Clapperboard },
-      { title: '내 영상 관리', href: '/dashboard/video/library', icon: Film },
+      { title: 'AI 영상 제작', href: '/dashboard_USE17237_612/video', icon: Clapperboard },
+      { title: '내 영상 관리', href: '/dashboard_USE17237_612/video/library', icon: Film },
     ],
   },
   {
@@ -104,7 +104,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
     title: '플레이스 순위',
     icon: MapPin,
     accent: '#10b981',
-    items: [{ title: '순위 추적', href: '/dashboard/place-rank', icon: TrendingUp }],
+    items: [{ title: '순위 추적', href: '/dashboard_USE17237_612/place-rank', icon: TrendingUp }],
   },
   {
     id: 'blog',
@@ -112,8 +112,8 @@ export const NAV_CATEGORIES: NavCategory[] = [
     icon: FileText,
     accent: '#22c55e',
     items: [
-      { title: '블로그 분석', href: '/dashboard/blog', icon: BarChart3 },
-      { title: 'AI 블로그 작성', href: '/dashboard/blog/writer', icon: Bot },
+      { title: '블로그 분석', href: '/dashboard_USE17237_612/blog', icon: BarChart3 },
+      { title: 'AI 블로그 작성', href: '/dashboard_USE17237_612/blog/writer', icon: Bot },
     ],
   },
   {
@@ -123,10 +123,10 @@ export const NAV_CATEGORIES: NavCategory[] = [
     accent: '#ec4899',
     badge: 'NEW',
     items: [
-      { title: '인스타그램 홈', href: '/dashboard/instagram', icon: Camera },
-      { title: '콘텐츠 관리', href: '/dashboard/instagram/content', icon: ImageIcon },
-      { title: '인사이트 분석', href: '/dashboard/instagram/insights', icon: BarChart3 },
-      { title: 'DM 자동화', href: '/dashboard/instagram/dm', icon: MessageCircle },
+      { title: '인스타그램 홈', href: '/dashboard_USE17237_612/instagram', icon: Camera },
+      { title: '콘텐츠 관리', href: '/dashboard_USE17237_612/instagram/content', icon: ImageIcon },
+      { title: '인사이트 분석', href: '/dashboard_USE17237_612/instagram/insights', icon: BarChart3 },
+      { title: 'DM 자동화', href: '/dashboard_USE17237_612/instagram/dm', icon: MessageCircle },
     ],
   },
   {
@@ -134,7 +134,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
     title: '유튜브 분석',
     icon: PlaySquare,
     accent: '#ef4444',
-    items: [{ title: '유튜브 채널 분석', href: '/dashboard/youtube', icon: PlaySquare }],
+    items: [{ title: '유튜브 채널 분석', href: '/dashboard_USE17237_612/youtube', icon: PlaySquare }],
   },
   {
     id: 'team',
@@ -143,10 +143,10 @@ export const NAV_CATEGORIES: NavCategory[] = [
     accent: '#0ea5e9',
     badge: 'NEW',
     items: [
-      { title: '캘린더', href: '/dashboard/team/calendar', icon: Calendar },
-      { title: '팀 채팅', href: '/dashboard/team/chat', icon: MessageCircle },
-      { title: '회의록', href: '/dashboard/team/meeting-notes', icon: ClipboardList },
-      { title: '메모', href: '/dashboard/team/notes', icon: StickyNote },
+      { title: '캘린더', href: '/dashboard_USE17237_612/team/calendar', icon: Calendar },
+      { title: '팀 채팅', href: '/dashboard_USE17237_612/team/chat', icon: MessageCircle },
+      { title: '회의록', href: '/dashboard_USE17237_612/team/meeting-notes', icon: ClipboardList },
+      { title: '메모', href: '/dashboard_USE17237_612/team/notes', icon: StickyNote },
     ],
   },
 ]

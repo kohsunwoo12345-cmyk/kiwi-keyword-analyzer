@@ -21,7 +21,7 @@ export function Footer() {
               {FEATURES.slice(0, 4).map((f) => (
                 <li key={f.slug}>
                   <Link
-                    href={`/dashboard/${f.slug}`}
+                    href={`/dashboard_USE17237_612/${f.slug}`}
                     className="text-sm text-[var(--text-soft)] transition-colors hover:text-violet-600"
                   >
                     {f.title}
@@ -37,7 +37,7 @@ export function Footer() {
               {FEATURES.slice(4).map((f) => (
                 <li key={f.slug}>
                   <Link
-                    href={`/dashboard/${f.slug}`}
+                    href={`/dashboard_USE17237_612/${f.slug}`}
                     className="text-sm text-[var(--text-soft)] transition-colors hover:text-violet-600"
                   >
                     {f.title}

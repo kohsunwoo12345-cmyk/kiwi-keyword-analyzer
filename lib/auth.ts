@@ -149,6 +149,18 @@ export async function adminAction(
   return postJson('/api/admin/users', { action, id, ...extra })
 }
 
+/** 관리자: 전체 사용자 활동 로그 (실시간 감시) */
+export interface GlobalActivityRow { type: string; detail: string | null; created_at: string; user_id: string; name: string | null; email: string | null }
+export async function adminActivity(limit = 200): Promise<{ ok: boolean; error?: string; activity: GlobalActivityRow[]; stats?: { events24: number; total: number } }> {
+  try {
+    const r = await fetch(`/api/admin/activity?limit=${limit}`, { credentials: 'include' })
+    const d = await r.json()
+    return { ok: !!d.ok, error: d.error, activity: d.activity || [], stats: d.stats }
+  } catch {
+    return { ok: false, error: '네트워크 오류', activity: [] }
+  }
+}
+
 /** 관리자: 회원 상세 (프로필 + 활동로그 + 거래내역 + 알림) */
 export async function adminUserDetail(id: string): Promise<{
   ok: boolean

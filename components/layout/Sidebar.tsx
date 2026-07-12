@@ -205,7 +205,7 @@ function UserFooter() {
         </Link>
       )}
       <Link
-        href="/dashboard/profile"
+        href="/dashboard_USE17237_612/profile"
         className="card-2 flex items-center gap-3 p-3 transition-all hover:border-violet-300 hover:bg-violet-50/50"
       >
         <span className="grid h-9 w-9 place-items-center rounded-full brand-gradient text-sm font-bold text-white">

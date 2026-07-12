@@ -17,7 +17,7 @@ export default function DashboardHome() {
         title="안녕하세요, 마케터님 👋"
         desc="오늘의 마케팅 성과를 한눈에 확인하세요."
         action={
-          <Button href="/dashboard/leads" size="sm">
+          <Button href="/dashboard_USE17237_612/leads" size="sm">
             새 랜딩페이지 <ArrowRight size={16} />
           </Button>
         }
@@ -86,7 +86,7 @@ export default function DashboardHome() {
               return (
                 <Link
                   key={f.slug}
-                  href={`/dashboard/${f.slug}`}
+                  href={`/dashboard_USE17237_612/${f.slug}`}
                   className="group card hover-lift p-5"
                 >
                   <div

@@ -74,7 +74,7 @@ export function Navbar() {
           {/* desktop CTA */}
           <div className="hidden items-center gap-2 md:flex">
             {loggedIn ? (
-              <Button href="/dashboard" size="sm" className="group">
+              <Button href="/dashboard_USE17237_612" size="sm" className="group">
                 <LayoutDashboard size={15} /> 대시보드
                 <ArrowRight size={15} className="transition-transform duration-300 group-hover:translate-x-0.5" />
               </Button>
@@ -223,7 +223,7 @@ export function Navbar() {
             ))}
             <div className="flex gap-2 pt-2">
               {loggedIn ? (
-                <Button href="/dashboard" className="flex-1">
+                <Button href="/dashboard_USE17237_612" className="flex-1">
                   <LayoutDashboard size={15} /> 대시보드로 이동
                 </Button>
               ) : (

@@ -10,7 +10,6 @@ import {
 } from 'lucide-react'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
-import { HomeAuthGate } from '@/components/HomeAuthGate'
 import { Button, SectionTag } from '@/components/ui'
 import { Reveal, Counter, Marquee } from '@/components/motion'
 import { LogoMark } from '@/components/Brand'
@@ -55,7 +54,6 @@ const previewBars = [38, 52, 44, 68, 59, 74, 82, 71, 90, 84, 96, 100]
 export default function Home() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-[var(--bg)]">
-      <HomeAuthGate />
       <Navbar />
 
       {/* ===== HERO ===== */}

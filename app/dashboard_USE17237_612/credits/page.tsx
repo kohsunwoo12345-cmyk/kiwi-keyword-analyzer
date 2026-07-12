@@ -432,7 +432,7 @@ export default function CreditsPage() {
               </div>
             )}
             <div className="mt-4 flex justify-end">
-              <Button href="/dashboard/profile" variant="ghost" size="sm">
+              <Button href="/dashboard_USE17237_612/profile" variant="ghost" size="sm">
                 전체 계정 내역 보기 <ArrowRight size={15} />
               </Button>
             </div>
