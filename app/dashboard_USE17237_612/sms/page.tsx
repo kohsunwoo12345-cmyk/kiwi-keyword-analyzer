@@ -5,6 +5,7 @@ import { Send, MessageSquare, Clock, Users, Check, Smartphone } from 'lucide-rea
 import { PageHeader } from '@/components/dash/PageHeader'
 import { StatCard, Panel, Button, Badge } from '@/components/ui'
 import { formatNumber } from '@/lib/utils'
+import { useAuth, sendSmsCampaign } from '@/lib/auth'
 
 const ACCENT = '#6366f1'
 
@@ -45,6 +46,8 @@ export default function SmsSendPage() {
   const [schedule, setSchedule] = useState<'now' | 'reserve'>('now')
   const [reserveAt, setReserveAt] = useState('')
   const [toast, setToast] = useState('')
+  const [busy, setBusy] = useState(false)
+  const { user, setUser } = useAuth()
 
   const bytes = byteLength(message)
   const isLms = bytes > 90
@@ -60,10 +63,35 @@ export default function SmsSendPage() {
     )
   }
 
-  function send() {
-    const when = schedule === 'reserve' && reserveAt ? '예약' : '즉시'
-    setToast(`${formatNumber(targetCount)}건 발송 ${when === '예약' ? '예약되었습니다' : '되었습니다'}`)
-    setTimeout(() => setToast(''), 3200)
+  function flash(msg: string, ms = 4200) {
+    setToast(msg)
+    setTimeout(() => setToast(''), ms)
+  }
+
+  async function send() {
+    if (!message.trim()) return flash('메시지 내용을 입력하세요.')
+
+    if (schedule === 'reserve') {
+      return flash(`${formatNumber(targetCount)}건 ${reserveAt || '예약 시각 미지정'} 예약 대기열에 추가되었습니다.`)
+    }
+
+    if (mode === 'direct') {
+      const nums = directNumbers.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
+      if (nums.length === 0) return flash('수신 번호를 입력하세요.')
+      setBusy(true)
+      const r = await sendSmsCampaign(nums, message)
+      setBusy(false)
+      if (!r.ok) return flash(r.error || '발송에 실패했습니다.')
+      if (r.user) setUser(r.user)
+      if (r.solapiConfigured) {
+        flash(`발송 완료 · 성공 ${r.sent}건 / 실패 ${r.failed}건 (크레딧 ${r.sent}개 차감${r.failed ? `, ${r.failed}개 환불` : ''})`)
+      } else {
+        flash(r.note || 'Solapi 미설정 — 발송되지 않았습니다(크레딧 환불됨).')
+      }
+    } else {
+      // 그룹 발송은 데모(주소록 실번호 미보유). 실제 발송은 직접 입력 모드에서.
+      flash(`${formatNumber(targetCount)}건 발송 대기열에 추가했습니다. (그룹 발송은 데모 — 실제 발송은 “직접 입력” 모드에서 발송됩니다)`)
+    }
   }
 
   return (
@@ -75,15 +103,15 @@ export default function SmsSendPage() {
         desc="발신번호와 대상을 선택해 SMS/LMS 문자를 즉시 또는 예약 발송합니다."
         accent={ACCENT}
         action={
-          <Button onClick={send} className="!bg-gradient-to-br !from-indigo-500 !to-violet-500">
-            <Send size={16} /> 발송하기
+          <Button onClick={send} disabled={busy} className="!bg-gradient-to-br !from-indigo-500 !to-violet-500">
+            <Send size={16} /> {busy ? '발송 중…' : '발송하기'}
           </Button>
         }
       />
 
       <div className="space-y-6 p-6 lg:p-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="잔여 발송 건수" value="12,480" icon={MessageSquare} accent={ACCENT} />
+          <StatCard label="잔여 발송 크레딧" value={`${formatNumber(user?.credits ?? 0)}건`} icon={MessageSquare} accent={ACCENT} />
           <StatCard label="이번달 발송" value="3,240" delta={12} icon={Send} accent="#22c55e" />
           <StatCard label="평균 도달률" value="98.2%" delta={0.4} icon={Check} accent="#0ea5e9" />
           <StatCard label="등록 발신번호" value="3개" icon={Users} accent="#f59e0b" />
@@ -220,10 +248,10 @@ export default function SmsSendPage() {
 
               <Button
                 onClick={send}
-                disabled={targetCount === 0 || !message.trim()}
+                disabled={busy || targetCount === 0 || !message.trim()}
                 className="w-full !bg-gradient-to-br !from-indigo-500 !to-violet-500"
               >
-                <Send size={16} /> {schedule === 'reserve' ? '예약 발송' : '즉시 발송'}
+                <Send size={16} /> {busy ? '발송 중…' : schedule === 'reserve' ? '예약 발송' : '즉시 발송'}
               </Button>
             </div>
           </Panel>

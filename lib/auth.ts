@@ -281,6 +281,14 @@ export async function collectLead(input: {
   return postJson('/api/leads/collect', input)
 }
 
+/** 실제 문자 발송 (Solapi). 건당 1 크레딧 차감, 실패분 자동 환불 */
+export async function sendSmsCampaign(to: string | string[], text: string): Promise<{
+  ok: boolean; error?: string; sent?: number; failed?: number; total?: number
+  solapiConfigured?: boolean; note?: string; reason?: string; user?: User; balance?: number
+}> {
+  return postJson('/api/sms/send', { to, text })
+}
+
 /* ───────── 승인 관리 (관리자) ───────── */
 export interface PlanReq { id: string; user_id: string; name: string | null; email: string | null; from_plan: string | null; to_plan: string; status: string; memo: string | null; created_at: string; decided_at: string | null }
 export interface SenderReq { id: string; user_id: string; name: string | null; email: string | null; phone: string; label: string | null; status: string; created_at: string; decided_at: string | null }
