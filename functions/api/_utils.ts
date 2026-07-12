@@ -1,12 +1,19 @@
 // Cloudflare Pages Functions 공용 유틸 (_ 프리픽스 = 라우팅 제외, import 전용)
 
 export const ADMIN_EMAIL = 'kohsunwoo12345@gmail.com'
+export const DEFAULT_ADMIN_PASSWORD = 'Bygency!2026'
 export const SESSION_COOKIE = 'bg_session'
 export const SESSION_TTL_SEC = 60 * 60 * 24 * 30 // 30일
 
 export interface Env {
   DB: D1Database
   BUCKET?: R2Bucket
+  ADMIN_PASSWORD?: string
+}
+
+/** 관리자 비밀번호 (환경변수 ADMIN_PASSWORD 우선, 없으면 기본값) */
+export function adminPassword(env: Env): string {
+  return (env && env.ADMIN_PASSWORD) || DEFAULT_ADMIN_PASSWORD
 }
 
 export function json(data: unknown, status = 200, headers: Record<string, string> = {}) {
@@ -120,6 +127,21 @@ export async function getSessionUser(request: Request, db: D1Database) {
     .bind(token, new Date().toISOString())
     .first()
   return row || null
+}
+
+/** 관리자 계정이 없으면 확정 비밀번호로 미리 생성 */
+export async function seedAdmin(db: D1Database, env: Env) {
+  const row = await db.prepare('SELECT id FROM users WHERE email = ?').bind(ADMIN_EMAIL).first()
+  if (row) return
+  const now = new Date().toISOString()
+  const ph = await hashPassword(adminPassword(env))
+  await db
+    .prepare(
+      `INSERT OR IGNORE INTO users (id, name, email, password_hash, company, plan, role, status, created_at, last_active)
+       VALUES ('admin_root', '관리자', ?, ?, '(주)Next Vision Company', 'Business', 'admin', 'active', ?, ?)`,
+    )
+    .bind(ADMIN_EMAIL, ph, now, now)
+    .run()
 }
 
 export async function createSession(db: D1Database, userId: string): Promise<string> {

@@ -5,7 +5,7 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://kiwi-keyword-analyzer.pages.dev'),
+  metadataBase: new URL('https://bygency.co'),
   title: {
     default: 'BYGENCY (바이전시) — 올인원 마케팅 그로스 플랫폼',
     template: '%s · BYGENCY',

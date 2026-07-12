@@ -41,7 +41,7 @@ export default function LoginPage() {
 
   function fillDemo() {
     setEmail('kohsunwoo12345@gmail.com')
-    setPassword('')
+    setPassword('Bygency!2026')
     setError('')
   }
 
@@ -177,17 +177,19 @@ export default function LoginPage() {
               <div className="mt-2 flex items-center justify-between gap-3">
                 <div className="text-[13px] leading-relaxed text-[var(--text-soft)]">
                   <div>
-                    관리자{' '}
+                    아이디{' '}
                     <span className="font-medium text-[var(--text)]">kohsunwoo12345@gmail.com</span>
                   </div>
-                  <div className="text-xs text-[var(--text-dim)]">첫 로그인 시 입력한 비밀번호로 관리자 계정이 생성됩니다.</div>
+                  <div>
+                    비밀번호 <span className="font-medium text-[var(--text)]">Bygency!2026</span>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={fillDemo}
                   className="shrink-0 rounded-lg border border-violet-200 bg-white px-3 py-1.5 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-100"
                 >
-                  이메일 입력
+                  자동 입력
                 </button>
               </div>
             </div>
