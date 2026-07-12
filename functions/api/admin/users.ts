@@ -1,4 +1,4 @@
-import { Env, json, ensureSchema, seedAdmin, getSessionUser, publicUser, ADMIN_EMAIL } from '../_utils'
+import { Env, json, ensureSchema, seedAdmin, getSessionUser, publicUser, ADMIN_EMAIL, resolveDB } from '../_utils'
 
 async function requireAdmin(request: Request, db: D1Database) {
   const me: any = await getSessionUser(request, db)
@@ -9,7 +9,7 @@ async function requireAdmin(request: Request, db: D1Database) {
 }
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
-  const db = env.DB
+  const db = resolveDB(env)
   if (!db) return json({ ok: false, error: 'DB 바인딩 없음' }, 500)
   await ensureSchema(db)
   await seedAdmin(db, env)
@@ -36,7 +36,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 }
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
-  const db = env.DB
+  const db = resolveDB(env)
   if (!db) return json({ ok: false, error: 'DB 바인딩 없음' }, 500)
   await ensureSchema(db)
   await seedAdmin(db, env)

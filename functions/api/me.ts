@@ -1,7 +1,7 @@
-import { Env, json, ensureSchema, seedAdmin, getSessionUser, publicUser } from './_utils'
+import { Env, json, ensureSchema, seedAdmin, getSessionUser, publicUser, resolveDB } from './_utils'
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
-  const db = env.DB
+  const db = resolveDB(env)
   if (!db) return json({ ok: false, user: null })
   await ensureSchema(db)
   await seedAdmin(db, env)

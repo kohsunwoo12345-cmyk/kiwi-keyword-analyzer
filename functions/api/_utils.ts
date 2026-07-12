@@ -16,6 +16,46 @@ export function adminPassword(env: Env): string {
   return (env && env.ADMIN_PASSWORD) || DEFAULT_ADMIN_PASSWORD
 }
 
+/** 바인딩 변수명이 무엇이든 D1 데이터베이스를 자동 탐지 */
+export function resolveDB(env: any): D1Database | null {
+  if (!env) return null
+  const preferred = ['DB', 'D1', 'd1', 'DATABASE', 'db', 'BYGENCY_DB', 'bygency_db', 'DB1', 'database', 'MAIN_DB']
+  for (const n of preferred) {
+    const v = env[n]
+    if (v && typeof v.prepare === 'function') return v
+  }
+  for (const k of Object.keys(env)) {
+    const v = (env as any)[k]
+    if (v && typeof v.prepare === 'function' && typeof v.batch === 'function') return v
+  }
+  return null
+}
+
+/** 바인딩 변수명이 무엇이든 R2 버킷을 자동 탐지 */
+export function resolveBucket(env: any): R2Bucket | null {
+  if (!env) return null
+  const preferred = ['BUCKET', 'R2', 'r2', 'R2_BUCKET', 'bucket', 'STORAGE', 'ASSETS']
+  for (const n of preferred) {
+    const v = env[n]
+    if (v && typeof v.get === 'function' && typeof v.put === 'function') return v
+  }
+  for (const k of Object.keys(env)) {
+    const v = (env as any)[k]
+    if (v && typeof v.get === 'function' && typeof v.put === 'function' && typeof v.createMultipartUpload === 'function')
+      return v
+  }
+  return null
+}
+
+/** 진단용: env에 존재하는 바인딩 키 목록 */
+export function bindingKeys(env: any): string[] {
+  if (!env) return []
+  return Object.keys(env).filter((k) => {
+    const v = (env as any)[k]
+    return v && typeof v === 'object'
+  })
+}
+
 export function json(data: unknown, status = 200, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(data), {
     status,

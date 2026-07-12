@@ -10,10 +10,11 @@ import {
   publicUser,
   ADMIN_EMAIL,
   adminPassword,
+  resolveDB,
 } from './_utils'
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
-  const db = env.DB
+  const db = resolveDB(env)
   if (!db) return json({ ok: false, error: '데이터베이스(D1) 바인딩이 설정되지 않았습니다.' }, 500)
   await ensureSchema(db)
   await seedAdmin(db, env)

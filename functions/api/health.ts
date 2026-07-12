@@ -1,20 +1,21 @@
-import { Env, json, ensureSchema, seedAdmin, ADMIN_EMAIL } from './_utils'
+import { Env, json, ensureSchema, seedAdmin, resolveDB, resolveBucket, bindingKeys, ADMIN_EMAIL } from './_utils'
 
-// 배포 상태 진단용: https://<도메인>/api/health
+// 배포/바인딩 진단용: https://<도메인>/api/health
 export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
-  const hasDB = !!env.DB
+  const db = resolveDB(env)
+  const bucket = resolveBucket(env)
   let dbOk = false
   let userCount = -1
   let adminSeeded = false
   let error: string | undefined
 
-  if (hasDB) {
+  if (db) {
     try {
-      await ensureSchema(env.DB)
-      await seedAdmin(env.DB, env)
-      const row: any = await env.DB.prepare('SELECT COUNT(*) AS n FROM users').first()
+      await ensureSchema(db)
+      await seedAdmin(db, env)
+      const row: any = await db.prepare('SELECT COUNT(*) AS n FROM users').first()
       userCount = row?.n ?? 0
-      const admin = await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(ADMIN_EMAIL).first()
+      const admin = await db.prepare('SELECT id FROM users WHERE email = ?').bind(ADMIN_EMAIL).first()
       adminSeeded = !!admin
       dbOk = true
     } catch (e: any) {
@@ -25,14 +26,16 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
   return json({
     ok: true,
     functions: true,
-    dbBinding: hasDB,
+    dbBinding: !!db,
     dbOk,
+    r2Binding: !!bucket,
     userCount,
     adminSeeded,
     adminEmail: ADMIN_EMAIL,
-    hint: hasDB
-      ? 'D1 바인딩 정상. 로그인 사용 가능.'
-      : "Cloudflare Pages → Settings → Functions → Bindings 에서 D1을 변수명 'DB'로 연결하세요.",
+    detectedBindings: bindingKeys(env), // 실제로 잡힌 바인딩 변수명 목록
+    hint: db
+      ? 'D1 정상 감지. 로그인 사용 가능.'
+      : "D1 바인딩이 감지되지 않았습니다. 이 도메인을 서비스하는 Pages 프로젝트의 Production 환경에 D1 바인딩을 추가하고 재배포하세요. detectedBindings 배열에 D1 변수명이 보이면 코드가 자동으로 잡습니다.",
     error,
   })
 }
