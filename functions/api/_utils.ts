@@ -16,33 +16,60 @@ export function adminPassword(env: Env): string {
   return (env && env.ADMIN_PASSWORD) || DEFAULT_ADMIN_PASSWORD
 }
 
-/** 바인딩 변수명이 무엇이든 D1 데이터베이스를 자동 탐지 */
+// Pages가 자동 주입하거나 D1이 아닌 바인딩 (오탐 방지용 제외 목록)
+const EXCLUDE = new Set(['ASSETS', 'ADMIN_PASSWORD'])
+
+// D1Database는 prepare/batch/exec/dump 를 갖고, Fetcher(ASSETS/service)처럼 fetch/connect 는 없다.
+function isLikelyD1(v: any): boolean {
+  return (
+    !!v &&
+    typeof v === 'object' &&
+    typeof v.prepare === 'function' &&
+    typeof v.batch === 'function' &&
+    typeof v.dump === 'function' &&
+    typeof (v as any).fetch !== 'function' &&
+    typeof (v as any).connect !== 'function'
+  )
+}
+
+// R2Bucket은 get/put/list/head/delete 를 갖고, fetch/prepare 는 없다.
+function isLikelyR2(v: any): boolean {
+  return (
+    !!v &&
+    typeof v === 'object' &&
+    typeof v.get === 'function' &&
+    typeof v.put === 'function' &&
+    typeof v.list === 'function' &&
+    typeof v.head === 'function' &&
+    typeof (v as any).prepare !== 'function' &&
+    typeof (v as any).fetch !== 'function'
+  )
+}
+
+/** 바인딩 변수명이 무엇이든 D1 데이터베이스를 자동 탐지 (ASSETS 등 오탐 제외) */
 export function resolveDB(env: any): D1Database | null {
   if (!env) return null
   const preferred = ['DB', 'D1', 'd1', 'DATABASE', 'db', 'BYGENCY_DB', 'bygency_db', 'DB1', 'database', 'MAIN_DB']
   for (const n of preferred) {
-    const v = env[n]
-    if (v && typeof v.prepare === 'function') return v
+    if (!EXCLUDE.has(n) && isLikelyD1(env[n])) return env[n]
   }
   for (const k of Object.keys(env)) {
-    const v = (env as any)[k]
-    if (v && typeof v.prepare === 'function' && typeof v.batch === 'function') return v
+    if (EXCLUDE.has(k)) continue
+    if (isLikelyD1((env as any)[k])) return (env as any)[k]
   }
   return null
 }
 
-/** 바인딩 변수명이 무엇이든 R2 버킷을 자동 탐지 */
+/** 바인딩 변수명이 무엇이든 R2 버킷을 자동 탐지 (ASSETS 등 오탐 제외) */
 export function resolveBucket(env: any): R2Bucket | null {
   if (!env) return null
-  const preferred = ['BUCKET', 'R2', 'r2', 'R2_BUCKET', 'bucket', 'STORAGE', 'ASSETS']
+  const preferred = ['BUCKET', 'R2', 'r2', 'R2_BUCKET', 'bucket', 'STORAGE']
   for (const n of preferred) {
-    const v = env[n]
-    if (v && typeof v.get === 'function' && typeof v.put === 'function') return v
+    if (!EXCLUDE.has(n) && isLikelyR2(env[n])) return env[n]
   }
   for (const k of Object.keys(env)) {
-    const v = (env as any)[k]
-    if (v && typeof v.get === 'function' && typeof v.put === 'function' && typeof v.createMultipartUpload === 'function')
-      return v
+    if (EXCLUDE.has(k)) continue
+    if (isLikelyR2((env as any)[k])) return (env as any)[k]
   }
   return null
 }
