@@ -47,6 +47,21 @@ export function LogoMark({ size = 36, className }: { size?: number; className?: 
   )
 }
 
+/** 앱 아이콘(라운드 흰 타일 + 마크) — 첨부된 로고 이미지 사용. public/brand/app-icon.png 교체 시 자동 반영 */
+export function AppIcon({ size = 36, className }: { size?: number; className?: string }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/brand/app-icon.png"
+      alt="BYGENCY"
+      width={size}
+      height={size}
+      className={cn('rounded-[26%] ring-1 ring-black/5 shadow-sm', className)}
+      style={{ width: size, height: size }}
+    />
+  )
+}
+
 /** 로고 + BYGENCY 워드마크 락업 */
 export function Logo({
   size = 34,
@@ -61,7 +76,7 @@ export function Logo({
 }) {
   const inner = (
     <span className={cn('flex items-center gap-2.5', className)}>
-      <LogoMark size={size} />
+      <AppIcon size={size} />
       <span
         className={cn(
           'font-black tracking-[0.14em] text-[#0a1730]',
