@@ -17,15 +17,16 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'BYGENCY',
-    title: 'BYGENCY — 올인원 마케팅 그로스 플랫폼',
+    title: 'BYGENCY (바이전시)',
     description:
-      'DB수집 · 유튜브/블로그 분석 · 광고 분석 · CRM · AI 영상 제작. 마케팅에 필요한 모든 것을 한 곳에서.',
+      '바이전시 BYGENCY AI영상 제작 블로그 분석 유튜브 분석 랜딩페이지 홈페이지 제작 모두 한 곳에서!',
     locale: 'ko_KR',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'BYGENCY — 올인원 마케팅 그로스 플랫폼',
-    description: 'DB수집 · 유튜브/블로그 분석 · 광고 · CRM · AI 영상 제작.',
+    title: 'BYGENCY (바이전시)',
+    description:
+      '바이전시 BYGENCY AI영상 제작 블로그 분석 유튜브 분석 랜딩페이지 홈페이지 제작 모두 한 곳에서!',
   },
   verification: {
     google: 'KyRRy4i1SLsGN83YlmgJr9xhdgLOQ_OH1alq7R53bpk',
