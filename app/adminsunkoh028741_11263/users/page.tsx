@@ -91,6 +91,9 @@ function planBadgeClass(plan: User['plan']) {
     ? 'border-violet-200 bg-violet-50 text-violet-700'
     : 'border-slate-200 bg-slate-50 text-slate-600'
 }
+function planLabel(plan: User['plan']) {
+  return plan === '없음' || !plan ? '미가입' : plan
+}
 function fmtNum(n: number) {
   return n.toLocaleString('ko-KR')
 }
@@ -400,7 +403,7 @@ export default function AdminUsersPage() {
                     <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-1.5 text-sm font-semibold">
                         {u.name}
-                        <span className="text-xs font-normal text-[var(--text-dim)]">· {u.plan}</span>
+                        <span className="text-xs font-normal text-[var(--text-dim)]">· {planLabel(u.plan)}</span>
                       </p>
                       <p className="mt-0.5 truncate text-xs text-[var(--text-soft)]">{u.email}</p>
                       <p className="mt-0.5 flex items-center gap-1 text-[11px] text-emerald-600">
@@ -518,7 +521,7 @@ export default function AdminUsersPage() {
                         </td>
                         <td className="py-3 text-[var(--text-soft)]">{u.company || '-'}</td>
                         <td className="py-3">
-                          <Badge className={planBadgeClass(u.plan)}>{u.plan}</Badge>
+                          <Badge className={planBadgeClass(u.plan)}>{planLabel(u.plan)}</Badge>
                         </td>
                         <td className="py-3">
                           {u.status === 'active' ? (
@@ -625,7 +628,7 @@ export default function AdminUsersPage() {
                       <div className="min-w-0">
                         <p className="flex items-center gap-2 text-lg font-bold">
                           {u.name}
-                          <Badge className={planBadgeClass(u.plan)}>{u.plan}</Badge>
+                          <Badge className={planBadgeClass(u.plan)}>{planLabel(u.plan)}</Badge>
                         </p>
                         <p className="truncate text-sm text-[var(--text-soft)]">{u.email}</p>
                         <p className="text-xs text-[var(--text-dim)]">{u.company || '소속 없음'}</p>
@@ -707,6 +710,7 @@ export default function AdminUsersPage() {
                           onChange={(e) => setPlanSel(e.target.value as User['plan'])}
                           className={INPUT_CLS}
                         >
+                          <option value="없음">미가입</option>
                           <option value="Starter">Starter</option>
                           <option value="Pro">Pro</option>
                           <option value="Business">Business</option>

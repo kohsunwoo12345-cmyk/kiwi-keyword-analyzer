@@ -25,6 +25,7 @@ import {
   type PlanReq,
   type SenderReq,
   type PointReq,
+  type CreditReq,
   type User,
 } from '@/lib/auth'
 import { cn } from '@/lib/utils'
@@ -104,16 +105,19 @@ export default function AdminApprovalsPage() {
   const [planRequests, setPlanRequests] = useState<PlanReq[]>([])
   const [senderNumbers, setSenderNumbers] = useState<SenderReq[]>([])
   const [pointRequests, setPointRequests] = useState<PointReq[]>([])
+  const [creditRequests, setCreditRequests] = useState<CreditReq[]>([])
   const [signups, setSignups] = useState<User[]>([])
   const [stats, setStats] = useState<{
     pendingPlans: number
     pendingSenders: number
     pendingPoints: number
+    pendingCredits: number
     totalMembers: number
   }>({
     pendingPlans: 0,
     pendingSenders: 0,
     pendingPoints: 0,
+    pendingCredits: 0,
     totalMembers: 0,
   })
   const [loading, setLoading] = useState(true)
@@ -135,12 +139,14 @@ export default function AdminApprovalsPage() {
       setPlanRequests(r.planRequests)
       setSenderNumbers(r.senderNumbers)
       setPointRequests(r.pointRequests)
+      setCreditRequests(r.creditRequests)
       setSignups(r.signups)
       setStats(
         r.stats ?? {
           pendingPlans: r.planRequests.filter((p) => p.status === 'pending').length,
           pendingSenders: r.senderNumbers.filter((s) => s.status === 'pending').length,
           pendingPoints: r.pointRequests.filter((p) => p.status === 'pending').length,
+          pendingCredits: r.creditRequests.filter((c) => c.status === 'pending').length,
           totalMembers: r.signups.length,
         },
       )
@@ -152,7 +158,7 @@ export default function AdminApprovalsPage() {
   }, [])
 
   async function decide(
-    type: 'plan' | 'sender' | 'point',
+    type: 'plan' | 'sender' | 'point' | 'credit',
     id: string,
     decision: 'approve' | 'reject',
   ) {
@@ -167,7 +173,7 @@ export default function AdminApprovalsPage() {
     }
   }
 
-  function ActionCell({ type, id }: { type: 'plan' | 'sender' | 'point'; id: string }) {
+  function ActionCell({ type, id }: { type: 'plan' | 'sender' | 'point' | 'credit'; id: string }) {
     return (
       <div className="flex items-center justify-end gap-1.5">
         <Button
@@ -247,7 +253,7 @@ export default function AdminApprovalsPage() {
       <div className="space-y-6 p-6 lg:p-8">
         {/* stats */}
         <Reveal>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
             <StatCard
               label="대기중 플랜"
               value={(<Counter to={stats.pendingPlans} />) as unknown as string}
@@ -263,6 +269,12 @@ export default function AdminApprovalsPage() {
             <StatCard
               label="대기중 포인트"
               value={(<Counter to={stats.pendingPoints} />) as unknown as string}
+              icon={Coins}
+              accent="#f59e0b"
+            />
+            <StatCard
+              label="대기중 크레딧"
+              value={(<Counter to={stats.pendingCredits} />) as unknown as string}
               icon={Coins}
               accent="#f59e0b"
             />
@@ -411,6 +423,82 @@ export default function AdminApprovalsPage() {
                     <tr>
                       <td colSpan={6} className="py-10 text-center text-[var(--text-dim)]">
                         {loading ? '불러오는 중…' : '포인트 지급 요청이 없습니다.'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        </Reveal>
+
+        {/* 크레딧 충전 승인 */}
+        <Reveal>
+          <Panel
+            title={
+              <span className="flex items-center gap-2">
+                <Coins size={16} className="text-amber-500" /> 크레딧 충전 승인
+                {stats.pendingCredits > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                    <Clock size={11} /> {stats.pendingCredits} 대기
+                  </span>
+                )}
+              </span>
+            }
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border-soft)] text-left text-xs text-[var(--text-dim)]">
+                    <th className="pb-2.5 font-medium">회원</th>
+                    <th className="pb-2.5 font-medium">충전 크레딧</th>
+                    <th className="pb-2.5 font-medium">결제 금액</th>
+                    <th className="pb-2.5 font-medium">메모</th>
+                    <th className="pb-2.5 font-medium">신청일</th>
+                    <th className="pb-2.5 font-medium">상태</th>
+                    <th className="pb-2.5 text-right font-medium">액션</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {creditRequests.map((c) => (
+                    <tr
+                      key={c.id}
+                      className="border-b border-[var(--border-soft)] last:border-0 hover:bg-slate-50"
+                    >
+                      <td className="py-3">
+                        <MemberCell name={c.name} email={c.email} />
+                      </td>
+                      <td className="py-3">
+                        <span className="font-bold text-[#f59e0b]">
+                          {c.amount.toLocaleString()}개
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap py-3 text-[var(--text-soft)]">
+                        {c.price > 0 ? c.price.toLocaleString() + '원' : '-'}
+                      </td>
+                      <td className="py-3 text-[var(--text-soft)]">{c.memo || '-'}</td>
+                      <td className="whitespace-nowrap py-3 text-[var(--text-soft)]">
+                        {fmtDate(c.created_at)}
+                        <span className="ml-1 text-xs text-[var(--text-dim)]">· {timeAgo(c.created_at)}</span>
+                      </td>
+                      <td className="py-3">
+                        <Badge className={statusBadgeClass(c.status)}>{statusLabel(c.status)}</Badge>
+                      </td>
+                      <td className="py-3">
+                        {c.status === 'pending' ? (
+                          <ActionCell type="credit" id={c.id} />
+                        ) : (
+                          <div className="text-right text-xs text-[var(--text-dim)]">
+                            {c.decided_at ? fmtDate(c.decided_at) : '처리 완료'}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {creditRequests.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="py-10 text-center text-[var(--text-dim)]">
+                        {loading ? '불러오는 중…' : '크레딧 충전 요청이 없습니다.'}
                       </td>
                     </tr>
                   )}

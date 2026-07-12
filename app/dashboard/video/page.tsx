@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Clapperboard, Wand2, Play, Download, Film, Camera } from 'lucide-react'
+import { Clapperboard, Wand2, Play, Download, Film, Camera, Coins, AlertCircle } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button } from '@/components/ui'
 import { videoStyles, videoMotions, videoGallery } from '@/lib/mock'
+import { useCredit, CREDIT_COSTS } from '@/lib/auth'
 
 const RATIOS = [
   { label: '9:16 숏폼', v: 'aspect-[9/16]' },
@@ -35,6 +36,25 @@ export default function VideoPage() {
   const [generating, setGenerating] = useState(false)
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState<Gen | null>(null)
+  const [creditErr, setCreditErr] = useState<string | null>(null)
+  const [creditNote, setCreditNote] = useState<string | null>(null)
+
+  const VIDEO_COST = CREDIT_COSTS.video.cost
+
+  async function startGenerate() {
+    if (generating || !prompt.trim()) return
+    setCreditErr(null)
+    setCreditNote(null)
+    const r = await useCredit(VIDEO_COST, CREDIT_COSTS.video.label)
+    if (!r.ok) {
+      setCreditErr(r.error || '크레딧이 부족합니다.')
+      return
+    }
+    if (typeof r.balanceAfter === 'number') {
+      setCreditNote(`${VIDEO_COST} 크레딧 차감 완료 · 잔여 ${r.balanceAfter.toLocaleString('ko-KR')} 크레딧`)
+    }
+    setGenerating(true)
+  }
 
   useEffect(() => {
     if (!generating) return
@@ -145,13 +165,27 @@ export default function VideoPage() {
               </div>
             </div>
 
+            {creditErr && (
+              <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
+                <AlertCircle size={15} /> {creditErr}
+              </div>
+            )}
+            {creditNote && !creditErr && (
+              <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-700">
+                <Coins size={15} /> {creditNote}
+              </div>
+            )}
+
             <Button
-              onClick={() => setGenerating(true)}
+              onClick={startGenerate}
               disabled={generating || !prompt.trim()}
               className="w-full"
             >
               <Wand2 size={16} /> {generating ? '생성 중...' : '영상 생성하기'}
             </Button>
+            <p className="flex items-center justify-center gap-1.5 text-xs text-[var(--text-dim)]">
+              <Coins size={13} className="text-amber-500" /> AI 영상 제작 1회 = {VIDEO_COST} 크레딧 차감
+            </p>
           </div>
         </Panel>
 
@@ -208,7 +242,7 @@ export default function VideoPage() {
                 <Button variant="outline" size="sm">
                   <Download size={15} /> 다운로드
                 </Button>
-                <Button size="sm" onClick={() => setGenerating(true)}>
+                <Button size="sm" onClick={startGenerate}>
                   <Wand2 size={15} /> 재생성
                 </Button>
               </div>

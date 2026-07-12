@@ -34,6 +34,9 @@ import {
   registerSender,
   requestPoint,
   myPointRequests,
+  requestCredit,
+  myCreditRequests,
+  CREDIT_PACKAGES,
   type User,
   type Tx,
   type Noti,
@@ -75,6 +78,10 @@ const PLAN_META: Record<
   string,
   { badge: string; perks: string[] }
 > = {
+  '없음': {
+    badge: 'border-slate-200 bg-slate-50 text-slate-600',
+    perks: ['가입된 플랜이 없습니다', '플랜에 가입하고 더 많은 기능을 이용하세요'],
+  },
   Starter: {
     badge: 'border-sky-200 bg-sky-50 text-sky-700',
     perks: ['기본 키워드 분석', '월 10회 리포트', '이메일 지원'],
@@ -100,6 +107,10 @@ function statusMeta(s: string) {
 }
 
 const ALL_PLANS = ['Starter', 'Pro', 'Business'] as const
+
+function planLabel(plan: string) {
+  return plan === '없음' || !plan ? '미가입' : plan
+}
 
 /* ---------- activity meta ---------- */
 const ACT_META: Record<
@@ -211,6 +222,17 @@ export default function ProfilePage() {
     { amount: number; memo: string | null; status: string; created_at: string; decided_at: string | null }[]
   >([])
 
+  // credit request
+  const [creditAmount, setCreditAmount] = useState('')
+  const [creditPrice, setCreditPrice] = useState(0)
+  const [creditMemo, setCreditMemo] = useState('')
+  const [creditBusy, setCreditBusy] = useState(false)
+  const [creditOk, setCreditOk] = useState(false)
+  const [creditErr, setCreditErr] = useState<string | null>(null)
+  const [creditReqs, setCreditReqs] = useState<
+    { amount: number; price: number; memo: string | null; status: string; created_at: string; decided_at: string | null }[]
+  >([])
+
   useEffect(() => {
     let alive = true
     accountOverview().then((d) => {
@@ -239,11 +261,16 @@ export default function ProfilePage() {
     const r = await myPointRequests()
     if (r.ok) setPointReqs(r.requests || [])
   }
+  async function loadCreditReqs() {
+    const r = await myCreditRequests()
+    if (r.ok) setCreditReqs(r.requests || [])
+  }
 
   useEffect(() => {
     loadPlanReqs()
     loadSenders()
     loadPointReqs()
+    loadCreditReqs()
   }, [])
 
   async function submitPlan(e: FormEvent) {
@@ -305,6 +332,30 @@ export default function ProfilePage() {
       setTimeout(() => setPointOk(false), 5000)
     } else {
       setPointErr(r.error || '신청에 실패했습니다.')
+    }
+  }
+
+  async function submitCredit(e: FormEvent) {
+    e.preventDefault()
+    setCreditOk(false)
+    setCreditErr(null)
+    const amt = Math.floor(Number(creditAmount.replace(/[^0-9]/g, '')))
+    if (!amt || amt <= 0) {
+      setCreditErr('충전할 크레딧 수량을 입력하세요.')
+      return
+    }
+    setCreditBusy(true)
+    const r = await requestCredit(amt, creditPrice || undefined, creditMemo.trim() || undefined)
+    setCreditBusy(false)
+    if (r.ok) {
+      setCreditOk(true)
+      setCreditAmount('')
+      setCreditPrice(0)
+      setCreditMemo('')
+      loadCreditReqs()
+      setTimeout(() => setCreditOk(false), 5000)
+    } else {
+      setCreditErr(r.error || '신청에 실패했습니다.')
     }
   }
 
@@ -392,7 +443,7 @@ export default function ProfilePage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-xl font-bold tracking-tight">{user.name}</h2>
                       <Badge className={PLAN_META[user.plan]?.badge || 'border-slate-200 bg-slate-50 text-slate-600'}>
-                        <Crown size={12} /> {user.plan}
+                        <Crown size={12} /> {planLabel(user.plan)}
                       </Badge>
                       {user.role === 'admin' && (
                         <Badge className="border-slate-300 bg-slate-900 text-white">
@@ -499,9 +550,9 @@ export default function ProfilePage() {
               {/* 3. 현재 플랜 */}
               <Panel title={<span className="flex items-center gap-2"><Crown size={16} className="text-amber-500" /> 현재 플랜</span>}>
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl font-bold tracking-tight">{user.plan}</span>
+                  <span className="text-2xl font-bold tracking-tight">{planLabel(user.plan)}</span>
                   <Badge className={PLAN_META[user.plan]?.badge || 'border-slate-200 bg-slate-50 text-slate-600'}>
-                    현재 이용 중
+                    {user.plan === '없음' ? '미가입' : '현재 이용 중'}
                   </Badge>
                 </div>
                 <ul className="mt-4 space-y-2">
@@ -533,7 +584,7 @@ export default function ProfilePage() {
                   <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm">
                     <span className="text-[var(--text-soft)]">현재 플랜</span>
                     <Badge className={PLAN_META[user.plan]?.badge || 'border-slate-200 bg-slate-50 text-slate-600'}>
-                      <Crown size={12} /> {user.plan}
+                      <Crown size={12} /> {planLabel(user.plan)}
                     </Badge>
                   </div>
                   <div>
@@ -762,6 +813,112 @@ export default function ProfilePage() {
                           >
                             <div className="min-w-0">
                               <p className="text-sm font-medium">{ko(r.amount)}P</p>
+                              <p className="mt-0.5 text-xs text-[var(--text-dim)]">
+                                {fmtDate(r.created_at)}
+                                {r.memo ? <span className="ml-1">· {r.memo}</span> : null}
+                              </p>
+                            </div>
+                            <Badge className={m.badge}>{m.label}</Badge>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </Panel>
+
+            {/* 3.7 크레딧 충전 신청 */}
+            <Panel title={<span className="flex items-center gap-2"><Coins size={16} className="text-amber-500" /> 크레딧 충전 신청</span>}>
+              <p className="mb-3 rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm text-[var(--text-soft)]">
+                필요한 크레딧을 신청하면 관리자 승인 후 충전됩니다. (현재 보유: <b className="text-amber-600">{ko(user.credits)}개</b>)
+              </p>
+              <div className="grid gap-6 lg:grid-cols-2">
+                <form onSubmit={submitCredit} className="space-y-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">패키지 선택</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {CREDIT_PACKAGES.map((pkg) => {
+                        const active = creditAmount === String(pkg.credits) && creditPrice === pkg.price
+                        return (
+                          <button
+                            key={pkg.credits}
+                            type="button"
+                            onClick={() => {
+                              setCreditAmount(String(pkg.credits))
+                              setCreditPrice(pkg.price)
+                            }}
+                            className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                              active
+                                ? 'border-amber-300 bg-amber-50 text-amber-600'
+                                : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-amber-300 hover:text-amber-600'
+                            }`}
+                          >
+                            +{ko(pkg.credits)} / {pkg.price.toLocaleString()}원
+                            {pkg.badge ? <span className="ml-1 text-[10px] text-amber-500">{pkg.badge}</span> : null}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">신청 크레딧</label>
+                    <input
+                      value={creditAmount}
+                      onChange={(e) => setCreditAmount(e.target.value)}
+                      className={inputCls}
+                      placeholder="예: 50"
+                      inputMode="numeric"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">
+                      메모 <span className="text-[var(--text-dim)]">(선택)</span>
+                    </label>
+                    <input
+                      value={creditMemo}
+                      onChange={(e) => setCreditMemo(e.target.value)}
+                      className={inputCls}
+                      placeholder="신청 사유를 남겨주세요"
+                    />
+                  </div>
+
+                  {creditOk && (
+                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2.5 text-sm text-emerald-700">
+                      <Check size={15} /> 신청이 접수되었습니다. 관리자 승인 후 충전됩니다.
+                    </div>
+                  )}
+                  {creditErr && (
+                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
+                      <AlertCircle size={15} /> {creditErr}
+                    </div>
+                  )}
+
+                  <Button type="submit" disabled={creditBusy} className="w-full">
+                    {creditBusy ? '신청 중...' : '충전 신청'}
+                  </Button>
+                </form>
+
+                <div>
+                  <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
+                    <Clock size={13} /> 신청 내역
+                  </p>
+                  {creditReqs.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-[var(--text-dim)]">신청 내역이 없습니다</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {creditReqs.map((r, i) => {
+                        const m = statusMeta(r.status)
+                        return (
+                          <li
+                            key={i}
+                            className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-soft)] px-3.5 py-2.5"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium">
+                                {ko(r.amount)}개
+                                {r.price > 0 ? <span className="ml-1.5 text-[var(--text-soft)]">· {r.price.toLocaleString()}원</span> : null}
+                              </p>
                               <p className="mt-0.5 text-xs text-[var(--text-dim)]">
                                 {fmtDate(r.created_at)}
                                 {r.memo ? <span className="ml-1">· {r.memo}</span> : null}

@@ -19,6 +19,8 @@ import {
   Calendar,
   ClipboardList,
   StickyNote,
+  Coins,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -44,6 +46,16 @@ export const NAV_HOME: NavItem = {
 }
 
 export const NAV_CATEGORIES: NavCategory[] = [
+  {
+    id: 'credits',
+    title: '크레딧·결제',
+    icon: Coins,
+    accent: '#f59e0b',
+    items: [
+      { title: '크레딧 충전', href: '/dashboard/credits', icon: Wallet },
+      { title: '이용·충전 내역', href: '/dashboard/credits#history', icon: Coins },
+    ],
+  },
   {
     id: 'sms',
     title: '문자 (SMS)',

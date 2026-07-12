@@ -45,6 +45,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     )
     .all()).results || []
 
+  const creditRequests = (await db
+    .prepare(
+      `SELECT c.id, c.user_id, u.name, u.email, c.amount, c.price, c.memo, c.status, c.created_at, c.decided_at
+       FROM credit_requests c LEFT JOIN users u ON u.id = c.user_id
+       ORDER BY (c.status='pending') DESC, c.created_at DESC LIMIT 300`,
+    )
+    .all()).results || []
+
   // 회원가입 정보 (최근 가입 회원 전체 정보)
   const signupRows = (await db
     .prepare(`SELECT * FROM users ORDER BY created_at DESC LIMIT 300`)
@@ -54,14 +62,16 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const pendingPlans = planRequests.filter((r: any) => r.status === 'pending').length
   const pendingSenders = senderNumbers.filter((r: any) => r.status === 'pending').length
   const pendingPoints = pointRequests.filter((r: any) => r.status === 'pending').length
+  const pendingCredits = creditRequests.filter((r: any) => r.status === 'pending').length
 
   return json({
     ok: true,
     planRequests,
     senderNumbers,
     pointRequests,
+    creditRequests,
     signups,
-    stats: { pendingPlans, pendingSenders, pendingPoints, totalMembers: signups.length },
+    stats: { pendingPlans, pendingSenders, pendingPoints, pendingCredits, totalMembers: signups.length },
   })
 }
 
@@ -115,6 +125,17 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       await addNotification(db, req.user_id, '포인트 지급이 반려되었습니다', `${req.amount.toLocaleString()}P 지급 신청이 반려되었습니다.`)
     }
     await logAudit(db, admin, 'approve_point', String(req.amount), decision, 'info', adminIp)
+  } else if (type === 'credit') {
+    const req: any = await db.prepare('SELECT * FROM credit_requests WHERE id = ?').bind(id).first()
+    if (!req) return json({ ok: false, error: '요청을 찾을 수 없습니다.' }, 404)
+    await db.prepare('UPDATE credit_requests SET status = ?, decided_at = ? WHERE id = ?').bind(status, now, id).run()
+    if (decision === 'approve') {
+      await applyBalance(db, req.user_id, 'credit', req.amount, `크레딧 충전 승인${req.memo ? ' · ' + req.memo : ''}`)
+      await addNotification(db, req.user_id, '크레딧이 충전되었습니다', `크레딧 ${req.amount.toLocaleString()}개가 충전되었습니다. 감사합니다!`)
+    } else {
+      await addNotification(db, req.user_id, '크레딧 충전이 반려되었습니다', `크레딧 ${req.amount.toLocaleString()}개 충전 신청이 반려되었습니다.`)
+    }
+    await logAudit(db, admin, 'approve_credit', String(req.amount), decision, 'info', adminIp)
   } else {
     return json({ ok: false, error: '알 수 없는 유형입니다.' }, 400)
   }

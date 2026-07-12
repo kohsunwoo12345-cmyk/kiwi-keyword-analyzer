@@ -42,7 +42,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await db
     .prepare(
       `INSERT INTO users (id, name, email, password_hash, company, phone, plan, role, status, points, credits, created_at, last_active)
-       VALUES (?, ?, ?, ?, ?, ?, 'Starter', ?, 'active', 0, 0, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, '없음', ?, 'active', 0, 0, ?, ?)`,
     )
     .bind(id, name, email, ph, company, phone, role, now, now)
     .run()
@@ -50,8 +50,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await logActivity(db, id, 'signup', '회원 가입')
   // 웰컴 보너스
   await applyBalance(db, id, 'point', 1000, '가입 축하 포인트')
-  await applyBalance(db, id, 'credit', 10, '가입 축하 크레딧')
-  await addNotification(db, id, 'BYGENCY에 오신 것을 환영합니다 🎉', '가입 축하 포인트 1,000P와 크레딧 10개가 지급되었어요. 지금 바로 시작해보세요!')
+  await applyBalance(db, id, 'credit', 3, '가입 축하 체험 크레딧')
+  await addNotification(db, id, 'BYGENCY에 오신 것을 환영합니다 🎉', '체험 크레딧 3개와 포인트 1,000P를 지급했어요. 요금제를 선택하고 크레딧을 충전하면 모든 기능을 사용할 수 있습니다!')
 
   const geo = geoFrom(request)
   const token = await createSession(db, id, { ip: clientIp(request), ua: request.headers.get('User-Agent') || '', country: geo.country })

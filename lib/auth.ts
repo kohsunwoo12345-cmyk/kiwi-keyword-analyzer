@@ -9,7 +9,7 @@ export interface User {
   email: string
   company: string
   phone?: string
-  plan: 'Starter' | 'Pro' | 'Business'
+  plan: '없음' | 'Starter' | 'Pro' | 'Business'
   role: 'user' | 'admin'
   status: 'active' | 'suspended'
   points: number
@@ -259,11 +259,12 @@ export async function trackPwa(input: { endpoint?: string; platform?: string; al
 export interface PlanReq { id: string; user_id: string; name: string | null; email: string | null; from_plan: string | null; to_plan: string; status: string; memo: string | null; created_at: string; decided_at: string | null }
 export interface SenderReq { id: string; user_id: string; name: string | null; email: string | null; phone: string; label: string | null; status: string; created_at: string; decided_at: string | null }
 export interface PointReq { id: string; user_id: string; name: string | null; email: string | null; amount: number; memo: string | null; status: string; created_at: string; decided_at: string | null }
+export interface CreditReq { id: string; user_id: string; name: string | null; email: string | null; amount: number; price: number; memo: string | null; status: string; created_at: string; decided_at: string | null }
 
 export async function adminApprovals(): Promise<{
   ok: boolean; error?: string
-  planRequests: PlanReq[]; senderNumbers: SenderReq[]; pointRequests: PointReq[]; signups: User[]
-  stats?: { pendingPlans: number; pendingSenders: number; pendingPoints: number; totalMembers: number }
+  planRequests: PlanReq[]; senderNumbers: SenderReq[]; pointRequests: PointReq[]; creditRequests: CreditReq[]; signups: User[]
+  stats?: { pendingPlans: number; pendingSenders: number; pendingPoints: number; pendingCredits: number; totalMembers: number }
 }> {
   try {
     const r = await fetch('/api/admin/approvals', { credentials: 'include' })
@@ -271,14 +272,15 @@ export async function adminApprovals(): Promise<{
     return {
       ok: !!d.ok, error: d.error,
       planRequests: d.planRequests || [], senderNumbers: d.senderNumbers || [],
-      pointRequests: d.pointRequests || [], signups: d.signups || [], stats: d.stats,
+      pointRequests: d.pointRequests || [], creditRequests: d.creditRequests || [],
+      signups: d.signups || [], stats: d.stats,
     }
   } catch {
-    return { ok: false, error: '네트워크 오류', planRequests: [], senderNumbers: [], pointRequests: [], signups: [] }
+    return { ok: false, error: '네트워크 오류', planRequests: [], senderNumbers: [], pointRequests: [], creditRequests: [], signups: [] }
   }
 }
 export async function adminApprovalAction(
-  type: 'plan' | 'sender' | 'point',
+  type: 'plan' | 'sender' | 'point' | 'credit',
   id: string,
   decision: 'approve' | 'reject',
 ): Promise<{ ok: boolean; error?: string }> {
@@ -298,6 +300,39 @@ export async function myPointRequests(): Promise<{ ok: boolean; requests: any[] 
     const d = await r.json()
     return { ok: !!d.ok, requests: d.requests || [] }
   } catch { return { ok: false, requests: [] } }
+}
+
+/* ───────── 크레딧 (충전 신청 / 차감 사용) ───────── */
+/** 기능별 크레딧 소모량 */
+export const CREDIT_COSTS: Record<string, { cost: number; label: string }> = {
+  video: { cost: 5, label: 'AI 영상 제작' },
+  landing: { cost: 3, label: '랜딩페이지 생성' },
+  blog: { cost: 2, label: '블로그 글 생성' },
+  youtube: { cost: 1, label: '유튜브 분석' },
+  instagram: { cost: 1, label: '인스타 콘텐츠 생성' },
+  place: { cost: 1, label: '플레이스 순위 조회' },
+}
+/** 크레딧 충전 패키지 */
+export const CREDIT_PACKAGES: { credits: number; price: number; badge?: string }[] = [
+  { credits: 10, price: 9900 },
+  { credits: 50, price: 39000, badge: '인기' },
+  { credits: 100, price: 69000, badge: '추천' },
+  { credits: 300, price: 180000 },
+]
+
+export async function requestCredit(amount: number, price?: number, memo?: string): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/account/credit-request', { amount, price, memo })
+}
+export async function myCreditRequests(): Promise<{ ok: boolean; requests: any[] }> {
+  try {
+    const r = await fetch('/api/account/credit-request', { credentials: 'include' })
+    const d = await r.json()
+    return { ok: !!d.ok, requests: d.requests || [] }
+  } catch { return { ok: false, requests: [] } }
+}
+/** 기능 사용 시 크레딧 차감. 부족하면 ok:false + error */
+export async function useCredit(amount: number, feature: string, memo?: string): Promise<{ ok: boolean; error?: string; balanceAfter?: number; user?: User }> {
+  return postJson('/api/account/credit-use', { amount, feature, memo })
 }
 export async function myPlanRequests(): Promise<{ ok: boolean; requests: any[] }> {
   try {

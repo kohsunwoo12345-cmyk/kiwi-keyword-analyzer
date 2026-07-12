@@ -192,7 +192,7 @@ function UserFooter() {
   const router = useRouter()
   const { user } = useAuth()
   const name = user?.name || '마케터'
-  const sub = user?.role === 'admin' ? 'ADMIN' : (user?.plan ? `${user.plan} 플랜` : 'MARKETER')
+  const sub = user?.role === 'admin' ? 'ADMIN' : (!user?.plan || user.plan === '없음' ? '요금제 미가입' : `${user.plan} 플랜`)
 
   return (
     <div className="space-y-2 border-t border-[var(--border)] p-3">
