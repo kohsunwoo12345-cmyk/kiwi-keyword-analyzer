@@ -8,7 +8,7 @@ binding = "DB"
 database_name = "bygency"
 database_id = "582b5cd9-65c5-4cd6-9243-d1fc5a8ce41c"
 
-# R2 버킷 (파일 저장) — 변수명 BUCKET
+# R2 버킷 (파일 저장) — 변수명 BUCKET (R2 버킷명은 소문자만 허용)
 [[r2_buckets]]
 binding = "BUCKET"
-bucket_name = "bygencyR2"
+bucket_name = "bygencyr2"
