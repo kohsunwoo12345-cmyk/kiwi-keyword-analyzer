@@ -533,7 +533,7 @@ export default function AdminUsersPage() {
                           )}
                         </td>
                         <td className="py-3 text-[var(--text-soft)]">{fmtDate(u.createdAt)}</td>
-                        <td className="py-3 text-[var(--text-soft)]">{fmtDateTime(u.lastActive)}</td>
+                        <td className="py-3 text-[var(--text-soft)]">{u.lastActive ? fmtDateTime(u.lastActive) : '기록 없음'}</td>
                         <td className="py-3">
                           <div className="flex items-center justify-end gap-1">
                             <button
