@@ -298,6 +298,19 @@ export async function analyzePlace(keyword: string): Promise<PlaceAnalysis> {
   return postJson('/api/analyze/place', { keyword })
 }
 
+/* ───────── 유튜브 분석 (YouTube Data API v3) ───────── */
+export interface YtVideo { id: string; title: string; thumbnail: string; publishedAt: string; viewCount: number; likeCount: number; commentCount: number }
+export interface YtChannel { id: string; title: string; description: string; thumbnail: string; subscriberCount: number; viewCount: number; videoCount: number; publishedAt: string; country: string }
+export interface YtAnalysis {
+  ok: boolean; error?: string; refunded?: boolean
+  channel?: YtChannel; videos?: YtVideo[]
+  metrics?: { avgViews: number; avgLikes: number; avgComments: number; engagementRate: number; uploadsPerMonth: number }
+  credits?: number
+}
+export async function analyzeYoutube(query: string): Promise<YtAnalysis> {
+  return postJson('/api/youtube/analyze', { query })
+}
+
 /* ───────── 결제 (Toss Payments) ───────── */
 export interface PrepareResult { ok: boolean; error?: string; orderId?: string; amount?: number; credits?: number; orderName?: string; clientKey?: string; customerEmail?: string; customerName?: string }
 export async function preparePayment(credits: number): Promise<PrepareResult> {

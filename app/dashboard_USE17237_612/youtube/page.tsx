@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import {
   PlaySquare,
   Search,
@@ -15,11 +15,14 @@ import {
   ThumbsUp,
   MessageSquare,
   Play,
+  Loader2,
+  AlertTriangle,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { AreaTrend, BarSeries } from '@/components/dash/Charts'
 import { StatCard, Panel, Button, Badge } from '@/components/ui'
 import { formatNumber } from '@/lib/utils'
+import { useAuth, analyzeYoutube, type YtChannel, type YtVideo, type YtAnalysis } from '@/lib/auth'
 
 const RED = '#ef4444'
 
@@ -112,6 +115,82 @@ export default function YoutubePage() {
     [videoQ],
   )
 
+  /* ── 실제 YouTube Data API 연동 상태 ── */
+  const { user, setUser } = useAuth()
+  const [ytQuery, setYtQuery] = useState('')
+  const [ytLoading, setYtLoading] = useState(false)
+  const [ytResult, setYtResult] = useState<YtAnalysis | null>(null)
+  const [ytError, setYtError] = useState<string | null>(null)
+  const [ytRefunded, setYtRefunded] = useState(false)
+
+  const realChannel = ytResult?.ok ? ytResult.channel ?? null : null
+  const realVideos = ytResult?.ok ? ytResult.videos ?? null : null
+  const realMetrics = ytResult?.ok ? ytResult.metrics : undefined
+
+  async function runAnalyze() {
+    const q = ytQuery.trim()
+    if (!q || ytLoading) return
+    setYtLoading(true)
+    setYtError(null)
+    setYtRefunded(false)
+    try {
+      const r = await analyzeYoutube(q)
+      if (typeof r.credits === 'number' && user) setUser({ ...user, credits: r.credits })
+      if (r.ok) {
+        setYtResult(r)
+      } else {
+        setYtError(r.error || '분석에 실패했습니다.')
+        setYtRefunded(!!r.refunded)
+      }
+    } catch {
+      setYtError('네트워크 오류가 발생했습니다.')
+    } finally {
+      setYtLoading(false)
+    }
+  }
+
+  const ytSearchBar = (
+    <div className="card flex flex-col gap-3 p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" />
+          <input
+            value={ytQuery}
+            onChange={(e) => setYtQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') runAnalyze() }}
+            placeholder="채널명 · @핸들 · 키워드 입력"
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] py-2.5 pl-11 pr-3 text-sm outline-none focus:border-red-500"
+          />
+        </div>
+        <Button
+          onClick={runAnalyze}
+          disabled={ytLoading || !ytQuery.trim()}
+          className="!bg-gradient-to-br !from-red-500 !to-rose-500"
+        >
+          {ytLoading ? (
+            <><Loader2 size={16} className="animate-spin" /> 분석 중…</>
+          ) : (
+            <><Search size={16} /> 분석하기 · 1 크레딧</>
+          )}
+        </Button>
+      </div>
+      <p className="text-xs text-[var(--text-dim)]">
+        보유 크레딧 <span className="font-semibold text-[var(--text)]">{user ? user.credits : '—'}</span>개
+        <span className="ml-2 text-[var(--text-dim)]">· YouTube Data API v3 실시간 분석</span>
+      </p>
+      {ytError && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm text-amber-800">
+          <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
+          <span>
+            {ytError}
+            {ytRefunded && ' · 크레딧이 자동 환불되었습니다.'}
+            <span className="mt-0.5 block text-xs text-amber-700">아래는 데모 데이터입니다.</span>
+          </span>
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <div className="animate-fade-in">
       <PageHeader
@@ -200,70 +279,116 @@ export default function YoutubePage() {
         {/* ===== 채널 검색 ===== */}
         {tab === 'channel' && (
           <>
-            <SearchBar value={channelQ} onChange={setChannelQ} placeholder="채널명 또는 @핸들 검색" />
-            <Panel title={`검색 결과 (${channelResults.length})`}>
-              <div className="space-y-2.5">
-                {channelResults.map((c) => (
-                  <div key={c.name} className="card-2 flex items-center gap-3 p-3.5">
-                    <ChThumb name={c.name} />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold">{c.name}</p>
-                      <p className="text-xs text-[var(--text-dim)]">{c.handle}</p>
-                    </div>
-                    <div className="hidden gap-6 sm:flex">
-                      <MiniStat label="구독자" value={formatNumber(c.subs)} />
-                      <MiniStat label="영상" value={`${c.videos}`} />
-                      <MiniStat label="평균 조회" value={formatNumber(c.avg)} />
-                    </div>
+            {ytSearchBar}
+            {realChannel ? (
+              <>
+                <RealChannelHeader channel={realChannel} metrics={realMetrics} />
+                <Panel
+                  title="인기 영상"
+                  action={
                     <Button size="sm" variant="outline" onClick={() => setTab('detail')}>
                       상세 분석
                     </Button>
-                  </div>
-                ))}
-                {channelResults.length === 0 && <Empty />}
-              </div>
-            </Panel>
+                  }
+                >
+                  <RealVideoTable
+                    rows={[...(realVideos ?? [])].sort((a, b) => b.viewCount - a.viewCount)}
+                    rank
+                  />
+                </Panel>
+              </>
+            ) : (
+              <Panel title={<DemoTitle>검색 결과</DemoTitle>}>
+                <div className="space-y-2.5">
+                  {channelResults.map((c) => (
+                    <div key={c.name} className="card-2 flex items-center gap-3 p-3.5">
+                      <ChThumb name={c.name} />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold">{c.name}</p>
+                        <p className="text-xs text-[var(--text-dim)]">{c.handle}</p>
+                      </div>
+                      <div className="hidden gap-6 sm:flex">
+                        <MiniStat label="구독자" value={formatNumber(c.subs)} />
+                        <MiniStat label="영상" value={`${c.videos}`} />
+                        <MiniStat label="평균 조회" value={formatNumber(c.avg)} />
+                      </div>
+                    </div>
+                  ))}
+                  {channelResults.length === 0 && <Empty />}
+                </div>
+              </Panel>
+            )}
           </>
         )}
 
         {/* ===== 채널 상세 분석 ===== */}
         {tab === 'detail' && (
           <>
-            <Panel>
-              <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-                <ChThumb name="마케팅탐구소" />
-                <div className="flex-1">
-                  <h3 className="text-lg font-bold">마케팅탐구소</h3>
-                  <p className="text-sm text-[var(--text-dim)]">@marketing_lab · 마케팅 · 광고</p>
-                </div>
-                <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                  <TrendingUp size={12} /> 성장 +12.4%
-                </Badge>
-              </div>
-              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
-                <BoxStat label="구독자" value="48.2만" />
-                <BoxStat label="총 조회수" value="1,240만" />
-                <BoxStat label="업로드 영상" value="312" />
-                <BoxStat label="평균 조회수" value="39.7만" />
-                <BoxStat label="평균 참여율" value="8.4%" />
-              </div>
-            </Panel>
-            <Panel title="구독자·조회수 추이">
-              <AreaTrend data={growthData} keys={['구독자', '조회수']} colors={['#ef4444', '#f59e0b']} />
-            </Panel>
-            <Panel title="최근 업로드 영상">
-              <VideoTable rows={VIDEOS.filter((v) => v.ch === '마케팅탐구소')} />
-            </Panel>
+            {ytSearchBar}
+            {realChannel ? (
+              <>
+                <RealChannelHeader channel={realChannel} metrics={realMetrics} />
+                <Panel title="최근 업로드 영상">
+                  <RealVideoTable rows={realVideos ?? []} />
+                </Panel>
+              </>
+            ) : (
+              <>
+                <Panel title={<DemoTitle>채널 개요</DemoTitle>}>
+                  <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+                    <ChThumb name="마케팅탐구소" />
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold">마케팅탐구소</h3>
+                      <p className="text-sm text-[var(--text-dim)]">@marketing_lab · 마케팅 · 광고</p>
+                    </div>
+                    <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                      <TrendingUp size={12} /> 성장 +12.4%
+                    </Badge>
+                  </div>
+                  <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
+                    <BoxStat label="구독자" value="48.2만" />
+                    <BoxStat label="총 조회수" value="1,240만" />
+                    <BoxStat label="업로드 영상" value="312" />
+                    <BoxStat label="평균 조회수" value="39.7만" />
+                    <BoxStat label="평균 참여율" value="8.4%" />
+                  </div>
+                </Panel>
+                <Panel title={<DemoTitle>구독자·조회수 추이</DemoTitle>}>
+                  <AreaTrend data={growthData} keys={['구독자', '조회수']} colors={['#ef4444', '#f59e0b']} />
+                </Panel>
+                <Panel title={<DemoTitle>최근 업로드 영상</DemoTitle>}>
+                  <VideoTable rows={VIDEOS.filter((v) => v.ch === '마케팅탐구소')} />
+                </Panel>
+              </>
+            )}
           </>
         )}
 
         {/* ===== 영상 분석 ===== */}
         {tab === 'video' && (
           <>
-            <SearchBar value={videoQ} onChange={setVideoQ} placeholder="영상 제목 또는 채널 검색" />
-            <Panel title={`영상 (${videoResults.length})`}>
-              <VideoTable rows={videoResults} />
-            </Panel>
+            {realVideos ? (
+              <>
+                {realChannel && (
+                  <p className="text-sm text-[var(--text-soft)]">
+                    <span className="font-semibold text-[var(--text)]">{realChannel.title}</span> 채널의 최근 영상 성과
+                  </p>
+                )}
+                <Panel title="영상 분석 (최근 업로드)">
+                  <RealVideoTable rows={realVideos} />
+                </Panel>
+                <Panel title="인기순 영상">
+                  <RealVideoTable rows={[...realVideos].sort((a, b) => b.viewCount - a.viewCount)} rank />
+                </Panel>
+              </>
+            ) : (
+              <>
+                <SearchBar value={videoQ} onChange={setVideoQ} placeholder="영상 제목 또는 채널 검색" />
+                <Panel title={<DemoTitle>{`영상 (${videoResults.length})`}</DemoTitle>}>
+                  <VideoTable rows={videoResults} />
+                </Panel>
+              </>
+            )}
           </>
         )}
 
@@ -284,7 +409,7 @@ export default function YoutubePage() {
                 <Search size={16} /> 검색량 조회
               </Button>
             </div>
-            <Panel title="키워드 검색량 분석">
+            <Panel title={<DemoTitle>키워드 검색량 분석</DemoTitle>}>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[560px] text-sm">
                   <thead>
@@ -336,7 +461,7 @@ export default function YoutubePage() {
               <BoxStat label="경쟁도" value={selectedKw.comp} />
               <BoxStat label="떡상지수" value={`${selectedKw.viral}/100`} />
             </div>
-            <Panel title={`"${selectedKw.kw}" 관련 키워드`}>
+            <Panel title={<DemoTitle>{`"${selectedKw.kw}" 관련 키워드`}</DemoTitle>}>
               <div className="flex flex-wrap gap-2">
                 {selectedKw.rel.map((r) => (
                   <span key={r} className="rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-3 py-1.5 text-sm text-[var(--text-soft)]">
@@ -345,7 +470,7 @@ export default function YoutubePage() {
                 ))}
               </div>
             </Panel>
-            <Panel title="이 키워드로 뜬 영상">
+            <Panel title={<DemoTitle>이 키워드로 뜬 영상</DemoTitle>}>
               <VideoTable rows={VIDEOS.slice(0, 3)} />
             </Panel>
           </>
@@ -427,6 +552,142 @@ function SearchBar({ value, onChange, placeholder }: { value: string; onChange: 
       <Button className="!bg-gradient-to-br !from-red-500 !to-rose-500">
         <Search size={16} /> 검색
       </Button>
+    </div>
+  )
+}
+
+function DemoTitle({ children }: { children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      {children}
+      <Badge className="border-slate-200 bg-slate-50 text-slate-500">데모</Badge>
+    </span>
+  )
+}
+
+function relTime(iso: string): string {
+  const then = new Date(iso).getTime()
+  if (Number.isNaN(then)) return ''
+  const diff = Date.now() - then
+  if (diff < 0) return '방금'
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return '방금'
+  if (mins < 60) return `${mins}분 전`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}시간 전`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}일 전`
+  if (days < 30) return `${Math.floor(days / 7)}주 전`
+  if (days < 365) return `${Math.floor(days / 30)}개월 전`
+  return `${Math.floor(days / 365)}년 전`
+}
+
+function RealChannelHeader({ channel, metrics }: { channel: YtChannel; metrics?: YtAnalysis['metrics'] }) {
+  return (
+    <Panel>
+      <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+        {channel.thumbnail ? (
+          <img
+            src={channel.thumbnail}
+            alt={channel.title}
+            referrerPolicy="no-referrer"
+            className="h-14 w-14 flex-shrink-0 rounded-full bg-slate-100 object-cover"
+          />
+        ) : (
+          <ChThumb name={channel.title || '?'} />
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="truncate text-lg font-bold">{channel.title}</h3>
+            <a
+              href={`https://youtube.com/channel/${channel.id}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs font-medium text-red-600 hover:underline"
+            >
+              채널 보기
+            </a>
+          </div>
+          {channel.description && (
+            <p className="mt-0.5 line-clamp-2 text-sm text-[var(--text-dim)]">{channel.description}</p>
+          )}
+        </div>
+      </div>
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <BoxStat label="구독자수" value={formatNumber(channel.subscriberCount)} />
+        <BoxStat label="총 조회수" value={formatNumber(channel.viewCount)} />
+        <BoxStat label="영상 수" value={formatNumber(channel.videoCount)} />
+        <BoxStat label="평균 조회수" value={formatNumber(metrics?.avgViews ?? 0)} />
+        <BoxStat label="참여율" value={`${metrics?.engagementRate ?? 0}%`} />
+        <BoxStat label="업로드 빈도" value={`${metrics?.uploadsPerMonth ?? 0}/월`} />
+      </div>
+    </Panel>
+  )
+}
+
+function RealVideoTable({ rows, rank }: { rows: YtVideo[]; rank?: boolean }) {
+  if (rows.length === 0) return <Empty />
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[620px] text-sm">
+        <thead>
+          <tr className="border-b border-[var(--border)] text-left text-xs text-[var(--text-dim)]">
+            {rank && <th className="px-3 py-2.5 font-medium">#</th>}
+            <th className="px-3 py-2.5 font-medium">영상</th>
+            <th className="px-3 py-2.5 font-medium">조회수</th>
+            <th className="px-3 py-2.5 font-medium">좋아요</th>
+            <th className="px-3 py-2.5 font-medium">댓글</th>
+            <th className="px-3 py-2.5 font-medium">게시일</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((v, i) => (
+            <tr key={v.id} className="border-b border-[var(--border-soft)] hover:bg-slate-50">
+              {rank && (
+                <td className="px-3 py-3">
+                  <span className={`grid h-6 w-6 place-items-center rounded text-xs font-bold ${i < 3 ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-[var(--text-soft)]'}`}>
+                    {i + 1}
+                  </span>
+                </td>
+              )}
+              <td className="px-3 py-3">
+                <div className="flex items-center gap-2.5">
+                  {v.thumbnail ? (
+                    <img
+                      src={v.thumbnail}
+                      alt={v.title}
+                      referrerPolicy="no-referrer"
+                      className="h-9 w-14 flex-shrink-0 rounded bg-slate-100 object-cover"
+                    />
+                  ) : (
+                    <span className="grid h-9 w-14 flex-shrink-0 place-items-center rounded bg-slate-100 text-[var(--text-dim)]">
+                      <Play size={15} />
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <a
+                      href={`https://youtube.com/watch?v=${v.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block max-w-[320px] truncate font-medium hover:text-red-600"
+                    >
+                      {v.title}
+                    </a>
+                  </div>
+                </div>
+              </td>
+              <td className="px-3 py-3 text-[var(--text-soft)]">{formatNumber(v.viewCount)}</td>
+              <td className="px-3 py-3 text-[var(--text-soft)]">
+                <span className="flex items-center gap-1"><ThumbsUp size={12} />{formatNumber(v.likeCount)}</span>
+              </td>
+              <td className="px-3 py-3 text-[var(--text-soft)]">
+                <span className="flex items-center gap-1"><MessageSquare size={12} />{formatNumber(v.commentCount)}</span>
+              </td>
+              <td className="px-3 py-3 text-xs text-[var(--text-dim)]">{relTime(v.publishedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
