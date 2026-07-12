@@ -1,97 +1,140 @@
 'use client'
 
 import Link from 'next/link'
-import { Database, TrendingUp, Users, DollarSign, ArrowRight, Sparkles } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Wallet, Coins, TrendingDown, Activity as ActivityIcon, ArrowRight, Sparkles } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { AreaTrend, Donut, BarSeries } from '@/components/dash/Charts'
 import { StatCard, Panel, Button } from '@/components/ui'
+import { Counter } from '@/components/motion'
 import { FEATURES } from '@/lib/features'
-import { trafficTrend, revenueTrend, channelSplit } from '@/lib/mock'
+import { accountOverview, useAuth, type Tx, type ActivityRow } from '@/lib/auth'
+
+function fmtDate(iso: string) {
+  const d = new Date(iso)
+  if (Number.isNaN(+d)) return '-'
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
 
 export default function DashboardHome() {
+  const { user } = useAuth()
+  const [tx, setTx] = useState<Tx[]>([])
+  const [activity, setActivity] = useState<ActivityRow[]>([])
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    accountOverview().then((r) => {
+      setTx(r.transactions)
+      setActivity(r.activity)
+      setReady(true)
+    })
+  }, [])
+
+  const usedCredit = useMemo(
+    () => tx.filter((t) => t.kind === 'credit' && t.amount < 0).reduce((s, t) => s + -t.amount, 0),
+    [tx],
+  )
+  const name = user?.name || '마케터'
+
+  // 최근 14일 크레딧 사용 추이 (실데이터)
+  const trend = useMemo(() => {
+    const days: { key: string; label: string; used: number }[] = []
+    const base = new Date()
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(base)
+      d.setDate(base.getDate() - i)
+      const key = d.toISOString().slice(0, 10)
+      days.push({ key, label: `${d.getMonth() + 1}/${String(d.getDate()).padStart(2, '0')}`, used: 0 })
+    }
+    for (const t of tx) {
+      if (t.kind === 'credit' && t.amount < 0) {
+        const day = days.find((d) => d.key === (t.created_at || '').slice(0, 10))
+        if (day) day.used += -t.amount
+      }
+    }
+    return days
+  }, [tx])
+  const maxUsed = Math.max(1, ...trend.map((d) => d.used))
+
   return (
     <div className="animate-fade-in">
       <PageHeader
         icon={Sparkles}
         eyebrow="Overview"
-        title="안녕하세요, 마케터님 👋"
-        desc="오늘의 마케팅 성과를 한눈에 확인하세요."
+        title={`안녕하세요, ${name}님 👋`}
+        desc="내 계정의 실제 크레딧·활동 현황입니다."
         action={
-          <Button href="/dashboard_USE17237_612/leads" size="sm">
-            새 랜딩페이지 <ArrowRight size={16} />
+          <Button href="/dashboard_USE17237_612/credits" size="sm">
+            크레딧 충전 <ArrowRight size={16} />
           </Button>
         }
       />
 
       <div className="space-y-6 p-6 lg:p-8">
-        {/* stats */}
+        {/* 실데이터 스탯 */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="오늘 수집 DB" value="1,284" delta={18} icon={Database} accent="#7c3aed" />
-          <StatCard label="전환율" value="7.6%" delta={3.2} icon={TrendingUp} accent="#22c55e" />
-          <StatCard label="활성 고객" value="8,940" delta={5.1} icon={Users} accent="#0ea5e9" />
-          <StatCard label="이번달 매출" value="₩9,640만" delta={12.4} icon={DollarSign} accent="#f59e0b" />
+          <StatCard label="보유 크레딧" value={(<Counter to={user?.credits ?? 0} />) as unknown as string} icon={Wallet} accent="#f59e0b" />
+          <StatCard label="보유 포인트" value={(<Counter to={user?.points ?? 0} />) as unknown as string} icon={Coins} accent="#7c3aed" />
+          <StatCard label="총 사용 크레딧" value={(<Counter to={usedCredit} />) as unknown as string} icon={TrendingDown} accent="#ef4444" />
+          <StatCard label="현재 플랜" value={!user?.plan || user.plan === '없음' ? '미가입' : user.plan} icon={Sparkles} accent="#0ea5e9" />
         </div>
 
-        {/* charts */}
         <div className="grid gap-6 lg:grid-cols-3">
-          <Panel title="방문 & 전환 추이" className="lg:col-span-2">
-            <AreaTrend
-              data={trafficTrend}
-              keys={['방문', '전환']}
-              colors={['#7c3aed', '#22d3ee']}
-            />
+          {/* 크레딧 사용 추이 (실데이터) */}
+          <Panel title="최근 14일 크레딧 사용 (실데이터)" className="lg:col-span-2">
+            {usedCredit === 0 ? (
+              <div className="flex h-[180px] flex-col items-center justify-center gap-2 text-center">
+                <p className="text-sm text-[var(--text-soft)]">아직 크레딧 사용 내역이 없습니다.</p>
+                <p className="text-xs text-[var(--text-dim)]">유튜브·블로그 분석, 문자·이메일 발송 등 도구를 사용하면 여기에 실제 사용량이 기록됩니다.</p>
+              </div>
+            ) : (
+              <div className="flex items-end gap-1.5 pt-4" style={{ height: 180 }}>
+                {trend.map((d, i) => (
+                  <div key={d.key} className="flex flex-1 flex-col items-center gap-1.5">
+                    <div className="flex w-full flex-1 items-end">
+                      <div
+                        className="w-full origin-bottom rounded-t brand-gradient"
+                        style={{ height: `${(d.used / maxUsed) * 100}%`, minHeight: d.used > 0 ? 4 : 0, animation: `fadeInUp 0.5s ease ${i * 0.03}s both` }}
+                        title={`${d.used} 크레딧`}
+                      />
+                    </div>
+                    <span className="text-[9px] text-[var(--text-dim)]">{d.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </Panel>
-          <Panel title="채널별 유입">
-            <Donut data={channelSplit} />
-            <div className="mt-4 space-y-2">
-              {channelSplit.map((c) => (
-                <div key={c.name} className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2 text-[var(--text-soft)]">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />
-                    {c.name}
+
+          {/* 최근 활동 (실데이터) */}
+          <Panel title="최근 활동 (실데이터)">
+            <div className="max-h-[220px] space-y-1 overflow-y-auto no-scrollbar">
+              {activity.slice(0, 12).map((a, i) => (
+                <div key={i} className="flex items-start gap-2.5 rounded-lg p-2 hover:bg-slate-50">
+                  <span className="mt-0.5 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-slate-100 text-[var(--text-dim)]">
+                    <ActivityIcon size={13} />
                   </span>
-                  <span className="font-semibold">{c.value}%</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs">{a.detail || a.type}</p>
+                    <p className="text-[10px] text-[var(--text-dim)]">{fmtDate(a.created_at)}</p>
+                  </div>
                 </div>
               ))}
-            </div>
-          </Panel>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Panel title="월별 매출 (백만원)" className="lg:col-span-2">
-            <BarSeries data={revenueTrend} dataKey="매출" color="#7c3aed" />
-          </Panel>
-          <Panel title="AI 인사이트">
-            <div className="space-y-3">
-              {[
-                { t: '리타겟팅 캠페인 ROAS 8.4 — 예산 증액 추천', c: '#22c55e' },
-                { t: '"AI 영상 제작" 키워드 급상승 중', c: '#7c3aed' },
-                { t: '휴면 고객 1,240명 — 재활성 캠페인 제안', c: '#f59e0b' },
-              ].map((i) => (
-                <div key={i.t} className="card-2 flex gap-3 p-3">
-                  <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full" style={{ background: i.c }} />
-                  <p className="text-sm text-[var(--text-soft)]">{i.t}</p>
-                </div>
-              ))}
+              {ready && activity.length === 0 && (
+                <p className="py-8 text-center text-sm text-[var(--text-dim)]">활동 기록이 없습니다.</p>
+              )}
             </div>
           </Panel>
         </div>
 
         {/* feature quick links */}
         <div>
-          <h3 className="mb-4 font-semibold">바로가기</h3>
+          <h3 className="mb-4 font-semibold">마케팅 도구 바로가기</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {FEATURES.map((f) => {
               const Icon = f.icon
               return (
-                <Link
-                  key={f.slug}
-                  href={`/dashboard_USE17237_612/${f.slug}`}
-                  className="group card hover-lift p-5"
-                >
-                  <div
-                    className={`inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${f.color}`}
-                  >
+                <Link key={f.slug} href={`/dashboard_USE17237_612/${f.slug}`} className="group card hover-lift p-5">
+                  <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${f.color}`}>
                     <Icon size={18} className="text-white" />
                   </div>
                   <h4 className="mt-3 text-sm font-semibold">{f.title}</h4>
