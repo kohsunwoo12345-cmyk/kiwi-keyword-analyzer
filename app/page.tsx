@@ -11,6 +11,7 @@ import {
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { HeroOrbit } from '@/components/HeroOrbit'
+import { HeroNodeStudio } from '@/components/HeroNodeStudio'
 import { Button, SectionTag } from '@/components/ui'
 import { Reveal, Counter, Marquee } from '@/components/motion'
 import { LogoMark } from '@/components/Brand'
@@ -55,61 +56,70 @@ export default function Home() {
     <div className="min-h-screen overflow-x-hidden bg-[var(--bg)]">
       <Navbar />
 
-      {/* ===== HERO (dark orbit) ===== */}
-      <section className="relative overflow-hidden bg-[#070b16] pt-36 pb-28 text-white">
-        <div className="absolute inset-0 grid-bg opacity-[0.14]" />
-        <div className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[560px] w-[900px] -translate-x-1/2 rounded-full bg-violet-600/25 blur-[150px]" />
-        <div className="animate-drift-slow pointer-events-none absolute top-40 right-0 h-[340px] w-[440px] rounded-full bg-cyan-500/15 blur-[130px]" />
-        <div className="animate-drift-slow pointer-events-none absolute top-24 left-0 h-[300px] w-[380px] rounded-full bg-indigo-600/20 blur-[130px]" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-[var(--bg)]" />
+      {/* ===== HERO (NODE STUDIO 배경) ===== */}
+      <section className="relative overflow-hidden pt-40 pb-32 text-white sm:pt-44 sm:pb-40">
+        {/* 배경: 노드 에디터 장면 (요소가 하나씩 떠오름) */}
+        <HeroNodeStudio />
 
-        <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-5 lg:grid-cols-2">
-          {/* left: copy */}
-          <div className="text-center lg:text-left">
-            <div className="flex justify-center lg:justify-start animate-fade-up">
-              <span className="animate-bob inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-violet-200 shadow-sm backdrop-blur">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping-ring absolute inline-flex h-full w-full rounded-full bg-violet-400" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full brand-gradient" />
-                </span>
-                올인원 마케팅 그로스 플랫폼
+        <div className="relative z-10 mx-auto max-w-4xl px-5 text-center">
+          <div className="flex justify-center animate-fade-up">
+            <span className="animate-bob inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-violet-200 shadow-sm backdrop-blur">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping-ring absolute inline-flex h-full w-full rounded-full bg-violet-400" />
+                <span className="relative inline-flex h-2 w-2 rounded-full brand-gradient" />
               </span>
-            </div>
+              노드 기반 올인원 마케팅 스튜디오
+            </span>
+          </div>
 
-            <h1 className="mt-7 text-balance text-5xl font-bold leading-[1.1] tracking-tight animate-fade-up delay-100 sm:text-6xl">
-              마케팅의 모든 것을
-              <br />
-              <span className="brand-text animate-gradient">BYGENCY</span> 하나로
-            </h1>
+          <h1 className="mt-7 text-balance text-5xl font-bold leading-[1.1] tracking-tight [text-shadow:0_2px_30px_rgba(0,0,0,0.5)] animate-fade-up delay-100 sm:text-6xl md:text-7xl">
+            마케팅의 모든 것을
+            <br />
+            <span className="brand-text animate-gradient">BYGENCY</span> 하나로
+          </h1>
 
-            <p className="mx-auto mt-7 max-w-xl text-balance text-lg leading-relaxed text-slate-300 animate-fade-up delay-200 lg:mx-0">
-              DB수집 랜딩페이지 · 유튜브/블로그 분석 · 광고 분석 · CRM · AI 영상 제작까지.
-              흩어진 마케팅 도구를 하나의 워크스페이스로 통합했습니다.
+          <p className="mx-auto mt-7 max-w-2xl text-balance text-lg leading-relaxed text-slate-200 [text-shadow:0_1px_20px_rgba(0,0,0,0.6)] animate-fade-up delay-200">
+            DB수집 랜딩페이지 · 유튜브/블로그 분석 · 광고 분석 · CRM · AI 영상 제작까지.
+            <br className="hidden sm:block" />
+            흩어진 마케팅 도구를 하나의 노드 워크스페이스로 통합했습니다.
+          </p>
+
+          <div className="mt-10 flex flex-col items-center justify-center gap-3 animate-fade-up delay-300 sm:flex-row">
+            <Button href="/signup" size="lg" className="group">
+              무료로 시작하기
+              <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
+            </Button>
+            <Button href="#features" size="lg" className="!border !border-white/25 !bg-white/10 !text-white backdrop-blur hover:!bg-white/20">
+              <Play size={16} /> 기능 둘러보기
+            </Button>
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-slate-300 animate-fade-up delay-400">
+            {['신용카드 불필요', '3분 만에 세팅', '언제든 해지'].map((t) => (
+              <span key={t} className="flex items-center gap-1.5">
+                <Check size={15} className="text-emerald-400" /> {t}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== 채널 오빗 (실제 로고 공전) ===== */}
+      <section className="relative overflow-hidden border-b border-[var(--border)] bg-[#070b16] py-20 text-white">
+        <div className="animate-drift pointer-events-none absolute left-1/2 top-1/2 h-[520px] w-[820px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-700/15 blur-[150px]" />
+        <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-5 lg:grid-cols-2">
+          <div className="text-center lg:text-left">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-violet-200 backdrop-blur">
+              하나로 연결되는 채널
+            </span>
+            <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
+              흩어진 채널을 <span className="brand-text animate-gradient">BYGENCY</span> 중심으로
+            </h2>
+            <p className="mx-auto mt-5 max-w-lg text-balance text-slate-300 lg:mx-0">
+              유튜브 · 네이버 플레이스 · 카카오 · 블로그 · 인스타그램 · 뉴스까지, 주요 마케팅 채널을 한 곳에서 수집·분석·실행합니다.
             </p>
-
-            <div className="mt-10 flex flex-col items-center justify-center gap-3 animate-fade-up delay-300 sm:flex-row lg:justify-start">
-              <Button href="/signup" size="lg" className="group">
-                무료로 시작하기
-                <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
-              </Button>
-              <Button href="#features" size="lg" className="!border !border-white/25 !bg-white/10 !text-white hover:!bg-white/20">
-                <Play size={16} /> 기능 둘러보기
-              </Button>
-            </div>
-
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-slate-400 animate-fade-up delay-400 lg:justify-start">
-              {['신용카드 불필요', '3분 만에 세팅', '언제든 해지'].map((t) => (
-                <span key={t} className="flex items-center gap-1.5">
-                  <Check size={15} className="text-emerald-400" /> {t}
-                </span>
-              ))}
-            </div>
           </div>
-
-          {/* right: 실제 로고가 공전하는 BYGENCY 코어 */}
-          <div className="animate-fade-up delay-300">
-            <HeroOrbit />
-          </div>
+          <HeroOrbit />
         </div>
       </section>
 
