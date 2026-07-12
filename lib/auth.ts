@@ -298,6 +298,27 @@ export async function analyzePlace(keyword: string): Promise<PlaceAnalysis> {
   return postJson('/api/analyze/place', { keyword })
 }
 
+/* ───────── 랜딩페이지 제작 (실제 DB 수집) ───────── */
+export interface LandingPage {
+  id: string; slug: string; title: string; headline: string; subtext: string; cta: string
+  theme: string; fields: string; published: number; views: number; leads: number; created_at: string; updated_at: string | null
+}
+export async function saveLanding(input: {
+  id?: string; slug?: string; title: string; headline?: string; subtext?: string; cta?: string; theme?: string; fields?: string[]; published?: boolean
+}): Promise<{ ok: boolean; error?: string; id?: string; slug?: string; published?: boolean }> {
+  return postJson('/api/landing/save', input)
+}
+export async function listLandings(): Promise<{
+  ok: boolean; error?: string; pages: LandingPage[]
+  stats?: { totalPages: number; publishedCount: number; totalViews: number; totalLeads: number; convRate: number }
+}> {
+  try {
+    const r = await fetch('/api/landing/list', { credentials: 'include' })
+    const d = await r.json()
+    return { ok: !!d.ok, error: d.error, pages: d.pages || [], stats: d.stats }
+  } catch { return { ok: false, error: '네트워크 오류', pages: [] } }
+}
+
 /* ───────── 유튜브 분석 (YouTube Data API v3) ───────── */
 export interface YtVideo { id: string; title: string; thumbnail: string; publishedAt: string; viewCount: number; likeCount: number; commentCount: number }
 export interface YtChannel { id: string; title: string; description: string; thumbnail: string; subscriberCount: number; viewCount: number; videoCount: number; publishedAt: string; country: string }

@@ -14,12 +14,21 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (phone.length < 9 && !email) return json({ ok: false, error: '연락처(전화번호 또는 이메일)를 입력하세요.' }, 400)
 
   const geo = geoFrom(request)
+  // 랜딩페이지 연동 (slug 있으면 해당 페이지 리드로 집계)
+  let landingId = ''
+  const slug = String(body.landing_slug || '')
+  if (slug) {
+    const lp: any = await db.prepare('SELECT id FROM landing_pages WHERE slug = ?').bind(slug).first()
+    if (lp) {
+      landingId = lp.id
+      await db.prepare('UPDATE landing_pages SET leads = leads + 1 WHERE id = ?').bind(lp.id).run().catch(() => {})
+    }
+  }
   await db
-    .prepare(`INSERT INTO public_leads (id, name, phone, email, source, ip, country, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind('ld_' + crypto.randomUUID().slice(0, 14), name, phone, email, String(body.source || 'landing-demo'), clientIp(request), geo.country, new Date().toISOString())
+    .prepare(`INSERT INTO public_leads (id, name, phone, email, source, ip, country, landing_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind('ld_' + crypto.randomUUID().slice(0, 14), name, phone, email, String(body.source || 'landing-demo'), clientIp(request), geo.country, landingId, new Date().toISOString())
     .run()
 
-  // 최근 수집 건수 (데모용 카운터)
   const cnt: any = await db.prepare('SELECT COUNT(*) AS n FROM public_leads').first()
   return json({ ok: true, total: cnt?.n || 0 })
 }

@@ -323,6 +323,24 @@ export async function ensureSchema(db: D1Database) {
       created_at TEXT NOT NULL
     )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_lead_ts ON public_leads(created_at)`),
+    // 랜딩페이지 제작: 사용자가 만든 랜딩(퍼널) 페이지
+    db.prepare(`CREATE TABLE IF NOT EXISTS landing_pages (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      title TEXT,
+      headline TEXT,
+      subtext TEXT,
+      cta TEXT,
+      theme TEXT,
+      fields TEXT,            -- JSON: 수집 필드 목록
+      published INTEGER DEFAULT 0,
+      views INTEGER DEFAULT 0,
+      leads INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_landing_user ON landing_pages(user_id, created_at)`),
   ])
   // 기존 테이블에 신규 컬럼 보강 (누락된 것만 추가)
   await addMissingColumns(db, 'users', {
@@ -343,6 +361,9 @@ export async function ensureSchema(db: D1Database) {
     country: 'country TEXT',
     city: 'city TEXT',
     ua: 'ua TEXT',
+  })
+  await addMissingColumns(db, 'public_leads', {
+    landing_id: 'landing_id TEXT',
   })
 }
 
