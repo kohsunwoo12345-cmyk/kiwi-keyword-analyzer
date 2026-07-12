@@ -186,19 +186,124 @@ export async function ensureSchema(db: D1Database) {
       decided_at TEXT
     )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_sender_status ON sender_numbers(status, created_at)`),
+    // 승인: 포인트 지급 요청
+    db.prepare(`CREATE TABLE IF NOT EXISTS point_requests (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      memo TEXT,
+      status TEXT DEFAULT 'pending',  -- pending | approved | rejected
+      created_at TEXT NOT NULL,
+      decided_at TEXT
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_pointreq_status ON point_requests(status, created_at)`),
+    // 보안: 허용 IP 화이트리스트
+    db.prepare(`CREATE TABLE IF NOT EXISTS ip_whitelist (
+      ip TEXT PRIMARY KEY,
+      label TEXT,
+      created_at TEXT NOT NULL
+    )`),
+    // 보안: 전역 설정 (key/value) — whitelist_mode 등
+    db.prepare(`CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    )`),
+    // 보안: 로그인 실패 (브루트포스 감지)
+    db.prepare(`CREATE TABLE IF NOT EXISTS login_failures (
+      id TEXT PRIMARY KEY,
+      email TEXT,
+      ip TEXT,
+      ua TEXT,
+      country TEXT,
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_loginfail ON login_failures(ip, created_at)`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_loginfail_email ON login_failures(email, created_at)`),
+    // 보안: 관리자 감사 로그 (Audit Trail)
+    db.prepare(`CREATE TABLE IF NOT EXISTS audit_log (
+      id TEXT PRIMARY KEY,
+      admin_id TEXT,
+      admin_email TEXT,
+      action TEXT,
+      target TEXT,
+      detail TEXT,
+      severity TEXT DEFAULT 'info',
+      ip TEXT,
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(created_at)`),
+    // 보안: 데이터 내보내기 감사 (Export Audit)
+    db.prepare(`CREATE TABLE IF NOT EXISTS export_audit (
+      id TEXT PRIMARY KEY,
+      admin_id TEXT,
+      admin_email TEXT,
+      filename TEXT,
+      kind TEXT,
+      rows INTEGER,
+      bytes INTEGER,
+      ip TEXT,
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_export_ts ON export_audit(created_at)`),
+    // 보안: 콘텐츠 신고
+    db.prepare(`CREATE TABLE IF NOT EXISTS content_reports (
+      id TEXT PRIMARY KEY,
+      reporter_id TEXT,
+      reporter_email TEXT,
+      target_type TEXT,
+      target_id TEXT,
+      target_desc TEXT,
+      reason TEXT,
+      status TEXT DEFAULT 'open',   -- open | hidden | ignored | restored
+      created_at TEXT NOT NULL,
+      decided_at TEXT
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_report_status ON content_reports(status, created_at)`),
+    // 보안: 앱(PWA) 설치 & 푸시 구독
+    db.prepare(`CREATE TABLE IF NOT EXISTS app_installs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      user_email TEXT,
+      endpoint TEXT,
+      platform TEXT,
+      allowed INTEGER DEFAULT 0,    -- 푸시 허용 여부
+      ip TEXT,
+      country TEXT,
+      city TEXT,
+      ua TEXT,
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_install_ts ON app_installs(created_at)`),
   ])
-  // 기존 users 테이블에 신규 컬럼 보강 (누락된 것만 추가)
+  // 기존 테이블에 신규 컬럼 보강 (누락된 것만 추가)
+  await addMissingColumns(db, 'users', {
+    phone: 'phone TEXT',
+    points: 'points INTEGER DEFAULT 0',
+    credits: 'credits INTEGER DEFAULT 0',
+  })
+  await addMissingColumns(db, 'sessions', {
+    ip: 'ip TEXT',
+    ua: 'ua TEXT',
+    country: 'country TEXT',
+  })
+  await addMissingColumns(db, 'blocked_ips', {
+    country: 'country TEXT',
+    city: 'city TEXT',
+  })
+  await addMissingColumns(db, 'security_log', {
+    country: 'country TEXT',
+    city: 'city TEXT',
+    ua: 'ua TEXT',
+  })
+}
+
+async function addMissingColumns(db: D1Database, table: string, need: Record<string, string>) {
   try {
-    const info = await db.prepare('PRAGMA table_info(users)').all()
+    const info = await db.prepare(`PRAGMA table_info(${table})`).all()
     const cols = new Set((info.results || []).map((r: any) => r.name))
-    const need: Record<string, string> = {
-      phone: 'phone TEXT',
-      points: 'points INTEGER DEFAULT 0',
-      credits: 'credits INTEGER DEFAULT 0',
-    }
     for (const [name, ddl] of Object.entries(need)) {
       if (!cols.has(name)) {
-        await db.prepare(`ALTER TABLE users ADD COLUMN ${ddl}`).run().catch(() => {})
+        await db.prepare(`ALTER TABLE ${table} ADD COLUMN ${ddl}`).run().catch(() => {})
       }
     }
   } catch {
@@ -264,11 +369,11 @@ export async function isBlocked(db: D1Database, ip: string): Promise<boolean> {
 
 export async function logSecurity(
   db: D1Database,
-  o: { ip: string; method?: string; path?: string; status?: number; severity?: string; detail?: string },
+  o: { ip: string; method?: string; path?: string; status?: number; severity?: string; detail?: string; country?: string; city?: string; ua?: string },
 ) {
   try {
     await db
-      .prepare(`INSERT INTO security_log (id, ts, ip, method, path, status, severity, detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .prepare(`INSERT INTO security_log (id, ts, ip, method, path, status, severity, detail, country, city, ua) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(
         's_' + crypto.randomUUID().slice(0, 16),
         new Date().toISOString(),
@@ -278,6 +383,9 @@ export async function logSecurity(
         o.status || 0,
         o.severity || 'info',
         o.detail || '',
+        o.country || '',
+        o.city || '',
+        o.ua || '',
       )
       .run()
     // 로그 상한 유지 (최근 2000건)
@@ -285,6 +393,103 @@ export async function logSecurity(
       .prepare(`DELETE FROM security_log WHERE id NOT IN (SELECT id FROM security_log ORDER BY ts DESC LIMIT 2000)`)
       .run()
       .catch(() => {})
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Cloudflare 지오 정보 (country/city/isp/asn) 추출 */
+export function geoFrom(request: Request): { country: string; city: string; isp: string; asn: string } {
+  const cf: any = (request as any).cf || {}
+  return {
+    country: cf.country || '',
+    city: cf.city || '',
+    isp: cf.asOrganization || '',
+    asn: cf.asn ? String(cf.asn) : '',
+  }
+}
+
+/* ── 전역 설정 (key/value) ── */
+export async function getSetting(db: D1Database, key: string): Promise<string | null> {
+  try {
+    const row: any = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first()
+    return row ? row.value : null
+  } catch {
+    return null
+  }
+}
+export async function setSetting(db: D1Database, key: string, value: string) {
+  await db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').bind(key, value).run()
+}
+
+/* ── IP 화이트리스트 ── */
+export async function isWhitelistMode(db: D1Database): Promise<boolean> {
+  return (await getSetting(db, 'whitelist_mode')) === 'on'
+}
+export async function isWhitelisted(db: D1Database, ip: string): Promise<boolean> {
+  if (!ip || ip === 'unknown') return false
+  const row = await db.prepare('SELECT ip FROM ip_whitelist WHERE ip = ?').bind(ip).first()
+  return !!row
+}
+
+/* ── 로그인 실패 (브루트포스) ── */
+export async function recordLoginFailure(db: D1Database, email: string, ip: string, ua: string, country = '') {
+  try {
+    await db
+      .prepare('INSERT INTO login_failures (id, email, ip, ua, country, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind('lf_' + crypto.randomUUID().slice(0, 16), email, ip, ua, country, new Date().toISOString())
+      .run()
+    await db
+      .prepare('DELETE FROM login_failures WHERE id NOT IN (SELECT id FROM login_failures ORDER BY created_at DESC LIMIT 3000)')
+      .run()
+      .catch(() => {})
+  } catch {
+    /* ignore */
+  }
+}
+/** 최근 windowMin 분 내 해당 IP의 로그인 실패 횟수 */
+export async function countRecentLoginFailures(db: D1Database, ip: string, windowMin = 15): Promise<number> {
+  try {
+    const since = new Date(Date.now() - windowMin * 60000).toISOString()
+    const row: any = await db.prepare('SELECT COUNT(*) AS n FROM login_failures WHERE ip = ? AND created_at > ?').bind(ip, since).first()
+    return row?.n || 0
+  } catch {
+    return 0
+  }
+}
+
+/* ── 관리자 감사 로그 ── */
+export async function logAudit(
+  db: D1Database,
+  admin: { id?: string; email?: string },
+  action: string,
+  target = '',
+  detail = '',
+  severity = 'info',
+  ip = '',
+) {
+  try {
+    await db
+      .prepare('INSERT INTO audit_log (id, admin_id, admin_email, action, target, detail, severity, ip, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind('au_' + crypto.randomUUID().slice(0, 16), admin.id || '', admin.email || '', action, target, detail, severity, ip, new Date().toISOString())
+      .run()
+    await db.prepare('DELETE FROM audit_log WHERE id NOT IN (SELECT id FROM audit_log ORDER BY created_at DESC LIMIT 3000)').run().catch(() => {})
+  } catch {
+    /* ignore */
+  }
+}
+
+/* ── 데이터 내보내기 감사 ── */
+export async function logExport(
+  db: D1Database,
+  admin: { id?: string; email?: string },
+  o: { filename: string; kind: string; rows: number; bytes: number; ip?: string },
+) {
+  try {
+    await db
+      .prepare('INSERT INTO export_audit (id, admin_id, admin_email, filename, kind, rows, bytes, ip, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind('ex_' + crypto.randomUUID().slice(0, 16), admin.id || '', admin.email || '', o.filename, o.kind, o.rows || 0, o.bytes || 0, o.ip || '', new Date().toISOString())
+      .run()
   } catch {
     /* ignore */
   }
@@ -400,13 +605,17 @@ export async function seedAdmin(db: D1Database, env: Env) {
     .run()
 }
 
-export async function createSession(db: D1Database, userId: string): Promise<string> {
+export async function createSession(
+  db: D1Database,
+  userId: string,
+  meta?: { ip?: string; ua?: string; country?: string },
+): Promise<string> {
   const token = crypto.randomUUID() + crypto.randomUUID().replace(/-/g, '')
   const nowIso = new Date().toISOString()
   const exp = new Date(Date.now() + SESSION_TTL_SEC * 1000).toISOString()
   await db
-    .prepare(`INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)`)
-    .bind(token, userId, nowIso, exp)
+    .prepare(`INSERT INTO sessions (token, user_id, created_at, expires_at, ip, ua, country) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    .bind(token, userId, nowIso, exp, meta?.ip || '', meta?.ua || '', meta?.country || '')
     .run()
   return token
 }

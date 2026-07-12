@@ -7,6 +7,10 @@ import {
   requireAdminUser,
   logActivity,
   addNotification,
+  applyBalance,
+  logAudit,
+  clientIp,
+  publicUser,
 } from '../_utils'
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
@@ -33,10 +37,32 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     )
     .all()).results || []
 
+  const pointRequests = (await db
+    .prepare(
+      `SELECT p.id, p.user_id, u.name, u.email, p.amount, p.memo, p.status, p.created_at, p.decided_at
+       FROM point_requests p LEFT JOIN users u ON u.id = p.user_id
+       ORDER BY (p.status='pending') DESC, p.created_at DESC LIMIT 300`,
+    )
+    .all()).results || []
+
+  // 회원가입 정보 (최근 가입 회원 전체 정보)
+  const signupRows = (await db
+    .prepare(`SELECT * FROM users ORDER BY created_at DESC LIMIT 300`)
+    .all()).results || []
+  const signups = signupRows.map((u: any) => publicUser(u))
+
   const pendingPlans = planRequests.filter((r: any) => r.status === 'pending').length
   const pendingSenders = senderNumbers.filter((r: any) => r.status === 'pending').length
+  const pendingPoints = pointRequests.filter((r: any) => r.status === 'pending').length
 
-  return json({ ok: true, planRequests, senderNumbers, stats: { pendingPlans, pendingSenders } })
+  return json({
+    ok: true,
+    planRequests,
+    senderNumbers,
+    pointRequests,
+    signups,
+    stats: { pendingPlans, pendingSenders, pendingPoints, totalMembers: signups.length },
+  })
 }
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -46,8 +72,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const guard = await requireAdminUser(request, db)
   if (guard.error) return guard.error
 
+  const admin = { id: guard.me.id, email: guard.me.email }
+  const adminIp = clientIp(request)
   const body: any = await request.json().catch(() => ({}))
-  const type = String(body.type || '') // plan | sender
+  const type = String(body.type || '') // plan | sender | point
   const id = String(body.id || '')
   const decision = String(body.decision || '') // approve | reject
   if (!id || !['approve', 'reject'].includes(decision)) return json({ ok: false, error: '잘못된 요청입니다.' }, 400)
@@ -75,8 +103,21 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     } else {
       await addNotification(db, req.user_id, '발신번호가 반려되었습니다', `발신번호 ${req.phone} 등록이 반려되었습니다.`)
     }
+    await logAudit(db, admin, 'approve_sender', req.phone, decision, 'info', adminIp)
+  } else if (type === 'point') {
+    const req: any = await db.prepare('SELECT * FROM point_requests WHERE id = ?').bind(id).first()
+    if (!req) return json({ ok: false, error: '요청을 찾을 수 없습니다.' }, 404)
+    await db.prepare('UPDATE point_requests SET status = ?, decided_at = ? WHERE id = ?').bind(status, now, id).run()
+    if (decision === 'approve') {
+      await applyBalance(db, req.user_id, 'point', req.amount, `포인트 지급 승인${req.memo ? ' · ' + req.memo : ''}`)
+      await addNotification(db, req.user_id, '포인트가 지급되었습니다', `${req.amount.toLocaleString()}P가 지급되었습니다. 감사합니다!`)
+    } else {
+      await addNotification(db, req.user_id, '포인트 지급이 반려되었습니다', `${req.amount.toLocaleString()}P 지급 신청이 반려되었습니다.`)
+    }
+    await logAudit(db, admin, 'approve_point', String(req.amount), decision, 'info', adminIp)
   } else {
     return json({ ok: false, error: '알 수 없는 유형입니다.' }, 400)
   }
+  if (type === 'plan') await logAudit(db, admin, 'approve_plan', id, decision, 'info', adminIp)
   return json({ ok: true })
 }

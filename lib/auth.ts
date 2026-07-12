@@ -196,48 +196,89 @@ export async function markNotificationsRead(): Promise<void> {
 }
 
 /* ───────── 보안 (관리자) ───────── */
-export interface BlockedIp { ip: string; reason: string | null; source: string | null; created_at: string }
-export interface SecLog { ts: string; ip: string; method: string; path: string; status: number; severity: string; detail: string }
+export interface BlockedIp { ip: string; reason: string | null; source: string | null; country?: string; city?: string; created_at: string }
+export interface WhitelistIp { ip: string; label: string | null; created_at: string }
+export interface SecLog { ts: string; ip: string; method: string; path: string; status: number; severity: string; detail: string; country?: string; city?: string; ua?: string }
+export interface LoginFail { email: string; ip: string; ua: string; country?: string; created_at: string }
+export interface SessionRow { token: string; fullToken: string; user_id: string; name: string | null; email: string | null; role: string | null; ip: string; ua: string; country: string; created_at: string; expires_at: string }
+export interface AuditRow { admin_email: string; action: string; target: string; detail: string; severity: string; ip: string; created_at: string }
+export interface ExportRow { admin_email: string; filename: string; kind: string; rows: number; bytes: number; ip: string; created_at: string }
+export interface ReportRow { id: string; reporter_email: string | null; target_type: string; target_id: string; target_desc: string; reason: string; status: string; created_at: string; decided_at: string | null }
+export interface InstallRow { id: string; user_email: string | null; endpoint: string; platform: string; allowed: number; ip: string; country: string; city: string; ua: string; created_at: string }
 
-export async function adminSecurity(): Promise<{
+export interface SecurityBundle {
   ok: boolean; error?: string
-  blocked: BlockedIp[]; logs: SecLog[]
-  stats?: { blockedCount: number; events24: number; threats24: number }
-}> {
+  settings: { whitelistMode: boolean }
+  blocked: BlockedIp[]; whitelist: WhitelistIp[]; logs: SecLog[]; loginFailures: LoginFail[]
+  sessions: SessionRow[]; audit: AuditRow[]; exports: ExportRow[]; reports: ReportRow[]; installs: InstallRow[]
+  stats: {
+    blockedCount: number; whitelistCount: number; events24: number; threats24: number
+    loginFails24: number; activeSessions: number; pendingReports: number; installsTotal: number; pushAllowed: number
+  }
+}
+
+export async function adminSecurity(): Promise<SecurityBundle> {
+  const empty: SecurityBundle = {
+    ok: false, settings: { whitelistMode: false }, blocked: [], whitelist: [], logs: [], loginFailures: [],
+    sessions: [], audit: [], exports: [], reports: [], installs: [],
+    stats: { blockedCount: 0, whitelistCount: 0, events24: 0, threats24: 0, loginFails24: 0, activeSessions: 0, pendingReports: 0, installsTotal: 0, pushAllowed: 0 },
+  }
   try {
     const r = await fetch('/api/admin/security', { credentials: 'include' })
     const d = await r.json()
-    return { ok: !!d.ok, error: d.error, blocked: d.blocked || [], logs: d.logs || [], stats: d.stats }
+    return { ...empty, ...d, ok: !!d.ok, settings: d.settings || empty.settings, stats: d.stats || empty.stats }
   } catch {
-    return { ok: false, error: '네트워크 오류', blocked: [], logs: [] }
+    return { ...empty, error: '네트워크 오류' }
   }
 }
+
+export type SecurityAction =
+  | 'block' | 'unblock' | 'delete-ip' | 'unblock-many' | 'unblock-all'
+  | 'whitelist-add' | 'whitelist-remove' | 'whitelist-mode'
+  | 'clear-logs' | 'clear-login-failures'
+  | 'force-logout' | 'force-logout-user' | 'force-logout-all'
+  | 'report-action' | 'push-send' | 'export-log'
+
 export async function adminSecurityAction(
-  action: 'block' | 'unblock' | 'clear-logs',
-  extra?: { ip?: string; reason?: string },
-): Promise<{ ok: boolean; error?: string }> {
+  action: SecurityAction,
+  extra?: {
+    ip?: string; ips?: string[]; reason?: string; label?: string; enabled?: boolean
+    token?: string; userId?: string; id?: string; status?: string
+    title?: string; body?: string; filename?: string; kind?: string; rows?: number; bytes?: number
+  },
+): Promise<{ ok: boolean; error?: string; sent?: number }> {
   return postJson('/api/admin/security', { action, ...extra })
+}
+
+/** PWA 설치 / 푸시 허용 현황 기록 (공개) */
+export async function trackPwa(input: { endpoint?: string; platform?: string; allowed?: boolean }): Promise<void> {
+  await postJson('/api/pwa/track', input)
 }
 
 /* ───────── 승인 관리 (관리자) ───────── */
 export interface PlanReq { id: string; user_id: string; name: string | null; email: string | null; from_plan: string | null; to_plan: string; status: string; memo: string | null; created_at: string; decided_at: string | null }
 export interface SenderReq { id: string; user_id: string; name: string | null; email: string | null; phone: string; label: string | null; status: string; created_at: string; decided_at: string | null }
+export interface PointReq { id: string; user_id: string; name: string | null; email: string | null; amount: number; memo: string | null; status: string; created_at: string; decided_at: string | null }
 
 export async function adminApprovals(): Promise<{
   ok: boolean; error?: string
-  planRequests: PlanReq[]; senderNumbers: SenderReq[]
-  stats?: { pendingPlans: number; pendingSenders: number }
+  planRequests: PlanReq[]; senderNumbers: SenderReq[]; pointRequests: PointReq[]; signups: User[]
+  stats?: { pendingPlans: number; pendingSenders: number; pendingPoints: number; totalMembers: number }
 }> {
   try {
     const r = await fetch('/api/admin/approvals', { credentials: 'include' })
     const d = await r.json()
-    return { ok: !!d.ok, error: d.error, planRequests: d.planRequests || [], senderNumbers: d.senderNumbers || [], stats: d.stats }
+    return {
+      ok: !!d.ok, error: d.error,
+      planRequests: d.planRequests || [], senderNumbers: d.senderNumbers || [],
+      pointRequests: d.pointRequests || [], signups: d.signups || [], stats: d.stats,
+    }
   } catch {
-    return { ok: false, error: '네트워크 오류', planRequests: [], senderNumbers: [] }
+    return { ok: false, error: '네트워크 오류', planRequests: [], senderNumbers: [], pointRequests: [], signups: [] }
   }
 }
 export async function adminApprovalAction(
-  type: 'plan' | 'sender',
+  type: 'plan' | 'sender' | 'point',
   id: string,
   decision: 'approve' | 'reject',
 ): Promise<{ ok: boolean; error?: string }> {
@@ -247,6 +288,16 @@ export async function adminApprovalAction(
 /* ───────── 신청 (사용자 본인) ───────── */
 export async function requestPlan(to_plan: string, memo?: string): Promise<{ ok: boolean; error?: string }> {
   return postJson('/api/account/plan-request', { to_plan, memo })
+}
+export async function requestPoint(amount: number, memo?: string): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/account/point-request', { amount, memo })
+}
+export async function myPointRequests(): Promise<{ ok: boolean; requests: any[] }> {
+  try {
+    const r = await fetch('/api/account/point-request', { credentials: 'include' })
+    const d = await r.json()
+    return { ok: !!d.ok, requests: d.requests || [] }
+  } catch { return { ok: false, requests: [] } }
 }
 export async function myPlanRequests(): Promise<{ ok: boolean; requests: any[] }> {
   try {

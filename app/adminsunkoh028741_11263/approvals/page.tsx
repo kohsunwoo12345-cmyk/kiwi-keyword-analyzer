@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   BadgeCheck,
   Crown,
@@ -9,6 +9,12 @@ import {
   CheckCircle2,
   XCircle,
   RefreshCw,
+  Coins,
+  Users,
+  Download,
+  Mail,
+  Building2,
+  CreditCard,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { StatCard, Panel, Badge, Button } from '@/components/ui'
@@ -18,6 +24,8 @@ import {
   adminApprovalAction,
   type PlanReq,
   type SenderReq,
+  type PointReq,
+  type User,
 } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -58,6 +66,25 @@ function planBadgeClass(plan: string | null) {
     : 'border-slate-200 bg-slate-50 text-slate-600'
 }
 
+function downloadCsv(filename: string, headers: string[], rows: string[][]) {
+  if (typeof document === 'undefined') return
+  const esc = (v: string) => {
+    const s = v == null ? '' : String(v)
+    return /["\n,]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const lines = [headers, ...rows].map((r) => r.map(esc).join(','))
+  const csv = '﻿' + lines.join('\r\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 function MemberCell({ name, email }: { name: string | null; email: string | null }) {
   const initial = (name || email || '?').slice(0, 1).toUpperCase()
   return (
@@ -76,12 +103,22 @@ function MemberCell({ name, email }: { name: string | null; email: string | null
 export default function AdminApprovalsPage() {
   const [planRequests, setPlanRequests] = useState<PlanReq[]>([])
   const [senderNumbers, setSenderNumbers] = useState<SenderReq[]>([])
-  const [stats, setStats] = useState<{ pendingPlans: number; pendingSenders: number }>({
+  const [pointRequests, setPointRequests] = useState<PointReq[]>([])
+  const [signups, setSignups] = useState<User[]>([])
+  const [stats, setStats] = useState<{
+    pendingPlans: number
+    pendingSenders: number
+    pendingPoints: number
+    totalMembers: number
+  }>({
     pendingPlans: 0,
     pendingSenders: 0,
+    pendingPoints: 0,
+    totalMembers: 0,
   })
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
 
   const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
   function showToast(msg: string, kind: 'ok' | 'err' = 'ok') {
@@ -97,10 +134,14 @@ export default function AdminApprovalsPage() {
     adminApprovals().then((r) => {
       setPlanRequests(r.planRequests)
       setSenderNumbers(r.senderNumbers)
+      setPointRequests(r.pointRequests)
+      setSignups(r.signups)
       setStats(
         r.stats ?? {
           pendingPlans: r.planRequests.filter((p) => p.status === 'pending').length,
           pendingSenders: r.senderNumbers.filter((s) => s.status === 'pending').length,
+          pendingPoints: r.pointRequests.filter((p) => p.status === 'pending').length,
+          totalMembers: r.signups.length,
         },
       )
       setLoading(false)
@@ -110,7 +151,11 @@ export default function AdminApprovalsPage() {
     reload()
   }, [])
 
-  async function decide(type: 'plan' | 'sender', id: string, decision: 'approve' | 'reject') {
+  async function decide(
+    type: 'plan' | 'sender' | 'point',
+    id: string,
+    decision: 'approve' | 'reject',
+  ) {
     setBusy(`${type}:${id}:${decision}`)
     const r = await adminApprovalAction(type, id, decision)
     setBusy(null)
@@ -122,7 +167,7 @@ export default function AdminApprovalsPage() {
     }
   }
 
-  function ActionCell({ type, id }: { type: 'plan' | 'sender'; id: string }) {
+  function ActionCell({ type, id }: { type: 'plan' | 'sender' | 'point'; id: string }) {
     return (
       <div className="flex items-center justify-end gap-1.5">
         <Button
@@ -147,13 +192,50 @@ export default function AdminApprovalsPage() {
     )
   }
 
+  const filteredSignups = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return signups
+    return signups.filter((u) =>
+      [u.name, u.email, u.company, u.phone || ''].some((f) => f.toLowerCase().includes(q)),
+    )
+  }, [signups, query])
+
+  function exportSignupsCsv() {
+    const headers = [
+      '이름',
+      '이메일',
+      '회사',
+      '연락처',
+      '플랜',
+      '상태',
+      '포인트',
+      '크레딧',
+      '가입일',
+      '최근접속',
+    ]
+    const rows = filteredSignups.map((u) => [
+      u.name,
+      u.email,
+      u.company || '',
+      u.phone || '',
+      u.plan,
+      u.status === 'active' ? '활성' : '정지',
+      String(u.points),
+      String(u.credits),
+      fmtDate(u.createdAt),
+      u.lastActive ? fmtDate(u.lastActive) : '기록 없음',
+    ])
+    downloadCsv('members.csv', headers, rows)
+    showToast('회원 정보를 CSV로 내보냈습니다.', 'ok')
+  }
+
   return (
     <div className="animate-fade-in">
       <PageHeader
         icon={BadgeCheck}
         eyebrow="ADMIN · 승인"
         title="승인 관리"
-        desc="플랜 변경과 발신번호 등록 요청을 승인/반려합니다."
+        desc="플랜 변경·발신번호·포인트 지급 요청을 승인/반려하고 회원가입 정보를 확인합니다."
         accent={ACCENT}
         action={
           <Button variant="outline" size="sm" onClick={reload} disabled={loading || busy !== null}>
@@ -165,7 +247,7 @@ export default function AdminApprovalsPage() {
       <div className="space-y-6 p-6 lg:p-8">
         {/* stats */}
         <Reveal>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               label="대기중 플랜"
               value={(<Counter to={stats.pendingPlans} />) as unknown as string}
@@ -177,6 +259,18 @@ export default function AdminApprovalsPage() {
               value={(<Counter to={stats.pendingSenders} />) as unknown as string}
               icon={Phone}
               accent="#0ea5e9"
+            />
+            <StatCard
+              label="대기중 포인트"
+              value={(<Counter to={stats.pendingPoints} />) as unknown as string}
+              icon={Coins}
+              accent="#f59e0b"
+            />
+            <StatCard
+              label="전체 회원"
+              value={(<Counter to={stats.totalMembers} />) as unknown as string}
+              icon={Users}
+              accent="#10b981"
             />
           </div>
         </Reveal>
@@ -254,6 +348,78 @@ export default function AdminApprovalsPage() {
           </Panel>
         </Reveal>
 
+        {/* 포인트 지급 승인 */}
+        <Reveal>
+          <Panel
+            title={
+              <span className="flex items-center gap-2">
+                <Coins size={16} className="text-amber-500" /> 포인트 지급 승인
+                {stats.pendingPoints > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                    <Clock size={11} /> {stats.pendingPoints} 대기
+                  </span>
+                )}
+              </span>
+            }
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border-soft)] text-left text-xs text-[var(--text-dim)]">
+                    <th className="pb-2.5 font-medium">회원</th>
+                    <th className="pb-2.5 font-medium">지급 포인트</th>
+                    <th className="pb-2.5 font-medium">메모</th>
+                    <th className="pb-2.5 font-medium">신청일</th>
+                    <th className="pb-2.5 font-medium">상태</th>
+                    <th className="pb-2.5 text-right font-medium">액션</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pointRequests.map((p) => (
+                    <tr
+                      key={p.id}
+                      className="border-b border-[var(--border-soft)] last:border-0 hover:bg-slate-50"
+                    >
+                      <td className="py-3">
+                        <MemberCell name={p.name} email={p.email} />
+                      </td>
+                      <td className="py-3">
+                        <span className="font-bold text-amber-600">
+                          {p.amount.toLocaleString()}P
+                        </span>
+                      </td>
+                      <td className="py-3 text-[var(--text-soft)]">{p.memo || '-'}</td>
+                      <td className="whitespace-nowrap py-3 text-[var(--text-soft)]">
+                        {fmtDate(p.created_at)}
+                        <span className="ml-1 text-xs text-[var(--text-dim)]">· {timeAgo(p.created_at)}</span>
+                      </td>
+                      <td className="py-3">
+                        <Badge className={statusBadgeClass(p.status)}>{statusLabel(p.status)}</Badge>
+                      </td>
+                      <td className="py-3">
+                        {p.status === 'pending' ? (
+                          <ActionCell type="point" id={p.id} />
+                        ) : (
+                          <div className="text-right text-xs text-[var(--text-dim)]">
+                            {p.decided_at ? fmtDate(p.decided_at) : '처리 완료'}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {pointRequests.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-10 text-center text-[var(--text-dim)]">
+                        {loading ? '불러오는 중…' : '포인트 지급 요청이 없습니다.'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        </Reveal>
+
         {/* 발신번호 등록 요청 */}
         <Reveal>
           <Panel
@@ -318,6 +484,117 @@ export default function AdminApprovalsPage() {
                     <tr>
                       <td colSpan={6} className="py-10 text-center text-[var(--text-dim)]">
                         {loading ? '불러오는 중…' : '발신번호 등록 요청이 없습니다.'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        </Reveal>
+
+        {/* 회원가입 정보 */}
+        <Reveal>
+          <Panel
+            title={
+              <span className="flex items-center gap-2">
+                <Users size={16} className="text-emerald-600" /> 회원가입 정보
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                  전체 {signups.length}명
+                </span>
+              </span>
+            }
+            action={
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Mail
+                    size={14}
+                    className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-dim)]"
+                  />
+                  <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="이름·이메일·회사·연락처 검색"
+                    className="h-9 w-56 rounded-lg border border-[var(--border-soft)] bg-white pl-8 pr-3 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                  />
+                </div>
+                <Button variant="outline" size="sm" onClick={exportSignupsCsv} disabled={filteredSignups.length === 0}>
+                  <Download size={15} /> CSV 내보내기
+                </Button>
+              </div>
+            }
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1080px] text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border-soft)] text-left text-xs text-[var(--text-dim)]">
+                    <th className="pb-2.5 font-medium">회원</th>
+                    <th className="pb-2.5 font-medium">회사</th>
+                    <th className="pb-2.5 font-medium">연락처</th>
+                    <th className="pb-2.5 font-medium">플랜</th>
+                    <th className="pb-2.5 font-medium">상태</th>
+                    <th className="pb-2.5 text-right font-medium">포인트</th>
+                    <th className="pb-2.5 text-right font-medium">크레딧</th>
+                    <th className="pb-2.5 font-medium">가입일</th>
+                    <th className="pb-2.5 font-medium">최근접속</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSignups.map((u) => (
+                    <tr
+                      key={u.id}
+                      className="border-b border-[var(--border-soft)] last:border-0 hover:bg-slate-50"
+                    >
+                      <td className="py-3">
+                        <MemberCell name={u.name} email={u.email} />
+                      </td>
+                      <td className="py-3 text-[var(--text-soft)]">
+                        <span className="flex items-center gap-1.5">
+                          <Building2 size={13} className="text-[var(--text-dim)]" />
+                          {u.company || '-'}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap py-3 font-mono text-[var(--text-soft)]">
+                        {u.phone || '-'}
+                      </td>
+                      <td className="py-3">
+                        <Badge className={planBadgeClass(u.plan)}>{u.plan}</Badge>
+                      </td>
+                      <td className="py-3">
+                        <Badge
+                          className={
+                            u.status === 'active'
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                              : 'border-rose-200 bg-rose-50 text-rose-700'
+                          }
+                        >
+                          {u.status === 'active' ? '활성' : '정지'}
+                        </Badge>
+                      </td>
+                      <td className="whitespace-nowrap py-3 text-right font-medium text-amber-600">
+                        {u.points.toLocaleString()}
+                      </td>
+                      <td className="whitespace-nowrap py-3 text-right text-[var(--text-soft)]">
+                        <span className="inline-flex items-center gap-1">
+                          <CreditCard size={13} className="text-[var(--text-dim)]" />
+                          {u.credits.toLocaleString()}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap py-3 text-[var(--text-soft)]">{fmtDate(u.createdAt)}</td>
+                      <td className="whitespace-nowrap py-3 text-[var(--text-soft)]">
+                        {u.lastActive ? fmtDate(u.lastActive) : '기록 없음'}
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredSignups.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="py-10 text-center text-[var(--text-dim)]">
+                        {loading
+                          ? '불러오는 중…'
+                          : query.trim()
+                          ? '검색 결과가 없습니다.'
+                          : '가입한 회원이 없습니다.'}
                       </td>
                     </tr>
                   )}

@@ -11,6 +11,8 @@ import {
   logActivity,
   applyBalance,
   addNotification,
+  clientIp,
+  geoFrom,
 } from './_utils'
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -51,7 +53,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await applyBalance(db, id, 'credit', 10, '가입 축하 크레딧')
   await addNotification(db, id, 'BYGENCY에 오신 것을 환영합니다 🎉', '가입 축하 포인트 1,000P와 크레딧 10개가 지급되었어요. 지금 바로 시작해보세요!')
 
-  const token = await createSession(db, id)
+  const geo = geoFrom(request)
+  const token = await createSession(db, id, { ip: clientIp(request), ua: request.headers.get('User-Agent') || '', country: geo.country })
   const fresh: any = await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first()
   return json({ ok: true, user: publicUser(fresh) }, 200, { 'Set-Cookie': sessionCookie(token) })
 }

@@ -32,6 +32,8 @@ import {
   myPlanRequests,
   mySenders,
   registerSender,
+  requestPoint,
+  myPointRequests,
   type User,
   type Tx,
   type Noti,
@@ -199,6 +201,16 @@ export default function ProfilePage() {
   const [senderErr, setSenderErr] = useState<string | null>(null)
   const [senders, setSenders] = useState<MySender[]>([])
 
+  // point request
+  const [pointAmount, setPointAmount] = useState('')
+  const [pointMemo, setPointMemo] = useState('')
+  const [pointBusy, setPointBusy] = useState(false)
+  const [pointOk, setPointOk] = useState(false)
+  const [pointErr, setPointErr] = useState<string | null>(null)
+  const [pointReqs, setPointReqs] = useState<
+    { amount: number; memo: string | null; status: string; created_at: string; decided_at: string | null }[]
+  >([])
+
   useEffect(() => {
     let alive = true
     accountOverview().then((d) => {
@@ -223,10 +235,15 @@ export default function ProfilePage() {
     const r = await mySenders()
     if (r.ok) setSenders(r.senders || [])
   }
+  async function loadPointReqs() {
+    const r = await myPointRequests()
+    if (r.ok) setPointReqs(r.requests || [])
+  }
 
   useEffect(() => {
     loadPlanReqs()
     loadSenders()
+    loadPointReqs()
   }, [])
 
   async function submitPlan(e: FormEvent) {
@@ -265,6 +282,29 @@ export default function ProfilePage() {
       setTimeout(() => setSenderOk(false), 5000)
     } else {
       setSenderErr(r.error || '등록에 실패했습니다.')
+    }
+  }
+
+  async function submitPoint(e: FormEvent) {
+    e.preventDefault()
+    setPointOk(false)
+    setPointErr(null)
+    const amt = Math.floor(Number(pointAmount.replace(/[^0-9]/g, '')))
+    if (!amt || amt <= 0) {
+      setPointErr('신청할 포인트 수량을 입력하세요.')
+      return
+    }
+    setPointBusy(true)
+    const r = await requestPoint(amt, pointMemo.trim() || undefined)
+    setPointBusy(false)
+    if (r.ok) {
+      setPointOk(true)
+      setPointAmount('')
+      setPointMemo('')
+      loadPointReqs()
+      setTimeout(() => setPointOk(false), 5000)
+    } else {
+      setPointErr(r.error || '신청에 실패했습니다.')
     }
   }
 
@@ -647,6 +687,95 @@ export default function ProfilePage() {
                 </div>
               </Panel>
             </div>
+
+            {/* 3.6 포인트 지급 신청 */}
+            <Panel title={<span className="flex items-center gap-2"><Coins size={16} className="text-amber-500" /> 포인트 지급 신청</span>}>
+              <p className="mb-3 rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm text-[var(--text-soft)]">
+                필요한 포인트를 신청하면 관리자 승인 후 지급됩니다. (현재 보유: <b className="text-amber-600">{ko(user.points)}P</b>)
+              </p>
+              <div className="grid gap-6 lg:grid-cols-2">
+                <form onSubmit={submitPoint} className="space-y-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">신청 포인트</label>
+                    <input
+                      value={pointAmount}
+                      onChange={(e) => setPointAmount(e.target.value)}
+                      className={inputCls}
+                      placeholder="예: 10000"
+                      inputMode="numeric"
+                    />
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {[1000, 5000, 10000, 50000, 100000].map((v) => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => setPointAmount(String(v))}
+                          className="rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-2.5 py-1 text-xs font-medium text-[var(--text-soft)] transition-colors hover:border-amber-300 hover:text-amber-600"
+                        >
+                          +{ko(v)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">
+                      메모 <span className="text-[var(--text-dim)]">(선택)</span>
+                    </label>
+                    <input
+                      value={pointMemo}
+                      onChange={(e) => setPointMemo(e.target.value)}
+                      className={inputCls}
+                      placeholder="신청 사유를 남겨주세요"
+                    />
+                  </div>
+
+                  {pointOk && (
+                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2.5 text-sm text-emerald-700">
+                      <Check size={15} /> 신청이 접수되었습니다. 관리자 승인 후 지급됩니다.
+                    </div>
+                  )}
+                  {pointErr && (
+                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
+                      <AlertCircle size={15} /> {pointErr}
+                    </div>
+                  )}
+
+                  <Button type="submit" disabled={pointBusy} className="w-full">
+                    {pointBusy ? '신청 중...' : '포인트 신청'}
+                  </Button>
+                </form>
+
+                <div>
+                  <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
+                    <Clock size={13} /> 신청 내역
+                  </p>
+                  {pointReqs.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-[var(--text-dim)]">신청 내역이 없습니다</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {pointReqs.map((r, i) => {
+                        const m = statusMeta(r.status)
+                        return (
+                          <li
+                            key={i}
+                            className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-soft)] px-3.5 py-2.5"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium">{ko(r.amount)}P</p>
+                              <p className="mt-0.5 text-xs text-[var(--text-dim)]">
+                                {fmtDate(r.created_at)}
+                                {r.memo ? <span className="ml-1">· {r.memo}</span> : null}
+                              </p>
+                            </div>
+                            <Badge className={m.badge}>{m.label}</Badge>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </Panel>
 
             {/* 4. 포인트·크레딧 내역 */}
             <div className="grid gap-6 lg:grid-cols-2">
