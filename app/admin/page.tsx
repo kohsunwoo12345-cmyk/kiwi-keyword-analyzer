@@ -4,34 +4,21 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Shield,
   Users,
-  UserCheck,
   Activity,
-  DollarSign,
   UserPlus,
   LogIn,
   CreditCard,
-  LayoutTemplate,
+  Crown,
   ChevronRight,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { AreaTrend, Donut } from '@/components/dash/Charts'
-import { StatCard, Panel, Badge, Button } from '@/components/ui'
+import { Panel, Badge, Button } from '@/components/ui'
 import { Reveal, Counter } from '@/components/motion'
 import { adminUsers, type User } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 const ACCENT = '#7c3aed'
-
-// 가입자 추이 (최근 7일 신규/누적)
-const SIGNUP_TREND = [
-  { name: '7/06', 신규: 24, 누적: 2698 },
-  { name: '7/07', 신규: 31, 누적: 2729 },
-  { name: '7/08', 신규: 27, 누적: 2756 },
-  { name: '7/09', 신규: 42, 누적: 2798 },
-  { name: '7/10', 신규: 35, 누적: 2833 },
-  { name: '7/11', 신규: 29, 누적: 2862 },
-  { name: '7/12', 신규: 38, 누적: 2900 },
-]
 
 const PLAN_COLORS: Record<User['plan'], string> = {
   Starter: '#94a3b8',
@@ -39,41 +26,27 @@ const PLAN_COLORS: Record<User['plan'], string> = {
   Business: '#0ea5e9',
 }
 
-type FeedItem = {
-  id: number
-  kind: '가입' | '로그인' | '결제' | '랜딩'
-  name: string
-  detail: string
-  ago: string
-}
-
-const FEED_SEED: FeedItem[] = [
-  { id: 1, kind: '결제', name: '박민지', detail: 'Pro 플랜 월 결제 (₩49,000)', ago: '방금 전' },
-  { id: 2, kind: '가입', name: '정하늘', detail: '이메일로 신규 가입', ago: '2분 전' },
-  { id: 3, kind: '랜딩', name: '이준호', detail: "'여름 프로모션' 랜딩페이지 생성", ago: '5분 전' },
-  { id: 4, kind: '로그인', name: '김서연', detail: 'Chrome · Seoul, KR 접속', ago: '8분 전' },
-  { id: 5, kind: '결제', name: '오세훈', detail: 'Business 플랜 연 결제 (₩1,188,000)', ago: '14분 전' },
-  { id: 6, kind: '가입', name: '한지우', detail: '구글 계정으로 신규 가입', ago: '21분 전' },
-  { id: 7, kind: '랜딩', name: '최유나', detail: "'신메뉴 출시' 랜딩페이지 발행", ago: '27분 전' },
-  { id: 8, kind: '로그인', name: '강태현', detail: 'Safari · Busan, KR 접속', ago: '33분 전' },
-]
-
-const FEED_STYLE: Record<
-  FeedItem['kind'],
-  { icon: typeof UserPlus; badge: string; ring: string }
-> = {
+const FEED_STYLE = {
   가입: { icon: UserPlus, badge: 'border-emerald-200 bg-emerald-50 text-emerald-700', ring: 'from-emerald-500 to-green-500' },
   로그인: { icon: LogIn, badge: 'border-sky-200 bg-sky-50 text-sky-700', ring: 'from-sky-500 to-cyan-500' },
   결제: { icon: CreditCard, badge: 'border-amber-200 bg-amber-50 text-amber-700', ring: 'from-amber-500 to-orange-500' },
-  랜딩: { icon: LayoutTemplate, badge: 'border-violet-200 bg-violet-50 text-violet-700', ring: 'from-violet-500 to-indigo-500' },
-}
+} as const
 
 function fmtDate(iso: string) {
+  if (!iso) return '—'
   const d = new Date(iso)
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function ago(iso: string | null) {
+  if (!iso) return '—'
+  const diff = Date.now() - +new Date(iso)
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return '방금 전'
+  if (m < 60) return `${m}분 전`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}시간 전`
+  return `${Math.floor(h / 24)}일 전`
 }
 
 function planBadgeClass(plan: User['plan']) {
@@ -84,17 +57,28 @@ function planBadgeClass(plan: User['plan']) {
     : 'border-slate-200 bg-slate-50 text-slate-600'
 }
 
+const DAY_MS = 86_400_000
+
 export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([])
+  const [ready, setReady] = useState(false)
+
   useEffect(() => {
-    adminUsers().then((r) => setUsers(r.users))
+    adminUsers().then((r) => {
+      setUsers(r.users)
+      setReady(true)
+    })
   }, [])
 
-  // 총 회원수: 실제 사용자 수 + 시드 보정(현실감)
-  const totalMembers = 2842 + users.length
+  const now = Date.now()
+  const total = users.length
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const newToday = users.filter((u) => (u.createdAt || '').slice(0, 10) === todayStr).length
+  const activeRecently = users.filter((u) => u.lastActive && now - +new Date(u.lastActive) < DAY_MS).length
+  const paid = users.filter((u) => u.plan === 'Pro' || u.plan === 'Business').length
 
   const planDist = useMemo(() => {
-    const base = { Starter: 1524, Pro: 986, Business: 332 }
+    const base: Record<string, number> = { Starter: 0, Pro: 0, Business: 0 }
     for (const u of users) base[u.plan] = (base[u.plan] || 0) + 1
     return (['Starter', 'Pro', 'Business'] as const).map((name) => ({
       name,
@@ -103,13 +87,37 @@ export default function AdminDashboard() {
     }))
   }, [users])
 
+  // 실제 가입일 기준 최근 7일 추이
+  const signupTrend = useMemo(() => {
+    const out: { name: string; 신규: number; 누적: number }[] = []
+    const base = new Date()
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(base)
+      d.setDate(base.getDate() - i)
+      const key = d.toISOString().slice(0, 10)
+      const endOfDay = +new Date(key + 'T23:59:59')
+      const 신규 = users.filter((u) => (u.createdAt || '').slice(0, 10) === key).length
+      const 누적 = users.filter((u) => +new Date(u.createdAt) <= endOfDay).length
+      out.push({ name: `${d.getMonth() + 1}/${String(d.getDate()).padStart(2, '0')}`, 신규, 누적 })
+    }
+    return out
+  }, [users])
+
   const recent = useMemo(
-    () =>
-      [...users]
-        .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
-        .slice(0, 6),
+    () => [...users].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)).slice(0, 6),
     [users],
   )
+
+  // 실제 활동 피드: 가입(createdAt) + 로그인(lastActive)
+  const feed = useMemo(() => {
+    const events: { kind: keyof typeof FEED_STYLE; name: string; detail: string; t: number }[] = []
+    for (const u of users) {
+      if (u.createdAt) events.push({ kind: '가입', name: u.name, detail: `${u.email} · 신규 가입`, t: +new Date(u.createdAt) })
+      if (u.lastActive && u.lastActive !== u.createdAt)
+        events.push({ kind: '로그인', name: u.name, detail: `${u.plan} 플랜 · 로그인`, t: +new Date(u.lastActive) })
+    }
+    return events.sort((a, b) => b.t - a.t).slice(0, 10)
+  }, [users])
 
   return (
     <div className="animate-fade-in">
@@ -117,7 +125,7 @@ export default function AdminDashboard() {
         icon={Shield}
         eyebrow="ADMIN"
         title="관리자 대시보드"
-        desc="회원 현황과 서비스 지표를 실시간으로 모니터링합니다."
+        desc="가입 회원과 서비스 지표를 실제 데이터로 모니터링합니다."
         accent={ACCENT}
         action={
           <Button href="/admin/users" size="sm">
@@ -127,89 +135,22 @@ export default function AdminDashboard() {
       />
 
       <div className="space-y-6 p-6 lg:p-8">
-        {/* stats */}
         <Reveal>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="card hover-lift p-5">
-              <div className="flex items-start justify-between">
-                <span className="text-sm text-[var(--text-soft)]">총 회원수</span>
-                <span className="grid h-9 w-9 place-items-center rounded-lg" style={{ background: '#7c3aed14', color: '#7c3aed' }}>
-                  <Users size={17} />
-                </span>
-              </div>
-              <div className="mt-3 flex items-end justify-between">
-                <span className="text-2xl font-bold tracking-tight">
-                  <Counter to={totalMembers} />
-                </span>
-                <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-600">+6.2%</span>
-              </div>
-            </div>
-
-            <div className="card hover-lift p-5">
-              <div className="flex items-start justify-between">
-                <span className="text-sm text-[var(--text-soft)]">오늘 가입</span>
-                <span className="grid h-9 w-9 place-items-center rounded-lg" style={{ background: '#22c55e14', color: '#22c55e' }}>
-                  <UserPlus size={17} />
-                </span>
-              </div>
-              <div className="mt-3 flex items-end justify-between">
-                <span className="text-2xl font-bold tracking-tight">
-                  <Counter to={38} />
-                </span>
-                <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-600">+31%</span>
-              </div>
-            </div>
-
-            <div className="card hover-lift p-5">
-              <div className="flex items-start justify-between">
-                <span className="text-sm text-[var(--text-soft)]">활성 세션</span>
-                <span className="grid h-9 w-9 place-items-center rounded-lg" style={{ background: '#0ea5e914', color: '#0ea5e9' }}>
-                  <Activity size={17} />
-                </span>
-              </div>
-              <div className="mt-3 flex items-end justify-between">
-                <span className="text-2xl font-bold tracking-tight">
-                  <Counter to={124} />
-                </span>
-                <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
-                  <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 animate-ping-ring" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                  </span>
-                  실시간
-                </span>
-              </div>
-            </div>
-
-            <div className="card hover-lift p-5">
-              <div className="flex items-start justify-between">
-                <span className="text-sm text-[var(--text-soft)]">이번달 매출</span>
-                <span className="grid h-9 w-9 place-items-center rounded-lg" style={{ background: '#f59e0b14', color: '#f59e0b' }}>
-                  <DollarSign size={17} />
-                </span>
-              </div>
-              <div className="mt-3 flex items-end justify-between">
-                <span className="text-2xl font-bold tracking-tight">
-                  <Counter to={3240} prefix="₩" suffix="만" />
-                </span>
-                <span className="flex items-center gap-0.5 text-xs font-semibold text-emerald-600">+12.4%</span>
-              </div>
-            </div>
+            <StatBox label="총 회원수" value={total} icon={Users} color="#7c3aed" />
+            <StatBox label="오늘 가입" value={newToday} icon={UserPlus} color="#22c55e" />
+            <StatBox label="최근 접속 (24h)" value={activeRecently} icon={Activity} color="#0ea5e9" live />
+            <StatBox label="유료 회원" value={paid} icon={Crown} color="#f59e0b" />
           </div>
         </Reveal>
 
-        {/* charts */}
         <Reveal>
           <div className="grid gap-6 lg:grid-cols-3">
-            <Panel title="가입자 추이 · 최근 7일" className="lg:col-span-2">
-              <AreaTrend
-                data={SIGNUP_TREND}
-                keys={['신규', '누적']}
-                colors={['#7c3aed', '#22d3ee']}
-              />
+            <Panel title="가입자 추이 · 최근 7일 (실데이터)" className="lg:col-span-2">
+              <AreaTrend data={signupTrend} keys={['신규', '누적']} colors={['#7c3aed', '#22d3ee']} />
             </Panel>
             <Panel title="플랜 분포">
-              <Donut data={planDist} />
+              <Donut data={planDist.every((p) => p.value === 0) ? [{ name: '없음', value: 1, color: '#e2e8f0' }] : planDist} />
               <div className="mt-4 space-y-2">
                 {planDist.map((p) => (
                   <div key={p.name} className="flex items-center justify-between text-sm">
@@ -225,7 +166,6 @@ export default function AdminDashboard() {
           </div>
         </Reveal>
 
-        {/* live feed + recent members */}
         <Reveal>
           <div className="grid gap-6 lg:grid-cols-3">
             <Panel
@@ -244,11 +184,11 @@ export default function AdminDashboard() {
               }
             >
               <div className="-mr-1 max-h-[420px] space-y-1 overflow-y-auto pr-1 no-scrollbar">
-                {FEED_SEED.map((f) => {
+                {feed.map((f, i) => {
                   const s = FEED_STYLE[f.kind]
                   const Icon = s.icon
                   return (
-                    <div key={f.id} className="flex items-start gap-3 rounded-xl p-2.5 transition-colors hover:bg-slate-50">
+                    <div key={i} className="flex items-start gap-3 rounded-xl p-2.5 transition-colors hover:bg-slate-50">
                       <span className={cn('grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br text-white', s.ring)}>
                         <Icon size={15} />
                       </span>
@@ -259,10 +199,13 @@ export default function AdminDashboard() {
                         </p>
                         <p className="mt-0.5 truncate text-xs text-[var(--text-soft)]">{f.detail}</p>
                       </div>
-                      <span className="flex-shrink-0 text-[11px] text-[var(--text-dim)]">{f.ago}</span>
+                      <span className="flex-shrink-0 text-[11px] text-[var(--text-dim)]">{ago(new Date(f.t).toISOString())}</span>
                     </div>
                   )
                 })}
+                {ready && feed.length === 0 && (
+                  <p className="py-8 text-center text-sm text-[var(--text-dim)]">아직 활동 기록이 없습니다.</p>
+                )}
               </div>
             </Panel>
 
@@ -314,7 +257,7 @@ export default function AdminDashboard() {
                     {recent.length === 0 && (
                       <tr>
                         <td colSpan={5} className="py-8 text-center text-[var(--text-dim)]">
-                          회원 데이터를 불러오는 중…
+                          {ready ? '가입한 회원이 없습니다.' : '회원 데이터를 불러오는 중…'}
                         </td>
                       </tr>
                     )}
@@ -324,6 +267,45 @@ export default function AdminDashboard() {
             </Panel>
           </div>
         </Reveal>
+      </div>
+    </div>
+  )
+}
+
+function StatBox({
+  label,
+  value,
+  icon: Icon,
+  color,
+  live,
+}: {
+  label: string
+  value: number
+  icon: any
+  color: string
+  live?: boolean
+}) {
+  return (
+    <div className="card hover-lift p-5">
+      <div className="flex items-start justify-between">
+        <span className="text-sm text-[var(--text-soft)]">{label}</span>
+        <span className="grid h-9 w-9 place-items-center rounded-lg" style={{ background: `${color}14`, color }}>
+          <Icon size={17} />
+        </span>
+      </div>
+      <div className="mt-3 flex items-end justify-between">
+        <span className="text-2xl font-bold tracking-tight">
+          <Counter to={value} />
+        </span>
+        {live && (
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 animate-ping-ring" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            </span>
+            실시간
+          </span>
+        )}
       </div>
     </div>
   )

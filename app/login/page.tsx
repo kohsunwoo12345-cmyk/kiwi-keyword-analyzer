@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Mail, Lock, Eye, EyeOff, ArrowLeft, ArrowRight, AlertCircle, Info } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react'
 import { Logo } from '@/components/Brand'
 import { Button } from '@/components/ui'
 import { login } from '@/lib/auth'
@@ -37,12 +37,6 @@ export default function LoginPage() {
       }
       router.push(res.user.role === 'admin' ? '/admin' : '/dashboard')
     })()
-  }
-
-  function fillDemo() {
-    setEmail('kohsunwoo12345@gmail.com')
-    setPassword('Bygency!2026')
-    setError('')
   }
 
   return (
@@ -167,32 +161,6 @@ export default function LoginPage() {
                 {!loading && <ArrowRight size={17} />}
               </Button>
             </form>
-
-            {/* ---- 관리자 안내 ---- */}
-            <div className="mt-6 rounded-xl border border-violet-100 bg-violet-50/70 px-4 py-3.5 text-sm">
-              <div className="flex items-center gap-1.5 font-semibold text-violet-700">
-                <Info size={15} />
-                관리자 계정
-              </div>
-              <div className="mt-2 flex items-center justify-between gap-3">
-                <div className="text-[13px] leading-relaxed text-[var(--text-soft)]">
-                  <div>
-                    아이디{' '}
-                    <span className="font-medium text-[var(--text)]">kohsunwoo12345@gmail.com</span>
-                  </div>
-                  <div>
-                    비밀번호 <span className="font-medium text-[var(--text)]">Bygency!2026</span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={fillDemo}
-                  className="shrink-0 rounded-lg border border-violet-200 bg-white px-3 py-1.5 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-100"
-                >
-                  자동 입력
-                </button>
-              </div>
-            </div>
           </div>
 
           <p className="mt-6 text-center text-sm text-[var(--text-soft)]">

@@ -27,41 +27,25 @@ import { adminUsers, adminAction, type User } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 const ACCENT = '#7c3aed'
-const TODAY = '2026-07-12'
+const TODAY = new Date().toISOString().slice(0, 10)
+const ONLINE_WINDOW_MS = 5 * 60 * 1000 // 최근 5분 내 활동 = 접속중
 
-// 회원별 감시용 목업(실시간 세션/활동) — id 기반, 없으면 fallback 생성
-const WATCH: Record<
-  string,
-  { online: boolean; page: string; session: string; ip: string; device: string; browser: string; location: string }
-> = {
-  admin: { online: true, page: '/admin/users', session: '2시간 12분', ip: '211.234.11.4', device: 'MacBook Pro', browser: 'Chrome 126', location: '서울, KR' },
-  u_seoyeon: { online: true, page: '/dashboard/landing', session: '38분', ip: '121.130.44.90', device: 'iPhone 15', browser: 'Safari 17', location: '서울, KR' },
-  u_junho: { online: true, page: '/dashboard/sms/compose', session: '12분', ip: '175.223.9.201', device: 'Galaxy S24', browser: 'Samsung Internet', location: '부산, KR' },
-  u_minji: { online: false, page: '/dashboard', session: '-', ip: '110.70.55.12', device: 'Windows PC', browser: 'Edge 126', location: '인천, KR' },
-  u_doyoon: { online: false, page: '-', session: '-', ip: '39.115.201.7', device: 'iPad Air', browser: 'Safari 16', location: '대구, KR' },
+function timeAgo(iso: string | null) {
+  if (!iso) return '기록 없음'
+  const diff = Date.now() - +new Date(iso)
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return '방금'
+  if (m < 60) return `${m}분 전`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}시간 전`
+  return `${Math.floor(h / 24)}일 전`
 }
 
+// 실제 lastActive 기반 접속 상태 (별도 추적 인프라 없이 D1 데이터로 판정)
 function watchOf(u: User) {
-  return (
-    WATCH[u.id] || {
-      online: false,
-      page: '/dashboard',
-      session: '-',
-      ip: '203.0.113.' + ((u.id.length * 7) % 240),
-      device: 'Windows PC',
-      browser: 'Chrome 126',
-      location: '서울, KR',
-    }
-  )
+  const online = !!u.lastActive && Date.now() - +new Date(u.lastActive) < ONLINE_WINDOW_MS
+  return { online, lastSeen: timeAgo(u.lastActive) }
 }
-
-const ACTIVITY_LOG = [
-  { icon: LogIn, label: '로그인', detail: 'Chrome · 서울, KR', time: '오늘 09:12', color: 'text-sky-600 bg-sky-50' },
-  { icon: LayoutTemplate, label: '랜딩페이지 생성', detail: "'여름 프로모션 2026'", time: '오늘 09:41', color: 'text-violet-600 bg-violet-50' },
-  { icon: MessageSquare, label: '문자 발송', detail: '1,240건 (전환율 6.8%)', time: '오늘 10:03', color: 'text-emerald-600 bg-emerald-50' },
-  { icon: Activity, label: '플레이스 순위 조회', detail: "'강남 필라테스' 외 4건", time: '어제 18:22', color: 'text-amber-600 bg-amber-50' },
-  { icon: LogIn, label: '로그인', detail: 'Safari · 서울, KR', time: '어제 08:55', color: 'text-sky-600 bg-sky-50' },
-]
 
 type Filter = 'all' | 'online' | 'offline' | 'suspended' | 'Starter' | 'Pro' | 'Business'
 
@@ -228,11 +212,9 @@ export default function AdminUsersPage() {
                         {u.name}
                         <span className="text-xs font-normal text-[var(--text-dim)]">· {u.plan}</span>
                       </p>
-                      <p className="mt-0.5 truncate text-xs text-[var(--text-soft)]">
-                        보는 중: <span className="font-medium text-violet-600">{w.page}</span>
-                      </p>
-                      <p className="mt-0.5 flex items-center gap-1 text-[11px] text-[var(--text-dim)]">
-                        <Clock size={11} /> 접속 {w.session} · {w.location}
+                      <p className="mt-0.5 truncate text-xs text-[var(--text-soft)]">{u.email}</p>
+                      <p className="mt-0.5 flex items-center gap-1 text-[11px] text-emerald-600">
+                        <Clock size={11} /> 최근 활동 {w.lastSeen}
                       </p>
                     </div>
                   </button>
@@ -467,7 +449,7 @@ export default function AdminUsersPage() {
                             <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 animate-ping-ring" />
                             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                           </span>
-                          지금 활동중 · {w.page}
+                          지금 활동중 · {w.lastSeen}
                         </span>
                       ) : u.status === 'suspended' ? (
                         <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">
@@ -480,49 +462,49 @@ export default function AdminUsersPage() {
                       )}
                     </div>
 
-                    {/* session info */}
+                    {/* account info (실데이터) */}
                     <div>
                       <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--text-dim)]">
-                        <Server size={12} /> 세션 정보
+                        <Server size={12} /> 계정 정보
                       </p>
                       <div className="card-2 divide-y divide-[var(--border-soft)] p-0 text-sm">
-                        <Row icon={Globe} label="IP 주소" value={w.ip} />
-                        <Row icon={Server} label="디바이스" value={w.device} />
-                        <Row icon={Activity} label="브라우저" value={w.browser} />
-                        <Row icon={Globe} label="접속 지역" value={w.location} />
-                        <Row icon={Clock} label="세션 시간" value={w.session} />
+                        <Row icon={Globe} label="회원 ID" value={u.id} />
+                        <Row icon={Server} label="플랜" value={u.plan} />
+                        <Row icon={Shield} label="권한" value={u.role === 'admin' ? '관리자' : '일반 회원'} />
+                        <Row icon={Activity} label="상태" value={u.status === 'active' ? '활성' : '정지'} />
+                        <Row icon={Clock} label="가입일" value={fmtDateTime(u.createdAt)} />
                         <Row icon={Clock} label="최근 접속" value={fmtDateTime(u.lastActive)} />
                       </div>
                     </div>
 
-                    {/* usage metrics */}
-                    <div className="grid grid-cols-3 gap-2">
-                      <Metric label="발송 문자" value="8,420" />
-                      <Metric label="생성 랜딩" value="14" />
-                      <Metric label="누적 리드" value="1,203" />
-                    </div>
-
-                    {/* activity log */}
+                    {/* activity log (실데이터: 가입/최근 로그인) */}
                     <div>
                       <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--text-dim)]">
-                        <Activity size={12} /> 활동 로그
+                        <Activity size={12} /> 활동 기록
                       </p>
                       <div className="space-y-2">
-                        {ACTIVITY_LOG.map((a, i) => {
-                          const Icon = a.icon
-                          return (
-                            <div key={i} className="flex items-start gap-3">
-                              <span className={cn('mt-0.5 grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg', a.color)}>
-                                <Icon size={14} />
-                              </span>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-medium">{a.label}</p>
-                                <p className="truncate text-xs text-[var(--text-soft)]">{a.detail}</p>
-                              </div>
-                              <span className="flex-shrink-0 text-[11px] text-[var(--text-dim)]">{a.time}</span>
+                        {u.lastActive && u.lastActive !== u.createdAt && (
+                          <div className="flex items-start gap-3">
+                            <span className="mt-0.5 grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg bg-sky-50 text-sky-600">
+                              <LogIn size={14} />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium">최근 로그인</p>
+                              <p className="truncate text-xs text-[var(--text-soft)]">{fmtDateTime(u.lastActive)}</p>
                             </div>
-                          )
-                        })}
+                            <span className="flex-shrink-0 text-[11px] text-[var(--text-dim)]">{w.lastSeen}</span>
+                          </div>
+                        )}
+                        <div className="flex items-start gap-3">
+                          <span className="mt-0.5 grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-600">
+                            <UserPlus size={14} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium">회원 가입</p>
+                            <p className="truncate text-xs text-[var(--text-soft)]">{fmtDateTime(u.createdAt)}</p>
+                          </div>
+                          <span className="flex-shrink-0 text-[11px] text-[var(--text-dim)]">{timeAgo(u.createdAt)}</span>
+                        </div>
                       </div>
                     </div>
 

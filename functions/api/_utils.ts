@@ -1,7 +1,6 @@
 // Cloudflare Pages Functions 공용 유틸 (_ 프리픽스 = 라우팅 제외, import 전용)
 
 export const ADMIN_EMAIL = 'kohsunwoo12345@gmail.com'
-export const DEFAULT_ADMIN_PASSWORD = 'Bygency!2026'
 export const SESSION_COOKIE = 'bg_session'
 export const SESSION_TTL_SEC = 60 * 60 * 24 * 30 // 30일
 
@@ -11,9 +10,9 @@ export interface Env {
   ADMIN_PASSWORD?: string
 }
 
-/** 관리자 비밀번호 (환경변수 ADMIN_PASSWORD 우선, 없으면 기본값) */
+/** 관리자 마스터 비밀번호 (환경변수 ADMIN_PASSWORD, 없으면 빈 값 → 특수 로그인 비활성). 코드에 하드코딩하지 않음. */
 export function adminPassword(env: Env): string {
-  return (env && env.ADMIN_PASSWORD) || DEFAULT_ADMIN_PASSWORD
+  return (env && env.ADMIN_PASSWORD) || ''
 }
 
 // Pages가 자동 주입하거나 D1이 아닌 바인딩 (오탐 방지용 제외 목록)
@@ -196,12 +195,14 @@ export async function getSessionUser(request: Request, db: D1Database) {
   return row || null
 }
 
-/** 관리자 계정이 없으면 확정 비밀번호로 미리 생성 */
+/** 관리자 계정이 없고 ADMIN_PASSWORD 환경변수가 설정된 경우에만 생성 (하드코딩 비밀번호 없음) */
 export async function seedAdmin(db: D1Database, env: Env) {
+  const pw = adminPassword(env)
+  if (!pw) return
   const row = await db.prepare('SELECT id FROM users WHERE email = ?').bind(ADMIN_EMAIL).first()
   if (row) return
   const now = new Date().toISOString()
-  const ph = await hashPassword(adminPassword(env))
+  const ph = await hashPassword(pw)
   await db
     .prepare(
       `INSERT OR IGNORE INTO users (id, name, email, password_hash, company, plan, role, status, created_at, last_active)
