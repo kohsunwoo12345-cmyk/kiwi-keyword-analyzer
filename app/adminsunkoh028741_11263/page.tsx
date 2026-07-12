@@ -128,7 +128,7 @@ export default function AdminDashboard() {
         desc="가입 회원과 서비스 지표를 실제 데이터로 모니터링합니다."
         accent={ACCENT}
         action={
-          <Button href="/admin/users" size="sm">
+          <Button href="/adminsunkoh028741_11263/users" size="sm">
             회원 관리 <ChevronRight size={16} />
           </Button>
         }
@@ -213,7 +213,7 @@ export default function AdminDashboard() {
               className="lg:col-span-2"
               title="최근 가입 회원"
               action={
-                <Button href="/admin/users" variant="ghost" size="sm">
+                <Button href="/adminsunkoh028741_11263/users" variant="ghost" size="sm">
                   전체 보기 <ChevronRight size={15} />
                 </Button>
               }

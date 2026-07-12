@@ -198,7 +198,7 @@ function UserFooter() {
     <div className="space-y-2 border-t border-[var(--border)] p-3">
       {user?.role === 'admin' && (
         <Link
-          href="/admin"
+          href="/adminsunkoh028741_11263"
           className="flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
         >
           <Shield size={15} /> 관리자 콘솔

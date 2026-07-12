@@ -18,12 +18,15 @@ import {
 import { Logo } from '@/components/Brand'
 import { cn } from '@/lib/utils'
 
+// 보안을 위한 난독화된 관리자 경로 (추측 불가)
+export const ADMIN_BASE = '/adminsunkoh028741_11263'
+
 const NAV = [
-  { title: '관리자 대시보드', href: '/admin', icon: LayoutDashboard },
-  { title: '회원 관리', href: '/admin/users', icon: Users },
-  { title: '실시간 모니터링', href: '/admin/users', icon: Activity, exactHref: '/admin/users#live' },
-  { title: '보안', href: '/admin/security', icon: ShieldAlert },
-  { title: '승인 관리', href: '/admin/approvals', icon: BadgeCheck },
+  { title: '관리자 대시보드', href: ADMIN_BASE, icon: LayoutDashboard },
+  { title: '회원 관리', href: `${ADMIN_BASE}/users`, icon: Users },
+  { title: '실시간 모니터링', href: `${ADMIN_BASE}/users`, icon: Activity, exactHref: `${ADMIN_BASE}/users#live` },
+  { title: '보안', href: `${ADMIN_BASE}/security`, icon: ShieldAlert },
+  { title: '승인 관리', href: `${ADMIN_BASE}/approvals`, icon: BadgeCheck },
   { title: '설정', href: '#', icon: Settings },
 ]
 
@@ -38,7 +41,7 @@ function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
         const Icon = it.icon
         const active =
           it.href !== '#' &&
-          (pathname === it.href || (it.href !== '/admin' && pathname.startsWith(it.href)))
+          (pathname === it.href || (it.href !== ADMIN_BASE && pathname.startsWith(it.href)))
         return (
           <Link
             key={it.title}
@@ -72,7 +75,7 @@ function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
 function AdminBrand() {
   return (
     <div className="flex items-center gap-2">
-      <Logo size={28} href="/admin" />
+      <Logo size={28} href={ADMIN_BASE} />
       <span className="rounded-md bg-gradient-to-br from-violet-600 to-indigo-600 px-1.5 py-0.5 text-[9px] font-bold tracking-widest text-white">
         ADMIN
       </span>
@@ -130,7 +133,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 Admin Console
               </p>
               <div className="mt-2">
-                <Logo size={26} href="/admin" wordClassName="!text-white" />
+                <Logo size={26} href={ADMIN_BASE} wordClassName="!text-white" />
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-3">
@@ -148,7 +151,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Shield size={12} /> Admin Console
           </p>
           <div className="mt-2.5">
-            <Logo size={26} href="/admin" wordClassName="!text-white" />
+            <Logo size={26} href={ADMIN_BASE} wordClassName="!text-white" />
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-3 no-scrollbar">

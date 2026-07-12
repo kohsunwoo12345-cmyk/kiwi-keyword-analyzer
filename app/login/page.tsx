@@ -35,7 +35,7 @@ export default function LoginPage() {
         setLoading(false)
         return
       }
-      router.push(res.user.role === 'admin' ? '/admin' : '/dashboard')
+      router.push(res.user.role === 'admin' ? '/adminsunkoh028741_11263' : '/dashboard')
     })()
   }
 
