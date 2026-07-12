@@ -1,50 +1,96 @@
 'use client'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { cn } from '@/lib/utils'
-import { Bike, LayoutDashboard, BookOpen } from 'lucide-react'
 
-const NAV_ITEMS = [
-  { href: '/', label: '대시보드', icon: LayoutDashboard },
-  { href: '/guide', label: '연결 가이드', icon: BookOpen },
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import { Sparkles, Menu, X } from 'lucide-react'
+import { Button } from '@/components/ui'
+import { cn } from '@/lib/utils'
+
+const NAV = [
+  { href: '/#features', label: '기능' },
+  { href: '/#how', label: '작동방식' },
+  { href: '/#pricing', label: '요금제' },
 ]
 
 export function Navbar() {
-  const pathname = usePathname()
+  const [scrolled, setScrolled] = useState(false)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12)
+    onScroll()
+    window.addEventListener('scroll', onScroll)
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   return (
-    <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex items-center h-14">
-          <Link href="/" className="flex items-center gap-2 mr-8 flex-shrink-0">
-            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Bike className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-bold text-gray-900 text-lg">모토진단</span>
-            <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">OBD-II</span>
+    <header
+      className={cn(
+        'fixed top-0 inset-x-0 z-50 transition-all duration-300',
+        scrolled ? 'glass border-b border-[var(--border)]' : 'bg-transparent',
+      )}
+    >
+      <div className="mx-auto max-w-7xl px-5">
+        <div className="flex h-16 items-center justify-between">
+          <Link href="/" className="flex items-center gap-2.5">
+            <span className="grid h-9 w-9 place-items-center rounded-xl brand-gradient shadow-lg shadow-violet-900/40">
+              <Sparkles size={18} className="text-white" />
+            </span>
+            <span className="text-lg font-bold tracking-tight">
+              바이<span className="brand-text">전시</span>
+            </span>
           </Link>
 
-          <div className="flex items-center gap-1">
-            {NAV_ITEMS.map(item => {
-              const Icon = item.icon
-              const isActive = item.href === '/' ? pathname === '/' : pathname?.startsWith(item.href)
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                    isActive ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50',
-                  )}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{item.label}</span>
-                </Link>
-              )
-            })}
+          <nav className="hidden items-center gap-1 md:flex">
+            {NAV.map((n) => (
+              <Link
+                key={n.href}
+                href={n.href}
+                className="rounded-lg px-3.5 py-2 text-sm font-medium text-[var(--text-soft)] transition-colors hover:text-white"
+              >
+                {n.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="hidden items-center gap-2 md:flex">
+            <Button href="/dashboard" variant="ghost" size="sm">
+              로그인
+            </Button>
+            <Button href="/dashboard" size="sm">
+              무료로 시작하기
+            </Button>
           </div>
+
+          <button
+            className="grid h-10 w-10 place-items-center rounded-lg text-[var(--text-soft)] md:hidden"
+            onClick={() => setOpen((v) => !v)}
+            aria-label="메뉴"
+          >
+            {open ? <X size={20} /> : <Menu size={20} />}
+          </button>
         </div>
       </div>
-    </nav>
+
+      {open && (
+        <div className="glass border-t border-[var(--border)] md:hidden">
+          <div className="mx-auto max-w-7xl space-y-1 px-5 py-4">
+            {NAV.map((n) => (
+              <Link
+                key={n.href}
+                href={n.href}
+                onClick={() => setOpen(false)}
+                className="block rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--text-soft)] hover:bg-white/5 hover:text-white"
+              >
+                {n.label}
+              </Link>
+            ))}
+            <Button href="/dashboard" className="mt-2 w-full">
+              무료로 시작하기
+            </Button>
+          </div>
+        </div>
+      )}
+    </header>
   )
 }
