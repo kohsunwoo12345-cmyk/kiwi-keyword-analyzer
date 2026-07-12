@@ -281,6 +281,13 @@ export async function collectLead(input: {
   return postJson('/api/leads/collect', input)
 }
 
+/** 실제 AI 텍스트 생성 (OpenAI). 크레딧 차감, 실패 시 환불 */
+export async function aiGenerate(input: {
+  prompt: string; system?: string; feature: string; cost?: number; max_tokens?: number
+}): Promise<{ ok: boolean; error?: string; text?: string; cost?: number; credits?: number; refunded?: boolean }> {
+  return postJson('/api/ai/generate', input)
+}
+
 /** 실제 문자 발송 (Solapi). 건당 1 크레딧 차감, 실패분 자동 환불 */
 export async function sendSmsCampaign(to: string | string[], text: string): Promise<{
   ok: boolean; error?: string; sent?: number; failed?: number; total?: number

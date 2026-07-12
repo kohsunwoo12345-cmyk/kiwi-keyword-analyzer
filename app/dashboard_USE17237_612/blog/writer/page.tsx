@@ -5,6 +5,7 @@ import { Bot, Sparkles, Copy, FileText, Wand2, RefreshCw } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { StatCard, Panel, Button, Badge } from '@/components/ui'
 import { useLocalStorage } from '@/lib/useLocalStorage'
+import { useAuth, aiGenerate, CREDIT_COSTS } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 const TONES = ['친근한', '전문적', '후기형', '정보형'] as const
@@ -52,28 +53,60 @@ export default function BlogWriterPage() {
 
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [note, setNote] = useState('')
   const [result, setResult] = useState<{ title: string; body: string[]; tags: string[] } | null>(null)
 
   const [drafts, setDrafts] = useLocalStorage<Draft[]>('bivience_blog_drafts', SEED)
+  const { user, setUser } = useAuth()
 
-  const generate = () => {
+  function saveDraft(title: string, kw: string) {
+    const today = new Date().toISOString().slice(0, 10)
+    setDrafts((prev) => [{ id: Date.now(), title, keyword: kw, platform, date: today }, ...prev])
+  }
+
+  function mockResult(kw: string) {
+    const title = `${topic.trim() || kw}, ${tone === '후기형' ? '솔직 후기' : '이것만은 꼭 알아두세요'}`
+    return { title, body: buildBody(topic, keyword, tone), tags: [kw.replace(/\s/g, ''), ...HASHTAG_POOL.slice(0, 4)] }
+  }
+
+  const generate = async () => {
     setLoading(true)
     setResult(null)
     setCopied(false)
-    setTimeout(() => {
-      const kw = keyword.trim() || topic.trim() || '추천 주제'
-      const title = `${topic.trim() || kw}, ${tone === '후기형' ? '솔직 후기' : '이것만은 꼭 알아두세요'}`
-      const body = buildBody(topic, keyword, tone)
-      const tags = [kw.replace(/\s/g, ''), ...HASHTAG_POOL.slice(0, 4)]
-      setResult({ title, body, tags })
-      setLoading(false)
+    setNote('')
+    const kw = keyword.trim() || topic.trim() || '추천 주제'
+    const paraCount = length === '길게' ? '5~6' : length === '짧게' ? '2~3' : '3~4'
+    const prompt =
+      `주제: ${topic.trim() || kw}\n핵심 키워드: ${kw}\n톤앤매너: ${tone}\n분량: ${length} (${paraCount}개 문단)\n플랫폼: ${platform}\n\n` +
+      `위 조건으로 ${platform}에 올릴 한국어 블로그 글을 작성해줘. 반드시 아래 형식으로만 출력해:\n` +
+      `제목: <클릭을 부르는 제목>\n<본문 — 문단 사이에 빈 줄, ${paraCount}개 문단>\n태그: <쉼표로 구분한 해시태그 5개>`
 
-      const today = new Date().toISOString().slice(0, 10)
-      setDrafts((prev) => [
-        { id: Date.now(), title, keyword: kw, platform, date: today },
-        ...prev,
-      ])
-    }, 1200)
+    const r = await aiGenerate({ prompt, feature: CREDIT_COSTS.blog.label, cost: CREDIT_COSTS.blog.cost })
+    setLoading(false)
+
+    if (r.ok && r.text) {
+      // 제목/본문/태그 파싱
+      const lines = r.text.split('\n')
+      let title = ''
+      const tags: string[] = []
+      const bodyLines: string[] = []
+      for (const ln of lines) {
+        if (/^제목\s*[:：]/.test(ln)) title = ln.replace(/^제목\s*[:：]/, '').trim()
+        else if (/^태그\s*[:：]|^#/.test(ln)) ln.replace(/^태그\s*[:：]/, '').split(/[,#\s]+/).forEach((t) => t.trim() && tags.push(t.trim()))
+        else bodyLines.push(ln)
+      }
+      const body = bodyLines.join('\n').split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean)
+      const final = { title: title || `${topic.trim() || kw}`, body: body.length ? body : [r.text], tags: tags.length ? tags : [kw.replace(/\s/g, '')] }
+      setResult(final)
+      if (typeof r.credits === 'number' && user) setUser({ ...user, credits: r.credits })
+      saveDraft(final.title, kw)
+    } else {
+      // OpenAI 미설정/오류 → 데모 결과로 대체 (크레딧은 환불됨)
+      const demo = mockResult(kw)
+      setResult(demo)
+      setNote(r.error || 'AI 서버에 연결할 수 없어 데모 결과를 표시합니다.')
+      saveDraft(demo.title, kw)
+    }
   }
 
   const copyAll = () => {
@@ -177,10 +210,13 @@ export default function BlogWriterPage() {
                   </>
                 ) : (
                   <>
-                    <Wand2 size={16} /> 생성하기
+                    <Wand2 size={16} /> 생성하기 · {CREDIT_COSTS.blog.cost} 크레딧
                   </>
                 )}
               </Button>
+              <p className="mt-2 text-center text-xs text-[var(--text-dim)]">
+                실제 AI(OpenAI) 생성 · 보유 크레딧 {(user?.credits ?? 0).toLocaleString()}개
+              </p>
             </div>
           </Panel>
 
@@ -213,6 +249,11 @@ export default function BlogWriterPage() {
               </div>
             )}
 
+            {note && !loading && (
+              <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                {note}
+              </div>
+            )}
             {result && !loading && (
               <div className="space-y-5">
                 {/* 상단 요약: SEO 점수 + 글자수 */}
