@@ -23,7 +23,7 @@ import {
 import { PageHeader } from '@/components/dash/PageHeader'
 import { StatCard, Panel, Badge, Button } from '@/components/ui'
 import { Reveal } from '@/components/motion'
-import { getUsers, type User } from '@/lib/auth'
+import { adminUsers, adminAction, type User } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 const ACCENT = '#7c3aed'
@@ -98,8 +98,15 @@ export default function AdminUsersPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [drawerId, setDrawerId] = useState<string | null>(null)
 
+  const [loading, setLoading] = useState(true)
+  function reload() {
+    adminUsers().then((r) => {
+      setUsers(r.users)
+      setLoading(false)
+    })
+  }
   useEffect(() => {
-    setUsers(getUsers())
+    reload()
   }, [])
 
   const online = users.filter((u) => watchOf(u).online && u.status === 'active')
@@ -130,11 +137,15 @@ export default function AdminUsersPage() {
   }, [users, query, filter])
 
   function toggleSuspend(id: string) {
+    const target = users.find((u) => u.id === id)
+    const next = target?.status === 'active' ? 'suspend' : 'activate'
     setUsers((prev) =>
       prev.map((u) => (u.id === id ? { ...u, status: u.status === 'active' ? 'suspended' : 'active' } : u)),
     )
+    adminAction(next, id)
   }
   function removeUser(id: string) {
+    adminAction('delete', id)
     setUsers((prev) => prev.filter((u) => u.id !== id))
     setSelected((prev) => {
       const n = new Set(prev)

@@ -27,6 +27,12 @@ export const metadata: Metadata = {
     title: 'BYGENCY — 올인원 마케팅 그로스 플랫폼',
     description: 'DB수집 · 유튜브/블로그 분석 · 광고 · CRM · AI 영상 제작.',
   },
+  verification: {
+    google: 'KyRRy4i1SLsGN83YlmgJr9xhdgLOQ_OH1alq7R53bpk',
+    other: {
+      'naver-site-verification': 'e6ab6cca51096ee37cbf19e8e9c326f966bed155',
+    },
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -92,8 +92,8 @@ export default function SignupPage() {
     setFormError('')
     if (!validate()) return
     setLoading(true)
-    setTimeout(() => {
-      const res = signup({
+    ;(async () => {
+      const res = await signup({
         name: name.trim(),
         email: email.trim(),
         password,
@@ -104,8 +104,8 @@ export default function SignupPage() {
         setLoading(false)
         return
       }
-      router.push('/dashboard')
-    }, 500)
+      router.push(res.user.role === 'admin' ? '/admin' : '/dashboard')
+    })()
   }
 
   return (

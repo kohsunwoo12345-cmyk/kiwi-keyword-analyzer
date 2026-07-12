@@ -17,7 +17,7 @@ import { PageHeader } from '@/components/dash/PageHeader'
 import { AreaTrend, Donut } from '@/components/dash/Charts'
 import { StatCard, Panel, Badge, Button } from '@/components/ui'
 import { Reveal, Counter } from '@/components/motion'
-import { getUsers, type User } from '@/lib/auth'
+import { adminUsers, type User } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 const ACCENT = '#7c3aed'
@@ -87,7 +87,7 @@ function planBadgeClass(plan: User['plan']) {
 export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([])
   useEffect(() => {
-    setUsers(getUsers())
+    adminUsers().then((r) => setUsers(r.users))
   }, [])
 
   // 총 회원수: 실제 사용자 수 + 시드 보정(현실감)

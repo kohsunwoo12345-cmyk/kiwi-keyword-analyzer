@@ -28,21 +28,20 @@ export default function LoginPage() {
       return
     }
     setLoading(true)
-    // 목업 인증은 동기지만, 실제 로그인처럼 살짝 지연을 준다.
-    setTimeout(() => {
-      const res = login(email.trim(), password)
+    ;(async () => {
+      const res = await login(email.trim(), password)
       if (!res.ok || !res.user) {
         setError(res.error || '로그인에 실패했습니다.')
         setLoading(false)
         return
       }
       router.push(res.user.role === 'admin' ? '/admin' : '/dashboard')
-    }, 450)
+    })()
   }
 
   function fillDemo() {
-    setEmail('admin@bygency.com')
-    setPassword('admin1234')
+    setEmail('kohsunwoo12345@gmail.com')
+    setPassword('')
     setError('')
   }
 
@@ -169,28 +168,26 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            {/* ---- 데모 계정 안내 ---- */}
+            {/* ---- 관리자 안내 ---- */}
             <div className="mt-6 rounded-xl border border-violet-100 bg-violet-50/70 px-4 py-3.5 text-sm">
               <div className="flex items-center gap-1.5 font-semibold text-violet-700">
                 <Info size={15} />
-                데모 계정으로 둘러보기
+                관리자 계정
               </div>
               <div className="mt-2 flex items-center justify-between gap-3">
                 <div className="text-[13px] leading-relaxed text-[var(--text-soft)]">
                   <div>
                     관리자{' '}
-                    <span className="font-medium text-[var(--text)]">admin@bygency.com</span>
+                    <span className="font-medium text-[var(--text)]">kohsunwoo12345@gmail.com</span>
                   </div>
-                  <div>
-                    비밀번호 <span className="font-medium text-[var(--text)]">admin1234</span>
-                  </div>
+                  <div className="text-xs text-[var(--text-dim)]">첫 로그인 시 입력한 비밀번호로 관리자 계정이 생성됩니다.</div>
                 </div>
                 <button
                   type="button"
                   onClick={fillDemo}
                   className="shrink-0 rounded-lg border border-violet-200 bg-white px-3 py-1.5 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-100"
                 >
-                  자동 입력
+                  이메일 입력
                 </button>
               </div>
             </div>

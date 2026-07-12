@@ -2,166 +2,68 @@
 
 import { useEffect, useState } from 'react'
 
-// 정적 사이트용 클라이언트 목업 인증 (localStorage 기반)
+// Cloudflare Pages Functions(D1) 기반 실제 인증 클라이언트
 export interface User {
   id: string
   name: string
   email: string
-  password: string
   company: string
   plan: 'Starter' | 'Pro' | 'Business'
   role: 'user' | 'admin'
   status: 'active' | 'suspended'
   createdAt: string
-  lastActive: string
+  lastActive: string | null
 }
 
-const UKEY = 'bygency_users'
-const SKEY = 'bygency_session'
-
-function now() {
-  return new Date().toISOString()
+export interface AuthResult {
+  ok: boolean
+  error?: string
+  user?: User
 }
 
-const SEED: User[] = [
-  {
-    id: 'admin',
-    name: '관리자',
-    email: 'admin@bygency.com',
-    password: 'admin1234',
-    company: '(주)Next Vision Company',
-    plan: 'Business',
-    role: 'admin',
-    status: 'active',
-    createdAt: '2026-01-02T09:00:00.000Z',
-    lastActive: now(),
-  },
-  {
-    id: 'u_seoyeon',
-    name: '김서연',
-    email: 'seoyeon@example.com',
-    password: 'test1234',
-    company: '뷰티랩',
-    plan: 'Pro',
-    role: 'user',
-    status: 'active',
-    createdAt: '2026-06-11T04:20:00.000Z',
-    lastActive: '2026-07-12T02:10:00.000Z',
-  },
-  {
-    id: 'u_junho',
-    name: '이준호',
-    email: 'junho@example.com',
-    password: 'test1234',
-    company: '커머스노트',
-    plan: 'Starter',
-    role: 'user',
-    status: 'active',
-    createdAt: '2026-07-01T01:00:00.000Z',
-    lastActive: '2026-07-12T03:40:00.000Z',
-  },
-  {
-    id: 'u_minji',
-    name: '박민지',
-    email: 'minji@example.com',
-    password: 'test1234',
-    company: '마케팅탐구소',
-    plan: 'Pro',
-    role: 'user',
-    status: 'active',
-    createdAt: '2026-05-22T08:00:00.000Z',
-    lastActive: '2026-07-11T11:30:00.000Z',
-  },
-  {
-    id: 'u_doyoon',
-    name: '최도윤',
-    email: 'doyoon@example.com',
-    password: 'test1234',
-    company: '헬스핏',
-    plan: 'Starter',
-    role: 'user',
-    status: 'suspended',
-    createdAt: '2026-04-15T05:00:00.000Z',
-    lastActive: '2026-06-30T09:15:00.000Z',
-  },
-]
-
-export function getUsers(): User[] {
-  if (typeof window === 'undefined') return SEED
+async function postJson(url: string, body: unknown): Promise<any> {
   try {
-    const raw = window.localStorage.getItem(UKEY)
-    if (!raw) {
-      window.localStorage.setItem(UKEY, JSON.stringify(SEED))
-      return SEED
-    }
-    return JSON.parse(raw)
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    })
+    return await r.json()
   } catch {
-    return SEED
+    return { ok: false, error: '네트워크 오류가 발생했습니다.' }
   }
 }
 
-export function saveUsers(users: User[]) {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(UKEY, JSON.stringify(users))
+export async function login(email: string, password: string): Promise<AuthResult> {
+  return postJson('/api/login', { email, password })
 }
 
-export function signup(input: {
+export async function signup(input: {
   name: string
   email: string
   password: string
   company?: string
-}): { ok: boolean; error?: string; user?: User } {
-  const users = getUsers()
-  if (users.some((u) => u.email.toLowerCase() === input.email.toLowerCase())) {
-    return { ok: false, error: '이미 가입된 이메일입니다.' }
-  }
-  const user: User = {
-    id: 'u_' + Math.random().toString(36).slice(2, 9),
-    name: input.name,
-    email: input.email,
-    password: input.password,
-    company: input.company || '',
-    plan: 'Starter',
-    role: 'user',
-    status: 'active',
-    createdAt: now(),
-    lastActive: now(),
-  }
-  saveUsers([user, ...users])
-  setSession(user.id)
-  return { ok: true, user }
+}): Promise<AuthResult> {
+  return postJson('/api/signup', input)
 }
 
-export function login(email: string, password: string): { ok: boolean; error?: string; user?: User } {
-  const users = getUsers()
-  const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase())
-  if (!user || user.password !== password) {
-    return { ok: false, error: '이메일 또는 비밀번호가 올바르지 않습니다.' }
+export async function logout(): Promise<void> {
+  try {
+    await fetch('/api/logout', { method: 'POST', credentials: 'include' })
+  } catch {
+    /* ignore */
   }
-  if (user.status === 'suspended') {
-    return { ok: false, error: '정지된 계정입니다. 관리자에게 문의하세요.' }
+}
+
+export async function fetchMe(): Promise<User | null> {
+  try {
+    const r = await fetch('/api/me', { credentials: 'include' })
+    const d = await r.json()
+    return (d && d.user) || null
+  } catch {
+    return null
   }
-  user.lastActive = now()
-  saveUsers(users.map((u) => (u.id === user.id ? user : u)))
-  setSession(user.id)
-  return { ok: true, user }
-}
-
-export function logout() {
-  if (typeof window === 'undefined') return
-  window.localStorage.removeItem(SKEY)
-}
-
-function setSession(id: string) {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(SKEY, id)
-}
-
-export function currentUser(): User | null {
-  if (typeof window === 'undefined') return null
-  const id = window.localStorage.getItem(SKEY)
-  if (!id) return null
-  return getUsers().find((u) => u.id === id) || null
 }
 
 /** 로그인 상태 훅 */
@@ -169,8 +71,47 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
   const [ready, setReady] = useState(false)
   useEffect(() => {
-    setUser(currentUser())
-    setReady(true)
+    let alive = true
+    fetchMe().then((u) => {
+      if (alive) {
+        setUser(u)
+        setReady(true)
+      }
+    })
+    return () => {
+      alive = false
+    }
   }, [])
   return { user, ready, setUser }
+}
+
+/** 관리자: 전체 회원 목록 + 통계 */
+export async function adminUsers(): Promise<{
+  ok: boolean
+  error?: string
+  users: User[]
+  stats?: {
+    total: number
+    admins: number
+    suspended: number
+    newToday: number
+    byPlan: { Starter: number; Pro: number; Business: number }
+  }
+}> {
+  try {
+    const r = await fetch('/api/admin/users', { credentials: 'include' })
+    const d = await r.json()
+    return { ok: !!d.ok, error: d.error, users: d.users || [], stats: d.stats }
+  } catch {
+    return { ok: false, error: '네트워크 오류', users: [] }
+  }
+}
+
+/** 관리자: 회원 상태/플랜 변경·삭제 */
+export async function adminAction(
+  action: 'suspend' | 'activate' | 'delete' | 'plan',
+  id: string,
+  extra?: { plan?: string },
+): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/admin/users', { action, id, ...extra })
 }
