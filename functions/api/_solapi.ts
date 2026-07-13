@@ -8,6 +8,14 @@ async function hmacSha256Hex(secret: string, msg: string): Promise<string> {
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+/** Solapi HMAC-SHA256 Authorization 헤더 생성 (카카오 채널/템플릿 조회 등 raw API 호출용) */
+export async function makeSolapiAuthHeader(apiKey: string, apiSecret: string): Promise<string> {
+  const date = new Date().toISOString()
+  const salt = crypto.randomUUID().replace(/-/g, '')
+  const signature = await hmacSha256Hex(apiSecret, date + salt)
+  return `HMAC-SHA256 apiKey=${apiKey}, date=${date}, salt=${salt}, signature=${signature}`
+}
+
 export async function sendSms(
   env: any,
   to: string,
