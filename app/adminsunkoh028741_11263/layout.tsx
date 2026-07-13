@@ -13,6 +13,7 @@ import {
   BadgeCheck,
   ScrollText,
   BarChart3,
+  Wallet,
   Menu,
   X,
   ArrowLeft,
@@ -31,6 +32,7 @@ const NAV = [
   { title: '승인 관리', href: `${ADMIN_BASE}/approvals`, icon: BadgeCheck },
   { title: '로그 기록', href: `${ADMIN_BASE}/logs`, icon: ScrollText },
   { title: '접속 통계', href: `${ADMIN_BASE}/stats`, icon: BarChart3 },
+  { title: 'AI 정산', href: `${ADMIN_BASE}/ai-usage`, icon: Wallet },
   { title: '설정', href: '#', icon: Settings },
 ]
 

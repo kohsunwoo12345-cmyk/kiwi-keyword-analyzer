@@ -182,6 +182,32 @@ export async function adminVisitStats(days = 14): Promise<VisitStats> {
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
 
+export interface AiUsageUser {
+  user_id: string; name: string; email: string; count: number
+  credits: number; revenue: number; cost: number; profit: number; models: string
+}
+export interface AiUsageModel {
+  model: string; provider: string; kind: string; markup: number
+  count: number; credits: number; revenue: number; cost: number; profit: number
+}
+export interface AiUsageRow {
+  created_at: string; name: string; email: string; model: string; provider: string
+  kind: string; credits: number; cost: number; revenue: number; profit: number; markup: number
+}
+export interface AiUsageStats {
+  ok: boolean; error?: string; days?: number
+  totals?: { count: number; credits: number; revenue: number; cost: number; profit: number }
+  byUser?: AiUsageUser[]
+  byModel?: AiUsageModel[]
+  recent?: AiUsageRow[]
+}
+export async function adminAiUsage(days = 30): Promise<AiUsageStats> {
+  try {
+    const r = await fetch(`/api/admin/ai-usage?days=${days}`, { credentials: 'include' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+
 export interface CombinedLogs {
   ok: boolean; error?: string
   activity?: GlobalActivityRow[]
