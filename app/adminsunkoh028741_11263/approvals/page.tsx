@@ -65,11 +65,25 @@ function statusLabel(status: string) {
   return status === 'approved' ? '승인됨' : status === 'rejected' ? '반려됨' : '대기중'
 }
 function planBadgeClass(plan: string | null) {
-  return plan === 'Business'
-    ? 'border-sky-200 bg-sky-50 text-sky-700'
+  return plan === 'Max'
+    ? 'border-amber-200 bg-amber-50 text-amber-700'
     : plan === 'Pro'
     ? 'border-violet-200 bg-violet-50 text-violet-700'
+    : plan === 'Plus'
+    ? 'border-sky-200 bg-sky-50 text-sky-700'
     : 'border-slate-200 bg-slate-50 text-slate-600'
+}
+function planLabel(plan: string | null) {
+  return !plan || plan === '없음' ? '미가입' : plan
+}
+// 플랜 트랙 (마케터 / AI 영상) 배지
+function trackBadgeClass(track: string | null) {
+  return track === 'video'
+    ? 'border-amber-200 bg-amber-50 text-amber-700'
+    : 'border-violet-200 bg-violet-50 text-violet-700'
+}
+function trackLabel(track: string | null) {
+  return track === 'video' ? 'AI 영상' : '마케터'
 }
 
 function downloadCsv(filename: string, headers: string[], rows: string[][]) {
@@ -223,7 +237,8 @@ export default function AdminApprovalsPage() {
       '이메일',
       '회사',
       '연락처',
-      '플랜',
+      '마케터플랜',
+      '영상플랜',
       '상태',
       '포인트',
       '크레딧',
@@ -235,7 +250,8 @@ export default function AdminApprovalsPage() {
       u.email,
       u.company || '',
       u.phone || '',
-      u.plan,
+      planLabel(u.plan),
+      planLabel(u.videoPlan),
       u.status === 'active' ? '활성' : '정지',
       String(u.points),
       String(u.credits),
@@ -317,6 +333,7 @@ export default function AdminApprovalsPage() {
                 <thead>
                   <tr className="border-b border-[var(--border-soft)] text-left text-xs text-[var(--text-dim)]">
                     <th className="pb-2.5 font-medium">회원</th>
+                    <th className="pb-2.5 font-medium">트랙</th>
                     <th className="pb-2.5 font-medium">플랜 변경</th>
                     <th className="pb-2.5 font-medium">신청일</th>
                     <th className="pb-2.5 font-medium">상태</th>
@@ -333,10 +350,13 @@ export default function AdminApprovalsPage() {
                         <MemberCell name={p.name} email={p.email} />
                       </td>
                       <td className="py-3">
+                        <Badge className={trackBadgeClass(p.track)}>{trackLabel(p.track)}</Badge>
+                      </td>
+                      <td className="py-3">
                         <div className="flex items-center gap-2">
-                          <Badge className={planBadgeClass(p.from_plan)}>{p.from_plan || '없음'}</Badge>
+                          <Badge className={planBadgeClass(p.from_plan)}>{planLabel(p.from_plan)}</Badge>
                           <span className="text-[var(--text-dim)]">→</span>
-                          <Badge className={planBadgeClass(p.to_plan)}>{p.to_plan}</Badge>
+                          <Badge className={planBadgeClass(p.to_plan)}>{planLabel(p.to_plan)}</Badge>
                         </div>
                         {p.memo && <p className="mt-1 truncate text-xs text-[var(--text-dim)]">“{p.memo}”</p>}
                       </td>
@@ -360,7 +380,7 @@ export default function AdminApprovalsPage() {
                   ))}
                   {planRequests.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-10 text-center text-[var(--text-dim)]">
+                      <td colSpan={6} className="py-10 text-center text-[var(--text-dim)]">
                         {loading ? '불러오는 중…' : '플랜 변경 요청이 없습니다.'}
                       </td>
                     </tr>
@@ -658,7 +678,16 @@ export default function AdminApprovalsPage() {
                         {u.phone || '-'}
                       </td>
                       <td className="py-3">
-                        <Badge className={planBadgeClass(u.plan)}>{u.plan}</Badge>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="inline-flex items-center gap-1">
+                            <span className="text-[10px] font-medium text-[var(--text-dim)]">마케터</span>
+                            <Badge className={planBadgeClass(u.plan)}>{planLabel(u.plan)}</Badge>
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <span className="text-[10px] font-medium text-[var(--text-dim)]">영상</span>
+                            <Badge className={planBadgeClass(u.videoPlan)}>{planLabel(u.videoPlan)}</Badge>
+                          </span>
+                        </div>
                       </td>
                       <td className="py-3">
                         <Badge

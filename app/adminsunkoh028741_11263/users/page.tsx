@@ -66,16 +66,16 @@ function watchOf(u: User) {
   return { online, lastSeen: timeAgo(u.lastActive) }
 }
 
-type Filter = 'all' | 'online' | 'offline' | 'suspended' | 'Starter' | 'Pro' | 'Business'
+type Filter = 'all' | 'online' | 'offline' | 'suspended' | 'Plus' | 'Pro' | 'Max'
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: '전체' },
   { key: 'online', label: '온라인' },
   { key: 'offline', label: '오프라인' },
   { key: 'suspended', label: '정지' },
-  { key: 'Starter', label: 'Starter' },
+  { key: 'Plus', label: 'Plus' },
   { key: 'Pro', label: 'Pro' },
-  { key: 'Business', label: 'Business' },
+  { key: 'Max', label: 'Max' },
 ]
 
 function fmtDate(iso: string) {
@@ -86,15 +86,32 @@ function fmtDateTime(iso: string) {
   const d = new Date(iso)
   return `${fmtDate(iso)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
-function planBadgeClass(plan: User['plan']) {
-  return plan === 'Business'
-    ? 'border-sky-200 bg-sky-50 text-sky-700'
+function planBadgeClass(plan: string | null | undefined) {
+  return plan === 'Max'
+    ? 'border-amber-200 bg-amber-50 text-amber-700'
     : plan === 'Pro'
     ? 'border-violet-200 bg-violet-50 text-violet-700'
+    : plan === 'Plus'
+    ? 'border-sky-200 bg-sky-50 text-sky-700'
     : 'border-slate-200 bg-slate-50 text-slate-600'
 }
-function planLabel(plan: User['plan']) {
-  return plan === '없음' || !plan ? '미가입' : plan
+function planLabel(plan: string | null | undefined) {
+  return !plan || plan === '없음' ? '미가입' : plan
+}
+// 트랙별 플랜을 한 셀에 표시 (마케터 / 영상)
+function TrackPlanBadges({ plan, videoPlan }: { plan: User['plan']; videoPlan: User['plan'] }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="inline-flex items-center gap-1">
+        <span className="text-[10px] font-medium text-[var(--text-dim)]">마케터</span>
+        <Badge className={planBadgeClass(plan)}>{planLabel(plan)}</Badge>
+      </span>
+      <span className="inline-flex items-center gap-1">
+        <span className="text-[10px] font-medium text-[var(--text-dim)]">영상</span>
+        <Badge className={planBadgeClass(videoPlan)}>{planLabel(videoPlan)}</Badge>
+      </span>
+    </div>
+  )
 }
 function fmtNum(n: number) {
   return n.toLocaleString('ko-KR')
@@ -141,7 +158,8 @@ export default function AdminUsersPage() {
   // 관리 폼 상태
   const [amount, setAmount] = useState('')
   const [memo, setMemo] = useState('')
-  const [planSel, setPlanSel] = useState<User['plan']>('Starter')
+  const [planSel, setPlanSel] = useState<User['plan']>('없음')
+  const [videoPlanSel, setVideoPlanSel] = useState<User['plan']>('없음')
   const [newPw, setNewPw] = useState('')
   const [notifyTitle, setNotifyTitle] = useState('')
   const [notifyBody, setNotifyBody] = useState('')
@@ -204,7 +222,8 @@ export default function AdminUsersPage() {
     setNotifyTitle('')
     setNotifyBody('')
     setNotifySms(false)
-    setPlanSel(cur?.plan ?? 'Starter')
+    setPlanSel(cur?.plan ?? '없음')
+    setVideoPlanSel(cur?.videoPlan ?? '없음')
     setNotifyPhone(cur?.phone ?? '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawerId])
@@ -245,9 +264,14 @@ export default function AdminUsersPage() {
       },
     )
   }
-  function submitPlan() {
+  function submitPlan(track: 'marketer' | 'video') {
     if (!drawerId) return
-    runAction(() => adminAction('plan', drawerId, { plan: planSel }), `플랜이 ${planSel}(으)로 변경되었습니다`)
+    const sel = track === 'marketer' ? planSel : videoPlanSel
+    const trackLabel = track === 'marketer' ? '마케터' : 'AI 영상'
+    runAction(
+      () => adminAction('plan', drawerId, { plan: sel, track }),
+      `${trackLabel} 플랜이 ${planLabel(sel)}(으)로 변경되었습니다`,
+    )
   }
   function submitPassword() {
     if (!drawerId) return
@@ -497,9 +521,9 @@ export default function AdminUsersPage() {
                     {bcTarget === 'plan' && (
                       <select value={bcPlan} onChange={(e) => setBcPlan(e.target.value)} className={INPUT_CLS}>
                         <option value="없음">미가입 (없음)</option>
-                        <option value="Starter">Starter</option>
+                        <option value="Plus">Plus</option>
                         <option value="Pro">Pro</option>
-                        <option value="Business">Business</option>
+                        <option value="Max">Max</option>
                       </select>
                     )}
                     {bcTarget === 'multi' && (
@@ -754,7 +778,7 @@ export default function AdminUsersPage() {
                         </td>
                         <td className="py-3 text-[var(--text-soft)]">{u.company || '-'}</td>
                         <td className="py-3">
-                          <Badge className={planBadgeClass(u.plan)}>{planLabel(u.plan)}</Badge>
+                          <TrackPlanBadges plan={u.plan} videoPlan={u.videoPlan} />
                         </td>
                         <td className="py-3">
                           {u.status === 'active' ? (
@@ -859,11 +883,11 @@ export default function AdminUsersPage() {
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="flex items-center gap-2 text-lg font-bold">
-                          {u.name}
-                          <Badge className={planBadgeClass(u.plan)}>{planLabel(u.plan)}</Badge>
-                        </p>
-                        <p className="truncate text-sm text-[var(--text-soft)]">{u.email}</p>
+                        <p className="text-lg font-bold">{u.name}</p>
+                        <div className="mt-0.5">
+                          <TrackPlanBadges plan={u.plan} videoPlan={u.videoPlan} />
+                        </div>
+                        <p className="mt-0.5 truncate text-sm text-[var(--text-soft)]">{u.email}</p>
                         <p className="text-xs text-[var(--text-dim)]">{u.company || '소속 없음'}</p>
                       </div>
                     </div>
@@ -934,23 +958,56 @@ export default function AdminUsersPage() {
                       </div>
                     </div>
 
-                    {/* 플랜 변경 */}
+                    {/* 플랜 변경 (트랙별) */}
                     <div>
                       <SectionLabel icon={Server}>플랜 변경</SectionLabel>
-                      <div className="flex gap-2">
-                        <select
-                          value={planSel}
-                          onChange={(e) => setPlanSel(e.target.value as User['plan'])}
-                          className={INPUT_CLS}
-                        >
-                          <option value="없음">미가입</option>
-                          <option value="Starter">Starter</option>
-                          <option value="Pro">Pro</option>
-                          <option value="Business">Business</option>
-                        </select>
-                        <Button variant="outline" size="sm" disabled={busy || planSel === u.plan} onClick={submitPlan}>
-                          변경
-                        </Button>
+                      <div className="space-y-2.5">
+                        <div>
+                          <p className="mb-1 text-[11px] font-semibold text-[var(--text-soft)]">마케터 플랜</p>
+                          <div className="flex gap-2">
+                            <select
+                              value={planSel}
+                              onChange={(e) => setPlanSel(e.target.value as User['plan'])}
+                              className={INPUT_CLS}
+                            >
+                              <option value="없음">미가입</option>
+                              <option value="Plus">Plus</option>
+                              <option value="Pro">Pro</option>
+                              <option value="Max">Max</option>
+                            </select>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={busy || planSel === u.plan}
+                              onClick={() => submitPlan('marketer')}
+                            >
+                              변경
+                            </Button>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="mb-1 text-[11px] font-semibold text-[var(--text-soft)]">AI 영상 플랜</p>
+                          <div className="flex gap-2">
+                            <select
+                              value={videoPlanSel}
+                              onChange={(e) => setVideoPlanSel(e.target.value as User['plan'])}
+                              className={INPUT_CLS}
+                            >
+                              <option value="없음">미가입</option>
+                              <option value="Plus">Plus</option>
+                              <option value="Pro">Pro</option>
+                              <option value="Max">Max</option>
+                            </select>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={busy || videoPlanSel === u.videoPlan}
+                              onClick={() => submitPlan('video')}
+                            >
+                              변경
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     </div>
 

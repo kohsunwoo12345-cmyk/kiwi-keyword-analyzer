@@ -363,6 +363,10 @@ export async function ensureSchema(db: D1Database) {
     phone: 'phone TEXT',
     points: 'points INTEGER DEFAULT 0',
     credits: 'credits INTEGER DEFAULT 0',
+    video_plan: "video_plan TEXT DEFAULT '없음'",
+  })
+  await addMissingColumns(db, 'plan_requests', {
+    track: "track TEXT DEFAULT 'marketer'",
   })
   await addMissingColumns(db, 'sessions', {
     ip: 'ip TEXT',
@@ -668,7 +672,8 @@ export function publicUser(u: any) {
     email: u.email,
     company: u.company || '',
     phone: u.phone || '',
-    plan: isAdmin ? (u.plan || 'Business') : (u.plan || '없음'),
+    plan: isAdmin ? (u.plan && u.plan !== '없음' ? u.plan : 'Max') : (u.plan || '없음'),
+    videoPlan: isAdmin ? (u.video_plan && u.video_plan !== '없음' ? u.video_plan : 'Max') : (u.video_plan || '없음'),
     role: isAdmin ? 'admin' : 'user',
     status: u.status || 'active',
     points: u.points || 0,

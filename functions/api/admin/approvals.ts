@@ -23,7 +23,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   const planRequests = (await db
     .prepare(
-      `SELECT p.id, p.user_id, u.name, u.email, p.from_plan, p.to_plan, p.status, p.memo, p.created_at, p.decided_at
+      `SELECT p.id, p.user_id, u.name, u.email, p.track, p.from_plan, p.to_plan, p.status, p.memo, p.created_at, p.decided_at
        FROM plan_requests p LEFT JOIN users u ON u.id = p.user_id
        ORDER BY (p.status='pending') DESC, p.created_at DESC LIMIT 300`,
     )
@@ -108,12 +108,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const req: any = await db.prepare('SELECT * FROM plan_requests WHERE id = ?').bind(id).first()
     if (!req) return json({ ok: false, error: '요청을 찾을 수 없습니다.' }, 404)
     await db.prepare('UPDATE plan_requests SET status = ?, decided_at = ? WHERE id = ?').bind(status, now, id).run()
+    const track = req.track === 'video' ? 'video' : 'marketer'
+    const label = track === 'video' ? 'AI 영상 제작' : '마케터'
     if (decision === 'approve') {
-      await db.prepare('UPDATE users SET plan = ? WHERE id = ?').bind(req.to_plan, req.user_id).run()
-      await logActivity(db, req.user_id, 'plan', `플랜 승인: ${req.from_plan} → ${req.to_plan}`)
-      await addNotification(db, req.user_id, '플랜 변경이 승인되었습니다', `${req.to_plan} 플랜으로 업그레이드되었습니다. 감사합니다!`)
+      const col = track === 'video' ? 'video_plan' : 'plan'
+      await db.prepare(`UPDATE users SET ${col} = ? WHERE id = ?`).bind(req.to_plan, req.user_id).run()
+      await logActivity(db, req.user_id, 'plan', `${label} 플랜 승인: ${req.from_plan} → ${req.to_plan}`)
+      await addNotification(db, req.user_id, `${label} 플랜이 승인되었습니다`, `${label} ${req.to_plan} 플랜으로 업그레이드되었습니다. 감사합니다!`)
     } else {
-      await addNotification(db, req.user_id, '플랜 변경이 반려되었습니다', `${req.to_plan} 플랜 신청이 반려되었습니다. 자세한 내용은 문의해 주세요.`)
+      await addNotification(db, req.user_id, `${label} 플랜이 반려되었습니다`, `${label} ${req.to_plan} 플랜 신청이 반려되었습니다. 자세한 내용은 문의해 주세요.`)
     }
   } else if (type === 'sender') {
     const req: any = await db.prepare('SELECT * FROM sender_numbers WHERE id = ?').bind(id).first()

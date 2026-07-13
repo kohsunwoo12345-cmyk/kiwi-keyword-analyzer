@@ -77,9 +77,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       db.prepare('DELETE FROM users WHERE id = ?').bind(id),
     ])
   } else if (action === 'plan') {
-    const plan = ['Starter', 'Pro', 'Business'].includes(body.plan) ? body.plan : 'Starter'
-    await db.prepare('UPDATE users SET plan = ? WHERE id = ?').bind(plan, id).run()
-    await logActivity(db, id, 'plan', `플랜 변경 → ${plan}`)
+    const plan = ['없음', 'Plus', 'Pro', 'Max'].includes(body.plan) ? body.plan : '없음'
+    const track = body.track === 'video' ? 'video' : 'marketer'
+    const col = track === 'video' ? 'video_plan' : 'plan'
+    const label = track === 'video' ? 'AI 영상' : '마케터'
+    await db.prepare(`UPDATE users SET ${col} = ? WHERE id = ?`).bind(plan, id).run()
+    await logActivity(db, id, 'plan', `${label} 플랜 변경 → ${plan}`)
   } else if (action === 'password') {
     const pw = String(body.password || '')
     if (pw.length < 8) return json({ ok: false, error: '비밀번호는 8자 이상이어야 합니다.' }, 400)

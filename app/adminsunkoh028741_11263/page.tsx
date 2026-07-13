@@ -38,9 +38,9 @@ const ACCENT = '#7c3aed'
 
 const PLAN_COLORS: Record<string, string> = {
   '없음': '#cbd5e1',
-  Starter: '#94a3b8',
+  Plus: '#0ea5e9',
   Pro: '#7c3aed',
-  Business: '#0ea5e9',
+  Max: '#f59e0b',
 }
 
 // activity_log type → 표시 스타일
@@ -76,10 +76,12 @@ function ago(iso: string | null) {
 }
 
 function planBadgeClass(plan: string) {
-  return plan === 'Business'
-    ? 'border-sky-200 bg-sky-50 text-sky-700'
+  return plan === 'Max'
+    ? 'border-amber-200 bg-amber-50 text-amber-700'
     : plan === 'Pro'
     ? 'border-violet-200 bg-violet-50 text-violet-700'
+    : plan === 'Plus'
+    ? 'border-sky-200 bg-sky-50 text-sky-700'
     : 'border-slate-200 bg-slate-50 text-slate-600'
 }
 function planLabel(plan: string) {
@@ -131,12 +133,24 @@ export default function AdminDashboard() {
   const todayStr = new Date().toISOString().slice(0, 10)
   const newToday = users.filter((u) => (u.createdAt || '').slice(0, 10) === todayStr).length
   const activeRecently = users.filter((u) => u.lastActive && now - +new Date(u.lastActive) < DAY_MS).length
-  const paid = users.filter((u) => u.plan === 'Pro' || u.plan === 'Business').length
+  const paid = users.filter((u) => (u.plan && u.plan !== '없음') || (u.videoPlan && u.videoPlan !== '없음')).length
 
+  // 마케터 플랜 분포 (도넛)
   const planDist = useMemo(() => {
-    const base: Record<string, number> = { Starter: 0, Pro: 0, Business: 0 }
-    for (const u of users) base[u.plan] = (base[u.plan] || 0) + 1
-    return (['Starter', 'Pro', 'Business'] as const).map((name) => ({
+    const base: Record<string, number> = { Plus: 0, Pro: 0, Max: 0 }
+    for (const u of users) if (u.plan && u.plan !== '없음') base[u.plan] = (base[u.plan] || 0) + 1
+    return (['Plus', 'Pro', 'Max'] as const).map((name) => ({
+      name,
+      value: base[name],
+      color: PLAN_COLORS[name],
+    }))
+  }, [users])
+
+  // AI 영상 플랜 분포 (부가 요약)
+  const videoPlanDist = useMemo(() => {
+    const base: Record<string, number> = { Plus: 0, Pro: 0, Max: 0 }
+    for (const u of users) if (u.videoPlan && u.videoPlan !== '없음') base[u.videoPlan] = (base[u.videoPlan] || 0) + 1
+    return (['Plus', 'Pro', 'Max'] as const).map((name) => ({
       name,
       value: base[name],
       color: PLAN_COLORS[name],
@@ -262,7 +276,7 @@ export default function AdminDashboard() {
             <Panel title="가입자 추이 · 최근 7일 (실데이터)" className="lg:col-span-2">
               <AreaTrend data={signupTrend} keys={['신규', '누적']} colors={['#7c3aed', '#22d3ee']} />
             </Panel>
-            <Panel title="플랜 분포">
+            <Panel title="마케터 플랜 분포">
               <Donut data={planDist.every((p) => p.value === 0) ? [{ name: '없음', value: 1, color: '#e2e8f0' }] : planDist} />
               <div className="mt-4 space-y-2">
                 {planDist.map((p) => (
@@ -274,6 +288,20 @@ export default function AdminDashboard() {
                     <span className="font-semibold">{p.value.toLocaleString('ko-KR')}명</span>
                   </div>
                 ))}
+              </div>
+              <div className="mt-4 border-t border-[var(--border-soft)] pt-3">
+                <p className="mb-2 text-xs font-semibold text-[var(--text-dim)]">AI 영상 플랜</p>
+                <div className="space-y-1.5">
+                  {videoPlanDist.map((p) => (
+                    <div key={p.name} className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-2 text-[var(--text-soft)]">
+                        <span className="h-2 w-2 rounded-full" style={{ background: p.color }} />
+                        {p.name}
+                      </span>
+                      <span className="font-semibold">{p.value.toLocaleString('ko-KR')}명</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </Panel>
           </div>

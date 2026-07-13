@@ -9,7 +9,8 @@ export interface User {
   email: string
   company: string
   phone?: string
-  plan: '없음' | 'Starter' | 'Pro' | 'Business'
+  plan: '없음' | 'Plus' | 'Pro' | 'Max'        // 마케터 전용 플랜
+  videoPlan: '없음' | 'Plus' | 'Pro' | 'Max'   // 노드형 AI 영상 제작 플랜
   role: 'user' | 'admin'
   status: 'active' | 'suspended'
   points: number
@@ -137,6 +138,7 @@ export async function adminAction(
   id: string,
   extra?: {
     plan?: string
+    track?: 'marketer' | 'video'
     password?: string
     amount?: number
     memo?: string
@@ -410,7 +412,7 @@ export async function sendSmsCampaign(to: string | string[], text: string): Prom
 }
 
 /* ───────── 승인 관리 (관리자) ───────── */
-export interface PlanReq { id: string; user_id: string; name: string | null; email: string | null; from_plan: string | null; to_plan: string; status: string; memo: string | null; created_at: string; decided_at: string | null }
+export interface PlanReq { id: string; user_id: string; name: string | null; email: string | null; track: string | null; from_plan: string | null; to_plan: string; status: string; memo: string | null; created_at: string; decided_at: string | null }
 export interface SenderReq { id: string; user_id: string; name: string | null; email: string | null; phone: string; label: string | null; status: string; created_at: string; decided_at: string | null }
 export interface PointReq { id: string; user_id: string; name: string | null; email: string | null; amount: number; memo: string | null; status: string; created_at: string; decided_at: string | null }
 export interface CreditReq { id: string; user_id: string; name: string | null; email: string | null; amount: number; price: number; memo: string | null; status: string; created_at: string; decided_at: string | null }
@@ -445,8 +447,9 @@ export async function adminApprovalAction(
 }
 
 /* ───────── 신청 (사용자 본인) ───────── */
-export async function requestPlan(to_plan: string, memo?: string): Promise<{ ok: boolean; error?: string }> {
-  return postJson('/api/account/plan-request', { to_plan, memo })
+export type PlanTrack = 'marketer' | 'video'
+export async function requestPlan(track: PlanTrack, to_plan: string, memo?: string): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/account/plan-request', { track, to_plan, memo })
 }
 export async function requestPoint(amount: number, memo?: string): Promise<{ ok: boolean; error?: string }> {
   return postJson('/api/account/point-request', { amount, memo })

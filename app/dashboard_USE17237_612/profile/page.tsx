@@ -21,6 +21,8 @@ import {
   Phone,
   MessageSquare,
   Clock,
+  Megaphone,
+  Video,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button, Badge } from '@/components/ui'
@@ -30,6 +32,7 @@ import {
   markNotificationsRead,
   requestPlan,
   myPlanRequests,
+  type PlanTrack,
   mySenders,
   registerSender,
   requestPoint,
@@ -82,17 +85,17 @@ const PLAN_META: Record<
     badge: 'border-slate-200 bg-slate-50 text-slate-600',
     perks: ['가입된 플랜이 없습니다', '플랜에 가입하고 더 많은 기능을 이용하세요'],
   },
-  Starter: {
+  Plus: {
     badge: 'border-sky-200 bg-sky-50 text-sky-700',
-    perks: ['기본 키워드 분석', '월 10회 리포트', '이메일 지원'],
+    perks: ['기본 기능 이용', '월 표준 사용량', '이메일 지원'],
   },
   Pro: {
     badge: 'border-violet-200 bg-violet-50 text-violet-700',
-    perks: ['무제한 키워드 분석', '월 100회 리포트', '우선 지원', '경쟁사 추적'],
+    perks: ['확장 사용량', '우선 지원', '고급 기능 이용'],
   },
-  Business: {
+  Max: {
     badge: 'border-amber-200 bg-amber-50 text-amber-700',
-    perks: ['모든 Pro 기능', '무제한 리포트', '전담 매니저', 'API 액세스', '팀 협업'],
+    perks: ['모든 Pro 기능', '최대 사용량', '전담 매니저', '최우선 지원'],
   },
 }
 
@@ -106,7 +109,17 @@ function statusMeta(s: string) {
   return STATUS_META[s] || { label: s || '-', badge: 'border-slate-200 bg-slate-50 text-slate-600' }
 }
 
-const ALL_PLANS = ['Starter', 'Pro', 'Business'] as const
+const ALL_PLANS = ['Plus', 'Pro', 'Max'] as const
+type PlanTier = (typeof ALL_PLANS)[number]
+
+const TRACK_META: Record<PlanTrack, { label: string; short: string; icon: typeof Megaphone; badge: string }> = {
+  marketer: { label: '마케터 전용', short: '마케터', icon: Megaphone, badge: 'border-violet-200 bg-violet-50 text-violet-700' },
+  video: { label: 'AI 영상 제작', short: '영상', icon: Video, badge: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700' },
+}
+
+function trackMeta(t: string) {
+  return TRACK_META[t as PlanTrack] || { label: t || '-', short: t || '-', icon: Megaphone, badge: 'border-slate-200 bg-slate-50 text-slate-600' }
+}
 
 function planLabel(plan: string) {
   return plan === '없음' || !plan ? '미가입' : plan
@@ -194,14 +207,16 @@ export default function ProfilePage() {
   const [pwOk, setPwOk] = useState(false)
   const [pwErr, setPwErr] = useState<string | null>(null)
 
-  // plan upgrade
-  const [toPlan, setToPlan] = useState<(typeof ALL_PLANS)[number]>('Pro')
+  // plan request (two tracks)
+  const [planTrack, setPlanTrack] = useState<PlanTrack>('marketer')
+  const [toPlan, setToPlan] = useState<PlanTier>('Plus')
   const [planMemo, setPlanMemo] = useState('')
   const [planBusy, setPlanBusy] = useState(false)
   const [planOk, setPlanOk] = useState(false)
   const [planErr, setPlanErr] = useState<string | null>(null)
+  const [toast, setToast] = useState('')
   const [planReqs, setPlanReqs] = useState<
-    { from_plan: string; to_plan: string; status: string; created_at: string; decided_at: string | null }[]
+    { track: string; from_plan: string; to_plan: string; status: string; created_at: string; decided_at: string | null }[]
   >([])
 
   // sender registration
@@ -278,13 +293,15 @@ export default function ProfilePage() {
     setPlanOk(false)
     setPlanErr(null)
     setPlanBusy(true)
-    const r = await requestPlan(toPlan, planMemo.trim() || undefined)
+    const r = await requestPlan(planTrack, toPlan, planMemo.trim() || undefined)
     setPlanBusy(false)
     if (r.ok) {
       setPlanOk(true)
       setPlanMemo('')
+      setToast(`${trackMeta(planTrack).label} ${toPlan} 플랜 신청이 접수되었습니다.`)
       loadPlanReqs()
       setTimeout(() => setPlanOk(false), 5000)
+      setTimeout(() => setToast(''), 5000)
     } else {
       setPlanErr(r.error || '신청에 실패했습니다.')
     }
@@ -397,6 +414,7 @@ export default function ProfilePage() {
   const inputCls =
     'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-violet-500'
 
+  const curTier = planTrack === 'marketer' ? (user?.plan ?? '없음') : (user?.videoPlan ?? '없음')
   const pointTx = transactions.filter((t) => t.kind === 'point')
   const creditTx = transactions.filter((t) => t.kind === 'credit')
   const purchaseTx = transactions.filter((t) => t.kind === 'purchase')
@@ -547,58 +565,113 @@ export default function ProfilePage() {
                 </form>
               </Panel>
 
-              {/* 3. 현재 플랜 */}
+              {/* 3. 현재 플랜 (2트랙) */}
               <Panel title={<span className="flex items-center gap-2"><Crown size={16} className="text-amber-500" /> 현재 플랜</span>}>
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl font-bold tracking-tight">{planLabel(user.plan)}</span>
-                  <Badge className={PLAN_META[user.plan]?.badge || 'border-slate-200 bg-slate-50 text-slate-600'}>
-                    {user.plan === '없음' ? '미가입' : '현재 이용 중'}
-                  </Badge>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {(['marketer', 'video'] as PlanTrack[]).map((t) => {
+                    const tm = TRACK_META[t]
+                    const TIcon = tm.icon
+                    const plan = t === 'marketer' ? user.plan : user.videoPlan
+                    return (
+                      <div key={t} className="card-2 flex flex-col gap-2 p-4">
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-soft)]">
+                          <TIcon size={14} /> {tm.label}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl font-bold tracking-tight">{planLabel(plan)}</span>
+                          <Badge className={PLAN_META[plan]?.badge || 'border-slate-200 bg-slate-50 text-slate-600'}>
+                            <Crown size={12} /> {planLabel(plan)}
+                          </Badge>
+                        </div>
+                        <ul className="mt-1 space-y-1.5">
+                          {(PLAN_META[plan]?.perks || ['기본 기능 이용']).map((p) => (
+                            <li key={p} className="flex items-center gap-2 text-xs text-[var(--text-soft)]">
+                              <Check size={13} className="flex-shrink-0 text-emerald-600" /> {p}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )
+                  })}
                 </div>
-                <ul className="mt-4 space-y-2">
-                  {(PLAN_META[user.plan]?.perks || ['기본 기능 이용']).map((p) => (
-                    <li key={p} className="flex items-center gap-2 text-sm text-[var(--text-soft)]">
-                      <Check size={15} className="flex-shrink-0 text-emerald-600" /> {p}
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-5">
-                  {user.plan === 'Business' ? (
-                    <p className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm text-[var(--text-soft)]">
-                      최상위 플랜을 이용 중입니다. 감사합니다.
-                    </p>
-                  ) : (
-                    <Button href="/#pricing" variant="soft" className="w-full">
-                      <ArrowUpCircle size={16} /> 플랜 업그레이드
-                    </Button>
-                  )}
+                {user.videoPlan === 'Max' && (
+                  <p className="mt-4 flex items-center gap-1.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-3.5 py-2.5 text-xs text-fuchsia-700">
+                    <Video size={14} className="flex-shrink-0" /> AI 영상 Max 가입자는 홈에서 노드 스튜디오로 자동 이동합니다.
+                  </p>
+                )}
+                <div className="mt-4">
+                  <Button href="/#pricing" variant="soft" className="w-full">
+                    <ArrowUpCircle size={16} /> 요금제 안내 보기
+                  </Button>
                 </div>
               </Panel>
             </div>
 
             {/* 3.5 플랜 업그레이드 신청 & 발신번호 등록 */}
             <div className="grid gap-6 lg:grid-cols-2">
-              {/* A) 플랜 업그레이드 신청 */}
-              <Panel title={<span className="flex items-center gap-2"><ArrowUpCircle size={16} className="text-violet-600" /> 플랜 업그레이드 신청</span>}>
+              {/* A) 플랜 신청 (2트랙) */}
+              <Panel title={<span className="flex items-center gap-2"><ArrowUpCircle size={16} className="text-violet-600" /> 플랜 신청</span>}>
                 <form onSubmit={submitPlan} className="space-y-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">플랜 종류</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['marketer', 'video'] as PlanTrack[]).map((t) => {
+                        const tm = TRACK_META[t]
+                        const TIcon = tm.icon
+                        const active = planTrack === t
+                        return (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => setPlanTrack(t)}
+                            className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors ${
+                              active
+                                ? 'border-violet-300 bg-violet-50 text-violet-700'
+                                : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-violet-300'
+                            }`}
+                          >
+                            <TIcon size={15} /> {tm.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
                   <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm">
-                    <span className="text-[var(--text-soft)]">현재 플랜</span>
-                    <Badge className={PLAN_META[user.plan]?.badge || 'border-slate-200 bg-slate-50 text-slate-600'}>
-                      <Crown size={12} /> {planLabel(user.plan)}
+                    <span className="text-[var(--text-soft)]">현재 {TRACK_META[planTrack].label}</span>
+                    <Badge className={PLAN_META[curTier]?.badge || 'border-slate-200 bg-slate-50 text-slate-600'}>
+                      <Crown size={12} /> {planLabel(curTier)}
                     </Badge>
                   </div>
+
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">신청 플랜</label>
-                    <select
-                      value={toPlan}
-                      onChange={(e) => setToPlan(e.target.value as (typeof ALL_PLANS)[number])}
-                      className={inputCls}
-                    >
-                      {ALL_PLANS.map((p) => (
-                        <option key={p} value={p}>{p}</option>
-                      ))}
-                    </select>
+                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">신청 등급</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {ALL_PLANS.map((p) => {
+                        const active = toPlan === p
+                        const isCurrent = curTier === p
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            disabled={isCurrent}
+                            onClick={() => setToPlan(p)}
+                            className={`rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors ${
+                              isCurrent
+                                ? 'cursor-not-allowed border-[var(--border-soft)] bg-slate-50 text-[var(--text-dim)]'
+                                : active
+                                ? 'border-violet-300 bg-violet-50 text-violet-700'
+                                : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-violet-300'
+                            }`}
+                          >
+                            {p}
+                            {isCurrent ? <span className="ml-1 text-[10px] font-normal">(현재)</span> : null}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
+
                   <div>
                     <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">
                       메모 <span className="text-[var(--text-dim)]">(선택)</span>
@@ -622,10 +695,16 @@ export default function ProfilePage() {
                     </div>
                   )}
 
-                  <Button type="submit" disabled={planBusy} className="w-full">
-                    {planBusy ? '신청 중...' : '업그레이드 신청'}
+                  <Button type="submit" disabled={planBusy || curTier === toPlan} className="w-full">
+                    {planBusy ? '신청 중...' : curTier === toPlan ? '이미 이용 중인 등급입니다' : '신청'}
                   </Button>
                 </form>
+
+                {toast && (
+                  <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2.5 text-sm text-emerald-700 animate-fade-in">
+                    <Check size={15} /> {toast}
+                  </div>
+                )}
 
                 <div className="mt-5">
                   <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
@@ -637,15 +716,19 @@ export default function ProfilePage() {
                     <ul className="space-y-2">
                       {planReqs.map((r, i) => {
                         const m = statusMeta(r.status)
+                        const tm = trackMeta(r.track)
                         return (
                           <li
                             key={i}
                             className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-soft)] px-3.5 py-2.5"
                           >
                             <div className="min-w-0">
-                              <p className="text-sm font-medium">
-                                {r.from_plan} → {r.to_plan}
-                              </p>
+                              <div className="flex items-center gap-1.5">
+                                <Badge className={tm.badge}>{tm.short}</Badge>
+                                <p className="text-sm font-medium">
+                                  {planLabel(r.from_plan)} → {planLabel(r.to_plan)}
+                                </p>
+                              </div>
                               <p className="mt-0.5 text-xs text-[var(--text-dim)]">{fmtDate(r.created_at)}</p>
                             </div>
                             <Badge className={m.badge}>{m.label}</Badge>

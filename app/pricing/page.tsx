@@ -14,6 +14,9 @@ import {
   ShieldCheck,
   Minus,
   Plus,
+  Megaphone,
+  Clapperboard,
+  Layers,
 } from 'lucide-react'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
@@ -22,14 +25,32 @@ import { Reveal } from '@/components/motion'
 import { LogoMark } from '@/components/Brand'
 import { cn } from '@/lib/utils'
 
-const PLANS = [
+type Tier = {
+  name: string
+  price: string
+  period: string
+  desc: string
+  features: string[]
+  cta: string
+  href: string
+  highlight: boolean
+}
+
+/* ===== 마케터 전용 플랜 ===== */
+const MARKETER_TIERS: Tier[] = [
   {
-    name: 'Starter',
-    price: '무료',
-    period: '',
-    desc: '부담 없이 첫 성과를 확인하는 단계',
-    features: ['랜딩페이지 1개', '월 500 DB 수집', '유튜브·블로그 분석', '기본 리포트'],
-    cta: '무료로 시작',
+    name: 'Plus',
+    price: '₩29,000',
+    period: '/월',
+    desc: '혼자 마케팅을 챙기는 1인 사업자·입문 단계',
+    features: [
+      '월 3,000 DB 수집',
+      '유튜브·블로그 기본 분석',
+      '플레이스 순위 조회',
+      '문자 발송 (건별 차감)',
+      '기본 리포트 대시보드',
+    ],
+    cta: 'Plus 시작하기',
     href: '/signup',
     highlight: false,
   },
@@ -37,25 +58,86 @@ const PLANS = [
     name: 'Pro',
     price: '₩89,000',
     period: '/월',
-    desc: '흩어진 도구를 정리하고 성과에 집중하는 팀',
+    desc: '성과에 집중하는 성장기 마케팅 팀',
     features: [
-      '랜딩페이지 무제한',
       '월 30,000 DB 수집',
-      '전체 분석 + 광고 통합',
-      'CRM · 알림톡 캠페인',
-      'AI 챗봇 어시스턴트',
-      '팀 협업 5인',
+      '유튜브·블로그·플레이스 전체 분석',
+      'CRM · 고객 세그먼트 관리',
+      '알림톡 · 문자 캠페인 자동화',
+      '팀 협업 5인 · 권한 관리',
+      '맞춤 리포트 · 성과 추적',
     ],
     cta: 'Pro 시작하기',
     href: '/signup',
     highlight: true,
   },
   {
-    name: 'Business',
-    price: '문의',
-    period: '',
-    desc: '규모에 맞춘 무제한과 전담 지원',
-    features: ['모든 Pro 기능', 'DB 수집 무제한', 'AI 영상 제작 무제한', '전담 매니저', 'API·화이트라벨'],
+    name: 'Max',
+    price: '₩249,000',
+    period: '/월',
+    desc: '여러 브랜드를 운영하는 대행사·인하우스 실무',
+    features: [
+      'DB 수집 무제한',
+      '마케터 전 기능 잠금 해제',
+      '알림톡 · 문자 대량 발송 최적 단가',
+      '팀 협업 무제한 · 워크스페이스 분리',
+      'API 연동 · 데이터 내보내기',
+      '전담 매니저 · 우선 기술 지원',
+    ],
+    cta: '도입 문의',
+    href: '/contact',
+    highlight: false,
+  },
+]
+
+/* ===== 노드형 AI 영상 제작 플랜 (NODE STUDIO) ===== */
+const VIDEO_TIERS: Tier[] = [
+  {
+    name: 'Plus',
+    price: '₩49,000',
+    period: '/월',
+    desc: '숏폼 영상을 직접 만들어보는 시작 단계',
+    features: [
+      '월 1,500 크레딧 제공',
+      '노드 에디터 기본 워크플로우',
+      '기본 영상 생성 모델',
+      '숏폼·광고 템플릿 제공',
+      '1080p 렌더링',
+    ],
+    cta: 'Plus 시작하기',
+    href: '/signup',
+    highlight: false,
+  },
+  {
+    name: 'Pro',
+    price: '₩149,000',
+    period: '/월',
+    desc: '콘텐츠를 대량으로 찍어내는 제작 팀',
+    features: [
+      '월 6,000 크레딧 제공',
+      '고급 모델 (Seedance · Veo 등)',
+      '워터마크 제거',
+      '노드 커스텀 워크플로우 저장',
+      '음성·자막 자동 생성',
+      '팀 공유 · 에셋 라이브러리',
+    ],
+    cta: 'Pro 시작하기',
+    href: '/signup',
+    highlight: true,
+  },
+  {
+    name: 'Max',
+    price: '₩390,000',
+    period: '/월',
+    desc: '영상을 끊김 없이 쏟아내는 스튜디오·대행사',
+    features: [
+      '월 20,000 크레딧 (무제한급)',
+      '최상위 영상·이미지 모델 전체',
+      '우선 렌더 큐 · 대기 없는 처리',
+      '4K 고해상도 렌더링',
+      'API · 배치 렌더 자동화',
+      '전담 매니저 · 우선 지원',
+    ],
     cta: '도입 문의',
     href: '/contact',
     highlight: false,
@@ -73,32 +155,32 @@ const CREDITS = [
 
 const FAQS = [
   {
-    q: '무료 체험은 어떻게 시작하나요?',
-    a: 'Starter 플랜은 신용카드 등록 없이 회원가입만으로 바로 시작합니다. 랜딩페이지 1개, 월 500건의 DB 수집, 유튜브·블로그 분석을 기간 제한 없이 무료로 써 보시고, 실제 성과가 눈에 보일 때 업그레이드를 결정하시면 됩니다.',
+    q: '두 플랜은 어떻게 다른가요?',
+    a: 'BYGENCY에는 서로 다른 두 개의 플랜 트랙이 있습니다. ‘마케터 전용’은 DB 수집·유튜브/블로그/플레이스 분석·문자·알림톡·CRM·리포트를 아우르는 마케팅 올인원 도구이고, ‘AI 영상 제작’은 NODE STUDIO 노드 에디터로 광고·숏폼 영상을 만드는 도구입니다. 목적이 다르기 때문에 각각 Plus·Pro·Max 요금제로 나뉘어 있습니다.',
+  },
+  {
+    q: '두 플랜을 동시에 쓸 수 있나요?',
+    a: '네. 두 트랙은 완전히 독립적이라 하나만 구독해도 되고, 둘 다 구독해도 됩니다. 마케터 Max와 AI 영상 Max를 동시에 구독하는 것도 가능합니다. 마케팅 데이터와 영상 제작을 한 계정에서 함께 다루고 싶다면 두 플랜을 같이 운영하시는 것을 권장합니다.',
   },
   {
     q: '약정이 있나요? 해지하면 손해 보지 않나요?',
-    a: '약정도, 위약금도 없습니다. 언제든 마이페이지에서 클릭 한 번으로 해지할 수 있고, 해지하면 다음 결제일부터 청구가 멈춥니다. 이미 결제한 기간은 끝까지 정상 이용되니 남은 날짜를 잃을 걱정은 하지 않으셔도 됩니다.',
+    a: '약정도, 위약금도 없습니다. 두 플랜 모두 언제든 마이페이지에서 클릭 한 번으로 해지할 수 있고, 해지하면 다음 결제일부터 청구가 멈춥니다. 이미 결제한 기간은 끝까지 정상 이용되니 남은 날짜를 잃을 걱정은 하지 않으셔도 됩니다.',
   },
   {
-    q: '결제한 뒤 마음에 들지 않으면 환불되나요?',
-    a: '결제 후 서비스를 실제로 사용하지 않으셨다면 관련 법령과 환불 정책에 따라 환불을 도와드립니다. 사용 중 불편한 점이 있으면 해지 전에 먼저 알려주세요. 대부분의 문제는 담당자 상담으로 더 빠르게 해결됩니다.',
-  },
-  {
-    q: '플랜은 나중에 바꿀 수 있나요? 지금 결정이 부담됩니다.',
-    a: '지금의 선택이 끝이 아닙니다. 팀이 커지거나 수집량이 늘면 상위 플랜으로 즉시 업그레이드하고, 반대로 줄일 수도 있습니다. 작게 시작해 성과를 확인한 뒤 규모를 키우는 것이 가장 합리적인 방법입니다.',
+    q: '플랜은 나중에 바꿀 수 있나요?',
+    a: '지금의 선택이 끝이 아닙니다. 각 트랙 안에서 Plus에서 Pro, Max로 즉시 업그레이드하거나 반대로 내릴 수 있고, 필요 없어진 트랙은 그것만 따로 해지할 수 있습니다. 작게 시작해 성과를 확인한 뒤 규모를 키우는 것이 가장 합리적입니다.',
   },
   {
     q: '크레딧은 무엇이고 어떻게 충전하나요?',
-    a: 'AI 영상 제작, 랜딩페이지·블로그 생성처럼 연산이 많이 드는 기능만 크레딧으로 차감됩니다. 분석·조회 대부분은 1크레딧으로 충분해 부담이 적습니다. 크레딧은 요금제와 별도로 필요할 때만 충전하며, 신청 후 관리자 승인 시 즉시 적립됩니다.',
+    a: 'AI 영상 제작은 렌더링할 때마다 크레딧이 차감되는 방식입니다. 요금제에 매달 크레딧이 포함되며, 더 필요할 때만 별도로 충전합니다. 마케터 트랙의 분석·조회 대부분은 1크레딧으로 충분해 부담이 적습니다. 충전은 요금제와 별도이며, 신청 후 관리자 승인 시 즉시 적립됩니다.',
   },
   {
     q: '결제 수단과 세금계산서는 어떻게 되나요?',
-    a: '주요 신용·체크카드와 계좌이체를 지원합니다. Business 플랜은 세금계산서 발행과 별도 계약이 가능하니 도입 문의로 연락 주시면 조건을 맞춰 안내해 드립니다.',
+    a: '주요 신용·체크카드와 계좌이체를 지원합니다. 두 플랜의 Max는 세금계산서 발행과 별도 계약, 대량 사용 단가 조정이 가능하니 도입 문의로 연락 주시면 조건을 맞춰 안내해 드립니다.',
   },
   {
-    q: '수집한 고객 데이터는 안전한가요?',
-    a: '고객 DB는 암호화되어 저장되며, 계정 권한이 있는 담당자만 접근할 수 있습니다. 수집한 데이터의 소유권은 전적으로 고객사에 있으며, 해지 시 데이터 이관과 삭제 절차를 함께 안내해 드립니다.',
+    q: '수집한 고객 데이터와 만든 영상은 안전한가요?',
+    a: '고객 DB는 암호화되어 저장되며 계정 권한이 있는 담당자만 접근할 수 있습니다. NODE STUDIO에서 생성한 영상과 에셋의 소유권은 전적으로 고객사에 있으며, 해지 시 데이터 이관과 삭제 절차를 함께 안내해 드립니다.',
   },
 ]
 
@@ -134,6 +216,86 @@ function FaqItem({ q, a }: { q: string; a: string }) {
   )
 }
 
+function PlanCard({ p, i }: { p: Tier; i: number }) {
+  return (
+    <Reveal delay={i * 100} className={p.highlight ? 'lg:-mt-4' : ''}>
+      <div
+        className={cn(
+          'relative flex h-full flex-col rounded-2xl border p-8 transition-all duration-300 hover:-translate-y-1',
+          p.highlight
+            ? 'border-violet-300 bg-gradient-to-b from-violet-50 to-white shadow-lg shadow-violet-200/50'
+            : 'border-[var(--border)] bg-white shadow-sm hover:shadow-md',
+        )}
+      >
+        {p.highlight && (
+          <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full brand-gradient px-3 py-1 text-xs font-semibold text-white shadow">
+            인기
+          </span>
+        )}
+        <h3 className="text-lg font-semibold">{p.name}</h3>
+        <p className="mt-1 text-sm text-[var(--text-soft)]">{p.desc}</p>
+        <div className="mt-5 flex items-end gap-1">
+          <span className="text-4xl font-bold tracking-tight">{p.price}</span>
+          <span className="mb-1 text-sm text-[var(--text-dim)]">{p.period}</span>
+        </div>
+        <ul className="mt-6 flex-1 space-y-3">
+          {p.features.map((f) => (
+            <li key={f} className="flex items-start gap-2.5 text-sm">
+              <Check size={17} className="mt-0.5 flex-shrink-0 text-violet-600" />
+              <span className="text-[var(--text-soft)]">{f}</span>
+            </li>
+          ))}
+        </ul>
+        <Button
+          href={p.href}
+          variant={p.highlight ? 'primary' : 'outline'}
+          className="mt-8 w-full"
+        >
+          {p.cta}
+        </Button>
+      </div>
+    </Reveal>
+  )
+}
+
+function TrackSection({
+  icon: Icon,
+  tag,
+  title,
+  accent,
+  desc,
+  tiers,
+}: {
+  icon: typeof Megaphone
+  tag: string
+  title: string
+  accent: string
+  desc: string
+  tiers: Tier[]
+}) {
+  return (
+    <div>
+      <Reveal className="mx-auto max-w-2xl text-center">
+        <div className="flex justify-center">
+          <span className="inline-flex items-center gap-2 rounded-full border border-violet-100 bg-violet-50/70 px-4 py-1.5 text-sm font-semibold text-violet-700">
+            <Icon size={15} /> {tag}
+          </span>
+        </div>
+        <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+          {title} <span className="brand-text">{accent}</span>
+        </h2>
+        <p className="mt-4 text-balance text-[var(--text-soft)]">{desc}</p>
+      </Reveal>
+
+      <div className="mx-auto mt-12 grid max-w-5xl gap-6 lg:grid-cols-3">
+        {tiers.map((p, i) => (
+          <PlanCard key={p.name} p={p} i={i} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function PricingPage() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-[var(--bg)]">
@@ -151,11 +313,12 @@ export default function PricingPage() {
             <SectionTag>요금제</SectionTag>
           </div>
           <h1 className="mt-6 text-balance text-4xl font-bold leading-[1.1] tracking-tight animate-fade-up delay-100 sm:text-5xl md:text-6xl">
-            딱 필요한 만큼만 <span className="brand-text animate-gradient">쓰고</span> 성장하세요
+            두 개의 무기, <span className="brand-text animate-gradient">필요한 만큼</span> 골라 쓰세요
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-balance text-lg leading-relaxed text-[var(--text-soft)] animate-fade-up delay-200">
-            여러 마케팅 도구에 매달 나가는 구독료, 정말 다 쓰고 계신가요? BYGENCY 하나로 합치면
-            비용은 줄고 성과는 한곳에 모입니다. 무료로 시작해 필요할 때 올리고, 약정 없이 언제든 내려도 됩니다.
+            고객을 모으는 <b className="font-semibold text-[var(--text)]">마케터 전용 도구</b>와 콘텐츠를 찍어내는{' '}
+            <b className="font-semibold text-[var(--text)]">노드형 AI 영상 제작</b>. 각각 Plus·Pro·Max로
+            나뉘어 있어, 하나만 써도 되고 둘 다 함께 써도 됩니다. 약정 없이 언제든 올리고 내리세요.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-[var(--text-dim)] animate-fade-up delay-300">
             {['신용카드 불필요', '3분 만에 세팅', '언제든 해지'].map((t) => (
@@ -167,59 +330,58 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* ===== PLANS ===== */}
-      <section className="pb-12">
+      {/* ===== TRACK 1: 마케터 전용 ===== */}
+      <section className="pb-6">
         <div className="mx-auto max-w-6xl px-5">
-          <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-3">
-            {PLANS.map((p, i) => (
-              <Reveal key={p.name} delay={i * 100} className={p.highlight ? 'lg:-mt-4' : ''}>
-                <div
-                  className={cn(
-                    'relative flex h-full flex-col rounded-2xl border p-8 transition-all duration-300 hover:-translate-y-1',
-                    p.highlight
-                      ? 'border-violet-300 bg-gradient-to-b from-violet-50 to-white shadow-lg shadow-violet-200/50'
-                      : 'border-[var(--border)] bg-white shadow-sm hover:shadow-md',
-                  )}
-                >
-                  {p.highlight && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full brand-gradient px-3 py-1 text-xs font-semibold text-white shadow">
-                      가장 인기
-                    </span>
-                  )}
-                  <h3 className="text-lg font-semibold">{p.name}</h3>
-                  <p className="mt-1 text-sm text-[var(--text-soft)]">{p.desc}</p>
-                  <div className="mt-5 flex items-end gap-1">
-                    <span className="text-4xl font-bold tracking-tight">{p.price}</span>
-                    <span className="mb-1 text-sm text-[var(--text-dim)]">{p.period}</span>
-                  </div>
-                  <ul className="mt-6 flex-1 space-y-3">
-                    {p.features.map((f) => (
-                      <li key={f} className="flex items-start gap-2.5 text-sm">
-                        <Check size={17} className="mt-0.5 flex-shrink-0 text-violet-600" />
-                        <span className="text-[var(--text-soft)]">{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Button
-                    href={p.href}
-                    variant={p.highlight ? 'primary' : 'outline'}
-                    className="mt-8 w-full"
-                  >
-                    {p.cta}
-                  </Button>
-                </div>
-              </Reveal>
-            ))}
-          </div>
+          <TrackSection
+            icon={Megaphone}
+            tag="마케터 전용 플랜"
+            title="마케팅, 한 화면에서"
+            accent="끝냅니다"
+            desc="DB 수집부터 유튜브·블로그·플레이스 분석, 문자·알림톡, CRM, 리포트까지. 흩어진 마케팅 도구를 하나로 합치는 올인원 트랙입니다."
+            tiers={MARKETER_TIERS}
+          />
+        </div>
+      </section>
 
-          <Reveal className="mx-auto mt-8 max-w-3xl">
-            <div className="flex items-start gap-3 rounded-2xl border border-violet-100 bg-violet-50/60 p-5 text-sm leading-relaxed text-[var(--text-soft)]">
-              <Sparkles size={18} className="mt-0.5 flex-shrink-0 text-violet-600" />
-              <p>
-                <span className="font-semibold text-[var(--text)]">도구 5개 구독료 vs BYGENCY 하나.</span>{' '}
-                랜딩페이지, 분석, CRM, 광고, 영상 도구를 따로 결제하면 매달 수십만 원이 흩어집니다.
-                한곳에 모으면 비용은 줄고, 데이터가 끊기지 않아 성과는 오히려 선명해집니다.
-              </p>
+      {/* ===== TRACK 2: AI 영상 제작 ===== */}
+      <section className="pt-14 pb-6">
+        <div className="mx-auto max-w-6xl px-5">
+          <TrackSection
+            icon={Clapperboard}
+            tag="AI 영상 제작 플랜"
+            title="노드로 잇는"
+            accent="AI 영상 스튜디오"
+            desc="NODE STUDIO 노드 에디터에서 블록을 연결하듯 광고·숏폼 영상을 생성합니다. 크레딧 차감 방식이라, 만든 만큼만 비용이 나갑니다."
+            tiers={VIDEO_TIERS}
+          />
+        </div>
+      </section>
+
+      {/* ===== BOTH-PLANS CALLOUT ===== */}
+      <section className="pt-10 pb-12">
+        <div className="mx-auto max-w-6xl px-5">
+          <Reveal variant="scale" className="mx-auto max-w-3xl">
+            <div className="relative overflow-hidden rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-7 shadow-sm">
+              <div className="animate-drift pointer-events-none absolute -top-16 -right-10 h-48 w-64 rounded-full bg-violet-200/40 blur-[80px]" />
+              <div className="relative flex items-start gap-4">
+                <span className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-xl brand-gradient text-white shadow">
+                  <Layers size={22} />
+                </span>
+                <div>
+                  <h3 className="text-lg font-bold tracking-tight">
+                    두 플랜은 함께 이용할 수 있습니다
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--text-soft)]">
+                    마케터 전용과 AI 영상 제작은 서로 독립적인 트랙이라 원하는 조합으로 구독하세요.
+                    <span className="font-semibold text-[var(--text)]">
+                      {' '}
+                      마케터 Max + AI 영상 Max 동시 구독도 가능합니다.
+                    </span>{' '}
+                    고객을 모으고, 그 데이터로 바로 영상을 찍어내는 흐름을 한 계정에서 끝낼 수 있습니다.
+                  </p>
+                </div>
+              </div>
             </div>
           </Reveal>
         </div>
@@ -233,12 +395,12 @@ export default function PricingPage() {
               <Sparkles size={13} /> 크레딧 안내
             </SectionTag>
             <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-              쓴 만큼만 내는 <span className="brand-text">크레딧</span> 방식
+              AI 영상은 <span className="brand-text">쓴 만큼</span> 차감되는 크레딧 방식
             </h2>
             <p className="mt-5 text-balance text-[var(--text-soft)]">
-              왜 크레딧일까요? 매달 큰 금액을 미리 결제하고 절반도 못 쓰는 대신, AI 연산이 필요한
-              순간에만 딱 그만큼 차감되기 때문입니다. 안 쓰면 남고, 필요할 때만 채우니 낭비가 없습니다.
-              충전은 요금제와 별도이며, 신청 후 관리자 승인 시 즉시 적립됩니다.
+              AI 영상 제작 플랜은 렌더링할 때마다 크레딧이 차감됩니다. 매달 큰 금액을 미리 결제하고
+              절반도 못 쓰는 대신, 실제로 만든 순간에만 딱 그만큼 빠져나갑니다. 요금제에 크레딧이
+              포함되며, 더 필요할 때만 별도 충전하고 신청 후 관리자 승인 시 즉시 적립됩니다.
             </p>
           </Reveal>
 
@@ -274,7 +436,7 @@ export default function PricingPage() {
               <ShieldCheck size={18} className="mt-0.5 flex-shrink-0 text-violet-600" />
               <p>
                 크레딧은 요금제 결제와 별도로 청구되며, 충전 요청은 관리자 승인 후 계정에 반영됩니다.
-                유튜브·인스타·플레이스 조회는 1크레딧으로 부담 없이 사용할 수 있습니다.
+                마케터 트랙의 유튜브·인스타·플레이스 조회는 1크레딧으로 부담 없이 사용할 수 있습니다.
               </p>
             </div>
           </Reveal>
@@ -323,10 +485,10 @@ export default function PricingPage() {
                 </span>
               </div>
               <h2 className="text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                고민하는 지금도 비용은 흩어지고 있습니다
+                마케팅과 영상, 둘 다 오늘 시작할 수 있습니다
               </h2>
               <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-white/85">
-                신용카드 없이 3분이면 세팅 완료. 오늘 무료로 시작해 흩어진 도구를 하나로 모으세요.
+                신용카드 없이 3분이면 세팅 완료. 필요한 플랜 하나로 가볍게 시작하고, 언제든 다른 트랙을 더하세요.
               </p>
               <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Button
