@@ -28,6 +28,7 @@ import {
   Phone,
   Mail,
   Building2,
+  Megaphone,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { StatCard, Panel, Badge, Button } from '@/components/ui'
@@ -36,6 +37,7 @@ import {
   adminUsers,
   adminAction,
   adminUserDetail,
+  notifyBroadcast,
   type User,
   type Tx,
   type Noti,
@@ -145,6 +147,17 @@ export default function AdminUsersPage() {
   const [notifyBody, setNotifyBody] = useState('')
   const [notifySms, setNotifySms] = useState(false)
   const [notifyPhone, setNotifyPhone] = useState('')
+
+  // 알림 발송 (일괄) 폼 상태
+  type BcTarget = 'user' | 'plan' | 'multi' | 'all'
+  const [bcTarget, setBcTarget] = useState<BcTarget>('multi')
+  const [bcUserId, setBcUserId] = useState('')
+  const [bcUserQuery, setBcUserQuery] = useState('')
+  const [bcPlan, setBcPlan] = useState<string>('없음')
+  const [bcTitle, setBcTitle] = useState('')
+  const [bcBody, setBcBody] = useState('')
+  const [bcSms, setBcSms] = useState(false)
+  const [bcSending, setBcSending] = useState(false)
 
   function showToast(msg: string, kind: 'ok' | 'err' = 'ok') {
     setToast({ msg, kind })
@@ -313,6 +326,63 @@ export default function AdminUsersPage() {
     })
   }, [users, query, filter])
 
+  // ---- 알림 발송 (일괄) 파생값 ----
+  const bcUserOptions = useMemo(() => {
+    const q = bcUserQuery.trim().toLowerCase()
+    return users.filter((u) => !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+  }, [users, bcUserQuery])
+  const bcPlanCount = useMemo(() => users.filter((u) => (u.plan || '없음') === bcPlan).length, [users, bcPlan])
+  const bcCount =
+    bcTarget === 'user'
+      ? bcUserId
+        ? 1
+        : 0
+      : bcTarget === 'plan'
+      ? bcPlanCount
+      : bcTarget === 'multi'
+      ? selected.size
+      : users.length
+  const bcDisabled =
+    bcSending ||
+    !bcBody.trim() ||
+    (bcTarget === 'user' && !bcUserId) ||
+    (bcTarget === 'multi' && selected.size === 0)
+
+  async function submitBroadcast() {
+    if (!bcBody.trim()) {
+      showToast('발송할 내용을 입력하세요.', 'err')
+      return
+    }
+    if (bcTarget === 'user' && !bcUserId) {
+      showToast('발송할 회원을 선택하세요.', 'err')
+      return
+    }
+    if (bcTarget === 'multi' && selected.size === 0) {
+      showToast('표에서 회원을 체크해 선택하세요.', 'err')
+      return
+    }
+    setBcSending(true)
+    const r = await notifyBroadcast({
+      target: bcTarget,
+      userId: bcTarget === 'user' ? bcUserId : undefined,
+      plan: bcTarget === 'plan' ? bcPlan : undefined,
+      userIds: bcTarget === 'multi' ? Array.from(selected) : undefined,
+      title: bcTitle.trim(),
+      body: bcBody.trim(),
+      sms: bcSms,
+    })
+    setBcSending(false)
+    if (r.ok) {
+      showToast(`${r.sent ?? bcCount}명에게 발송 완료${r.smsSent ? ` · 문자 ${r.smsSent}건` : ''}`, 'ok')
+      setBcTitle('')
+      setBcBody('')
+      if (bcTarget === 'multi') setSelected(new Set())
+      reload()
+    } else {
+      showToast(r.error || '발송에 실패했습니다.', 'err')
+    }
+  }
+
   function toggleSuspend(id: string) {
     const target = users.find((u) => u.id === id)
     const next = target?.status === 'active' ? 'suspend' : 'activate'
@@ -363,6 +433,169 @@ export default function AdminUsersPage() {
             <StatCard label="신규 (오늘)" value={String(newToday.length)} icon={UserPlus} accent="#0ea5e9" />
             <StatCard label="정지 계정" value={String(suspended.length)} icon={Ban} accent="#ef4444" />
           </div>
+        </Reveal>
+
+        {/* 알림 발송 (일괄) */}
+        <Reveal>
+          <Panel
+            title={
+              <span className="flex items-center gap-2">
+                <Megaphone size={16} className="text-violet-600" /> 알림 발송
+              </span>
+            }
+          >
+            <div className="grid gap-5 lg:grid-cols-2">
+              {/* 좌: 대상 + 입력 */}
+              <div className="space-y-4">
+                <div>
+                  <SectionLabel icon={Users}>발송 대상</SectionLabel>
+                  <div className="flex flex-wrap gap-1.5">
+                    {([
+                      { key: 'user', label: '개인별' },
+                      { key: 'plan', label: '플랜별' },
+                      { key: 'multi', label: '다중 선택' },
+                      { key: 'all', label: '전체' },
+                    ] as { key: BcTarget; label: string }[]).map((t) => (
+                      <button
+                        key={t.key}
+                        onClick={() => setBcTarget(t.key)}
+                        className={cn(
+                          'rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors',
+                          bcTarget === t.key
+                            ? 'border-violet-300 bg-violet-50 text-violet-700'
+                            : 'border-[var(--border)] bg-white text-[var(--text-soft)] hover:bg-slate-50',
+                        )}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* 대상별 세부 선택 */}
+                  <div className="mt-3">
+                    {bcTarget === 'user' && (
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" />
+                          <input
+                            value={bcUserQuery}
+                            onChange={(e) => setBcUserQuery(e.target.value)}
+                            placeholder="이름 · 이메일로 회원 검색"
+                            className={cn(INPUT_CLS, 'pl-9')}
+                          />
+                        </div>
+                        <select value={bcUserId} onChange={(e) => setBcUserId(e.target.value)} className={INPUT_CLS}>
+                          <option value="">회원을 선택하세요</option>
+                          {bcUserOptions.slice(0, 200).map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name} · {u.email} ({planLabel(u.plan)})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {bcTarget === 'plan' && (
+                      <select value={bcPlan} onChange={(e) => setBcPlan(e.target.value)} className={INPUT_CLS}>
+                        <option value="없음">미가입 (없음)</option>
+                        <option value="Starter">Starter</option>
+                        <option value="Pro">Pro</option>
+                        <option value="Business">Business</option>
+                      </select>
+                    )}
+                    {bcTarget === 'multi' && (
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm">
+                        {selected.size > 0 ? (
+                          <span className="font-semibold text-violet-700">선택한 {selected.size}명</span>
+                        ) : (
+                          <span className="text-[var(--text-dim)]">아래 표에서 회원을 체크해 선택하세요.</span>
+                        )}
+                      </div>
+                    )}
+                    {bcTarget === 'all' && (
+                      <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm">
+                        <span className="font-semibold text-violet-700">전체 회원 {users.length}명</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <SectionLabel icon={Send}>내용</SectionLabel>
+                  <div className="space-y-2">
+                    <input
+                      value={bcTitle}
+                      onChange={(e) => setBcTitle(e.target.value)}
+                      placeholder="제목"
+                      className={INPUT_CLS}
+                    />
+                    <textarea
+                      value={bcBody}
+                      onChange={(e) => setBcBody(e.target.value)}
+                      placeholder="발송할 내용을 입력하세요."
+                      rows={4}
+                      className={cn(INPUT_CLS, 'resize-none')}
+                    />
+                    <label className="flex items-center gap-2 text-sm text-[var(--text-soft)]">
+                      <input
+                        type="checkbox"
+                        checked={bcSms}
+                        onChange={(e) => setBcSms(e.target.checked)}
+                        className="h-4 w-4 rounded border-[var(--border)] accent-violet-600"
+                      />
+                      문자(SMS)도 함께 발송
+                    </label>
+                    {bcSms && (
+                      <p className="text-[11px] text-[var(--text-dim)]">※ 발신번호 승인 · SOLAPI 설정이 필요합니다.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* 우: 미리보기 + 발송 */}
+              <div className="space-y-4">
+                <div>
+                  <SectionLabel icon={Bell}>미리보기</SectionLabel>
+                  <div className="card-2 p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-600">
+                        <Bell size={16} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold">{bcTitle.trim() || '제목 없음'}</p>
+                        <p className="mt-1 whitespace-pre-wrap break-words text-sm text-[var(--text-soft)]">
+                          {bcBody.trim() || '내용 미리보기가 여기에 표시됩니다.'}
+                        </p>
+                        {bcSms && (
+                          <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700">
+                            <Phone size={9} /> 문자 동시 발송
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-700">
+                  이 알림은 <span className="font-bold">{bcCount}명</span>에게 발송됩니다.
+                  {bcTarget === 'multi' && selected.size === 0 && (
+                    <span className="mt-1 block text-xs font-normal text-violet-600">
+                      표에서 회원을 체크하면 발송할 수 있습니다.
+                    </span>
+                  )}
+                </div>
+
+                <Button
+                  variant="primary"
+                  size="md"
+                  className="w-full"
+                  disabled={bcDisabled}
+                  onClick={submitBroadcast}
+                >
+                  <Send size={16} /> {bcSending ? '발송 중…' : '발송하기'}
+                </Button>
+              </div>
+            </div>
+          </Panel>
         </Reveal>
 
         {/* live sessions */}

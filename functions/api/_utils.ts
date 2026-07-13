@@ -323,6 +323,22 @@ export async function ensureSchema(db: D1Database) {
       created_at TEXT NOT NULL
     )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_lead_ts ON public_leads(created_at)`),
+    // 접속 통계: 방문 로그
+    db.prepare(`CREATE TABLE IF NOT EXISTS visits (
+      id TEXT PRIMARY KEY,
+      path TEXT,
+      ref TEXT,
+      ip TEXT,
+      country TEXT,
+      city TEXT,
+      ua TEXT,
+      device TEXT,
+      visitor TEXT,          -- 익명 방문자 식별(쿠키/로컬 기반)
+      user_id TEXT,
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_visit_ts ON visits(created_at)`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_visit_path ON visits(path)`),
     // 랜딩페이지 제작: 사용자가 만든 랜딩(퍼널) 페이지
     db.prepare(`CREATE TABLE IF NOT EXISTS landing_pages (
       id TEXT PRIMARY KEY,

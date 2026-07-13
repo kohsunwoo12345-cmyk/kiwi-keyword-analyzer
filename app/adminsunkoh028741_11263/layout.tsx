@@ -11,6 +11,8 @@ import {
   Shield,
   ShieldAlert,
   BadgeCheck,
+  ScrollText,
+  BarChart3,
   Menu,
   X,
   ArrowLeft,
@@ -27,6 +29,8 @@ const NAV = [
   { title: '실시간 모니터링', href: `${ADMIN_BASE}/users`, icon: Activity, exactHref: `${ADMIN_BASE}/users#live` },
   { title: '보안', href: `${ADMIN_BASE}/security`, icon: ShieldAlert },
   { title: '승인 관리', href: `${ADMIN_BASE}/approvals`, icon: BadgeCheck },
+  { title: '로그 기록', href: `${ADMIN_BASE}/logs`, icon: ScrollText },
+  { title: '접속 통계', href: `${ADMIN_BASE}/stats`, icon: BarChart3 },
   { title: '설정', href: '#', icon: Settings },
 ]
 

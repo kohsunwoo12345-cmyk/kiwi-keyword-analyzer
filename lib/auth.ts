@@ -149,6 +149,58 @@ export async function adminAction(
   return postJson('/api/admin/users', { action, id, ...extra })
 }
 
+/* ───────── 접속 통계 / 통합 로그 / 알림 발송 (관리자) ───────── */
+/** 방문 기록 (공개 비콘) */
+export async function trackVisit(path: string, ref = ''): Promise<void> {
+  try {
+    let visitor = ''
+    if (typeof localStorage !== 'undefined') {
+      visitor = localStorage.getItem('bg_visitor') || ''
+      if (!visitor) { visitor = 'vz_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('bg_visitor', visitor) }
+    }
+    await fetch('/api/visit', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify({ path, ref, visitor }) })
+  } catch { /* ignore */ }
+}
+
+export interface VisitStats {
+  ok: boolean; error?: string; days?: number
+  stats?: { totalPv: number; pv24: number; uv: number; uv24: number }
+  byDay?: { d: string; pv: number; uv: number }[]
+  byPath?: { path: string; n: number }[]
+  byCountry?: { country: string; n: number }[]
+  byDevice?: { device: string; n: number }[]
+  byHour?: { h: string; n: number }[]
+  byRef?: { ref: string; n: number }[]
+  recent?: { path: string; ip: string; country: string; device: string; ref: string; created_at: string }[]
+}
+export async function adminVisitStats(days = 14): Promise<VisitStats> {
+  try {
+    const r = await fetch(`/api/admin/visit-stats?days=${days}`, { credentials: 'include' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+
+export interface CombinedLogs {
+  ok: boolean; error?: string
+  activity?: GlobalActivityRow[]
+  audit?: AuditRow[]
+  security?: SecLog[]
+  stats?: { activity24: number; audit24: number; security24: number; threats24: number }
+}
+export async function adminLogs(kind: 'all' | 'activity' | 'audit' | 'security' = 'all', limit = 300): Promise<CombinedLogs> {
+  try {
+    const r = await fetch(`/api/admin/logs?kind=${kind}&limit=${limit}`, { credentials: 'include' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+
+/** 알림 발송: 개인/플랜/다중/전체 */
+export async function notifyBroadcast(input: {
+  target: 'user' | 'plan' | 'all' | 'multi'; userId?: string; plan?: string; userIds?: string[]; title: string; body: string; sms?: boolean
+}): Promise<{ ok: boolean; error?: string; sent?: number; smsSent?: number }> {
+  return postJson('/api/admin/notify-broadcast', input)
+}
+
 /** 관리자: 전체 사용자 활동 로그 (실시간 감시) */
 export interface GlobalActivityRow { type: string; detail: string | null; created_at: string; user_id: string; name: string | null; email: string | null }
 export async function adminActivity(limit = 200): Promise<{ ok: boolean; error?: string; activity: GlobalActivityRow[]; stats?: { events24: number; total: number } }> {
