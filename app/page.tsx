@@ -22,7 +22,6 @@ import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { HeroOrbit } from '@/components/HeroOrbit'
 import { HeroNodeStudio } from '@/components/HeroNodeStudio'
-import { StudioGate } from '@/components/StudioGate'
 import { Button, SectionTag } from '@/components/ui'
 import { Reveal, Counter, Marquee } from '@/components/motion'
 import { LogoMark } from '@/components/Brand'
@@ -105,7 +104,6 @@ const PLANS = [
 export default function Home() {
   return (
     <div className="site-dark min-h-screen overflow-x-hidden">
-      <StudioGate />
       <Navbar />
 
       {/* ===== HERO (NODE STUDIO 배경) ===== */}
