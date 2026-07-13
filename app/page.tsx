@@ -3,10 +3,21 @@ import {
   Sparkles,
   ArrowRight,
   Check,
+  X,
   Zap,
   ShieldCheck,
   TrendingUp,
   Play,
+  Copy,
+  Compass,
+  Clock,
+  Archive,
+  Flame,
+  Lock,
+  CreditCard,
+  LifeBuoy,
+  Quote,
+  Star,
 } from 'lucide-react'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
@@ -27,10 +38,50 @@ const STATS = [
 const PLATFORMS = ['NAVER', 'Meta', 'Google', 'YouTube', 'Kakao', 'Instagram', 'TikTok', 'GA4']
 
 const STEPS = [
-  { n: '01', title: '랜딩페이지로 DB 수집', desc: '노코드 빌더로 만든 랜딩페이지가 방문자를 고객 DB로 전환합니다.' },
-  { n: '02', title: '채널·광고 성과 분석', desc: '유튜브·블로그·광고 데이터를 자동 수집해 무엇이 먹히는지 파악합니다.' },
-  { n: '03', title: 'CRM으로 전환·재구매', desc: '수집된 DB를 세그먼트로 나누고 문자·알림톡으로 매출을 만듭니다.' },
-  { n: '04', title: 'AI로 콘텐츠·영상 자동화', desc: 'AI 챗봇과 영상 생성으로 소재 제작 시간을 90% 줄입니다.' },
+  { n: '01', title: '랜딩페이지로 DB 수집', desc: '개발자 없이 몇 분 만에 랜딩페이지를 띄우고, 흘려보내던 방문자를 고객 DB로 붙잡습니다.' },
+  { n: '02', title: '채널·광고 성과 분석', desc: '흩어진 채널 데이터를 자동으로 모아, 어떤 콘텐츠와 광고가 매출을 만드는지 한눈에 보여줍니다.' },
+  { n: '03', title: 'CRM으로 전환·재구매', desc: '모인 DB를 세그먼트로 나눠 알맞은 메시지를 보내고, 문자·알림톡으로 다시 매출까지 연결합니다.' },
+  { n: '04', title: 'AI로 콘텐츠·영상 자동화', desc: '반나절 걸리던 소재 제작이 프롬프트 한 줄로 끝. AI가 카피와 영상을 대신 만들어냅니다.' },
+]
+
+const PAINS = [
+  { icon: Copy, title: '도구 5개를 오가며 복붙', sting: '탭을 옮겨 다니는 사이, 경쟁사는 벌써 다음 캠페인을 올리고 있습니다.' },
+  { icon: Compass, title: '어떤 광고가 먹히는지 감으로 판단', sting: '감으로 태운 예산은, 어디서 새고 있는지조차 보이지 않습니다.' },
+  { icon: Clock, title: '콘텐츠 하나 만드는 데 반나절', sting: '소재 하나에 하루가 가고, 그렇게 또 한 주가 사라집니다.' },
+  { icon: Archive, title: '수집한 DB는 엑셀에 방치', sting: '어렵게 모은 고객 명단이 시트 안에서 잠들어 있습니다.' },
+]
+
+const CONTRAST = [
+  { before: '흩어진 도구 5개, 열린 탭 20개', after: '하나로 이어진 노드 워크스페이스' },
+  { before: '감으로 하는 예산 배분', after: '데이터로 하는 의사결정' },
+  { before: '콘텐츠 하나에 반나절', after: '프롬프트 한 줄, 3분이면 완성' },
+  { before: '엑셀에 잠든 고객 DB', after: '자동 세그먼트 · 알림톡 발송' },
+  { before: '매주 반복되는 수작업', after: '한 번 만든 자동화가 계속 실행' },
+]
+
+const VOICES = [
+  {
+    quote: '클라이언트 다섯 곳의 채널을 탭 스무 개로 관리하던 시절이 있었죠. 지금은 대시보드 하나면 끝입니다. 월간 보고서 만드는 시간이 절반으로 줄었어요.',
+    name: '김대표',
+    role: '마케팅 대행사 대표',
+  },
+  {
+    quote: '가설을 세우고 검증하는 사이클이 눈에 띄게 빨라졌습니다. 어떤 소재가 먹히는지 숫자로 보이니, 예산 배분을 두고 회의할 일이 사라졌어요.',
+    name: '이리드',
+    role: '스타트업 그로스 리드',
+  },
+  {
+    quote: '마케팅은 남의 일이라 생각했는데, 랜딩페이지 만들고 단골에게 알림톡 보내는 걸 이제 제가 직접 합니다. 재방문 손님이 확실히 늘었어요.',
+    name: '박사장',
+    role: '동네 카페 운영',
+  },
+]
+
+const TRUST = [
+  { icon: Lock, label: '데이터 암호화 저장' },
+  { icon: ShieldCheck, label: '개인정보 규정 준수' },
+  { icon: CreditCard, label: '국내 카드·간편결제' },
+  { icon: LifeBuoy, label: '한국어 지원팀' },
 ]
 
 const PLANS = [
@@ -160,6 +211,45 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ===== PAIN / AGITATION ===== */}
+      <section className="relative border-t border-[var(--border)] py-24">
+        <div className="mx-auto max-w-6xl px-5">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <SectionTag>솔직히, 지금 이렇지 않나요?</SectionTag>
+            <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
+              이런 마케팅, <span className="text-rose-500">아직도</span> 하고 계신가요?
+            </h2>
+            <p className="mt-5 text-balance text-lg text-[var(--text-soft)]">
+              문제는 당신의 실력이 아닙니다. 도구가 흩어져 있을 뿐입니다.
+            </p>
+          </Reveal>
+
+          <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {PAINS.map((p, i) => {
+              const Icon = p.icon
+              return (
+                <Reveal key={p.title} delay={(i % 4) * 90}>
+                  <div className="card hover-lift h-full p-6">
+                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-rose-50 text-rose-500">
+                      <Icon size={20} />
+                    </span>
+                    <h3 className="mt-4 font-semibold leading-snug">{p.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-[var(--text-soft)]">{p.sting}</p>
+                  </div>
+                </Reveal>
+              )
+            })}
+          </div>
+
+          <Reveal delay={120} className="mx-auto mt-12 max-w-2xl text-center">
+            <p className="text-balance text-lg font-medium text-[var(--text)]">
+              흩어진 이 모든 일을 하나의 흐름으로 잇는 방법이 있습니다.
+              <br className="hidden sm:block" /> 그게 <span className="brand-text font-bold">BYGENCY</span>입니다.
+            </p>
+          </Reveal>
+        </div>
+      </section>
+
       {/* ===== FEATURES ===== */}
       <section id="features" className="relative py-24">
         <div className="mx-auto max-w-7xl px-5">
@@ -169,7 +259,7 @@ export default function Home() {
               하나의 플랫폼, <span className="brand-text">완결된 마케팅</span>
             </h2>
             <p className="mt-5 text-balance text-lg text-[var(--text-soft)]">
-              수집부터 분석, 실행, 자동화까지. 마케팅 퍼널의 전 과정을 BYGENCY가 커버합니다.
+              랜딩페이지 제작부터 광고 분석, 고객 전환, 영상 자동화까지 — 흩어져 있던 7개의 일이 한 화면에서 끝납니다.
             </p>
           </Reveal>
 
@@ -264,6 +354,146 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ===== BEFORE / AFTER ===== */}
+      <section className="relative py-24">
+        <div className="mx-auto max-w-5xl px-5">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <SectionTag>무엇이 달라지나</SectionTag>
+            <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
+              BYGENCY <span className="text-rose-400">없이</span> vs BYGENCY<span className="brand-text">와 함께</span>
+            </h2>
+            <p className="mt-5 text-balance text-lg text-[var(--text-soft)]">
+              같은 하루, 같은 팀. 도구 하나가 결과를 이렇게 바꿉니다.
+            </p>
+          </Reveal>
+
+          <div className="mt-14 grid items-stretch gap-5 md:grid-cols-2">
+            <Reveal variant="left">
+              <div className="flex h-full flex-col rounded-2xl border border-rose-100 bg-rose-50/50 p-7">
+                <div className="mb-6 flex items-center gap-2.5">
+                  <span className="grid h-9 w-9 place-items-center rounded-lg bg-rose-100 text-rose-500">
+                    <X size={18} />
+                  </span>
+                  <span className="font-semibold text-rose-600">BYGENCY 없이</span>
+                </div>
+                <ul className="space-y-4">
+                  {CONTRAST.map((c) => (
+                    <li key={c.before} className="flex items-start gap-2.5 text-sm">
+                      <X size={17} className="mt-0.5 flex-shrink-0 text-rose-400" />
+                      <span className="text-[var(--text-soft)] line-through decoration-rose-200">{c.before}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Reveal>
+
+            <Reveal variant="right">
+              <div className="flex h-full flex-col rounded-2xl border border-violet-200 bg-gradient-to-b from-violet-50 to-white p-7 shadow-lg shadow-violet-200/40">
+                <div className="mb-6 flex items-center gap-2.5">
+                  <span className="grid h-9 w-9 place-items-center rounded-lg brand-gradient text-white">
+                    <Check size={18} />
+                  </span>
+                  <span className="font-semibold"><span className="brand-text">BYGENCY</span>와 함께</span>
+                </div>
+                <ul className="space-y-4">
+                  {CONTRAST.map((c) => (
+                    <li key={c.after} className="flex items-start gap-2.5 text-sm">
+                      <Check size={17} className="mt-0.5 flex-shrink-0 text-violet-600" />
+                      <span className="font-medium text-[var(--text)]">{c.after}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== URGENCY / COGNITIVE-DISSONANCE BAND ===== */}
+      <section className="relative overflow-hidden bg-[#070b16] py-24 text-white">
+        <div className="animate-drift pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[720px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-700/20 blur-[150px]" />
+        <div className="relative mx-auto max-w-3xl px-5 text-center">
+          <Reveal>
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-rose-200 backdrop-blur">
+              <Flame size={14} /> 격차는 지금도 벌어지고 있습니다
+            </span>
+            <h2 className="mt-6 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
+              지금 시작해야 하는 이유
+            </h2>
+            <p className="mx-auto mt-6 max-w-2xl text-balance text-lg leading-relaxed text-slate-200">
+              경쟁사는 이미 AI로 하루에 수십 개의 콘텐츠를 만들고, 데이터로 예산을 배분합니다.
+              그 격차는 오늘도 조용히, 그러나 확실히 벌어지고 있습니다.
+            </p>
+            <p className="mx-auto mt-4 max-w-xl text-balance text-slate-400">
+              따라잡는 비용은 미룰수록 커집니다. 가장 저렴한 출발선은 언제나 &lsquo;오늘&rsquo;입니다.
+            </p>
+            <div className="mt-9 flex justify-center">
+              <Button href="/signup" size="lg" className="group">
+                지금 무료로 시작하기
+                <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
+              </Button>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ===== SOCIAL PROOF / TRUST ===== */}
+      <section className="py-24">
+        <div className="mx-auto max-w-6xl px-5">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <SectionTag>사용자 이야기</SectionTag>
+            <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
+              도구를 바꾸자, <span className="brand-text">일하는 방식</span>이 바뀌었습니다
+            </h2>
+          </Reveal>
+
+          <div className="mt-14 grid gap-5 lg:grid-cols-3">
+            {VOICES.map((v, i) => (
+              <Reveal key={v.name} delay={i * 100}>
+                <div className="card hover-lift flex h-full flex-col p-7">
+                  <Quote size={26} className="text-violet-300" />
+                  <div className="mt-3 flex gap-0.5 text-amber-400">
+                    {Array.from({ length: 5 }).map((_, s) => (
+                      <Star key={s} size={15} className="fill-current" />
+                    ))}
+                  </div>
+                  <p className="mt-4 flex-1 leading-relaxed text-[var(--text-soft)]">&ldquo;{v.quote}&rdquo;</p>
+                  <div className="mt-6 flex items-center gap-3 border-t border-[var(--border)] pt-5">
+                    <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full brand-gradient text-sm font-bold text-white">
+                      {v.name.charAt(0)}
+                    </span>
+                    <div>
+                      <div className="text-sm font-semibold">{v.name}</div>
+                      <div className="text-xs text-[var(--text-dim)]">{v.role}</div>
+                    </div>
+                  </div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+
+          <Reveal delay={100}>
+            <div className="mt-12 grid gap-4 rounded-2xl border border-[var(--border)] bg-white p-6 sm:grid-cols-2 lg:grid-cols-4">
+              {TRUST.map((t) => {
+                const Icon = t.icon
+                return (
+                  <div key={t.label} className="flex items-center justify-center gap-2.5 text-sm font-medium text-[var(--text-soft)]">
+                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg bg-violet-50 text-violet-600">
+                      <Icon size={17} />
+                    </span>
+                    {t.label}
+                  </div>
+                )
+              })}
+            </div>
+          </Reveal>
+
+          <p className="mt-5 text-center text-xs text-[var(--text-dim)]">
+            * 위 후기는 서비스 활용 방식을 보여주기 위한 직무 페르소나 예시입니다.
+          </p>
+        </div>
+      </section>
+
       {/* ===== PRICING ===== */}
       <section id="pricing" className="py-24">
         <div className="mx-auto max-w-7xl px-5">
@@ -331,7 +561,8 @@ export default function Home() {
                 지금 바로 BYGENCY를 시작하세요
               </h2>
               <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-white/85">
-                흩어진 마케팅 도구는 이제 그만. 하나의 플랫폼에서 수집하고 분석하고 성장하세요.
+                탭 20개, 도구 5개, 매주 반복되던 수작업. 오늘부로 정리하세요.
+                신용카드 없이, 3분이면 첫 워크스페이스가 열립니다.
               </p>
               <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Button href="/signup" size="lg" className="!bg-white !text-violet-700 hover:!bg-violet-50 hover:!brightness-100">

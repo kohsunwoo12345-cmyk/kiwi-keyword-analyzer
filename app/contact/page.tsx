@@ -87,10 +87,11 @@ export default function ContactPage() {
             <SectionTag>문의</SectionTag>
           </div>
           <h1 className="mt-6 text-balance text-4xl font-bold leading-[1.1] tracking-tight animate-fade-up delay-100 sm:text-5xl md:text-6xl">
-            무엇을 도와드릴까요?
+            혼자 고민하지 말고, 물어보세요
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-balance text-lg leading-relaxed text-[var(--text-soft)] animate-fade-up delay-200">
-            도입 상담, 요금제, 기능 문의까지. 남겨주시면 담당자가 빠르게 연락드리겠습니다.
+            우리 팀에 맞을지, 어떤 플랜이 좋을지 혼자 재보느라 시간을 흘려보내지 마세요. 상황만
+            남겨주시면 담당자가 직접 확인하고, 꼭 필요한 답만 정리해 연락드리겠습니다.
           </p>
         </div>
       </section>
@@ -104,6 +105,9 @@ export default function ContactPage() {
               <div className="flex h-full flex-col gap-6">
                 <div className="card p-7">
                   <h2 className="text-lg font-semibold">연락처 안내</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--text-soft)]">
+                    영업 시간 내 접수된 문의는 담당자가 직접 확인합니다. 편한 채널로 연락 주세요.
+                  </p>
                   <ul className="mt-5 space-y-4">
                     {CONTACT_INFO.map((c) => {
                       const Icon = c.icon
@@ -166,7 +170,8 @@ export default function ContactPage() {
                     </span>
                     <h2 className="mt-6 text-xl font-bold tracking-tight">문의가 접수되었습니다</h2>
                     <p className="mt-3 max-w-sm text-[15px] leading-relaxed text-[var(--text-soft)]">
-                      빠르게 연락드리겠습니다. 소중한 문의 감사합니다.
+                      담당자가 내용을 확인하고 영업일 기준으로 순차 연락드립니다. 먼저 시작해 보고
+                      싶다면, 기다리는 동안 무료로 둘러보셔도 좋습니다.
                     </p>
                     <button
                       onClick={() => setDone(false)}

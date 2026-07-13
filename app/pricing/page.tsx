@@ -27,7 +27,7 @@ const PLANS = [
     name: 'Starter',
     price: '무료',
     period: '',
-    desc: '개인 마케터의 시작',
+    desc: '부담 없이 첫 성과를 확인하는 단계',
     features: ['랜딩페이지 1개', '월 500 DB 수집', '유튜브·블로그 분석', '기본 리포트'],
     cta: '무료로 시작',
     href: '/signup',
@@ -37,7 +37,7 @@ const PLANS = [
     name: 'Pro',
     price: '₩89,000',
     period: '/월',
-    desc: '성장하는 팀',
+    desc: '흩어진 도구를 정리하고 성과에 집중하는 팀',
     features: [
       '랜딩페이지 무제한',
       '월 30,000 DB 수집',
@@ -54,7 +54,7 @@ const PLANS = [
     name: 'Business',
     price: '문의',
     period: '',
-    desc: '대행사·엔터프라이즈',
+    desc: '규모에 맞춘 무제한과 전담 지원',
     features: ['모든 Pro 기능', 'DB 수집 무제한', 'AI 영상 제작 무제한', '전담 매니저', 'API·화이트라벨'],
     cta: '도입 문의',
     href: '/contact',
@@ -74,23 +74,31 @@ const CREDITS = [
 const FAQS = [
   {
     q: '무료 체험은 어떻게 시작하나요?',
-    a: 'Starter 플랜은 신용카드 없이 바로 시작할 수 있습니다. 회원가입 후 랜딩페이지 1개와 월 500건의 DB 수집, 유튜브·블로그 분석 기능을 무료로 사용하실 수 있습니다.',
+    a: 'Starter 플랜은 신용카드 등록 없이 회원가입만으로 바로 시작합니다. 랜딩페이지 1개, 월 500건의 DB 수집, 유튜브·블로그 분석을 기간 제한 없이 무료로 써 보시고, 실제 성과가 눈에 보일 때 업그레이드를 결정하시면 됩니다.',
   },
   {
-    q: '언제든지 해지할 수 있나요?',
-    a: '네, 약정 없이 언제든 해지 가능합니다. 해지 시 다음 결제일부터 요금이 청구되지 않으며, 이미 결제한 기간 동안은 정상적으로 서비스를 이용하실 수 있습니다.',
+    q: '약정이 있나요? 해지하면 손해 보지 않나요?',
+    a: '약정도, 위약금도 없습니다. 언제든 마이페이지에서 클릭 한 번으로 해지할 수 있고, 해지하면 다음 결제일부터 청구가 멈춥니다. 이미 결제한 기간은 끝까지 정상 이용되니 남은 날짜를 잃을 걱정은 하지 않으셔도 됩니다.',
+  },
+  {
+    q: '결제한 뒤 마음에 들지 않으면 환불되나요?',
+    a: '결제 후 서비스를 실제로 사용하지 않으셨다면 관련 법령과 환불 정책에 따라 환불을 도와드립니다. 사용 중 불편한 점이 있으면 해지 전에 먼저 알려주세요. 대부분의 문제는 담당자 상담으로 더 빠르게 해결됩니다.',
+  },
+  {
+    q: '플랜은 나중에 바꿀 수 있나요? 지금 결정이 부담됩니다.',
+    a: '지금의 선택이 끝이 아닙니다. 팀이 커지거나 수집량이 늘면 상위 플랜으로 즉시 업그레이드하고, 반대로 줄일 수도 있습니다. 작게 시작해 성과를 확인한 뒤 규모를 키우는 것이 가장 합리적인 방법입니다.',
   },
   {
     q: '크레딧은 무엇이고 어떻게 충전하나요?',
-    a: 'AI 영상 제작, 랜딩페이지·블로그 생성 등 일부 AI 기능은 크레딧으로 사용됩니다. 크레딧은 요금제와 별도로 충전하며, 충전 신청 후 관리자 승인 시 즉시 적립됩니다.',
+    a: 'AI 영상 제작, 랜딩페이지·블로그 생성처럼 연산이 많이 드는 기능만 크레딧으로 차감됩니다. 분석·조회 대부분은 1크레딧으로 충분해 부담이 적습니다. 크레딧은 요금제와 별도로 필요할 때만 충전하며, 신청 후 관리자 승인 시 즉시 적립됩니다.',
   },
   {
-    q: '결제 수단은 무엇을 지원하나요?',
-    a: '주요 신용·체크카드와 계좌이체를 지원합니다. Business 플랜은 세금계산서 발행 및 별도 계약이 가능하니 도입 문의로 연락 주세요.',
+    q: '결제 수단과 세금계산서는 어떻게 되나요?',
+    a: '주요 신용·체크카드와 계좌이체를 지원합니다. Business 플랜은 세금계산서 발행과 별도 계약이 가능하니 도입 문의로 연락 주시면 조건을 맞춰 안내해 드립니다.',
   },
   {
-    q: '플랜은 나중에 변경할 수 있나요?',
-    a: '언제든 상위 플랜으로 업그레이드하거나 하위 플랜으로 변경할 수 있습니다. 업그레이드는 즉시 적용되며, 팀 규모나 수집량이 늘어나는 시점에 맞춰 자유롭게 조정하세요.',
+    q: '수집한 고객 데이터는 안전한가요?',
+    a: '고객 DB는 암호화되어 저장되며, 계정 권한이 있는 담당자만 접근할 수 있습니다. 수집한 데이터의 소유권은 전적으로 고객사에 있으며, 해지 시 데이터 이관과 삭제 절차를 함께 안내해 드립니다.',
   },
 ]
 
@@ -143,10 +151,11 @@ export default function PricingPage() {
             <SectionTag>요금제</SectionTag>
           </div>
           <h1 className="mt-6 text-balance text-4xl font-bold leading-[1.1] tracking-tight animate-fade-up delay-100 sm:text-5xl md:text-6xl">
-            규모에 맞게 <span className="brand-text animate-gradient">성장</span>하세요
+            딱 필요한 만큼만 <span className="brand-text animate-gradient">쓰고</span> 성장하세요
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-balance text-lg leading-relaxed text-[var(--text-soft)] animate-fade-up delay-200">
-            무료로 시작하고 필요할 때 업그레이드하세요. 약정 없이 언제든 해지할 수 있습니다.
+            여러 마케팅 도구에 매달 나가는 구독료, 정말 다 쓰고 계신가요? BYGENCY 하나로 합치면
+            비용은 줄고 성과는 한곳에 모입니다. 무료로 시작해 필요할 때 올리고, 약정 없이 언제든 내려도 됩니다.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-[var(--text-dim)] animate-fade-up delay-300">
             {['신용카드 불필요', '3분 만에 세팅', '언제든 해지'].map((t) => (
@@ -202,6 +211,17 @@ export default function PricingPage() {
               </Reveal>
             ))}
           </div>
+
+          <Reveal className="mx-auto mt-8 max-w-3xl">
+            <div className="flex items-start gap-3 rounded-2xl border border-violet-100 bg-violet-50/60 p-5 text-sm leading-relaxed text-[var(--text-soft)]">
+              <Sparkles size={18} className="mt-0.5 flex-shrink-0 text-violet-600" />
+              <p>
+                <span className="font-semibold text-[var(--text)]">도구 5개 구독료 vs BYGENCY 하나.</span>{' '}
+                랜딩페이지, 분석, CRM, 광고, 영상 도구를 따로 결제하면 매달 수십만 원이 흩어집니다.
+                한곳에 모으면 비용은 줄고, 데이터가 끊기지 않아 성과는 오히려 선명해집니다.
+              </p>
+            </div>
+          </Reveal>
         </div>
       </section>
 
@@ -213,11 +233,12 @@ export default function PricingPage() {
               <Sparkles size={13} /> 크레딧 안내
             </SectionTag>
             <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-              AI 기능은 <span className="brand-text">크레딧</span>으로 사용해요
+              쓴 만큼만 내는 <span className="brand-text">크레딧</span> 방식
             </h2>
             <p className="mt-5 text-balance text-[var(--text-soft)]">
-              영상·콘텐츠 생성 등 AI 기능은 사용할 때마다 크레딧이 차감됩니다. 크레딧은 요금제와 별도로
-              충전하며, 충전 신청 시 관리자 승인 후 즉시 적립됩니다.
+              왜 크레딧일까요? 매달 큰 금액을 미리 결제하고 절반도 못 쓰는 대신, AI 연산이 필요한
+              순간에만 딱 그만큼 차감되기 때문입니다. 안 쓰면 남고, 필요할 때만 채우니 낭비가 없습니다.
+              충전은 요금제와 별도이며, 신청 후 관리자 승인 시 즉시 적립됩니다.
             </p>
           </Reveal>
 
@@ -266,7 +287,7 @@ export default function PricingPage() {
           <Reveal className="text-center">
             <SectionTag>자주 묻는 질문</SectionTag>
             <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-              궁금한 점을 확인하세요
+              결정 전에 남은 궁금증, 여기서 풀고 가세요
             </h2>
           </Reveal>
           <div className="mt-12 space-y-3">
@@ -302,10 +323,10 @@ export default function PricingPage() {
                 </span>
               </div>
               <h2 className="text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                오늘, 무료로 시작해보세요
+                고민하는 지금도 비용은 흩어지고 있습니다
               </h2>
               <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-white/85">
-                신용카드 없이 3분이면 세팅 완료. 필요할 때 언제든 업그레이드하세요.
+                신용카드 없이 3분이면 세팅 완료. 오늘 무료로 시작해 흩어진 도구를 하나로 모으세요.
               </p>
               <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Button

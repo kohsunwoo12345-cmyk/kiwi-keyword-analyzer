@@ -29,25 +29,25 @@ const VALUES = [
   {
     icon: Database,
     title: '데이터 기반',
-    desc: '감이 아닌 숫자로 결정합니다. 모든 채널의 성과를 한 화면에서 투명하게 봅니다.',
+    desc: '"느낌상 잘 되는 것 같다"로는 다음을 결정할 수 없습니다. 모든 채널의 성과를 한 화면의 숫자로 투명하게 봅니다.',
     color: 'from-violet-500 to-indigo-600',
   },
   {
     icon: Workflow,
     title: '자동화',
-    desc: '반복되는 마케팅 업무를 자동으로. 사람은 전략에, 시스템은 실행에 집중합니다.',
+    desc: '반복 작업에 하루를 쓰는 건 사람의 일이 아닙니다. 실행은 시스템에 맡기고, 사람은 전략과 판단에 집중합니다.',
     color: 'from-indigo-500 to-blue-600',
   },
   {
     icon: LayoutGrid,
     title: '올인원',
-    desc: '수집·분석·CRM·콘텐츠까지 하나의 워크스페이스. 도구를 옮겨 다닐 필요가 없습니다.',
+    desc: '도구를 옮겨 다닐 때마다 데이터도 맥락도 끊깁니다. 수집·분석·CRM·콘텐츠를 하나의 워크스페이스로 이어 붙입니다.',
     color: 'from-fuchsia-500 to-violet-600',
   },
   {
     icon: HeartHandshake,
     title: '고객 성공',
-    desc: '우리의 성공은 고객의 성장입니다. 도입 이후의 성과까지 함께 책임집니다.',
+    desc: '기능을 파는 것으로 끝나지 않습니다. 우리의 성공은 고객의 성장이기에, 도입 이후의 성과까지 함께 봅니다.',
     color: 'from-cyan-500 to-teal-600',
   },
 ]
@@ -80,8 +80,9 @@ export default function AboutPage() {
             마케팅의 모든 것을 <span className="brand-text animate-gradient">하나로</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-balance text-lg leading-relaxed text-[var(--text-soft)] animate-fade-up delay-200">
-            흩어진 마케팅 도구 때문에 낭비되는 시간을 없애기 위해 BYGENCY를 만듭니다. 수집부터
-            분석, 전환, 자동화까지 마케터의 하루를 하나의 워크스페이스로 연결합니다.
+            탭을 열 개씩 띄우고, 도구 사이를 오가며 데이터를 옮겨 붙이는 하루. 정작 성과를 고민할
+            시간은 남지 않습니다. BYGENCY는 그 낭비를 없애기 위해 시작됐습니다. 수집부터 분석,
+            전환, 자동화까지 마케터의 하루를 하나의 워크스페이스로 연결합니다.
           </p>
         </div>
       </section>
@@ -118,9 +119,9 @@ export default function AboutPage() {
                 </span>
                 <h2 className="relative mt-6 text-2xl font-bold tracking-tight">우리의 미션</h2>
                 <p className="relative mt-4 text-[15px] leading-relaxed text-[var(--text-soft)]">
-                  마케터가 도구가 아닌 성과에 집중하도록 돕는 것. 우리는 데이터 수집, 채널 분석,
-                  고객 관리, 콘텐츠 제작으로 흩어져 있던 일들을 하나로 모아 누구나 데이터 기반으로
-                  성장할 수 있는 환경을 만듭니다.
+                  마케터의 에너지는 도구를 다루는 데가 아니라, 성과를 만드는 데 쓰여야 합니다.
+                  우리는 수집·분석·고객관리·콘텐츠 제작으로 흩어져 있던 일을 하나로 모아, 규모나
+                  예산에 상관없이 누구나 데이터를 근거로 결정하고 성장할 수 있는 환경을 만듭니다.
                 </p>
               </div>
             </Reveal>
@@ -132,9 +133,9 @@ export default function AboutPage() {
                 </span>
                 <h2 className="relative mt-6 text-2xl font-bold tracking-tight">우리의 비전</h2>
                 <p className="relative mt-4 text-[15px] leading-relaxed text-[var(--text-soft)]">
-                  모든 규모의 비즈니스가 대행사 없이도 전문적인 마케팅을 실행할 수 있는 세상. AI와
-                  자동화로 마케팅의 진입 장벽을 낮추고, 좋은 제품이 더 많은 고객을 만나도록 돕는
-                  올인원 그로스 플랫폼이 되겠습니다.
+                  좋은 제품을 만들고도 알리는 방법을 몰라 묻히는 일이 없어야 합니다. 우리는 AI와
+                  자동화로 전문 마케팅의 진입 장벽을 낮춰, 1인 창업가부터 대행사까지 누구나 전문가
+                  수준으로 실행할 수 있는 올인원 그로스 플랫폼을 지향합니다.
                 </p>
               </div>
             </Reveal>
@@ -182,7 +183,8 @@ export default function AboutPage() {
                 (주)Next Vision Company
               </h2>
               <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
-                BYGENCY는 (주)Next Vision Company가 만드는 올인원 마케팅 그로스 플랫폼입니다.
+                BYGENCY는 (주)Next Vision Company가 직접 만들고 운영하는 올인원 마케팅 그로스
+                플랫폼입니다. 화면 속 편의만이 아니라, 문의 하나에 응답하는 태도까지 우리가 책임집니다.
                 자세한 사업 관련 정보는 문의를 통해 안내해 드립니다.
               </p>
               <Button href="/contact" className="mt-7 group">
@@ -232,10 +234,11 @@ export default function AboutPage() {
                 </span>
               </div>
               <h2 className="text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                함께 성장할 준비가 되셨나요?
+                더 나은 도구를 찾는 일은 오늘로 끝내세요
               </h2>
               <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-white/85">
-                BYGENCY와 함께 마케팅의 모든 것을 하나로 연결하세요.
+                흩어진 도구를 전전하는 대신, 하나로 모아 성과에 집중할 시간입니다. 우리는 그 여정을
+                끝까지 함께합니다.
               </p>
               <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Button
