@@ -21,8 +21,8 @@ import { sendContact } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 const CONTACT_INFO = [
-  { icon: Mail, label: '이메일', value: 'contact@bygency.com' },
-  { icon: Phone, label: '전화', value: '문의 시 안내' },
+  { icon: Mail, label: '비즈니스 문의', value: 'biz@bygency.co', href: 'mailto:biz@bygency.co' },
+  { icon: Mail, label: '공식 문의 메일', value: 'cs@bygency.co', href: 'mailto:cs@bygency.co' },
   { icon: Clock, label: '운영 시간', value: '평일 10:00 - 18:00' },
   { icon: Building2, label: '운영사', value: '(주)Next Vision Company' },
 ]
@@ -114,7 +114,13 @@ export default function ContactPage() {
                           </span>
                           <div>
                             <p className="text-xs text-[var(--text-dim)]">{c.label}</p>
-                            <p className="text-sm font-medium">{c.value}</p>
+                            {'href' in c && c.href ? (
+                              <a href={c.href} className="text-sm font-medium text-violet-700 hover:underline">
+                                {c.value}
+                              </a>
+                            ) : (
+                              <p className="text-sm font-medium">{c.value}</p>
+                            )}
                           </div>
                         </li>
                       )

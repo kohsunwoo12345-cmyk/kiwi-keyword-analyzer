@@ -13,6 +13,20 @@ export function Footer() {
               DB수집부터 콘텐츠 분석, 광고 최적화, AI 영상 제작까지. 마케터를 위한 올인원 그로스
               플랫폼, BYGENCY.
             </p>
+            <ul className="mt-5 space-y-1.5 text-sm">
+              <li className="flex items-center gap-2 text-[var(--text-soft)]">
+                <span className="text-[var(--text-dim)]">비즈니스 문의</span>
+                <a href="mailto:biz@bygency.co" className="font-medium text-violet-600 hover:underline">
+                  biz@bygency.co
+                </a>
+              </li>
+              <li className="flex items-center gap-2 text-[var(--text-soft)]">
+                <span className="text-[var(--text-dim)]">공식 문의 메일</span>
+                <a href="mailto:cs@bygency.co" className="font-medium text-violet-600 hover:underline">
+                  cs@bygency.co
+                </a>
+              </li>
+            </ul>
           </div>
 
           <div>
