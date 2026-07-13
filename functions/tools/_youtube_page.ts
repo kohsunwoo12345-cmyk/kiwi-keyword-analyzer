@@ -91,8 +91,7 @@ export const youtubeUnifiedPage = `<!DOCTYPE html>
       .hamburger{display:flex;}
     }
     /* embed mode: hide internal sidebar when rendered inside dashboard iframe */
-    .embed .sidebar{display:none!important;}
-    .embed .main-area{margin-left:0!important;}
+    .embed .sidebar,.embed .hamburger{display:none!important;} .embed .main-area{margin-left:0!important;width:100%!important;}
   </style>
 </head>
 <body>

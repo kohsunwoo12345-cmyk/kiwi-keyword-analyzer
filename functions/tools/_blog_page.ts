@@ -29,7 +29,7 @@ export const blogAnalysisPage = `<!DOCTYPE html>
     .morpheme-bar{height:6px;border-radius:3px;background:#3b82f6;transition:width .4s;}
     @keyframes spin{to{transform:rotate(360deg)}}
     .loading-spin{animation:spin 1s linear infinite;display:inline-block;}
-  .embed .sidebar{display:none!important}.embed .main-area{margin-left:0!important}.embed header{display:none!important}
+  .embed .sidebar,.embed .hamburger{display:none!important} .embed .main-area{margin-left:0!important;width:100%!important}.embed header{display:none!important}
   </style>
 </head>
 <body>
