@@ -28,7 +28,7 @@ const CONTACT_INFO = [
 ]
 
 const inputCls =
-  'w-full rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--text-dim)] transition-colors focus:border-violet-400 focus:outline-none focus:ring-4 focus:ring-violet-100'
+  'w-full rounded-xl border border-white/12 bg-white/[0.04] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--text-dim)] transition-colors focus:border-violet-400/70 focus:outline-none focus:ring-4 focus:ring-violet-500/15'
 
 export default function ContactPage() {
   const [name, setName] = useState('')
@@ -72,14 +72,14 @@ export default function ContactPage() {
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[var(--bg)]">
+    <div className="site-dark min-h-screen overflow-x-hidden">
       <Navbar />
 
       {/* ===== HERO ===== */}
       <section className="relative overflow-hidden pt-36 pb-16">
-        <div className="absolute inset-0 grid-bg opacity-60" />
-        <div className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[440px] w-[800px] -translate-x-1/2 rounded-full bg-violet-300/40 blur-[130px]" />
-        <div className="animate-drift-slow pointer-events-none absolute top-24 right-0 h-[260px] w-[360px] rounded-full bg-cyan-200/50 blur-[120px]" />
+        <div className="absolute inset-0 grid-bg opacity-30" />
+        <div className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[440px] w-[800px] -translate-x-1/2 rounded-full bg-violet-700/30 blur-[130px]" />
+        <div className="animate-drift-slow pointer-events-none absolute top-24 right-0 h-[260px] w-[360px] rounded-full bg-cyan-700/25 blur-[120px]" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent to-[var(--bg)]" />
 
         <div className="relative mx-auto max-w-3xl px-5 text-center">
@@ -113,13 +113,13 @@ export default function ContactPage() {
                       const Icon = c.icon
                       return (
                         <li key={c.label} className="flex items-center gap-3.5">
-                          <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-600">
+                          <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-violet-500/12 text-violet-300">
                             <Icon size={18} />
                           </span>
                           <div>
                             <p className="text-xs text-[var(--text-dim)]">{c.label}</p>
                             {'href' in c && c.href ? (
-                              <a href={c.href} className="text-sm font-medium text-violet-700 hover:underline">
+                              <a href={c.href} className="text-sm font-medium text-violet-300 hover:text-violet-200 hover:underline">
                                 {c.value}
                               </a>
                             ) : (
@@ -137,7 +137,7 @@ export default function ContactPage() {
                   <div className="mt-4 space-y-2.5">
                     <Link
                       href="/pricing"
-                      className="group flex items-center justify-between rounded-xl border border-[var(--border)] px-4 py-3 text-sm font-medium transition-colors hover:border-violet-300 hover:bg-violet-50/50"
+                      className="group flex items-center justify-between rounded-xl border border-white/12 px-4 py-3 text-sm font-medium transition-colors hover:border-violet-400/50 hover:bg-white/[0.04]"
                     >
                       요금제 안내 보기
                       <ArrowRight
@@ -147,7 +147,7 @@ export default function ContactPage() {
                     </Link>
                     <Link
                       href="/features/video"
-                      className="group flex items-center justify-between rounded-xl border border-[var(--border)] px-4 py-3 text-sm font-medium transition-colors hover:border-violet-300 hover:bg-violet-50/50"
+                      className="group flex items-center justify-between rounded-xl border border-white/12 px-4 py-3 text-sm font-medium transition-colors hover:border-violet-400/50 hover:bg-white/[0.04]"
                     >
                       기능 둘러보기
                       <ArrowRight
@@ -165,7 +165,7 @@ export default function ContactPage() {
               <div className="card glow p-7 sm:p-9">
                 {done ? (
                   <div className="flex min-h-[420px] flex-col items-center justify-center text-center">
-                    <span className="grid h-16 w-16 place-items-center rounded-2xl bg-emerald-50 text-emerald-500">
+                    <span className="grid h-16 w-16 place-items-center rounded-2xl bg-emerald-500/12 text-emerald-400">
                       <CheckCircle2 size={36} />
                     </span>
                     <h2 className="mt-6 text-xl font-bold tracking-tight">문의가 접수되었습니다</h2>
@@ -175,7 +175,7 @@ export default function ContactPage() {
                     </p>
                     <button
                       onClick={() => setDone(false)}
-                      className="mt-8 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-5 py-2.5 text-sm font-semibold transition-colors hover:border-violet-300 hover:bg-violet-50/50"
+                      className="mt-8 inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold transition-colors hover:border-violet-400/50 hover:bg-white/[0.08]"
                     >
                       새 문의 작성하기
                     </button>
@@ -244,7 +244,7 @@ export default function ContactPage() {
                     </div>
 
                     {error && (
-                      <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+                      <div className="flex items-center gap-2 rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
                         <AlertCircle size={16} className="flex-shrink-0" />
                         {error}
                       </div>

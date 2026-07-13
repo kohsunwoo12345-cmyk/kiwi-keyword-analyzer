@@ -195,8 +195,8 @@ function FaqItem({ q, a }: { q: string; a: string }) {
         <span className="font-semibold">{q}</span>
         <span
           className={cn(
-            'grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg text-violet-600 transition-colors',
-            open ? 'bg-violet-100' : 'bg-violet-50',
+            'grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg text-violet-300 transition-colors',
+            open ? 'bg-violet-500/20' : 'bg-violet-500/10',
           )}
         >
           {open ? <Minus size={16} /> : <Plus size={16} />}
@@ -221,14 +221,14 @@ function PlanCard({ p, i }: { p: Tier; i: number }) {
     <Reveal delay={i * 100} className={p.highlight ? 'lg:-mt-4' : ''}>
       <div
         className={cn(
-          'relative flex h-full flex-col rounded-2xl border p-8 transition-all duration-300 hover:-translate-y-1',
+          'relative flex h-full flex-col rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1',
           p.highlight
-            ? 'border-violet-300 bg-gradient-to-b from-violet-50 to-white shadow-lg shadow-violet-200/50'
-            : 'border-[var(--border)] bg-white shadow-sm hover:shadow-md',
+            ? 'hairline shadow-[0_40px_90px_-40px_rgba(124,58,237,0.6)]'
+            : 'border border-white/10 bg-white/[0.02] hover:border-white/20',
         )}
       >
         {p.highlight && (
-          <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full brand-gradient px-3 py-1 text-xs font-semibold text-white shadow">
+          <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full brand-gradient px-3 py-1 text-xs font-semibold text-white shadow-lg shadow-violet-500/40">
             인기
           </span>
         )}
@@ -241,7 +241,7 @@ function PlanCard({ p, i }: { p: Tier; i: number }) {
         <ul className="mt-6 flex-1 space-y-3">
           {p.features.map((f) => (
             <li key={f} className="flex items-start gap-2.5 text-sm">
-              <Check size={17} className="mt-0.5 flex-shrink-0 text-violet-600" />
+              <Check size={17} className="mt-0.5 flex-shrink-0 text-violet-300" />
               <span className="text-[var(--text-soft)]">{f}</span>
             </li>
           ))}
@@ -277,7 +277,7 @@ function TrackSection({
     <div>
       <Reveal className="mx-auto max-w-2xl text-center">
         <div className="flex justify-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-violet-100 bg-violet-50/70 px-4 py-1.5 text-sm font-semibold text-violet-700">
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.06] px-4 py-1.5 text-sm font-semibold text-violet-200 backdrop-blur">
             <Icon size={15} /> {tag}
           </span>
         </div>
@@ -298,14 +298,14 @@ function TrackSection({
 
 export default function PricingPage() {
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[var(--bg)]">
+    <div className="site-dark min-h-screen overflow-x-hidden">
       <Navbar />
 
       {/* ===== HERO ===== */}
       <section className="relative overflow-hidden pt-36 pb-20">
-        <div className="absolute inset-0 grid-bg opacity-60" />
-        <div className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[460px] w-[820px] -translate-x-1/2 rounded-full bg-violet-300/40 blur-[130px]" />
-        <div className="animate-drift-slow pointer-events-none absolute top-24 right-0 h-[280px] w-[380px] rounded-full bg-cyan-200/50 blur-[120px]" />
+        <div className="absolute inset-0 grid-bg opacity-30" />
+        <div className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[460px] w-[820px] -translate-x-1/2 rounded-full bg-violet-700/30 blur-[130px]" />
+        <div className="animate-drift-slow pointer-events-none absolute top-24 right-0 h-[280px] w-[380px] rounded-full bg-cyan-700/25 blur-[120px]" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent to-[var(--bg)]" />
 
         <div className="relative mx-auto max-w-3xl px-5 text-center">
@@ -362,8 +362,8 @@ export default function PricingPage() {
       <section className="pt-10 pb-12">
         <div className="mx-auto max-w-6xl px-5">
           <Reveal variant="scale" className="mx-auto max-w-3xl">
-            <div className="relative overflow-hidden rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-7 shadow-sm">
-              <div className="animate-drift pointer-events-none absolute -top-16 -right-10 h-48 w-64 rounded-full bg-violet-200/40 blur-[80px]" />
+            <div className="hairline relative overflow-hidden p-7">
+              <div className="animate-drift pointer-events-none absolute -top-16 -right-10 h-48 w-64 rounded-full bg-violet-600/25 blur-[80px]" />
               <div className="relative flex items-start gap-4">
                 <span className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-xl brand-gradient text-white shadow">
                   <Layers size={22} />
@@ -421,7 +421,7 @@ export default function PricingPage() {
                       </span>
                       <span className="font-semibold">{c.label}</span>
                     </div>
-                    <span className="flex items-baseline gap-1 text-violet-600">
+                    <span className="flex items-baseline gap-1 text-violet-300">
                       <span className="text-2xl font-bold">{c.cost}</span>
                       <span className="text-xs font-medium text-[var(--text-dim)]">크레딧</span>
                     </span>
@@ -432,8 +432,8 @@ export default function PricingPage() {
           </div>
 
           <Reveal>
-            <div className="mt-6 flex items-start gap-3 rounded-2xl border border-violet-100 bg-violet-50/60 p-5 text-sm text-[var(--text-soft)]">
-              <ShieldCheck size={18} className="mt-0.5 flex-shrink-0 text-violet-600" />
+            <div className="mt-6 flex items-start gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[0.07] p-5 text-sm text-[var(--text-soft)]">
+              <ShieldCheck size={18} className="mt-0.5 flex-shrink-0 text-violet-300" />
               <p>
                 크레딧은 요금제 결제와 별도로 청구되며, 충전 요청은 관리자 승인 후 계정에 반영됩니다.
                 마케터 트랙의 유튜브·인스타·플레이스 조회는 1크레딧으로 부담 없이 사용할 수 있습니다.
@@ -444,7 +444,7 @@ export default function PricingPage() {
       </section>
 
       {/* ===== FAQ ===== */}
-      <section className="border-t border-[var(--border)] bg-white py-24">
+      <section className="border-y border-white/10 bg-white/[0.015] py-24">
         <div className="mx-auto max-w-3xl px-5">
           <Reveal className="text-center">
             <SectionTag>자주 묻는 질문</SectionTag>
@@ -462,7 +462,7 @@ export default function PricingPage() {
           <Reveal className="mt-10 text-center">
             <p className="text-sm text-[var(--text-soft)]">
               더 궁금한 점이 있으신가요?{' '}
-              <a href="/contact" className="font-semibold text-violet-600 hover:underline">
+              <a href="/contact" className="font-semibold text-violet-300 hover:text-violet-200 hover:underline">
                 문의하기
               </a>
             </p>

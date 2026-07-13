@@ -40,28 +40,28 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[var(--bg)]">
+    <main className="site-dark relative min-h-screen overflow-hidden">
       {/* ---- 배경 장식 (은은하게) ---- */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 grid-bg opacity-60" />
+      <div aria-hidden className="pointer-events-none absolute inset-0 grid-bg opacity-25" />
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-40 -left-32 h-[30rem] w-[30rem] rounded-full bg-violet-400/25 blur-[120px] animate-drift"
+        className="pointer-events-none absolute -top-40 -left-32 h-[30rem] w-[30rem] rounded-full bg-violet-700/30 blur-[120px] animate-drift"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute -bottom-48 -right-28 h-[32rem] w-[32rem] rounded-full bg-cyan-300/25 blur-[130px] animate-drift-slow"
+        className="pointer-events-none absolute -bottom-48 -right-28 h-[32rem] w-[32rem] rounded-full bg-cyan-700/22 blur-[130px] animate-drift-slow"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute top-1/3 right-1/4 h-72 w-72 rounded-full bg-fuchsia-300/15 blur-[110px] animate-drift"
+        className="pointer-events-none absolute top-1/3 right-1/4 h-72 w-72 rounded-full bg-fuchsia-700/18 blur-[110px] animate-drift"
       />
 
       {/* ---- 좌상단 홈으로 ---- */}
       <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-5 py-5 sm:px-8">
-        <Logo size={30} />
+        <Logo size={30} wordClassName="text-white" />
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-white/70 px-3.5 py-2 text-sm font-medium text-[var(--text-soft)] backdrop-blur transition-colors hover:border-violet-300 hover:text-[var(--text)]"
+          className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.06] px-3.5 py-2 text-sm font-medium text-[var(--text-soft)] backdrop-blur transition-colors hover:border-violet-400/50 hover:text-[var(--text)]"
         >
           <ArrowLeft size={15} />
           홈으로
@@ -71,9 +71,9 @@ export default function LoginPage() {
       {/* ---- 중앙 카드 ---- */}
       <div className="relative z-[1] grid min-h-screen place-items-center px-5 py-24">
         <div className="w-full max-w-md animate-fade-up">
-          <div className="card px-7 py-8 shadow-[0_24px_70px_-24px_rgba(20,22,31,0.22)] sm:px-9">
+          <div className="card px-7 py-8 shadow-[0_40px_100px_-30px_rgba(0,0,0,0.85)] sm:px-9">
             <div className="flex flex-col items-center text-center">
-              <Logo size={34} href={null} />
+              <Logo size={34} href={null} wordClassName="text-white" />
               <h1 className="mt-6 text-2xl font-bold tracking-tight">다시 오신 걸 환영해요</h1>
               <p className="mt-2 text-sm text-[var(--text-soft)]">
                 로그인하고 오늘의 마케팅 성과를 확인하세요.
@@ -81,7 +81,7 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <div className="mt-6 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-600">
+              <div className="mt-6 flex items-start gap-2 rounded-xl border border-rose-500/25 bg-rose-500/10 px-3.5 py-2.5 text-sm text-rose-300">
                 <AlertCircle size={16} className="mt-0.5 shrink-0" />
                 <span>{error}</span>
               </div>
@@ -116,7 +116,7 @@ export default function LoginPage() {
                   </label>
                   <Link
                     href="/login"
-                    className="text-xs font-medium text-violet-600 transition-colors hover:text-violet-700"
+                    className="text-xs font-medium text-violet-300 transition-colors hover:text-violet-200"
                   >
                     비밀번호 찾기
                   </Link>
@@ -139,7 +139,7 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => setShowPw((v) => !v)}
                     aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 표시'}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-[var(--text-dim)] transition-colors hover:bg-slate-100 hover:text-[var(--text-soft)]"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-[var(--text-dim)] transition-colors hover:bg-white/10 hover:text-[var(--text-soft)]"
                   >
                     {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
                   </button>
@@ -167,7 +167,7 @@ export default function LoginPage() {
             계정이 없으신가요?{' '}
             <Link
               href="/signup"
-              className="font-semibold text-violet-600 transition-colors hover:text-violet-700"
+              className="font-semibold text-violet-300 transition-colors hover:text-violet-200"
             >
               회원가입
             </Link>

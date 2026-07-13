@@ -29,7 +29,7 @@ const VALUES = [
   {
     icon: Database,
     title: '데이터 기반',
-    desc: '"느낌상 잘 되는 것 같다"로는 다음을 결정할 수 없습니다. 모든 채널의 성과를 한 화면의 숫자로 투명하게 봅니다.',
+    desc: '“느낌상 잘 되는 것 같다”로는 다음을 결정할 수 없습니다. 모든 채널의 성과를 한 화면의 숫자로 투명하게 봅니다.',
     color: 'from-violet-500 to-indigo-600',
   },
   {
@@ -62,14 +62,14 @@ const COMPANY = [
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[var(--bg)]">
+    <div className="site-dark min-h-screen overflow-x-hidden">
       <Navbar />
 
       {/* ===== HERO ===== */}
       <section className="relative overflow-hidden pt-36 pb-20">
-        <div className="absolute inset-0 grid-bg opacity-60" />
-        <div className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[480px] w-[840px] -translate-x-1/2 rounded-full bg-violet-300/40 blur-[130px]" />
-        <div className="animate-drift-slow pointer-events-none absolute top-24 left-0 h-[280px] w-[360px] rounded-full bg-indigo-200/40 blur-[120px]" />
+        <div className="absolute inset-0 grid-bg opacity-30" />
+        <div className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[480px] w-[840px] -translate-x-1/2 rounded-full bg-violet-700/30 blur-[130px]" />
+        <div className="animate-drift-slow pointer-events-none absolute top-24 left-0 h-[280px] w-[360px] rounded-full bg-indigo-700/25 blur-[120px]" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent to-[var(--bg)]" />
 
         <div className="relative mx-auto max-w-3xl px-5 text-center">
@@ -144,7 +144,7 @@ export default function AboutPage() {
       </section>
 
       {/* ===== CORE VALUES ===== */}
-      <section className="border-t border-[var(--border)] bg-white py-24">
+      <section className="border-y border-white/10 bg-white/[0.015] py-24">
         <div className="mx-auto max-w-6xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>핵심 가치</SectionTag>
@@ -204,7 +204,7 @@ export default function AboutPage() {
                     const Icon = c.icon
                     return (
                       <li key={c.label} className="flex items-center gap-4 px-6 py-4">
-                        <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg bg-violet-50 text-violet-600">
+                        <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg bg-violet-500/12 text-violet-300">
                           <Icon size={16} />
                         </span>
                         <span className="w-28 flex-shrink-0 text-sm text-[var(--text-dim)]">{c.label}</span>

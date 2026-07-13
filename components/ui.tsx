@@ -16,8 +16,8 @@ const btnVariants: Record<BtnVariant, string> = {
   primary:
     'brand-gradient text-white shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:brightness-[1.05]',
   soft: 'bg-violet-50 text-violet-700 border border-violet-100 hover:bg-violet-100',
-  outline: 'border border-[var(--border)] bg-white text-[var(--text)] hover:border-violet-300 hover:bg-violet-50/50',
-  ghost: 'text-[var(--text-soft)] hover:text-[var(--text)] hover:bg-slate-100',
+  outline: 'border border-[var(--border)] bg-[var(--panel)] text-[var(--text)] hover:border-violet-400/60 hover:bg-[var(--panel-2)]',
+  ghost: 'text-[var(--text-soft)] hover:text-[var(--text)] hover:bg-[var(--panel-2)]',
 }
 const btnSizes: Record<BtnSize, string> = {
   sm: 'text-sm px-3.5 py-2',
@@ -83,7 +83,8 @@ export function Badge({
 /* ---------- Section heading ---------- */
 export function SectionTag({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3.5 py-1.5 text-xs font-semibold text-violet-700">
+    <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.06] px-3.5 py-1.5 text-xs font-semibold text-violet-200 shadow-sm backdrop-blur">
+      <span className="h-1.5 w-1.5 rounded-full brand-gradient" />
       {children}
     </span>
   )

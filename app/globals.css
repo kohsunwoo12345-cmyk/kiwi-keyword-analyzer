@@ -28,6 +28,96 @@
   border-color: var(--border);
 }
 
+/* ===================================================================
+   THEME SCOPES — public marketing site only (never the dashboard/admin)
+   .site-dark remaps the design tokens to a premium dark palette so all
+   token-driven markup (.card, var(--text)…) re-themes automatically.
+   .site-light restates the light tokens for bright "app-window" cards
+   rendered on top of a dark page (interactive demos, product shots).
+   =================================================================== */
+.site-dark {
+  --bg: #05070e;
+  --bg-soft: #0a0f1c;
+  --panel: rgba(255, 255, 255, 0.032);
+  --panel-2: rgba(255, 255, 255, 0.055);
+  --border: rgba(255, 255, 255, 0.09);
+  --border-soft: rgba(255, 255, 255, 0.06);
+  --text: #eef2f9;
+  --text-soft: #9aa6bd;
+  --text-dim: #616d86;
+  color: var(--text);
+  background-color: #05070e;
+  background-image:
+    radial-gradient(58% 44% at 50% -8%, rgba(124, 58, 237, 0.22), transparent 62%),
+    radial-gradient(42% 40% at 100% 8%, rgba(34, 211, 238, 0.10), transparent 60%),
+    radial-gradient(48% 46% at 0% 26%, rgba(99, 102, 241, 0.14), transparent 62%);
+  background-attachment: fixed;
+}
+
+.site-light {
+  --bg: #f5f6fb;
+  --bg-soft: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #f7f8fc;
+  --border: #e8eaf1;
+  --border-soft: #eef0f6;
+  --text: #14161f;
+  --text-soft: #5a6377;
+  --text-dim: #96a0b3;
+  color: var(--text);
+}
+
+/* dark card: glass surface + top hairline + depth */
+.site-dark .card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)) padding-box;
+  border: 1px solid var(--border);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 24px 48px -28px rgba(0, 0, 0, 0.9);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.site-dark .card-2 {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+.site-dark .hover-lift:hover {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 30px 60px -24px rgba(124, 58, 237, 0.45);
+  border-color: rgba(167, 139, 250, 0.5);
+}
+.site-dark .glass {
+  background: rgba(7, 10, 20, 0.66);
+  border-color: rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  backdrop-filter: blur(18px) saturate(1.5);
+}
+.site-dark .glow {
+  box-shadow:
+    0 0 0 1px rgba(124, 58, 237, 0.18),
+    0 40px 90px -30px rgba(124, 58, 237, 0.55);
+}
+/* gradient hairline border — premium card frame */
+.hairline {
+  position: relative;
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)) padding-box,
+    linear-gradient(140deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.02) 40%, rgba(124, 58, 237, 0.35)) border-box;
+  border: 1px solid transparent;
+}
+/* faint dotted constellation for dark section fills */
+.dot-grid {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.09) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.mask-fade-b {
+  -webkit-mask-image: linear-gradient(180deg, #000 60%, transparent);
+  mask-image: linear-gradient(180deg, #000 60%, transparent);
+}
+
 html {
   scroll-behavior: smooth;
 }

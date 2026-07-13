@@ -112,24 +112,24 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[var(--bg)]">
+    <main className="site-dark relative min-h-screen overflow-hidden">
       {/* ---- 배경 장식 ---- */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 grid-bg opacity-60" />
+      <div aria-hidden className="pointer-events-none absolute inset-0 grid-bg opacity-25" />
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-44 -left-32 h-[30rem] w-[30rem] rounded-full bg-violet-400/25 blur-[120px] animate-drift"
+        className="pointer-events-none absolute -top-44 -left-32 h-[30rem] w-[30rem] rounded-full bg-violet-700/30 blur-[120px] animate-drift"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute -bottom-48 right-1/3 h-[32rem] w-[32rem] rounded-full bg-cyan-300/20 blur-[130px] animate-drift-slow"
+        className="pointer-events-none absolute -bottom-48 right-1/3 h-[32rem] w-[32rem] rounded-full bg-cyan-700/20 blur-[130px] animate-drift-slow"
       />
 
       {/* ---- 좌상단 홈으로 ---- */}
       <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-5 py-5 sm:px-8">
-        <Logo size={30} />
+        <Logo size={30} wordClassName="text-white" />
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-white/70 px-3.5 py-2 text-sm font-medium text-[var(--text-soft)] backdrop-blur transition-colors hover:border-violet-300 hover:text-[var(--text)]"
+          className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.06] px-3.5 py-2 text-sm font-medium text-[var(--text-soft)] backdrop-blur transition-colors hover:border-violet-400/50 hover:text-[var(--text)]"
         >
           <ArrowLeft size={15} />
           홈으로
@@ -197,9 +197,9 @@ export default function SignupPage() {
 
           {/* ---- 우: 회원가입 폼 ---- */}
           <div className="animate-fade-up">
-            <div className="card px-7 py-8 shadow-[0_24px_70px_-24px_rgba(20,22,31,0.22)] sm:px-9">
+            <div className="card px-7 py-8 shadow-[0_40px_100px_-30px_rgba(0,0,0,0.85)] sm:px-9">
               <div className="lg:hidden">
-                <Logo size={32} href={null} />
+                <Logo size={32} href={null} wordClassName="text-white" />
               </div>
               <h1 className="mt-5 text-2xl font-bold tracking-tight lg:mt-0">무료로 시작하기</h1>
               <p className="mt-2 text-sm text-[var(--text-soft)]">
@@ -207,7 +207,7 @@ export default function SignupPage() {
               </p>
 
               {formError && (
-                <div className="mt-6 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-600">
+                <div className="mt-6 flex items-start gap-2 rounded-xl border border-rose-500/25 bg-rose-500/10 px-3.5 py-2.5 text-sm text-rose-300">
                   <AlertCircle size={16} className="mt-0.5 shrink-0" />
                   <span>{formError}</span>
                 </div>
@@ -280,7 +280,7 @@ export default function SignupPage() {
                       type="button"
                       onClick={() => setShowPw((v) => !v)}
                       aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 표시'}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-[var(--text-dim)] transition-colors hover:bg-slate-100 hover:text-[var(--text-soft)]"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-[var(--text-dim)] transition-colors hover:bg-white/10 hover:text-[var(--text-soft)]"
                     >
                       {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
                     </button>
@@ -294,7 +294,7 @@ export default function SignupPage() {
                             key={i}
                             className={
                               'h-1.5 flex-1 rounded-full transition-colors ' +
-                              (i <= strength ? STRENGTH[strength].color.split(' ')[0] : 'bg-slate-200')
+                              (i <= strength ? STRENGTH[strength].color.split(' ')[0] : 'bg-white/12')
                             }
                           />
                         ))}
@@ -309,7 +309,7 @@ export default function SignupPage() {
                     </div>
                   )}
                   {errors.password && (
-                    <p className="mt-1.5 text-xs text-rose-600">{errors.password}</p>
+                    <p className="mt-1.5 text-xs text-rose-300">{errors.password}</p>
                   )}
                 </div>
 
@@ -340,7 +340,7 @@ export default function SignupPage() {
                     )}
                   </div>
                   {errors.confirm && (
-                    <p className="mt-1.5 text-xs text-rose-600">{errors.confirm}</p>
+                    <p className="mt-1.5 text-xs text-rose-300">{errors.confirm}</p>
                   )}
                 </div>
 
@@ -354,17 +354,17 @@ export default function SignupPage() {
                       className="mt-0.5 h-4 w-4 rounded border-[var(--border)] accent-violet-600"
                     />
                     <span>
-                      <Link href="/signup" className="font-medium text-violet-600 hover:text-violet-700">
+                      <Link href="/signup" className="font-medium text-violet-300 hover:text-violet-200">
                         이용약관
                       </Link>{' '}
                       및{' '}
-                      <Link href="/signup" className="font-medium text-violet-600 hover:text-violet-700">
+                      <Link href="/signup" className="font-medium text-violet-300 hover:text-violet-200">
                         개인정보 처리방침
                       </Link>
                       에 동의합니다. <span className="text-rose-500">(필수)</span>
                     </span>
                   </label>
-                  {errors.agree && <p className="mt-1.5 text-xs text-rose-600">{errors.agree}</p>}
+                  {errors.agree && <p className="mt-1.5 text-xs text-rose-300">{errors.agree}</p>}
                 </div>
 
                 <Button type="submit" size="lg" disabled={loading} className="mt-1 w-full">
@@ -378,7 +378,7 @@ export default function SignupPage() {
               이미 계정이 있으신가요?{' '}
               <Link
                 href="/login"
-                className="font-semibold text-violet-600 transition-colors hover:text-violet-700"
+                className="font-semibold text-violet-300 transition-colors hover:text-violet-200"
               >
                 로그인
               </Link>
@@ -435,7 +435,7 @@ function Field({
           className={inputBase}
         />
       </div>
-      {error && <p className="mt-1.5 text-xs text-rose-600">{error}</p>}
+      {error && <p className="mt-1.5 text-xs text-rose-300">{error}</p>}
     </div>
   )
 }

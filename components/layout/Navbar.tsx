@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 const LINKS = [
+  { href: '/features', label: '기능' },
   { href: '/pricing', label: '요금제' },
   { href: '/about', label: '회사소개' },
   { href: '/contact', label: '문의' },
@@ -36,12 +37,14 @@ export function Navbar() {
     <header
       className={cn(
         'fixed top-0 inset-x-0 z-50 transition-all duration-500',
-        scrolled || mega ? 'glass border-b border-[var(--border)] shadow-sm' : 'bg-transparent',
+        scrolled || mega
+          ? 'border-b border-white/10 bg-[#05070e]/72 shadow-[0_8px_40px_-16px_rgba(0,0,0,0.8)] backdrop-blur-xl backdrop-saturate-150'
+          : 'bg-transparent',
       )}
     >
       <div className="mx-auto max-w-7xl px-5">
         <div className="flex h-16 items-center justify-between">
-          <Logo size={32} className="transition-transform duration-300 hover:scale-[1.03]" />
+          <Logo size={32} wordClassName="text-white" className="transition-transform duration-300 hover:scale-[1.03]" />
 
           {/* desktop nav */}
           <nav className="hidden items-center gap-1 md:flex">
@@ -53,7 +56,7 @@ export function Navbar() {
               <button
                 className={cn(
                   'group flex items-center gap-1 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors',
-                  mega ? 'text-[var(--text)]' : 'text-[var(--text-soft)] hover:text-[var(--text)]',
+                  mega ? 'text-white' : 'text-slate-300 hover:text-white',
                 )}
               >
                 제품
@@ -64,7 +67,7 @@ export function Navbar() {
               <Link
                 key={n.href}
                 href={n.href}
-                className="group relative rounded-lg px-3.5 py-2 text-sm font-medium text-[var(--text-soft)] transition-colors hover:text-[var(--text)]"
+                className="group relative rounded-lg px-3.5 py-2 text-sm font-medium text-slate-300 transition-colors hover:text-white"
               >
                 {n.label}
                 <span className="absolute inset-x-3.5 -bottom-0.5 h-0.5 origin-left scale-x-0 rounded-full brand-gradient transition-transform duration-300 group-hover:scale-x-100" />
@@ -81,9 +84,12 @@ export function Navbar() {
               </Button>
             ) : (
               <>
-                <Button href="/login" variant="ghost" size="sm">
+                <Link
+                  href="/login"
+                  className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-300 transition-colors hover:text-white"
+                >
                   로그인
-                </Button>
+                </Link>
                 <Button href="/signup" size="sm" className="group">
                   무료로 시작하기
                   <ArrowRight size={15} className="transition-transform duration-300 group-hover:translate-x-0.5" />
@@ -94,7 +100,7 @@ export function Navbar() {
 
           {/* mobile toggle */}
           <button
-            className="grid h-10 w-10 place-items-center rounded-lg text-[var(--text-soft)] md:hidden"
+            className="grid h-10 w-10 place-items-center rounded-lg text-slate-200 md:hidden"
             onClick={() => setOpen((v) => !v)}
             aria-label="메뉴"
           >
@@ -113,10 +119,10 @@ export function Navbar() {
         onMouseEnter={() => setMega(true)}
         onMouseLeave={() => setMega(false)}
       >
-        <div className="glass border-b border-[var(--border)] shadow-xl">
+        <div className="border-b border-white/10 bg-[#070b16]/92 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9)] backdrop-blur-xl">
           <div className="mx-auto grid max-w-7xl gap-6 px-5 py-7 lg:grid-cols-[1fr_300px]">
             <div>
-              <p className="mb-3 px-2 text-[11px] font-bold uppercase tracking-widest text-[var(--text-dim)]">
+              <p className="mb-3 px-2 text-[11px] font-bold uppercase tracking-widest text-slate-500">
                 올인원 마케팅 기능
               </p>
               <div className="grid gap-1.5 sm:grid-cols-2">
@@ -127,7 +133,7 @@ export function Navbar() {
                       key={f.slug}
                       href={`/features/${f.slug}`}
                       onClick={() => setMega(false)}
-                      className="group flex items-start gap-3 rounded-xl p-2.5 transition-colors hover:bg-white"
+                      className="group flex items-start gap-3 rounded-xl p-2.5 transition-colors hover:bg-white/[0.06]"
                     >
                       <span
                         className={cn(
@@ -138,14 +144,14 @@ export function Navbar() {
                         <Icon size={18} />
                       </span>
                       <div className="min-w-0">
-                        <p className="flex items-center gap-1.5 text-sm font-semibold">
+                        <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-100">
                           {f.title}
                           <ArrowRight
                             size={13}
-                            className="-translate-x-1 text-violet-500 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100"
+                            className="-translate-x-1 text-violet-300 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100"
                           />
                         </p>
-                        <p className="mt-0.5 line-clamp-1 text-xs text-[var(--text-soft)]">{f.desc}</p>
+                        <p className="mt-0.5 line-clamp-1 text-xs text-slate-400">{f.desc}</p>
                       </div>
                     </Link>
                   )
@@ -161,11 +167,11 @@ export function Navbar() {
 
       {/* ===== MOBILE ===== */}
       {open && (
-        <div className="glass max-h-[calc(100vh-4rem)] overflow-y-auto border-t border-[var(--border)] md:hidden">
+        <div className="max-h-[calc(100vh-4rem)] overflow-y-auto border-t border-white/10 bg-[#05070e]/95 backdrop-blur-xl md:hidden">
           <div className="mx-auto max-w-7xl space-y-1 px-5 py-4">
             <button
               onClick={() => setMOpenFeatures((v) => !v)}
-              className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--text-soft)] hover:bg-slate-100 hover:text-[var(--text)]"
+              className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.06] hover:text-white"
             >
               제품
               <ChevronDown size={16} className={cn('transition-transform', mOpenFeatures && 'rotate-180')} />
@@ -179,7 +185,7 @@ export function Navbar() {
                       key={f.slug}
                       href={`/features/${f.slug}`}
                       onClick={() => setOpen(false)}
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-[var(--text-soft)] hover:bg-slate-100 hover:text-[var(--text)]"
+                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white"
                     >
                       <span className={cn('grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg bg-gradient-to-br text-white', f.color)}>
                         <Icon size={15} />
@@ -195,7 +201,7 @@ export function Navbar() {
                 key={n.href}
                 href={n.href}
                 onClick={() => setOpen(false)}
-                className="block rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--text-soft)] hover:bg-slate-100 hover:text-[var(--text)]"
+                className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.06] hover:text-white"
               >
                 {n.label}
               </Link>

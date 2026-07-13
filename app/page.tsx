@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import {
-  Sparkles,
   ArrowRight,
   Check,
   X,
@@ -105,7 +104,7 @@ const PLANS = [
 
 export default function Home() {
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[var(--bg)]">
+    <div className="site-dark min-h-screen overflow-x-hidden">
       <StudioGate />
       <Navbar />
 
@@ -142,7 +141,7 @@ export default function Home() {
               무료로 시작하기
               <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
             </Button>
-            <Button href="#features" size="lg" className="!border !border-white/25 !bg-white/10 !text-white backdrop-blur hover:!bg-white/20">
+            <Button href="/features" size="lg" className="!border !border-white/25 !bg-white/10 !text-white backdrop-blur hover:!bg-white/20">
               <Play size={16} /> 기능 둘러보기
             </Button>
           </div>
@@ -158,7 +157,7 @@ export default function Home() {
       </section>
 
       {/* ===== 채널 오빗 (실제 로고 공전) ===== */}
-      <section className="relative overflow-hidden border-b border-[var(--border)] bg-[#070b16] py-20 text-white">
+      <section className="relative overflow-hidden border-y border-white/10 py-20 text-white">
         <div className="animate-drift pointer-events-none absolute left-1/2 top-1/2 h-[520px] w-[820px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-700/15 blur-[150px]" />
         <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-5 lg:grid-cols-2">
           <div className="text-center lg:text-left">
@@ -177,16 +176,16 @@ export default function Home() {
       </section>
 
       {/* ===== MARQUEE TRUST ===== */}
-      <section className="border-y border-[var(--border)] bg-white py-7">
+      <section className="border-b border-white/10 py-8">
         <div className="mx-auto max-w-6xl px-5">
-          <p className="mb-5 text-center text-xs font-medium uppercase tracking-widest text-[var(--text-dim)]">
+          <p className="mb-5 text-center text-xs font-medium uppercase tracking-widest text-slate-500">
             주요 마케팅 채널 데이터를 한 곳에서 통합 연동
           </p>
           <Marquee
             items={PLATFORMS.map((p) => (
               <span
                 key={p}
-                className="text-xl font-extrabold tracking-tight text-slate-300 transition-colors hover:text-slate-500"
+                className="text-xl font-extrabold tracking-tight text-slate-600 transition-colors hover:text-slate-300"
               >
                 {p}
               </span>
@@ -214,12 +213,12 @@ export default function Home() {
       </section>
 
       {/* ===== PAIN / AGITATION ===== */}
-      <section className="relative border-t border-[var(--border)] py-24">
+      <section className="relative border-t border-white/10 py-24">
         <div className="mx-auto max-w-6xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>솔직히, 지금 이렇지 않나요?</SectionTag>
             <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
-              이런 마케팅, <span className="text-rose-500">아직도</span> 하고 계신가요?
+              이런 마케팅, <span className="text-rose-400">아직도</span> 하고 계신가요?
             </h2>
             <p className="mt-5 text-balance text-lg text-[var(--text-soft)]">
               문제는 당신의 실력이 아닙니다. 도구가 흩어져 있을 뿐입니다.
@@ -232,7 +231,7 @@ export default function Home() {
               return (
                 <Reveal key={p.title} delay={(i % 4) * 90}>
                   <div className="card hover-lift h-full p-6">
-                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-rose-50 text-rose-500">
+                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-rose-500/12 text-rose-400">
                       <Icon size={20} />
                     </span>
                     <h3 className="mt-4 font-semibold leading-snug">{p.title}</h3>
@@ -281,7 +280,7 @@ export default function Home() {
                     className="group card hover-lift relative block h-full overflow-hidden p-7"
                   >
                     <div
-                      className="animate-drift-slow absolute -right-8 -top-8 h-28 w-28 rounded-full opacity-15 blur-2xl transition-opacity group-hover:opacity-35"
+                      className="animate-drift-slow absolute -right-8 -top-8 h-28 w-28 rounded-full opacity-25 blur-2xl transition-opacity group-hover:opacity-50"
                       style={{ background: f.accent }}
                     />
                     <div className="relative">
@@ -297,7 +296,7 @@ export default function Home() {
                         <h3 className="text-lg font-semibold">{f.title}</h3>
                       </div>
                       <p className="mt-2.5 text-sm leading-relaxed text-[var(--text-soft)]">{f.desc}</p>
-                      <div className="mt-5 flex items-center gap-1.5 text-sm font-semibold text-violet-600 opacity-0 transition-all duration-300 group-hover:translate-x-1 group-hover:opacity-100">
+                      <div className="mt-5 flex items-center gap-1.5 text-sm font-semibold text-violet-300 opacity-0 transition-all duration-300 group-hover:translate-x-1 group-hover:opacity-100">
                         살펴보기 <ArrowRight size={15} />
                       </div>
                     </div>
@@ -306,11 +305,18 @@ export default function Home() {
               )
             })}
           </div>
+
+          <Reveal delay={100} className="mt-12 text-center">
+            <Button href="/features" variant="outline" size="lg" className="group">
+              전체 기능 한눈에 보기
+              <ArrowRight size={17} className="transition-transform duration-300 group-hover:translate-x-1" />
+            </Button>
+          </Reveal>
         </div>
       </section>
 
       {/* ===== HOW IT WORKS ===== */}
-      <section id="how" className="relative border-t border-[var(--border)] bg-white py-24">
+      <section id="how" className="relative border-y border-white/10 bg-white/[0.015] py-24">
         <div className="mx-auto max-w-7xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>작동 방식</SectionTag>
@@ -319,7 +325,7 @@ export default function Home() {
             </h2>
           </Reveal>
           <div className="relative mt-16 grid gap-5 md:grid-cols-4">
-            <div className="pointer-events-none absolute left-0 right-0 top-12 hidden h-px bg-gradient-to-r from-transparent via-violet-200 to-transparent md:block" />
+            <div className="pointer-events-none absolute left-0 right-0 top-12 hidden h-px bg-gradient-to-r from-transparent via-violet-500/40 to-transparent md:block" />
             {STEPS.map((s, i) => (
               <Reveal key={s.n} delay={i * 110}>
                 <div className="card relative h-full p-7">
@@ -340,8 +346,8 @@ export default function Home() {
               const Icon = c.icon
               return (
                 <Reveal key={c.t} delay={i * 100}>
-                  <div className="flex gap-4 rounded-2xl bg-[var(--bg)] p-5 transition-colors hover:bg-violet-50/60">
-                    <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-600">
+                  <div className="flex gap-4 rounded-2xl border border-white/8 bg-white/[0.02] p-5 transition-colors hover:bg-white/[0.05]">
+                    <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl bg-violet-500/12 text-violet-300">
                       <Icon size={20} />
                     </span>
                     <div>
@@ -371,18 +377,18 @@ export default function Home() {
 
           <div className="mt-14 grid items-stretch gap-5 md:grid-cols-2">
             <Reveal variant="left">
-              <div className="flex h-full flex-col rounded-2xl border border-rose-100 bg-rose-50/50 p-7">
+              <div className="flex h-full flex-col rounded-2xl border border-rose-500/20 bg-rose-500/[0.05] p-7">
                 <div className="mb-6 flex items-center gap-2.5">
-                  <span className="grid h-9 w-9 place-items-center rounded-lg bg-rose-100 text-rose-500">
+                  <span className="grid h-9 w-9 place-items-center rounded-lg bg-rose-500/15 text-rose-400">
                     <X size={18} />
                   </span>
-                  <span className="font-semibold text-rose-600">BYGENCY 없이</span>
+                  <span className="font-semibold text-rose-300">BYGENCY 없이</span>
                 </div>
                 <ul className="space-y-4">
                   {CONTRAST.map((c) => (
                     <li key={c.before} className="flex items-start gap-2.5 text-sm">
-                      <X size={17} className="mt-0.5 flex-shrink-0 text-rose-400" />
-                      <span className="text-[var(--text-soft)] line-through decoration-rose-200">{c.before}</span>
+                      <X size={17} className="mt-0.5 flex-shrink-0 text-rose-400/70" />
+                      <span className="text-[var(--text-soft)] line-through decoration-rose-500/40">{c.before}</span>
                     </li>
                   ))}
                 </ul>
@@ -390,18 +396,18 @@ export default function Home() {
             </Reveal>
 
             <Reveal variant="right">
-              <div className="flex h-full flex-col rounded-2xl border border-violet-200 bg-gradient-to-b from-violet-50 to-white p-7 shadow-lg shadow-violet-200/40">
+              <div className="hairline flex h-full flex-col p-7 shadow-[0_40px_90px_-40px_rgba(124,58,237,0.6)]">
                 <div className="mb-6 flex items-center gap-2.5">
                   <span className="grid h-9 w-9 place-items-center rounded-lg brand-gradient text-white">
                     <Check size={18} />
                   </span>
-                  <span className="font-semibold"><span className="brand-text">BYGENCY</span>와 함께</span>
+                  <span className="font-semibold text-white"><span className="brand-text">BYGENCY</span>와 함께</span>
                 </div>
                 <ul className="space-y-4">
                   {CONTRAST.map((c) => (
                     <li key={c.after} className="flex items-start gap-2.5 text-sm">
-                      <Check size={17} className="mt-0.5 flex-shrink-0 text-violet-600" />
-                      <span className="font-medium text-[var(--text)]">{c.after}</span>
+                      <Check size={17} className="mt-0.5 flex-shrink-0 text-violet-300" />
+                      <span className="font-medium text-white">{c.after}</span>
                     </li>
                   ))}
                 </ul>
@@ -412,8 +418,9 @@ export default function Home() {
       </section>
 
       {/* ===== URGENCY / COGNITIVE-DISSONANCE BAND ===== */}
-      <section className="relative overflow-hidden bg-[#070b16] py-24 text-white">
-        <div className="animate-drift pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[720px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-700/20 blur-[150px]" />
+      <section className="relative overflow-hidden border-y border-white/10 py-24 text-white">
+        <div className="dot-grid pointer-events-none absolute inset-0 opacity-30 mask-fade-b" />
+        <div className="animate-drift pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[720px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-700/25 blur-[150px]" />
         <div className="relative mx-auto max-w-3xl px-5 text-center">
           <Reveal>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-rose-200 backdrop-blur">
@@ -453,14 +460,14 @@ export default function Home() {
             {VOICES.map((v, i) => (
               <Reveal key={v.name} delay={i * 100}>
                 <div className="card hover-lift flex h-full flex-col p-7">
-                  <Quote size={26} className="text-violet-300" />
+                  <Quote size={26} className="text-violet-400/70" />
                   <div className="mt-3 flex gap-0.5 text-amber-400">
                     {Array.from({ length: 5 }).map((_, s) => (
                       <Star key={s} size={15} className="fill-current" />
                     ))}
                   </div>
                   <p className="mt-4 flex-1 leading-relaxed text-[var(--text-soft)]">&ldquo;{v.quote}&rdquo;</p>
-                  <div className="mt-6 flex items-center gap-3 border-t border-[var(--border)] pt-5">
+                  <div className="mt-6 flex items-center gap-3 border-t border-white/10 pt-5">
                     <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full brand-gradient text-sm font-bold text-white">
                       {v.name.charAt(0)}
                     </span>
@@ -475,12 +482,12 @@ export default function Home() {
           </div>
 
           <Reveal delay={100}>
-            <div className="mt-12 grid gap-4 rounded-2xl border border-[var(--border)] bg-white p-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-12 grid gap-4 rounded-2xl border border-white/10 bg-white/[0.02] p-6 sm:grid-cols-2 lg:grid-cols-4">
               {TRUST.map((t) => {
                 const Icon = t.icon
                 return (
                   <div key={t.label} className="flex items-center justify-center gap-2.5 text-sm font-medium text-[var(--text-soft)]">
-                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg bg-violet-50 text-violet-600">
+                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg bg-violet-500/12 text-violet-300">
                       <Icon size={17} />
                     </span>
                     {t.label}
@@ -497,7 +504,7 @@ export default function Home() {
       </section>
 
       {/* ===== PRICING ===== */}
-      <section id="pricing" className="py-24">
+      <section id="pricing" className="border-t border-white/10 py-24">
         <div className="mx-auto max-w-7xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>요금제</SectionTag>
@@ -511,14 +518,14 @@ export default function Home() {
             {PLANS.map((p, i) => (
               <Reveal key={p.name} delay={i * 100} className={p.highlight ? 'lg:-mt-4' : ''}>
                 <div
-                  className={`relative flex h-full flex-col rounded-2xl border p-8 transition-all duration-300 hover:-translate-y-1 ${
+                  className={`relative flex h-full flex-col rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1 ${
                     p.highlight
-                      ? 'border-violet-300 bg-gradient-to-b from-violet-50 to-white shadow-lg shadow-violet-200/50'
-                      : 'border-[var(--border)] bg-white shadow-sm hover:shadow-md'
+                      ? 'hairline shadow-[0_40px_90px_-40px_rgba(124,58,237,0.6)]'
+                      : 'border border-white/10 bg-white/[0.02] hover:border-white/20'
                   }`}
                 >
                   {p.highlight && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full brand-gradient px-3 py-1 text-xs font-semibold text-white shadow">
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full brand-gradient px-3 py-1 text-xs font-semibold text-white shadow-lg shadow-violet-500/40">
                       가장 인기
                     </span>
                   )}
@@ -531,7 +538,7 @@ export default function Home() {
                   <ul className="mt-6 flex-1 space-y-3">
                     {p.features.map((f) => (
                       <li key={f} className="flex items-start gap-2.5 text-sm">
-                        <Check size={17} className="mt-0.5 flex-shrink-0 text-violet-600" />
+                        <Check size={17} className="mt-0.5 flex-shrink-0 text-violet-300" />
                         <span className="text-[var(--text-soft)]">{f}</span>
                       </li>
                     ))}
@@ -543,13 +550,19 @@ export default function Home() {
               </Reveal>
             ))}
           </div>
+
+          <Reveal delay={120} className="mt-10 text-center">
+            <Link href="/pricing" className="text-sm font-semibold text-violet-300 hover:text-violet-200 hover:underline">
+              마케터 · AI 영상 제작 플랜 자세히 보기 →
+            </Link>
+          </Reveal>
         </div>
       </section>
 
       {/* ===== CTA ===== */}
-      <section className="px-5 pb-28">
+      <section className="px-5 pb-28 pt-4">
         <Reveal variant="scale" className="mx-auto max-w-5xl">
-          <div className="animate-gradient relative overflow-hidden rounded-3xl px-8 py-16 text-center shadow-xl shadow-violet-300/50"
+          <div className="animate-gradient relative overflow-hidden rounded-3xl px-8 py-16 text-center shadow-xl shadow-violet-900/50"
             style={{ background: 'linear-gradient(120deg,#a855f7,#7c3aed,#6366f1,#22d3ee)' }}
           >
             <div className="animate-drift pointer-events-none absolute -top-16 left-1/2 h-64 w-96 -translate-x-1/2 rounded-full bg-white/20 blur-[90px]" />

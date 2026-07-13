@@ -163,7 +163,7 @@ export function FeatureDetail({ slug }: { slug: string }) {
 
   if (!feature) {
     return (
-      <div className="min-h-screen overflow-x-hidden bg-[var(--bg)]">
+      <div className="site-dark min-h-screen overflow-x-hidden">
         <Navbar />
         <div className="mx-auto flex min-h-[70vh] max-w-2xl flex-col items-center justify-center px-5 pt-16 text-center">
           <h1 className="text-3xl font-bold">찾을 수 없습니다</h1>
@@ -182,12 +182,12 @@ export function FeatureDetail({ slug }: { slug: string }) {
   const others = FEATURES.filter((f) => f.slug !== slug)
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[var(--bg)]">
+    <div className="site-dark min-h-screen overflow-x-hidden">
       <Navbar />
 
       {/* ===== HERO ===== */}
       <section className="relative overflow-hidden pt-32 pb-20">
-        <div className="absolute inset-0 grid-bg opacity-60" />
+        <div className="absolute inset-0 grid-bg opacity-30" />
         <div
           className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[880px] -translate-x-1/2 rounded-full blur-[130px]"
           style={{ background: `${feature.accent}33` }}
@@ -201,9 +201,9 @@ export function FeatureDetail({ slug }: { slug: string }) {
         <div className="relative mx-auto max-w-4xl px-5 text-center">
           {/* breadcrumb */}
           <nav className="flex items-center justify-center gap-1.5 text-sm text-[var(--text-dim)] animate-fade-up">
-            <Link href="/" className="transition-colors hover:text-violet-600">홈</Link>
+            <Link href="/" className="transition-colors hover:text-violet-300">홈</Link>
             <ChevronRight size={14} />
-            <Link href="/#features" className="transition-colors hover:text-violet-600">기능</Link>
+            <Link href="/features" className="transition-colors hover:text-violet-300">기능</Link>
             <ChevronRight size={14} />
             <span className="font-semibold text-[var(--text-soft)]">{feature.title}</span>
           </nav>
@@ -300,8 +300,12 @@ export function FeatureDetail({ slug }: { slug: string }) {
       </section>
 
       {/* ===== INTERACTIVE DEMO ===== */}
-      <section className="relative border-y border-[var(--border)] bg-white py-20">
-        <div className="mx-auto max-w-4xl px-5">
+      <section className="relative border-y border-white/10 bg-white/[0.015] py-20">
+        <div
+          className="pointer-events-none absolute left-1/2 top-0 h-[320px] w-[720px] -translate-x-1/2 rounded-full blur-[130px]"
+          style={{ background: `${feature.accent}22` }}
+        />
+        <div className="relative mx-auto max-w-4xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>실제 기능</SectionTag>
             <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
@@ -314,10 +318,13 @@ export function FeatureDetail({ slug }: { slug: string }) {
             </p>
           </Reveal>
 
+          {/* 밝은 "앱 창" 카드 — 어두운 페이지 위에 떠 있는 실제 제품 화면 */}
           <Reveal variant="scale" className="mt-12">
-            <Panel title="직접 체험해보세요" className="glow">
-              <FeatureDemo slug={slug} feature={feature} />
-            </Panel>
+            <div className="site-light rounded-[20px] shadow-[0_50px_100px_-30px_rgba(0,0,0,0.8)]">
+              <Panel title="직접 체험해보세요" className="glow">
+                <FeatureDemo slug={slug} feature={feature} />
+              </Panel>
+            </div>
           </Reveal>
         </div>
       </section>
