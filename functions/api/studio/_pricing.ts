@@ -4,8 +4,53 @@
 //  · 크레딧 = 판매가 ÷ 50원(올림).  (50원 = 1크레딧)
 //  · 매출(원) = 실제 차감 크레딧 × 50.  순이익 = 매출 − 실제 AI 비용
 
-export const USD_KRW = 1400
+export const USD_KRW = 1400 // 폴백 기본 환율 (API 실패 시)
 export const CREDIT_KRW = 50 // 50원 = 1크레딧
+
+/** 무료 FX API 에서 현재 USD→KRW 환율 조회 (키 불필요, 여러 소스 폴백) */
+async function fetchUsdKrw(): Promise<number | null> {
+  const sources: { url: string; pick: (j: any) => any }[] = [
+    { url: 'https://open.er-api.com/v6/latest/USD', pick: (j) => j?.rates?.KRW },
+    { url: 'https://api.frankfurter.app/latest?from=USD&to=KRW', pick: (j) => j?.rates?.KRW },
+    { url: 'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json', pick: (j) => j?.usd?.krw },
+  ]
+  for (const s of sources) {
+    try {
+      const r = await fetch(s.url)
+      if (!r.ok) continue
+      const j: any = await r.json()
+      const v = Number(s.pick(j))
+      if (v && v > 300 && v < 3000) return Math.round(v)
+    } catch {
+      /* 다음 소스로 */
+    }
+  }
+  return null
+}
+
+/** 오늘자 USD→KRW 환율 (하루 1회 조회 후 D1 캐시). 결제/생성 시점의 그날 환율을 반환. */
+export async function getUsdKrw(db: D1Database): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10)
+  await db
+    .prepare(`CREATE TABLE IF NOT EXISTS fx_rates (date TEXT PRIMARY KEY, usd_krw REAL NOT NULL, updated_at TEXT)`)
+    .run()
+    .catch(() => {})
+  const cached: any = await db.prepare('SELECT usd_krw FROM fx_rates WHERE date = ?').bind(today).first().catch(() => null)
+  if (cached && Number(cached.usd_krw) > 0) return Number(cached.usd_krw)
+
+  const fetched = await fetchUsdKrw()
+  if (fetched) {
+    await db
+      .prepare('INSERT OR REPLACE INTO fx_rates (date, usd_krw, updated_at) VALUES (?, ?, ?)')
+      .bind(today, fetched, new Date().toISOString())
+      .run()
+      .catch(() => {})
+    return fetched
+  }
+  // API 실패 → 마지막으로 저장된 환율, 그것도 없으면 기본값
+  const last: any = await db.prepare('SELECT usd_krw FROM fx_rates ORDER BY date DESC LIMIT 1').first().catch(() => null)
+  return last && Number(last.usd_krw) > 0 ? Number(last.usd_krw) : USD_KRW
+}
 
 const RES_MULT: Record<string, number> = { '720p': 0.6, '1080p': 1.0, '4K': 2.6 }
 
@@ -60,6 +105,7 @@ export interface ChargeResult {
   provider: string
   kind: 'image' | 'video'
   usd: number // 실제 AI 비용(USD)
+  usdKrw: number // 적용 환율 (그날의 USD→KRW)
   costKrw: number // 실제 AI 비용(원)
   markup: number // 3.0 | 2.5
   credits: number // 차감 크레딧
@@ -67,8 +113,9 @@ export interface ChargeResult {
   profitKrw: number // 순이익(원) = revenue − cost
 }
 
-/** 서버 권위 과금 계산 — 스튜디오 recordCost 공식과 동일 */
-export function computeCharge(input: ChargeInput): ChargeResult {
+/** 서버 권위 과금 계산 — 스튜디오 recordCost 공식과 동일. usdKrw 는 그날의 환율. */
+export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW): ChargeResult {
+  const rate = usdKrw && usdKrw > 0 ? usdKrw : USD_KRW
   const model = String(input.model || '')
   const m = MODEL_COST[model]
   const isImg = m ? m.u === 'img' : input.kind === 'image'
@@ -79,11 +126,11 @@ export function computeCharge(input: ChargeInput): ChargeResult {
     const units = Math.max(1, Math.round(Number(input.units) || 8))
     const base = m ? m.usd : 0.06
     const resMult = RES_MULT[input.res || '1080p'] || 1
-    const rate = base * resMult
+    const r = base * resMult
     const audioAdd = input.audio && m && m.audio ? m.audio * units : 0
-    usd = rate * units + audioAdd
+    usd = r * units + audioAdd
   }
-  const costKrw = Math.round(usd * USD_KRW)
+  const costKrw = Math.round(usd * rate)
   // 마크업: 씨댄스 2.0 계열 또는 이미지(사진 제작) 모델 = 2.5배, 그 외 3배
   const isSeed20 = /Seedance\s*2\.0/i.test(model)
   const markup = isSeed20 || isImg ? 2.5 : 3.0
@@ -95,6 +142,7 @@ export function computeCharge(input: ChargeInput): ChargeResult {
     provider: m ? m.prov : String((input as any).provider || ''),
     kind: isImg ? 'image' : 'video',
     usd: Math.round(usd * 10000) / 10000,
+    usdKrw: rate,
     costKrw,
     markup,
     credits,
@@ -120,6 +168,7 @@ export async function ensureAiUsage(db: D1Database): Promise<void> {
     credits: 'credits INTEGER DEFAULT 0',
     revenue_krw: 'revenue_krw INTEGER DEFAULT 0',
     markup: 'markup REAL DEFAULT 0',
+    usd_krw: 'usd_krw REAL DEFAULT 0',
   }
   for (const [name, ddl] of Object.entries(cols)) {
     await db.prepare(`ALTER TABLE ai_usage ADD COLUMN ${ddl}`).run().catch(() => {})

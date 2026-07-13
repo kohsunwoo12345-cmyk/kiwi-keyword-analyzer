@@ -192,10 +192,10 @@ export interface AiUsageModel {
 }
 export interface AiUsageRow {
   created_at: string; name: string; email: string; model: string; provider: string
-  kind: string; credits: number; cost: number; revenue: number; profit: number; markup: number
+  kind: string; credits: number; cost: number; revenue: number; profit: number; markup: number; usdKrw?: number
 }
 export interface AiUsageStats {
-  ok: boolean; error?: string; days?: number
+  ok: boolean; error?: string; days?: number; todayRate?: number
   totals?: { count: number; credits: number; revenue: number; cost: number; profit: number }
   byUser?: AiUsageUser[]
   byModel?: AiUsageModel[]

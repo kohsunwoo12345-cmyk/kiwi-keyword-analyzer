@@ -253,9 +253,17 @@ body {
 .reveal-left { transform: translateX(-32px); }
 .reveal-right { transform: translateX(32px); }
 .reveal-scale { transform: scale(0.94); }
+/* 한 장씩 아래에서 '딱' 솟아오르는 등장 (features 그리드용) — 크게 이동 + 살짝 스케일 + 스프링 이징 */
+.reveal-rise {
+  transform: translateY(64px) scale(0.965);
+  transition:
+    opacity 0.72s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.72s cubic-bezier(0.22, 1.16, 0.36, 1);
+}
 .reveal-left.in-view,
 .reveal-right.in-view,
-.reveal-scale.in-view { transform: none; }
+.reveal-scale.in-view,
+.reveal-rise.in-view { transform: none; }
 
 /* ---- marquee ---- */
 @keyframes marquee {

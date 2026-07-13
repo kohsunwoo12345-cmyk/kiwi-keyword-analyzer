@@ -126,7 +126,7 @@ export default function AdminAiUsagePage() {
         icon={Wallet}
         eyebrow="ADMIN · 정산"
         title="AI 사용 · 수익 정산"
-        desc="스튜디오 AI 생성의 실제 비용·매출·순이익을 자동 계산합니다. (판매가 = AI 원가 × 3배 · 씨댄스2.0/이미지 2.5배 · 50원=1크레딧)"
+        desc={`스튜디오 AI 생성의 실제 비용·매출·순이익을 자동 계산합니다. (판매가 = AI 원가 × 3배 · 씨댄스2.0/이미지 2.5배 · 50원=1크레딧${data.todayRate ? ` · 오늘 환율 $1=₩${Math.round(data.todayRate).toLocaleString('ko-KR')}` : ''})`}
         accent={ACCENT}
         action={
           <div className="flex flex-wrap items-center gap-2">

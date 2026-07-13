@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react'
 import { Logo } from '@/components/Brand'
 import { Button } from '@/components/ui'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { login } from '@/lib/auth'
 
 const inputBase =
@@ -59,13 +60,16 @@ export default function LoginPage() {
       {/* ---- 좌상단 홈으로 ---- */}
       <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-5 py-5 sm:px-8">
         <Logo size={30} wordClassName="text-white" />
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.06] px-3.5 py-2 text-sm font-medium text-[var(--text-soft)] backdrop-blur transition-colors hover:border-violet-400/50 hover:text-[var(--text)]"
-        >
-          <ArrowLeft size={15} />
-          홈으로
-        </Link>
+        <div className="flex items-center gap-1">
+          <LanguageSwitcher variant="dark" />
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.06] px-3.5 py-2 text-sm font-medium text-[var(--text-soft)] backdrop-blur transition-colors hover:border-violet-400/50 hover:text-[var(--text)]"
+          >
+            <ArrowLeft size={15} />
+            홈으로
+          </Link>
+        </div>
       </div>
 
       {/* ---- 중앙 카드 ---- */}

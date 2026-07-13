@@ -1,3 +1,5 @@
+'use client'
+
 import {
   ArrowRight,
   Database,
@@ -17,6 +19,311 @@ import { Footer } from '@/components/layout/Footer'
 import { Button, SectionTag } from '@/components/ui'
 import { Reveal, Counter } from '@/components/motion'
 import { LogoMark } from '@/components/Brand'
+import { useT, type Dict } from '@/lib/i18n'
+
+const M: Dict = {
+  // ===== STATS =====
+  '활성 마케터': { en: 'Active marketers', ja: 'アクティブなマーケター', zh: '活跃营销人员' },
+  '일일 수집 DB': { en: 'Daily collected records', ja: '日次収集データ', zh: '每日采集数据' },
+  '평균 전환율 상승': { en: 'Avg. conversion lift', ja: '平均コンバージョン率の向上', zh: '平均转化率提升' },
+  'ROAS 개선': { en: 'ROAS improvement', ja: 'ROASの改善', zh: 'ROAS 提升' },
+
+  // ===== VALUES =====
+  '데이터 기반': { en: 'Data-driven', ja: 'データドリブン', zh: '数据驱动' },
+  '“느낌상 잘 되는 것 같다”로는 다음을 결정할 수 없습니다. 모든 채널의 성과를 한 화면의 숫자로 투명하게 봅니다.': {
+    en: 'You can’t decide your next move on a hunch that “it seems to be working.” See every channel’s performance transparently, as numbers on a single screen.',
+    ja: '「なんとなくうまくいっている気がする」では次の一手は決められません。すべてのチャネルの成果を、一画面の数字で透明に把握します。',
+    zh: '仅凭“感觉还不错”无法决定下一步。将所有渠道的成效以一个界面的数字透明呈现。',
+  },
+  '자동화': { en: 'Automation', ja: '自動化', zh: '自动化' },
+  '반복 작업에 하루를 쓰는 건 사람의 일이 아닙니다. 실행은 시스템에 맡기고, 사람은 전략과 판단에 집중합니다.': {
+    en: 'Spending a whole day on repetitive tasks isn’t a job for people. Leave execution to the system, so people can focus on strategy and judgment.',
+    ja: '繰り返し作業に一日を費やすのは人の仕事ではありません。実行はシステムに任せ、人は戦略と判断に集中します。',
+    zh: '把一整天耗在重复劳动上并非人该做的事。将执行交给系统，让人专注于策略与判断。',
+  },
+  '올인원': { en: 'All-in-one', ja: 'オールインワン', zh: '一体化' },
+  '도구를 옮겨 다닐 때마다 데이터도 맥락도 끊깁니다. 수집·분석·CRM·콘텐츠를 하나의 워크스페이스로 이어 붙입니다.': {
+    en: 'Every time you switch tools, both data and context break. Collection, analytics, CRM, and content are stitched into a single workspace.',
+    ja: 'ツールを行き来するたびに、データも文脈も途切れます。収集・分析・CRM・コンテンツを一つのワークスペースにつなぎます。',
+    zh: '每次切换工具，数据与上下文都会中断。将采集、分析、CRM 与内容衔接进同一个工作空间。',
+  },
+  '고객 성공': { en: 'Customer success', ja: 'カスタマーサクセス', zh: '客户成功' },
+  '기능을 파는 것으로 끝나지 않습니다. 우리의 성공은 고객의 성장이기에, 도입 이후의 성과까지 함께 봅니다.': {
+    en: 'It doesn’t end with selling features. Our success is our customers’ growth, so we stay with the results long after adoption.',
+    ja: '機能を売って終わりではありません。私たちの成功はお客様の成長であるため、導入後の成果まで共に見届けます。',
+    zh: '并非卖出功能就此结束。我们的成功在于客户的成长，因此在导入之后仍与您共同关注成效。',
+  },
+
+  // ===== COMPANY =====
+  '회사명': { en: 'Company', ja: '会社名', zh: '公司名称' },
+  '서비스': { en: 'Service', ja: 'サービス', zh: '服务' },
+  '소재지': { en: 'Location', ja: '所在地', zh: '所在地' },
+  '대표': { en: 'CEO', ja: '代表', zh: '代表' },
+  '사업자등록번호': { en: 'Business registration no.', ja: '事業者登録番号', zh: '营业执照号码' },
+  '서울특별시': { en: 'Seoul, South Korea', ja: 'ソウル特別市', zh: '首尔特别市' },
+  '문의 시 안내': { en: 'Provided upon inquiry', ja: 'お問い合わせ時にご案内', zh: '咨询时提供' },
+
+  // ===== HERO =====
+  '회사소개': { en: 'About us', ja: '会社紹介', zh: '公司简介' },
+  '마케팅의 모든 것을': { en: 'Everything in marketing,', ja: 'マーケティングのすべてを', zh: '营销的一切，' },
+  '하나로': { en: 'unified', ja: 'ひとつに', zh: '尽在一处' },
+  '탭을 열 개씩 띄우고, 도구 사이를 오가며 데이터를 옮겨 붙이는 하루. 정작 성과를 고민할 시간은 남지 않습니다. BYGENCY는 그 낭비를 없애기 위해 시작됐습니다. 수집부터 분석, 전환, 자동화까지 마케터의 하루를 하나의 워크스페이스로 연결합니다.': {
+    en: 'A day spent with ten tabs open, hopping between tools to copy and paste data — leaving no time to actually think about results. BYGENCY was created to eliminate that waste. From collection to analytics, conversion, and automation, we connect a marketer’s entire day into a single workspace.',
+    ja: 'タブを十枚も開き、ツールの間を行き来してデータをコピー＆ペーストする一日。肝心の成果を考える時間は残りません。BYGENCYは、その無駄をなくすために始まりました。収集から分析、コンバージョン、自動化まで、マーケターの一日を一つのワークスペースにつなぎます。',
+    zh: '开着十几个标签页，在各种工具间来回搬运、粘贴数据的一天，真正用来思考成效的时间却所剩无几。BYGENCY 正是为消除这种浪费而生。从采集到分析、转化与自动化，将营销人员的整个工作日连接进同一个工作空间。',
+  },
+
+  // ===== MISSION / VISION =====
+  '우리의 미션': { en: 'Our mission', ja: '私たちのミッション', zh: '我们的使命' },
+  '마케터의 에너지는 도구를 다루는 데가 아니라, 성과를 만드는 데 쓰여야 합니다. 우리는 수집·분석·고객관리·콘텐츠 제작으로 흩어져 있던 일을 하나로 모아, 규모나 예산에 상관없이 누구나 데이터를 근거로 결정하고 성장할 수 있는 환경을 만듭니다.': {
+    en: 'A marketer’s energy should go into creating results, not wrangling tools. We bring together work once scattered across collection, analytics, customer management, and content creation, building an environment where anyone — regardless of scale or budget — can decide based on data and grow.',
+    ja: 'マーケターのエネルギーは、ツールを扱うことではなく成果を生み出すことに使われるべきです。私たちは収集・分析・顧客管理・コンテンツ制作に散らばっていた業務を一つにまとめ、規模や予算に関係なく、誰もがデータに基づいて意思決定し成長できる環境をつくります。',
+    zh: '营销人员的精力应当用于创造成效，而非摆弄工具。我们将原本分散于采集、分析、客户管理与内容制作的工作整合为一，打造一个无论规模或预算大小，人人都能凭数据决策并成长的环境。',
+  },
+  '우리의 비전': { en: 'Our vision', ja: '私たちのビジョン', zh: '我们的愿景' },
+  '좋은 제품을 만들고도 알리는 방법을 몰라 묻히는 일이 없어야 합니다. 우리는 AI와 자동화로 전문 마케팅의 진입 장벽을 낮춰, 1인 창업가부터 대행사까지 누구나 전문가 수준으로 실행할 수 있는 올인원 그로스 플랫폼을 지향합니다.': {
+    en: 'No great product should be buried simply because its makers didn’t know how to get the word out. With AI and automation, we lower the barrier to professional marketing, aiming to be an all-in-one growth platform where anyone — from solo founders to agencies — can execute at an expert level.',
+    ja: '優れた製品を作っても、伝え方が分からず埋もれてしまうことがあってはなりません。私たちはAIと自動化で専門的なマーケティングへの参入障壁を下げ、一人の起業家から代理店まで、誰もがプロレベルで実行できるオールインワンのグロースプラットフォームを目指します。',
+    zh: '好的产品不应因不懂如何推广而被埋没。我们以 AI 与自动化降低专业营销的门槛，致力于打造一个从个人创业者到代理机构，人人都能以专家水准执行的一体化增长平台。',
+  },
+
+  // ===== CORE VALUES =====
+  '핵심 가치': { en: 'Core values', ja: 'コアバリュー', zh: '核心价值' },
+  '우리가 일하는': { en: 'Our operating', ja: '私たちが働く', zh: '我们工作的' },
+  '기준': { en: 'principles', ja: '基準', zh: '准则' },
+
+  // ===== COMPANY INFO =====
+  '회사 정보': { en: 'Company info', ja: '会社情報', zh: '公司信息' },
+  'BYGENCY는 (주)Next Vision Company가 직접 만들고 운영하는 올인원 마케팅 그로스 플랫폼입니다. 화면 속 편의만이 아니라, 문의 하나에 응답하는 태도까지 우리가 책임집니다. 자세한 사업 관련 정보는 문의를 통해 안내해 드립니다.': {
+    en: 'BYGENCY is an all-in-one marketing growth platform built and operated directly by Next Vision Company. We take responsibility not only for on-screen convenience, but for the attitude behind every reply to an inquiry. Detailed business information is provided upon request.',
+    ja: 'BYGENCYは、(株)Next Vision Companyが自ら開発・運営するオールインワンのマーケティンググロースプラットフォームです。画面上の使いやすさだけでなく、一つひとつのお問い合わせに応える姿勢まで私たちが責任を持ちます。詳しい事業関連情報はお問い合わせにてご案内いたします。',
+    zh: 'BYGENCY 是由 Next Vision Company 亲自打造并运营的一体化营销增长平台。我们负责的不仅是界面上的便捷，更包括对每一次咨询用心回应的态度。详细的业务相关信息将通过咨询为您提供。',
+  },
+  '문의하기': { en: 'Contact us', ja: 'お問い合わせ', zh: '联系我们' },
+  '사업자 정보': { en: 'Business information', ja: '事業者情報', zh: '企业信息' },
+
+  // ===== CTA =====
+  '더 나은 도구를 찾는 일은 오늘로 끝내세요': {
+    en: 'Make today the last day you go looking for a better tool',
+    ja: 'より良いツールを探すのは、今日で終わりにしましょう',
+    zh: '让今天成为你寻找更好工具的最后一天',
+  },
+  '흩어진 도구를 전전하는 대신, 하나로 모아 성과에 집중할 시간입니다. 우리는 그 여정을 끝까지 함께합니다.': {
+    en: 'Instead of drifting between scattered tools, it’s time to bring them together and focus on results. We’ll be with you every step of that journey.',
+    ja: '散らばったツールを転々とする代わりに、一つにまとめて成果に集中する時です。私たちはその道のりを最後まで共にします。',
+    zh: '与其在零散的工具间辗转，不如将它们整合为一，专注于成效。这段旅程，我们将全程与你同行。',
+  },
+  '무료로 시작하기': { en: 'Start for free', ja: '無料で始める', zh: '免费开始' },
+  '요금제 보기': { en: 'View pricing', ja: '料金プランを見る', zh: '查看价格方案' },
+}
+
+export default function AboutPage() {
+  const t = useT(M)
+  return (
+    <div className="site-dark min-h-screen overflow-x-hidden">
+      <Navbar />
+
+      {/* ===== HERO ===== */}
+      <section className="relative overflow-hidden pt-36 pb-20">
+        <div className="absolute inset-0 grid-bg opacity-30" />
+        <div className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[480px] w-[840px] -translate-x-1/2 rounded-full bg-violet-700/30 blur-[130px]" />
+        <div className="animate-drift-slow pointer-events-none absolute top-24 left-0 h-[280px] w-[360px] rounded-full bg-indigo-700/25 blur-[120px]" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent to-[var(--bg)]" />
+
+        <div className="relative mx-auto max-w-3xl px-5 text-center">
+          <div className="flex justify-center animate-fade-up">
+            <SectionTag>{t('회사소개')}</SectionTag>
+          </div>
+          <h1 className="mt-6 text-balance text-4xl font-bold leading-[1.1] tracking-tight animate-fade-up delay-100 sm:text-5xl md:text-6xl">
+            {t('마케팅의 모든 것을')}{' '}
+            <span className="brand-text animate-gradient">{t('하나로')}</span>
+          </h1>
+          <p className="mx-auto mt-6 max-w-2xl text-balance text-lg leading-relaxed text-[var(--text-soft)] animate-fade-up delay-200">
+            {t(
+              '탭을 열 개씩 띄우고, 도구 사이를 오가며 데이터를 옮겨 붙이는 하루. 정작 성과를 고민할 시간은 남지 않습니다. BYGENCY는 그 낭비를 없애기 위해 시작됐습니다. 수집부터 분석, 전환, 자동화까지 마케터의 하루를 하나의 워크스페이스로 연결합니다.',
+            )}
+          </p>
+        </div>
+      </section>
+
+      {/* ===== STATS ===== */}
+      <section className="pb-8">
+        <div className="mx-auto max-w-6xl px-5">
+          <Reveal>
+            <div className="card grid gap-6 p-10 sm:grid-cols-2 lg:grid-cols-4">
+              {STATS.map((s, i) => (
+                <Reveal key={s.label} delay={i * 90} className="text-center">
+                  <div className="text-4xl font-bold tracking-tight sm:text-5xl">
+                    <span className="brand-text">
+                      <Counter to={s.to} decimals={s.decimals || 0} suffix={s.suffix} />
+                    </span>
+                  </div>
+                  <div className="mt-2 text-sm text-[var(--text-soft)]">{t(s.label)}</div>
+                </Reveal>
+              ))}
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ===== MISSION / VISION ===== */}
+      <section className="py-20">
+        <div className="mx-auto max-w-6xl px-5">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Reveal variant="left">
+              <div className="card hover-lift relative h-full overflow-hidden p-9">
+                <div className="animate-drift-slow absolute -right-10 -top-10 h-32 w-32 rounded-full bg-violet-300/25 blur-2xl" />
+                <span className="relative grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-lg">
+                  <Target size={22} />
+                </span>
+                <h2 className="relative mt-6 text-2xl font-bold tracking-tight">{t('우리의 미션')}</h2>
+                <p className="relative mt-4 text-[15px] leading-relaxed text-[var(--text-soft)]">
+                  {t(
+                    '마케터의 에너지는 도구를 다루는 데가 아니라, 성과를 만드는 데 쓰여야 합니다. 우리는 수집·분석·고객관리·콘텐츠 제작으로 흩어져 있던 일을 하나로 모아, 규모나 예산에 상관없이 누구나 데이터를 근거로 결정하고 성장할 수 있는 환경을 만듭니다.',
+                  )}
+                </p>
+              </div>
+            </Reveal>
+            <Reveal variant="right" delay={100}>
+              <div className="card hover-lift relative h-full overflow-hidden p-9">
+                <div className="animate-drift-slow absolute -right-10 -top-10 h-32 w-32 rounded-full bg-cyan-300/25 blur-2xl" />
+                <span className="relative grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-indigo-500 text-white shadow-lg">
+                  <Compass size={22} />
+                </span>
+                <h2 className="relative mt-6 text-2xl font-bold tracking-tight">{t('우리의 비전')}</h2>
+                <p className="relative mt-4 text-[15px] leading-relaxed text-[var(--text-soft)]">
+                  {t(
+                    '좋은 제품을 만들고도 알리는 방법을 몰라 묻히는 일이 없어야 합니다. 우리는 AI와 자동화로 전문 마케팅의 진입 장벽을 낮춰, 1인 창업가부터 대행사까지 누구나 전문가 수준으로 실행할 수 있는 올인원 그로스 플랫폼을 지향합니다.',
+                  )}
+                </p>
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== CORE VALUES ===== */}
+      <section className="border-y border-white/10 bg-white/[0.015] py-24">
+        <div className="mx-auto max-w-6xl px-5">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <SectionTag>{t('핵심 가치')}</SectionTag>
+            <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+              {t('우리가 일하는')} <span className="brand-text">{t('기준')}</span>
+            </h2>
+          </Reveal>
+          <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {VALUES.map((v, i) => {
+              const Icon = v.icon
+              return (
+                <Reveal key={v.title} variant="scale" delay={i * 90}>
+                  <div className="card hover-lift h-full p-7">
+                    <span
+                      className={`inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${v.color} text-white shadow-lg`}
+                    >
+                      <Icon size={22} />
+                    </span>
+                    <h3 className="mt-5 text-lg font-semibold">{t(v.title)}</h3>
+                    <p className="mt-2.5 text-sm leading-relaxed text-[var(--text-soft)]">{t(v.desc)}</p>
+                  </div>
+                </Reveal>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== COMPANY INFO ===== */}
+      <section className="py-24">
+        <div className="mx-auto max-w-5xl px-5">
+          <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+            <Reveal variant="left">
+              <SectionTag>{t('회사 정보')}</SectionTag>
+              <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+                (주)Next Vision Company
+              </h2>
+              <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
+                {t(
+                  'BYGENCY는 (주)Next Vision Company가 직접 만들고 운영하는 올인원 마케팅 그로스 플랫폼입니다. 화면 속 편의만이 아니라, 문의 하나에 응답하는 태도까지 우리가 책임집니다. 자세한 사업 관련 정보는 문의를 통해 안내해 드립니다.',
+                )}
+              </p>
+              <Button href="/contact" className="mt-7 group">
+                {t('문의하기')}
+                <ArrowRight size={16} className="transition-transform duration-300 group-hover:translate-x-1" />
+              </Button>
+            </Reveal>
+
+            <Reveal variant="right" delay={100}>
+              <div className="card overflow-hidden">
+                <div className="flex items-center gap-3 border-b border-[var(--border)] bg-[var(--panel-2)] px-6 py-4">
+                  <LogoMark size={28} />
+                  <span className="text-sm font-semibold text-[var(--text-soft)]">{t('사업자 정보')}</span>
+                </div>
+                <ul className="divide-y divide-[var(--border)]">
+                  {COMPANY.map((c) => {
+                    const Icon = c.icon
+                    return (
+                      <li key={c.label} className="flex items-center gap-4 px-6 py-4">
+                        <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg bg-violet-500/12 text-violet-300">
+                          <Icon size={16} />
+                        </span>
+                        <span className="w-28 flex-shrink-0 text-sm text-[var(--text-dim)]">{t(c.label)}</span>
+                        <span className="text-sm font-medium">{t(c.value)}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== CTA ===== */}
+      <section className="px-5 pb-28">
+        <Reveal variant="scale" className="mx-auto max-w-5xl">
+          <div
+            className="animate-gradient relative overflow-hidden rounded-3xl px-8 py-16 text-center shadow-xl shadow-violet-300/50"
+            style={{ background: 'linear-gradient(120deg,#a855f7,#7c3aed,#6366f1,#22d3ee)' }}
+          >
+            <div className="animate-drift pointer-events-none absolute -top-16 left-1/2 h-64 w-96 -translate-x-1/2 rounded-full bg-white/20 blur-[90px]" />
+            <div className="relative">
+              <div className="mb-6 flex justify-center">
+                <span className="grid h-16 w-16 place-items-center rounded-2xl bg-white/15 backdrop-blur">
+                  <LogoMark size={40} />
+                </span>
+              </div>
+              <h2 className="text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                {t('더 나은 도구를 찾는 일은 오늘로 끝내세요')}
+              </h2>
+              <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-white/85">
+                {t(
+                  '흩어진 도구를 전전하는 대신, 하나로 모아 성과에 집중할 시간입니다. 우리는 그 여정을 끝까지 함께합니다.',
+                )}
+              </p>
+              <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <Button
+                  href="/signup"
+                  size="lg"
+                  className="!bg-white !text-violet-700 hover:!bg-violet-50 hover:!brightness-100"
+                >
+                  {t('무료로 시작하기')} <ArrowRight size={18} />
+                </Button>
+                <Link
+                  href="/pricing"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/40 bg-white/10 px-7 py-3.5 text-base font-semibold text-white transition-all duration-200 hover:bg-white/20"
+                >
+                  {t('요금제 보기')}
+                </Link>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+      </section>
+
+      <Footer />
+    </div>
+  )
+}
 
 const STATS = [
   { to: 5200, suffix: '+', label: '활성 마케터' },
@@ -59,208 +366,3 @@ const COMPANY = [
   { icon: User, label: '대표', value: '문의 시 안내' },
   { icon: Mail, label: '사업자등록번호', value: '문의 시 안내' },
 ]
-
-export default function AboutPage() {
-  return (
-    <div className="site-dark min-h-screen overflow-x-hidden">
-      <Navbar />
-
-      {/* ===== HERO ===== */}
-      <section className="relative overflow-hidden pt-36 pb-20">
-        <div className="absolute inset-0 grid-bg opacity-30" />
-        <div className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[480px] w-[840px] -translate-x-1/2 rounded-full bg-violet-700/30 blur-[130px]" />
-        <div className="animate-drift-slow pointer-events-none absolute top-24 left-0 h-[280px] w-[360px] rounded-full bg-indigo-700/25 blur-[120px]" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent to-[var(--bg)]" />
-
-        <div className="relative mx-auto max-w-3xl px-5 text-center">
-          <div className="flex justify-center animate-fade-up">
-            <SectionTag>회사소개</SectionTag>
-          </div>
-          <h1 className="mt-6 text-balance text-4xl font-bold leading-[1.1] tracking-tight animate-fade-up delay-100 sm:text-5xl md:text-6xl">
-            마케팅의 모든 것을 <span className="brand-text animate-gradient">하나로</span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-balance text-lg leading-relaxed text-[var(--text-soft)] animate-fade-up delay-200">
-            탭을 열 개씩 띄우고, 도구 사이를 오가며 데이터를 옮겨 붙이는 하루. 정작 성과를 고민할
-            시간은 남지 않습니다. BYGENCY는 그 낭비를 없애기 위해 시작됐습니다. 수집부터 분석,
-            전환, 자동화까지 마케터의 하루를 하나의 워크스페이스로 연결합니다.
-          </p>
-        </div>
-      </section>
-
-      {/* ===== STATS ===== */}
-      <section className="pb-8">
-        <div className="mx-auto max-w-6xl px-5">
-          <Reveal>
-            <div className="card grid gap-6 p-10 sm:grid-cols-2 lg:grid-cols-4">
-              {STATS.map((s, i) => (
-                <Reveal key={s.label} delay={i * 90} className="text-center">
-                  <div className="text-4xl font-bold tracking-tight sm:text-5xl">
-                    <span className="brand-text">
-                      <Counter to={s.to} decimals={s.decimals || 0} suffix={s.suffix} />
-                    </span>
-                  </div>
-                  <div className="mt-2 text-sm text-[var(--text-soft)]">{s.label}</div>
-                </Reveal>
-              ))}
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* ===== MISSION / VISION ===== */}
-      <section className="py-20">
-        <div className="mx-auto max-w-6xl px-5">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Reveal variant="left">
-              <div className="card hover-lift relative h-full overflow-hidden p-9">
-                <div className="animate-drift-slow absolute -right-10 -top-10 h-32 w-32 rounded-full bg-violet-300/25 blur-2xl" />
-                <span className="relative grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-lg">
-                  <Target size={22} />
-                </span>
-                <h2 className="relative mt-6 text-2xl font-bold tracking-tight">우리의 미션</h2>
-                <p className="relative mt-4 text-[15px] leading-relaxed text-[var(--text-soft)]">
-                  마케터의 에너지는 도구를 다루는 데가 아니라, 성과를 만드는 데 쓰여야 합니다.
-                  우리는 수집·분석·고객관리·콘텐츠 제작으로 흩어져 있던 일을 하나로 모아, 규모나
-                  예산에 상관없이 누구나 데이터를 근거로 결정하고 성장할 수 있는 환경을 만듭니다.
-                </p>
-              </div>
-            </Reveal>
-            <Reveal variant="right" delay={100}>
-              <div className="card hover-lift relative h-full overflow-hidden p-9">
-                <div className="animate-drift-slow absolute -right-10 -top-10 h-32 w-32 rounded-full bg-cyan-300/25 blur-2xl" />
-                <span className="relative grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-indigo-500 text-white shadow-lg">
-                  <Compass size={22} />
-                </span>
-                <h2 className="relative mt-6 text-2xl font-bold tracking-tight">우리의 비전</h2>
-                <p className="relative mt-4 text-[15px] leading-relaxed text-[var(--text-soft)]">
-                  좋은 제품을 만들고도 알리는 방법을 몰라 묻히는 일이 없어야 합니다. 우리는 AI와
-                  자동화로 전문 마케팅의 진입 장벽을 낮춰, 1인 창업가부터 대행사까지 누구나 전문가
-                  수준으로 실행할 수 있는 올인원 그로스 플랫폼을 지향합니다.
-                </p>
-              </div>
-            </Reveal>
-          </div>
-        </div>
-      </section>
-
-      {/* ===== CORE VALUES ===== */}
-      <section className="border-y border-white/10 bg-white/[0.015] py-24">
-        <div className="mx-auto max-w-6xl px-5">
-          <Reveal className="mx-auto max-w-2xl text-center">
-            <SectionTag>핵심 가치</SectionTag>
-            <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-              우리가 일하는 <span className="brand-text">기준</span>
-            </h2>
-          </Reveal>
-          <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {VALUES.map((v, i) => {
-              const Icon = v.icon
-              return (
-                <Reveal key={v.title} variant="scale" delay={i * 90}>
-                  <div className="card hover-lift h-full p-7">
-                    <span
-                      className={`inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${v.color} text-white shadow-lg`}
-                    >
-                      <Icon size={22} />
-                    </span>
-                    <h3 className="mt-5 text-lg font-semibold">{v.title}</h3>
-                    <p className="mt-2.5 text-sm leading-relaxed text-[var(--text-soft)]">{v.desc}</p>
-                  </div>
-                </Reveal>
-              )
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* ===== COMPANY INFO ===== */}
-      <section className="py-24">
-        <div className="mx-auto max-w-5xl px-5">
-          <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-            <Reveal variant="left">
-              <SectionTag>회사 정보</SectionTag>
-              <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-                (주)Next Vision Company
-              </h2>
-              <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
-                BYGENCY는 (주)Next Vision Company가 직접 만들고 운영하는 올인원 마케팅 그로스
-                플랫폼입니다. 화면 속 편의만이 아니라, 문의 하나에 응답하는 태도까지 우리가 책임집니다.
-                자세한 사업 관련 정보는 문의를 통해 안내해 드립니다.
-              </p>
-              <Button href="/contact" className="mt-7 group">
-                문의하기
-                <ArrowRight size={16} className="transition-transform duration-300 group-hover:translate-x-1" />
-              </Button>
-            </Reveal>
-
-            <Reveal variant="right" delay={100}>
-              <div className="card overflow-hidden">
-                <div className="flex items-center gap-3 border-b border-[var(--border)] bg-[var(--panel-2)] px-6 py-4">
-                  <LogoMark size={28} />
-                  <span className="text-sm font-semibold text-[var(--text-soft)]">사업자 정보</span>
-                </div>
-                <ul className="divide-y divide-[var(--border)]">
-                  {COMPANY.map((c) => {
-                    const Icon = c.icon
-                    return (
-                      <li key={c.label} className="flex items-center gap-4 px-6 py-4">
-                        <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg bg-violet-500/12 text-violet-300">
-                          <Icon size={16} />
-                        </span>
-                        <span className="w-28 flex-shrink-0 text-sm text-[var(--text-dim)]">{c.label}</span>
-                        <span className="text-sm font-medium">{c.value}</span>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-            </Reveal>
-          </div>
-        </div>
-      </section>
-
-      {/* ===== CTA ===== */}
-      <section className="px-5 pb-28">
-        <Reveal variant="scale" className="mx-auto max-w-5xl">
-          <div
-            className="animate-gradient relative overflow-hidden rounded-3xl px-8 py-16 text-center shadow-xl shadow-violet-300/50"
-            style={{ background: 'linear-gradient(120deg,#a855f7,#7c3aed,#6366f1,#22d3ee)' }}
-          >
-            <div className="animate-drift pointer-events-none absolute -top-16 left-1/2 h-64 w-96 -translate-x-1/2 rounded-full bg-white/20 blur-[90px]" />
-            <div className="relative">
-              <div className="mb-6 flex justify-center">
-                <span className="grid h-16 w-16 place-items-center rounded-2xl bg-white/15 backdrop-blur">
-                  <LogoMark size={40} />
-                </span>
-              </div>
-              <h2 className="text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                더 나은 도구를 찾는 일은 오늘로 끝내세요
-              </h2>
-              <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-white/85">
-                흩어진 도구를 전전하는 대신, 하나로 모아 성과에 집중할 시간입니다. 우리는 그 여정을
-                끝까지 함께합니다.
-              </p>
-              <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <Button
-                  href="/signup"
-                  size="lg"
-                  className="!bg-white !text-violet-700 hover:!bg-violet-50 hover:!brightness-100"
-                >
-                  무료로 시작하기 <ArrowRight size={18} />
-                </Button>
-                <Link
-                  href="/pricing"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/40 bg-white/10 px-7 py-3.5 text-base font-semibold text-white transition-all duration-200 hover:bg-white/20"
-                >
-                  요금제 보기
-                </Link>
-              </div>
-            </div>
-          </div>
-        </Reveal>
-      </section>
-
-      <Footer />
-    </div>
-  )
-}

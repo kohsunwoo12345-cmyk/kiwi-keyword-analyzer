@@ -14,7 +14,7 @@ export function Reveal({
 }: {
   children: ReactNode
   className?: string
-  variant?: 'up' | 'left' | 'right' | 'scale'
+  variant?: 'up' | 'left' | 'right' | 'scale' | 'rise'
   delay?: number
   as?: any
   once?: boolean
@@ -47,6 +47,8 @@ export function Reveal({
       ? 'reveal-right'
       : variant === 'scale'
       ? 'reveal-scale'
+      : variant === 'rise'
+      ? 'reveal-rise'
       : ''
 
   return (

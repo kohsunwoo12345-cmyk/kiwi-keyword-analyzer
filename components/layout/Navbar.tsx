@@ -6,8 +6,10 @@ import { Menu, X, ArrowRight, ChevronDown, LayoutDashboard } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { Logo } from '@/components/Brand'
 import { MegaNodeStudio } from '@/components/MegaNodeStudio'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { FEATURES } from '@/lib/features'
 import { useAuth } from '@/lib/auth'
+import { useT, type Dict } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 const LINKS = [
@@ -17,12 +19,27 @@ const LINKS = [
   { href: '/contact', label: '문의' },
 ]
 
+const M: Dict = {
+  제품: { en: 'Product', ja: '製品', zh: '产品' },
+  기능: { en: 'Features', ja: '機能', zh: '功能' },
+  요금제: { en: 'Pricing', ja: '料金', zh: '价格' },
+  회사소개: { en: 'About', ja: '会社概要', zh: '关于' },
+  문의: { en: 'Contact', ja: 'お問い合わせ', zh: '联系' },
+  로그인: { en: 'Log in', ja: 'ログイン', zh: '登录' },
+  '무료로 시작하기': { en: 'Get started free', ja: '無料で始める', zh: '免费开始' },
+  시작하기: { en: 'Start', ja: '始める', zh: '开始' },
+  대시보드: { en: 'Dashboard', ja: 'ダッシュボード', zh: '控制台' },
+  '대시보드로 이동': { en: 'Go to dashboard', ja: 'ダッシュボードへ', zh: '进入控制台' },
+  '올인원 마케팅 기능': { en: 'All-in-one marketing', ja: 'オールインワン機能', zh: '一体化营销功能' },
+}
+
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
   const [mega, setMega] = useState(false)
   const [mOpenFeatures, setMOpenFeatures] = useState(false)
   const { user, ready } = useAuth()
+  const t = useT(M)
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12)
@@ -59,7 +76,7 @@ export function Navbar() {
                   mega ? 'text-white' : 'text-slate-300 hover:text-white',
                 )}
               >
-                제품
+                {t('제품')}
                 <ChevronDown size={15} className={cn('transition-transform duration-300', mega && 'rotate-180')} />
               </button>
             </div>
@@ -69,17 +86,18 @@ export function Navbar() {
                 href={n.href}
                 className="group relative rounded-lg px-3.5 py-2 text-sm font-medium text-slate-300 transition-colors hover:text-white"
               >
-                {n.label}
+                {t(n.label)}
                 <span className="absolute inset-x-3.5 -bottom-0.5 h-0.5 origin-left scale-x-0 rounded-full brand-gradient transition-transform duration-300 group-hover:scale-x-100" />
               </Link>
             ))}
           </nav>
 
           {/* desktop CTA */}
-          <div className="hidden items-center gap-2 md:flex">
+          <div className="hidden items-center gap-1 md:flex">
+            <LanguageSwitcher variant="dark" />
             {loggedIn ? (
-              <Button href="/dashboard_USE17237_612" size="sm" className="group">
-                <LayoutDashboard size={15} /> 대시보드
+              <Button href="/dashboard_USE17237_612" size="sm" className="group ml-1">
+                <LayoutDashboard size={15} /> {t('대시보드')}
                 <ArrowRight size={15} className="transition-transform duration-300 group-hover:translate-x-0.5" />
               </Button>
             ) : (
@@ -88,24 +106,27 @@ export function Navbar() {
                   href="/login"
                   className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-300 transition-colors hover:text-white"
                 >
-                  로그인
+                  {t('로그인')}
                 </Link>
                 <Button href="/signup" size="sm" className="group">
-                  무료로 시작하기
+                  {t('무료로 시작하기')}
                   <ArrowRight size={15} className="transition-transform duration-300 group-hover:translate-x-0.5" />
                 </Button>
               </>
             )}
           </div>
 
-          {/* mobile toggle */}
-          <button
-            className="grid h-10 w-10 place-items-center rounded-lg text-slate-200 md:hidden"
-            onClick={() => setOpen((v) => !v)}
-            aria-label="메뉴"
-          >
-            {open ? <X size={20} /> : <Menu size={20} />}
-          </button>
+          {/* mobile: language + toggle */}
+          <div className="flex items-center gap-1 md:hidden">
+            <LanguageSwitcher variant="dark" />
+            <button
+              className="grid h-10 w-10 place-items-center rounded-lg text-slate-200"
+              onClick={() => setOpen((v) => !v)}
+              aria-label="메뉴"
+            >
+              {open ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -123,7 +144,7 @@ export function Navbar() {
           <div className="mx-auto grid max-w-7xl gap-6 px-5 py-7 lg:grid-cols-[1fr_300px]">
             <div>
               <p className="mb-3 px-2 text-[11px] font-bold uppercase tracking-widest text-slate-500">
-                올인원 마케팅 기능
+                {t('올인원 마케팅 기능')}
               </p>
               <div className="grid gap-1.5 sm:grid-cols-2">
                 {FEATURES.map((f) => {
@@ -173,7 +194,7 @@ export function Navbar() {
               onClick={() => setMOpenFeatures((v) => !v)}
               className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.06] hover:text-white"
             >
-              제품
+              {t('제품')}
               <ChevronDown size={16} className={cn('transition-transform', mOpenFeatures && 'rotate-180')} />
             </button>
             {mOpenFeatures && (
@@ -203,21 +224,21 @@ export function Navbar() {
                 onClick={() => setOpen(false)}
                 className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.06] hover:text-white"
               >
-                {n.label}
+                {t(n.label)}
               </Link>
             ))}
             <div className="flex gap-2 pt-2">
               {loggedIn ? (
                 <Button href="/dashboard_USE17237_612" className="flex-1">
-                  <LayoutDashboard size={15} /> 대시보드로 이동
+                  <LayoutDashboard size={15} /> {t('대시보드로 이동')}
                 </Button>
               ) : (
                 <>
                   <Button href="/login" variant="outline" className="flex-1">
-                    로그인
+                    {t('로그인')}
                   </Button>
                   <Button href="/signup" className="flex-1">
-                    시작하기
+                    {t('시작하기')}
                   </Button>
                 </>
               )}

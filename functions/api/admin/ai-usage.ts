@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, resolveDB, requireAdminUser } from '../_utils'
-import { ensureAiUsage } from '../studio/_pricing'
+import { ensureAiUsage, getUsdKrw } from '../studio/_pricing'
 
 // GET /api/admin/ai-usage?days=30 → 스튜디오 AI 사용/정산 (사용자별·모델별 매출·비용·순이익)
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
@@ -45,11 +45,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       since,
     ),
     rows(
-      `SELECT created_at, name, email, model, provider, kind, credits, cost_krw, revenue_krw, markup
+      `SELECT created_at, name, email, model, provider, kind, credits, cost_krw, revenue_krw, markup, usd_krw
        FROM ai_usage WHERE created_at > ? ORDER BY created_at DESC LIMIT 300`,
       since,
     ),
   ])
+
+  const todayRate = await getUsdKrw(db)
 
   const revenue = Number(totals.revenue) || 0
   const cost = Number(totals.cost) || 0
@@ -57,6 +59,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   return json({
     ok: true,
     days,
+    todayRate,
     totals: {
       count: Number(totals.count) || 0,
       credits: Number(totals.credits) || 0,
@@ -98,6 +101,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       revenue: Number(r.revenue_krw) || 0,
       profit: (Number(r.revenue_krw) || 0) - (Number(r.cost_krw) || 0),
       markup: Number(r.markup) || 0,
+      usdKrw: Number(r.usd_krw) || 0,
     })),
   })
 }

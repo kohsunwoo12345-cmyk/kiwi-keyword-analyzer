@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity } from '../_utils'
-import { computeCharge, ensureAiUsage } from '../studio/_pricing'
+import { computeCharge, ensureAiUsage, getUsdKrw } from '../studio/_pricing'
 
 // POST /api/usage/record { model, kind, units, res?, audio?, provider? }
 //  → 스튜디오 생성 1건 확정. BYGENCY 세션으로 사용자 식별 → 크레딧 100% 차감 + 정산 기록.
@@ -12,13 +12,17 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const me: any = await getSessionUser(request, db)
   const b: any = await request.json().catch(() => ({}))
-  const c = computeCharge({
-    model: String(b.model || ''),
-    units: Number(b.units) || 0,
-    kind: b.kind,
-    res: b.res,
-    audio: !!b.audio,
-  })
+  const rate = await getUsdKrw(db) // 결제(생성) 시점의 그날 환율
+  const c = computeCharge(
+    {
+      model: String(b.model || ''),
+      units: Number(b.units) || 0,
+      kind: b.kind,
+      res: b.res,
+      audio: !!b.audio,
+    },
+    rate,
+  )
 
   // 크레딧 100% 차감 (로그인 사용자만). 잔액 부족 시 있는 만큼만 차감하고 마이너스는 방지.
   let charged = 0
@@ -43,8 +47,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const id = 'au' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
     await db
       .prepare(
-        `INSERT INTO ai_usage (id,user_id,email,name,provider,model,kind,units,usd,cost_krw,credits,revenue_krw,markup,created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        `INSERT INTO ai_usage (id,user_id,email,name,provider,model,kind,units,usd,cost_krw,credits,revenue_krw,markup,usd_krw,created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .bind(
         id,
@@ -60,6 +64,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         charged,
         revenueKrw,
         c.markup,
+        c.usdKrw,
         new Date().toISOString(),
       )
       .run()
