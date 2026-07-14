@@ -316,6 +316,8 @@ body {
   width: max-content;
   animation: marquee 26s linear infinite;
 }
+.marquee-rev { animation-direction: reverse; }
+.marquee-track:hover { animation-play-state: paused; }
 .marquee-mask {
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
   mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);

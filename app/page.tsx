@@ -26,6 +26,7 @@ import { HeroOrbit } from '@/components/HeroOrbit'
 import { HeroBackdrop } from '@/components/HeroBackdrop'
 import { HeroDashboard } from '@/components/HeroDashboard'
 import { AIPipeline } from '@/components/AIPipeline'
+import { AIVideoGallery } from '@/components/AIVideoGallery'
 import { AIVideoShowcase } from '@/components/AIVideoShowcase'
 import { YouTubeLogo, NaverBlogLogo, KakaoLogo, AdPlatformsCluster } from '@/components/logos/BrandMarks'
 import { Button, SectionTag } from '@/components/ui'
@@ -820,6 +821,9 @@ export default function Home() {
 
       {/* ===== AI 파이프라인 (컨트롤넷 + AI 모델, 하나씩 등장) ===== */}
       <AIPipeline />
+
+      {/* ===== AI 영상 갤러리 (힉스필드 스타일, 모델별 제작 영상) ===== */}
+      <AIVideoGallery />
 
       {/* ===== 채널 오빗 (실제 로고 공전) ===== */}
       <section className="relative overflow-hidden border-y border-white/10 py-20 text-white">
