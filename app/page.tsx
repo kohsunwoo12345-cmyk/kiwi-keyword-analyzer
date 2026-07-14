@@ -24,6 +24,7 @@ import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { HeroOrbit } from '@/components/HeroOrbit'
 import { HeroNodeStudio } from '@/components/HeroNodeStudio'
+import { AIPipeline } from '@/components/AIPipeline'
 import { Button, SectionTag } from '@/components/ui'
 import { Reveal, Marquee } from '@/components/motion'
 import { LogoMark } from '@/components/Brand'
@@ -798,6 +799,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* ===== AI 파이프라인 (컨트롤넷 + AI 모델, 하나씩 등장) ===== */}
+      <AIPipeline />
 
       {/* ===== 채널 오빗 (실제 로고 공전) ===== */}
       <section className="relative overflow-hidden border-y border-white/10 py-20 text-white">

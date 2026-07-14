@@ -398,6 +398,8 @@ body {
 .orbit-core { animation: core-pulse 4.5s ease-in-out infinite; }
 @keyframes node-pan { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-10px,-6px); } }
 @keyframes dash-flow { to { stroke-dashoffset: -24; } }
+@keyframes loadbar { 0%,100% { width: 35%; } 50% { width: 85%; } }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
 
 @media (prefers-reduced-motion: reduce) {
   .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
