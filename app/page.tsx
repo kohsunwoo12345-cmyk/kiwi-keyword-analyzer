@@ -27,6 +27,7 @@ import { HeroBackdrop } from '@/components/HeroBackdrop'
 import { HeroDashboard } from '@/components/HeroDashboard'
 import { AIPipeline } from '@/components/AIPipeline'
 import { AIVideoShowcase } from '@/components/AIVideoShowcase'
+import { YouTubeLogo, NaverBlogLogo, KakaoLogo, AdPlatformsCluster } from '@/components/logos/BrandMarks'
 import { Button, SectionTag } from '@/components/ui'
 import { Reveal, Marquee } from '@/components/motion'
 import { LogoMark } from '@/components/Brand'
@@ -933,17 +934,32 @@ export default function Home() {
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.filter((f) => f.slug !== 'video').map((f, i) => {
               const Icon = f.icon
+              const LOGO: Record<string, React.ReactNode> = {
+                youtube: <YouTubeLogo />,
+                blog: <NaverBlogLogo />,
+                crm: <KakaoLogo />,
+              }
+              const mark =
+                f.slug === 'ads' ? (
+                  <div className="flex h-11 flex-shrink-0 items-center transition-transform duration-300 group-hover:scale-105">
+                    <AdPlatformsCluster />
+                  </div>
+                ) : LOGO[f.slug] ? (
+                  <div className="h-11 w-11 flex-shrink-0 transition-transform duration-300 group-hover:scale-110">
+                    {LOGO[f.slug]}
+                  </div>
+                ) : (
+                  <div className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl border border-white/12 bg-white/[0.06] text-blue-300 shadow-md transition-transform duration-300 group-hover:scale-110">
+                    <Icon size={19} />
+                  </div>
+                )
               return (
                 <Reveal key={f.slug} variant="rise" delay={i * 90}>
                   <Link
                     href={`/features/${f.slug}`}
                     className="group card hover-lift relative flex h-full items-start gap-4 overflow-hidden p-5"
                   >
-                    <div
-                      className={`grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br ${f.color} shadow-md transition-transform duration-300 group-hover:scale-110`}
-                    >
-                      <Icon size={19} className="text-white" />
-                    </div>
+                    {mark}
                     <div className="min-w-0">
                       <h3 className="flex items-center gap-1.5 text-base font-semibold">
                         {f.title}
