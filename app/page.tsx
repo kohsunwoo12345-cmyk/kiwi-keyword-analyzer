@@ -26,6 +26,7 @@ import { HeroOrbit } from '@/components/HeroOrbit'
 import { HeroBackdrop } from '@/components/HeroBackdrop'
 import { HeroDashboard } from '@/components/HeroDashboard'
 import { AIPipeline } from '@/components/AIPipeline'
+import { AIVideoShowcase } from '@/components/AIVideoShowcase'
 import { Button, SectionTag } from '@/components/ui'
 import { Reveal, Marquee } from '@/components/motion'
 import { LogoMark } from '@/components/Brand'
@@ -217,25 +218,35 @@ const M: Dict = {
   },
 
   // ===== FEATURES =====
-  '7가지 핵심 기능': {
-    en: '7 core features',
-    ja: '7つのコア機能',
-    zh: '7 大核心功能',
+  '핵심 기능 · AI 영상 제작': {
+    en: 'Core · AI video',
+    ja: 'コア機能 · AI動画',
+    zh: '核心 · AI 视频',
   },
-  '하나의 플랫폼,': {
-    en: 'One platform,',
-    ja: '一つのプラットフォーム、',
-    zh: '一个平台，',
+  '마케팅의 중심,': {
+    en: 'The heart of marketing,',
+    ja: 'マーケティングの中心、',
+    zh: '营销的核心，',
   },
-  '완결된 마케팅': {
-    en: 'complete marketing',
-    ja: '完結するマーケティング',
-    zh: '完整的营销',
+  'AI 영상 제작': {
+    en: 'AI video production',
+    ja: 'AI動画制作',
+    zh: 'AI 视频制作',
   },
-  '랜딩페이지 제작부터 광고 분석, 고객 전환, 영상 자동화까지 — 흩어져 있던 7개의 일이 한 화면에서 끝납니다.': {
-    en: 'From landing page creation to ad analysis, customer conversion, and video automation — 7 scattered jobs now finish on one screen.',
-    ja: 'ランディングページ制作から広告分析、顧客転換、動画自動化まで — 散らばっていた7つの仕事が一画面で完結します。',
-    zh: '从落地页制作到广告分析、客户转化、视频自动化——原本分散的 7 项工作，如今在一个界面即可完成。',
+  '노드형 AI 영상 스튜디오를 중심으로, 마케팅에 필요한 나머지 기능이 하나로 연결됩니다.': {
+    en: 'Centered on a node-based AI video studio, everything else you need for marketing connects into one.',
+    ja: 'ノード型AI動画スタジオを中心に、マーケティングに必要な残りの機能が一つにつながります。',
+    zh: '以节点式 AI 视频工作室为中心，营销所需的其余功能连成一体。',
+  },
+  '마케팅을 완성하는 부가 서비스': {
+    en: 'Add-on services that complete your marketing',
+    ja: 'マーケティングを完成させる付加サービス',
+    zh: '让营销更完整的附加服务',
+  },
+  '영상 제작에 더해, 수집·분석·전환까지 한 워크스페이스에서.': {
+    en: 'Beyond video — capture, analytics, and conversion, all in one workspace.',
+    ja: '動画制作に加え、収集・分析・転換まで一つのワークスペースで。',
+    zh: '不止视频——收集、分析、转化，尽在一个工作区。',
   },
   '살펴보기': {
     en: 'Learn more',
@@ -887,54 +898,61 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ===== FEATURES ===== */}
+      {/* ===== FEATURES (AI 영상 제작 중심) ===== */}
       <section id="features" className="relative py-24">
         <div className="mx-auto max-w-7xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
-            <SectionTag>{t('7가지 핵심 기능')}</SectionTag>
+            <SectionTag>{t('핵심 기능 · AI 영상 제작')}</SectionTag>
             <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
-              {t('하나의 플랫폼,')} <span className="brand-text">{t('완결된 마케팅')}</span>
+              {t('마케팅의 중심,')} <span className="brand-text">{t('AI 영상 제작')}</span>
             </h2>
             <p className="mt-5 text-balance text-lg text-[var(--text-soft)]">
-              {t('랜딩페이지 제작부터 광고 분석, 고객 전환, 영상 자동화까지 — 흩어져 있던 7개의 일이 한 화면에서 끝납니다.')}
+              {t('노드형 AI 영상 스튜디오를 중심으로, 마케팅에 필요한 나머지 기능이 하나로 연결됩니다.')}
             </p>
           </Reveal>
 
-          <div className="mt-16 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map((f, i) => {
+          {/* 대형 AI 영상 제작 쇼케이스 */}
+          <Reveal variant="rise" className="mt-14">
+            <AIVideoShowcase />
+          </Reveal>
+
+          {/* 부가 서비스 */}
+          <Reveal className="mt-20 text-center">
+            <div className="mx-auto flex max-w-md items-center gap-4">
+              <span className="h-px flex-1 bg-gradient-to-r from-transparent to-white/15" />
+              <span className="text-xs font-bold uppercase tracking-widest text-[var(--text-dim)]">
+                {t('마케팅을 완성하는 부가 서비스')}
+              </span>
+              <span className="h-px flex-1 bg-gradient-to-l from-transparent to-white/15" />
+            </div>
+            <p className="mt-4 text-balance text-[var(--text-soft)]">
+              {t('영상 제작에 더해, 수집·분석·전환까지 한 워크스페이스에서.')}
+            </p>
+          </Reveal>
+
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {FEATURES.filter((f) => f.slug !== 'video').map((f, i) => {
               const Icon = f.icon
-              const wide = i === 0
               return (
-                <Reveal
-                  key={f.slug}
-                  variant="rise"
-                  delay={i * 110}
-                  className={wide ? 'sm:col-span-2 lg:col-span-1' : ''}
-                >
+                <Reveal key={f.slug} variant="rise" delay={i * 90}>
                   <Link
                     href={`/features/${f.slug}`}
-                    className="group card hover-lift relative block h-full overflow-hidden p-7"
+                    className="group card hover-lift relative flex h-full items-start gap-4 overflow-hidden p-5"
                   >
                     <div
-                      className="animate-drift-slow absolute -right-8 -top-8 h-28 w-28 rounded-full opacity-25 blur-2xl transition-opacity group-hover:opacity-50"
-                      style={{ background: f.accent }}
-                    />
-                    <div className="relative">
-                      <div
-                        className={`inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${f.color} shadow-lg transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-110`}
-                      >
-                        <Icon size={22} className="text-white" />
-                      </div>
-                      <div className="mt-5 flex items-center gap-2">
-                        <span className="text-xs font-bold text-[var(--text-dim)]">
-                          {String(f.no).padStart(2, '0')}
-                        </span>
-                        <h3 className="text-lg font-semibold">{f.title}</h3>
-                      </div>
-                      <p className="mt-2.5 text-sm leading-relaxed text-[var(--text-soft)]">{f.desc}</p>
-                      <div className="mt-5 flex items-center gap-1.5 text-sm font-semibold text-blue-300 opacity-0 transition-all duration-300 group-hover:translate-x-1 group-hover:opacity-100">
-                        {t('살펴보기')} <ArrowRight size={15} />
-                      </div>
+                      className={`grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br ${f.color} shadow-md transition-transform duration-300 group-hover:scale-110`}
+                    >
+                      <Icon size={19} className="text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="flex items-center gap-1.5 text-base font-semibold">
+                        {f.title}
+                        <ArrowRight
+                          size={14}
+                          className="-translate-x-1 text-blue-300 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100"
+                        />
+                      </h3>
+                      <p className="mt-1.5 text-sm leading-relaxed text-[var(--text-soft)]">{f.desc}</p>
                     </div>
                   </Link>
                 </Reveal>
