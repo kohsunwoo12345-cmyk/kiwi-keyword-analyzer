@@ -347,6 +347,38 @@ export async function adminUserDetail(id: string): Promise<{
   }
 }
 
+export interface AiUsageRow { provider: string; model: string; kind: string; units: number; credits: number; cost_krw: number; revenue_krw: number; created_at: string }
+export interface LandingRow { slug: string; title: string | null; published: number; views: number; leads: number; created_at: string }
+export interface AdminUserFull {
+  ok: boolean
+  error?: string
+  user?: User
+  activity: ActivityRow[]
+  transactions: Tx[]
+  notifications: Noti[]
+  aiUsage: AiUsageRow[]
+  landings: LandingRow[]
+  referredByName: string
+  referredCount: number
+}
+
+/** 관리자: 회원 상세페이지용 전체 기록 (프로필 + 크레딧 내역 + AI 모델 + 제작 페이지 + 활동) */
+export async function adminUserFull(id: string): Promise<AdminUserFull> {
+  const empty: AdminUserFull = { ok: false, activity: [], transactions: [], notifications: [], aiUsage: [], landings: [], referredByName: '', referredCount: 0 }
+  try {
+    const r = await fetch(`/api/admin/user?id=${encodeURIComponent(id)}`, { credentials: 'include' })
+    const d = await r.json()
+    return {
+      ok: !!d.ok, error: d.error, user: d.user,
+      activity: d.activity || [], transactions: d.transactions || [], notifications: d.notifications || [],
+      aiUsage: d.aiUsage || [], landings: d.landings || [],
+      referredByName: d.referredByName || '', referredCount: d.referredCount || 0,
+    }
+  } catch {
+    return { ...empty, error: '네트워크 오류' }
+  }
+}
+
 /** 사용자 본인: 계정 개요 (프로필 + 크레딧/포인트 내역 + 알림 + 활동) */
 export async function accountOverview(): Promise<{
   ok: boolean

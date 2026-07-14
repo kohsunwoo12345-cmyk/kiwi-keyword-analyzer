@@ -29,10 +29,13 @@ import {
   Mail,
   Building2,
   Megaphone,
+  IdCard,
 } from 'lucide-react'
+import Link from 'next/link'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { StatCard, Panel, Badge, Button } from '@/components/ui'
 import { Reveal } from '@/components/motion'
+import { ADMIN_BASE } from '../layout'
 import {
   adminUsers,
   adminAction,
@@ -773,6 +776,12 @@ export default function AdminUsersPage() {
                                 )}
                               </p>
                               <p className="truncate text-xs text-[var(--text-dim)]">{u.email}</p>
+                              <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-[var(--text-dim)]">
+                                <span className="font-mono">{u.id}</span>
+                                <span className={cn('rounded-full px-1.5 py-0.5 font-semibold', u.referredBy ? 'bg-sky-50 text-sky-600' : 'bg-slate-100 text-slate-500')}>
+                                  {u.referredBy ? '추천가입' : '직접가입'}
+                                </span>
+                              </p>
                             </div>
                           </div>
                         </td>
@@ -796,6 +805,13 @@ export default function AdminUsersPage() {
                         <td className="py-3 text-[var(--text-soft)]">{u.lastActive ? fmtDateTime(u.lastActive) : '기록 없음'}</td>
                         <td className="py-3">
                           <div className="flex items-center justify-end gap-1">
+                            <Link
+                              href={`${ADMIN_BASE}/users/detail?id=${u.id}`}
+                              title="회원 상세페이지 (가입정보·크레딧·영상모델·제작페이지)"
+                              className="grid h-8 w-8 place-items-center rounded-lg text-[var(--text-soft)] transition-colors hover:bg-violet-50 hover:text-violet-600"
+                            >
+                              <IdCard size={16} />
+                            </Link>
                             <button
                               onClick={() => setDrawerId(u.id)}
                               title="상세 감시"
