@@ -436,6 +436,21 @@ export default function AdminSecurityPage() {
             {TABS.map((t) => {
               const Icon = t.icon
               const active = tab === t.key
+              const countMap: Record<TabKey, number> = {
+                block: data.blocked.length,
+                whitelist: data.whitelist.length,
+                anomaly: s.threats24,
+                login: data.loginFailures.length,
+                sessions: data.sessions.length,
+                lookup: 0,
+                audit: data.audit.length,
+                exports: data.exports.length,
+                reports: s.pendingReports,
+                apps: data.installs.length,
+              }
+              const cnt = countMap[t.key]
+              // 주의가 필요한 탭(미처리 신고·24h 위협)은 빨간 뱃지로 강조
+              const alert = (t.key === 'reports' && s.pendingReports > 0) || (t.key === 'anomaly' && s.threats24 > 0)
               return (
                 <button
                   key={t.key}
@@ -448,6 +463,20 @@ export default function AdminSecurityPage() {
                   )}
                 >
                   <Icon size={15} /> {t.label}
+                  {cnt > 0 && (
+                    <span
+                      className={cn(
+                        'ml-0.5 grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-bold tabular-nums',
+                        active
+                          ? 'bg-white/25 text-white'
+                          : alert
+                            ? 'bg-rose-500 text-white'
+                            : 'bg-slate-200 text-[var(--text-soft)]',
+                      )}
+                    >
+                      {cnt > 999 ? '999+' : cnt}
+                    </span>
+                  )}
                 </button>
               )
             })}
