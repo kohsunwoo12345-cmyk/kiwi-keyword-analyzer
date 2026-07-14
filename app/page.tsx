@@ -82,6 +82,26 @@ const M: Dict = {
     ja: 'いつでも解約可能',
     zh: '随时取消',
   },
+  '노드형 AI 광고·브랜드 영상': {
+    en: 'Node-based AI ad & brand video',
+    ja: 'ノード型AI広告・ブランド動画',
+    zh: '节点式 AI 广告·品牌视频',
+  },
+  '네이버 플레이스 마케팅': {
+    en: 'Naver Place marketing',
+    ja: 'Naverプレイス マーケティング',
+    zh: 'Naver Place 营销',
+  },
+  '블로그 마케팅': {
+    en: 'Blog marketing',
+    ja: 'ブログ マーケティング',
+    zh: '博客营销',
+  },
+  '콘텐츠 마케팅': {
+    en: 'Content marketing',
+    ja: 'コンテンツ マーケティング',
+    zh: '内容营销',
+  },
 
   // ===== 채널 오빗 =====
   '하나로 연결되는 채널': {
@@ -765,10 +785,14 @@ export default function Home() {
             </Button>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-slate-300 animate-fade-up delay-400">
-            {['신용카드 불필요', '3분 만에 세팅', '언제든 해지'].map((item) => (
-              <span key={item} className="flex items-center gap-1.5">
-                <Check size={15} className="text-emerald-400" /> {t(item)}
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5 animate-fade-up delay-400">
+            {['노드형 AI 광고·브랜드 영상', '네이버 플레이스 마케팅', '블로그 마케팅', '콘텐츠 마케팅'].map((item) => (
+              <span
+                key={item}
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.05] px-3.5 py-1.5 text-sm font-medium text-slate-200 shadow-sm backdrop-blur transition-colors hover:border-white/25 hover:bg-white/[0.09]"
+              >
+                <span className="h-1.5 w-1.5 rounded-full brand-gradient" />
+                {t(item)}
               </span>
             ))}
           </div>

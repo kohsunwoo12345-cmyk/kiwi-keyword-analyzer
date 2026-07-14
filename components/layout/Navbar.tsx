@@ -140,7 +140,7 @@ export function Navbar() {
         onMouseEnter={() => setMega(true)}
         onMouseLeave={() => setMega(false)}
       >
-        <div className="border-b border-white/10 bg-[#070b16]/92 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9)] backdrop-blur-xl">
+        <div className="border-b border-white/10 bg-[#0a0f1c] shadow-[0_40px_90px_-20px_rgba(0,0,0,0.95)]">
           <div className="mx-auto grid max-w-7xl gap-6 px-5 py-7 lg:grid-cols-[1fr_300px]">
             <div>
               <p className="mb-3 px-2 text-[11px] font-bold uppercase tracking-widest text-slate-500">
