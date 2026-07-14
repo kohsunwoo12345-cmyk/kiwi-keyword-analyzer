@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { MessageCircle, X, Send, Headset } from 'lucide-react'
+import { MessageCircle, X, Send, Headset, Check } from 'lucide-react'
 import { chatSend, chatThread, type ChatMsg } from '@/lib/auth'
 import { useI18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
@@ -10,12 +10,26 @@ import { cn } from '@/lib/utils'
 const CONV_KEY = 'bg_chat_conv'
 const SEEN_KEY = 'bg_chat_seen'
 
-const T: Record<string, Record<string, string>> = {
-  title: { ko: '고객센터', en: 'Support', ja: 'カスタマーサポート', zh: '客服中心' },
-  sub: { ko: '보통 몇 분 내 답변드려요', en: 'We usually reply within minutes', ja: '通常数分で返信します', zh: '通常几分钟内回复' },
-  hello: { ko: '안녕하세요! 무엇을 도와드릴까요? 편하게 메시지를 남겨주세요.', en: 'Hi! How can we help? Feel free to leave a message.', ja: 'こんにちは！ご用件をお聞かせください。お気軽にメッセージをどうぞ。', zh: '您好！有什么可以帮您？请随时留言。' },
+type L = Record<string, string>
+const T: Record<string, L> = {
+  title: { ko: 'BYGENCY 고객센터', en: 'BYGENCY Support', ja: 'BYGENCYサポート', zh: 'BYGENCY 客服' },
+  online: { ko: '온라인 · 보통 몇 분 내 답변', en: 'Online · usually replies in minutes', ja: 'オンライン · 通常数分で返信', zh: '在线 · 通常几分钟内回复' },
+  hello: { ko: '안녕하세요! 👋 BYGENCY 고객센터입니다. 무엇을 도와드릴까요?', en: 'Hi there! 👋 This is BYGENCY Support. How can we help?', ja: 'こんにちは！👋 BYGENCYサポートです。ご用件をお聞かせください。', zh: '您好！👋 这里是 BYGENCY 客服，有什么可以帮您？' },
   ph: { ko: '메시지를 입력하세요…', en: 'Type a message…', ja: 'メッセージを入力…', zh: '输入消息…' },
   open: { ko: '고객센터 채팅', en: 'Chat with support', ja: 'サポートチャット', zh: '联系客服' },
+  today: { ko: '오늘', en: 'Today', ja: '今日', zh: '今天' },
+  sent: { ko: '전송됨', en: 'Sent', ja: '送信済み', zh: '已发送' },
+  agent: { ko: '상담원', en: 'Agent', ja: '担当者', zh: '客服' },
+  q1: { ko: '요금이 궁금해요', en: 'Pricing question', ja: '料金について', zh: '价格咨询' },
+  q2: { ko: '기능 문의', en: 'Feature question', ja: '機能について', zh: '功能咨询' },
+  q3: { ko: '도입 상담', en: 'Talk to sales', ja: '導入相談', zh: '采购咨询' },
+}
+
+function hhmm(iso: string) {
+  const d = new Date(iso)
+  if (Number.isNaN(+d)) return ''
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 export function SupportChat() {
@@ -26,10 +40,10 @@ export function SupportChat() {
   const [input, setInput] = useState('')
   const [convId, setConvId] = useState<string>('')
   const [unseen, setUnseen] = useState(0)
+  const [sending, setSending] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)
   const t = (k: string) => T[k]?.[lang] || T[k]?.ko || k
 
-  // 관리자/대시보드/스튜디오에서는 숨김
   const hidden = /^\/(adminsunkoh028741_11263|dashboard_USE17237_612|studio-nvc-prv)/.test(pathname)
 
   useEffect(() => {
@@ -51,7 +65,6 @@ export function SupportChat() {
     }
   }
 
-  // 열려있을 때만 폴링(3s), 닫혀있으면 30s 간격으로 새 답변 확인
   useEffect(() => {
     if (hidden) return
     poll()
@@ -65,87 +78,145 @@ export function SupportChat() {
       setUnseen(0)
       const adminCount = msgs.filter((m) => m.sender === 'admin').length
       try { localStorage.setItem(SEEN_KEY, String(adminCount)) } catch { /* */ }
-      setTimeout(() => bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' }), 50)
+      setTimeout(() => bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' }), 60)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, msgs.length])
 
-  async function submit(e?: React.FormEvent) {
-    e?.preventDefault()
-    const text = input.trim()
-    if (!text) return
+  async function sendText(text: string) {
+    const trimmed = text.trim()
+    if (!trimmed || sending) return
     setInput('')
-    setMsgs((m) => [...m, { sender: 'user', text, at: new Date().toISOString() }])
-    const r = await chatSend(text, convId || undefined)
+    setSending(true)
+    setMsgs((m) => [...m, { sender: 'user', text: trimmed, at: new Date().toISOString() }])
+    const r = await chatSend(trimmed, convId || undefined)
     if (r.ok && r.conv_id) {
       setConvId(r.conv_id)
       try { localStorage.setItem(CONV_KEY, r.conv_id) } catch { /* */ }
     }
+    setSending(false)
     setTimeout(poll, 400)
   }
 
   if (hidden) return null
 
+  const showQuick = msgs.filter((m) => m.sender === 'user').length === 0
+  const lastUserIdx = (() => { let idx = -1; msgs.forEach((m, i) => { if (m.sender === 'user') idx = i }); return idx })()
+
   return (
-    <div className="fixed bottom-5 right-5 z-[90] print:hidden">
+    <div className="fixed bottom-5 right-5 z-[95] print:hidden">
       {/* 패널 */}
       {open && (
-        <div className="mb-3 flex h-[min(560px,75vh)] w-[min(380px,92vw)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0b1120] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)]">
+        <div className="animate-chat-pop mb-3 flex h-[min(600px,78vh)] w-[min(392px,92vw)] flex-col overflow-hidden rounded-[22px] border border-white/10 bg-[#0a0f1c] shadow-[0_40px_100px_-24px_rgba(0,0,0,0.8)] ring-1 ring-black/5">
           {/* 헤더 */}
-          <div className="relative flex items-center gap-3 border-b border-white/10 bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-3.5 text-white">
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-white/15">
-              <Headset size={18} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold leading-tight">{t('title')}</p>
-              <p className="text-[11px] text-white/80">{t('sub')}</p>
+          <div className="relative overflow-hidden px-5 pb-4 pt-4 text-white">
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-600 via-indigo-600 to-violet-700" />
+            <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/15 blur-2xl" />
+            <div className="relative flex items-center gap-3">
+              <span className="relative grid h-11 w-11 flex-shrink-0 place-items-center rounded-full bg-white/15 ring-1 ring-white/25 backdrop-blur">
+                <Headset size={20} />
+                <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-violet-600 bg-emerald-400" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[15px] font-bold leading-tight">{t('title')}</p>
+                <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/85">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                  {t('online')}
+                </p>
+              </div>
+              <button onClick={() => setOpen(false)} aria-label="닫기" className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg text-white/85 transition hover:bg-white/15 hover:text-white">
+                <X size={18} />
+              </button>
             </div>
-            <button onClick={() => setOpen(false)} aria-label="닫기" className="grid h-8 w-8 place-items-center rounded-lg text-white/80 hover:bg-white/15 hover:text-white">
-              <X size={18} />
-            </button>
           </div>
 
           {/* 메시지 */}
-          <div ref={bodyRef} className="flex-1 space-y-3 overflow-y-auto bg-[#070b16] px-4 py-4">
-            <div className="flex gap-2">
-              <span className="mt-0.5 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-violet-500/20 text-violet-300">
-                <Headset size={14} />
+          <div ref={bodyRef} className="flex-1 space-y-1 overflow-y-auto bg-gradient-to-b from-[#070b16] to-[#0a0f1c] px-4 py-4">
+            <p className="mb-3 text-center">
+              <span className="rounded-full bg-white/[0.06] px-2.5 py-1 text-[11px] font-medium text-slate-400">{t('today')}</span>
+            </p>
+
+            {/* 인사 */}
+            <div className="flex items-end gap-2">
+              <span className="mb-4 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 text-white">
+                <Headset size={13} />
               </span>
-              <div className="max-w-[80%] rounded-2xl rounded-bl-sm border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-sm leading-relaxed text-slate-200">
-                {t('hello')}
+              <div>
+                <div className="max-w-[248px] rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.05] px-3.5 py-2.5 text-[13.5px] leading-relaxed text-slate-100">
+                  {t('hello')}
+                </div>
+                <span className="ml-1 mt-1 block text-[10px] text-slate-500">{t('agent')}</span>
               </div>
             </div>
-            {msgs.map((m, i) => (
-              <div key={i} className={cn('flex gap-2', m.sender === 'user' ? 'justify-end' : 'justify-start')}>
-                {m.sender === 'admin' && (
-                  <span className="mt-0.5 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-violet-500/20 text-violet-300">
-                    <Headset size={14} />
-                  </span>
-                )}
-                <div
-                  className={cn(
-                    'max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed',
-                    m.sender === 'user'
-                      ? 'rounded-br-sm bg-violet-600 text-white'
-                      : 'rounded-bl-sm border border-white/10 bg-white/[0.04] text-slate-200',
+
+            {msgs.map((m, i) => {
+              const mine = m.sender === 'user'
+              const prev = msgs[i - 1]
+              const showAvatar = !mine && (!prev || prev.sender !== 'admin')
+              return (
+                <div key={i} className={cn('animate-bubble-in flex items-end gap-2 pt-2', mine ? 'justify-end' : 'justify-start')}>
+                  {!mine && (
+                    showAvatar ? (
+                      <span className="mb-4 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 text-white">
+                        <Headset size={13} />
+                      </span>
+                    ) : (
+                      <span className="w-7 flex-shrink-0" />
+                    )
                   )}
-                >
-                  {m.text}
+                  <div className={cn('flex flex-col', mine ? 'items-end' : 'items-start')}>
+                    <div
+                      className={cn(
+                        'max-w-[250px] px-3.5 py-2.5 text-[13.5px] leading-relaxed shadow-sm',
+                        mine
+                          ? 'rounded-2xl rounded-br-md bg-gradient-to-br from-violet-500 to-indigo-500 text-white'
+                          : 'rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.05] text-slate-100',
+                      )}
+                    >
+                      {m.text}
+                    </div>
+                    <span className={cn('mt-1 flex items-center gap-1 px-1 text-[10px] text-slate-500', mine ? 'flex-row-reverse' : '')}>
+                      {hhmm(m.at)}
+                      {mine && i === lastUserIdx && <Check size={11} className="text-violet-400" />}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
+          {/* 빠른 질문 */}
+          {showQuick && (
+            <div className="flex flex-wrap gap-2 border-t border-white/5 bg-[#0a0f1c] px-4 pt-3">
+              {['q1', 'q2', 'q3'].map((k) => (
+                <button
+                  key={k}
+                  onClick={() => sendText(t(k))}
+                  className="rounded-full border border-violet-400/30 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-200 transition hover:bg-violet-500/20"
+                >
+                  {t(k)}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* 입력 */}
-          <form onSubmit={submit} className="flex items-center gap-2 border-t border-white/10 bg-[#0b1120] px-3 py-3">
+          <form
+            onSubmit={(e) => { e.preventDefault(); sendText(input) }}
+            className="flex items-center gap-2 border-t border-white/10 bg-[#0a0f1c] px-3 py-3"
+          >
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={t('ph')}
-              className="min-w-0 flex-1 rounded-xl border border-white/12 bg-white/[0.05] px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none focus:border-violet-400/70"
+              className="min-w-0 flex-1 rounded-full border border-white/12 bg-white/[0.05] px-4 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-violet-400/70 focus:bg-white/[0.08]"
             />
-            <button type="submit" disabled={!input.trim()} className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl brand-gradient text-white shadow-lg shadow-violet-500/30 transition hover:brightness-110 disabled:opacity-40">
-              <Send size={17} />
+            <button
+              type="submit"
+              disabled={!input.trim() || sending}
+              className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 text-white shadow-lg shadow-violet-500/30 transition hover:brightness-110 active:scale-95 disabled:opacity-40"
+            >
+              <Send size={17} className="translate-x-[1px]" />
             </button>
           </form>
         </div>
@@ -155,9 +226,17 @@ export function SupportChat() {
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label={t('open')}
-        className="group relative grid h-14 w-14 place-items-center rounded-full brand-gradient text-white shadow-[0_12px_40px_-8px_rgba(124,58,237,0.7)] transition-transform hover:scale-105"
+        className={cn(
+          'group relative grid h-14 w-14 place-items-center rounded-full text-white shadow-[0_14px_44px_-8px_rgba(124,58,237,0.75)] transition-transform hover:scale-105 active:scale-95',
+          'bg-gradient-to-br from-violet-500 via-violet-600 to-indigo-600',
+        )}
       >
-        {open ? <X size={24} /> : <MessageCircle size={24} />}
+        {!open && unseen > 0 && (
+          <span className="absolute inset-0 animate-ping-ring rounded-full bg-violet-400/60" />
+        )}
+        <span className="relative transition-transform duration-300">
+          {open ? <X size={24} /> : <MessageCircle size={24} />}
+        </span>
         {!open && unseen > 0 && (
           <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full border-2 border-[#05070e] bg-rose-500 px-1 text-xs font-bold">
             {unseen > 9 ? '9+' : unseen}

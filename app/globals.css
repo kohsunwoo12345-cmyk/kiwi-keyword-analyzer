@@ -321,6 +321,23 @@ body {
 }
 .animate-ping-ring { animation: ping-ring 2.4s cubic-bezier(0, 0, 0.2, 1) infinite; }
 
+/* ── 고객센터 채팅 위젯 ── */
+@keyframes chatPop {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+.animate-chat-pop { animation: chatPop 0.32s cubic-bezier(0.16, 1, 0.3, 1); transform-origin: bottom right; }
+@keyframes bubbleIn {
+  from { opacity: 0; transform: translateY(7px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.animate-bubble-in { animation: bubbleIn 0.26s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes typingDot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+.typing-dot { animation: typingDot 1.2s ease-in-out infinite; }
+
 /* ===== Orbit hero ===== */
 /* 아이콘이 중심을 공전하면서도 항상 수평 유지 (위치 회전 + 역회전 결합) */
 @keyframes orbit-move {
