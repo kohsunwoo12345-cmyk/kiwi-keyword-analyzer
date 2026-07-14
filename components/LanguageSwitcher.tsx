@@ -72,7 +72,7 @@ export function LanguageSwitcher({
                   active
                     ? dark
                       ? 'bg-white/[0.08] font-semibold text-white'
-                      : 'bg-violet-50 font-semibold text-violet-700'
+                      : 'bg-blue-50 font-semibold text-blue-700'
                     : dark
                       ? 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
                       : 'text-[var(--text-soft)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]',
@@ -80,7 +80,7 @@ export function LanguageSwitcher({
               >
                 <span className="text-base leading-none">{l.flag}</span>
                 <span className="flex-1 text-left">{l.native}</span>
-                {active && <Check size={14} className={dark ? 'text-violet-300' : 'text-violet-600'} />}
+                {active && <Check size={14} className={dark ? 'text-blue-300' : 'text-blue-600'} />}
               </button>
             )
           })}

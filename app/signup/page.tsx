@@ -28,7 +28,7 @@ import { Counter } from '@/components/motion'
 import { signup } from '@/lib/auth'
 
 const inputBase =
-  'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] pl-11 pr-3.5 py-3 text-sm outline-none transition-colors focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10 placeholder:text-[var(--text-dim)]'
+  'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] pl-11 pr-3.5 py-3 text-sm outline-none transition-colors focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 placeholder:text-[var(--text-dim)]'
 
 const BENEFITS = [
   '랜딩페이지 노코드 빌더로 DB 자동 수집',
@@ -130,7 +130,7 @@ export default function SignupPage() {
       <div aria-hidden className="pointer-events-none absolute inset-0 grid-bg opacity-25" />
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-44 -left-32 h-[30rem] w-[30rem] rounded-full bg-violet-700/30 blur-[120px] animate-drift"
+        className="pointer-events-none absolute -top-44 -left-32 h-[30rem] w-[30rem] rounded-full bg-blue-700/30 blur-[120px] animate-drift"
       />
       <div
         aria-hidden
@@ -144,7 +144,7 @@ export default function SignupPage() {
           <LanguageSwitcher variant="dark" />
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.06] px-3.5 py-2 text-sm font-medium text-[var(--text-soft)] backdrop-blur transition-colors hover:border-violet-400/50 hover:text-[var(--text)]"
+            className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.06] px-3.5 py-2 text-sm font-medium text-[var(--text-soft)] backdrop-blur transition-colors hover:border-blue-400/50 hover:text-[var(--text)]"
           >
             <ArrowLeft size={15} />
             홈으로
@@ -376,14 +376,14 @@ export default function SignupPage() {
                       type="checkbox"
                       checked={agree}
                       onChange={(e) => setAgree(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-[var(--border)] accent-violet-600"
+                      className="mt-0.5 h-4 w-4 rounded border-[var(--border)] accent-blue-600"
                     />
                     <span>
-                      <Link href="/signup" className="font-medium text-violet-300 hover:text-violet-200">
+                      <Link href="/signup" className="font-medium text-blue-300 hover:text-blue-200">
                         이용약관
                       </Link>{' '}
                       및{' '}
-                      <Link href="/signup" className="font-medium text-violet-300 hover:text-violet-200">
+                      <Link href="/signup" className="font-medium text-blue-300 hover:text-blue-200">
                         개인정보 처리방침
                       </Link>
                       에 동의합니다. <span className="text-rose-500">(필수)</span>
@@ -403,7 +403,7 @@ export default function SignupPage() {
               이미 계정이 있으신가요?{' '}
               <Link
                 href="/login"
-                className="font-semibold text-violet-300 transition-colors hover:text-violet-200"
+                className="font-semibold text-blue-300 transition-colors hover:text-blue-200"
               >
                 로그인
               </Link>

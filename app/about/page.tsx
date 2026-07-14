@@ -126,8 +126,8 @@ export default function AboutPage() {
       {/* ===== HERO ===== */}
       <section className="relative overflow-hidden pt-36 pb-20">
         <div className="absolute inset-0 grid-bg opacity-30" />
-        <div className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[480px] w-[840px] -translate-x-1/2 rounded-full bg-violet-700/30 blur-[130px]" />
-        <div className="animate-drift-slow pointer-events-none absolute top-24 left-0 h-[280px] w-[360px] rounded-full bg-indigo-700/25 blur-[120px]" />
+        <div className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[480px] w-[840px] -translate-x-1/2 rounded-full bg-blue-700/30 blur-[130px]" />
+        <div className="animate-drift-slow pointer-events-none absolute top-24 left-0 h-[280px] w-[360px] rounded-full bg-blue-700/25 blur-[120px]" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent to-[var(--bg)]" />
 
         <div className="relative mx-auto max-w-3xl px-5 text-center">
@@ -172,8 +172,8 @@ export default function AboutPage() {
           <div className="grid gap-6 lg:grid-cols-2">
             <Reveal variant="left">
               <div className="card hover-lift relative h-full overflow-hidden p-9">
-                <div className="animate-drift-slow absolute -right-10 -top-10 h-32 w-32 rounded-full bg-violet-300/25 blur-2xl" />
-                <span className="relative grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-lg">
+                <div className="animate-drift-slow absolute -right-10 -top-10 h-32 w-32 rounded-full bg-blue-300/25 blur-2xl" />
+                <span className="relative grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg">
                   <Target size={22} />
                 </span>
                 <h2 className="relative mt-6 text-2xl font-bold tracking-tight">{t('우리의 미션')}</h2>
@@ -187,7 +187,7 @@ export default function AboutPage() {
             <Reveal variant="right" delay={100}>
               <div className="card hover-lift relative h-full overflow-hidden p-9">
                 <div className="animate-drift-slow absolute -right-10 -top-10 h-32 w-32 rounded-full bg-cyan-300/25 blur-2xl" />
-                <span className="relative grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-indigo-500 text-white shadow-lg">
+                <span className="relative grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 text-white shadow-lg">
                   <Compass size={22} />
                 </span>
                 <h2 className="relative mt-6 text-2xl font-bold tracking-tight">{t('우리의 비전')}</h2>
@@ -263,7 +263,7 @@ export default function AboutPage() {
                     const Icon = c.icon
                     return (
                       <li key={c.label} className="flex items-center gap-4 px-6 py-4">
-                        <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg bg-violet-500/12 text-violet-300">
+                        <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg bg-blue-500/12 text-blue-300">
                           <Icon size={16} />
                         </span>
                         <span className="w-28 flex-shrink-0 text-sm text-[var(--text-dim)]">{t(c.label)}</span>
@@ -282,8 +282,8 @@ export default function AboutPage() {
       <section className="px-5 pb-28">
         <Reveal variant="scale" className="mx-auto max-w-5xl">
           <div
-            className="animate-gradient relative overflow-hidden rounded-3xl px-8 py-16 text-center shadow-xl shadow-violet-300/50"
-            style={{ background: 'linear-gradient(120deg,#a855f7,#7c3aed,#6366f1,#22d3ee)' }}
+            className="animate-gradient relative overflow-hidden rounded-3xl px-8 py-16 text-center shadow-xl shadow-blue-300/50"
+            style={{ background: 'linear-gradient(120deg,#3b82f6,#2563eb,#0ea5e9,#22d3ee)' }}
           >
             <div className="animate-drift pointer-events-none absolute -top-16 left-1/2 h-64 w-96 -translate-x-1/2 rounded-full bg-white/20 blur-[90px]" />
             <div className="relative">
@@ -304,7 +304,7 @@ export default function AboutPage() {
                 <Button
                   href="/signup"
                   size="lg"
-                  className="!bg-white !text-violet-700 hover:!bg-violet-50 hover:!brightness-100"
+                  className="!bg-white !text-blue-700 hover:!bg-blue-50 hover:!brightness-100"
                 >
                   {t('무료로 시작하기')} <ArrowRight size={18} />
                 </Button>
@@ -337,19 +337,19 @@ const VALUES = [
     icon: Database,
     title: '데이터 기반',
     desc: '“느낌상 잘 되는 것 같다”로는 다음을 결정할 수 없습니다. 모든 채널의 성과를 한 화면의 숫자로 투명하게 봅니다.',
-    color: 'from-violet-500 to-indigo-600',
+    color: 'from-blue-500 to-blue-600',
   },
   {
     icon: Workflow,
     title: '자동화',
     desc: '반복 작업에 하루를 쓰는 건 사람의 일이 아닙니다. 실행은 시스템에 맡기고, 사람은 전략과 판단에 집중합니다.',
-    color: 'from-indigo-500 to-blue-600',
+    color: 'from-blue-500 to-blue-600',
   },
   {
     icon: LayoutGrid,
     title: '올인원',
     desc: '도구를 옮겨 다닐 때마다 데이터도 맥락도 끊깁니다. 수집·분석·CRM·콘텐츠를 하나의 워크스페이스로 이어 붙입니다.',
-    color: 'from-fuchsia-500 to-violet-600',
+    color: 'from-sky-500 to-blue-600',
   },
   {
     icon: HeartHandshake,

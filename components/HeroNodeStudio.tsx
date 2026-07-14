@@ -33,17 +33,17 @@ const NODES: Node[] = [
     body: <div className="rounded bg-black/40 p-1.5 font-mono text-[8px] text-sky-200/80">blur, distortion, watermark, text</div>,
   },
   {
-    x: 5, y: 40, w: 150, delay: 1.3, title: '옴니 레퍼런스', no: '#16', color: '#a855f7', icon: <ImageIcon size={11} />,
-    body: <div className="h-9 rounded bg-gradient-to-br from-sky-600/60 to-indigo-800/60" />,
+    x: 5, y: 40, w: 150, delay: 1.3, title: '옴니 레퍼런스', no: '#16', color: '#3b82f6', icon: <ImageIcon size={11} />,
+    body: <div className="h-9 rounded bg-gradient-to-br from-sky-600/60 to-blue-800/60" />,
   },
   {
-    x: 45, y: 27, w: 180, delay: 0.2, title: 'AI 모델 로더', no: '#12', color: '#7c3aed', icon: <Cpu size={11} />,
+    x: 45, y: 27, w: 180, delay: 0.2, title: 'AI 모델 로더', no: '#12', color: '#2563eb', icon: <Cpu size={11} />,
     body: (
       <div className="space-y-1">
-        <div className="flex items-center justify-between rounded bg-black/40 px-1.5 py-1 text-[8px] text-violet-200">
+        <div className="flex items-center justify-between rounded bg-black/40 px-1.5 py-1 text-[8px] text-blue-200">
           <span>model</span><span className="font-bold">Seedance 2.0</span>
         </div>
-        <div className="h-1 w-full rounded bg-violet-500/40"><div className="h-full w-2/3 rounded bg-violet-400" /></div>
+        <div className="h-1 w-full rounded bg-blue-500/40"><div className="h-full w-2/3 rounded bg-blue-400" /></div>
       </div>
     ),
   },
@@ -59,11 +59,11 @@ const NODES: Node[] = [
   },
   {
     x: 84, y: 14, w: 150, delay: 1.1, title: '영상 출력', no: '#17', color: '#10b981', icon: <Play size={11} />,
-    body: <div className="relative h-10 rounded bg-gradient-to-br from-rose-900/70 via-slate-900 to-indigo-900/70"><Play size={14} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white/80" /></div>,
+    body: <div className="relative h-10 rounded bg-gradient-to-br from-rose-900/70 via-slate-900 to-blue-900/70"><Play size={14} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white/80" /></div>,
   },
   {
     x: 66, y: 55, w: 150, delay: 1.5, title: '영상 출력', no: '#14', color: '#10b981', icon: <Play size={11} />,
-    body: <div className="relative h-10 rounded bg-gradient-to-br from-amber-900/60 via-slate-900 to-violet-900/70"><Play size={14} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white/80" /></div>,
+    body: <div className="relative h-10 rounded bg-gradient-to-br from-amber-900/60 via-slate-900 to-blue-900/70"><Play size={14} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white/80" /></div>,
   },
 ]
 
@@ -71,7 +71,7 @@ const NODES: Node[] = [
 const WIRES = [
   { d: 'M 40 22 C 47 22, 46 33, 53 33', c: '#f59e0b', dur: 1 },
   { d: 'M 40 48 C 47 48, 46 37, 53 37', c: '#38bdf8', dur: 1.3 },
-  { d: 'M 20 46 C 40 46, 40 34, 53 34', c: '#a855f7', dur: 1.6 },
+  { d: 'M 20 46 C 40 46, 40 34, 53 34', c: '#3b82f6', dur: 1.6 },
   { d: 'M 71 33 C 76 33, 74 26, 80 26', c: '#ec4899', dur: 1.1 },
   { d: 'M 90 24 C 96 24, 96 20, 99 20', c: '#22d3ee', dur: 1.2 },
   { d: 'M 71 35 C 74 46, 70 56, 74 60', c: '#10b981', dur: 1.4 },
@@ -82,7 +82,7 @@ export function HeroNodeStudio() {
     <div className="absolute inset-0 overflow-hidden bg-[#070b16]">
       {/* subtle dotted canvas */}
       <div className="absolute inset-0 opacity-[0.5]" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px)', backgroundSize: '26px 26px' }} />
-      <div className="animate-drift pointer-events-none absolute -top-32 left-1/3 h-[420px] w-[720px] rounded-full bg-violet-700/20 blur-[150px]" />
+      <div className="animate-drift pointer-events-none absolute -top-32 left-1/3 h-[420px] w-[720px] rounded-full bg-blue-700/20 blur-[150px]" />
 
       {/* top toolbar */}
       <div className="absolute inset-x-0 top-0 flex items-center justify-between border-b border-white/10 bg-[#0a1024]/80 px-4 py-2.5 backdrop-blur animate-fade-up" style={{ animationDelay: '0.05s' }}>

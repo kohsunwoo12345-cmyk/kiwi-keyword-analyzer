@@ -46,7 +46,7 @@ export function FeaturesHubContent() {
       {/* ===== HERO ===== */}
       <section className="relative overflow-hidden pt-36 pb-16">
         <div className="absolute inset-0 grid-bg opacity-30" />
-        <div className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[480px] w-[860px] -translate-x-1/2 rounded-full bg-violet-700/30 blur-[130px]" />
+        <div className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[480px] w-[860px] -translate-x-1/2 rounded-full bg-blue-700/30 blur-[130px]" />
         <div className="animate-drift-slow pointer-events-none absolute top-24 right-0 h-[280px] w-[380px] rounded-full bg-cyan-700/22 blur-[120px]" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent to-[var(--bg)]" />
 
@@ -119,7 +119,7 @@ export function FeaturesHubContent() {
                       ))}
                     </ul>
 
-                    <div className="relative mt-7 flex items-center gap-1.5 text-sm font-semibold text-violet-300 transition-all duration-300 group-hover:gap-2.5">
+                    <div className="relative mt-7 flex items-center gap-1.5 text-sm font-semibold text-blue-300 transition-all duration-300 group-hover:gap-2.5">
                       {t('자세히 보기 · 데모 체험')}
                       <ArrowRight size={15} className="transition-transform duration-300 group-hover:translate-x-1" />
                     </div>
@@ -135,8 +135,8 @@ export function FeaturesHubContent() {
       <section className="px-5 py-24">
         <Reveal variant="scale" className="mx-auto max-w-5xl">
           <div
-            className="animate-gradient relative overflow-hidden rounded-3xl px-8 py-16 text-center shadow-xl shadow-violet-900/50"
-            style={{ background: 'linear-gradient(120deg,#a855f7,#7c3aed,#6366f1,#22d3ee)' }}
+            className="animate-gradient relative overflow-hidden rounded-3xl px-8 py-16 text-center shadow-xl shadow-blue-900/50"
+            style={{ background: 'linear-gradient(120deg,#3b82f6,#2563eb,#0ea5e9,#22d3ee)' }}
           >
             <div className="animate-drift pointer-events-none absolute -top-16 left-1/2 h-64 w-96 -translate-x-1/2 rounded-full bg-white/20 blur-[90px]" />
             <div className="relative">
@@ -152,7 +152,7 @@ export function FeaturesHubContent() {
                 {t('신용카드 없이 3분이면 세팅 완료. 지금 시작해서 흩어진 마케팅을 하나로 모으세요.')}
               </p>
               <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <Button href="/signup" size="lg" className="!bg-white !text-violet-700 hover:!bg-violet-50 hover:!brightness-100">
+                <Button href="/signup" size="lg" className="!bg-white !text-blue-700 hover:!bg-blue-50 hover:!brightness-100">
                   {t('무료로 시작하기')} <ArrowRight size={18} />
                 </Button>
                 <Button href="/contact" size="lg" className="!border !border-white/40 !bg-white/10 !text-white hover:!bg-white/20">

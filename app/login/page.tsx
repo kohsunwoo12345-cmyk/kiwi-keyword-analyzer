@@ -10,7 +10,7 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { login } from '@/lib/auth'
 
 const inputBase =
-  'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] pl-11 pr-3.5 py-3 text-sm outline-none transition-colors focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10 placeholder:text-[var(--text-dim)]'
+  'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] pl-11 pr-3.5 py-3 text-sm outline-none transition-colors focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 placeholder:text-[var(--text-dim)]'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -46,7 +46,7 @@ export default function LoginPage() {
       <div aria-hidden className="pointer-events-none absolute inset-0 grid-bg opacity-25" />
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-40 -left-32 h-[30rem] w-[30rem] rounded-full bg-violet-700/30 blur-[120px] animate-drift"
+        className="pointer-events-none absolute -top-40 -left-32 h-[30rem] w-[30rem] rounded-full bg-blue-700/30 blur-[120px] animate-drift"
       />
       <div
         aria-hidden
@@ -54,7 +54,7 @@ export default function LoginPage() {
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute top-1/3 right-1/4 h-72 w-72 rounded-full bg-fuchsia-700/18 blur-[110px] animate-drift"
+        className="pointer-events-none absolute top-1/3 right-1/4 h-72 w-72 rounded-full bg-sky-700/18 blur-[110px] animate-drift"
       />
 
       {/* ---- 좌상단 홈으로 ---- */}
@@ -64,7 +64,7 @@ export default function LoginPage() {
           <LanguageSwitcher variant="dark" />
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.06] px-3.5 py-2 text-sm font-medium text-[var(--text-soft)] backdrop-blur transition-colors hover:border-violet-400/50 hover:text-[var(--text)]"
+            className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.06] px-3.5 py-2 text-sm font-medium text-[var(--text-soft)] backdrop-blur transition-colors hover:border-blue-400/50 hover:text-[var(--text)]"
           >
             <ArrowLeft size={15} />
             홈으로
@@ -120,7 +120,7 @@ export default function LoginPage() {
                   </label>
                   <Link
                     href="/login"
-                    className="text-xs font-medium text-violet-300 transition-colors hover:text-violet-200"
+                    className="text-xs font-medium text-blue-300 transition-colors hover:text-blue-200"
                   >
                     비밀번호 찾기
                   </Link>
@@ -155,7 +155,7 @@ export default function LoginPage() {
                   type="checkbox"
                   checked={remember}
                   onChange={(e) => setRemember(e.target.checked)}
-                  className="h-4 w-4 rounded border-[var(--border)] text-violet-600 accent-violet-600"
+                  className="h-4 w-4 rounded border-[var(--border)] text-blue-600 accent-blue-600"
                 />
                 로그인 상태 유지
               </label>
@@ -171,7 +171,7 @@ export default function LoginPage() {
             계정이 없으신가요?{' '}
             <Link
               href="/signup"
-              className="font-semibold text-violet-300 transition-colors hover:text-violet-200"
+              className="font-semibold text-blue-300 transition-colors hover:text-blue-200"
             >
               회원가입
             </Link>

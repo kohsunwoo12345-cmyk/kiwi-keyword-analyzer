@@ -83,7 +83,7 @@ export function Badge({
 /* ---------- Section heading ---------- */
 export function SectionTag({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.06] px-3.5 py-1.5 text-xs font-semibold text-violet-200 shadow-sm backdrop-blur">
+    <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.06] px-3.5 py-1.5 text-xs font-semibold text-blue-200 shadow-sm backdrop-blur">
       <span className="h-1.5 w-1.5 rounded-full brand-gradient" />
       {children}
     </span>

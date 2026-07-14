@@ -67,7 +67,7 @@ export function HeroOrbit() {
   return (
     <div className="relative mx-auto aspect-square w-full max-w-[560px]">
       {/* 은은한 배경 글로우 */}
-      <div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_center,rgba(124,58,237,0.25),transparent_60%)]" />
+      <div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle_at_center,rgba(37,99,235,0.25),transparent_60%)]" />
 
       {/* 점선 궤도 링 */}
       <div className="absolute left-1/2 top-1/2 h-[500px] w-[500px] max-h-full max-w-full -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-white/10" />
@@ -98,7 +98,7 @@ export function HeroOrbit() {
 
       {/* 중심 코어 = BYGENCY */}
       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-        <div className="orbit-core grid h-40 w-40 place-items-center rounded-full bg-[radial-gradient(circle_at_35%_30%,#8b5cf6,#6366f1_55%,#4f46e5)] sm:h-48 sm:w-48">
+        <div className="orbit-core grid h-40 w-40 place-items-center rounded-full bg-[radial-gradient(circle_at_35%_30%,#8b5cf6,#0ea5e9_55%,#4f46e5)] sm:h-48 sm:w-48">
           <div className="flex flex-col items-center gap-2 text-center">
             <AppIcon size={44} className="drop-shadow" />
             <span className="text-sm font-extrabold tracking-widest text-white sm:text-base">BYGENCY</span>

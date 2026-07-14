@@ -145,7 +145,7 @@ const CONTACT_INFO = [
 ]
 
 const inputCls =
-  'w-full rounded-xl border border-white/12 bg-white/[0.04] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--text-dim)] transition-colors focus:border-violet-400/70 focus:outline-none focus:ring-4 focus:ring-violet-500/15'
+  'w-full rounded-xl border border-white/12 bg-white/[0.04] px-4 py-3 text-sm text-[var(--text)] placeholder:text-[var(--text-dim)] transition-colors focus:border-blue-400/70 focus:outline-none focus:ring-4 focus:ring-blue-500/15'
 
 export default function ContactPage() {
   const [name, setName] = useState('')
@@ -196,7 +196,7 @@ export default function ContactPage() {
       {/* ===== HERO ===== */}
       <section className="relative overflow-hidden pt-36 pb-16">
         <div className="absolute inset-0 grid-bg opacity-30" />
-        <div className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[440px] w-[800px] -translate-x-1/2 rounded-full bg-violet-700/30 blur-[130px]" />
+        <div className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[440px] w-[800px] -translate-x-1/2 rounded-full bg-blue-700/30 blur-[130px]" />
         <div className="animate-drift-slow pointer-events-none absolute top-24 right-0 h-[260px] w-[360px] rounded-full bg-cyan-700/25 blur-[120px]" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent to-[var(--bg)]" />
 
@@ -232,13 +232,13 @@ export default function ContactPage() {
                       const Icon = c.icon
                       return (
                         <li key={c.label} className="flex items-center gap-3.5">
-                          <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-violet-500/12 text-violet-300">
+                          <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-blue-500/12 text-blue-300">
                             <Icon size={18} />
                           </span>
                           <div>
                             <p className="text-xs text-[var(--text-dim)]">{t(c.label)}</p>
                             {'href' in c && c.href ? (
-                              <a href={c.href} className="text-sm font-medium text-violet-300 hover:text-violet-200 hover:underline">
+                              <a href={c.href} className="text-sm font-medium text-blue-300 hover:text-blue-200 hover:underline">
                                 {c.value}
                               </a>
                             ) : (
@@ -256,22 +256,22 @@ export default function ContactPage() {
                   <div className="mt-4 space-y-2.5">
                     <Link
                       href="/pricing"
-                      className="group flex items-center justify-between rounded-xl border border-white/12 px-4 py-3 text-sm font-medium transition-colors hover:border-violet-400/50 hover:bg-white/[0.04]"
+                      className="group flex items-center justify-between rounded-xl border border-white/12 px-4 py-3 text-sm font-medium transition-colors hover:border-blue-400/50 hover:bg-white/[0.04]"
                     >
                       {t('요금제 안내 보기')}
                       <ArrowRight
                         size={16}
-                        className="text-violet-500 transition-transform duration-300 group-hover:translate-x-1"
+                        className="text-blue-500 transition-transform duration-300 group-hover:translate-x-1"
                       />
                     </Link>
                     <Link
                       href="/features/video"
-                      className="group flex items-center justify-between rounded-xl border border-white/12 px-4 py-3 text-sm font-medium transition-colors hover:border-violet-400/50 hover:bg-white/[0.04]"
+                      className="group flex items-center justify-between rounded-xl border border-white/12 px-4 py-3 text-sm font-medium transition-colors hover:border-blue-400/50 hover:bg-white/[0.04]"
                     >
                       {t('기능 둘러보기')}
                       <ArrowRight
                         size={16}
-                        className="text-violet-500 transition-transform duration-300 group-hover:translate-x-1"
+                        className="text-blue-500 transition-transform duration-300 group-hover:translate-x-1"
                       />
                     </Link>
                   </div>
@@ -295,7 +295,7 @@ export default function ContactPage() {
                     </p>
                     <button
                       onClick={() => setDone(false)}
-                      className="mt-8 inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold transition-colors hover:border-violet-400/50 hover:bg-white/[0.08]"
+                      className="mt-8 inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold transition-colors hover:border-blue-400/50 hover:bg-white/[0.08]"
                     >
                       {t('새 문의 작성하기')}
                     </button>
@@ -304,7 +304,7 @@ export default function ContactPage() {
                   <form onSubmit={onSubmit} className="space-y-5">
                     <div>
                       <label className="mb-1.5 block text-sm font-medium">
-                        {t('이름')} <span className="text-violet-500">*</span>
+                        {t('이름')} <span className="text-blue-500">*</span>
                       </label>
                       <input
                         value={name}
@@ -352,7 +352,7 @@ export default function ContactPage() {
 
                     <div>
                       <label className="mb-1.5 block text-sm font-medium">
-                        {t('문의 내용')} <span className="text-violet-500">*</span>
+                        {t('문의 내용')} <span className="text-blue-500">*</span>
                       </label>
                       <textarea
                         value={message}
@@ -373,7 +373,7 @@ export default function ContactPage() {
                     <button
                       type="submit"
                       disabled={sending}
-                      className="brand-gradient inline-flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-violet-500/40 hover:brightness-[1.05] disabled:pointer-events-none disabled:opacity-60"
+                      className="brand-gradient inline-flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-blue-500/25 transition-all duration-200 hover:shadow-blue-500/40 hover:brightness-[1.05] disabled:pointer-events-none disabled:opacity-60"
                     >
                       {sending ? (
                         <>

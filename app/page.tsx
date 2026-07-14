@@ -734,9 +734,9 @@ export default function Home() {
 
         <div className="relative z-10 mx-auto max-w-4xl px-5 text-center">
           <div className="flex justify-center animate-fade-up">
-            <span className="animate-bob inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-violet-200 shadow-sm backdrop-blur">
+            <span className="animate-bob inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-blue-200 shadow-sm backdrop-blur">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping-ring absolute inline-flex h-full w-full rounded-full bg-violet-400" />
+                <span className="animate-ping-ring absolute inline-flex h-full w-full rounded-full bg-blue-400" />
                 <span className="relative inline-flex h-2 w-2 rounded-full brand-gradient" />
               </span>
               {t('노드 기반 올인원 마케팅 스튜디오')}
@@ -777,10 +777,10 @@ export default function Home() {
 
       {/* ===== 채널 오빗 (실제 로고 공전) ===== */}
       <section className="relative overflow-hidden border-y border-white/10 py-20 text-white">
-        <div className="animate-drift pointer-events-none absolute left-1/2 top-1/2 h-[520px] w-[820px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-700/15 blur-[150px]" />
+        <div className="animate-drift pointer-events-none absolute left-1/2 top-1/2 h-[520px] w-[820px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-700/15 blur-[150px]" />
         <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-5 lg:grid-cols-2">
           <div className="text-center lg:text-left">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-violet-200 backdrop-blur">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-blue-200 backdrop-blur">
               {t('하나로 연결되는 채널')}
             </span>
             <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
@@ -898,7 +898,7 @@ export default function Home() {
                         <h3 className="text-lg font-semibold">{f.title}</h3>
                       </div>
                       <p className="mt-2.5 text-sm leading-relaxed text-[var(--text-soft)]">{f.desc}</p>
-                      <div className="mt-5 flex items-center gap-1.5 text-sm font-semibold text-violet-300 opacity-0 transition-all duration-300 group-hover:translate-x-1 group-hover:opacity-100">
+                      <div className="mt-5 flex items-center gap-1.5 text-sm font-semibold text-blue-300 opacity-0 transition-all duration-300 group-hover:translate-x-1 group-hover:opacity-100">
                         {t('살펴보기')} <ArrowRight size={15} />
                       </div>
                     </div>
@@ -927,7 +927,7 @@ export default function Home() {
             </h2>
           </Reveal>
           <div className="relative mt-16 grid gap-5 md:grid-cols-4">
-            <div className="pointer-events-none absolute left-0 right-0 top-12 hidden h-px bg-gradient-to-r from-transparent via-violet-500/40 to-transparent md:block" />
+            <div className="pointer-events-none absolute left-0 right-0 top-12 hidden h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent md:block" />
             {STEPS.map((s, i) => (
               <Reveal key={s.n} delay={i * 110}>
                 <div className="card relative h-full p-7">
@@ -949,7 +949,7 @@ export default function Home() {
               return (
                 <Reveal key={c.t} delay={i * 100}>
                   <div className="flex gap-4 rounded-2xl border border-white/8 bg-white/[0.02] p-5 transition-colors hover:bg-white/[0.05]">
-                    <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl bg-violet-500/12 text-violet-300">
+                    <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl bg-blue-500/12 text-blue-300">
                       <Icon size={20} />
                     </span>
                     <div>
@@ -998,7 +998,7 @@ export default function Home() {
             </Reveal>
 
             <Reveal variant="right">
-              <div className="hairline flex h-full flex-col p-7 shadow-[0_40px_90px_-40px_rgba(124,58,237,0.6)]">
+              <div className="hairline flex h-full flex-col p-7 shadow-[0_40px_90px_-40px_rgba(37,99,235,0.6)]">
                 <div className="mb-6 flex items-center gap-2.5">
                   <span className="grid h-9 w-9 place-items-center rounded-lg brand-gradient text-white">
                     <Check size={18} />
@@ -1008,7 +1008,7 @@ export default function Home() {
                 <ul className="space-y-4">
                   {CONTRAST.map((c) => (
                     <li key={c.after} className="flex items-start gap-2.5 text-sm">
-                      <Check size={17} className="mt-0.5 flex-shrink-0 text-violet-300" />
+                      <Check size={17} className="mt-0.5 flex-shrink-0 text-blue-300" />
                       <span className="font-medium text-white">{t(c.after)}</span>
                     </li>
                   ))}
@@ -1022,7 +1022,7 @@ export default function Home() {
       {/* ===== URGENCY / COGNITIVE-DISSONANCE BAND ===== */}
       <section className="relative overflow-hidden border-y border-white/10 py-24 text-white">
         <div className="dot-grid pointer-events-none absolute inset-0 opacity-30 mask-fade-b" />
-        <div className="animate-drift pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[720px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-700/25 blur-[150px]" />
+        <div className="animate-drift pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[720px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-700/25 blur-[150px]" />
         <div className="relative mx-auto max-w-3xl px-5 text-center">
           <Reveal>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-rose-200 backdrop-blur">
@@ -1061,7 +1061,7 @@ export default function Home() {
             {VOICES.map((v, i) => (
               <Reveal key={v.name} delay={i * 100}>
                 <div className="card hover-lift flex h-full flex-col p-7">
-                  <Quote size={26} className="text-violet-400/70" />
+                  <Quote size={26} className="text-blue-400/70" />
                   <div className="mt-3 flex gap-0.5 text-amber-400">
                     {Array.from({ length: 5 }).map((_, s) => (
                       <Star key={s} size={15} className="fill-current" />
@@ -1088,7 +1088,7 @@ export default function Home() {
                 const Icon = item.icon
                 return (
                   <div key={item.label} className="flex items-center justify-center gap-2.5 text-sm font-medium text-[var(--text-soft)]">
-                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg bg-violet-500/12 text-violet-300">
+                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg bg-blue-500/12 text-blue-300">
                       <Icon size={17} />
                     </span>
                     {t(item.label)}
@@ -1121,12 +1121,12 @@ export default function Home() {
                 <div
                   className={`relative flex h-full flex-col rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1 ${
                     p.highlight
-                      ? 'hairline shadow-[0_40px_90px_-40px_rgba(124,58,237,0.6)]'
+                      ? 'hairline shadow-[0_40px_90px_-40px_rgba(37,99,235,0.6)]'
                       : 'border border-white/10 bg-white/[0.02] hover:border-white/20'
                   }`}
                 >
                   {p.highlight && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full brand-gradient px-3 py-1 text-xs font-semibold text-white shadow-lg shadow-violet-500/40">
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full brand-gradient px-3 py-1 text-xs font-semibold text-white shadow-lg shadow-blue-500/40">
                       {t('가장 인기')}
                     </span>
                   )}
@@ -1139,7 +1139,7 @@ export default function Home() {
                   <ul className="mt-6 flex-1 space-y-3">
                     {p.features.map((f) => (
                       <li key={f} className="flex items-start gap-2.5 text-sm">
-                        <Check size={17} className="mt-0.5 flex-shrink-0 text-violet-300" />
+                        <Check size={17} className="mt-0.5 flex-shrink-0 text-blue-300" />
                         <span className="text-[var(--text-soft)]">{t(f)}</span>
                       </li>
                     ))}
@@ -1153,7 +1153,7 @@ export default function Home() {
           </div>
 
           <Reveal delay={120} className="mt-10 text-center">
-            <Link href="/pricing" className="text-sm font-semibold text-violet-300 hover:text-violet-200 hover:underline">
+            <Link href="/pricing" className="text-sm font-semibold text-blue-300 hover:text-blue-200 hover:underline">
               {t('마케터 · AI 영상 제작 플랜 자세히 보기 →')}
             </Link>
           </Reveal>
@@ -1163,8 +1163,8 @@ export default function Home() {
       {/* ===== CTA ===== */}
       <section className="px-5 pb-28 pt-4">
         <Reveal variant="scale" className="mx-auto max-w-5xl">
-          <div className="animate-gradient relative overflow-hidden rounded-3xl px-8 py-16 text-center shadow-xl shadow-violet-900/50"
-            style={{ background: 'linear-gradient(120deg,#a855f7,#7c3aed,#6366f1,#22d3ee)' }}
+          <div className="animate-gradient relative overflow-hidden rounded-3xl px-8 py-16 text-center shadow-xl shadow-blue-900/50"
+            style={{ background: 'linear-gradient(120deg,#3b82f6,#2563eb,#0ea5e9,#22d3ee)' }}
           >
             <div className="animate-drift pointer-events-none absolute -top-16 left-1/2 h-64 w-96 -translate-x-1/2 rounded-full bg-white/20 blur-[90px]" />
             <div className="relative">
@@ -1180,7 +1180,7 @@ export default function Home() {
                 {t('탭 20개, 도구 5개, 매주 반복되던 수작업. 오늘부로 정리하세요. 신용카드 없이, 3분이면 첫 워크스페이스가 열립니다.')}
               </p>
               <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <Button href="/signup" size="lg" className="!bg-white !text-violet-700 hover:!bg-violet-50 hover:!brightness-100">
+                <Button href="/signup" size="lg" className="!bg-white !text-blue-700 hover:!bg-blue-50 hover:!brightness-100">
                   {t('무료로 시작하기')} <ArrowRight size={18} />
                 </Button>
                 <Button href="/login" size="lg" className="!border !border-white/40 !bg-white/10 !text-white hover:!bg-white/20">

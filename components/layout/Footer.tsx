@@ -39,7 +39,7 @@ export function Footer() {
   const t = useT(M)
   return (
     <footer className="relative overflow-hidden border-t border-white/10 bg-[#05070e]">
-      <div className="pointer-events-none absolute -top-24 left-1/2 h-72 w-[900px] -translate-x-1/2 rounded-full bg-violet-700/15 blur-[130px]" />
+      <div className="pointer-events-none absolute -top-24 left-1/2 h-72 w-[900px] -translate-x-1/2 rounded-full bg-blue-700/15 blur-[130px]" />
       <div className="relative mx-auto max-w-7xl px-5 py-16">
         <div className="grid gap-10 md:grid-cols-[1.5fr_1fr_1fr]">
           <div>
@@ -50,13 +50,13 @@ export function Footer() {
             <ul className="mt-5 space-y-2 text-sm">
               <li className="flex items-center gap-2">
                 <span className="text-slate-500">{t('비즈니스 문의')}</span>
-                <a href="mailto:biz@bygency.co" className="font-medium text-violet-300 hover:text-violet-200 hover:underline">
+                <a href="mailto:biz@bygency.co" className="font-medium text-blue-300 hover:text-blue-200 hover:underline">
                   biz@bygency.co
                 </a>
               </li>
               <li className="flex items-center gap-2">
                 <span className="text-slate-500">{t('공식 문의 메일')}</span>
-                <a href="mailto:cs@bygency.co" className="font-medium text-violet-300 hover:text-violet-200 hover:underline">
+                <a href="mailto:cs@bygency.co" className="font-medium text-blue-300 hover:text-blue-200 hover:underline">
                   cs@bygency.co
                 </a>
               </li>
@@ -68,7 +68,7 @@ export function Footer() {
             <ul className="mt-4 space-y-2.5">
               {FEATURES.slice(0, 4).map((f) => (
                 <li key={f.slug}>
-                  <Link href={`/features/${f.slug}`} className="text-sm text-slate-400 transition-colors hover:text-violet-300">
+                  <Link href={`/features/${f.slug}`} className="text-sm text-slate-400 transition-colors hover:text-blue-300">
                     {f.title}
                   </Link>
                 </li>
@@ -81,13 +81,13 @@ export function Footer() {
             <ul className="mt-4 space-y-2.5">
               {FEATURES.slice(4).map((f) => (
                 <li key={f.slug}>
-                  <Link href={`/features/${f.slug}`} className="text-sm text-slate-400 transition-colors hover:text-violet-300">
+                  <Link href={`/features/${f.slug}`} className="text-sm text-slate-400 transition-colors hover:text-blue-300">
                     {f.title}
                   </Link>
                 </li>
               ))}
               <li>
-                <Link href="/pricing" className="text-sm text-slate-400 transition-colors hover:text-violet-300">
+                <Link href="/pricing" className="text-sm text-slate-400 transition-colors hover:text-blue-300">
                   {t('요금제')}
                 </Link>
               </li>
@@ -105,7 +105,7 @@ export function Footer() {
             href="https://nextvisionccompany.net/"
             target="_blank"
             rel="noopener noreferrer"
-            className="group inline-flex flex-shrink-0 items-center gap-2 rounded-xl brand-gradient px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition-all hover:brightness-110"
+            className="group inline-flex flex-shrink-0 items-center gap-2 rounded-xl brand-gradient px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 transition-all hover:brightness-110"
           >
             {t('회사 바로 보기')}
             <ArrowUpRight size={16} className="transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />

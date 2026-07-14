@@ -30,7 +30,7 @@ export function MegaNodeStudio({ onNavigate }: { onNavigate?: () => void }) {
           <defs>
             <linearGradient id="wire" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0" stopColor="#f59e0b" />
-              <stop offset="1" stopColor="#7c3aed" />
+              <stop offset="1" stopColor="#2563eb" />
             </linearGradient>
           </defs>
           {/* flowing wires */}
@@ -46,8 +46,8 @@ export function MegaNodeStudio({ onNavigate }: { onNavigate?: () => void }) {
         <NodeBox x={6} y={16} color="#f59e0b" icon={<Sparkles size={11} />} label="프롬프트" />
         <NodeBox x={6} y={80} color="#38bdf8" icon={<Film size={11} />} label="레퍼런스" />
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <div className="rounded-lg border border-violet-400/40 bg-violet-500/15 px-2.5 py-2 text-center shadow-[0_0_20px_rgba(124,58,237,0.5)]">
-            <span className="flex items-center justify-center gap-1 text-[10px] font-bold text-violet-200"><Cpu size={11} /> AI 모델</span>
+          <div className="rounded-lg border border-blue-400/40 bg-blue-500/15 px-2.5 py-2 text-center shadow-[0_0_20px_rgba(37,99,235,0.5)]">
+            <span className="flex items-center justify-center gap-1 text-[10px] font-bold text-blue-200"><Cpu size={11} /> AI 모델</span>
             <span className="mt-0.5 block text-[8px] text-slate-400">Seedance 2.0</span>
           </div>
         </div>
@@ -60,7 +60,7 @@ export function MegaNodeStudio({ onNavigate }: { onNavigate?: () => void }) {
           <p className="text-sm font-bold text-white">텍스트만으로 광고 영상</p>
           <p className="text-[11px] text-slate-400">노드 기반 AI 영상 제작 · 90% 시간 단축</p>
         </div>
-        <span className="flex items-center gap-1 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-500 px-2.5 py-1.5 text-[11px] font-bold text-white transition-transform group-hover:scale-105">
+        <span className="flex items-center gap-1 rounded-lg bg-gradient-to-br from-blue-500 to-blue-500 px-2.5 py-1.5 text-[11px] font-bold text-white transition-transform group-hover:scale-105">
           <Play size={11} /> 실행
         </span>
       </div>

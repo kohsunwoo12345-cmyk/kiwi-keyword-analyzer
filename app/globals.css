@@ -118,6 +118,47 @@
   mask-image: linear-gradient(180deg, #000 60%, transparent);
 }
 
+/* ===================================================================
+   공개 페이지·채팅 = 파랑 계열 브랜드 (대시보드/관리자는 보라 유지)
+   .site-dark / .site-light 스코프 안에서만 브랜드 포인트 컬러를 파랑으로 재정의.
+   =================================================================== */
+.site-dark,
+.site-light {
+  --brand: #2563eb;
+  --brand-2: #0ea5e9;
+  --brand-3: #3b82f6;
+}
+.site-dark .brand-text,
+.site-light .brand-text {
+  background-image: linear-gradient(135deg, #2563eb 0%, #1d4ed8 45%, #06b6d4 100%);
+}
+.site-dark .accent-text,
+.site-light .accent-text {
+  background-image: linear-gradient(135deg, #0891b2 0%, #2563eb 100%);
+}
+.site-dark .grid-bg,
+.site-light .grid-bg {
+  background-image:
+    linear-gradient(rgba(37, 99, 235, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.05) 1px, transparent 1px);
+}
+.site-dark .hairline {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)) padding-box,
+    linear-gradient(140deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.02) 40%, rgba(37, 99, 235, 0.35)) border-box;
+}
+.site-dark .glow {
+  box-shadow:
+    0 0 0 1px rgba(37, 99, 235, 0.18),
+    0 40px 90px -30px rgba(37, 99, 235, 0.55);
+}
+.site-dark .hover-lift:hover {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 30px 60px -24px rgba(37, 99, 235, 0.45);
+  border-color: rgba(96, 165, 250, 0.5);
+}
+
 html {
   scroll-behavior: smooth;
 }

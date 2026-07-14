@@ -402,9 +402,9 @@ export function FeatureDetail({ slug }: { slug: string }) {
         <div className="relative mx-auto max-w-4xl px-5 text-center">
           {/* breadcrumb */}
           <nav className="flex items-center justify-center gap-1.5 text-sm text-[var(--text-dim)] animate-fade-up">
-            <Link href="/" className="transition-colors hover:text-violet-300">{t('홈')}</Link>
+            <Link href="/" className="transition-colors hover:text-blue-300">{t('홈')}</Link>
             <ChevronRight size={14} />
-            <Link href="/features" className="transition-colors hover:text-violet-300">{t('기능')}</Link>
+            <Link href="/features" className="transition-colors hover:text-blue-300">{t('기능')}</Link>
             <ChevronRight size={14} />
             <span className="font-semibold text-[var(--text-soft)]">{feature.title}</span>
           </nav>
@@ -431,7 +431,7 @@ export function FeatureDetail({ slug }: { slug: string }) {
             <br />
             <span
               className="bg-gradient-to-r bg-clip-text text-transparent animate-gradient"
-              style={{ backgroundImage: `linear-gradient(120deg, ${feature.accent}, #6366f1)` }}
+              style={{ backgroundImage: `linear-gradient(120deg, ${feature.accent}, #0ea5e9)` }}
             >
               {t(meta.tagline)}
             </span>
@@ -553,7 +553,7 @@ export function FeatureDetail({ slug }: { slug: string }) {
                       <h3 className="truncate font-semibold">{f.title}</h3>
                       <p className="truncate text-xs text-[var(--text-dim)]">{f.short}</p>
                     </div>
-                    <ArrowRight size={16} className="ml-auto flex-shrink-0 text-[var(--text-dim)] transition-all group-hover:translate-x-1 group-hover:text-violet-600" />
+                    <ArrowRight size={16} className="ml-auto flex-shrink-0 text-[var(--text-dim)] transition-all group-hover:translate-x-1 group-hover:text-blue-600" />
                   </Link>
                 </Reveal>
               )
@@ -568,7 +568,7 @@ export function FeatureDetail({ slug }: { slug: string }) {
           <div
             className="animate-gradient relative overflow-hidden rounded-3xl px-8 py-16 text-center shadow-xl"
             style={{
-              background: `linear-gradient(120deg, ${feature.accent}, #7c3aed, #6366f1, #22d3ee)`,
+              background: `linear-gradient(120deg, ${feature.accent}, #2563eb, #0ea5e9, #22d3ee)`,
               boxShadow: `0 30px 60px -20px ${feature.accent}77`,
             }}
           >
@@ -586,7 +586,7 @@ export function FeatureDetail({ slug }: { slug: string }) {
                 {t(meta.tagline)}{t('. BYGENCY 하나로 마케팅의 모든 과정을 연결하세요.')}
               </p>
               <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <Button href="/signup" size="lg" className="!bg-white !text-violet-700 hover:!bg-violet-50 hover:!brightness-100">
+                <Button href="/signup" size="lg" className="!bg-white !text-blue-700 hover:!bg-blue-50 hover:!brightness-100">
                   {t('무료로 시작하기')} <ArrowRight size={18} />
                 </Button>
                 <Button href="/contact" size="lg" className="!border !border-white/40 !bg-white/10 !text-white hover:!bg-white/20">
@@ -636,7 +636,7 @@ function PreviewTag() {
   )
 }
 function fieldCls() {
-  return 'w-full rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none transition-all placeholder:text-[var(--text-dim)] focus:border-violet-400 focus:ring-2 focus:ring-violet-200'
+  return 'w-full rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none transition-all placeholder:text-[var(--text-dim)] focus:border-blue-400 focus:ring-2 focus:ring-blue-200'
 }
 
 /* ───────────────── LEADS (real) ───────────────── */
@@ -684,7 +684,7 @@ function LeadsDemo({ feature }: { feature: Feature }) {
         </p>
         <button
           onClick={() => { setState('idle'); setName(''); setPhone(''); setEmail('') }}
-          className="mt-6 text-sm font-semibold text-violet-600 hover:underline"
+          className="mt-6 text-sm font-semibold text-blue-600 hover:underline"
         >
           {t('다시 체험하기')}
         </button>
@@ -952,7 +952,7 @@ function VideoDemo({ feature }: { feature: Feature }) {
             onClick={() => setStyle(s)}
             className={cn(
               'rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all',
-              style === s ? 'text-white' : 'border-[var(--border)] bg-white text-[var(--text-soft)] hover:border-violet-300',
+              style === s ? 'text-white' : 'border-[var(--border)] bg-white text-[var(--text-soft)] hover:border-blue-300',
             )}
             style={style === s ? { background: feature.accent, borderColor: feature.accent } : undefined}
           >
@@ -974,7 +974,7 @@ function VideoDemo({ feature }: { feature: Feature }) {
         <div className="animate-fade-up">
           <div
             className="relative flex aspect-video items-center justify-center overflow-hidden rounded-2xl"
-            style={{ background: `linear-gradient(135deg, ${feature.accent}, #6366f1, #22d3ee)` }}
+            style={{ background: `linear-gradient(135deg, ${feature.accent}, #0ea5e9, #22d3ee)` }}
           >
             <div className="animate-drift pointer-events-none absolute -top-10 left-1/3 h-40 w-40 rounded-full bg-white/25 blur-3xl" />
             <button className="relative grid h-16 w-16 place-items-center rounded-full bg-white/25 backdrop-blur transition-transform hover:scale-110">
@@ -1204,7 +1204,7 @@ function TeamDemo({ feature }: { feature: Feature }) {
             <div
               className={cn(
                 'max-w-[78%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed',
-                m.role === 'user' ? 'rounded-br-sm bg-violet-600 text-white' : 'rounded-bl-sm border border-[var(--border)] bg-white',
+                m.role === 'user' ? 'rounded-br-sm bg-blue-600 text-white' : 'rounded-bl-sm border border-[var(--border)] bg-white',
               )}
             >
               {t(m.text)}
@@ -1229,7 +1229,7 @@ function TeamDemo({ feature }: { feature: Feature }) {
           <button
             key={s}
             onClick={() => setInput(s)}
-            className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-xs text-[var(--text-soft)] transition-colors hover:border-violet-300 hover:text-violet-600"
+            className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-xs text-[var(--text-soft)] transition-colors hover:border-blue-300 hover:text-blue-600"
           >
             {t(s)}
           </button>

@@ -437,9 +437,9 @@ const VIDEO_TIERS: Tier[] = [
 ]
 
 const CREDITS = [
-  { icon: Video, label: 'AI 영상 제작', cost: 5, color: 'from-fuchsia-500 to-violet-600' },
-  { icon: LayoutTemplate, label: '랜딩페이지 생성', cost: 3, color: 'from-violet-500 to-indigo-600' },
-  { icon: FileText, label: '블로그 글 생성', cost: 2, color: 'from-indigo-500 to-blue-600' },
+  { icon: Video, label: 'AI 영상 제작', cost: 5, color: 'from-sky-500 to-blue-600' },
+  { icon: LayoutTemplate, label: '랜딩페이지 생성', cost: 3, color: 'from-blue-500 to-blue-600' },
+  { icon: FileText, label: '블로그 글 생성', cost: 2, color: 'from-blue-500 to-blue-600' },
   { icon: PlayCircle, label: '유튜브 분석', cost: 1, color: 'from-rose-500 to-red-600' },
   { icon: Camera, label: '인스타 콘텐츠', cost: 1, color: 'from-pink-500 to-rose-600' },
   { icon: MapPin, label: '플레이스 조회', cost: 1, color: 'from-emerald-500 to-teal-600' },
@@ -488,8 +488,8 @@ function FaqItem({ q, a }: { q: string; a: string }) {
         <span className="font-semibold">{t(q)}</span>
         <span
           className={cn(
-            'grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg text-violet-300 transition-colors',
-            open ? 'bg-violet-500/20' : 'bg-violet-500/10',
+            'grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg text-blue-300 transition-colors',
+            open ? 'bg-blue-500/20' : 'bg-blue-500/10',
           )}
         >
           {open ? <Minus size={16} /> : <Plus size={16} />}
@@ -517,12 +517,12 @@ function PlanCard({ p, i }: { p: Tier; i: number }) {
         className={cn(
           'relative flex h-full flex-col rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1',
           p.highlight
-            ? 'hairline shadow-[0_40px_90px_-40px_rgba(124,58,237,0.6)]'
+            ? 'hairline shadow-[0_40px_90px_-40px_rgba(37,99,235,0.6)]'
             : 'border border-white/10 bg-white/[0.02] hover:border-white/20',
         )}
       >
         {p.highlight && (
-          <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full brand-gradient px-3 py-1 text-xs font-semibold text-white shadow-lg shadow-violet-500/40">
+          <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full brand-gradient px-3 py-1 text-xs font-semibold text-white shadow-lg shadow-blue-500/40">
             {t('인기')}
           </span>
         )}
@@ -535,7 +535,7 @@ function PlanCard({ p, i }: { p: Tier; i: number }) {
         <ul className="mt-6 flex-1 space-y-3">
           {p.features.map((f) => (
             <li key={f} className="flex items-start gap-2.5 text-sm">
-              <Check size={17} className="mt-0.5 flex-shrink-0 text-violet-300" />
+              <Check size={17} className="mt-0.5 flex-shrink-0 text-blue-300" />
               <span className="text-[var(--text-soft)]">{t(f)}</span>
             </li>
           ))}
@@ -572,7 +572,7 @@ function TrackSection({
     <div>
       <Reveal className="mx-auto max-w-2xl text-center">
         <div className="flex justify-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.06] px-4 py-1.5 text-sm font-semibold text-violet-200 backdrop-blur">
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.06] px-4 py-1.5 text-sm font-semibold text-blue-200 backdrop-blur">
             <Icon size={15} /> {t(tag)}
           </span>
         </div>
@@ -600,7 +600,7 @@ export default function PricingPage() {
       {/* ===== HERO ===== */}
       <section className="relative overflow-hidden pt-36 pb-20">
         <div className="absolute inset-0 grid-bg opacity-30" />
-        <div className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[460px] w-[820px] -translate-x-1/2 rounded-full bg-violet-700/30 blur-[130px]" />
+        <div className="animate-drift pointer-events-none absolute -top-40 left-1/2 h-[460px] w-[820px] -translate-x-1/2 rounded-full bg-blue-700/30 blur-[130px]" />
         <div className="animate-drift-slow pointer-events-none absolute top-24 right-0 h-[280px] w-[380px] rounded-full bg-cyan-700/25 blur-[120px]" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent to-[var(--bg)]" />
 
@@ -658,7 +658,7 @@ export default function PricingPage() {
         <div className="mx-auto max-w-6xl px-5">
           <Reveal variant="scale" className="mx-auto max-w-3xl">
             <div className="hairline relative overflow-hidden p-7">
-              <div className="animate-drift pointer-events-none absolute -top-16 -right-10 h-48 w-64 rounded-full bg-violet-600/25 blur-[80px]" />
+              <div className="animate-drift pointer-events-none absolute -top-16 -right-10 h-48 w-64 rounded-full bg-blue-600/25 blur-[80px]" />
               <div className="relative flex items-start gap-4">
                 <span className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-xl brand-gradient text-white shadow">
                   <Layers size={22} />
@@ -714,7 +714,7 @@ export default function PricingPage() {
                       </span>
                       <span className="font-semibold">{t(c.label)}</span>
                     </div>
-                    <span className="flex items-baseline gap-1 text-violet-300">
+                    <span className="flex items-baseline gap-1 text-blue-300">
                       <span className="text-2xl font-bold">{c.cost}</span>
                       <span className="text-xs font-medium text-[var(--text-dim)]">{t('크레딧')}</span>
                     </span>
@@ -725,8 +725,8 @@ export default function PricingPage() {
           </div>
 
           <Reveal>
-            <div className="mt-6 flex items-start gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[0.07] p-5 text-sm text-[var(--text-soft)]">
-              <ShieldCheck size={18} className="mt-0.5 flex-shrink-0 text-violet-300" />
+            <div className="mt-6 flex items-start gap-3 rounded-2xl border border-blue-500/20 bg-blue-500/[0.07] p-5 text-sm text-[var(--text-soft)]">
+              <ShieldCheck size={18} className="mt-0.5 flex-shrink-0 text-blue-300" />
               <p>
                 {t('크레딧은 요금제 결제와 별도로 청구되며, 충전 요청은 관리자 승인 후 계정에 반영됩니다. 마케터 트랙의 유튜브·인스타·플레이스 조회는 1크레딧으로 부담 없이 사용할 수 있습니다.')}
               </p>
@@ -754,7 +754,7 @@ export default function PricingPage() {
           <Reveal className="mt-10 text-center">
             <p className="text-sm text-[var(--text-soft)]">
               {t('더 궁금한 점이 있으신가요?')}{' '}
-              <a href="/contact" className="font-semibold text-violet-300 hover:text-violet-200 hover:underline">
+              <a href="/contact" className="font-semibold text-blue-300 hover:text-blue-200 hover:underline">
                 {t('문의하기')}
               </a>
             </p>
@@ -766,8 +766,8 @@ export default function PricingPage() {
       <section className="px-5 py-24">
         <Reveal variant="scale" className="mx-auto max-w-5xl">
           <div
-            className="animate-gradient relative overflow-hidden rounded-3xl px-8 py-16 text-center shadow-xl shadow-violet-300/50"
-            style={{ background: 'linear-gradient(120deg,#a855f7,#7c3aed,#6366f1,#22d3ee)' }}
+            className="animate-gradient relative overflow-hidden rounded-3xl px-8 py-16 text-center shadow-xl shadow-blue-300/50"
+            style={{ background: 'linear-gradient(120deg,#3b82f6,#2563eb,#0ea5e9,#22d3ee)' }}
           >
             <div className="animate-drift pointer-events-none absolute -top-16 left-1/2 h-64 w-96 -translate-x-1/2 rounded-full bg-white/20 blur-[90px]" />
             <div className="relative">
@@ -786,7 +786,7 @@ export default function PricingPage() {
                 <Button
                   href="/signup"
                   size="lg"
-                  className="!bg-white !text-violet-700 hover:!bg-violet-50 hover:!brightness-100"
+                  className="!bg-white !text-blue-700 hover:!bg-blue-50 hover:!brightness-100"
                 >
                   {t('무료로 시작하기')} <ArrowRight size={18} />
                 </Button>

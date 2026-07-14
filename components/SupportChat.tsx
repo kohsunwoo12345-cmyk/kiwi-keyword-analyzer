@@ -110,12 +110,12 @@ export function SupportChat() {
         <div className="animate-chat-pop mb-3 flex h-[min(600px,78vh)] w-[min(392px,92vw)] flex-col overflow-hidden rounded-[22px] border border-white/10 bg-[#0a0f1c] shadow-[0_40px_100px_-24px_rgba(0,0,0,0.8)] ring-1 ring-black/5">
           {/* 헤더 */}
           <div className="relative overflow-hidden px-5 pb-4 pt-4 text-white">
-            <div className="absolute inset-0 bg-gradient-to-br from-violet-600 via-indigo-600 to-violet-700" />
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-blue-600 to-sky-600" />
             <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/15 blur-2xl" />
             <div className="relative flex items-center gap-3">
               <span className="relative grid h-11 w-11 flex-shrink-0 place-items-center rounded-full bg-white/15 ring-1 ring-white/25 backdrop-blur">
                 <Headset size={20} />
-                <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-violet-600 bg-emerald-400" />
+                <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-blue-600 bg-emerald-400" />
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] font-bold leading-tight">{t('title')}</p>
@@ -138,7 +138,7 @@ export function SupportChat() {
 
             {/* 인사 */}
             <div className="flex items-end gap-2">
-              <span className="mb-4 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 text-white">
+              <span className="mb-4 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-sky-500 text-white">
                 <Headset size={13} />
               </span>
               <div>
@@ -157,7 +157,7 @@ export function SupportChat() {
                 <div key={i} className={cn('animate-bubble-in flex items-end gap-2 pt-2', mine ? 'justify-end' : 'justify-start')}>
                   {!mine && (
                     showAvatar ? (
-                      <span className="mb-4 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 text-white">
+                      <span className="mb-4 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-sky-500 text-white">
                         <Headset size={13} />
                       </span>
                     ) : (
@@ -169,7 +169,7 @@ export function SupportChat() {
                       className={cn(
                         'max-w-[250px] px-3.5 py-2.5 text-[13.5px] leading-relaxed shadow-sm',
                         mine
-                          ? 'rounded-2xl rounded-br-md bg-gradient-to-br from-violet-500 to-indigo-500 text-white'
+                          ? 'rounded-2xl rounded-br-md bg-gradient-to-br from-blue-500 to-sky-500 text-white'
                           : 'rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.05] text-slate-100',
                       )}
                     >
@@ -177,7 +177,7 @@ export function SupportChat() {
                     </div>
                     <span className={cn('mt-1 flex items-center gap-1 px-1 text-[10px] text-slate-500', mine ? 'flex-row-reverse' : '')}>
                       {hhmm(m.at)}
-                      {mine && i === lastUserIdx && <Check size={11} className="text-violet-400" />}
+                      {mine && i === lastUserIdx && <Check size={11} className="text-blue-400" />}
                     </span>
                   </div>
                 </div>
@@ -192,7 +192,7 @@ export function SupportChat() {
                 <button
                   key={k}
                   onClick={() => sendText(t(k))}
-                  className="rounded-full border border-violet-400/30 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-200 transition hover:bg-violet-500/20"
+                  className="rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-200 transition hover:bg-blue-500/20"
                 >
                   {t(k)}
                 </button>
@@ -209,12 +209,12 @@ export function SupportChat() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={t('ph')}
-              className="min-w-0 flex-1 rounded-full border border-white/12 bg-white/[0.05] px-4 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-violet-400/70 focus:bg-white/[0.08]"
+              className="min-w-0 flex-1 rounded-full border border-white/12 bg-white/[0.05] px-4 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-blue-400/70 focus:bg-white/[0.08]"
             />
             <button
               type="submit"
               disabled={!input.trim() || sending}
-              className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 text-white shadow-lg shadow-violet-500/30 transition hover:brightness-110 active:scale-95 disabled:opacity-40"
+              className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-sky-500 text-white shadow-lg shadow-blue-500/30 transition hover:brightness-110 active:scale-95 disabled:opacity-40"
             >
               <Send size={17} className="translate-x-[1px]" />
             </button>
@@ -227,12 +227,12 @@ export function SupportChat() {
         onClick={() => setOpen((v) => !v)}
         aria-label={t('open')}
         className={cn(
-          'group relative grid h-14 w-14 place-items-center rounded-full text-white shadow-[0_14px_44px_-8px_rgba(124,58,237,0.75)] transition-transform hover:scale-105 active:scale-95',
-          'bg-gradient-to-br from-violet-500 via-violet-600 to-indigo-600',
+          'group relative grid h-14 w-14 place-items-center rounded-full text-white shadow-[0_14px_44px_-8px_rgba(37,99,235,0.75)] transition-transform hover:scale-105 active:scale-95',
+          'bg-gradient-to-br from-blue-500 via-blue-600 to-sky-600',
         )}
       >
         {!open && unseen > 0 && (
-          <span className="absolute inset-0 animate-ping-ring rounded-full bg-violet-400/60" />
+          <span className="absolute inset-0 animate-ping-ring rounded-full bg-blue-400/60" />
         )}
         <span className="relative transition-transform duration-300">
           {open ? <X size={24} /> : <MessageCircle size={24} />}

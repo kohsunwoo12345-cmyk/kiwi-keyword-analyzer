@@ -169,7 +169,7 @@ export function Navbar() {
                           {f.title}
                           <ArrowRight
                             size={13}
-                            className="-translate-x-1 text-violet-300 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100"
+                            className="-translate-x-1 text-blue-300 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100"
                           />
                         </p>
                         <p className="mt-0.5 line-clamp-1 text-xs text-slate-400">{f.desc}</p>
