@@ -391,6 +391,9 @@ export async function ensureSchema(db: D1Database) {
     video_plan: "video_plan TEXT DEFAULT '없음'",
     referral_code: 'referral_code TEXT',
     referred_by: 'referred_by TEXT',
+    marketing_consent: 'marketing_consent INTEGER DEFAULT 0',
+    ai_consent: 'ai_consent INTEGER DEFAULT 0',
+    consent_at: 'consent_at TEXT',
   })
   await addMissingColumns(db, 'plan_requests', {
     track: "track TEXT DEFAULT 'marketer'",

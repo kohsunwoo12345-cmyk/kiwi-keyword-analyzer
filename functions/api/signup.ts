@@ -27,6 +27,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const password = String(body.password || '')
   const company = String(body.company || '').trim()
   const phone = String(body.phone || '').replace(/[^0-9]/g, '')
+  const marketingConsent = body.marketingConsent ? 1 : 0
+  const aiConsent = body.aiConsent ? 1 : 0
 
   if (!name || !email || !password) return json({ ok: false, error: '필수 항목을 입력하세요.' }, 400)
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ ok: false, error: '이메일 형식이 올바르지 않습니다.' }, 400)
@@ -42,10 +44,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   await db
     .prepare(
-      `INSERT INTO users (id, name, email, password_hash, company, phone, plan, role, status, points, credits, created_at, last_active)
-       VALUES (?, ?, ?, ?, ?, ?, '없음', ?, 'active', 0, 0, ?, ?)`,
+      `INSERT INTO users (id, name, email, password_hash, company, phone, plan, role, status, points, credits, created_at, last_active, marketing_consent, ai_consent, consent_at)
+       VALUES (?, ?, ?, ?, ?, ?, '없음', ?, 'active', 0, 0, ?, ?, ?, ?, ?)`,
     )
-    .bind(id, name, email, ph, company, phone, role, now, now)
+    .bind(id, name, email, ph, company, phone, role, now, now, marketingConsent, aiConsent, now)
     .run()
 
   await logActivity(db, id, 'signup', '회원 가입')

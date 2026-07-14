@@ -70,7 +70,19 @@ export default function SignupPage() {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [refCode, setRefCode] = useState('')
-  const [agree, setAgree] = useState(false)
+  const [ageOk, setAgeOk] = useState(false)
+  const [agreePrivacy, setAgreePrivacy] = useState(false)
+  const [agreeMarketing, setAgreeMarketing] = useState(false)
+  const [agreeAi, setAgreeAi] = useState(false)
+
+  const allRequired = ageOk && agreePrivacy
+  const allChecked = allRequired && agreeMarketing && agreeAi
+  function toggleAll(v: boolean) {
+    setAgeOk(v)
+    setAgreePrivacy(v)
+    setAgreeMarketing(v)
+    setAgreeAi(v)
+  }
 
   useEffect(() => {
     try {
@@ -96,7 +108,8 @@ export default function SignupPage() {
     if (!password) e.password = '비밀번호를 입력해 주세요.'
     else if (password.length < 8) e.password = '비밀번호는 8자 이상이어야 합니다.'
     if (confirm !== password) e.confirm = '비밀번호가 일치하지 않습니다.'
-    if (!agree) e.agree = '약관에 동의해 주세요.'
+    if (!ageOk) e.agree = '만 18세 이상만 가입할 수 있습니다. 필수 항목에 동의해 주세요.'
+    else if (!agreePrivacy) e.agree = '필수 약관에 모두 동의해 주세요.'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -114,6 +127,8 @@ export default function SignupPage() {
         company: company.trim() || undefined,
         phone: phone.trim() || undefined,
         ref: refCode.trim() || undefined,
+        marketingConsent: agreeMarketing,
+        aiConsent: agreeAi,
       })
       if (!res.ok || !res.user) {
         setFormError(res.error || '회원가입에 실패했습니다.')
@@ -370,26 +385,59 @@ export default function SignupPage() {
                 </div>
 
                 {/* 약관 동의 */}
-                <div>
-                  <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--text-soft)] select-none">
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-3.5">
+                  {/* 모두 동의 */}
+                  <label className="flex cursor-pointer items-center gap-2.5 rounded-lg px-1 py-1 text-sm font-semibold select-none">
                     <input
                       type="checkbox"
-                      checked={agree}
-                      onChange={(e) => setAgree(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-[var(--border)] accent-blue-600"
+                      checked={allChecked}
+                      onChange={(e) => toggleAll(e.target.checked)}
+                      className="h-[18px] w-[18px] rounded border-[var(--border)] accent-blue-600"
                     />
-                    <span>
-                      <Link href="/signup" className="font-medium text-blue-300 hover:text-blue-200">
-                        이용약관
-                      </Link>{' '}
-                      및{' '}
-                      <Link href="/signup" className="font-medium text-blue-300 hover:text-blue-200">
-                        개인정보 처리방침
-                      </Link>
-                      에 동의합니다. <span className="text-rose-500">(필수)</span>
-                    </span>
+                    <span>약관에 모두 동의합니다</span>
                   </label>
-                  {errors.agree && <p className="mt-1.5 text-xs text-rose-300">{errors.agree}</p>}
+
+                  <div className="my-2.5 h-px bg-[var(--border)]" />
+
+                  <div className="space-y-2">
+                    <ConsentRow
+                      checked={ageOk}
+                      onChange={setAgeOk}
+                      required
+                      label="만 18세 이상입니다."
+                    />
+                    <ConsentRow
+                      checked={agreePrivacy}
+                      onChange={setAgreePrivacy}
+                      required
+                      label={
+                        <>
+                          <Link href="/legal/privacy" target="_blank" className="font-medium text-blue-300 hover:text-blue-200 hover:underline">
+                            개인정보 수집·이용 및 처리방침
+                          </Link>
+                          에 동의합니다.
+                        </>
+                      }
+                    />
+                    <ConsentRow
+                      checked={agreeMarketing}
+                      onChange={setAgreeMarketing}
+                      label="마케팅 정보 수신에 동의합니다."
+                    />
+                    <ConsentRow
+                      checked={agreeAi}
+                      onChange={setAgreeAi}
+                      label={
+                        <>
+                          AI 품질 개선을 위한 데이터 이용에 동의합니다.{' '}
+                          <Link href="/legal/privacy" target="_blank" className="text-blue-300 hover:underline">
+                            (자세히)
+                          </Link>
+                        </>
+                      }
+                    />
+                  </div>
+                  {errors.agree && <p className="mt-2 text-xs text-rose-300">{errors.agree}</p>}
                 </div>
 
                 <Button type="submit" size="lg" disabled={loading} className="mt-1 w-full">
@@ -412,6 +460,36 @@ export default function SignupPage() {
         </div>
       </div>
     </main>
+  )
+}
+
+/* ---------- 동의 항목 ---------- */
+function ConsentRow({
+  checked,
+  onChange,
+  label,
+  required,
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  label: React.ReactNode
+  required?: boolean
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-2.5 text-sm text-[var(--text-soft)] select-none">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-[var(--border)] accent-blue-600"
+      />
+      <span className="leading-snug">
+        <span className={required ? 'text-rose-400' : 'text-[var(--text-dim)]'}>
+          {required ? '(필수) ' : '(선택) '}
+        </span>
+        {label}
+      </span>
+    </label>
   )
 }
 

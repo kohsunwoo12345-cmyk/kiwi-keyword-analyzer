@@ -72,6 +72,8 @@ export async function signup(input: {
   company?: string
   phone?: string
   ref?: string
+  marketingConsent?: boolean
+  aiConsent?: boolean
 }): Promise<AuthResult> {
   return postJson('/api/signup', input)
 }

@@ -33,6 +33,10 @@ const M: Dict = {
     ja: 'BYGENCY · オールインワン マーケティング グロース プラットフォーム',
     zh: 'BYGENCY · 一体化营销增长平台',
   },
+  개인정보처리방침: { en: 'Privacy Policy', ja: 'プライバシーポリシー', zh: '隐私政策' },
+  쿠키정책: { en: 'Cookie Policy', ja: 'Cookieポリシー', zh: 'Cookie 政策' },
+  '개인정보처리위탁 특약': { en: 'Data Processing Addendum', ja: '個人情報処理委託特約', zh: '数据处理附录' },
+  '지역별 적용 부속서': { en: 'Regional Annex', ja: '地域別付属書', zh: '地区适用附录' },
 }
 
 export function Footer() {
@@ -112,7 +116,25 @@ export function Footer() {
           </a>
         </div>
 
-        <div className="mt-8 flex flex-col items-start justify-between gap-2 border-t border-white/10 pt-6 text-xs text-slate-500 sm:flex-row sm:items-center">
+        {/* 법적 고지 링크 */}
+        <nav className="mt-10 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/10 pt-6 text-xs">
+          {[
+            { href: '/legal/privacy', label: t('개인정보처리방침') },
+            { href: '/legal/cookies', label: t('쿠키정책') },
+            { href: '/legal/dpa', label: t('개인정보처리위탁 특약') },
+            { href: '/legal/regional', label: t('지역별 적용 부속서') },
+          ].map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className="font-medium text-slate-400 transition-colors hover:text-blue-300"
+            >
+              {l.label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="mt-6 flex flex-col items-start justify-between gap-2 border-t border-white/10 pt-6 text-xs text-slate-500 sm:flex-row sm:items-center">
           <p>© 2026 (주)Next Vision Company. All rights reserved.</p>
           <p>{t('BYGENCY · 올인원 마케팅 그로스 플랫폼')}</p>
         </div>

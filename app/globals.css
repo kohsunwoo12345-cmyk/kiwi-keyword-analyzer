@@ -401,6 +401,78 @@ body {
 @keyframes loadbar { 0%,100% { width: 35%; } 50% { width: 85%; } }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
 
+/* ===== 법적 문서(개인정보처리방침 등) 프로즈 스타일 ===== */
+.legal-prose { color: var(--text-soft); font-size: 15px; line-height: 1.85; }
+.legal-prose h2 {
+  color: var(--text);
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-top: 2.75rem;
+  margin-bottom: 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  scroll-margin-top: 6rem;
+}
+.legal-prose > h2:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.legal-prose h3 {
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 650;
+  margin-top: 1.75rem;
+  margin-bottom: 0.6rem;
+}
+.legal-prose h4 {
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.4rem;
+}
+.legal-prose p { margin: 0.7rem 0; }
+.legal-prose strong { color: var(--text); font-weight: 650; }
+.legal-prose ul, .legal-prose ol { margin: 0.7rem 0 0.7rem 0; padding-left: 1.35rem; }
+.legal-prose ul { list-style: disc; }
+.legal-prose ol { list-style: decimal; }
+.legal-prose li { margin: 0.35rem 0; padding-left: 0.2rem; }
+.legal-prose li::marker { color: var(--brand); }
+.legal-prose a { color: var(--brand); font-weight: 500; text-decoration: none; }
+.legal-prose a:hover { text-decoration: underline; }
+.legal-prose hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
+.legal-prose .lead { font-size: 1.02rem; color: var(--text-soft); }
+.legal-prose .ph {
+  display: inline-block;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
+  padding: 0 6px;
+  font-size: 0.85em;
+  font-weight: 600;
+}
+.legal-prose .note {
+  margin: 1.25rem 0;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  padding: 1rem 1.15rem;
+  font-size: 0.92rem;
+}
+.legal-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.9rem;
+  display: block;
+  overflow-x: auto;
+}
+.legal-prose th, .legal-prose td {
+  border: 1px solid var(--border);
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+.legal-prose th { background: var(--panel-2); color: var(--text); font-weight: 600; white-space: nowrap; }
+
 @media (prefers-reduced-motion: reduce) {
   .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
   .marquee-track, .animate-gradient, .animate-drift, .animate-drift-slow,
