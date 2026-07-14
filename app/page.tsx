@@ -812,15 +812,15 @@ export default function Home() {
             ))}
           </div>
         </div>
-
-        {/* 실제 제품 UI 미리보기 */}
-        <div className="relative z-10 px-5">
-          <HeroDashboard />
-        </div>
       </section>
 
-      {/* ===== AI 파이프라인 (컨트롤넷 + AI 모델, 하나씩 등장) ===== */}
+      {/* ===== AI 파이프라인 (히어로 칩 바로 아래, 실시간 라이브 진행) ===== */}
       <AIPipeline />
+
+      {/* ===== 실제 제품 UI 미리보기 ===== */}
+      <div className="relative px-5 pb-6">
+        <HeroDashboard />
+      </div>
 
       {/* ===== AI 영상 갤러리 (힉스필드 스타일, 모델별 제작 영상) ===== */}
       <AIVideoGallery />
