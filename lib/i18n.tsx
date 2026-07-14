@@ -22,17 +22,22 @@ interface I18nValue {
 const I18nContext = createContext<I18nValue>({ lang: 'ko', setLang: () => {}, ready: false })
 
 const STORAGE_KEY = 'bg_lang'
+const VALID: Lang[] = ['ko', 'en', 'ja', 'zh']
 
-function detectInitial(): Lang {
-  if (typeof window === 'undefined') return 'ko'
+function savedLang(): Lang | null {
   try {
     const saved = localStorage.getItem(STORAGE_KEY) as Lang | null
-    if (saved && ['ko', 'en', 'ja', 'zh'].includes(saved)) return saved
+    if (saved && VALID.includes(saved)) return saved
   } catch {
     /* ignore */
   }
+  return null
+}
+
+function browserLang(): Lang {
+  if (typeof navigator === 'undefined') return 'ko'
   const nav = (navigator.language || 'ko').slice(0, 2).toLowerCase()
-  return (['ko', 'en', 'ja', 'zh'].includes(nav) ? nav : 'ko') as Lang
+  return (VALID.includes(nav as Lang) ? nav : 'ko') as Lang
 }
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
@@ -40,10 +45,37 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    const l = detectInitial()
-    setLangState(l)
+    // 1) 사용자가 직접 선택한 언어가 있으면 그대로 사용 (지오보다 우선)
+    const explicit = savedLang()
+    if (explicit) {
+      setLangState(explicit)
+      document.documentElement.lang = explicit
+      setReady(true)
+      return
+    }
+    // 2) 선택 이력이 없으면 우선 브라우저 언어로 즉시 표시(깜빡임 최소화)
+    const guess = browserLang()
+    setLangState(guess)
+    document.documentElement.lang = guess
     setReady(true)
-    document.documentElement.lang = l
+    // 3) 접속 IP(국가) 기반으로 언어 확정 — 미선택 사용자만, localStorage에 저장하지 않음
+    let aborted = false
+    fetch('/api/geo', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d: { lang?: string }) => {
+        if (aborted || !d) return
+        const gl = d.lang as Lang
+        if (gl && VALID.includes(gl) && !savedLang()) {
+          setLangState(gl)
+          document.documentElement.lang = gl
+        }
+      })
+      .catch(() => {
+        /* geo 실패 시 브라우저 추정 유지 */
+      })
+    return () => {
+      aborted = true
+    }
   }, [])
 
   const setLang = (l: Lang) => {
