@@ -250,7 +250,7 @@ export default function SignupPage() {
 
               {/* 구글로 계속하기 */}
               <div className="mt-6 space-y-4">
-                <GoogleAuthButton label="구글로 계속하기" refCode={refCode} />
+                <GoogleAuthButton label="구글로 계속하기 (Continue with Google)" refCode={refCode} />
                 <OrDivider text="또는 이메일로 가입" />
               </div>
 
