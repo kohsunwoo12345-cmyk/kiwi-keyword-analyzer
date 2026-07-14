@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -19,6 +19,7 @@ import {
   TrendingUp,
   ShieldCheck,
   Zap,
+  UserPlus,
 } from 'lucide-react'
 import { Logo, LogoMark } from '@/components/Brand'
 import { Button } from '@/components/ui'
@@ -68,7 +69,17 @@ export default function SignupPage() {
   const [company, setCompany] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [refCode, setRefCode] = useState('')
   const [agree, setAgree] = useState(false)
+
+  useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search).get('ref')
+      if (p) setRefCode(p.toUpperCase())
+    } catch {
+      /* ignore */
+    }
+  }, [])
   const [showPw, setShowPw] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState('')
@@ -102,6 +113,7 @@ export default function SignupPage() {
         password,
         company: company.trim() || undefined,
         phone: phone.trim() || undefined,
+        ref: refCode.trim() || undefined,
       })
       if (!res.ok || !res.user) {
         setFormError(res.error || '회원가입에 실패했습니다.')
@@ -259,6 +271,15 @@ export default function SignupPage() {
                   onChange={setCompany}
                   placeholder="(주)바이전시"
                   autoComplete="organization"
+                />
+                <Field
+                  id="ref"
+                  label="추천인 코드"
+                  optional
+                  icon={UserPlus}
+                  value={refCode}
+                  onChange={(v) => setRefCode(v.toUpperCase())}
+                  placeholder="(선택) 예: BGXXXXXX"
                 />
 
                 {/* 비밀번호 */}

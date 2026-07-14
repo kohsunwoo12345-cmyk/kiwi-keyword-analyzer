@@ -23,6 +23,11 @@ import {
   Clock,
   Megaphone,
   Video,
+  UserPlus,
+  Copy,
+  Users,
+  Gift,
+  Link2,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button, Badge } from '@/components/ui'
@@ -40,11 +45,15 @@ import {
   requestCredit,
   myCreditRequests,
   CREDIT_PACKAGES,
+  accountReferral,
+  addFriend,
   type User,
   type Tx,
   type Noti,
   type ActivityRow,
   type MySender,
+  type RefUser,
+  type ReferralInfo,
 } from '@/lib/auth'
 
 /* ---------- date helpers ---------- */
@@ -191,6 +200,33 @@ function TxTable({ rows }: { rows: Tx[] }) {
   )
 }
 
+/* ---------- referral user list ---------- */
+function RefUserList({ rows, empty }: { rows: RefUser[]; empty: string }) {
+  if (rows.length === 0) {
+    return <p className="py-6 text-center text-sm text-[var(--text-dim)]">{empty}</p>
+  }
+  return (
+    <ul className="space-y-2">
+      {rows.map((u) => (
+        <li
+          key={u.id}
+          className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-soft)] px-3.5 py-2.5"
+        >
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{u.name}</p>
+            <p className="truncate text-xs text-[var(--text-dim)]">{u.email}</p>
+          </div>
+          {u.paid ? (
+            <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">결제완료</Badge>
+          ) : (
+            <Badge className="border-slate-200 bg-slate-50 text-slate-500">미결제</Badge>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
   const [ok, setOk] = useState(true)
@@ -248,6 +284,14 @@ export default function ProfilePage() {
     { amount: number; price: number; memo: string | null; status: string; created_at: string; decided_at: string | null }[]
   >([])
 
+  // referral
+  const [ref, setRef] = useState<ReferralInfo | null>(null)
+  const [refLoading, setRefLoading] = useState(true)
+  const [copied, setCopied] = useState<'code' | 'link' | ''>('')
+  const [friendCode, setFriendCode] = useState('')
+  const [friendBusy, setFriendBusy] = useState(false)
+  const [friendMsg, setFriendMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
   useEffect(() => {
     let alive = true
     accountOverview().then((d) => {
@@ -281,12 +325,51 @@ export default function ProfilePage() {
     if (r.ok) setCreditReqs(r.requests || [])
   }
 
+  async function loadReferral() {
+    setRefLoading(true)
+    const r = await accountReferral()
+    setRef(r)
+    setRefLoading(false)
+  }
+
   useEffect(() => {
     loadPlanReqs()
     loadSenders()
     loadPointReqs()
     loadCreditReqs()
+    loadReferral()
   }, [])
+
+  async function copyText(text: string, which: 'code' | 'link') {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(which)
+      setTimeout(() => setCopied(''), 2000)
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+
+  async function submitFriend(e: FormEvent) {
+    e.preventDefault()
+    setFriendMsg(null)
+    const code = friendCode.trim()
+    if (!code) {
+      setFriendMsg({ ok: false, text: '추천인 코드를 입력하세요.' })
+      return
+    }
+    setFriendBusy(true)
+    const r = await addFriend(code)
+    setFriendBusy(false)
+    if (r.ok) {
+      setFriendCode('')
+      setFriendMsg({ ok: true, text: `${r.friend?.name || '회원'}님을 친구로 추가했어요` })
+      loadReferral()
+      setTimeout(() => setFriendMsg(null), 5000)
+    } else {
+      setFriendMsg({ ok: false, text: r.error || '친구 추가에 실패했습니다.' })
+    }
+  }
 
   async function submitPlan(e: FormEvent) {
     e.preventDefault()
@@ -509,6 +592,104 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
+
+            {/* 1.5 추천인 · 친구 */}
+            <Panel title={<span className="flex items-center gap-2"><Gift size={16} className="text-fuchsia-600" /> 추천인 · 친구</span>}>
+              {refLoading ? (
+                <p className="py-8 text-center text-sm text-[var(--text-dim)]">불러오는 중...</p>
+              ) : !ref || !ref.ok ? (
+                <p className="py-8 text-center text-sm text-[var(--text-dim)]">
+                  {ref?.error || '추천인 정보를 불러오지 못했습니다.'}
+                </p>
+              ) : (
+                <div className="space-y-6">
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    {/* 내 추천인 코드 */}
+                    <div className="card-2 p-5">
+                      <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-soft)]">
+                        <Gift size={14} className="text-fuchsia-600" /> 내 추천인 코드
+                      </p>
+                      <p className="mt-2 select-all font-mono text-3xl font-bold tracking-widest">
+                        {ref.code || '-'}
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="soft"
+                          size="sm"
+                          onClick={() => copyText(ref.code || '', 'code')}
+                          disabled={!ref.code}
+                        >
+                          {copied === 'code' ? <><Check size={14} /> 복사됨</> : <><Copy size={14} /> 복사</>}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="soft"
+                          size="sm"
+                          onClick={() => copyText(`https://bygency.co/signup?ref=${ref.code || ''}`, 'link')}
+                          disabled={!ref.code}
+                        >
+                          {copied === 'link' ? <><Check size={14} /> 복사됨</> : <><Link2 size={14} /> 초대 링크 복사</>}
+                        </Button>
+                      </div>
+                      {ref.referredByName ? (
+                        <p className="mt-4 text-sm text-[var(--text-soft)]">
+                          추천인: <span className="font-medium text-[var(--text)]">{ref.referredByName}</span>
+                        </p>
+                      ) : null}
+                    </div>
+
+                    {/* 친구 추가 */}
+                    <div className="card-2 p-5">
+                      <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-soft)]">
+                        <UserPlus size={14} className="text-violet-600" /> 친구 추가
+                      </p>
+                      <p className="mt-2 text-sm text-[var(--text-soft)]">
+                        친구의 추천인 코드를 입력하면 친구로 추가돼요.
+                      </p>
+                      <form onSubmit={submitFriend} className="mt-3 flex gap-2">
+                        <input
+                          value={friendCode}
+                          onChange={(e) => setFriendCode(e.target.value)}
+                          className={inputCls}
+                          placeholder="추천인 코드 입력"
+                        />
+                        <Button type="submit" disabled={friendBusy} className="flex-shrink-0">
+                          {friendBusy ? '추가 중...' : <><UserPlus size={15} /> 추가</>}
+                        </Button>
+                      </form>
+                      {friendMsg && (
+                        <div
+                          className={`mt-3 flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm ${
+                            friendMsg.ok
+                              ? 'border-emerald-200 bg-emerald-100 text-emerald-700'
+                              : 'border-rose-200 bg-rose-50 text-rose-700'
+                          }`}
+                        >
+                          {friendMsg.ok ? <Check size={15} /> : <AlertCircle size={15} />} {friendMsg.text}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 목록 */}
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <div>
+                      <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
+                        <Users size={13} /> 내 친구 목록 ({ref.friendCount ?? ref.friends?.length ?? 0})
+                      </p>
+                      <RefUserList rows={ref.friends || []} empty="아직 친구가 없어요" />
+                    </div>
+                    <div>
+                      <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
+                        <Gift size={13} /> 내가 추천한 회원 ({ref.referredCount ?? ref.referred?.length ?? 0})
+                      </p>
+                      <RefUserList rows={ref.referred || []} empty="아직 추천한 회원이 없어요" />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Panel>
 
             <div className="grid gap-6 lg:grid-cols-2">
               {/* 2. 비밀번호 변경 */}

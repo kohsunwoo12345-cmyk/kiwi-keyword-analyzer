@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   LayoutDashboard,
   Users,
@@ -14,11 +14,14 @@ import {
   ScrollText,
   BarChart3,
   Wallet,
+  MessageCircle,
+  UserPlus,
   Menu,
   X,
   ArrowLeft,
 } from 'lucide-react'
 import { Logo } from '@/components/Brand'
+import { adminSupportCount } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 // 보안을 위한 난독화된 관리자 경로 (추측 불가)
@@ -32,12 +35,22 @@ const NAV = [
   { title: '승인 관리', href: `${ADMIN_BASE}/approvals`, icon: BadgeCheck },
   { title: '로그 기록', href: `${ADMIN_BASE}/logs`, icon: ScrollText },
   { title: '접속 통계', href: `${ADMIN_BASE}/stats`, icon: BarChart3 },
+  { title: '고객센터', href: `${ADMIN_BASE}/support`, icon: MessageCircle, badge: 'support' as const },
+  { title: '가입/추천 조회', href: `${ADMIN_BASE}/referrals`, icon: UserPlus },
   { title: 'AI 정산', href: `${ADMIN_BASE}/ai-usage`, icon: Wallet },
   { title: '설정', href: '#', icon: Settings },
 ]
 
 function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
+  const [supportUnread, setSupportUnread] = useState(0)
+  useEffect(() => {
+    let alive = true
+    const load = () => adminSupportCount().then((n) => { if (alive) setSupportUnread(n) })
+    load()
+    const iv = setInterval(load, 20000)
+    return () => { alive = false; clearInterval(iv) }
+  }, [])
   return (
     <nav className="space-y-1">
       <p className="px-3 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-widest text-[var(--text-dim)]">
@@ -45,6 +58,7 @@ function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
       </p>
       {NAV.map((it) => {
         const Icon = it.icon
+        const badgeCount = (it as any).badge === 'support' ? supportUnread : 0
         const active =
           it.href !== '#' &&
           (pathname === it.href || (it.href !== ADMIN_BASE && pathname.startsWith(it.href)))
@@ -70,7 +84,12 @@ function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
             >
               <Icon size={15} />
             </span>
-            <span className="truncate">{it.title}</span>
+            <span className="flex-1 truncate">{it.title}</span>
+            {badgeCount > 0 && (
+              <span className="grid h-5 min-w-5 flex-shrink-0 place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">
+                {badgeCount > 99 ? '99+' : badgeCount}
+              </span>
+            )}
           </Link>
         )
       })}

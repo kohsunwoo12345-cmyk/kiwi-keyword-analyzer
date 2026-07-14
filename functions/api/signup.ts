@@ -13,6 +13,7 @@ import {
   addNotification,
   clientIp,
   geoFrom,
+  ensureReferralCode,
 } from './_utils'
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -48,6 +49,22 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     .run()
 
   await logActivity(db, id, 'signup', '회원 가입')
+  // 추천인 코드 발급
+  await ensureReferralCode(db, id)
+  // 추천인 코드로 가입한 경우: 추천 관계 + 상호 친구 등록
+  const refInput = String(body.ref || body.referral || body.referralCode || '').trim().toUpperCase()
+  if (refInput) {
+    const referrer: any = await db.prepare('SELECT id, name FROM users WHERE referral_code = ?').bind(refInput).first()
+    if (referrer && referrer.id !== id) {
+      await db.prepare('UPDATE users SET referred_by = ? WHERE id = ?').bind(referrer.id, id).run()
+      const t1 = 'f_' + crypto.randomUUID().slice(0, 14)
+      const t2 = 'f_' + crypto.randomUUID().slice(0, 14)
+      await db.prepare(`INSERT OR IGNORE INTO friendships (id, user_id, friend_id, via, created_at) VALUES (?, ?, ?, 'code', ?)`).bind(t1, referrer.id, id, now).run()
+      await db.prepare(`INSERT OR IGNORE INTO friendships (id, user_id, friend_id, via, created_at) VALUES (?, ?, ?, 'code', ?)`).bind(t2, id, referrer.id, now).run()
+      await addNotification(db, referrer.id, '새 추천 가입 🎉', `${name}님이 회원님의 추천 코드로 가입했어요. 친구로 추가되었습니다.`)
+      await logActivity(db, referrer.id, 'referral', `추천 가입: ${name}`)
+    }
+  }
   // 웰컴 보너스
   await applyBalance(db, id, 'point', 1000, '가입 축하 포인트')
   await applyBalance(db, id, 'credit', 3, '가입 축하 체험 크레딧')

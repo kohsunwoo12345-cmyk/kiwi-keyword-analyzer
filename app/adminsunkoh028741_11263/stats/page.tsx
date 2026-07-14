@@ -16,13 +16,18 @@ import {
   FileText,
   Link2,
   ExternalLink,
+  Headset,
+  ArrowRight,
 } from 'lucide-react'
+import Link from 'next/link'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { AreaTrend, Donut } from '@/components/dash/Charts'
 import { StatCard, Panel, Button } from '@/components/ui'
 import { Reveal, Counter } from '@/components/motion'
 import { adminVisitStats, type VisitStats } from '@/lib/auth'
 import { cn } from '@/lib/utils'
+
+const ADMIN_BASE = '/adminsunkoh028741_11263'
 
 const ACCENT = '#7c3aed'
 
@@ -197,6 +202,67 @@ export default function AdminStatsPage() {
             <StatCard label="순 방문자 UV" value={(<Counter to={s?.uv ?? 0} />) as unknown as string} icon={Users} accent="#22c55e" />
             <StatCard label="24시간 UV" value={(<Counter to={s?.uv24 ?? 0} />) as unknown as string} icon={UserCheck} accent="#f59e0b" />
           </div>
+        </Reveal>
+
+        {/* 고객센터 접수 */}
+        <Reveal>
+          <Panel
+            title={
+              <span className="flex items-center gap-2">
+                <Headset size={16} className="text-violet-500" /> 고객센터 접수
+                {(data.support?.unread ?? 0) > 0 && (
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">
+                    {(data.support?.unread ?? 0) > 99 ? '99+' : data.support?.unread}
+                  </span>
+                )}
+              </span>
+            }
+            action={
+              <Link
+                href={`${ADMIN_BASE}/support`}
+                className="inline-flex items-center gap-1 text-sm font-semibold text-violet-600 hover:text-violet-700"
+              >
+                채팅 관리 <ArrowRight size={14} />
+              </Link>
+            }
+          >
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-4 text-center">
+                <div className="text-3xl font-bold tabular-nums">{(data.support?.total ?? 0).toLocaleString('ko-KR')}</div>
+                <div className="mt-1 text-xs text-[var(--text-soft)]">누적 대화</div>
+              </div>
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-4 text-center">
+                <div className={cn('text-3xl font-bold tabular-nums', (data.support?.unread ?? 0) > 0 && 'text-rose-500')}>
+                  {(data.support?.unread ?? 0).toLocaleString('ko-KR')}
+                </div>
+                <div className="mt-1 text-xs text-[var(--text-soft)]">미읽음 문의</div>
+              </div>
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-4 text-center">
+                <div className="text-3xl font-bold tabular-nums">{(data.support?.today ?? 0).toLocaleString('ko-KR')}</div>
+                <div className="mt-1 text-xs text-[var(--text-soft)]">24시간 신규</div>
+              </div>
+            </div>
+            {(data.support?.recent?.length ?? 0) > 0 ? (
+              <ul className="mt-4 divide-y divide-[var(--border-soft)]">
+                {data.support!.recent.map((c) => (
+                  <li key={c.conv_id} className="flex items-center justify-between gap-3 py-2.5">
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium">{c.name}</span>
+                      {c.email && <span className="ml-2 text-xs text-[var(--text-dim)]">{c.email}</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {c.unread > 0 && (
+                        <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-600">신규 {c.unread}</span>
+                      )}
+                      <span className="whitespace-nowrap text-xs text-[var(--text-dim)]">{fmtDateTime(c.last_at)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-4 text-center text-sm text-[var(--text-dim)]">아직 접수된 문의가 없습니다.</p>
+            )}
+          </Panel>
         </Reveal>
 
         {loading && !hasData ? (

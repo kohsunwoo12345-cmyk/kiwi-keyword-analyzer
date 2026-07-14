@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { VisitTracker } from '@/components/VisitTracker'
+import { SupportChat } from '@/components/SupportChat'
 import { LanguageProvider } from '@/lib/i18n'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <LanguageProvider>
           <VisitTracker />
           {children}
+          <SupportChat />
         </LanguageProvider>
       </body>
     </html>

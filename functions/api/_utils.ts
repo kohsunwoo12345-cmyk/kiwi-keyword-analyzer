@@ -357,6 +357,31 @@ export async function ensureSchema(db: D1Database) {
       updated_at TEXT
     )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_landing_user ON landing_pages(user_id, created_at)`),
+    // 고객센터 채팅
+    db.prepare(`CREATE TABLE IF NOT EXISTS support_chats (
+      id TEXT PRIMARY KEY,
+      conv_id TEXT NOT NULL,       -- 대화 식별(로그인=user_id, 게스트=guest uuid)
+      user_id TEXT DEFAULT '',
+      name TEXT DEFAULT '',
+      email TEXT DEFAULT '',
+      sender TEXT NOT NULL,        -- 'user' | 'admin'
+      text TEXT NOT NULL,
+      read_admin INTEGER DEFAULT 0,-- 관리자가 읽었는지(사용자 메시지 기준)
+      read_user INTEGER DEFAULT 0, -- 사용자가 읽었는지(관리자 답장 기준)
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_support_conv ON support_chats(conv_id, created_at)`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_support_time ON support_chats(created_at)`),
+    // 친구 관계 (추천/친구추가)
+    db.prepare(`CREATE TABLE IF NOT EXISTS friendships (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,       -- 소유자
+      friend_id TEXT NOT NULL,     -- 친구
+      via TEXT DEFAULT 'code',     -- 'code'(추천인) | 'add'(직접 추가)
+      created_at TEXT NOT NULL,
+      UNIQUE(user_id, friend_id)
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_friend_user ON friendships(user_id)`),
   ])
   // 기존 테이블에 신규 컬럼 보강 (누락된 것만 추가)
   await addMissingColumns(db, 'users', {
@@ -364,6 +389,8 @@ export async function ensureSchema(db: D1Database) {
     points: 'points INTEGER DEFAULT 0',
     credits: 'credits INTEGER DEFAULT 0',
     video_plan: "video_plan TEXT DEFAULT '없음'",
+    referral_code: 'referral_code TEXT',
+    referred_by: 'referred_by TEXT',
   })
   await addMissingColumns(db, 'plan_requests', {
     track: "track TEXT DEFAULT 'marketer'",
@@ -678,9 +705,35 @@ export function publicUser(u: any) {
     status: u.status || 'active',
     points: u.points || 0,
     credits: u.credits || 0,
+    referralCode: u.referral_code || '',
+    referredBy: u.referred_by || '',
     createdAt: u.created_at,
     lastActive: u.last_active,
   }
+}
+
+/** 추천인 코드 생성 (BG + 6자, 혼동 문자 제외) */
+export function genRefCode(): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let s = ''
+  const arr = crypto.getRandomValues(new Uint8Array(6))
+  for (let i = 0; i < 6; i++) s += alphabet[arr[i] % alphabet.length]
+  return 'BG' + s
+}
+
+/** 사용자에게 추천인 코드가 없으면 생성해 저장하고 코드를 반환 */
+export async function ensureReferralCode(db: D1Database, userId: string): Promise<string> {
+  const row: any = await db.prepare('SELECT referral_code FROM users WHERE id = ?').bind(userId).first()
+  if (row?.referral_code) return row.referral_code
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = genRefCode()
+    const clash = await db.prepare('SELECT id FROM users WHERE referral_code = ?').bind(code).first()
+    if (!clash) {
+      await db.prepare('UPDATE users SET referral_code = ? WHERE id = ?').bind(code, userId).run()
+      return code
+    }
+  }
+  return ''
 }
 
 /** 세션 쿠키로 현재 사용자 조회 */

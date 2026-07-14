@@ -15,6 +15,8 @@ export interface User {
   status: 'active' | 'suspended'
   points: number
   credits: number
+  referralCode?: string
+  referredBy?: string
   createdAt: string
   lastActive: string | null
 }
@@ -69,6 +71,7 @@ export async function signup(input: {
   password: string
   company?: string
   phone?: string
+  ref?: string
 }): Promise<AuthResult> {
   return postJson('/api/signup', input)
 }
@@ -174,6 +177,10 @@ export interface VisitStats {
   byHour?: { h: string; n: number }[]
   byRef?: { ref: string; n: number }[]
   recent?: { path: string; ip: string; country: string; device: string; ref: string; created_at: string }[]
+  support?: {
+    total: number; unread: number; today: number
+    recent: { conv_id: string; name: string; email: string; last_at: string; unread: number }[]
+  }
 }
 export async function adminVisitStats(days = 14): Promise<VisitStats> {
   try {
@@ -204,6 +211,70 @@ export interface AiUsageStats {
 export async function adminAiUsage(days = 30): Promise<AiUsageStats> {
   try {
     const r = await fetch(`/api/admin/ai-usage?days=${days}`, { credentials: 'include' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+
+/* ── 고객센터 채팅 (사용자) ── */
+export interface ChatMsg { sender: 'user' | 'admin'; text: string; at: string }
+export async function chatSend(text: string, convId?: string, name?: string, email?: string): Promise<{ ok: boolean; conv_id?: string; error?: string }> {
+  try {
+    const r = await fetch('/api/chat/send', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify({ text, conv_id: convId, name, email }) })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+export async function chatThread(convId?: string): Promise<{ ok: boolean; conv_id?: string; messages?: ChatMsg[] }> {
+  try {
+    const r = await fetch(`/api/chat/thread${convId ? `?conv_id=${encodeURIComponent(convId)}` : ''}`, { credentials: 'include' })
+    return await r.json()
+  } catch { return { ok: false, messages: [] } }
+}
+
+/* ── 고객센터 채팅 (관리자) ── */
+export interface SupportConv { conv_id: string; name: string; email: string; user_id: string; total: number; unread: number; last_at: string; last_sender: string; last_text: string }
+export interface SupportThread { ok: boolean; unread?: number; conv?: { conv_id: string; name: string; email: string; user_id: string }; messages?: ChatMsg[]; conversations?: SupportConv[] }
+export async function adminSupport(convId?: string): Promise<SupportThread> {
+  try {
+    const r = await fetch(`/api/admin/support${convId ? `?conv_id=${encodeURIComponent(convId)}` : ''}`, { credentials: 'include' })
+    return await r.json()
+  } catch { return { ok: false } }
+}
+export async function adminSupportReply(convId: string, text: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const r = await fetch('/api/admin/support', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify({ conv_id: convId, text }) })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+export async function adminSupportCount(): Promise<number> {
+  try {
+    const r = await fetch('/api/admin/support?count=1', { credentials: 'include' })
+    const j = await r.json()
+    return j?.unread || 0
+  } catch { return 0 }
+}
+
+/* ── 추천/친구 ── */
+export interface RefUser { id: string; name: string; email: string; plan: string; videoPlan: string; paid: boolean; via?: string; since?: string; createdAt: string }
+export interface ReferralInfo { ok: boolean; error?: string; code?: string; referredByName?: string; friends?: RefUser[]; referred?: RefUser[]; friendCount?: number; referredCount?: number }
+export async function accountReferral(): Promise<ReferralInfo> {
+  try {
+    const r = await fetch('/api/account/referral', { credentials: 'include' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+export async function addFriend(code: string): Promise<{ ok: boolean; error?: string; already?: boolean; friend?: { id: string; name: string; email: string } }> {
+  try {
+    const r = await fetch('/api/account/add-friend', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify({ code }) })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+
+/* ── 관리자: 가입/추천/결제 조회 ── */
+export interface ReferralRow { id: string; name: string; email: string; plan: string; videoPlan: string; paid: boolean; credits: number; referralCode: string; referredById: string; referredByName: string; friendCount: number; referredCount: number; createdAt: string }
+export interface AdminReferrals { ok: boolean; error?: string; totals?: { members: number; paid: number; unpaid: number; referred: number }; rows?: ReferralRow[] }
+export async function adminReferrals(q = ''): Promise<AdminReferrals> {
+  try {
+    const r = await fetch(`/api/admin/referrals${q ? `?q=${encodeURIComponent(q)}` : ''}`, { credentials: 'include' })
     return await r.json()
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
