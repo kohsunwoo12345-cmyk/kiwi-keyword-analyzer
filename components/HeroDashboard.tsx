@@ -55,7 +55,7 @@ export function HeroDashboard() {
       {/* 광채 */}
       <div className="pointer-events-none absolute -inset-x-10 -top-8 bottom-0 rounded-[2rem] bg-blue-600/10 blur-3xl" />
 
-      <div className="relative overflow-hidden rounded-2xl border border-white/12 bg-[#0b1220]/95 shadow-[0_50px_120px_-30px_rgba(0,0,0,0.9)] backdrop-blur">
+      <div className="relative overflow-hidden rounded-2xl border border-white/12 bg-[#0b1220] shadow-[0_50px_120px_-30px_rgba(0,0,0,0.9)]">
         {/* 윈도우 상단바 */}
         <div className="flex items-center gap-3 border-b border-white/8 bg-white/[0.03] px-4 py-2.5">
           <div className="flex gap-1.5">

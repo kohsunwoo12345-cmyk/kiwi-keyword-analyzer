@@ -69,14 +69,14 @@
 
 /* dark card: glass surface + top hairline + depth */
 .site-dark .card {
+  /* 성능: 카드마다 backdrop-filter를 쓰면 스크롤 시 배경을 매 프레임 재블러하여 렉 발생.
+     반투명 그라데이션 배경으로 동일한 룩을 유지하고 backdrop-filter는 제거. */
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)) padding-box;
+    linear-gradient(180deg, rgba(19, 26, 44, 0.92), rgba(12, 17, 30, 0.92)) padding-box;
   border: 1px solid var(--border);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.05) inset,
     0 24px 48px -28px rgba(0, 0, 0, 0.9);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
 }
 .site-dark .card-2 {
   background: var(--panel-2);
@@ -332,14 +332,15 @@ body {
   animation: gradientPan 8s ease infinite;
 }
 
-/* ---- floating blobs (slow drift) ---- */
+/* ---- floating blobs (slow drift) ----
+   성능: 거대한 blur 요소를 translate/scale로 움직이면 매 프레임 blur를 다시 래스터화하여
+   심각한 렉이 발생. 저비용 opacity 펄스로 은은한 생동감만 유지. */
 @keyframes drift {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(24px, -18px) scale(1.06); }
-  66% { transform: translate(-18px, 14px) scale(0.96); }
+  0%, 100% { opacity: 0.75; }
+  50% { opacity: 1; }
 }
-.animate-drift { animation: drift 16s ease-in-out infinite; }
-.animate-drift-slow { animation: drift 24s ease-in-out infinite; }
+.animate-drift { animation: drift 14s ease-in-out infinite; }
+.animate-drift-slow { animation: drift 22s ease-in-out infinite; }
 
 /* ---- aurora sweep ---- */
 @keyframes aurora {
@@ -391,11 +392,15 @@ body {
   animation-delay: var(--delay, 0s);
 }
 .orbit-item.rev { animation-direction: reverse; }
+/* 성능: box-shadow 애니메이션은 매 프레임 리페인트가 비싸므로 정적 그림자 + opacity 펄스로 대체 */
 @keyframes core-pulse {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 60px 10px rgba(124,58,237,0.55), 0 0 120px 30px rgba(99,102,241,0.35); }
-  50% { transform: scale(1.05); box-shadow: 0 0 90px 20px rgba(124,58,237,0.7), 0 0 160px 46px rgba(99,102,241,0.45); }
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 1; }
 }
-.orbit-core { animation: core-pulse 4.5s ease-in-out infinite; }
+.orbit-core {
+  box-shadow: 0 0 72px 14px rgba(124,58,237,0.6), 0 0 140px 38px rgba(99,102,241,0.4);
+  animation: core-pulse 4.5s ease-in-out infinite;
+}
 @keyframes node-pan { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-10px,-6px); } }
 @keyframes dash-flow { to { stroke-dashoffset: -24; } }
 @keyframes loadbar { 0%,100% { width: 35%; } 50% { width: 85%; } }
