@@ -8,6 +8,9 @@ export interface Env {
   DB: D1Database
   BUCKET?: R2Bucket
   ADMIN_PASSWORD?: string
+  GOOGLE_CLIENT_ID?: string
+  GOOGLE_CLIENT_SECRET?: string
+  GOOGLE_REDIRECT_URI?: string
 }
 
 /** 관리자 마스터 비밀번호 (환경변수 ADMIN_PASSWORD, 없으면 빈 값 → 특수 로그인 비활성). 코드에 하드코딩하지 않음. */
@@ -399,6 +402,7 @@ export async function ensureSchema(db: D1Database) {
     address1: 'address1 TEXT',
     address2: 'address2 TEXT',
     address_at: 'address_at TEXT',
+    provider: "provider TEXT DEFAULT 'email'",
   })
   await addMissingColumns(db, 'plan_requests', {
     track: "track TEXT DEFAULT 'marketer'",

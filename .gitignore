@@ -37,3 +37,6 @@ next-env.d.ts
 
 # wrangler local dev state
 .wrangler/
+
+# Cloudflare local secrets (do not commit)
+.dev.vars

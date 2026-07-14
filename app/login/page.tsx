@@ -1,13 +1,25 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react'
 import { Logo } from '@/components/Brand'
 import { Button } from '@/components/ui'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
+import { GoogleAuthButton, OrDivider } from '@/components/GoogleAuthButton'
 import { login } from '@/lib/auth'
+
+const OAUTH_ERRORS: Record<string, string> = {
+  google_not_configured: '구글 로그인이 아직 설정되지 않았습니다. 잠시 후 다시 시도해 주세요.',
+  google_cancelled: '구글 로그인이 취소되었습니다.',
+  state: '보안 검증에 실패했습니다. 다시 시도해 주세요.',
+  token: '구글 인증에 실패했습니다. 다시 시도해 주세요.',
+  noemail: '구글 계정에서 이메일을 가져오지 못했습니다.',
+  google: '구글 로그인 처리 중 오류가 발생했습니다. 다시 시도해 주세요.',
+  suspended: '정지된 계정입니다. 고객센터에 문의해 주세요.',
+  server: '서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
+}
 
 const inputBase =
   'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] pl-11 pr-3.5 py-3 text-sm outline-none transition-colors focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 placeholder:text-[var(--text-dim)]'
@@ -20,6 +32,16 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // 구글 OAuth 콜백 오류 메시지 표시
+  useEffect(() => {
+    try {
+      const code = new URLSearchParams(window.location.search).get('error')
+      if (code && OAUTH_ERRORS[code]) setError(OAUTH_ERRORS[code])
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -91,7 +113,13 @@ export default function LoginPage() {
               </div>
             )}
 
-            <form onSubmit={onSubmit} className="mt-6 space-y-4">
+            {/* 구글로 로그인 */}
+            <div className="mt-6 space-y-4">
+              <GoogleAuthButton label="구글로 로그인" />
+              <OrDivider text="또는 이메일로 로그인" />
+            </div>
+
+            <form onSubmit={onSubmit} className="mt-4 space-y-4">
               <div>
                 <label htmlFor="email" className="mb-1.5 block text-sm font-medium">
                   이메일
