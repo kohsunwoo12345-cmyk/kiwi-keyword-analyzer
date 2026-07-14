@@ -71,14 +71,16 @@ export default function SignupPage() {
   const [confirm, setConfirm] = useState('')
   const [refCode, setRefCode] = useState('')
   const [ageOk, setAgeOk] = useState(false)
+  const [agreeTerms, setAgreeTerms] = useState(false)
   const [agreePrivacy, setAgreePrivacy] = useState(false)
   const [agreeMarketing, setAgreeMarketing] = useState(false)
   const [agreeAi, setAgreeAi] = useState(false)
 
-  const allRequired = ageOk && agreePrivacy
+  const allRequired = ageOk && agreeTerms && agreePrivacy
   const allChecked = allRequired && agreeMarketing && agreeAi
   function toggleAll(v: boolean) {
     setAgeOk(v)
+    setAgreeTerms(v)
     setAgreePrivacy(v)
     setAgreeMarketing(v)
     setAgreeAi(v)
@@ -109,7 +111,7 @@ export default function SignupPage() {
     else if (password.length < 8) e.password = '비밀번호는 8자 이상이어야 합니다.'
     if (confirm !== password) e.confirm = '비밀번호가 일치하지 않습니다.'
     if (!ageOk) e.agree = '만 18세 이상만 가입할 수 있습니다. 필수 항목에 동의해 주세요.'
-    else if (!agreePrivacy) e.agree = '필수 약관에 모두 동의해 주세요.'
+    else if (!agreeTerms || !agreePrivacy) e.agree = '필수 약관에 모두 동의해 주세요.'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -405,6 +407,19 @@ export default function SignupPage() {
                       onChange={setAgeOk}
                       required
                       label="만 18세 이상입니다."
+                    />
+                    <ConsentRow
+                      checked={agreeTerms}
+                      onChange={setAgreeTerms}
+                      required
+                      label={
+                        <>
+                          <Link href="/legal/terms" target="_blank" className="font-medium text-blue-300 hover:text-blue-200 hover:underline">
+                            이용약관
+                          </Link>
+                          에 동의합니다.
+                        </>
+                      }
                     />
                     <ConsentRow
                       checked={agreePrivacy}

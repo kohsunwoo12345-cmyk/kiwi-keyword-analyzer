@@ -33,6 +33,7 @@ const M: Dict = {
     ja: 'BYGENCY · オールインワン マーケティング グロース プラットフォーム',
     zh: 'BYGENCY · 一体化营销增长平台',
   },
+  이용약관: { en: 'Terms of Service', ja: '利用規約', zh: '服务条款' },
   개인정보처리방침: { en: 'Privacy Policy', ja: 'プライバシーポリシー', zh: '隐私政策' },
   쿠키정책: { en: 'Cookie Policy', ja: 'Cookieポリシー', zh: 'Cookie 政策' },
   '개인정보처리위탁 특약': { en: 'Data Processing Addendum', ja: '個人情報処理委託特約', zh: '数据处理附录' },
@@ -119,6 +120,7 @@ export function Footer() {
         {/* 법적 고지 링크 */}
         <nav className="mt-10 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/10 pt-6 text-xs">
           {[
+            { href: '/legal/terms', label: t('이용약관') },
             { href: '/legal/privacy', label: t('개인정보처리방침') },
             { href: '/legal/cookies', label: t('쿠키정책') },
             { href: '/legal/dpa', label: t('개인정보처리위탁 특약') },

@@ -8,6 +8,7 @@ import { Footer } from '@/components/layout/Footer'
 import { cn } from '@/lib/utils'
 
 export const LEGAL_DOCS = [
+  { href: '/legal/terms', label: '이용약관' },
   { href: '/legal/privacy', label: '개인정보처리방침' },
   { href: '/legal/cookies', label: '쿠키정책' },
   { href: '/legal/dpa', label: '개인정보처리위탁 특약' },
