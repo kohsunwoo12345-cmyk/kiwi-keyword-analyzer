@@ -20,9 +20,9 @@ export default function PrivacyPolicyPage() {
       <p><strong>상호:</strong> 주식회사 Next Vision Company</p>
       <p><strong>대표자:</strong> 고선우</p>
       <p><strong>주소:</strong> <span className="ph">[추후 입력]</span></p>
-      <p><strong>대표 이메일:</strong> <a href="mailto:kohheejun3394@gmail.com">kohheejun3394@gmail.com</a></p>
+      <p><strong>대표 이메일:</strong> <a href="mailto:ceo@bygency.co">ceo@bygency.co</a></p>
       <p><strong>개인정보 보호책임자:</strong> 고선우</p>
-      <p><strong>개인정보 문의 이메일:</strong> <a href="mailto:kohheejun3394@gmail.com">kohheejun3394@gmail.com</a></p>
+      <p><strong>개인정보 문의 이메일:</strong> <a href="mailto:ceo@bygency.co">ceo@bygency.co</a></p>
       <p><strong>전화번호:</strong> <span className="ph">[추후 입력]</span></p>
       <p><strong>EU·EEA 대리인:</strong> <span className="ph">[해당 시 추후 입력]</span></p>
       <p><strong>영국 대리인:</strong> <span className="ph">[해당 시 추후 입력]</span></p>
@@ -262,7 +262,7 @@ export default function PrivacyPolicyPage() {
         <li>개인정보 감독기관에 민원 또는 불만 제기</li>
         <li>권리 행사로 인한 차별을 받지 않을 권리</li>
       </ol>
-      <p>권리행사 방법: 계정 설정의 개인정보 메뉴 또는 <a href="mailto:kohheejun3394@gmail.com">kohheejun3394@gmail.com</a>으로 요청</p>
+      <p>권리행사 방법: 계정 설정의 개인정보 메뉴 또는 <a href="mailto:ceo@bygency.co">ceo@bygency.co</a>으로 요청</p>
       <p>회사는 요청자의 신원을 합리적인 방법으로 확인할 수 있습니다.</p>
       <p>대리인이 요청하는 경우 위임장 등 적법한 권한을 확인할 수 있습니다.</p>
       <p>법률상 예외가 있는 경우 요청의 전부 또는 일부가 제한될 수 있으며 회사는 가능한 범위에서 그 사유를 설명합니다.</p>
@@ -309,7 +309,7 @@ export default function PrivacyPolicyPage() {
         <li>BYGENCY는 만 18세 미만의 이용자를 대상으로 하지 않습니다.</li>
         <li>회사는 만 18세 미만인 사람으로부터 고의로 회원 개인정보를 수집하지 않습니다.</li>
         <li>미성년자가 계정을 개설한 사실을 알게 되면 계정을 제한하고 관련 정보를 삭제합니다.</li>
-        <li>보호자는 미성년자의 정보 삭제를 <a href="mailto:kohheejun3394@gmail.com">kohheejun3394@gmail.com</a>으로 요청할 수 있습니다.</li>
+        <li>보호자는 미성년자의 정보 삭제를 <a href="mailto:ceo@bygency.co">ceo@bygency.co</a>으로 요청할 수 있습니다.</li>
         <li>기업회원은 랜딩페이지로 아동의 정보를 수집하기 전에 적용 법률에 따른 보호자 동의와 추가 보호조치를 마련해야 합니다.</li>
       </ol>
 
@@ -373,7 +373,7 @@ export default function PrivacyPolicyPage() {
 
       <h2>26. 문의처</h2>
       <p><strong>개인정보 보호책임자:</strong> 고선우</p>
-      <p><strong>이메일:</strong> <a href="mailto:kohheejun3394@gmail.com">kohheejun3394@gmail.com</a></p>
+      <p><strong>이메일:</strong> <a href="mailto:ceo@bygency.co">ceo@bygency.co</a></p>
       <p><strong>전화번호:</strong> <span className="ph">[추후 입력]</span></p>
       <p><strong>주소:</strong> <span className="ph">[추후 입력]</span></p>
     </LegalShell>
