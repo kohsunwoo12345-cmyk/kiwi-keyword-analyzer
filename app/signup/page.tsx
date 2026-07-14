@@ -137,7 +137,8 @@ export default function SignupPage() {
         setLoading(false)
         return
       }
-      router.push(res.user.role === 'admin' ? '/adminsunkoh028741_11263' : '/dashboard_USE17237_612')
+      // 가입 후 사업장 주소 입력 단계로 이동 (관리자는 제외)
+      router.push(res.user.role === 'admin' ? '/adminsunkoh028741_11263' : '/complete-profile')
     })()
   }
 

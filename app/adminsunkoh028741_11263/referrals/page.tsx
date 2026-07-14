@@ -102,10 +102,16 @@ export default function AdminReferralsPage() {
     () => () => {
       downloadCsv(
         '가입추천조회.csv',
-        ['회원', '이메일', '가입일', '추천인 코드', '추천인', '친구', '추천한 수', '결제 상태', '결제 플랜', '크레딧'],
+        ['회원', '이메일', '전화', '회사명', '국가', '우편번호', '사업장 주소', '상세 주소', '가입일', '추천인 코드', '추천인', '친구', '추천한 수', '결제 상태', '결제 플랜', '크레딧'],
         rows.map((r) => [
           r.name || '',
           r.email || '',
+          r.phone || '',
+          r.company || '',
+          r.country || '',
+          r.postalCode || '',
+          r.address1 || '',
+          r.address2 || '',
           fmtDate(r.createdAt),
           r.referralCode || '-',
           r.referredByName || '직접가입',
@@ -126,7 +132,7 @@ export default function AdminReferralsPage() {
         icon={UserPlus}
         eyebrow="ADMIN · 가입/추천"
         title="가입 · 추천 조회"
-        desc="회원별 가입 정보, 추천인, 친구, 결제(플랜) 여부를 조회합니다."
+        desc="회원별 가입 정보, 사업장 주소, 추천인, 친구, 결제(플랜) 여부를 조회합니다."
         accent={ACCENT}
         action={
           <div className="flex flex-wrap items-center gap-2">
@@ -202,10 +208,11 @@ export default function AdminReferralsPage() {
               }
             >
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[960px] text-sm">
+                <table className="w-full min-w-[1180px] text-sm">
                   <thead>
                     <tr className={THEAD}>
                       <th className={TH}>회원</th>
+                      <th className={TH}>사업장 주소</th>
                       <th className={TH}>가입일</th>
                       <th className={TH}>추천인 코드</th>
                       <th className={TH}>추천인</th>
@@ -223,6 +230,26 @@ export default function AdminReferralsPage() {
                           <td className={TD}>
                             <div className="font-semibold">{r.name || '이름없음'}</div>
                             <div className="text-xs text-[var(--text-dim)]">{r.email}</div>
+                            {(r.company || r.phone) && (
+                              <div className="text-xs text-[var(--text-dim)]">
+                                {[r.company, r.phone].filter(Boolean).join(' · ')}
+                              </div>
+                            )}
+                          </td>
+                          <td className={cn(TD, 'max-w-[260px] whitespace-normal align-top')}>
+                            {r.addressDone ? (
+                              <>
+                                <div className="text-xs font-medium text-[var(--text-soft)]">
+                                  {r.country} · {r.postalCode}
+                                </div>
+                                <div className="text-sm">{r.address1}</div>
+                                {r.address2 && <div className="text-xs text-[var(--text-dim)]">{r.address2}</div>}
+                              </>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-600">
+                                미입력
+                              </span>
+                            )}
                           </td>
                           <td className={cn(TD, 'text-[var(--text-soft)]')}>{fmtDate(r.createdAt)}</td>
                           <td className={cn(TD, 'font-mono text-xs')}>{r.referralCode || '-'}</td>

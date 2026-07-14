@@ -394,6 +394,11 @@ export async function ensureSchema(db: D1Database) {
     marketing_consent: 'marketing_consent INTEGER DEFAULT 0',
     ai_consent: 'ai_consent INTEGER DEFAULT 0',
     consent_at: 'consent_at TEXT',
+    country: 'country TEXT',
+    postal_code: 'postal_code TEXT',
+    address1: 'address1 TEXT',
+    address2: 'address2 TEXT',
+    address_at: 'address_at TEXT',
   })
   await addMissingColumns(db, 'plan_requests', {
     track: "track TEXT DEFAULT 'marketer'",
@@ -710,6 +715,12 @@ export function publicUser(u: any) {
     credits: u.credits || 0,
     referralCode: u.referral_code || '',
     referredBy: u.referred_by || '',
+    country: u.country || '',
+    postalCode: u.postal_code || '',
+    address1: u.address1 || '',
+    address2: u.address2 || '',
+    // 관리자는 주소 입력 면제, 그 외에는 국가·우편번호·기본주소가 모두 있어야 완료
+    addressComplete: isAdmin || !!(u.country && u.postal_code && u.address1),
     createdAt: u.created_at,
     lastActive: u.last_active,
   }

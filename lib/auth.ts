@@ -17,6 +17,11 @@ export interface User {
   credits: number
   referralCode?: string
   referredBy?: string
+  country?: string
+  postalCode?: string
+  address1?: string
+  address2?: string
+  addressComplete?: boolean
   createdAt: string
   lastActive: string | null
 }
@@ -76,6 +81,16 @@ export async function signup(input: {
   aiConsent?: boolean
 }): Promise<AuthResult> {
   return postJson('/api/signup', input)
+}
+
+/** 가입 후 사업장 주소(국가·우편번호·주소) 저장 */
+export async function saveAddress(input: {
+  country: string
+  postalCode: string
+  address1: string
+  address2?: string
+}): Promise<AuthResult> {
+  return postJson('/api/account/address', input)
 }
 
 export async function logout(): Promise<void> {
@@ -272,7 +287,7 @@ export async function addFriend(code: string): Promise<{ ok: boolean; error?: st
 }
 
 /* ── 관리자: 가입/추천/결제 조회 ── */
-export interface ReferralRow { id: string; name: string; email: string; plan: string; videoPlan: string; paid: boolean; credits: number; referralCode: string; referredById: string; referredByName: string; friendCount: number; referredCount: number; createdAt: string }
+export interface ReferralRow { id: string; name: string; email: string; plan: string; videoPlan: string; paid: boolean; credits: number; referralCode: string; referredById: string; referredByName: string; friendCount: number; referredCount: number; company?: string; phone?: string; country?: string; postalCode?: string; address1?: string; address2?: string; addressDone?: boolean; createdAt: string }
 export interface AdminReferrals { ok: boolean; error?: string; totals?: { members: number; paid: number; unpaid: number; referred: number }; rows?: ReferralRow[] }
 export async function adminReferrals(q = ''): Promise<AdminReferrals> {
   try {

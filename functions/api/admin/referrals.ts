@@ -13,7 +13,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   const users = (await db
     .prepare(
-      `SELECT id, name, email, plan, video_plan, credits, referral_code, referred_by, created_at
+      `SELECT id, name, email, company, phone, plan, video_plan, credits, referral_code, referred_by,
+              country, postal_code, address1, address2, created_at
        FROM users ORDER BY created_at DESC LIMIT 2000`,
     )
     .all()).results || []
@@ -46,6 +47,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       referredByName: u.referred_by ? nameById.get(u.referred_by) || '(탈퇴/미상)' : '',
       friendCount: friendCounts.get(u.id) || 0,
       referredCount: referredCounts.get(u.id) || 0,
+      company: u.company || '',
+      phone: u.phone || '',
+      country: u.country || '',
+      postalCode: u.postal_code || '',
+      address1: u.address1 || '',
+      address2: u.address2 || '',
+      addressDone: !!(u.country && u.postal_code && u.address1),
       createdAt: u.created_at,
     }
   })
@@ -56,7 +64,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         r.name?.toLowerCase().includes(q) ||
         r.email?.toLowerCase().includes(q) ||
         r.referralCode?.toLowerCase().includes(q) ||
-        r.referredByName?.toLowerCase().includes(q),
+        r.referredByName?.toLowerCase().includes(q) ||
+        r.company?.toLowerCase().includes(q) ||
+        r.address1?.toLowerCase().includes(q) ||
+        r.country?.toLowerCase().includes(q),
     )
   }
 
