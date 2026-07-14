@@ -719,6 +719,7 @@ export function publicUser(u: any) {
     credits: u.credits || 0,
     referralCode: u.referral_code || '',
     referredBy: u.referred_by || '',
+    provider: u.provider || 'email',
     country: u.country || '',
     postalCode: u.postal_code || '',
     address1: u.address1 || '',

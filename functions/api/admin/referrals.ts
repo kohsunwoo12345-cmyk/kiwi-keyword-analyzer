@@ -13,7 +13,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   const users = (await db
     .prepare(
-      `SELECT id, name, email, company, phone, plan, video_plan, credits, referral_code, referred_by,
+      `SELECT id, name, email, company, phone, plan, video_plan, credits, referral_code, referred_by, provider,
               country, postal_code, address1, address2, created_at
        FROM users ORDER BY created_at DESC LIMIT 2000`,
     )
@@ -49,6 +49,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       referredCount: referredCounts.get(u.id) || 0,
       company: u.company || '',
       phone: u.phone || '',
+      provider: u.provider || 'email',
       country: u.country || '',
       postalCode: u.postal_code || '',
       address1: u.address1 || '',

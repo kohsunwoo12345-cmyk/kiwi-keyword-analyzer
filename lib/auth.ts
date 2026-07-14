@@ -17,6 +17,7 @@ export interface User {
   credits: number
   referralCode?: string
   referredBy?: string
+  provider?: string // 'email' | 'google' | 'kakao'
   country?: string
   postalCode?: string
   address1?: string
@@ -289,7 +290,7 @@ export async function addFriend(code: string): Promise<{ ok: boolean; error?: st
 }
 
 /* ── 관리자: 가입/추천/결제 조회 ── */
-export interface ReferralRow { id: string; name: string; email: string; plan: string; videoPlan: string; paid: boolean; credits: number; referralCode: string; referredById: string; referredByName: string; friendCount: number; referredCount: number; company?: string; phone?: string; country?: string; postalCode?: string; address1?: string; address2?: string; addressDone?: boolean; createdAt: string }
+export interface ReferralRow { id: string; name: string; email: string; plan: string; videoPlan: string; paid: boolean; credits: number; referralCode: string; referredById: string; referredByName: string; friendCount: number; referredCount: number; company?: string; phone?: string; provider?: string; country?: string; postalCode?: string; address1?: string; address2?: string; addressDone?: boolean; createdAt: string }
 export interface AdminReferrals { ok: boolean; error?: string; totals?: { members: number; paid: number; unpaid: number; referred: number }; rows?: ReferralRow[] }
 export async function adminReferrals(q = ''): Promise<AdminReferrals> {
   try {

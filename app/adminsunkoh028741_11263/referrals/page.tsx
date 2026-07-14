@@ -28,6 +28,70 @@ function fmtDate(iso: string) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
+const DOW = ['일', '월', '화', '수', '목', '금', '토']
+
+/** 한국식 전체 날짜+시간: 2026년 7월 14일 (화) 17:30 */
+function fmtKST(iso: string) {
+  const d = new Date(iso)
+  if (Number.isNaN(+d)) return '-'
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DOW[d.getDay()]}) ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+/** 상대 표기: 오늘 / 어제 / N일 전 / 이번 달 / 지난달 등 */
+function relKo(iso: string): { label: string; tone: 'today' | 'recent' | 'month' | 'old' } | null {
+  const d = new Date(iso)
+  if (Number.isNaN(+d)) return null
+  const now = new Date()
+  const sod = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const days = Math.floor((sod(now) - sod(d)) / 86400000)
+  if (days <= 0) return { label: '오늘', tone: 'today' }
+  if (days === 1) return { label: '어제', tone: 'recent' }
+  if (days < 7) return { label: `${days}일 전`, tone: 'recent' }
+  const sameMonth = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+  if (sameMonth) return { label: '이번 달', tone: 'month' }
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  if (d.getFullYear() === lastMonth.getFullYear() && d.getMonth() === lastMonth.getMonth()) return { label: '지난달', tone: 'old' }
+  return { label: `${Math.floor(days / 30)}개월 전`, tone: 'old' }
+}
+
+const REL_TONE: Record<string, string> = {
+  today: 'bg-emerald-50 text-emerald-600',
+  recent: 'bg-sky-50 text-sky-600',
+  month: 'bg-violet-50 text-violet-600',
+  old: 'bg-slate-100 text-slate-500',
+}
+
+/** 로그인/가입 방식 뱃지 */
+function providerMeta(p?: string): { label: string; cls: string } {
+  switch ((p || 'email').toLowerCase()) {
+    case 'google':
+      return { label: '구글 로그인', cls: 'border border-slate-200 bg-white text-slate-700' }
+    case 'kakao':
+      return { label: '카카오 로그인', cls: 'bg-[#FEE500] text-[#3C1E1E]' }
+    default:
+      return { label: '일반 로그인', cls: 'bg-slate-100 text-slate-600' }
+  }
+}
+
+function ProviderBadge({ p }: { p?: string }) {
+  const m = providerMeta(p)
+  const key = (p || 'email').toLowerCase()
+  return (
+    <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold', m.cls)}>
+      {key === 'google' && (
+        <svg viewBox="0 0 24 24" className="h-3 w-3">
+          <path fill="#4285F4" d="M23 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.2a5.3 5.3 0 01-2.3 3.5v2.9h3.7c2.2-2 3.4-5 3.4-8.6z" />
+          <path fill="#34A853" d="M12 24c3.1 0 5.7-1 7.6-2.8l-3.7-2.9c-1 .7-2.3 1.1-3.9 1.1-3 0-5.6-2-6.5-4.8H1.7v3C3.6 21.3 7.5 24 12 24z" />
+          <path fill="#FBBC05" d="M5.5 14.6a7.2 7.2 0 010-4.6v-3H1.7a12 12 0 000 10.6l3.8-3z" />
+          <path fill="#EA4335" d="M12 4.8c1.7 0 3.2.6 4.4 1.7l3.3-3.3C17.7 1.2 15.1 0 12 0 7.5 0 3.6 2.7 1.7 6.7l3.8 3c.9-2.8 3.5-4.9 6.5-4.9z" />
+        </svg>
+      )}
+      {m.label}
+    </span>
+  )
+}
+
 /** 결제된 플랜들을 사람이 읽을 수 있는 문자열로 조합 */
 function planText(r: ReferralRow) {
   const parts: string[] = []
@@ -102,17 +166,18 @@ export default function AdminReferralsPage() {
     () => () => {
       downloadCsv(
         '가입추천조회.csv',
-        ['회원', '이메일', '전화', '회사명', '국가', '우편번호', '사업장 주소', '상세 주소', '가입일', '추천인 코드', '추천인', '친구', '추천한 수', '결제 상태', '결제 플랜', '크레딧'],
+        ['회원', '이메일', '가입 방식', '전화', '회사명', '국가', '우편번호', '사업장 주소', '상세 주소', '가입일시', '추천인 코드', '추천인', '친구', '추천한 수', '결제 상태', '결제 플랜', '크레딧'],
         rows.map((r) => [
           r.name || '',
           r.email || '',
+          providerMeta(r.provider).label,
           r.phone || '',
           r.company || '',
           r.country || '',
           r.postalCode || '',
           r.address1 || '',
           r.address2 || '',
-          fmtDate(r.createdAt),
+          fmtKST(r.createdAt),
           r.referralCode || '-',
           r.referredByName || '직접가입',
           r.friendCount,
@@ -130,9 +195,9 @@ export default function AdminReferralsPage() {
     <div className="animate-fade-in">
       <PageHeader
         icon={UserPlus}
-        eyebrow="ADMIN · 가입/추천"
-        title="가입 · 추천 조회"
-        desc="회원별 가입 정보, 사업장 주소, 추천인, 친구, 결제(플랜) 여부를 조회합니다."
+        eyebrow="ADMIN · 회원가입정보"
+        title="회원가입 정보"
+        desc="회원별 가입 방식(구글/카카오/일반), 가입 시 입력정보, 사업장 주소, 추천인·친구, 결제(플랜) 여부와 한국 시간 기준 가입일시를 조회합니다."
         accent={ACCENT}
         action={
           <div className="flex flex-wrap items-center gap-2">
@@ -208,12 +273,13 @@ export default function AdminReferralsPage() {
               }
             >
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1180px] text-sm">
+                <table className="w-full min-w-[1360px] text-sm">
                   <thead>
                     <tr className={THEAD}>
                       <th className={TH}>회원</th>
+                      <th className={TH}>가입 방식</th>
                       <th className={TH}>사업장 주소</th>
-                      <th className={TH}>가입일</th>
+                      <th className={TH}>가입일시</th>
                       <th className={TH}>추천인 코드</th>
                       <th className={TH}>추천인</th>
                       <th className={cn(TH, 'text-right')}>친구</th>
@@ -236,6 +302,9 @@ export default function AdminReferralsPage() {
                               </div>
                             )}
                           </td>
+                          <td className={cn(TD, 'align-top')}>
+                            <ProviderBadge p={r.provider} />
+                          </td>
                           <td className={cn(TD, 'max-w-[260px] whitespace-normal align-top')}>
                             {r.addressDone ? (
                               <>
@@ -251,7 +320,15 @@ export default function AdminReferralsPage() {
                               </span>
                             )}
                           </td>
-                          <td className={cn(TD, 'text-[var(--text-soft)]')}>{fmtDate(r.createdAt)}</td>
+                          <td className={cn(TD, 'align-top')}>
+                            <div className="whitespace-nowrap text-[var(--text-soft)]">{fmtKST(r.createdAt)}</div>
+                            {(() => {
+                              const rel = relKo(r.createdAt)
+                              return rel ? (
+                                <span className={cn('mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold', REL_TONE[rel.tone])}>{rel.label}</span>
+                              ) : null
+                            })()}
+                          </td>
                           <td className={cn(TD, 'font-mono text-xs')}>{r.referralCode || '-'}</td>
                           <td className={TD}>
                             {r.referredByName ? (

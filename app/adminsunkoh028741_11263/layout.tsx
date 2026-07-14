@@ -31,14 +31,13 @@ export const ADMIN_BASE = '/adminsunkoh028741_11263'
 const NAV = [
   { title: '관리자 대시보드', href: ADMIN_BASE, icon: LayoutDashboard },
   { title: '회원 관리', href: `${ADMIN_BASE}/users`, icon: Users },
-  { title: '회원가입정보', href: `${ADMIN_BASE}/users`, icon: IdCard, exactHref: `${ADMIN_BASE}/users#signup` },
   { title: '실시간 모니터링', href: `${ADMIN_BASE}/users`, icon: Activity, exactHref: `${ADMIN_BASE}/users#live` },
   { title: '보안', href: `${ADMIN_BASE}/security`, icon: ShieldAlert },
   { title: '승인 관리', href: `${ADMIN_BASE}/approvals`, icon: BadgeCheck },
   { title: '로그 기록', href: `${ADMIN_BASE}/logs`, icon: ScrollText },
   { title: '접속 통계', href: `${ADMIN_BASE}/stats`, icon: BarChart3 },
   { title: '고객센터', href: `${ADMIN_BASE}/support`, icon: MessageCircle, badge: 'support' as const },
-  { title: '가입/추천 조회', href: `${ADMIN_BASE}/referrals`, icon: UserPlus },
+  { title: '회원가입정보', href: `${ADMIN_BASE}/referrals`, icon: IdCard },
   { title: 'AI 정산', href: `${ADMIN_BASE}/ai-usage`, icon: Wallet },
   { title: '설정', href: '#', icon: Settings },
 ]
