@@ -89,6 +89,8 @@ export async function saveAddress(input: {
   postalCode: string
   address1: string
   address2?: string
+  phone?: string
+  ref?: string
 }): Promise<AuthResult> {
   return postJson('/api/account/address', input)
 }

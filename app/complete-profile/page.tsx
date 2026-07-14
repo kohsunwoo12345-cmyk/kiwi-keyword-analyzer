@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { MapPin, Building2, Mail, Hash, ArrowRight, AlertCircle, Check, LogOut, Globe } from 'lucide-react'
+import { MapPin, Building2, Mail, Hash, ArrowRight, AlertCircle, Check, LogOut, Globe, Phone, UserPlus } from 'lucide-react'
 import { Logo } from '@/components/Brand'
 import { Button } from '@/components/ui'
 import { useAuth, saveAddress, logout } from '@/lib/auth'
@@ -24,6 +24,8 @@ export default function CompleteProfilePage() {
   const [postalCode, setPostalCode] = useState('')
   const [address1, setAddress1] = useState('')
   const [address2, setAddress2] = useState('')
+  const [phone, setPhone] = useState('')
+  const [refCode, setRefCode] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -44,6 +46,7 @@ export default function CompleteProfilePage() {
     if (user.postalCode) setPostalCode(user.postalCode)
     if (user.address1) setAddress1(user.address1)
     if (user.address2) setAddress2(user.address2)
+    if (user.phone) setPhone(user.phone)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, user])
 
@@ -67,6 +70,8 @@ export default function CompleteProfilePage() {
         postalCode: postalCode.trim(),
         address1: address1.trim(),
         address2: address2.trim() || undefined,
+        phone: phone.trim() || undefined,
+        ref: refCode.trim() || undefined,
       })
       if (!res.ok || !res.user) {
         setFormError(res.error || '주소 저장에 실패했습니다.')
@@ -134,15 +139,54 @@ export default function CompleteProfilePage() {
                     id="country"
                     value={country}
                     onChange={(e) => setCountry(e.target.value)}
-                    className={inputBase + ' appearance-none pr-9'}
+                    style={{ colorScheme: 'dark' }}
+                    className={inputBase + ' appearance-none pr-9 text-[var(--text)]'}
                   >
                     {COUNTRIES.map((c) => (
-                      <option key={c} value={c}>{c}</option>
+                      <option key={c} value={c} style={{ color: '#0f172a', background: '#ffffff' }}>{c}</option>
                     ))}
                   </select>
                 </div>
                 {errors.country && <p className="mt-1.5 text-xs text-rose-300">{errors.country}</p>}
               </div>
+
+              {/* 전화번호 */}
+              <div>
+                <label htmlFor="phone" className="mb-1.5 block text-sm font-medium">
+                  전화번호 <span className="ml-1 text-xs font-normal text-[var(--text-dim)]">(선택)</span>
+                </label>
+                <div className="relative">
+                  <Phone size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" />
+                  <input
+                    id="phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="010-0000-0000"
+                    autoComplete="tel"
+                    className={inputBase}
+                  />
+                </div>
+              </div>
+
+              {/* 추천인 코드 (아직 추천 연결이 없을 때만) */}
+              {!user.referredBy && (
+                <div>
+                  <label htmlFor="ref" className="mb-1.5 block text-sm font-medium">
+                    추천인 코드 <span className="ml-1 text-xs font-normal text-[var(--text-dim)]">(선택)</span>
+                  </label>
+                  <div className="relative">
+                    <UserPlus size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" />
+                    <input
+                      id="ref"
+                      value={refCode}
+                      onChange={(e) => setRefCode(e.target.value.toUpperCase())}
+                      placeholder="(선택) 예: BGXXXXXX"
+                      className={inputBase}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* 우편번호 */}
               <div>

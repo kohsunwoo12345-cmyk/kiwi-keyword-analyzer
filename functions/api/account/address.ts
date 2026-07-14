@@ -1,6 +1,6 @@
-import { Env, json, ensureSchema, getSessionUser, resolveDB, publicUser, logActivity } from '../_utils'
+import { Env, json, ensureSchema, getSessionUser, resolveDB, publicUser, logActivity, addNotification } from '../_utils'
 
-// POST /api/account/address { country, postalCode, address1, address2? } → 사업장 주소 저장
+// POST /api/account/address { country, postalCode, address1, address2?, phone?, ref? } → 사업장 주소(+전화·추천인) 저장
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env)
   if (!db) return json({ ok: false, error: 'DB 바인딩 없음' }, 500)
@@ -13,6 +13,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const postalCode = String(b.postalCode || b.postal_code || '').trim().slice(0, 20)
   const address1 = String(b.address1 || '').trim().slice(0, 200)
   const address2 = String(b.address2 || '').trim().slice(0, 200)
+  const phone = String(b.phone || '').replace(/[^0-9]/g, '').slice(0, 20)
+  const ref = String(b.ref || b.referral || '').trim().toUpperCase().slice(0, 32)
 
   if (!country) return json({ ok: false, error: '국가를 선택해 주세요.' }, 400)
   if (!postalCode) return json({ ok: false, error: '우편번호를 입력해 주세요.' }, 400)
@@ -23,6 +25,23 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     .prepare('UPDATE users SET country = ?, postal_code = ?, address1 = ?, address2 = ?, address_at = ? WHERE id = ?')
     .bind(country, postalCode, address1, address2, now, me.id)
     .run()
+
+  // 전화번호 (입력 시에만 갱신)
+  if (phone) {
+    await db.prepare('UPDATE users SET phone = ? WHERE id = ?').bind(phone, me.id).run().catch(() => {})
+  }
+
+  // 추천인 코드 — 아직 추천 관계가 없는 경우에만 적용 (구글 가입자 등)
+  if (ref && !me.referred_by) {
+    const referrer: any = await db.prepare('SELECT id, name FROM users WHERE referral_code = ?').bind(ref).first().catch(() => null)
+    if (referrer && referrer.id !== me.id) {
+      await db.prepare('UPDATE users SET referred_by = ? WHERE id = ?').bind(referrer.id, me.id).run().catch(() => {})
+      await db.prepare(`INSERT OR IGNORE INTO friendships (id, user_id, friend_id, via, created_at) VALUES (?, ?, ?, 'code', ?)`).bind('f_' + crypto.randomUUID().slice(0, 14), referrer.id, me.id, now).run().catch(() => {})
+      await db.prepare(`INSERT OR IGNORE INTO friendships (id, user_id, friend_id, via, created_at) VALUES (?, ?, ?, 'code', ?)`).bind('f_' + crypto.randomUUID().slice(0, 14), me.id, referrer.id, now).run().catch(() => {})
+      await addNotification(db, referrer.id, '새 추천 가입 🎉', `${me.name}님이 회원님의 추천 코드로 연결되었습니다. 친구로 추가되었어요.`).catch(() => {})
+      await logActivity(db, referrer.id, 'referral', `추천 연결: ${me.name}`).catch(() => {})
+    }
+  }
 
   await logActivity(db, me.id, 'address', '사업장 주소 등록/수정').catch(() => {})
 
