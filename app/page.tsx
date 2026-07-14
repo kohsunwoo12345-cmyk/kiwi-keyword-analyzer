@@ -23,7 +23,8 @@ import {
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { HeroOrbit } from '@/components/HeroOrbit'
-import { HeroNodeStudio } from '@/components/HeroNodeStudio'
+import { HeroBackdrop } from '@/components/HeroBackdrop'
+import { HeroDashboard } from '@/components/HeroDashboard'
 import { AIPipeline } from '@/components/AIPipeline'
 import { Button, SectionTag } from '@/components/ui'
 import { Reveal, Marquee } from '@/components/motion'
@@ -748,14 +749,14 @@ export default function Home() {
     <div className="site-dark min-h-screen overflow-x-hidden">
       <Navbar />
 
-      {/* ===== HERO (NODE STUDIO 배경) ===== */}
-      <section className="relative overflow-hidden pt-40 pb-32 text-white sm:pt-44 sm:pb-40">
-        {/* 배경: 노드 에디터 장면 (요소가 하나씩 떠오름) */}
-        <HeroNodeStudio />
+      {/* ===== HERO ===== */}
+      <section className="relative overflow-hidden pt-36 pb-24 text-white sm:pt-40 sm:pb-28">
+        {/* 배경: 깔끔한 프리미엄 배경 (텍스트 선명도 유지) */}
+        <HeroBackdrop />
 
         <div className="relative z-10 mx-auto max-w-4xl px-5 text-center">
           <div className="flex justify-center animate-fade-up">
-            <span className="animate-bob inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-blue-200 shadow-sm backdrop-blur">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.07] px-3.5 py-1.5 text-xs font-semibold text-blue-200 shadow-sm backdrop-blur">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping-ring absolute inline-flex h-full w-full rounded-full bg-blue-400" />
                 <span className="relative inline-flex h-2 w-2 rounded-full brand-gradient" />
@@ -764,19 +765,19 @@ export default function Home() {
             </span>
           </div>
 
-          <h1 className="mt-7 text-balance text-5xl font-bold leading-[1.1] tracking-tight [text-shadow:0_2px_30px_rgba(0,0,0,0.5)] animate-fade-up delay-100 sm:text-6xl md:text-7xl">
+          <h1 className="mt-7 text-balance text-5xl font-bold leading-[1.08] tracking-tight animate-fade-up delay-100 sm:text-6xl md:text-7xl">
             {t('마케팅의 모든 것을')}
             <br />
-            <span className="brand-text animate-gradient">BYGENCY</span> {t('하나로')}
+            <span className="brand-text">BYGENCY</span> {t('하나로')}
           </h1>
 
-          <p className="mx-auto mt-7 max-w-2xl text-balance text-lg leading-relaxed text-slate-200 [text-shadow:0_1px_20px_rgba(0,0,0,0.6)] animate-fade-up delay-200">
+          <p className="mx-auto mt-6 max-w-2xl text-balance text-lg leading-relaxed text-slate-300 animate-fade-up delay-200">
             {t('DB수집 랜딩페이지 · 유튜브/블로그 분석 · 광고 분석 · CRM · AI 영상 제작까지.')}
             <br className="hidden sm:block" />
             {t('흩어진 마케팅 도구를 하나의 노드 워크스페이스로 통합했습니다.')}
           </p>
 
-          <div className="mt-10 flex flex-col items-center justify-center gap-3 animate-fade-up delay-300 sm:flex-row">
+          <div className="mt-9 flex flex-col items-center justify-center gap-3 animate-fade-up delay-300 sm:flex-row">
             <Button href="/signup" size="lg" className="group">
               {t('무료로 시작하기')}
               <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
@@ -797,6 +798,11 @@ export default function Home() {
               </span>
             ))}
           </div>
+        </div>
+
+        {/* 실제 제품 UI 미리보기 */}
+        <div className="relative z-10 px-5">
+          <HeroDashboard />
         </div>
       </section>
 
