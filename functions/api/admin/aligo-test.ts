@@ -3,13 +3,37 @@ import { sendSms, aligoAlimtalk, aligoRemain, aligoConfigured, aligoAlimtalkConf
 
 const has = (v: any) => !!String(v ?? '').trim()
 
-// GET /api/admin/aligo-test → 설정/연결 점검 (무료: 잔여건수 조회)
+// 관리자 승인 발신번호 → 환경변수 순으로 발신번호 결정
+async function resolveSender(db: D1Database, env: any, adminId: string, explicit?: string): Promise<string> {
+  let from = String(explicit || '').replace(/[^0-9]/g, '')
+  if (!from) {
+    const sr: any = await db.prepare("SELECT phone FROM sender_numbers WHERE user_id = ? AND status = 'approved' ORDER BY created_at DESC LIMIT 1").bind(adminId).first().catch(() => null)
+    if (sr?.phone) from = String(sr.phone).replace(/[^0-9]/g, '')
+  }
+  if (!from) from = String(env?.ALIGO_SENDER || '').replace(/[^0-9]/g, '')
+  return from
+}
+
+// GET /api/admin/aligo-test
+//   (파라미터 없음)          → 설정/연결 점검 (무료: 잔여건수 조회)
+//   ?to=010...&sender=02...  → 실제 문자 발송 테스트 (주소창만으로 가능)
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env)
   if (!db) return json({ ok: false, error: 'DB 바인딩 없음' }, 500)
   await ensureSchema(db)
   const guard = await requireAdminUser(request, db)
   if (guard.error) return guard.error
+
+  const url = new URL(request.url)
+  const to = (url.searchParams.get('to') || '').replace(/[^0-9]/g, '')
+
+  // 주소창 테스트: ?to= 가 있으면 실제 발송
+  if (to.length >= 10) {
+    const text = url.searchParams.get('text') || '[BYGENCY] 알리고 발송 테스트입니다.'
+    const from = await resolveSender(db, env, guard.me.id, url.searchParams.get('sender') || '')
+    const r = await sendSms(env, to, text, { from })
+    return json({ ok: r.sent, kind: 'sms', to, from: from || null, result: r }, r.sent ? 200 : 200)
+  }
 
   const e: any = env
   const config = {
