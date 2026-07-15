@@ -113,8 +113,13 @@ export interface ChargeResult {
   profitKrw: number // 순이익(원) = revenue − cost
 }
 
-/** 서버 권위 과금 계산 — 스튜디오 recordCost 공식과 동일. usdKrw 는 그날의 환율. */
-export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW): ChargeResult {
+/** 소수 2자리 반올림 (크레딧 정밀도) */
+const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100
+
+/** 서버 권위 과금 계산 — 스튜디오 recordCost 공식과 동일. usdKrw 는 그날의 환율.
+ *  markupOverride: 회원별 관리자 지정 배수(원가=1). 지정 시 기본 마크업 대신 사용하며 최소 1배로 강제.
+ *  크레딧 = 실제비용(원) × 배수 ÷ 50 을 소수 2자리로 차감(예: 2.5원→0.05, 57원→1.14). */
+export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, markupOverride?: number): ChargeResult {
   const rate = usdKrw && usdKrw > 0 ? usdKrw : USD_KRW
   const model = String(input.model || '')
   const m = MODEL_COST[model]
@@ -131,12 +136,14 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW): Cha
     usd = r * units + audioAdd
   }
   const costKrw = Math.round(usd * rate)
-  // 마크업: 씨댄스 2.0 계열 또는 이미지(사진 제작) 모델 = 2.5배, 그 외 3배
+  // 마크업: 회원별 지정 배수가 있으면 그 값(최소 1배). 없으면 씨댄스 2.0/이미지=2.5, 그 외 3배
   const isSeed20 = /Seedance\s*2\.0/i.test(model)
-  const markup = isSeed20 || isImg ? 2.5 : 3.0
+  const defaultMarkup = isSeed20 || isImg ? 2.5 : 3.0
+  const markup = markupOverride && markupOverride > 0 ? Math.max(1, markupOverride) : defaultMarkup
   const priceKrw = costKrw * markup
-  const credits = Math.max(1, Math.ceil(priceKrw / CREDIT_KRW))
-  const revenueKrw = credits * CREDIT_KRW
+  // 정확 비례 소수 크레딧 (올림 없음, 최소 1 없음)
+  const credits = round2(priceKrw / CREDIT_KRW)
+  const revenueKrw = round2(credits * CREDIT_KRW)
   return {
     model,
     provider: m ? m.prov : String((input as any).provider || ''),
@@ -147,7 +154,7 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW): Cha
     markup,
     credits,
     revenueKrw,
-    profitKrw: revenueKrw - costKrw,
+    profitKrw: round2(revenueKrw - costKrw),
   }
 }
 

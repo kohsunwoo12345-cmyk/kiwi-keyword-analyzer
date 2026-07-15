@@ -18,6 +18,7 @@ export interface User {
   referralCode?: string
   referredBy?: string
   provider?: string // 'email' | 'google' | 'kakao'
+  creditMarkup?: number // 회원별 AI 과금 배수(원가=1). 0 = 모델 기본
   country?: string
   postalCode?: string
   address1?: string
@@ -157,7 +158,7 @@ export async function adminUsers(): Promise<{
 
 /** 관리자: 회원 상태/플랜/비밀번호/포인트/크레딧/알림·문자 */
 export async function adminAction(
-  action: 'suspend' | 'activate' | 'delete' | 'plan' | 'password' | 'points' | 'credits' | 'notify',
+  action: 'suspend' | 'activate' | 'delete' | 'plan' | 'password' | 'points' | 'credits' | 'notify' | 'markup',
   id: string,
   extra?: {
     plan?: string
@@ -169,6 +170,7 @@ export async function adminAction(
     body?: string
     sms?: boolean
     phone?: string
+    markup?: number
   },
 ): Promise<{ ok: boolean; error?: string; sms?: { sent: boolean; reason?: string } }> {
   return postJson('/api/admin/users', { action, id, ...extra })

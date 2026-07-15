@@ -91,11 +91,21 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id).run() // 기존 세션 만료
     await logActivity(db, id, 'password', '관리자에 의해 비밀번호 변경')
   } else if (action === 'points' || action === 'credits') {
-    const amount = Math.round(Number(body.amount || 0))
+    // 크레딧은 소수(0.05 등) 지급/차감 허용, 포인트는 정수
+    const raw = Number(body.amount || 0)
+    const amount = action === 'credits' ? Math.round(raw * 100) / 100 : Math.round(raw)
     if (!amount) return json({ ok: false, error: '금액을 입력하세요.' }, 400)
     const kind = action === 'credits' ? 'credit' : 'point'
     const r = await applyBalance(db, id, kind, amount, String(body.memo || '관리자 지급'))
     if (!r.ok) return json(r, 400)
+  } else if (action === 'markup') {
+    // 회원별 AI 과금 배수 설정. 원가=1, 1배 미만 불가. 0(또는 미만) = 모델 기본값 사용
+    const raw = Number(body.markup)
+    let markup: number | null
+    if (!Number.isFinite(raw) || raw <= 0) markup = null // 기본값으로 초기화
+    else markup = Math.max(1, Math.round(raw * 100) / 100) // 최소 1배
+    await db.prepare('UPDATE users SET credit_markup = ? WHERE id = ?').bind(markup, id).run()
+    await logActivity(db, id, 'plan', markup ? `AI 과금 배수 ×${markup} 설정` : 'AI 과금 배수 기본값으로 초기화')
   } else if (action === 'notify') {
     const title = String(body.title || 'BYGENCY 안내')
     const bodyText = String(body.body || '')

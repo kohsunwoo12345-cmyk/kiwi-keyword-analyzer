@@ -13,6 +13,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   const b: any = await request.json().catch(() => ({}))
   const rate = await getUsdKrw(db) // 결제(생성) 시점의 그날 환율
+  const memberMarkup = me ? Number(me.credit_markup) || 0 : 0 // 회원별 배수(원가=1). 0=모델 기본
   const c = computeCharge(
     {
       model: String(b.model || ''),
@@ -22,15 +23,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       audio: !!b.audio,
     },
     rate,
+    memberMarkup || undefined,
   )
 
-  // 크레딧 100% 차감 (로그인 사용자만). 잔액 부족 시 있는 만큼만 차감하고 마이너스는 방지.
+  // 크레딧 100% 차감 (로그인 사용자만). 소수 크레딧 지원, 잔액 부족 시 있는 만큼만 차감하고 마이너스는 방지.
   let charged = 0
   if (me) {
     const balance = Number(me.credits) || 0
-    charged = Math.min(balance, c.credits)
+    charged = Math.round(Math.min(balance, c.credits) * 100) / 100
     if (charged > 0) {
-      const after = balance - charged
+      const after = Math.round((balance - charged) * 100) / 100
       await db.prepare('UPDATE users SET credits = ? WHERE id = ?').bind(after, me.id).run()
       await db
         .prepare(

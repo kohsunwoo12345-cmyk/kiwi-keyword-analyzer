@@ -403,6 +403,7 @@ export async function ensureSchema(db: D1Database) {
     address2: 'address2 TEXT',
     address_at: 'address_at TEXT',
     provider: "provider TEXT DEFAULT 'email'",
+    credit_markup: 'credit_markup REAL', // 회원별 AI 과금 배수(원가=1). NULL/0 = 모델 기본(2.5/3.0)
   })
   await addMissingColumns(db, 'plan_requests', {
     track: "track TEXT DEFAULT 'marketer'",
@@ -463,7 +464,8 @@ export async function applyBalance(
   const col = kind === 'credit' ? 'credits' : 'points' // purchase 는 포인트 사용으로 기록
   const row: any = await db.prepare(`SELECT ${col} AS bal FROM users WHERE id = ?`).bind(userId).first()
   if (!row) return { ok: false, error: '사용자를 찾을 수 없습니다.' }
-  const balanceAfter = (row.bal || 0) + amount
+  // 크레딧은 소수 2자리까지 지원 (0.05 등), 포인트는 정수
+  const balanceAfter = Math.round(((Number(row.bal) || 0) + Number(amount)) * 100) / 100
   await db.prepare(`UPDATE users SET ${col} = ? WHERE id = ?`).bind(balanceAfter, userId).run()
   await db
     .prepare(`INSERT INTO transactions (id, user_id, kind, amount, balance_after, memo, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
@@ -475,13 +477,14 @@ export async function applyBalance(
 
 /** 크레딧 차감 (잔액 부족 시 실패). 성공 시 거래내역·활동로그 기록 */
 export async function spendCredits(db: D1Database, userId: string, amount: number, feature: string, memo = '') {
-  const amt = Math.abs(Math.floor(amount || 0))
+  // 소수 크레딧 지원 (2자리). 예: 0.05 크레딧 차감
+  const amt = Math.round(Math.abs(Number(amount) || 0) * 100) / 100
   if (amt <= 0) return { ok: false as const, error: '차감할 크레딧 수량이 올바르지 않습니다.' }
   const row: any = await db.prepare('SELECT credits FROM users WHERE id = ?').bind(userId).first()
   if (!row) return { ok: false as const, error: '사용자를 찾을 수 없습니다.' }
-  const balance = row.credits || 0
+  const balance = Number(row.credits) || 0
   if (balance < amt) return { ok: false as const, error: '크레딧이 부족합니다.', balance, need: amt }
-  const balanceAfter = balance - amt
+  const balanceAfter = Math.round((balance - amt) * 100) / 100
   await db.prepare('UPDATE users SET credits = ? WHERE id = ?').bind(balanceAfter, userId).run()
   await db
     .prepare(`INSERT INTO transactions (id, user_id, kind, amount, balance_after, memo, created_at) VALUES (?, ?, 'credit', ?, ?, ?, ?)`)
@@ -716,7 +719,8 @@ export function publicUser(u: any) {
     role: isAdmin ? 'admin' : 'user',
     status: u.status || 'active',
     points: u.points || 0,
-    credits: u.credits || 0,
+    credits: Math.round((Number(u.credits) || 0) * 100) / 100,
+    creditMarkup: Number(u.credit_markup) || 0, // 0 = 모델 기본 배수 사용
     referralCode: u.referral_code || '',
     referredBy: u.referred_by || '',
     provider: u.provider || 'email',
