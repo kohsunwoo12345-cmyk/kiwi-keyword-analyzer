@@ -72,6 +72,15 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   'Luma Ray 2': { u: 'sec', usd: 0.08, prov: 'luma' },
   'Luma Ray Flash 2': { u: 'sec', usd: 0.04, prov: 'luma' },
   'Luma Ray 1.6': { u: 'sec', usd: 0.06, prov: 'luma' },
+  // ── Kling (클링) — 텍스트→영상 / 이미지→영상 / 영상→영상 ──
+  'Kling 2.1 Master (텍스트→영상)': { u: 'sec', usd: 0.095, prov: 'kling' },
+  'Kling 2.1 Master (이미지→영상)': { u: 'sec', usd: 0.095, prov: 'kling' },
+  'Kling 2.0 Master (텍스트→영상)': { u: 'sec', usd: 0.062, prov: 'kling' },
+  'Kling 2.0 Master (이미지→영상)': { u: 'sec', usd: 0.062, prov: 'kling' },
+  'Kling 1.6 Pro (텍스트→영상)': { u: 'sec', usd: 0.049, prov: 'kling' },
+  'Kling 1.6 Pro (이미지→영상)': { u: 'sec', usd: 0.049, prov: 'kling' },
+  'Kling 1.6 Standard (이미지→영상)': { u: 'sec', usd: 0.028, prov: 'kling' },
+  'Kling 1.6 Pro (영상→영상 V2V)': { u: 'sec', usd: 0.049, prov: 'kling' },
   'Grok Imagine': { u: 'img', usd: 0.07, prov: 'xai' },
   'Nano Banana': { u: 'img', usd: 0.039, prov: 'nanobanana' },
   'GPT Image 2': { u: 'img', usd: 0.08, prov: 'openai' },
@@ -89,7 +98,7 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
 export const PROV_LABEL: Record<string, string> = {
   google: 'Google Veo', runway: 'Runway', runway_aleph: 'Runway Aleph', seedance: 'Seedance',
   hailuo: 'MiniMax Hailuo', luma: 'Luma', xai: 'Grok', flux: 'Flux', falcontrol: 'fal ControlNet',
-  nanobanana: 'Nano Banana', openai: 'GPT Image',
+  nanobanana: 'Nano Banana', openai: 'GPT Image', kling: 'Kling',
 }
 
 export interface ChargeInput {

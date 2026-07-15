@@ -298,6 +298,33 @@ export function buildFluxPayload(b) {
    Canny/Depth = 전용 control-lora 엔드포인트, Pose = flux-general + Union(openpose, control_mode 4). */
 const FAL_QUEUE = "https://queue.fal.run/";
 const FAL_IMG_SIZE = { "1:1": "square_hd", "16:9": "landscape_16_9", "9:16": "portrait_16_9", "4:5": "portrait_4_3" };
+
+/* ── Kling (클링) — fal.ai 경유. 서버 env FAL_KEY 사용. 텍스트/이미지/영상→영상 ── */
+const KLING_FAL = {
+  "Kling 2.1 Master (텍스트→영상)": "fal-ai/kling-video/v2.1/master/text-to-video",
+  "Kling 2.1 Master (이미지→영상)": "fal-ai/kling-video/v2.1/master/image-to-video",
+  "Kling 2.0 Master (텍스트→영상)": "fal-ai/kling-video/v2/master/text-to-video",
+  "Kling 2.0 Master (이미지→영상)": "fal-ai/kling-video/v2/master/image-to-video",
+  "Kling 1.6 Pro (텍스트→영상)": "fal-ai/kling-video/v1.6/pro/text-to-video",
+  "Kling 1.6 Pro (이미지→영상)": "fal-ai/kling-video/v1.6/pro/image-to-video",
+  "Kling 1.6 Standard (이미지→영상)": "fal-ai/kling-video/v1.6/standard/image-to-video",
+  "Kling 1.6 Pro (영상→영상 V2V)": "fal-ai/kling-video/v1.6/pro/image-to-video",
+  "Kling 2.0": "fal-ai/kling-video/v2/master/image-to-video",
+  "Kling 1.6": "fal-ai/kling-video/v1.6/pro/image-to-video",
+};
+function klingModelId(b) { return KLING_FAL[b.model] || "fal-ai/kling-video/v2/master/image-to-video"; }
+function buildKlingPayload(b) {
+  const id = klingModelId(b);
+  const p = { prompt: String(b.prompt || ""), duration: (Number(b.seconds) > 7 ? "10" : "5"), aspect_ratio: (b.ratio || "16:9") };
+  if (b.negative) p.negative_prompt = String(b.negative);
+  if (b.cfg != null) p.cfg_scale = Number(b.cfg);
+  if (/image-to-video/.test(id)) {
+    const img = b.firstFrame || b.refImage || b.image_url;
+    if (img) p.image_url = img;
+    if (b.lastFrame) p.tail_image_url = b.lastFrame;
+  }
+  return p;
+}
 const FAL_UNION_PATH = "Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro";
 const FAL_UNION_MODE = { canny: 0, tile: 1, depth: 2, blur: 3, pose: 4, gray: 5 };   // Union-Pro control_mode
 const _cl = (v, lo, hi, def) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : def; };
@@ -1023,6 +1050,21 @@ async function handle(context) {
       }
       return json({ status: j.state || "dreaming" });
     }
+    if (provider === "kling") {
+      const task = u.searchParams.get("task");
+      const model = u.searchParams.get("model") || "";
+      if (!task || !model || !k.fal) return json({ status: "failed", error: "no task/model/key" }, 400);
+      const base = FAL_QUEUE + model + "/requests/" + encodeURIComponent(task);
+      const sr = await fetchT(base + "/status", { headers: { "Authorization": "Key " + k.fal } });
+      const sj = await sr.json().catch(() => ({}));
+      const st = String(sj.status || "").toUpperCase();
+      if (st === "FAILED" || sj.error) return json({ status: "failed", error: sj.error || "Kling 생성 실패" });
+      if (st !== "COMPLETED") return json({ status: (st || "IN_PROGRESS").toLowerCase() });
+      const rr = await fetchT(base, { headers: { "Authorization": "Key " + k.fal } });
+      const rj = await rr.json().catch(() => ({}));
+      const url = (rj.video && rj.video.url) || rj.url || (rj.output && rj.output.video && rj.output.video.url);
+      return url ? json({ url, kind: "video" }) : json({ status: "failed", error: "Kling: 결과에 영상 URL 없음" });
+    }
     return json({ error: "unknown provider" }, 400);
   }
 
@@ -1277,7 +1319,22 @@ async function handle(context) {
     return json({ statusUrl: "/api/generate?provider=luma&task=" + encodeURIComponent(j.id) });
   }
 
-  return json({ error: "지원하지 않는 provider: " + provider + " (runway/runway_aleph/xai/google/seedance/flux/hailuo/luma)" }, 400);
+  if (provider === "kling") {
+    if (!k.fal) return json({ error: "Kling(fal.ai) 연동이 설정되지 않았습니다. 환경변수 FAL_KEY 를 넣어주세요." }, 500);
+    const model = klingModelId(b);
+    const r = await fetchT(FAL_QUEUE + model, {
+      method: "POST",
+      headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
+      body: JSON.stringify(buildKlingPayload(b))
+    });
+    const j = await r.json().catch(() => ({}));
+    const reqId = j.request_id || j.requestId;
+    if (!r.ok || !reqId)
+      return json({ error: "Kling: " + (JSON.stringify(j.detail || j.error || j) || "").slice(0, 200) }, 502);
+    return json({ statusUrl: "/api/generate?provider=kling&task=" + encodeURIComponent(reqId) + "&model=" + encodeURIComponent(model) });
+  }
+
+  return json({ error: "지원하지 않는 provider: " + provider + " (runway/runway_aleph/xai/google/seedance/flux/hailuo/luma/kling)" }, 400);
 }
 
 // redeploy marker a1aedb0

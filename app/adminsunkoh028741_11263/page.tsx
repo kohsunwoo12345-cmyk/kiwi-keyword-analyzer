@@ -18,6 +18,8 @@ import {
   CheckCircle2,
   XCircle,
   FileText,
+  Clapperboard,
+  Sparkles,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { AreaTrend, Donut } from '@/components/dash/Charts'
@@ -202,6 +204,38 @@ export default function AdminDashboard() {
             <StatBox label="최근 접속 (24h)" value={activeRecently} icon={Activity} color="#0ea5e9" live />
             <StatBox label="유료 회원" value={paid} icon={Crown} color="#f59e0b" />
           </div>
+        </Reveal>
+
+        {/* AI 영상 제작 바로가기 노드 (클링 AI 등 전 모델) */}
+        <Reveal>
+          <a
+            href="/studio-nvc-prv-8b3k2/"
+            className="group relative block overflow-hidden rounded-2xl border border-violet-300/40 bg-gradient-to-br from-violet-600 via-fuchsia-600 to-indigo-600 p-6 text-white shadow-lg transition-all hover:shadow-2xl hover:-translate-y-0.5"
+          >
+            <div className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+            <div className="pointer-events-none absolute -bottom-10 right-24 h-32 w-32 rounded-full bg-fuchsia-300/20 blur-2xl" />
+            <div className="relative flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <span className="grid h-14 w-14 flex-shrink-0 place-items-center rounded-2xl bg-white/15 backdrop-blur-sm ring-1 ring-white/30">
+                  <Clapperboard size={26} />
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-bold tracking-tight">AI 영상 제작 스튜디오</h3>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-semibold">
+                      <Sparkles size={11} /> Kling AI · 전 모델
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-white/85">
+                    클링 AI(텍스트→영상 · 이미지→영상 · 영상→영상) 등 모든 모델로 바로 영상을 제작합니다. 크레딧은 실사용량 기준으로 자동 차감·기록됩니다.
+                  </p>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-violet-700 transition-transform group-hover:scale-105">
+                영상 만들러 가기 <ChevronRight size={16} />
+              </span>
+            </div>
+          </a>
         </Reveal>
 
         {/* 회원 목록 + 회원별 가격(AI 과금 배수) 조정 */}

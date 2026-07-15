@@ -86,6 +86,17 @@ button .ico{ margin-right:5px; }
 .pf-row:last-child{ border-bottom:0; }
 .pf-row .k{ color:#8a8f9c; }
 .pf-row .v{ color:#e8eaf0; font-weight:600; text-align:right; word-break:break-all; }
+.pf-nav{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; }
+.pf-navbtn{ display:flex; align-items:center; gap:7px; padding:11px 12px; border-radius:11px; border:1px solid #2c2f3a;
+  background:#191b22; color:#d5d9e2; font-size:12.5px; font-weight:600; cursor:pointer; text-decoration:none; box-sizing:border-box; }
+.pf-navbtn:hover{ border-color:#5b6cff; background:#1c1f2b; color:#fff; }
+.pf-navbtn .pfn-ic{ font-size:15px; line-height:1; }
+.pf-navbtn.danger{ grid-column:1 / -1; border-color:#4a2530; background:rgba(120,30,45,.14); color:#ff9b9b; }
+.pf-navbtn.danger:hover{ border-color:#c0293f; background:rgba(120,30,45,.24); }
+.pf-lang{ margin-top:8px; display:flex; gap:8px; }
+.pf-langopt{ flex:1; text-align:center; padding:9px; border-radius:9px; border:1px solid #2c2f3a; background:#0f1117;
+  color:#cfd3dc; font-size:12.5px; cursor:pointer; }
+.pf-langopt:hover,.pf-langopt.on{ border-color:#5b6cff; color:#fff; background:#1a1d28; }
 .pf-sec{ margin-top:14px; padding-top:12px; border-top:1px solid #23262f; }
 .pf-sec h4{ margin:0 0 8px; font-size:12px; font-weight:700; color:#aeb4c2; }
 .pf-inp{ width:100%; box-sizing:border-box; margin-bottom:8px; padding:9px 11px; border-radius:9px; background:#0f1117;
@@ -170,7 +181,11 @@ button .ico{ margin-right:5px; }
 .lib-item:hover{ background:#2e2e2e; color:#fff; }
 
 /* ── 좌하단 스탯 / 우하단 FAB ── */
-#stats{ position:fixed; left:52px; bottom:10px; z-index:45; font-size:10px; color:#666;
+#pfFab{ position:fixed; left:10px; bottom:12px; z-index:47; width:38px; height:38px; border-radius:50%;
+  border:1px solid #33343a; background:linear-gradient(135deg,#5566ff,#8a5cff); color:#fff; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(80,90,255,.35); transition:.15s; }
+#pfFab:hover{ transform:translateY(-2px); box-shadow:0 6px 18px rgba(80,90,255,.5); }
+#stats{ position:fixed; left:58px; bottom:14px; z-index:45; font-size:10px; color:#666;
   font-family:'Inter',monospace; line-height:1.7; pointer-events:none; white-space:pre; }
 #fabs{ position:fixed; right:12px; bottom:12px; z-index:46; display:flex; flex-direction:column; gap:6px; }
 #fabs button{ width:34px; height:34px; border-radius:8px; border:1px solid #333; background:rgba(24,24,24,.92);
@@ -825,7 +840,6 @@ textarea.wtext.code::placeholder{ color:#5a5c66; }
     <button class="add-media-btn" id="btnAddMedia" title="내 컴퓨터에서 이미지·영상을 옴니 레퍼런스로 추가"><span data-ico="clap"></span>영상·이미지 넣기</button>
     <input type="file" id="globalMediaInput" accept="image/*,video/*,.mp4,.mov,.webm,.m4v,.avi,.mkv,.gif" multiple style="display:none">
     <button class="lib-btn" id="btnLib" title="생성한 이미지·영상 보관함"><span data-ico="folder"></span>보관함 <b id="libChip">0</b></button>
-    <button class="cost-btn" id="btnCost" title="누적 생성 비용 보기"><span data-ico="coin"></span>비용 <b id="costChip">₩0</b></button>
     <span class="q-batch">×<input id="batchN" type="number" min="1" max="8" value="1"></span>
     <button class="queue-btn" id="btnQueue"><span data-ico="play"></span>Queue <b id="qcount">0</b></button>
   </div>
@@ -845,6 +859,18 @@ textarea.wtext.code::placeholder{ color:#5a5c66; }
       <div class="pf-row"><span class="k">로그인 방식</span><span class="v" id="pfProvider">-</span></div>
       <div class="pf-row"><span class="k">영상 플랜</span><span class="v" id="pfPlan">-</span></div>
       <div class="pf-row"><span class="k">보유 크레딧</span><span class="v" id="pfCredits">-</span></div>
+
+      <div class="pf-nav">
+        <a class="pf-navbtn" id="pfNavUsage" href="/dashboard_USE17237_612/credits"><span class="pfn-ic">📊</span>사용량</a>
+        <a class="pf-navbtn" id="pfNavSettings" href="/dashboard_USE17237_612/profile"><span class="pfn-ic">⚙️</span>설정</a>
+        <a class="pf-navbtn" id="pfNavUpgrade" href="/pricing"><span class="pfn-ic">🚀</span>요금제 업그레이드</a>
+        <button class="pf-navbtn" id="pfNavLang" type="button"><span class="pfn-ic">🌐</span>언어 <b id="pfLangCur" style="color:#8fa0ff;font-weight:600">한국어</b></button>
+        <button class="pf-navbtn danger" id="pfNavDelete" type="button"><span class="pfn-ic">🗑️</span>계정 삭제</button>
+      </div>
+      <div class="pf-lang" id="pfLangBox" style="display:none">
+        <a class="pf-langopt" data-lang="ko">한국어</a>
+        <a class="pf-langopt" data-lang="en">English</a>
+      </div>
 
       <div class="pf-sec">
         <h4 id="pfPwTitle">비밀번호 변경</h4>
@@ -879,8 +905,6 @@ textarea.wtext.code::placeholder{ color:#5a5c66; }
   <button id="railLib" title="노드 라이브러리">▤</button>
   <button id="railFlow" title="워크플로 열기"><span data-ico="folder"></span></button>
   <button id="railSearch" title="노드 검색"><span data-ico="search"></span></button>
-  <span class="rail-sp"></span>
-  <button id="btnApi" title="API 연결 설정"><span data-ico="gear"></span></button>
 </div>
 
 <div id="libPanel">
@@ -888,6 +912,7 @@ textarea.wtext.code::placeholder{ color:#5a5c66; }
   <div class="lib-body" id="libBody"></div>
 </div>
 
+<button id="pfFab" title="내 프로필"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"></path></svg></button>
 <div id="stats"></div>
 <div id="fabs">
   <button id="btnFit" title="화면 맞춤"><span data-ico="fit"></span></button>
@@ -1143,6 +1168,10 @@ var MODELS = [
  ['영상','Seedance 1.0 Lite (텍스트→영상)'],['영상','Seedance 1.0 Lite (이미지→영상)'],
  ['영상','MiniMax Hailuo 02'],['영상','MiniMax T2V-01 Director'],['영상','MiniMax I2V-01 Director'],
  ['영상','Luma Ray 2'],['영상','Luma Ray Flash 2'],['영상','Luma Ray 1.6'],
+ ['영상 · Kling','Kling 2.1 Master (텍스트→영상)'],['영상 · Kling','Kling 2.1 Master (이미지→영상)'],
+ ['영상 · Kling','Kling 2.0 Master (텍스트→영상)'],['영상 · Kling','Kling 2.0 Master (이미지→영상)'],
+ ['영상 · Kling','Kling 1.6 Pro (텍스트→영상)'],['영상 · Kling','Kling 1.6 Pro (이미지→영상)'],
+ ['영상 · Kling','Kling 1.6 Standard (이미지→영상)'],['영상 → 영상 (V2V·실사화)','Kling 1.6 Pro (영상→영상 V2V)'],
  ['이미지 (레퍼런스 편집·I2I)','Flux Kontext Max (레퍼런스 편집)'],
  ['이미지 (레퍼런스 편집·I2I)','Flux Kontext Pro (레퍼런스 편집)'],
  ['이미지 (텍스트·편집)','Nano Banana'],
@@ -1208,6 +1237,14 @@ var MODEL_COST = {
   'Luma Ray 2':                      { u:'sec', usd:0.08,  prov:'luma' },
   'Luma Ray Flash 2':                { u:'sec', usd:0.04,  prov:'luma' },
   'Luma Ray 1.6':                    { u:'sec', usd:0.06,  prov:'luma' },
+  'Kling 2.1 Master (텍스트→영상)':    { u:'sec', usd:0.095, prov:'kling' },
+  'Kling 2.1 Master (이미지→영상)':    { u:'sec', usd:0.095, prov:'kling' },
+  'Kling 2.0 Master (텍스트→영상)':    { u:'sec', usd:0.062, prov:'kling' },
+  'Kling 2.0 Master (이미지→영상)':    { u:'sec', usd:0.062, prov:'kling' },
+  'Kling 1.6 Pro (텍스트→영상)':       { u:'sec', usd:0.049, prov:'kling' },
+  'Kling 1.6 Pro (이미지→영상)':       { u:'sec', usd:0.049, prov:'kling' },
+  'Kling 1.6 Standard (이미지→영상)':  { u:'sec', usd:0.028, prov:'kling' },
+  'Kling 1.6 Pro (영상→영상 V2V)':     { u:'sec', usd:0.049, prov:'kling' },
   'Grok Imagine':                    { u:'img', usd:0.07,  prov:'xai' },
   'Nano Banana':                     { u:'img', usd:0.039, prov:'nanobanana' },
   'GPT Image 2':                     { u:'img', usd:0.08,  prov:'openai' },
@@ -1222,7 +1259,7 @@ var MODEL_COST = {
 // 제공사 집계 라벨
 var PROV_LABEL = { google:'Google Veo', runway:'Runway', runway_aleph:'Runway Aleph',
   seedance:'Seedance', hailuo:'MiniMax Hailuo', luma:'Luma', xai:'Grok', flux:'Flux',
-  falcontrol:'fal ControlNet', nanobanana:'Nano Banana', openai:'GPT Image' };
+  falcontrol:'fal ControlNet', nanobanana:'Nano Banana', openai:'GPT Image', kling:'Kling' };
 // 구버전 recordCost(provider,...) 호환용 — 제공사 대표 단가
 var COST_RATES = { google:{unit:'sec'}, runway:{unit:'sec'}, runway_aleph:{unit:'sec'},
   seedance:{unit:'sec'}, hailuo:{unit:'sec'}, luma:{unit:'sec'}, xai:{unit:'img'}, flux:{unit:'img'} };
@@ -1302,8 +1339,8 @@ function recordCost(provider, model, seconds, kind, res, audioOn){
   }
   function open(){ renderCost(); modal.classList.add('show'); }
   function close(){ modal.classList.remove('show'); }
-  document.getElementById('btnCost').addEventListener('click',open);
-  document.getElementById('costClose').addEventListener('click',close);
+  var _bc=document.getElementById('btnCost'); if(_bc)_bc.addEventListener('click',open);
+  var _cc=document.getElementById('costClose'); if(_cc)_cc.addEventListener('click',close);
   modal.addEventListener('click',function(e){ if(e.target===modal)close(); });
   document.getElementById('costReset').addEventListener('click',function(){
     if(confirm('비용 기록을 모두 초기화할까요? (되돌릴 수 없습니다)')){ costLog.length=0; saveCostLog(); updateCostChip(); renderCost(); }
@@ -1414,7 +1451,13 @@ var MODEL_PROVIDER = {
   'Flux 1.1 Pro Ultra':'flux','Flux 1.1 Pro':'flux','Flux Pro':'flux','Flux Dev':'flux',
   'Flux Kontext Max (레퍼런스 편집)':'flux','Flux Kontext Pro (레퍼런스 편집)':'flux',
   'MiniMax Hailuo 02':'hailuo','MiniMax T2V-01 Director':'hailuo','MiniMax I2V-01 Director':'hailuo','Hailuo MiniMax':'hailuo',
-  'Luma Ray 2':'luma','Luma Ray Flash 2':'luma','Luma Ray 1.6':'luma','Luma Ray2':'luma'
+  'Luma Ray 2':'luma','Luma Ray Flash 2':'luma','Luma Ray 1.6':'luma','Luma Ray2':'luma',
+  // Kling (fal.ai 경유) — 서버 프록시가 FAL_KEY 로 호출
+  'Kling 2.1 Master (텍스트→영상)':'kling','Kling 2.1 Master (이미지→영상)':'kling',
+  'Kling 2.0 Master (텍스트→영상)':'kling','Kling 2.0 Master (이미지→영상)':'kling',
+  'Kling 1.6 Pro (텍스트→영상)':'kling','Kling 1.6 Pro (이미지→영상)':'kling',
+  'Kling 1.6 Standard (이미지→영상)':'kling','Kling 1.6 Pro (영상→영상 V2V)':'kling',
+  'Kling 2.0':'kling','Kling 1.6':'kling'
 };
 function providerOf(model){ return MODEL_PROVIDER[model] || 'fal'; }
 
@@ -1462,9 +1505,19 @@ async function callProxy(params){
    나머지는 CORS 로 브라우저 직접 호출이 막히므로 프록시 경유를 권장. */
 var FAL_MODEL_ID = {
   'Wan 2.1':'fal-ai/wan-i2v','Hunyuan Video':'fal-ai/hunyuan-video','LTX Video':'fal-ai/ltx-video',
-  'Mochi 1':'fal-ai/mochi-v1','Vidu Q1':'fal-ai/vidu/image-to-video','Kling 2.0':'fal-ai/kling-video/v2/master/image-to-video',
-  'Kling 1.6':'fal-ai/kling-video/v1.6/pro/image-to-video','Luma Ray2':'fal-ai/luma-dream-machine/ray-2',
-  'Hailuo MiniMax':'fal-ai/minimax/video-01','Pika 2.1':'fal-ai/pika/v2.1/image-to-video','Seedance 1.0':'fal-ai/bytedance/seedance/v1/pro'
+  'Mochi 1':'fal-ai/mochi-v1','Vidu Q1':'fal-ai/vidu/image-to-video',
+  'Luma Ray2':'fal-ai/luma-dream-machine/ray-2',
+  'Hailuo MiniMax':'fal-ai/minimax/video-01','Pika 2.1':'fal-ai/pika/v2.1/image-to-video','Seedance 1.0':'fal-ai/bytedance/seedance/v1/pro',
+  // ── Kling (클링) 전체 ──
+  'Kling 2.1 Master (텍스트→영상)':'fal-ai/kling-video/v2.1/master/text-to-video',
+  'Kling 2.1 Master (이미지→영상)':'fal-ai/kling-video/v2.1/master/image-to-video',
+  'Kling 2.0 Master (텍스트→영상)':'fal-ai/kling-video/v2/master/text-to-video',
+  'Kling 2.0 Master (이미지→영상)':'fal-ai/kling-video/v2/master/image-to-video',
+  'Kling 1.6 Pro (텍스트→영상)':'fal-ai/kling-video/v1.6/pro/text-to-video',
+  'Kling 1.6 Pro (이미지→영상)':'fal-ai/kling-video/v1.6/pro/image-to-video',
+  'Kling 1.6 Standard (이미지→영상)':'fal-ai/kling-video/v1.6/standard/image-to-video',
+  'Kling 1.6 Pro (영상→영상 V2V)':'fal-ai/kling-video/v1.6/pro/image-to-video',
+  'Kling 2.0':'fal-ai/kling-video/v2/master/image-to-video','Kling 1.6':'fal-ai/kling-video/v1.6/pro/image-to-video'
 };
 var ADAPTERS = {
   fal: async function(p){
@@ -3478,7 +3531,7 @@ document.getElementById('fabMini').addEventListener('click',function(){
         'placeholder="API 키 입력 (선택)" value="'+esc(v)+'"></div>';
     }).join('');
   }
-  document.getElementById('btnApi').addEventListener('click',function(){ renderApi(); modal.classList.add('show'); });
+  var _ba=document.getElementById('btnApi'); if(_ba)_ba.addEventListener('click',function(){ renderApi(); modal.classList.add('show'); });
   document.getElementById('apiClose').addEventListener('click',function(){ modal.classList.remove('show'); });
   modal.addEventListener('mousedown',function(e){ if(e.target===modal) modal.classList.remove('show'); });
   document.getElementById('apiSave').addEventListener('click',function(){
@@ -3716,10 +3769,26 @@ function openProfile(){
 }
 function closeProfile(){ var b=pfEl('pfBack'); if(b)b.classList.remove('on'); }
 function wireProfile(){
+  var fab=pfEl('pfFab'); if(fab)fab.addEventListener('click',openProfile);
   var x=pfEl('pfClose'); if(x)x.addEventListener('click',closeProfile);
   var back=pfEl('pfBack'); if(back)back.addEventListener('click',function(e){ if(e.target===back)closeProfile(); });
   var lo=pfEl('pfLogout'); if(lo)lo.addEventListener('click',doStudioLogout);
-  var dt=pfEl('pfDelToggle'); if(dt)dt.addEventListener('click',function(){ var box=pfEl('pfDelBox'); if(box)box.style.display=(box.style.display==='none'?'':'none'); });
+  function toggleDel(){ var box=pfEl('pfDelBox'); if(box){ box.style.display=(box.style.display==='none'?'':'none'); if(box.style.display!=='none') box.scrollIntoView({behavior:'smooth',block:'nearest'}); } }
+  var dt=pfEl('pfDelToggle'); if(dt)dt.addEventListener('click',toggleDel);
+  var nd=pfEl('pfNavDelete'); if(nd)nd.addEventListener('click',toggleDel);
+  // 언어 선택
+  try{ var lg=localStorage.getItem('nvLang')||'ko'; var lc=pfEl('pfLangCur'); if(lc)lc.textContent=(lg==='en'?'English':'한국어'); }catch(e){}
+  var lb=pfEl('pfNavLang'); if(lb)lb.addEventListener('click',function(){ var box=pfEl('pfLangBox'); if(box)box.style.display=(box.style.display==='none'?'flex':'none'); });
+  Array.prototype.forEach.call(document.querySelectorAll('.pf-langopt'),function(a){
+    a.addEventListener('click',function(){
+      var lang=a.getAttribute('data-lang');
+      try{ localStorage.setItem('nvLang',lang); }catch(e){}
+      var lc=pfEl('pfLangCur'); if(lc)lc.textContent=(lang==='en'?'English':'한국어');
+      Array.prototype.forEach.call(document.querySelectorAll('.pf-langopt'),function(o){ o.classList.toggle('on',o===a); });
+      var box=pfEl('pfLangBox'); if(box)box.style.display='none';
+      if(lang==='en') alert('영어 인터페이스는 순차적으로 제공될 예정입니다. (English UI is rolling out soon.)');
+    });
+  });
   var pwb=pfEl('pfPwBtn'); if(pwb)pwb.addEventListener('click',function(){
     var social=PF_ME&&PF_ME.provider&&PF_ME.provider!=='email'&&!PF_ME.passwordSet;
     var cur=pfEl('pfCur').value, nx=pfEl('pfNext').value, msg=pfEl('pfPwMsg');
