@@ -1,24 +1,22 @@
 #!/usr/bin/env bash
 # BYGENCY 알리고 프록시 — Vultr 서버(고정 IP)에 한 번에 설치.
-# Vultr 콘솔(View Console)에서 root 로 로그인 후, 이 스크립트 전체를 붙여넣고 Enter.
-# 완료되면 화면에 "프록시 토큰" 과 Cloudflare 에 넣을 값이 출력된다.
+# 사용법(서버에서 한 줄):
+#   curl -fsSL https://raw.githubusercontent.com/kohsunwoo12345-cmyk/kiwi-keyword-analyzer/main/deploy/aligo-proxy/setup.sh | bash
+# 완료되면 Cloudflare 에 넣을 ALIGO_PROXY_URL 값을 출력한다.
 set -e
-
 echo "== BYGENCY 알리고 프록시 설치 시작 =="
 
 # 1) Node.js 설치 (없으면)
 if ! command -v node >/dev/null 2>&1; then
-  echo "-- Node.js 설치 중..."
+  echo "-- Node.js 설치 중... (1~2분)"
   if command -v apt-get >/dev/null 2>&1; then
-    apt-get update -y && apt-get install -y nodejs
-    command -v node >/dev/null 2>&1 || (curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs)
-  elif command -v dnf >/dev/null 2>&1; then
-    dnf install -y nodejs
-  elif command -v yum >/dev/null 2>&1; then
-    yum install -y nodejs
+    apt-get update -y && apt-get install -y nodejs || true
+    command -v node >/dev/null 2>&1 || { curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs; }
+  elif command -v dnf >/dev/null 2>&1; then dnf install -y nodejs
+  elif command -v yum >/dev/null 2>&1; then yum install -y nodejs
   fi
 fi
-echo "-- Node: $(node -v 2>/dev/null || echo '설치 실패 — 수동 설치 필요')"
+echo "-- Node: $(node -v 2>/dev/null || echo '설치 실패')"
 
 # 2) 프록시 프로그램 작성
 mkdir -p /opt/bygency-aligo-proxy
@@ -41,41 +39,32 @@ http.createServer((q,s)=>{
 }).listen(8080,()=>console.log('bygency-aligo-proxy on :8080'));
 JS
 
-# 3) 토큰 생성 (Cloudflare 와 공유할 비밀값)
-TOKEN=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')
-
-# 4) 서비스 등록 (재부팅 후에도 자동 실행)
+# 3) 서비스 등록 (재부팅 후에도 자동 실행). 토큰 없이 동작(대상 호스트는 aligo.in 으로만 제한됨).
 cat > /etc/systemd/system/bygency-aligo-proxy.service <<EOF
 [Unit]
 Description=BYGENCY Aligo Proxy
 After=network.target
 [Service]
-Environment=ALIGO_PROXY_TOKEN=$TOKEN
 ExecStart=$(command -v node) /opt/bygency-aligo-proxy/server.js
 Restart=always
 [Install]
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-systemctl enable --now bygency-aligo-proxy
+systemctl enable --now bygency-aligo-proxy || true
 
-# 5) 방화벽 8080 열기 (설치돼 있으면)
+# 4) 방화벽 8080 열기 (있으면)
 command -v ufw >/dev/null 2>&1 && ufw allow 8080/tcp >/dev/null 2>&1 || true
 command -v firewall-cmd >/dev/null 2>&1 && { firewall-cmd --permanent --add-port=8080/tcp >/dev/null 2>&1; firewall-cmd --reload >/dev/null 2>&1; } || true
 
 sleep 1
 echo ""
 echo "=================================================="
-echo " 설치 완료! 프록시 상태:"
-systemctl is-active bygency-aligo-proxy && echo " (실행 중)"
+echo " 설치 완료! 상태: $(systemctl is-active bygency-aligo-proxy 2>/dev/null || echo unknown)"
+echo " 로컬 확인: $(curl -s http://localhost:8080/ 2>/dev/null || echo '(잠시 후 다시)')"
 echo ""
-echo " 로컬 확인:"
-curl -s http://localhost:8080/ || echo "  (응답 없음 - 잠시 후 다시)"
+echo " ▼ Cloudflare Pages 환경변수에 아래 1개만 추가하세요 ▼"
 echo ""
-echo "=================================================="
-echo " ▼ 아래 두 값을 Cloudflare Pages 환경변수에 넣으세요 ▼"
-echo ""
-echo "   ALIGO_PROXY_URL    = http://$(curl -s -4 ifconfig.me 2>/dev/null || echo 141.164.36.76):8080"
-echo "   ALIGO_PROXY_TOKEN  = $TOKEN"
+echo "   ALIGO_PROXY_URL = http://141.164.36.76:8080"
 echo ""
 echo "=================================================="
