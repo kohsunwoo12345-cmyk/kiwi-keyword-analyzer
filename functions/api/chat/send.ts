@@ -15,8 +15,8 @@ function cannedReply(text: string): string {
   // 결제 · 환불 · 세금계산서
   if (has(/환불|영수증|세금계산서|결제.?(안|오류|실패|취소)|입금|refund|invoice|receipt|billing/)) {
     return ko
-      ? '결제·환불·세금계산서 관련은 담당자 확인이 필요해요. ceo@bygency.co 로 주문 정보와 함께 문의 주시면 신속히 처리해 드리겠습니다.'
-      : 'For payment, refund, or tax-invoice matters, please email ceo@bygency.co with your order details and we’ll help you right away.'
+      ? '결제·환불·세금계산서 관련은 담당자 확인이 필요해요. cs@bygency.co 로 주문 정보와 함께 문의 주시면 신속히 처리해 드리겠습니다.'
+      : 'For payment, refund, or tax-invoice matters, please email cs@bygency.co with your order details and we’ll help you right away.'
   }
   // 요금 · 가격 · 플랜
   if (has(/요금|가격|비용|얼마|플랜|가입비|price|cost|pricing|plan|fee/)) {
@@ -39,8 +39,8 @@ function cannedReply(text: string): string {
   // 가입 · 로그인 · 계정
   if (has(/가입|회원|로그인|비밀번호|계정|signup|sign up|log ?in|password|account/)) {
     return ko
-      ? '가입은 bygency.co/signup 에서 카드 없이 무료로 하실 수 있어요. 비밀번호는 로그인 후 프로필 페이지에서 변경 가능하고, 문제가 있으면 ceo@bygency.co 로 알려주세요.'
-      : 'Sign up free (no card) at bygency.co/signup. You can change your password on the profile page after logging in — any issues, email ceo@bygency.co.'
+      ? '가입은 bygency.co/signup 에서 카드 없이 무료로 하실 수 있어요. 비밀번호는 로그인 후 프로필 페이지에서 변경 가능하고, 문제가 있으면 cs@bygency.co 로 알려주세요.'
+      : 'Sign up free (no card) at bygency.co/signup. You can change your password on the profile page after logging in — any issues, email cs@bygency.co.'
   }
   // 도입 · 상담 · 견적 · 엔터프라이즈
   if (has(/도입|상담|영업|견적|대량|엔터프라이즈|계약|제휴|sales|enterprise|quote|demo/)) {
@@ -56,8 +56,8 @@ function cannedReply(text: string): string {
   }
   // 기본
   return ko
-    ? '문의 주셔서 감사합니다! 조금 더 자세히 알려주시면 정확히 안내드릴게요. 급하시면 ceo@bygency.co 또는 bygency.co/contact 로 문의 주시면 담당자가 도와드립니다.'
-    : 'Thanks for reaching out! Tell us a bit more and we’ll help precisely. For anything urgent, contact ceo@bygency.co or bygency.co/contact and our team will assist you.'
+    ? '문의 주셔서 감사합니다! 조금 더 자세히 알려주시면 정확히 안내드릴게요. 급하시면 cs@bygency.co 또는 bygency.co/contact 로 문의 주시면 담당자가 도와드립니다.'
+    : 'Thanks for reaching out! Tell us a bit more and we’ll help precisely. For anything urgent, contact cs@bygency.co or bygency.co/contact and our team will assist you.'
 }
 
 // POST /api/chat/send { text, conv_id?, name?, email? } → 고객센터 채팅 메시지 전송
