@@ -12,6 +12,50 @@ Aligo에 등록되는 발신 IP = **141.164.36.76** 이 됩니다.
 
 ---
 
+## 공용 릴레이 — 여러 사이트에서 사용하기
+
+이 릴레이는 한 대로 여러 사이트/여러 알리고 계정을 처리합니다. 각 사이트가 **자기 알리고 계정에 141.164.36.76 을 발송 IP로 등록**하고, 아래 방식 중 하나로 요청만 보내면 됩니다. (한 서버 IP는 여러 알리고 계정이 동시에 등록 가능)
+
+지원하는 3가지 방식:
+
+**A) 패스스루 (BYGENCY 사용)** — 헤더로 대상 지정
+```
+POST http://141.164.36.76:8080/
+Header: X-Aligo-Target: https://apis.aligo.in/send/
+Body:   key=...&user_id=...&sender=...&receiver=...&msg=...   (form-urlencoded)
+```
+
+**B) 간단 SMS (다른 사이트 추천)** — JSON만 보내면 릴레이가 알아서 발송
+```
+POST http://141.164.36.76:8080/
+Content-Type: application/json
+{ "type":"sms", "key":"발급키", "user_id":"알리고아이디",
+  "sender":"발신번호", "receiver":"수신번호(,로 여러명)", "msg":"내용", "msg_type":"SMS" }
+```
+
+**C) 간단 알림톡** — 릴레이가 토큰을 자동 발급해 발송
+```
+POST http://141.164.36.76:8080/
+Content-Type: application/json
+{ "type":"alimtalk", "apikey":"발급키", "userid":"알리고아이디",
+  "senderkey":"발신프로필키", "tpl_code":"템플릿코드", "sender":"발신번호",
+  "receiver_1":"수신번호", "subject_1":"제목", "message_1":"내용(템플릿 치환 완료)" }
+```
+응답은 알리고 원본 JSON 그대로 돌려줍니다. (SMS: `result_code`, 알림톡: `code`)
+
+### 보안 (RELAY_SECRET) — 여러 사이트에 열 때 권장
+릴레이에 비밀키를 걸면, 그 키를 아는 사이트만 사용할 수 있습니다.
+
+1. 릴레이 설치 시 비밀키 지정:
+   `curl -fsSL <setup.sh URL> | RELAY_SECRET=긴랜덤키 bash`
+2. 각 요청 헤더에 그 키를 첨부: `X-Relay-Secret: 긴랜덤키`
+3. **BYGENCY(Cloudflare)** 는 `ALIGO_PROXY_TOKEN` 환경변수에 같은 키를 넣으면 됩니다.
+   (⚠️ 순서: 먼저 Cloudflare 에 `ALIGO_PROXY_TOKEN` 을 넣고 재배포한 뒤, 릴레이에 `RELAY_SECRET` 을 켜세요. 그래야 그 사이 발송이 끊기지 않습니다.)
+
+> ⚠️ 이 릴레이 서버는 모든 연결 사이트의 공통 관문(단일 장애점)입니다. 서버가 중지되면 연결된 사이트들의 발송이 멈춥니다. 중요해지면 이중화를 고려하세요.
+
+---
+
 ## 1) Vultr 서버에 올리기
 
 `server.js` 한 파일이면 됩니다. 의존성 없음(Node 16+).
