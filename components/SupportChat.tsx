@@ -58,7 +58,7 @@ export function SupportChat() {
         setConvId(r.conv_id)
         try { localStorage.setItem(CONV_KEY, r.conv_id) } catch { /* */ }
       }
-      const adminCount = r.messages.filter((m) => m.sender === 'admin').length
+      const adminCount = r.messages.filter((m) => m.sender !== 'user').length
       let seen = 0
       try { seen = Number(localStorage.getItem(SEEN_KEY) || 0) } catch { /* */ }
       if (!open) setUnseen(Math.max(0, adminCount - seen))
@@ -76,7 +76,7 @@ export function SupportChat() {
   useEffect(() => {
     if (open) {
       setUnseen(0)
-      const adminCount = msgs.filter((m) => m.sender === 'admin').length
+      const adminCount = msgs.filter((m) => m.sender !== 'user').length
       try { localStorage.setItem(SEEN_KEY, String(adminCount)) } catch { /* */ }
       setTimeout(() => bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' }), 60)
     }

@@ -18,7 +18,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     .all()).results || []
 
   // 관리자 답장을 사용자가 읽음 처리
-  await db.prepare("UPDATE support_chats SET read_user = 1 WHERE conv_id = ? AND sender = 'admin' AND read_user = 0").bind(convId).run().catch(() => {})
+  await db.prepare("UPDATE support_chats SET read_user = 1 WHERE conv_id = ? AND sender IN ('admin','bot') AND read_user = 0").bind(convId).run().catch(() => {})
 
   return json({
     ok: true,

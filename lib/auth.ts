@@ -245,7 +245,7 @@ export async function adminAiUsage(days = 30): Promise<AiUsageStats> {
 }
 
 /* ── 고객센터 채팅 (사용자) ── */
-export interface ChatMsg { sender: 'user' | 'admin'; text: string; at: string }
+export interface ChatMsg { sender: 'user' | 'admin' | 'bot'; text: string; at: string }
 export async function chatSend(text: string, convId?: string, name?: string, email?: string): Promise<{ ok: boolean; conv_id?: string; error?: string }> {
   try {
     const r = await fetch('/api/chat/send', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify({ text, conv_id: convId, name, email }) })
