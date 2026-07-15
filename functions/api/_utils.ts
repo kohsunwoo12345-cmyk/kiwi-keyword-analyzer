@@ -672,11 +672,19 @@ export async function hashPassword(password: string, salt?: string): Promise<str
   return `${s}:${hash}`
 }
 
+// 타이밍 공격 방지용 상수 시간 문자열 비교
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
+}
+
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const [salt] = stored.split(':')
   if (!salt) return false
   const check = await hashPassword(password, salt)
-  return check === stored
+  return timingSafeEqual(check, stored)
 }
 
 export function parseCookies(request: Request): Record<string, string> {

@@ -56,7 +56,31 @@ export const onRequest: PagesFunction<any> = async (context) => {
     }
   }
 
-  return next()
+  const res = await next()
+  return withSecurityHeaders(res, path)
+}
+
+// 응답에 보안 헤더 부착 (문서 응답에 한함 — 정적 자산/_next는 위에서 이미 통과)
+function withSecurityHeaders(res: Response, path: string): Response {
+  try {
+    const ct = res.headers.get('content-type') || ''
+    // API(JSON)와 HTML 문서에만 적용. 리다이렉트/스트림 등은 헤더만 얹어도 안전.
+    const h = new Headers(res.headers)
+    h.set('X-Content-Type-Options', 'nosniff')
+    h.set('X-Frame-Options', 'SAMEORIGIN')
+    h.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+    h.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=(), payment=(), usb=()')
+    h.set('Cross-Origin-Opener-Policy', 'same-origin')
+    h.set('X-XSS-Protection', '0')
+    if (ct.includes('text/html')) {
+      // 클릭재킹 방지 + 인라인 스크립트 허용(정적 export 특성상 unsafe-inline 필요)
+      h.set('Content-Security-Policy', "frame-ancestors 'self'")
+    }
+    if (path.startsWith('/api/')) h.set('X-Robots-Tag', 'noindex')
+    return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h })
+  } catch {
+    return res
+  }
 }
 
 function blockedResponse(path: string, whitelist = false) {

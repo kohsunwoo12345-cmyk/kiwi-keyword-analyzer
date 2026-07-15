@@ -9137,8 +9137,7 @@ var _pexelsTotal=0;
 var _pexelsTargetScene=-1;
 var _pexelsSearchTimer=null;
 
-// Pexels API Key (무료 공개 키 - 대체 Picsum/Unsplash 사용)
-var PEXELS_API_KEY='Naq0JXuGxZcMzZDDcjmh7U5RumOB88ZuSSVAEzaW3eaJA9ZdvkSTbXJ3';
+// Pexels/Pixabay 검색은 서버 프록시(/api/pexels/search)를 통해 처리 — 클라이언트에 API 키를 노출하지 않음
 
 // ── 미디어 소스 전환 (Pexels ↔ Pixabay) ──
 var _currentMediaSource = 'pexels';

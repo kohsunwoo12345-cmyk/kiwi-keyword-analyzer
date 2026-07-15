@@ -35,8 +35,8 @@ export const onRequestPost: PagesFunction = async (context) => {
     // 크론 인증: CRON_TOKEN 일치 OR 로그인된 세션 유저 허용
     const cronToken = c.req.header('X-Cron-Token')
     const expectedToken = c.env.CRON_TOKEN || ''
-    const knownTokens = ['superplace-cron-2024', expectedToken].filter(Boolean)
-    const tokenOk = knownTokens.includes(cronToken || '')
+    const knownTokens = [expectedToken].filter(Boolean)
+    const tokenOk = knownTokens.length > 0 && knownTokens.includes(cronToken || '')
     
     if (!tokenOk) {
       // 세션 인증으로 fallback
