@@ -12,6 +12,7 @@ import {
   MapPin,
   User,
   Mail,
+  ExternalLink,
 } from 'lucide-react'
 import Link from 'next/link'
 import { Navbar } from '@/components/layout/Navbar'
@@ -94,6 +95,8 @@ const M: Dict = {
 
   // ===== COMPANY INFO =====
   '회사 정보': { en: 'Company info', ja: '会社情報', zh: '公司信息' },
+  '회사 바로보기': { en: 'Visit company site', ja: '会社サイトへ', zh: '访问公司网站' },
+  '대표이사': { en: 'CEO', ja: '代表取締役', zh: '代表理事' },
   'BYGENCY는 (주)Next Vision Company가 직접 만들고 운영하는 올인원 마케팅 그로스 플랫폼입니다. 화면 속 편의만이 아니라, 문의 하나에 응답하는 태도까지 우리가 책임집니다. 자세한 사업 관련 정보는 문의를 통해 안내해 드립니다.': {
     en: 'BYGENCY is an all-in-one marketing growth platform built and operated directly by Next Vision Company. We take responsibility not only for on-screen convenience, but for the attitude behind every reply to an inquiry. Detailed business information is provided upon request.',
     ja: 'BYGENCYは、(株)Next Vision Companyが自ら開発・運営するオールインワンのマーケティンググロースプラットフォームです。画面上の使いやすさだけでなく、一つひとつのお問い合わせに応える姿勢まで私たちが責任を持ちます。詳しい事業関連情報はお問い合わせにてご案内いたします。',
@@ -246,10 +249,21 @@ export default function AboutPage() {
                   'BYGENCY는 (주)Next Vision Company가 직접 만들고 운영하는 올인원 마케팅 그로스 플랫폼입니다. 화면 속 편의만이 아니라, 문의 하나에 응답하는 태도까지 우리가 책임집니다. 자세한 사업 관련 정보는 문의를 통해 안내해 드립니다.',
                 )}
               </p>
-              <Button href="/contact" className="mt-7 group">
-                {t('문의하기')}
-                <ArrowRight size={16} className="transition-transform duration-300 group-hover:translate-x-1" />
-              </Button>
+              <div className="mt-7 flex flex-wrap items-center gap-3">
+                <Button href="/contact" className="group">
+                  {t('문의하기')}
+                  <ArrowRight size={16} className="transition-transform duration-300 group-hover:translate-x-1" />
+                </Button>
+                <a
+                  href="https://nextvisionccompany.net/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white/[0.04] px-5 py-2.5 text-sm font-semibold text-[var(--text-soft)] transition-colors hover:border-blue-400/50 hover:text-[var(--text)]"
+                >
+                  {t('회사 바로보기')}
+                  <ExternalLink size={15} />
+                </a>
+              </div>
             </Reveal>
 
             <Reveal variant="right" delay={100}>
@@ -363,6 +377,6 @@ const COMPANY = [
   { icon: Building2, label: '회사명', value: '(주)Next Vision Company' },
   { icon: LayoutGrid, label: '서비스', value: 'BYGENCY (바이전시)' },
   { icon: MapPin, label: '소재지', value: '서울특별시' },
-  { icon: User, label: '대표', value: '문의 시 안내' },
+  { icon: User, label: '대표이사', value: '고선우' },
   { icon: Mail, label: '사업자등록번호', value: '문의 시 안내' },
 ]
