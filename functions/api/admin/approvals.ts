@@ -11,6 +11,7 @@ import {
   logAudit,
   clientIp,
   publicUser,
+  rewardReferralFirstPaid,
 } from '../_utils'
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
@@ -115,6 +116,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       await db.prepare(`UPDATE users SET ${col} = ? WHERE id = ?`).bind(req.to_plan, req.user_id).run()
       await logActivity(db, req.user_id, 'plan', `${label} 플랜 승인: ${req.from_plan} → ${req.to_plan}`)
       await addNotification(db, req.user_id, `${label} 플랜이 승인되었습니다`, `${label} ${req.to_plan} 플랜으로 업그레이드되었습니다. 감사합니다!`)
+      // 추천인 리워드: 피추천인이 유료 요금제에 처음 가입하면 추천인에게 결제액의 1% 크레딧 지급
+      await rewardReferralFirstPaid(db, req.user_id, track, req.to_plan)
     } else {
       await addNotification(db, req.user_id, `${label} 플랜이 반려되었습니다`, `${label} ${req.to_plan} 플랜 신청이 반려되었습니다. 자세한 내용은 문의해 주세요.`)
     }

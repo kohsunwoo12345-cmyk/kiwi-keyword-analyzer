@@ -28,6 +28,7 @@ import {
   Users,
   Gift,
   Link2,
+  Trash2,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button, Badge } from '@/components/ui'
@@ -47,6 +48,8 @@ import {
   CREDIT_PACKAGES,
   accountReferral,
   addFriend,
+  deleteAccount,
+  logout,
   type User,
   type Tx,
   type Noti,
@@ -56,30 +59,13 @@ import {
   type ReferralInfo,
 } from '@/lib/auth'
 
-/* ---------- date helpers ---------- */
-function pad(n: number) {
-  return n < 10 ? `0${n}` : `${n}`
-}
+/* ---------- date helpers (KST 고정) ---------- */
+import { kstDateTime, relAgo } from '@/lib/time'
 function fmtDate(iso: string): string {
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return iso || '-'
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return kstDateTime(iso)
 }
 function relTime(iso: string): string {
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return ''
-  const diff = Date.now() - d.getTime()
-  const sec = Math.floor(diff / 1000)
-  if (sec < 60) return '방금'
-  const min = Math.floor(sec / 60)
-  if (min < 60) return `${min}분 전`
-  const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr}시간 전`
-  const day = Math.floor(hr / 24)
-  if (day < 30) return `${day}일 전`
-  const mon = Math.floor(day / 30)
-  if (mon < 12) return `${mon}개월 전`
-  return `${Math.floor(mon / 12)}년 전`
+  return relAgo(iso)
 }
 function ko(n: number) {
   return n.toLocaleString('ko-KR')
@@ -242,6 +228,13 @@ export default function ProfilePage() {
   const [pwBusy, setPwBusy] = useState(false)
   const [pwOk, setPwOk] = useState(false)
   const [pwErr, setPwErr] = useState<string | null>(null)
+
+  // 계정 삭제 (아주 작게 노출)
+  const [delOpen, setDelOpen] = useState(false)
+  const [delPw, setDelPw] = useState('')
+  const [delEmail, setDelEmail] = useState('')
+  const [delBusy, setDelBusy] = useState(false)
+  const [delErr, setDelErr] = useState<string | null>(null)
 
   // plan request (two tracks)
   const [planTrack, setPlanTrack] = useState<PlanTrack>('marketer')
@@ -463,7 +456,8 @@ export default function ProfilePage() {
     e.preventDefault()
     setPwOk(false)
     setPwErr(null)
-    if (!cur || !next) {
+    const socialNoPw = !!user?.provider && user.provider !== 'email' && !user.passwordSet
+    if ((!socialNoPw && !cur) || !next) {
       setPwErr('비밀번호를 입력하세요.')
       return
     }
@@ -489,6 +483,31 @@ export default function ProfilePage() {
     }
   }
 
+  async function submitDelete(e: FormEvent) {
+    e.preventDefault()
+    setDelErr(null)
+    const socialNoPw = !!user?.provider && user.provider !== 'email' && !user.passwordSet
+    if (socialNoPw) {
+      if (delEmail.trim().toLowerCase() !== (user?.email || '').toLowerCase()) {
+        setDelErr('확인을 위해 계정 이메일 주소를 정확히 입력해 주세요.')
+        return
+      }
+    } else if (!delPw) {
+      setDelErr('계정 삭제를 위해 비밀번호를 입력해 주세요.')
+      return
+    }
+    if (!window.confirm('정말로 계정을 삭제하시겠어요? 이 작업은 되돌릴 수 없으며 모든 데이터가 삭제됩니다.')) return
+    setDelBusy(true)
+    const r = await deleteAccount(socialNoPw ? { confirmEmail: delEmail.trim() } : { password: delPw })
+    setDelBusy(false)
+    if (r.ok) {
+      await logout()
+      window.location.href = '/'
+    } else {
+      setDelErr(r.error || '계정 삭제에 실패했습니다.')
+    }
+  }
+
   async function readAll() {
     await markNotificationsRead()
     setNotifications((ns) => ns.map((n) => ({ ...n, read: 1 })))
@@ -497,6 +516,7 @@ export default function ProfilePage() {
   const inputCls =
     'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-violet-500'
 
+  const socialNoPw = !!user?.provider && user.provider !== 'email' && !user.passwordSet
   const curTier = planTrack === 'marketer' ? (user?.plan ?? '없음') : (user?.videoPlan ?? '없음')
   const pointTx = transactions.filter((t) => t.kind === 'point')
   const creditTx = transactions.filter((t) => t.kind === 'credit')
@@ -692,20 +712,26 @@ export default function ProfilePage() {
             </Panel>
 
             <div className="grid gap-6 lg:grid-cols-2">
-              {/* 2. 비밀번호 변경 */}
-              <Panel title={<span className="flex items-center gap-2"><Lock size={16} className="text-violet-600" /> 비밀번호 변경</span>}>
+              {/* 2. 비밀번호 변경 (간편로그인 계정은 최초 설정) */}
+              <Panel title={<span className="flex items-center gap-2"><Lock size={16} className="text-violet-600" /> {socialNoPw ? '비밀번호 설정' : '비밀번호 변경'}</span>}>
                 <form onSubmit={submitPassword} className="space-y-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">현재 비밀번호</label>
-                    <input
-                      type="password"
-                      value={cur}
-                      onChange={(e) => setCur(e.target.value)}
-                      className={inputCls}
-                      placeholder="현재 비밀번호"
-                      autoComplete="current-password"
-                    />
-                  </div>
+                  {socialNoPw ? (
+                    <p className="rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm text-[var(--text-soft)]">
+                      간편로그인({user.provider === 'google' ? '구글' : user.provider}) 계정이에요. 비밀번호를 설정하면 이메일+비밀번호로도 로그인할 수 있어요.
+                    </p>
+                  ) : (
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">현재 비밀번호</label>
+                      <input
+                        type="password"
+                        value={cur}
+                        onChange={(e) => setCur(e.target.value)}
+                        className={inputCls}
+                        placeholder="현재 비밀번호"
+                        autoComplete="current-password"
+                      />
+                    </div>
+                  )}
                   <div>
                     <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">새 비밀번호</label>
                     <input
@@ -741,7 +767,7 @@ export default function ProfilePage() {
                   )}
 
                   <Button type="submit" disabled={pwBusy} className="w-full">
-                    {pwBusy ? '변경 중...' : '변경'}
+                    {pwBusy ? '처리 중...' : socialNoPw ? '비밀번호 설정' : '변경'}
                   </Button>
                 </form>
               </Panel>
@@ -1315,6 +1341,70 @@ export default function ProfilePage() {
                 </ul>
               )}
             </Panel>
+
+            {/* 8. 계정 삭제 — 아주 작게 노출 */}
+            <div className="pt-2 pb-4 text-center">
+              {!delOpen ? (
+                <button
+                  onClick={() => { setDelOpen(true); setDelErr(null) }}
+                  className="text-[11px] text-[var(--text-dim)] underline decoration-dotted underline-offset-2 transition-colors hover:text-rose-400"
+                >
+                  계정 삭제
+                </button>
+              ) : (
+                <div className="mx-auto max-w-md rounded-xl border border-rose-200 bg-rose-50/40 p-4 text-left">
+                  <p className="flex items-center gap-1.5 text-sm font-semibold text-rose-600">
+                    <Trash2 size={14} /> 계정 삭제
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--text-soft)]">
+                    계정을 삭제하면 모든 데이터가 영구히 삭제되며 되돌릴 수 없습니다.
+                    {socialNoPw ? ' 확인을 위해 계정 이메일 주소를 입력해 주세요.' : ' 확인을 위해 비밀번호를 입력해 주세요.'}
+                  </p>
+                  <form onSubmit={submitDelete} className="mt-3 space-y-2">
+                    {socialNoPw ? (
+                      <input
+                        type="email"
+                        value={delEmail}
+                        onChange={(e) => setDelEmail(e.target.value)}
+                        className={inputCls}
+                        placeholder={user.email}
+                        autoComplete="off"
+                      />
+                    ) : (
+                      <input
+                        type="password"
+                        value={delPw}
+                        onChange={(e) => setDelPw(e.target.value)}
+                        className={inputCls}
+                        placeholder="비밀번호 입력"
+                        autoComplete="current-password"
+                      />
+                    )}
+                    {delErr && (
+                      <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                        <AlertCircle size={13} /> {delErr}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setDelOpen(false); setDelPw(''); setDelEmail(''); setDelErr(null) }}
+                        className="flex-1 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-soft)] transition-colors hover:bg-slate-50"
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={delBusy}
+                        className="flex-1 rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700 disabled:opacity-60"
+                      >
+                        {delBusy ? '삭제 중...' : '영구 삭제'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>

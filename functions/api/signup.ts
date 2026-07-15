@@ -29,6 +29,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const phone = String(body.phone || '').replace(/[^0-9]/g, '')
   const marketingConsent = body.marketingConsent ? 1 : 0
   const aiConsent = body.aiConsent ? 1 : 0
+  // 이용약관·개인정보처리방침은 가입 필수 동의 → 항상 1
+  const tosConsent = 1
+  const privacyConsent = 1
 
   if (!name || !email || !password) return json({ ok: false, error: '필수 항목을 입력하세요.' }, 400)
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ ok: false, error: '이메일 형식이 올바르지 않습니다.' }, 400)
@@ -44,10 +47,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   await db
     .prepare(
-      `INSERT INTO users (id, name, email, password_hash, company, phone, plan, role, status, points, credits, created_at, last_active, marketing_consent, ai_consent, consent_at)
-       VALUES (?, ?, ?, ?, ?, ?, '없음', ?, 'active', 0, 0, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (id, name, email, password_hash, company, phone, plan, role, status, points, credits, created_at, last_active, marketing_consent, ai_consent, tos_consent, privacy_consent, consent_at, password_set)
+       VALUES (?, ?, ?, ?, ?, ?, '없음', ?, 'active', 0, 0, ?, ?, ?, ?, ?, ?, ?, 1)`,
     )
-    .bind(id, name, email, ph, company, phone, role, now, now, marketingConsent, aiConsent, now)
+    .bind(id, name, email, ph, company, phone, role, now, now, marketingConsent, aiConsent, tosConsent, privacyConsent, now)
     .run()
 
   await logActivity(db, id, 'signup', '회원 가입')
@@ -67,10 +70,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       await logActivity(db, referrer.id, 'referral', `추천 가입: ${name}`)
     }
   }
-  // 웰컴 보너스
+  // 웰컴 보너스 (가입 크레딧 지급은 제공하지 않음 — 포인트만)
   await applyBalance(db, id, 'point', 1000, '가입 축하 포인트')
-  await applyBalance(db, id, 'credit', 3, '가입 축하 체험 크레딧')
-  await addNotification(db, id, 'BYGENCY에 오신 것을 환영합니다 🎉', '체험 크레딧 3개와 포인트 1,000P를 지급했어요. 요금제를 선택하고 크레딧을 충전하면 모든 기능을 사용할 수 있습니다!')
+  await addNotification(db, id, 'BYGENCY에 오신 것을 환영합니다 🎉', '가입 축하 포인트 1,000P를 지급했어요. 친구를 초대하고 친구가 요금제에 가입하면 결제액의 1%를 크레딧으로 받을 수 있어요!')
 
   const geo = geoFrom(request)
   const token = await createSession(db, id, { ip: clientIp(request), ua: request.headers.get('User-Agent') || '', country: geo.country })

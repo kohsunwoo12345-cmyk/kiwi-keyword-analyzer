@@ -8,13 +8,10 @@ import { StatCard, Panel, Button } from '@/components/ui'
 import { Counter } from '@/components/motion'
 import { FEATURES } from '@/lib/features'
 import { accountOverview, useAuth, type Tx, type ActivityRow } from '@/lib/auth'
+import { kstDateTime } from '@/lib/time'
 
-function fmtDate(iso: string) {
-  const d = new Date(iso)
-  if (Number.isNaN(+d)) return '-'
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
-}
+// 한국시간(KST) 고정 표기
+const fmtDate = (iso: string) => kstDateTime(iso)
 
 export default function DashboardHome() {
   const { user } = useAuth()

@@ -25,7 +25,7 @@ import { Logo, LogoMark } from '@/components/Brand'
 import { Button } from '@/components/ui'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { Counter } from '@/components/motion'
-import { GoogleAuthButton, OrDivider } from '@/components/GoogleAuthButton'
+import { GoogleAuthConsent, OrDivider } from '@/components/GoogleAuthButton'
 import { signup } from '@/lib/auth'
 
 const inputBase =
@@ -248,9 +248,9 @@ export default function SignupPage() {
                 </div>
               )}
 
-              {/* 구글로 계속하기 */}
+              {/* 구글로 계속하기 (필수 동의 포함) */}
               <div className="mt-6 space-y-4">
-                <GoogleAuthButton label="구글로 계속하기 (Continue with Google)" refCode={refCode} />
+                <GoogleAuthConsent label="구글로 계속하기 (Continue with Google)" refCode={refCode} />
                 <OrDivider text="또는 이메일로 가입" />
               </div>
 

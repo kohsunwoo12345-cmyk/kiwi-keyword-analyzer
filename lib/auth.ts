@@ -18,7 +18,14 @@ export interface User {
   referralCode?: string
   referredBy?: string
   provider?: string // 'email' | 'google' | 'kakao'
+  passwordSet?: number // 1 = 비밀번호 직접 설정함(간편로그인 계정 구분용)
   creditMarkup?: number // 회원별 AI 과금 배수(원가=1). 0 = 모델 기본
+  // 동의 내역
+  tosConsent?: number
+  privacyConsent?: number
+  marketingConsent?: number
+  aiConsent?: number
+  consentAt?: string
   country?: string
   postalCode?: string
   address1?: string
@@ -292,7 +299,7 @@ export async function addFriend(code: string): Promise<{ ok: boolean; error?: st
 }
 
 /* ── 관리자: 가입/추천/결제 조회 ── */
-export interface ReferralRow { id: string; name: string; email: string; plan: string; videoPlan: string; paid: boolean; credits: number; referralCode: string; referredById: string; referredByName: string; friendCount: number; referredCount: number; company?: string; phone?: string; provider?: string; country?: string; postalCode?: string; address1?: string; address2?: string; addressDone?: boolean; createdAt: string }
+export interface ReferralRow { id: string; name: string; email: string; plan: string; videoPlan: string; paid: boolean; credits: number; referralCode: string; referredById: string; referredByName: string; friendCount: number; referredCount: number; company?: string; phone?: string; provider?: string; country?: string; postalCode?: string; address1?: string; address2?: string; addressDone?: boolean; createdAt: string; tosConsent?: number; privacyConsent?: number; marketingConsent?: number; aiConsent?: number; consentAt?: string }
 export interface AdminReferrals { ok: boolean; error?: string; totals?: { members: number; paid: number; unpaid: number; referred: number }; rows?: ReferralRow[] }
 export async function adminReferrals(q = ''): Promise<AdminReferrals> {
   try {
@@ -402,9 +409,14 @@ export async function accountOverview(): Promise<{
   }
 }
 
-/** 사용자 본인: 비밀번호 변경 */
-export async function changePassword(current: string, next: string): Promise<{ ok: boolean; error?: string }> {
+/** 사용자 본인: 비밀번호 변경(또는 간편로그인 계정 최초 설정) */
+export async function changePassword(current: string, next: string): Promise<{ ok: boolean; error?: string; firstTimeSet?: boolean }> {
   return postJson('/api/account/password', { current, next })
+}
+
+/** 사용자 본인: 계정 영구 삭제 (일반계정=비밀번호, 간편로그인=이메일 확인) */
+export async function deleteAccount(input: { password?: string; confirmEmail?: string }): Promise<{ ok: boolean; error?: string; needPassword?: boolean; needEmail?: boolean }> {
+  return postJson('/api/account/delete', input)
 }
 
 /** 사용자 본인: 알림 읽음 처리 */

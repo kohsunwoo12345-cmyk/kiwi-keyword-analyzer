@@ -14,7 +14,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const users = (await db
     .prepare(
       `SELECT id, name, email, company, phone, plan, video_plan, credits, referral_code, referred_by, provider,
-              country, postal_code, address1, address2, created_at
+              country, postal_code, address1, address2, created_at,
+              tos_consent, privacy_consent, marketing_consent, ai_consent, consent_at
        FROM users ORDER BY created_at DESC LIMIT 2000`,
     )
     .all()).results || []
@@ -56,6 +57,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       address2: u.address2 || '',
       addressDone: !!(u.country && u.postal_code && u.address1),
       createdAt: u.created_at,
+      // 동의 내역
+      tosConsent: Number(u.tos_consent) ? 1 : 0,
+      privacyConsent: Number(u.privacy_consent) ? 1 : 0,
+      marketingConsent: Number(u.marketing_consent) ? 1 : 0,
+      aiConsent: Number(u.ai_consent) ? 1 : 0,
+      consentAt: u.consent_at || '',
     }
   })
 

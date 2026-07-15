@@ -10,9 +10,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const ref = (url.searchParams.get('ref') || '').slice(0, 32)
   const redirectUri = env.GOOGLE_REDIRECT_URI || `${url.origin}/api/auth/google/callback`
 
-  // CSRF 방지용 state (+ 추천인 코드 동봉)
+  // 동의 플래그(필수: 이용약관·개인정보처리방침 / 선택: 마케팅) — 3자리 "tos privacy marketing"
+  const b1 = (k: string) => (url.searchParams.get(k) === '1' ? '1' : '0')
+  const consent = `${b1('tos')}${b1('privacy')}${b1('mkt')}`
+
+  // CSRF 방지용 state (+ 추천인 코드 + 동의 플래그 동봉)
   const state = crypto.randomUUID().replace(/-/g, '')
-  const statePayload = `${state}.${encodeURIComponent(ref)}`
+  const statePayload = `${state}.${encodeURIComponent(ref)}.${consent}`
 
   const auth = new URL('https://accounts.google.com/o/oauth2/v2/auth')
   auth.searchParams.set('client_id', clientId)

@@ -7,7 +7,7 @@ import { Mail, Lock, Eye, EyeOff, ArrowLeft, ArrowRight, AlertCircle } from 'luc
 import { Logo } from '@/components/Brand'
 import { Button } from '@/components/ui'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
-import { GoogleAuthButton, OrDivider } from '@/components/GoogleAuthButton'
+import { GoogleAuthConsent, OrDivider } from '@/components/GoogleAuthButton'
 import { login } from '@/lib/auth'
 
 const OAUTH_ERRORS: Record<string, string> = {
@@ -17,6 +17,7 @@ const OAUTH_ERRORS: Record<string, string> = {
   token: '구글 인증에 실패했습니다. 다시 시도해 주세요.',
   noemail: '구글 계정에서 이메일을 가져오지 못했습니다.',
   google: '구글 로그인 처리 중 오류가 발생했습니다. 다시 시도해 주세요.',
+  consent_required: '간편로그인도 필수 약관(이용약관·개인정보처리방침)에 동의해야 가입할 수 있습니다.',
   suspended: '정지된 계정입니다. 고객센터에 문의해 주세요.',
   server: '서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
 }
@@ -113,9 +114,9 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* 구글로 로그인 */}
+            {/* 구글로 로그인 (필수 동의 포함) */}
             <div className="mt-6 space-y-4">
-              <GoogleAuthButton label="구글로 로그인" />
+              <GoogleAuthConsent label="구글로 로그인 (Continue with Google)" />
               <OrDivider text="또는 이메일로 로그인" />
             </div>
 

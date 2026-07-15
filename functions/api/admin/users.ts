@@ -11,6 +11,7 @@ import {
   logActivity,
   applyBalance,
   addNotification,
+  rewardReferralFirstPaid,
 } from '../_utils'
 import { sendSms } from '../_solapi'
 
@@ -83,6 +84,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const label = track === 'video' ? 'AI 영상' : '마케터'
     await db.prepare(`UPDATE users SET ${col} = ? WHERE id = ?`).bind(plan, id).run()
     await logActivity(db, id, 'plan', `${label} 플랜 변경 → ${plan}`)
+    // 추천인 리워드: 피추천인이 유료 요금제에 처음 가입하면 추천인에게 결제액의 1% 크레딧 지급
+    if (plan !== '없음') await rewardReferralFirstPaid(db, id, track, plan)
   } else if (action === 'password') {
     const pw = String(body.password || '')
     if (pw.length < 8) return json({ ok: false, error: '비밀번호는 8자 이상이어야 합니다.' }, 400)

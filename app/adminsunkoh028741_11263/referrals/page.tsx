@@ -16,44 +16,16 @@ import { StatCard, Panel, Button } from '@/components/ui'
 import { Reveal } from '@/components/motion'
 import { adminReferrals, type AdminReferrals, type ReferralRow } from '@/lib/auth'
 import { cn } from '@/lib/utils'
+import { kstDate, kstLong, relKST } from '@/lib/time'
 
 const ACCENT = '#7c3aed'
 
 const num = (n: number) => (n || 0).toLocaleString('ko-KR')
 
-function fmtDate(iso: string) {
-  const d = new Date(iso)
-  if (Number.isNaN(+d)) return '-'
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
-}
-
-const DOW = ['일', '월', '화', '수', '목', '금', '토']
-
-/** 한국식 전체 날짜+시간: 2026년 7월 14일 (화) 17:30 */
-function fmtKST(iso: string) {
-  const d = new Date(iso)
-  if (Number.isNaN(+d)) return '-'
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DOW[d.getDay()]}) ${p(d.getHours())}:${p(d.getMinutes())}`
-}
-
-/** 상대 표기: 오늘 / 어제 / N일 전 / 이번 달 / 지난달 등 */
-function relKo(iso: string): { label: string; tone: 'today' | 'recent' | 'month' | 'old' } | null {
-  const d = new Date(iso)
-  if (Number.isNaN(+d)) return null
-  const now = new Date()
-  const sod = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
-  const days = Math.floor((sod(now) - sod(d)) / 86400000)
-  if (days <= 0) return { label: '오늘', tone: 'today' }
-  if (days === 1) return { label: '어제', tone: 'recent' }
-  if (days < 7) return { label: `${days}일 전`, tone: 'recent' }
-  const sameMonth = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
-  if (sameMonth) return { label: '이번 달', tone: 'month' }
-  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  if (d.getFullYear() === lastMonth.getFullYear() && d.getMonth() === lastMonth.getMonth()) return { label: '지난달', tone: 'old' }
-  return { label: `${Math.floor(days / 30)}개월 전`, tone: 'old' }
-}
+// 모든 시간 표기는 한국시간(KST) 고정
+const fmtDate = (iso: string) => kstDate(iso)
+const fmtKST = (iso: string) => kstLong(iso)
+const relKo = (iso: string) => relKST(iso)
 
 const REL_TONE: Record<string, string> = {
   today: 'bg-emerald-50 text-emerald-600',
@@ -91,6 +63,46 @@ function ProviderBadge({ p }: { p?: string }) {
     </span>
   )
 }
+
+/** 동의 내역 뱃지 (필수: 이용약관/개인정보 · 선택: 마케팅/AI) */
+function ConsentCell({ r }: { r: ReferralRow }) {
+  const item = (label: string, ok: boolean, required?: boolean) => (
+    <span
+      className={cn(
+        'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+        ok
+          ? required
+            ? 'bg-emerald-50 text-emerald-600'
+            : 'bg-sky-50 text-sky-600'
+          : 'bg-slate-100 text-slate-400',
+      )}
+      title={label + (ok ? ' 동의' : ' 미동의')}
+    >
+      {ok ? '✓' : '✕'} {label}
+    </span>
+  )
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap gap-1">
+        {item('약관', !!r.tosConsent, true)}
+        {item('개인정보', !!r.privacyConsent, true)}
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {item('마케팅', !!r.marketingConsent)}
+        {item('AI데이터', !!r.aiConsent)}
+      </div>
+      {r.consentAt && <span className="text-[10px] text-[var(--text-dim)]">{fmtKST(r.consentAt)}</span>}
+    </div>
+  )
+}
+
+const consentText = (r: ReferralRow) =>
+  [
+    `약관:${r.tosConsent ? 'Y' : 'N'}`,
+    `개인정보:${r.privacyConsent ? 'Y' : 'N'}`,
+    `마케팅:${r.marketingConsent ? 'Y' : 'N'}`,
+    `AI:${r.aiConsent ? 'Y' : 'N'}`,
+  ].join(' ')
 
 /** 결제된 플랜들을 사람이 읽을 수 있는 문자열로 조합 */
 function planText(r: ReferralRow) {
@@ -166,7 +178,7 @@ export default function AdminReferralsPage() {
     () => () => {
       downloadCsv(
         '가입추천조회.csv',
-        ['회원', '이메일', '가입 방식', '전화', '회사명', '국가', '우편번호', '사업장 주소', '상세 주소', '가입일시', '추천인 코드', '추천인', '친구', '추천한 수', '결제 상태', '결제 플랜', '크레딧'],
+        ['회원', '이메일', '가입 방식', '전화', '회사명', '국가', '우편번호', '사업장 주소', '상세 주소', '가입일시(KST)', '동의 내역', '동의일시(KST)', '추천인 코드', '추천인', '친구', '추천한 수', '결제 상태', '결제 플랜', '크레딧'],
         rows.map((r) => [
           r.name || '',
           r.email || '',
@@ -178,6 +190,8 @@ export default function AdminReferralsPage() {
           r.address1 || '',
           r.address2 || '',
           fmtKST(r.createdAt),
+          consentText(r),
+          r.consentAt ? fmtKST(r.consentAt) : '',
           r.referralCode || '-',
           r.referredByName || '직접가입',
           r.friendCount,
@@ -273,11 +287,12 @@ export default function AdminReferralsPage() {
               }
             >
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1360px] text-sm">
+                <table className="w-full min-w-[1560px] text-sm">
                   <thead>
                     <tr className={THEAD}>
                       <th className={TH}>회원</th>
                       <th className={TH}>가입 방식</th>
+                      <th className={TH}>동의 내역</th>
                       <th className={TH}>사업장 주소</th>
                       <th className={TH}>가입일시</th>
                       <th className={TH}>추천인 코드</th>
@@ -304,6 +319,9 @@ export default function AdminReferralsPage() {
                           </td>
                           <td className={cn(TD, 'align-top')}>
                             <ProviderBadge p={r.provider} />
+                          </td>
+                          <td className={cn(TD, 'align-top')}>
+                            <ConsentCell r={r} />
                           </td>
                           <td className={cn(TD, 'max-w-[260px] whitespace-normal align-top')}>
                             {r.addressDone ? (

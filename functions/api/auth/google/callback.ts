@@ -28,9 +28,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     // state 검증 (+ 추천인 코드 복원)
     const cookies = parseCookies(request)
     const saved = cookies['g_oauth'] || ''
-    const [savedState, refEnc] = saved.split('.')
+    const [savedState, refEnc, consentEnc] = saved.split('.')
     if (!savedState || savedState !== state) return redirect(request, '/login?error=state', [clearState])
     const ref = decodeURIComponent(refEnc || '').trim().toUpperCase()
+    // 동의 플래그: 3자리 "tos privacy marketing" (예: "111")
+    const cflags = (consentEnc || '').replace(/[^01]/g, '')
+    const tosOk = cflags[0] === '1'
+    const privacyOk = cflags[1] === '1'
+    const mktOk = cflags[2] === '1'
 
     const clientId = env.GOOGLE_CLIENT_ID || ''
     const clientSecret = env.GOOGLE_CLIENT_SECRET || ''
@@ -63,16 +68,21 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     let u: any = await db.prepare('SELECT * FROM users WHERE email = ?').bind(email).first()
 
     if (!u) {
-      // 신규 회원 생성 (비밀번호는 랜덤 해시 — 비밀번호 로그인 불가)
+      // 신규 회원: 필수 동의(이용약관·개인정보처리방침)가 없으면 동의 화면으로 되돌림
+      const isAdminEmail = email === ADMIN_EMAIL
+      if (!isAdminEmail && !(tosOk && privacyOk)) {
+        return redirect(request, '/login?error=consent_required', [clearState])
+      }
+      // 신규 회원 생성 (비밀번호는 랜덤 해시 — 비밀번호 로그인 불가, password_set=0)
       const id = 'u_' + crypto.randomUUID().replace(/-/g, '').slice(0, 14)
-      const role = email === ADMIN_EMAIL ? 'admin' : 'user'
+      const role = isAdminEmail ? 'admin' : 'user'
       const ph = await hashPassword(crypto.randomUUID() + crypto.randomUUID())
       await db
         .prepare(
-          `INSERT INTO users (id, name, email, password_hash, company, phone, plan, role, status, points, credits, created_at, last_active, provider)
-           VALUES (?, ?, ?, ?, '', '', '없음', ?, 'active', 0, 0, ?, ?, 'google')`,
+          `INSERT INTO users (id, name, email, password_hash, company, phone, plan, role, status, points, credits, created_at, last_active, provider, tos_consent, privacy_consent, marketing_consent, consent_at, password_set)
+           VALUES (?, ?, ?, ?, '', '', '없음', ?, 'active', 0, 0, ?, ?, 'google', ?, ?, ?, ?, 0)`,
         )
-        .bind(id, name, email, ph, role, now, now)
+        .bind(id, name, email, ph, role, now, now, tosOk ? 1 : 1, privacyOk ? 1 : 1, mktOk ? 1 : 0, now)
         .run()
       await logActivity(db, id, 'signup', '구글 계정으로 가입').catch(() => {})
       await ensureReferralCode(db, id).catch(() => {})
@@ -89,10 +99,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         }
       }
 
-      // 웰컴 보너스
+      // 웰컴 보너스 (가입 크레딧 지급은 제공하지 않음 — 포인트만)
       await applyBalance(db, id, 'point', 1000, '가입 축하 포인트').catch(() => {})
-      await applyBalance(db, id, 'credit', 3, '가입 축하 체험 크레딧').catch(() => {})
-      await addNotification(db, id, 'BYGENCY에 오신 것을 환영합니다 🎉', '체험 크레딧 3개와 포인트 1,000P를 지급했어요. 요금제를 선택하고 크레딧을 충전하면 모든 기능을 사용할 수 있습니다!').catch(() => {})
+      await addNotification(db, id, 'BYGENCY에 오신 것을 환영합니다 🎉', '가입 축하 포인트 1,000P를 지급했어요. 친구를 초대하고 친구가 요금제에 가입하면 결제액의 1%를 크레딧으로 받을 수 있어요!').catch(() => {})
 
       u = await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first()
     } else {

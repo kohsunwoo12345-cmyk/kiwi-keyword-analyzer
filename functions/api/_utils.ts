@@ -385,6 +385,17 @@ export async function ensureSchema(db: D1Database) {
       UNIQUE(user_id, friend_id)
     )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_friend_user ON friendships(user_id)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS referral_rewards (
+      id TEXT PRIMARY KEY,
+      referrer_id TEXT NOT NULL,      -- 추천인(보상 수령)
+      friend_id TEXT NOT NULL UNIQUE, -- 피추천인(가입한 친구) — 1인 1회만
+      track TEXT,                     -- marketer | video
+      plan TEXT,                      -- Plus | Pro | Max
+      price_krw INTEGER,              -- 결제 요금제 가격
+      reward_credits REAL,            -- 지급된 크레딧(결제액의 1% 가치)
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_reward_referrer ON referral_rewards(referrer_id)`),
   ])
   // 기존 테이블에 신규 컬럼 보강 (누락된 것만 추가)
   await addMissingColumns(db, 'users', {
@@ -396,7 +407,10 @@ export async function ensureSchema(db: D1Database) {
     referred_by: 'referred_by TEXT',
     marketing_consent: 'marketing_consent INTEGER DEFAULT 0',
     ai_consent: 'ai_consent INTEGER DEFAULT 0',
+    tos_consent: 'tos_consent INTEGER DEFAULT 0',       // 서비스 이용약관 동의(필수)
+    privacy_consent: 'privacy_consent INTEGER DEFAULT 0', // 개인정보처리방침 동의(필수)
     consent_at: 'consent_at TEXT',
+    password_set: 'password_set INTEGER DEFAULT 0',     // 비밀번호 직접 설정 여부(간편로그인 구분용)
     country: 'country TEXT',
     postal_code: 'postal_code TEXT',
     address1: 'address1 TEXT',
@@ -503,6 +517,54 @@ export async function addNotification(db: D1Database, userId: string, title: str
     .prepare(`INSERT INTO notifications (id, user_id, title, body, read, created_at) VALUES (?, ?, ?, ?, 0, ?)`)
     .bind('n_' + crypto.randomUUID().slice(0, 16), userId, title, body, new Date().toISOString())
     .run()
+}
+
+/* ───────── 추천 리워드 ───────── */
+// 크레딧 1개 = 50원 (studio/_pricing.ts CREDIT_KRW 와 동일)
+export const CREDIT_KRW = 50
+// 요금제 가격(월, 원) — 마케터/영상 트랙
+export const PLAN_PRICE_KRW: Record<string, Record<string, number>> = {
+  marketer: { Plus: 29000, Pro: 89000, Max: 249000 },
+  video: { Plus: 49000, Pro: 149000, Max: 390000 },
+}
+export function planPriceKrw(track: string, plan: string): number {
+  return PLAN_PRICE_KRW[track === 'video' ? 'video' : 'marketer']?.[plan] || 0
+}
+
+/**
+ * 피추천인(친구)이 유료 요금제에 처음 가입했을 때 추천인에게 결제액의 1%를 크레딧으로 지급.
+ * referral_rewards 테이블의 friend_id UNIQUE 로 1인 1회만 지급.
+ */
+export async function rewardReferralFirstPaid(db: D1Database, friendId: string, track: string, plan: string): Promise<void> {
+  try {
+    if (!plan || plan === '없음') return
+    const friend: any = await db.prepare('SELECT id, name, referred_by FROM users WHERE id = ?').bind(friendId).first()
+    if (!friend || !friend.referred_by) return
+    // 이미 이 친구에 대해 지급된 적이 있으면 종료(첫 가입 1회만)
+    const existing = await db.prepare('SELECT id FROM referral_rewards WHERE friend_id = ?').bind(friendId).first()
+    if (existing) return
+    const price = planPriceKrw(track, plan)
+    if (!price) return
+    const rewardCredits = Math.round((price * 0.01 / CREDIT_KRW) * 100) / 100 // 결제액의 1% 가치를 크레딧으로
+    if (rewardCredits <= 0) return
+    // 지급 기록 선점(경합 시 중복 방지) — UNIQUE 위반이면 이미 지급된 것
+    const insert = await db
+      .prepare(`INSERT OR IGNORE INTO referral_rewards (id, referrer_id, friend_id, track, plan, price_krw, reward_credits, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind('rr_' + crypto.randomUUID().slice(0, 14), friend.referred_by, friendId, track === 'video' ? 'video' : 'marketer', plan, price, rewardCredits, new Date().toISOString())
+      .run()
+    if (!insert.meta || insert.meta.changes === 0) return // 이미 존재 → 중복 지급 방지
+    const trackLabel = track === 'video' ? 'AI 영상' : '마케터'
+    await applyBalance(db, friend.referred_by, 'credit', rewardCredits, `추천 리워드 · ${friend.name || '친구'}님 ${trackLabel} ${plan} 가입 (결제액의 1%)`)
+    await addNotification(
+      db,
+      friend.referred_by,
+      '추천 리워드 크레딧 지급 🎉',
+      `추천하신 ${friend.name || '친구'}님이 ${trackLabel} ${plan} 요금제에 가입하여 결제액의 1%인 ${rewardCredits} 크레딧을 지급했어요. 감사합니다!`,
+    ).catch(() => {})
+    await logActivity(db, friend.referred_by, 'referral', `추천 리워드 +${rewardCredits} 크레딧 (${friend.name || '친구'} ${plan})`).catch(() => {})
+  } catch {
+    /* 리워드 실패는 본 흐름을 막지 않음 */
+  }
 }
 
 /* ───────── 보안 ───────── */
@@ -736,6 +798,13 @@ export function publicUser(u: any) {
     referralCode: u.referral_code || '',
     referredBy: u.referred_by || '',
     provider: u.provider || 'email',
+    passwordSet: Number(u.password_set) ? 1 : 0,
+    // 동의 내역 (가입 시 수집)
+    tosConsent: Number(u.tos_consent) ? 1 : 0,
+    privacyConsent: Number(u.privacy_consent) ? 1 : 0,
+    marketingConsent: Number(u.marketing_consent) ? 1 : 0,
+    aiConsent: Number(u.ai_consent) ? 1 : 0,
+    consentAt: u.consent_at || '',
     country: u.country || '',
     postalCode: u.postal_code || '',
     address1: u.address1 || '',

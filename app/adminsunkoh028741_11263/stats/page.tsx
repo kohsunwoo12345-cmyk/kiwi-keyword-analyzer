@@ -27,6 +27,7 @@ import { Reveal, Counter } from '@/components/motion'
 import { adminVisitStats, type VisitStats } from '@/lib/auth'
 import { countryKo, locationKo } from '@/lib/geo-ko'
 import { cn } from '@/lib/utils'
+import { kstDateTime } from '@/lib/time'
 
 const ADMIN_BASE = '/adminsunkoh028741_11263'
 
@@ -42,12 +43,8 @@ function deviceMeta(name: string) {
 }
 
 /* ───────── helpers ───────── */
-function fmtDateTime(iso: string) {
-  const d = new Date(iso)
-  if (Number.isNaN(+d)) return '-'
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
-}
+// 접속/기록 시간은 모두 한국시간(KST) 고정 표기
+const fmtDateTime = (iso: string) => kstDateTime(iso)
 /** 'YYYY-MM-DD' → 'M/D' */
 function shortDay(d: string) {
   const parts = d.split('-')

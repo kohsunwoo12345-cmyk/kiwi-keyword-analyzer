@@ -67,6 +67,44 @@ button .ico{ margin-right:5px; }
 .user-chip #uLogout{ margin-left:2px; color:#8a8f9c; display:inline-flex; }
 .user-chip #uLogout .ico{ color:#8a8f9c; }
 .user-chip #uLogout:hover .ico{ color:#ff9b9b; }
+.user-chip #uProfile{ display:inline-flex; cursor:pointer; }
+.user-chip #uProfile .ico{ color:#8a8f9c; width:14px; height:14px; }
+.user-chip #uProfile:hover .ico{ color:#8fa0ff; }
+.user-chip b{ cursor:pointer; }
+/* ── 프로필 모달 ── */
+.pf-back{ position:fixed; inset:0; z-index:9000; display:none; align-items:center; justify-content:center; padding:16px;
+  background:rgba(8,10,16,.62); backdrop-filter:blur(4px); }
+.pf-back.on{ display:flex; }
+.pf-modal{ width:100%; max-width:440px; max-height:88vh; overflow:auto; border-radius:16px; background:#14161d; border:1px solid #2c2f3a;
+  box-shadow:0 30px 80px -20px rgba(0,0,0,.8); color:#dfe3ec; font-size:13px; }
+.pf-head{ padding:16px 18px; border-bottom:1px solid #23262f; display:flex; align-items:center; justify-content:space-between; }
+.pf-head h3{ margin:0; font-size:15px; font-weight:800; color:#f0f2f7; }
+.pf-x{ cursor:pointer; color:#8a8f9c; font-size:18px; line-height:1; padding:2px 6px; border-radius:6px; }
+.pf-x:hover{ color:#ff9b9b; background:#20232c; }
+.pf-body{ padding:16px 18px; }
+.pf-row{ display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid #1e2029; }
+.pf-row:last-child{ border-bottom:0; }
+.pf-row .k{ color:#8a8f9c; }
+.pf-row .v{ color:#e8eaf0; font-weight:600; text-align:right; word-break:break-all; }
+.pf-sec{ margin-top:14px; padding-top:12px; border-top:1px solid #23262f; }
+.pf-sec h4{ margin:0 0 8px; font-size:12px; font-weight:700; color:#aeb4c2; }
+.pf-inp{ width:100%; box-sizing:border-box; margin-bottom:8px; padding:9px 11px; border-radius:9px; background:#0f1117;
+  border:1px solid #2c2f3a; color:#e8eaf0; font-size:13px; outline:none; }
+.pf-inp:focus{ border-color:#5b6cff; }
+.pf-btn{ width:100%; padding:9px 12px; border-radius:9px; border:0; font-size:13px; font-weight:700; cursor:pointer;
+  background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; }
+.pf-btn:disabled{ opacity:.55; cursor:default; }
+.pf-msg{ margin-top:6px; font-size:12px; }
+.pf-msg.ok{ color:#5fd39a; } .pf-msg.err{ color:#ff9b9b; }
+.pf-del-toggle{ margin-top:16px; text-align:center; }
+.pf-del-toggle a{ font-size:11px; color:#5a5f6b; text-decoration:underline dotted; cursor:pointer; }
+.pf-del-toggle a:hover{ color:#ff9b9b; }
+.pf-del{ margin-top:12px; padding:12px; border-radius:11px; border:1px solid #4a2530; background:rgba(120,30,45,.14); }
+.pf-del h4{ margin:0 0 4px; font-size:12.5px; font-weight:800; color:#ff9b9b; }
+.pf-del p{ margin:0 0 9px; font-size:11.5px; color:#a9adb8; line-height:1.5; }
+.pf-del .pf-btn{ background:#c0293f; }
+.pf-logout{ margin-top:12px; width:100%; padding:9px 12px; border-radius:9px; border:1px solid #2c2f3a; background:#191b22; color:#cfd3dc; font-size:13px; font-weight:600; cursor:pointer; }
+.pf-logout:hover{ border-color:#3a3f4c; color:#e8eaf0; }
 /* 비용 모달 아이콘 */
 .cbi{ display:inline-flex; align-items:center; }
 .cbi .ico{ width:15px; height:15px; color:#9aa0b5; }
@@ -793,6 +831,43 @@ textarea.wtext.code::placeholder{ color:#5a5c66; }
   </div>
 </div>
 <div class="qbar" id="qbar"><i id="qfill"></i></div>
+
+<!-- 프로필 모달 -->
+<div class="pf-back" id="pfBack">
+  <div class="pf-modal" role="dialog" aria-modal="true">
+    <div class="pf-head">
+      <h3>내 계정</h3>
+      <span class="pf-x" id="pfClose" title="닫기">×</span>
+    </div>
+    <div class="pf-body">
+      <div class="pf-row"><span class="k">이름</span><span class="v" id="pfName">-</span></div>
+      <div class="pf-row"><span class="k">이메일</span><span class="v" id="pfEmail">-</span></div>
+      <div class="pf-row"><span class="k">로그인 방식</span><span class="v" id="pfProvider">-</span></div>
+      <div class="pf-row"><span class="k">영상 플랜</span><span class="v" id="pfPlan">-</span></div>
+      <div class="pf-row"><span class="k">보유 크레딧</span><span class="v" id="pfCredits">-</span></div>
+
+      <div class="pf-sec">
+        <h4 id="pfPwTitle">비밀번호 변경</h4>
+        <input class="pf-inp" type="password" id="pfCur" placeholder="현재 비밀번호" autocomplete="current-password">
+        <input class="pf-inp" type="password" id="pfNext" placeholder="새 비밀번호 (8자 이상)" autocomplete="new-password">
+        <button class="pf-btn" id="pfPwBtn">변경</button>
+        <div class="pf-msg" id="pfPwMsg"></div>
+      </div>
+
+      <button class="pf-logout" id="pfLogout">로그아웃</button>
+
+      <div class="pf-del-toggle"><a id="pfDelToggle">계정 삭제</a></div>
+      <div class="pf-del" id="pfDelBox" style="display:none">
+        <h4>계정 삭제</h4>
+        <p id="pfDelDesc">계정을 삭제하면 모든 데이터가 영구히 삭제되며 되돌릴 수 없습니다. 확인을 위해 비밀번호를 입력해 주세요.</p>
+        <input class="pf-inp" type="password" id="pfDelPw" placeholder="비밀번호 입력" autocomplete="current-password">
+        <input class="pf-inp" type="email" id="pfDelEmail" placeholder="계정 이메일 입력" autocomplete="off" style="display:none">
+        <button class="pf-btn" id="pfDelBtn">영구 삭제</button>
+        <div class="pf-msg" id="pfDelMsg"></div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div id="canvas">
   <div id="world">
@@ -3597,13 +3672,85 @@ function boot(){
 function paintUserChip(u){
   var el=document.getElementById('userChip'); if(!el)return;
   var nm=(u&&(u.name||u.email))||'게스트';
-  el.innerHTML='<span class="uci">'+ICON.user+'</span><b>'+esc(nm)+'</b>'+
+  el.innerHTML='<span class="uci">'+ICON.user+'</span><b id="uName" title="내 계정 열기">'+esc(nm)+'</b>'+
+    '<a href="#" id="uProfile" title="내 계정"><span class="uci">'+ICON.gear+'</span></a>'+
     '<a href="#" id="uLogout" title="로그아웃"><span class="uci">'+ICON.logout+'</span></a>';
   el.classList.add('on');
   var lo=document.getElementById('uLogout');
-  if(lo)lo.addEventListener('click',function(e){ e.preventDefault();
-    fetch('/api/logout',{method:'POST'}).catch(function(){}).then(function(){ void 0; }); });
+  if(lo)lo.addEventListener('click',function(e){ e.preventDefault(); doStudioLogout(); });
+  var op=function(e){ if(e)e.preventDefault(); openProfile(); };
+  var pf=document.getElementById('uProfile'); if(pf)pf.addEventListener('click',op);
+  var un=document.getElementById('uName'); if(un)un.addEventListener('click',op);
 }
+function doStudioLogout(){
+  fetch('/api/logout',{method:'POST',credentials:'include'}).catch(function(){}).then(function(){ location.href='/login'; });
+}
+/* ── 프로필 모달 ── */
+var PF_ME=null;
+function pfEl(id){ return document.getElementById(id); }
+function openProfile(){
+  var back=pfEl('pfBack'); if(!back)return;
+  back.classList.add('on');
+  pfEl('pfPwMsg').textContent=''; pfEl('pfDelMsg').textContent='';
+  fetch('/api/account/overview',{credentials:'include',cache:'no-store'})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d||!d.ok||!d.user){ pfEl('pfName').textContent='로그인이 필요합니다'; return; }
+      var u=d.user; PF_ME=u;
+      var prov=(u.provider==='google')?'구글':(u.provider==='kakao')?'카카오':'일반(이메일)';
+      var social=u.provider&&u.provider!=='email'&&!u.passwordSet;
+      pfEl('pfName').textContent=u.name||'-';
+      pfEl('pfEmail').textContent=u.email||'-';
+      pfEl('pfProvider').textContent=prov;
+      pfEl('pfPlan').textContent=(u.videoPlan&&u.videoPlan!=='없음')?u.videoPlan:'미가입';
+      pfEl('pfCredits').textContent=(Number(u.credits)||0).toLocaleString('ko-KR')+' 개';
+      // 간편로그인(비번 없음) → 비밀번호 최초 설정 / 계정삭제는 이메일 확인
+      pfEl('pfPwTitle').textContent=social?'비밀번호 설정':'비밀번호 변경';
+      pfEl('pfCur').style.display=social?'none':'';
+      pfEl('pfPwBtn').textContent=social?'비밀번호 설정':'변경';
+      pfEl('pfDelPw').style.display=social?'none':'';
+      pfEl('pfDelEmail').style.display=social?'':'none';
+      pfEl('pfDelDesc').textContent='계정을 삭제하면 모든 데이터가 영구히 삭제되며 되돌릴 수 없습니다. 확인을 위해 '+(social?'계정 이메일 주소를':'비밀번호를')+' 입력해 주세요.';
+    })
+    .catch(function(){ pfEl('pfName').textContent='불러오기 실패'; });
+}
+function closeProfile(){ var b=pfEl('pfBack'); if(b)b.classList.remove('on'); }
+function wireProfile(){
+  var x=pfEl('pfClose'); if(x)x.addEventListener('click',closeProfile);
+  var back=pfEl('pfBack'); if(back)back.addEventListener('click',function(e){ if(e.target===back)closeProfile(); });
+  var lo=pfEl('pfLogout'); if(lo)lo.addEventListener('click',doStudioLogout);
+  var dt=pfEl('pfDelToggle'); if(dt)dt.addEventListener('click',function(){ var box=pfEl('pfDelBox'); if(box)box.style.display=(box.style.display==='none'?'':'none'); });
+  var pwb=pfEl('pfPwBtn'); if(pwb)pwb.addEventListener('click',function(){
+    var social=PF_ME&&PF_ME.provider&&PF_ME.provider!=='email'&&!PF_ME.passwordSet;
+    var cur=pfEl('pfCur').value, nx=pfEl('pfNext').value, msg=pfEl('pfPwMsg');
+    msg.className='pf-msg'; msg.textContent='';
+    if(nx.length<8){ msg.className='pf-msg err'; msg.textContent='새 비밀번호는 8자 이상이어야 합니다.'; return; }
+    if(!social && !cur){ msg.className='pf-msg err'; msg.textContent='현재 비밀번호를 입력해 주세요.'; return; }
+    pwb.disabled=true;
+    fetch('/api/account/password',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({current:cur,next:nx})})
+      .then(function(r){ return r.json(); })
+      .then(function(d){ pwb.disabled=false;
+        if(d&&d.ok){ msg.className='pf-msg ok'; msg.textContent=d.firstTimeSet?'비밀번호가 설정되었습니다.':'비밀번호가 변경되었습니다.'; pfEl('pfCur').value=''; pfEl('pfNext').value=''; PF_ME&&(PF_ME.passwordSet=1); }
+        else { msg.className='pf-msg err'; msg.textContent=(d&&d.error)||'변경에 실패했습니다.'; } })
+      .catch(function(){ pwb.disabled=false; msg.className='pf-msg err'; msg.textContent='네트워크 오류'; });
+  });
+  var db=pfEl('pfDelBtn'); if(db)db.addEventListener('click',function(){
+    var social=PF_ME&&PF_ME.provider&&PF_ME.provider!=='email'&&!PF_ME.passwordSet;
+    var msg=pfEl('pfDelMsg'); msg.className='pf-msg'; msg.textContent='';
+    var payload={};
+    if(social){ var em=pfEl('pfDelEmail').value.trim(); if(!em){ msg.className='pf-msg err'; msg.textContent='계정 이메일을 입력해 주세요.'; return; } payload.confirmEmail=em; }
+    else { var pw=pfEl('pfDelPw').value; if(!pw){ msg.className='pf-msg err'; msg.textContent='비밀번호를 입력해 주세요.'; return; } payload.password=pw; }
+    if(!window.confirm('정말로 계정을 삭제하시겠어요? 이 작업은 되돌릴 수 없습니다.'))return;
+    db.disabled=true;
+    fetch('/api/account/delete',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+      .then(function(r){ return r.json(); })
+      .then(function(d){ db.disabled=false;
+        if(d&&d.ok){ location.href='/'; }
+        else { msg.className='pf-msg err'; msg.textContent=(d&&d.error)||'삭제에 실패했습니다.'; } })
+      .catch(function(){ db.disabled=false; msg.className='pf-msg err'; msg.textContent='네트워크 오류'; });
+  });
+}
+wireProfile();
 function loadAllForUser(){ loadApiConfig(); loadCostLog(); updateCostChip(); updateLibChip(); boot(); }
 (function resolveUser(){
   fetch('/api/me',{cache:'no-store'}).then(function(r){ return r.status===401?{__noauth:true}:r.json(); })
