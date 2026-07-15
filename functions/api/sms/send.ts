@@ -17,6 +17,26 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (recipients.length === 0) return json({ ok: false, error: '올바른 수신 번호를 입력하세요.' }, 400)
   if (recipients.length > 1000) return json({ ok: false, error: '한 번에 최대 1,000명까지 발송할 수 있습니다.' }, 400)
 
+  // 발신번호(sender) 결정: 요청에 지정된 승인 발신번호 우선 → 본인 승인 발신번호 → 환경변수 폴백
+  //   (발신번호는 앱의 발신번호 등록·승인 시스템에서 가져와 API로 전달한다)
+  let from = ''
+  const reqSenderId = String(body.senderId || '')
+  const reqSender = String(body.sender || body.from || '').replace(/[^0-9]/g, '')
+  if (reqSenderId) {
+    const r: any = await db.prepare("SELECT phone FROM sender_numbers WHERE id = ? AND user_id = ? AND status = 'approved'").bind(reqSenderId, me.id).first()
+    if (r?.phone) from = String(r.phone).replace(/[^0-9]/g, '')
+  }
+  if (!from && reqSender) {
+    const r: any = await db.prepare("SELECT phone FROM sender_numbers WHERE user_id = ? AND status = 'approved' AND REPLACE(REPLACE(phone,'-',''),' ','') = ?").bind(me.id, reqSender).first()
+    if (r?.phone) from = reqSender
+  }
+  if (!from) {
+    const r: any = await db.prepare("SELECT phone FROM sender_numbers WHERE user_id = ? AND status = 'approved' ORDER BY created_at DESC LIMIT 1").bind(me.id).first()
+    if (r?.phone) from = String(r.phone).replace(/[^0-9]/g, '')
+  }
+  if (!from) from = String((env as any)?.ALIGO_SENDER || '').replace(/[^0-9]/g, '')
+  if (!from) return json({ ok: false, error: '발신번호가 없습니다. 발신번호를 먼저 등록하고 관리자 승인을 받아주세요.' }, 400)
+
   // 건당 1 크레딧 차감 (전체 먼저 선차감)
   const cost = recipients.length
   const spend = await spendCredits(db, me.id, cost, '문자 발송', `SMS ${recipients.length}건`)
@@ -26,7 +46,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   let sent = 0
   const fails: { to: string; reason?: string }[] = []
   for (const to of recipients) {
-    const r = await sendSms(env, to, text)
+    const r = await sendSms(env, to, text, { from })
     if (r.sent) sent++
     else fails.push({ to, reason: r.reason })
   }

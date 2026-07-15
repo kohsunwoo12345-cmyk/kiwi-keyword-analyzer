@@ -23,10 +23,19 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
   const spend = await spendCredits(db, me.id, cost, '알림톡 발송', `${recipients.length}건`)
   if (!spend.ok) return json({ ok: false, error: spend.error }, 402)
 
+  // 발신번호: 요청 지정 → 본인 승인 발신번호 → 환경변수 폴백 (등록된 번호를 API로 전달)
+  let from = String(body.sender || body.from || '').replace(/[^0-9]/g, '')
+  if (!from) {
+    const sr: any = await db.prepare("SELECT phone FROM sender_numbers WHERE user_id = ? AND status = 'approved' ORDER BY created_at DESC LIMIT 1").bind(me.id).first()
+    if (sr?.phone) from = String(sr.phone).replace(/[^0-9]/g, '')
+  }
+  if (!from) from = String(env?.ALIGO_SENDER || '').replace(/[^0-9]/g, '')
+
   // 알리고는 다건을 한 번에 전송(receiver_1..N). 동일 문구 → 전 수신자.
   const r = await aligoAlimtalk(env, {
     tplCode: templateId,
     senderKey,
+    from,
     failover: body.failover !== false, // 기본 실패 시 SMS 대체발송
     items: recipients.map((to: string) => ({ to, message: text, subject: String(body.subject || 'BYGENCY') })),
   })

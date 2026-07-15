@@ -62,24 +62,29 @@ async function aligoCall(env: any, target: string, params: Record<string, any>):
   }
 }
 
+// 계정 자격증명만 확인(발신번호는 발송 시 등록된 번호를 넘김)
 export function aligoConfigured(env: any): boolean {
-  return !!(env?.ALIGO_API_KEY && env?.ALIGO_USER_ID && String(env?.ALIGO_SENDER || '').trim())
+  return !!(env?.ALIGO_API_KEY && env?.ALIGO_USER_ID)
 }
 export function aligoAlimtalkConfigured(env: any): boolean {
   return !!(env?.ALIGO_API_KEY && env?.ALIGO_USER_ID && String(env?.ALIGO_SENDER_KEY || '').trim())
 }
 
-/** SMS/LMS 발송 (동일 내용 → 여러 수신자 가능). 성공 여부 반환. */
+/**
+ * SMS/LMS 발송 (동일 내용 → 여러 수신자 가능). 성공 여부 반환.
+ * from(발신번호)는 앱에 등록·승인된 발신번호를 넘겨받는다. 미지정 시 ALIGO_SENDER(선택) 폴백.
+ */
 export async function sendSms(
   env: any,
   to: string | string[],
   text: string,
-  opts: { title?: string; msgType?: 'SMS' | 'LMS' | 'MMS' } = {},
+  opts: { from?: string; title?: string; msgType?: 'SMS' | 'LMS' | 'MMS' } = {},
 ): Promise<{ sent: boolean; reason?: string; status?: number; successCnt?: number; errorCnt?: number }> {
   const key = String(env?.ALIGO_API_KEY || '').trim()
   const userId = String(env?.ALIGO_USER_ID || '').trim()
-  const sender = onlyDigits(env?.ALIGO_SENDER)
-  if (!key || !userId || !sender) return { sent: false, reason: '알리고 환경변수(ALIGO_API_KEY/USER_ID/SENDER) 미설정' }
+  const sender = onlyDigits(opts.from || env?.ALIGO_SENDER)
+  if (!key || !userId) return { sent: false, reason: '알리고 계정(ALIGO_API_KEY/ALIGO_USER_ID) 미설정' }
+  if (!sender) return { sent: false, reason: '발신번호가 없습니다. 발신번호를 등록·승인 받아 선택해 주세요.' }
 
   const recipients = (Array.isArray(to) ? to : [to]).map(onlyDigits).filter((t) => t.length >= 10)
   if (recipients.length === 0) return { sent: false, reason: '수신 전화번호 없음' }
@@ -122,14 +127,16 @@ export async function aligoAlimtalk(
     tplCode: string
     items: { to: string; message: string; subject?: string; button?: any }[]
     senderKey?: string
+    from?: string
     failover?: boolean
   },
 ): Promise<{ ok: boolean; sent?: number; error?: string; data?: any }> {
   const key = String(env?.ALIGO_API_KEY || '').trim()
   const userId = String(env?.ALIGO_USER_ID || '').trim()
-  const sender = onlyDigits(env?.ALIGO_SENDER)
+  const sender = onlyDigits(o.from || env?.ALIGO_SENDER)
   const senderKey = String(o.senderKey || env?.ALIGO_SENDER_KEY || '').trim()
-  if (!key || !userId || !sender) return { ok: false, error: '알리고 환경변수(ALIGO_API_KEY/USER_ID/SENDER) 미설정' }
+  if (!key || !userId) return { ok: false, error: '알리고 계정(ALIGO_API_KEY/ALIGO_USER_ID) 미설정' }
+  if (!sender) return { ok: false, error: '발신번호가 없습니다. 발신번호를 등록·승인 받아 선택해 주세요.' }
   if (!senderKey) return { ok: false, error: '알림톡 발신프로필 키(ALIGO_SENDER_KEY)가 필요합니다.' }
   if (!o.tplCode) return { ok: false, error: '알림톡 템플릿 코드(tpl_code)가 필요합니다.' }
 

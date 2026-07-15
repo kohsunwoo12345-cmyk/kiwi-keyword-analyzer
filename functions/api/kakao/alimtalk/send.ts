@@ -49,6 +49,20 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
       return json({ ok: false, error: '포인트 차감 중 오류가 발생했습니다.' })
     }
 
+    // 발신번호: 선택 채널의 발신번호 → 본인 승인 발신번호 → 환경변수 폴백
+    let fromPhone = ''
+    try {
+      const chRow: any = await db.prepare(`SELECT phone_number FROM kakao_channels WHERE channel_id = ? LIMIT 1`).bind(senderKey).first()
+      if (chRow?.phone_number) fromPhone = String(chRow.phone_number).replace(/[^0-9]/g, '')
+    } catch (_) {}
+    if (!fromPhone) {
+      try {
+        const sr: any = await db.prepare("SELECT phone FROM sender_numbers WHERE user_id = ? AND status = 'approved' ORDER BY created_at DESC LIMIT 1").bind(userId).first()
+        if (sr?.phone) fromPhone = String(sr.phone).replace(/[^0-9]/g, '')
+      } catch (_) {}
+    }
+    if (!fromPhone) fromPhone = String((env as any)?.ALIGO_SENDER || '').replace(/[^0-9]/g, '')
+
     // 각 수신자의 최종 문구 구성: message 우선, 없으면 템플릿(content) + 변수 치환
     const items = recipients.map((r: any) => {
       const vars = r.variables || {}
@@ -60,6 +74,7 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
     const sendRes = await aligoAlimtalk(env, {
       tplCode: templateCode,
       senderKey,
+      from: fromPhone,
       failover: true,
       items,
     })
