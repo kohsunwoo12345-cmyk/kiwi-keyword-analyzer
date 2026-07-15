@@ -45,8 +45,8 @@ function cannedReply(text: string): string {
   // 도입 · 상담 · 견적 · 엔터프라이즈
   if (has(/도입|상담|영업|견적|대량|엔터프라이즈|계약|제휴|sales|enterprise|quote|demo/)) {
     return ko
-      ? '도입·대량 사용·제휴 상담은 ceo@bygency.co 또는 bygency.co/contact 로 남겨주시면 담당자가 빠르게 안내드리겠습니다.'
-      : 'For enterprise, bulk usage, or partnership inquiries, reach us at ceo@bygency.co or bygency.co/contact and our team will follow up quickly.'
+      ? '도입·대량 사용·제휴 상담은 cs@bygency.co 또는 bygency.co/contact 로 남겨주시면 담당자가 빠르게 안내드리겠습니다.'
+      : 'For enterprise, bulk usage, or partnership inquiries, reach us at cs@bygency.co or bygency.co/contact and our team will follow up quickly.'
   }
   // 기능 문의
   if (has(/기능|무엇|뭐.?(하|할|가능)|할 수 있|어떤|사용법|feature|what can|how to/)) {
