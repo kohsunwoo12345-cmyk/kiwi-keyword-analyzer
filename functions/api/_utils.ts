@@ -13,6 +13,7 @@ export interface Env {
   GOOGLE_REDIRECT_URI?: string
   // 알리고(Aligo) 문자·알림톡
   ALIGO_API_KEY?: string
+  ALIGO_ID_KEY?: string
   ALIGO_USER_ID?: string
   ALIGO_SENDER?: string
   ALIGO_SENDER_KEY?: string

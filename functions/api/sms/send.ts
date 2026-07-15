@@ -42,7 +42,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const spend = await spendCredits(db, me.id, cost, '문자 발송', `SMS ${recipients.length}건`)
   if (!spend.ok) return json({ ok: false, error: spend.error, balance: (spend as any).balance }, 402)
 
-  // Solapi 발송
+  // 알리고 발송
   let sent = 0
   const fails: { to: string; reason?: string }[] = []
   for (const to of recipients) {

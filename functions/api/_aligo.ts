@@ -1,8 +1,8 @@
 // 알리고(Aligo) 문자·알림톡 발송 헬퍼
 // 환경변수:
 //   ALIGO_API_KEY   : 알리고 API 키 (필수)
-//   ALIGO_USER_ID   : 알리고 아이디 (필수)
-//   ALIGO_SENDER    : 등록된 발신번호 (SMS/알림톡 발신, 필수)
+//   ALIGO_ID_KEY    : 알리고 로그인 아이디 (필수) — ALIGO_USER_ID 도 허용
+//   ALIGO_SENDER    : (선택) 시스템 발송 기본 발신번호 — 회원 발송은 등록·승인 번호 사용
 //   ALIGO_SENDER_KEY: 알림톡 발신프로필 키(senderkey) (알림톡 필수)
 //   ALIGO_PROXY_URL : (선택) Vultr 고정 IP 프록시 URL. 설정 시 모든 알리고 호출을
 //                     이 프록시로 보내 고정 IP(141.164.36.76)에서 알리고로 나가게 함.
@@ -18,6 +18,14 @@ const TEMPLATE_LIST_URL = 'https://kakaoapi.aligo.in/akv10/template/list/'
 
 function onlyDigits(s: any): string {
   return String(s || '').replace(/[^0-9]/g, '')
+}
+
+// 알리고 로그인 아이디(user_id). 환경변수명은 ALIGO_ID_KEY 우선, ALIGO_USER_ID 도 허용.
+function aligoUserId(env: any): string {
+  return String(env?.ALIGO_ID_KEY || env?.ALIGO_USER_ID || '').trim()
+}
+function aligoApiKey(env: any): string {
+  return String(env?.ALIGO_API_KEY || '').trim()
 }
 
 function formBody(params: Record<string, any>): string {
@@ -64,10 +72,10 @@ async function aligoCall(env: any, target: string, params: Record<string, any>):
 
 // 계정 자격증명만 확인(발신번호는 발송 시 등록된 번호를 넘김)
 export function aligoConfigured(env: any): boolean {
-  return !!(env?.ALIGO_API_KEY && env?.ALIGO_USER_ID)
+  return !!(aligoApiKey(env) && aligoUserId(env))
 }
 export function aligoAlimtalkConfigured(env: any): boolean {
-  return !!(env?.ALIGO_API_KEY && env?.ALIGO_USER_ID && String(env?.ALIGO_SENDER_KEY || '').trim())
+  return !!(aligoApiKey(env) && aligoUserId(env) && String(env?.ALIGO_SENDER_KEY || '').trim())
 }
 
 /**
@@ -80,8 +88,8 @@ export async function sendSms(
   text: string,
   opts: { from?: string; title?: string; msgType?: 'SMS' | 'LMS' | 'MMS' } = {},
 ): Promise<{ sent: boolean; reason?: string; status?: number; successCnt?: number; errorCnt?: number }> {
-  const key = String(env?.ALIGO_API_KEY || '').trim()
-  const userId = String(env?.ALIGO_USER_ID || '').trim()
+  const key = aligoApiKey(env)
+  const userId = aligoUserId(env)
   const sender = onlyDigits(opts.from || env?.ALIGO_SENDER)
   if (!key || !userId) return { sent: false, reason: '알리고 계정(ALIGO_API_KEY/ALIGO_USER_ID) 미설정' }
   if (!sender) return { sent: false, reason: '발신번호가 없습니다. 발신번호를 등록·승인 받아 선택해 주세요.' }
@@ -108,8 +116,8 @@ export async function sendSms(
 
 /** 알림톡 인증 토큰 발급 (30초 유효) */
 async function createAlimtalkToken(env: any): Promise<{ ok: boolean; token?: string; error?: string }> {
-  const key = String(env?.ALIGO_API_KEY || '').trim()
-  const userId = String(env?.ALIGO_USER_ID || '').trim()
+  const key = aligoApiKey(env)
+  const userId = aligoUserId(env)
   const r = await aligoCall(env, TOKEN_URL, { apikey: key, userid: userId })
   if (r.error) return { ok: false, error: r.error }
   if (Number(r.data?.code) === 0 && r.data?.token) return { ok: true, token: r.data.token }
@@ -131,8 +139,8 @@ export async function aligoAlimtalk(
     failover?: boolean
   },
 ): Promise<{ ok: boolean; sent?: number; error?: string; data?: any }> {
-  const key = String(env?.ALIGO_API_KEY || '').trim()
-  const userId = String(env?.ALIGO_USER_ID || '').trim()
+  const key = aligoApiKey(env)
+  const userId = aligoUserId(env)
   const sender = onlyDigits(o.from || env?.ALIGO_SENDER)
   const senderKey = String(o.senderKey || env?.ALIGO_SENDER_KEY || '').trim()
   if (!key || !userId) return { ok: false, error: '알리고 계정(ALIGO_API_KEY/ALIGO_USER_ID) 미설정' }
@@ -174,8 +182,8 @@ export async function aligoAlimtalk(
 
 /** 알림톡 템플릿 목록 조회 (발신프로필 기준) */
 export async function aligoTemplates(env: any, senderKey?: string): Promise<{ ok: boolean; templates?: any[]; error?: string }> {
-  const key = String(env?.ALIGO_API_KEY || '').trim()
-  const userId = String(env?.ALIGO_USER_ID || '').trim()
+  const key = aligoApiKey(env)
+  const userId = aligoUserId(env)
   const sk = String(senderKey || env?.ALIGO_SENDER_KEY || '').trim()
   if (!key || !userId || !sk) return { ok: false, error: '알리고 환경변수/발신프로필 키 미설정' }
   const tok = await createAlimtalkToken(env)
@@ -200,8 +208,8 @@ export async function aligoTemplates(env: any, senderKey?: string): Promise<{ ok
 
 /** 잔여 문자 건수 조회 (health/디버그용) */
 export async function aligoRemain(env: any): Promise<{ ok: boolean; sms?: number; lms?: number; mms?: number; error?: string }> {
-  const key = String(env?.ALIGO_API_KEY || '').trim()
-  const userId = String(env?.ALIGO_USER_ID || '').trim()
+  const key = aligoApiKey(env)
+  const userId = aligoUserId(env)
   if (!key || !userId) return { ok: false, error: '알리고 환경변수 미설정' }
   const r = await aligoCall(env, REMAIN_URL, { key, user_id: userId })
   if (r.error) return { ok: false, error: r.error }
