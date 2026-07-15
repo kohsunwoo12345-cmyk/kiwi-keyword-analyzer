@@ -566,6 +566,32 @@ export async function sendAlimtalk(input: { to: string | string[]; text: string;
   return postJson('/api/alimtalk/send', input)
 }
 
+/* ── 카카오 알림톡 채널·템플릿 관리 (알리고) ── */
+export interface KakaoChannel { channelId: string; channelName: string; searchId?: string; phoneNumber?: string; categoryCode?: string; createdAt?: string }
+export interface KakaoTemplate { templateId: string; name: string; content: string; status: string; messageType?: string; rejectReason?: string; buttons?: any[]; dateCreated?: string }
+
+export async function kakaoChannels(): Promise<{ ok: boolean; channels: KakaoChannel[]; error?: string }> {
+  try { const r = await fetch('/api/kakao/user/channels', { credentials: 'include' }); const d = await r.json(); return { ok: !!d.ok, channels: d.channels || [], error: d.error } } catch { return { ok: false, channels: [], error: '네트워크 오류' } }
+}
+export async function kakaoChannelAuth(plusid: string, phone: string): Promise<{ ok: boolean; error?: string; note?: string }> {
+  return postJson('/api/kakao/profile/auth', { plusid, phone })
+}
+export async function kakaoChannelAdd(input: { plusid: string; phone: string; authnum: string; categorycode?: string }): Promise<{ ok: boolean; senderKey?: string; error?: string; note?: string }> {
+  return postJson('/api/kakao/profile/add', input)
+}
+export async function kakaoCategories(): Promise<{ ok: boolean; categories: any[]; error?: string }> {
+  try { const r = await fetch('/api/kakao/category/list', { credentials: 'include' }); const d = await r.json(); return { ok: !!d.ok, categories: d.categories || [], error: d.error } } catch { return { ok: false, categories: [], error: '네트워크 오류' } }
+}
+export async function kakaoTemplates(channelId?: string): Promise<{ ok: boolean; templates: KakaoTemplate[]; error?: string }> {
+  try { const r = await fetch(`/api/kakao/alimtalk/templates${channelId ? `?channelId=${encodeURIComponent(channelId)}` : ''}`, { credentials: 'include' }); const d = await r.json(); return { ok: !!d.ok, templates: d.templates || [], error: d.error } } catch { return { ok: false, templates: [], error: '네트워크 오류' } }
+}
+export async function kakaoTemplateCreate(input: { name: string; content: string; senderkey?: string; buttons?: any }): Promise<{ ok: boolean; templateId?: string; requested?: boolean; error?: string; note?: string }> {
+  return postJson('/api/kakao/alimtalk/template-create', input)
+}
+export async function kakaoTemplateRequest(tplCode: string, senderkey?: string): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/kakao/alimtalk/template-request', { tplCode, senderkey })
+}
+
 /** 실제 문자 발송 (알리고). 건당 1 크레딧 차감, 실패분 자동 환불 */
 export async function sendSmsCampaign(to: string | string[], text: string): Promise<{
   ok: boolean; error?: string; sent?: number; failed?: number; total?: number

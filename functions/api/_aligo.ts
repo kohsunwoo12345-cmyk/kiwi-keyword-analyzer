@@ -208,6 +208,98 @@ export async function aligoTemplates(env: any, senderKey?: string): Promise<{ ok
   return { ok: false, error: r.data?.message || `템플릿 조회 실패 (${r.data?.code ?? r.status})` }
 }
 
+/* ───────── 카카오 채널(발신프로필) 등록 ───────── */
+const PROFILE_AUTH_URL = 'https://kakaoapi.aligo.in/akv10/profile/auth/'
+const PROFILE_ADD_URL = 'https://kakaoapi.aligo.in/akv10/profile/add/'
+const CATEGORY_URL = 'https://kakaoapi.aligo.in/akv10/category/'
+const TEMPLATE_ADD_URL = 'https://kakaoapi.aligo.in/akv10/template/add/'
+const TEMPLATE_REQUEST_URL = 'https://kakaoapi.aligo.in/akv10/template/request/'
+
+/** 1) 채널 인증번호 요청 — 카카오톡 관리자에게 인증번호 발송 */
+export async function aligoProfileAuth(env: any, o: { plusid: string; phonenumber: string }): Promise<{ ok: boolean; error?: string; data?: any }> {
+  const key = aligoApiKey(env), userId = aligoUserId(env)
+  if (!key || !userId) return { ok: false, error: '알리고 계정 미설정' }
+  const plusid = String(o.plusid || '').trim().replace(/^@/, '')
+  const phonenumber = onlyDigits(o.phonenumber)
+  if (!plusid || phonenumber.length < 10) return { ok: false, error: '채널 검색용 아이디(@제외)와 관리자 휴대폰번호가 필요합니다.' }
+  const tok = await createAlimtalkToken(env)
+  if (!tok.ok) return { ok: false, error: tok.error }
+  const r = await aligoCall(env, PROFILE_AUTH_URL, { apikey: key, userid: userId, token: tok.token, plusid, phonenumber })
+  if (r.error) return { ok: false, error: r.error }
+  if (Number(r.data?.code) === 0) return { ok: true, data: r.data }
+  return { ok: false, error: r.data?.message || `인증번호 요청 실패 (${r.data?.code ?? r.status})`, data: r.data }
+}
+
+/** 2) 채널 등록 완료 — 인증번호로 발신프로필 생성 → senderkey 발급 */
+export async function aligoProfileAdd(env: any, o: { plusid: string; phonenumber: string; authnum: string; categorycode?: string }): Promise<{ ok: boolean; senderKey?: string; error?: string; data?: any }> {
+  const key = aligoApiKey(env), userId = aligoUserId(env)
+  if (!key || !userId) return { ok: false, error: '알리고 계정 미설정' }
+  const plusid = String(o.plusid || '').trim().replace(/^@/, '')
+  const phonenumber = onlyDigits(o.phonenumber)
+  const authnum = String(o.authnum || '').trim()
+  if (!plusid || !phonenumber || !authnum) return { ok: false, error: '채널 아이디·휴대폰·인증번호가 모두 필요합니다.' }
+  const tok = await createAlimtalkToken(env)
+  if (!tok.ok) return { ok: false, error: tok.error }
+  const params: Record<string, any> = { apikey: key, userid: userId, token: tok.token, plusid, phonenumber, authnum }
+  if (o.categorycode) params.categorycode = o.categorycode
+  const r = await aligoCall(env, PROFILE_ADD_URL, params)
+  if (r.error) return { ok: false, error: r.error }
+  const sk = r.data?.senderKey || r.data?.senderkey || r.data?.data?.senderKey
+  if (Number(r.data?.code) === 0 && sk) return { ok: true, senderKey: String(sk), data: r.data }
+  return { ok: false, error: r.data?.message || `채널 등록 실패 (${r.data?.code ?? r.status})`, data: r.data }
+}
+
+/** 카카오 채널 카테고리 목록 (등록 시 필요) */
+export async function aligoCategories(env: any): Promise<{ ok: boolean; categories?: any[]; error?: string }> {
+  const key = aligoApiKey(env), userId = aligoUserId(env)
+  if (!key || !userId) return { ok: false, error: '알리고 계정 미설정' }
+  const tok = await createAlimtalkToken(env)
+  if (!tok.ok) return { ok: false, error: tok.error }
+  const r = await aligoCall(env, CATEGORY_URL, { apikey: key, userid: userId, token: tok.token })
+  if (r.error) return { ok: false, error: r.error }
+  if (Number(r.data?.code) === 0) return { ok: true, categories: r.data?.data || r.data?.list || [] }
+  return { ok: false, error: r.data?.message || `카테고리 조회 실패 (${r.data?.code ?? r.status})` }
+}
+
+/** 3) 템플릿 등록 — 알리고에 템플릿 추가 → tpl_code 발급 */
+export async function aligoTemplateAdd(
+  env: any,
+  o: { senderKey: string; name: string; content: string; buttons?: any; emphasizeType?: string; extra?: string; ad?: string },
+): Promise<{ ok: boolean; tplCode?: string; error?: string; data?: any }> {
+  const key = aligoApiKey(env), userId = aligoUserId(env)
+  const sk = String(o.senderKey || env?.ALIGO_SENDER_KEY || '').trim()
+  if (!key || !userId) return { ok: false, error: '알리고 계정 미설정' }
+  if (!sk) return { ok: false, error: '발신프로필 키(senderkey)가 필요합니다. 먼저 카카오 채널을 등록하세요.' }
+  const name = String(o.name || '').trim().slice(0, 30)
+  const content = String(o.content || '').trim()
+  if (!name || !content) return { ok: false, error: '템플릿 이름과 내용을 입력하세요.' }
+  const tok = await createAlimtalkToken(env)
+  if (!tok.ok) return { ok: false, error: tok.error }
+  const params: Record<string, any> = { apikey: key, userid: userId, token: tok.token, senderkey: sk, tpl_name: name, tpl_content: content }
+  if (o.buttons) params.tpl_button = typeof o.buttons === 'string' ? o.buttons : JSON.stringify(o.buttons)
+  if (o.emphasizeType) params.tpl_emphasize_type = o.emphasizeType
+  if (o.extra) params.tpl_extra = o.extra
+  if (o.ad) params.tpl_ad = o.ad
+  const r = await aligoCall(env, TEMPLATE_ADD_URL, params)
+  if (r.error) return { ok: false, error: r.error }
+  const code = r.data?.data?.templtCode || r.data?.templtCode || r.data?.tpl_code
+  if (Number(r.data?.code) === 0 && code) return { ok: true, tplCode: String(code), data: r.data }
+  return { ok: false, error: r.data?.message || `템플릿 등록 실패 (${r.data?.code ?? r.status})`, data: r.data }
+}
+
+/** 4) 템플릿 승인(심사) 요청 */
+export async function aligoTemplateRequest(env: any, o: { senderKey: string; tplCode: string }): Promise<{ ok: boolean; error?: string; data?: any }> {
+  const key = aligoApiKey(env), userId = aligoUserId(env)
+  const sk = String(o.senderKey || env?.ALIGO_SENDER_KEY || '').trim()
+  if (!key || !userId || !sk || !o.tplCode) return { ok: false, error: '발신프로필 키와 템플릿 코드가 필요합니다.' }
+  const tok = await createAlimtalkToken(env)
+  if (!tok.ok) return { ok: false, error: tok.error }
+  const r = await aligoCall(env, TEMPLATE_REQUEST_URL, { apikey: key, userid: userId, token: tok.token, senderkey: sk, tpl_code: o.tplCode })
+  if (r.error) return { ok: false, error: r.error }
+  if (Number(r.data?.code) === 0) return { ok: true, data: r.data }
+  return { ok: false, error: r.data?.message || `승인 요청 실패 (${r.data?.code ?? r.status})`, data: r.data }
+}
+
 /** 잔여 문자 건수 조회 (health/디버그용) */
 export async function aligoRemain(env: any): Promise<{ ok: boolean; sms?: number; lms?: number; mms?: number; error?: string }> {
   const key = aligoApiKey(env)

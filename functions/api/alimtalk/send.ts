@@ -15,7 +15,13 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
   const text = String(body.text || '').trim()
   // 템플릿 코드(tpl_code) · 발신프로필 키(senderkey)
   const templateId = String(body.templateId || body.tplCode || env?.ALIGO_TEMPLATE_CODE || '')
-  const senderKey = String(body.senderKey || env?.ALIGO_SENDER_KEY || '')
+  let senderKey = String(body.senderKey || '')
+  if (!senderKey) {
+    // 본인이 등록한 카카오 채널(발신프로필)의 senderkey 사용
+    const ch: any = await db.prepare('SELECT channel_id FROM kakao_channels WHERE user_id = ? ORDER BY created_at DESC LIMIT 1').bind(me.id).first().catch(() => null)
+    if (ch?.channel_id) senderKey = String(ch.channel_id)
+  }
+  if (!senderKey) senderKey = String(env?.ALIGO_SENDER_KEY || '')
   if (recipients.length === 0) return json({ ok: false, error: '수신 번호를 입력하세요.' }, 400)
   if (!text) return json({ ok: false, error: '내용을 입력하세요.' }, 400)
 
