@@ -46,9 +46,25 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     smsReady: aligoConfigured(env),
     alimtalkReady: aligoAlimtalkConfigured(env),
   }
+  // 릴레이 직접 진단 — 403이 어디서 나는지(Cloudflare→릴레이 vs 릴레이→알리고) 확인
+  const proxyUrl = String(e.ALIGO_PROXY_URL || '')
+  const relay: any = { url: proxyUrl || '(미설정)' }
+  if (proxyUrl) {
+    try {
+      const h = await fetch(proxyUrl, { method: 'GET' })
+      relay.health = { status: h.status, body: (await h.text()).slice(0, 200) }
+    } catch (err: any) { relay.health = { error: String(err?.message || err).slice(0, 200) } }
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Aligo-Target': 'https://apis.aligo.in/remain/' }
+      if (has(e.ALIGO_PROXY_TOKEN)) headers['X-Aligo-Token'] = String(e.ALIGO_PROXY_TOKEN)
+      const pr = await fetch(proxyUrl, { method: 'POST', headers, body: 'key=test&user_id=test' })
+      relay.probe = { status: pr.status, body: (await pr.text()).slice(0, 200) }
+    } catch (err: any) { relay.probe = { error: String(err?.message || err).slice(0, 200) } }
+  }
+
   // 잔여 건수 조회 = 실제 인증/연결 검증 (문자 소모 없음)
   const remain = await aligoRemain(env)
-  return json({ ok: true, config, remain })
+  return json({ ok: true, config, relay, remain })
 }
 
 // POST /api/admin/aligo-test { to, text?, kind?, tplCode?, sender? } → 실제 발송 테스트
