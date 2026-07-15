@@ -198,7 +198,7 @@ export interface VisitStats {
   byDevice?: { device: string; n: number }[]
   byHour?: { h: string; n: number }[]
   byRef?: { ref: string; n: number }[]
-  recent?: { path: string; ip: string; country: string; device: string; ref: string; created_at: string }[]
+  recent?: { path: string; ip: string; country: string; city?: string; region?: string; device: string; ref: string; created_at: string }[]
   support?: {
     total: number; unread: number; today: number
     recent: { conv_id: string; name: string; email: string; last_at: string; unread: number }[]

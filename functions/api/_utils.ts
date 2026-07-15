@@ -425,6 +425,9 @@ export async function ensureSchema(db: D1Database) {
   await addMissingColumns(db, 'public_leads', {
     landing_id: 'landing_id TEXT',
   })
+  await addMissingColumns(db, 'visits', {
+    region: 'region TEXT', // 시/도 (더 정확한 위치)
+  })
 }
 
 async function addMissingColumns(db: D1Database, table: string, need: Record<string, string>) {
@@ -549,11 +552,12 @@ export async function logSecurity(
 }
 
 /** Cloudflare 지오 정보 (country/city/isp/asn) 추출 */
-export function geoFrom(request: Request): { country: string; city: string; isp: string; asn: string } {
+export function geoFrom(request: Request): { country: string; city: string; region: string; isp: string; asn: string } {
   const cf: any = (request as any).cf || {}
   return {
-    country: cf.country || '',
+    country: cf.country || request.headers.get('CF-IPCountry') || '',
     city: cf.city || '',
+    region: cf.region || cf.regionCode || '', // 시/도 (예: Seoul)
     isp: cf.asOrganization || '',
     asn: cf.asn ? String(cf.asn) : '',
   }

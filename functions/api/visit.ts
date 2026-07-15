@@ -20,8 +20,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const geo = geoFrom(request)
     const me: any = await getSessionUser(request, db).catch(() => null)
     await db
-      .prepare(`INSERT INTO visits (id, path, ref, ip, country, city, ua, device, visitor, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind('v_' + crypto.randomUUID().slice(0, 16), path, ref, clientIp(request), geo.country, geo.city, ua.slice(0, 200), deviceOf(ua), visitor, me?.id || '', new Date().toISOString())
+      .prepare(`INSERT INTO visits (id, path, ref, ip, country, city, region, ua, device, visitor, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind('v_' + crypto.randomUUID().slice(0, 16), path, ref, clientIp(request), geo.country, geo.city, geo.region, ua.slice(0, 200), deviceOf(ua), visitor, me?.id || '', new Date().toISOString())
       .run()
     // 상한 유지 (최근 200000건) — 접속 IP를 넉넉히 보존
     await db.prepare('DELETE FROM visits WHERE id NOT IN (SELECT id FROM visits ORDER BY created_at DESC LIMIT 200000)').run().catch(() => {})

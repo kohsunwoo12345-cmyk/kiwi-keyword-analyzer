@@ -27,7 +27,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     rows("SELECT CASE WHEN device != '' THEN device ELSE 'Other' END AS device, COUNT(*) AS n FROM visits WHERE created_at > ? GROUP BY device ORDER BY n DESC", since),
     rows("SELECT substr(created_at,12,2) AS h, COUNT(*) AS n FROM visits WHERE created_at > ? GROUP BY h ORDER BY h", since),
     rows("SELECT CASE WHEN ref != '' THEN ref ELSE '직접 유입' END AS ref, COUNT(*) AS n FROM visits WHERE created_at > ? GROUP BY ref ORDER BY n DESC LIMIT 10", since),
-    rows('SELECT path, ip, country, device, ref, created_at FROM visits ORDER BY created_at DESC LIMIT 60'),
+    rows('SELECT path, ip, country, city, region, device, ref, created_at FROM visits ORDER BY created_at DESC LIMIT 120'),
     one("SELECT COUNT(DISTINCT conv_id) AS n FROM support_chats").catch(() => ({})),
     one("SELECT COUNT(*) AS n FROM support_chats WHERE sender='user' AND read_admin=0").catch(() => ({})),
     one("SELECT COUNT(DISTINCT conv_id) AS n FROM support_chats WHERE created_at > ?", dayAgo).catch(() => ({})),

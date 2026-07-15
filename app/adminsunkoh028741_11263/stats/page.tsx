@@ -25,6 +25,7 @@ import { AreaTrend, Donut } from '@/components/dash/Charts'
 import { StatCard, Panel, Button } from '@/components/ui'
 import { Reveal, Counter } from '@/components/motion'
 import { adminVisitStats, type VisitStats } from '@/lib/auth'
+import { countryKo, locationKo } from '@/lib/geo-ko'
 import { cn } from '@/lib/utils'
 
 const ADMIN_BASE = '/adminsunkoh028741_11263'
@@ -422,7 +423,7 @@ export default function AdminStatsPage() {
                       {byCountry.slice(0, 12).map((c, i) => (
                         <BarRow
                           key={`${c.country}-${i}`}
-                          label={c.country || '미상'}
+                          label={countryKo(c.country)}
                           value={c.n}
                           max={countryMax}
                           color="#22c55e"
@@ -450,11 +451,11 @@ export default function AdminStatsPage() {
                     <thead className="sticky top-0 z-10 bg-white">
                       <tr className={THEAD_CLS}>
                         <th className={TH_CLS}>시각</th>
+                        <th className={TH_CLS}>IP</th>
+                        <th className={TH_CLS}>위치</th>
                         <th className={TH_CLS}>경로</th>
-                        <th className={TH_CLS}>국가</th>
                         <th className={TH_CLS}>기기</th>
                         <th className={TH_CLS}>유입</th>
-                        <th className={TH_CLS}>IP</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -464,10 +465,11 @@ export default function AdminStatsPage() {
                         return (
                           <tr key={i} className={TR_CLS}>
                             <td className="whitespace-nowrap py-2.5 text-[var(--text-soft)]">{fmtDateTime(r.created_at)}</td>
+                            <td className="whitespace-nowrap py-2.5 font-mono text-xs font-semibold text-[var(--text)]">{r.ip || '-'}</td>
+                            <td className="whitespace-nowrap py-2.5 text-[var(--text-soft)]">{locationKo(r.country, r.region, r.city)}</td>
                             <td className="max-w-[220px] truncate py-2.5 font-mono text-xs text-[var(--text-soft)]" title={r.path}>
                               {r.path || '/'}
                             </td>
-                            <td className="py-2.5 text-[var(--text-soft)]">{r.country || '미상'}</td>
                             <td className="py-2.5">
                               <span className="flex items-center gap-1 text-xs text-[var(--text-soft)]">
                                 <Icon size={13} className="text-[var(--text-dim)]" /> {r.device || 'Other'}
@@ -476,7 +478,6 @@ export default function AdminStatsPage() {
                             <td className="max-w-[200px] truncate py-2.5 text-xs text-[var(--text-soft)]" title={r.ref || '직접 유입'}>
                               {r.ref || '직접 유입'}
                             </td>
-                            <td className="py-2.5 font-mono text-xs">{r.ip || '-'}</td>
                           </tr>
                         )
                       })}
