@@ -572,7 +572,7 @@ export default function AdminUsersPage() {
                       문자(SMS)도 함께 발송
                     </label>
                     {bcSms && (
-                      <p className="text-[11px] text-[var(--text-dim)]">※ 발신번호 승인 · SOLAPI 설정이 필요합니다.</p>
+                      <p className="text-[11px] text-[var(--text-dim)]">※ 발신번호 승인 · 알리고(ALIGO) 설정이 필요합니다.</p>
                     )}
                   </div>
                 </div>
@@ -1069,7 +1069,7 @@ export default function AdminUsersPage() {
                             onChange={(e) => setNotifySms(e.target.checked)}
                             className="h-4 w-4 rounded border-[var(--border)] accent-violet-600"
                           />
-                          문자도 발송 (Solapi)
+                          문자도 발송 (알리고)
                         </label>
                         {notifySms && (
                           <input

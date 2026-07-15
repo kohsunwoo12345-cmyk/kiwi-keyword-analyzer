@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, resolveDB, requireAdminUser, addNotification, logAudit, clientIp } from '../_utils'
-import { sendSms } from '../_solapi'
+import { sendSms } from '../_aligo'
 
 // POST /api/admin/notify-broadcast { target:'user'|'plan'|'all'|'multi', userId?, plan?, userIds?, title, body, sms? }
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {

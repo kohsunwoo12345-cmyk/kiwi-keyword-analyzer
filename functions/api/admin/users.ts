@@ -13,7 +13,7 @@ import {
   addNotification,
   rewardReferralFirstPaid,
 } from '../_utils'
-import { sendSms } from '../_solapi'
+import { sendSms } from '../_aligo'
 
 async function requireAdmin(request: Request, db: D1Database) {
   const me: any = await getSessionUser(request, db)
@@ -115,7 +115,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (!bodyText) return json({ ok: false, error: '내용을 입력하세요.' }, 400)
     await addNotification(db, id, title, bodyText)
     await logActivity(db, id, 'notify', `알림 발송: ${title}`)
-    // 문자(Solapi) 병행 발송: phone + Solapi 환경변수 있을 때
+    // 문자(알리고) 병행 발송: phone + 알리고 환경변수 있을 때
     let sms: any = { sent: false }
     if (body.sms) {
       const target: any = await db.prepare('SELECT phone FROM users WHERE id = ?').bind(id).first()

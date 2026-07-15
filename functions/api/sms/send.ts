@@ -1,7 +1,7 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB, spendCredits, logActivity, publicUser } from '../_utils'
-import { sendSms } from '../_solapi'
+import { sendSms, aligoConfigured } from '../_aligo'
 
-// POST /api/sms/send { to: string | string[], text } → 실제 Solapi 발송 (건당 1 크레딧 차감)
+// POST /api/sms/send { to: string | string[], text } → 실제 알리고(Aligo) 발송 (건당 1 크레딧 차감)
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env)
   if (!db) return json({ ok: false, error: 'DB 바인딩 없음' }, 500)
@@ -43,14 +43,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await logActivity(db, me.id, 'sms', `문자 발송 ${sent}/${recipients.length}건`)
   const fresh: any = await db.prepare('SELECT * FROM users WHERE id = ?').bind(me.id).first()
 
-  const solapiConfigured = !!(env?.SOLAPI_API_KEY && env?.SOLAPI_API_SECRET && env?.SOLAPI_SENDER)
+  const configured = aligoConfigured(env)
   return json({
     ok: true,
     sent,
     failed: fails.length,
     total: recipients.length,
-    solapiConfigured,
-    note: solapiConfigured ? undefined : 'Solapi 환경변수가 설정되지 않아 실제 발송은 되지 않았습니다(크레딧은 환불됨).',
+    configured,
+    note: configured ? undefined : '알리고 환경변수(ALIGO_API_KEY/USER_ID/SENDER)가 설정되지 않아 실제 발송은 되지 않았습니다(크레딧은 환불됨).',
     reason: fails[0]?.reason,
     user: publicUser(fresh),
   })

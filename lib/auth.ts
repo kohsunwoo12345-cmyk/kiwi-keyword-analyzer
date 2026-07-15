@@ -558,18 +558,18 @@ export async function confirmPayment(input: { paymentKey: string; orderId: strin
   return postJson('/api/payments/confirm', input)
 }
 
-/* ───────── 이메일 (Resend) / 알림톡 (Solapi Kakao) ───────── */
+/* ───────── 이메일 (Resend) / 알림톡 (알리고 Kakao) ───────── */
 export async function sendEmail(input: { to: string | string[]; subject: string; html: string }): Promise<{ ok: boolean; error?: string; sent?: number; credits?: number; refunded?: boolean }> {
   return postJson('/api/email/send', input)
 }
-export async function sendAlimtalk(input: { to: string | string[]; text: string; pfId?: string; templateId?: string; variables?: Record<string, string> }): Promise<{ ok: boolean; error?: string; sent?: number; failed?: number; total?: number; configured?: boolean; note?: string; credits?: number }> {
+export async function sendAlimtalk(input: { to: string | string[]; text: string; templateId?: string; senderKey?: string; failover?: boolean }): Promise<{ ok: boolean; error?: string; sent?: number; failed?: number; total?: number; configured?: boolean; note?: string; credits?: number }> {
   return postJson('/api/alimtalk/send', input)
 }
 
-/** 실제 문자 발송 (Solapi). 건당 1 크레딧 차감, 실패분 자동 환불 */
+/** 실제 문자 발송 (알리고). 건당 1 크레딧 차감, 실패분 자동 환불 */
 export async function sendSmsCampaign(to: string | string[], text: string): Promise<{
   ok: boolean; error?: string; sent?: number; failed?: number; total?: number
-  solapiConfigured?: boolean; note?: string; reason?: string; user?: User; balance?: number
+  configured?: boolean; note?: string; reason?: string; user?: User; balance?: number
 }> {
   return postJson('/api/sms/send', { to, text })
 }

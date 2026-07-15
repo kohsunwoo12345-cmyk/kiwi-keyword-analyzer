@@ -1,8 +1,8 @@
 import { json, getSessionUser, resolveDB } from '../../_utils'
-import { makeSolapiAuthHeader } from '../../_solapi'
+import { aligoTemplates } from '../../_aligo'
 
-// GET /api/kakao/alimtalk/templates?channelId=... → 채널의 승인 템플릿 목록
-// SUPERPLACE Hono 라우트 이식. Solapi 우선, 실패 시 DB(kakao_templates) 폴백.
+// GET /api/kakao/alimtalk/templates?channelId=... → 발신프로필의 승인 템플릿 목록
+// 알리고(Aligo) 우선, 실패 시 DB(kakao_templates) 폴백.
 export const onRequestGet: PagesFunction<any> = async ({ request, env }) => {
   try {
     const db = resolveDB(env)
@@ -11,32 +11,24 @@ export const onRequestGet: PagesFunction<any> = async ({ request, env }) => {
     if (!me) return json({ ok: false, error: '로그인 필요' }, 401)
     const userId = String(me.id)
     const url = new URL(request.url)
-    const channelId = url.searchParams.get('channelId') || url.searchParams.get('pfId') || ''
-
-    const apiKey = String((env as any)?.SOLAPI_API_KEY || '').trim()
-    const apiSecret = String((env as any)?.SOLAPI_API_SECRET || '').trim()
+    // channelId 는 알리고 발신프로필 키(senderkey). 미지정 시 환경변수 사용.
+    const channelId = url.searchParams.get('channelId') || url.searchParams.get('pfId') || String((env as any)?.ALIGO_SENDER_KEY || '')
 
     let templates: any[] = []
 
-    if (apiKey && apiSecret && channelId) {
-      const auth = await makeSolapiAuthHeader(apiKey, apiSecret)
-      const apiUrl = `https://api.solapi.com/kakao/v2/templates?channelId=${encodeURIComponent(channelId)}&limit=100`
-      const res = await fetch(apiUrl, { headers: { Authorization: auth } })
-      if (res.ok) {
-        const data: any = await res.json()
-        const list = data.templateList || data.templates || data.list || []
-        templates = list.map((t: any) => ({
-          templateId: t.templateId || t.id || '',
-          name: t.name || '',
-          content: t.content || '',
-          categoryCode: t.categoryCode || '',
-          messageType: t.messageType || 'BA',
-          status: t.status || 'PENDING',
-          rejectReason: (t.comments || []).map((c: any) => c.content || '').join(' / ') || t.rejectReason || '',
-          buttons: t.buttons || [],
-          dateCreated: t.dateCreated || '',
-        }))
-      }
+    const r = await aligoTemplates(env, channelId)
+    if (r.ok && r.templates) {
+      templates = r.templates.map((t: any) => ({
+        templateId: t.templateId || '',
+        name: t.name || '',
+        content: t.content || '',
+        categoryCode: t.categoryCode || '',
+        messageType: t.messageType || 'BA',
+        status: t.status || 'APPROVED',
+        rejectReason: t.rejectReason || '',
+        buttons: t.buttons || [],
+        dateCreated: t.dateCreated || '',
+      }))
     }
 
     // Fallback: DB

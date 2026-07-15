@@ -1079,7 +1079,7 @@ export const alimtalkPage = `<!DOCTYPE html>
       var res = await fetch('/api/kakao/alimtalk/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-User-Id': String(currentUser.id) },
-        body: JSON.stringify({ pfId, templateCode: curTpl.templateId || curTpl.code || curTpl.templateCode, recipients })
+        body: JSON.stringify({ pfId, templateCode: curTpl.templateId || curTpl.code || curTpl.templateCode, content: (curTpl.content || curTpl.templtContent || ''), recipients })
       });
       var d = await res.json();
       if (d.ok) {

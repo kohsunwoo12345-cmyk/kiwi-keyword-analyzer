@@ -1,8 +1,18 @@
 import { json, getSessionUser, resolveDB } from '../../_utils'
-import { makeSolapiAuthHeader } from '../../_solapi'
+import { aligoAlimtalk } from '../../_aligo'
 
-// POST /api/kakao/alimtalk/send { pfId, templateCode, recipients:[{to,variables}] }
-// SUPERPLACE Hono 라우트 이식 — Solapi 다건 발송(send-many, ATA). 포인트 선차감(25P/건).
+// #{변수} 치환: 템플릿 본문 + 수신자 변수 → 최종 알림톡 문구
+function renderTemplate(content: string, vars: Record<string, any>): string {
+  let out = String(content || '')
+  for (const [k, v] of Object.entries(vars || {})) {
+    const bare = k.replace(/^#\{|\}$/g, '')
+    out = out.split(`#{${bare}}`).join(String(v ?? ''))
+  }
+  return out
+}
+
+// POST /api/kakao/alimtalk/send { pfId, templateCode, content?, recipients:[{to,variables,message?}] }
+// 알리고(Aligo) 다건 알림톡 발송. 포인트 선차감(25P/건).
 export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
   try {
     const db = resolveDB(env)
@@ -12,12 +22,15 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
     if (!userId || userId === 'undefined') return json({ ok: false, error: '로그인 필요' }, 401)
 
     const body: any = await request.json().catch(() => ({}))
-    const { pfId, templateCode, recipients } = body
-    if (!pfId || !templateCode || !recipients?.length) return json({ ok: false, error: '필수 항목 누락' }, 400)
+    const { pfId, templateCode, recipients, content } = body
+    if (!templateCode || !recipients?.length) return json({ ok: false, error: '필수 항목 누락' }, 400)
 
-    const apiKey = String((env as any)?.SOLAPI_API_KEY || '').trim()
-    const apiSecret = String((env as any)?.SOLAPI_API_SECRET || '').trim()
-    if (!apiKey || !apiSecret) return json({ ok: false, error: 'SOLAPI_API_KEY / SOLAPI_API_SECRET 환경변수 미설정' }, 500)
+    const apiKey = String((env as any)?.ALIGO_API_KEY || '').trim()
+    const userIdEnv = String((env as any)?.ALIGO_USER_ID || '').trim()
+    // 발신프로필 키: pfId(선택된 채널) 우선, 없으면 환경변수
+    const senderKey = String(pfId || (env as any)?.ALIGO_SENDER_KEY || '').trim()
+    if (!apiKey || !userIdEnv) return json({ ok: false, error: 'ALIGO_API_KEY / ALIGO_USER_ID 환경변수 미설정' }, 500)
+    if (!senderKey) return json({ ok: false, error: '알림톡 발신프로필 키(ALIGO_SENDER_KEY)가 필요합니다.' }, 500)
 
     // ── 포인트 선차감 (25P × 수신자 수) ──
     const COST_PER_MSG = 25
@@ -36,66 +49,31 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
       return json({ ok: false, error: '포인트 차감 중 오류가 발생했습니다.' })
     }
 
-    const auth = await makeSolapiAuthHeader(apiKey, apiSecret)
+    // 각 수신자의 최종 문구 구성: message 우선, 없으면 템플릿(content) + 변수 치환
+    const items = recipients.map((r: any) => {
+      const vars = r.variables || {}
+      const msg = String(r.message || (content ? renderTemplate(content, vars) : content) || '').trim()
+      return { to: String(r.to).replace(/-/g, ''), message: msg, subject: 'BYGENCY 알림' }
+    })
 
-    // 채널의 발신 전화번호 조회 (from 필드)
-    let fromPhone = ''
-    try {
-      const chRow: any = await db.prepare(`SELECT phone_number FROM kakao_channels WHERE channel_id = ? LIMIT 1`).bind(pfId).first()
-      if (chRow?.phone_number) fromPhone = String(chRow.phone_number).replace(/-/g, '')
-    } catch (_) {}
-    if (!fromPhone) fromPhone = String((env as any)?.SENDER_PHONE || '').replace(/-/g, '')
-
-    // variables 키를 "#{변수명}" 형태로 정규화
-    const normalizeVariables = (vars: Record<string, string>): Record<string, string> => {
-      const result: Record<string, string> = {}
-      for (const [k, v] of Object.entries(vars || {})) {
-        const key = /^#\{.+\}$/.test(k) ? k : `#{${k}}`
-        result[key] = String(v)
-      }
-      return result
-    }
-    const messages = recipients.map((r: any) => ({
-      to: String(r.to).replace(/-/g, ''),
-      from: fromPhone,
-      type: 'ATA',
-      kakaoOptions: {
-        pfId,
-        templateId: templateCode,
-        variables: normalizeVariables(r.variables || {}),
-        disableSms: true,
-      },
-    }))
-
-    const solapiBody = { messages }
-    let res: Response
-    let result: any
-    try {
-      res = await fetch('https://api.solapi.com/messages/v4/send-many', {
-        method: 'POST',
-        headers: { Authorization: auth, 'Content-Type': 'application/json' },
-        body: JSON.stringify(solapiBody),
-      })
-      result = await res.json()
-    } catch (sendErr: any) {
-      try {
-        await db.prepare('UPDATE users SET points = points + ? WHERE id = ?').bind(totalCost, userId).run()
-      } catch (_) {}
-      return json({ ok: false, error: 'Solapi 요청 실패: ' + (sendErr?.message || String(sendErr)) })
-    }
-
-    if (!res.ok) {
+    // 알리고 알림톡 발송 (실패 시 SMS 대체발송)
+    const sendRes = await aligoAlimtalk(env, {
+      tplCode: templateCode,
+      senderKey,
+      failover: true,
+      items,
+    })
+    const okSend = sendRes.ok
+    if (!okSend) {
       try {
         await db.prepare('UPDATE users SET points = points + ? WHERE id = ?').bind(totalCost, userId).run()
       } catch (_) {}
     }
 
     // 발송 로그 저장
-    const successCount = result?.groupInfo?.count?.total || result?.count?.total || recipients.length
-    const status = res.ok ? 'success' : 'failed'
-    const errMsg = !res.ok
-      ? result?.errorMessage || result?.message || result?.error || JSON.stringify(result).slice(0, 200)
-      : null
+    const successCount = okSend ? (sendRes.sent || recipients.length) : 0
+    const status = okSend ? 'success' : 'failed'
+    const errMsg = okSend ? null : String(sendRes.error || '알림톡 발송 실패').slice(0, 200)
     try {
       await db
         .prepare(
@@ -115,17 +93,17 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
           `INSERT INTO kakao_alimtalk_logs (user_id, template_code, recipient_count, status, error_message, points_used)
            VALUES (?, ?, ?, ?, ?, ?)`,
         )
-        .bind(userId, templateCode, recipients.length, status, errMsg, res.ok ? totalCost : 0)
+        .bind(userId, templateCode, recipients.length, status, errMsg, okSend ? totalCost : 0)
         .run()
     } catch (_) {}
 
-    if (!res.ok)
+    if (!okSend)
       return json({
         ok: false,
-        error: result?.errorMessage || result?.message || result?.error || `Solapi HTTP ${res.status}`,
-        detail: result,
+        error: sendRes.error || '알림톡 발송 실패',
+        detail: sendRes.data,
       })
-    return json({ ok: true, successCount, groupId: result?.groupId, pointsUsed: totalCost })
+    return json({ ok: true, successCount, pointsUsed: totalCost })
   } catch (e: any) {
     return json({ ok: false, error: '서버 오류가 발생했습니다.' }, 500)
   }

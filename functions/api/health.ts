@@ -33,12 +33,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
     '유튜브 분석': { ok: anyHas('YouTube_Data_API_v3', 'YOUTUBE_DATA_API_V3', 'YOUTUBE_API_KEY'), keys: { YouTube_Data_API_v3: has('YouTube_Data_API_v3') } },
     '블로그·플레이스(네이버)': { ok: has('NAVER_CLIENT_ID') && has('NAVER_CLIENT_SECRET'), keys: { NAVER_CLIENT_ID: has('NAVER_CLIENT_ID'), NAVER_CLIENT_SECRET: has('NAVER_CLIENT_SECRET') } },
     '블로그 키워드(네이버 광고)': { ok: has('NAVER_AD_CUSTOMER_ID') && has('NAVER_API_SECRET_KEY'), keys: { NAVER_AD_CUSTOMER_ID: has('NAVER_AD_CUSTOMER_ID'), NAVER_API_SECRET_KEY: has('NAVER_API_SECRET_KEY'), NAVER_AD_ACCESS_LICENSE: has('NAVER_AD_ACCESS_LICENSE') } },
-    '문자·알림톡(Solapi)': { ok: has('SOLAPI_API_KEY') && has('SOLAPI_API_SECRET') && has('SOLAPI_SENDER'), keys: { SOLAPI_API_KEY: has('SOLAPI_API_KEY'), SOLAPI_API_SECRET: has('SOLAPI_API_SECRET'), SOLAPI_SENDER: has('SOLAPI_SENDER') } },
+    '문자·알림톡(알리고)': { ok: has('ALIGO_API_KEY') && has('ALIGO_USER_ID') && has('ALIGO_SENDER'), keys: { ALIGO_API_KEY: has('ALIGO_API_KEY'), ALIGO_USER_ID: has('ALIGO_USER_ID'), ALIGO_SENDER: has('ALIGO_SENDER'), ALIGO_SENDER_KEY: has('ALIGO_SENDER_KEY'), ALIGO_PROXY_URL: has('ALIGO_PROXY_URL') } },
     '이메일(Resend)': { ok: has('RESEND_API_KEY') && has('RESEND_FROM'), keys: { RESEND_API_KEY: has('RESEND_API_KEY'), RESEND_FROM: has('RESEND_FROM') } },
     '결제(Toss)': { ok: anyHas('TOSS_SECRET_KEY', 'TOSS_API_PG_SECRET', 'TOSS_PG_SECRET_KEY') && anyHas('TOSS_CLIENT_KEY', 'TOSS_PG_CLIENT_KEY'), keys: { TOSS_SECRET_KEY: anyHas('TOSS_SECRET_KEY', 'TOSS_API_PG_SECRET', 'TOSS_PG_SECRET_KEY'), TOSS_CLIENT_KEY: anyHas('TOSS_CLIENT_KEY', 'TOSS_PG_CLIENT_KEY') } },
     'AI(OpenAI)': { ok: has('OPENAI_API_KEY'), keys: { OPENAI_API_KEY: has('OPENAI_API_KEY') } },
     'AI 영상(Pexels/TTS)': { ok: anyHas('PEXELS_API_KEY') , keys: { PEXELS_API_KEY: has('PEXELS_API_KEY'), PIXABAY_API_KEY: has('PIXABAY_API_KEY'), ElevenLabs_API_KEY: has('ElevenLabs_API_KEY'), Text_to_Speech: has('Text_to_Speech'), OpenAI_Text_to_speech: has('OpenAI_Text_to_speech'), HF_TOKEN: has('HF_TOKEN') } },
-    '알림톡 채널/템플릿': { ok: has('KAKAO_PFID') && has('KAKAO_TEMPLATE_ID'), keys: { KAKAO_PFID: has('KAKAO_PFID'), KAKAO_TEMPLATE_ID: has('KAKAO_TEMPLATE_ID') } },
+    '알림톡 발신프로필/템플릿(알리고)': { ok: has('ALIGO_SENDER_KEY'), keys: { ALIGO_SENDER_KEY: has('ALIGO_SENDER_KEY'), ALIGO_TEMPLATE_CODE: has('ALIGO_TEMPLATE_CODE') } },
   }
 
   return json({

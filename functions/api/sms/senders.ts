@@ -16,9 +16,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       .bind(me.id)
       .all()
     const senders: any[] = (rows.results as any[]) || []
-    // 승인된 발신번호가 없으면 Solapi 기본 발신번호(SOLAPI_SENDER)를 대체로 노출
+    // 승인된 발신번호가 없으면 알리고 기본 발신번호(ALIGO_SENDER)를 대체로 노출
     if (senders.length === 0) {
-      const from = String((env as any)?.SOLAPI_SENDER || '').replace(/[^0-9]/g, '')
+      const from = String((env as any)?.ALIGO_SENDER || '').replace(/[^0-9]/g, '')
       if (from) senders.push({ id: 'default', phone_number: from, status: 'approved' })
     }
     return json({ success: true, senders })

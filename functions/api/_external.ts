@@ -63,38 +63,4 @@ export async function tossConfirm(
   }
 }
 
-/** Solapi 카카오 알림톡 발송 — SOLAPI_API_KEY/SECRET + pfId/templateId */
-export async function solapiAlimtalk(
-  env: any,
-  o: { to: string; templateId: string; pfId: string; text: string; variables?: Record<string, string> },
-): Promise<{ ok: boolean; error?: string }> {
-  const apiKey = env?.SOLAPI_API_KEY
-  const apiSecret = env?.SOLAPI_API_SECRET
-  const from = String(env?.SOLAPI_SENDER || '').replace(/[^0-9]/g, '')
-  if (!apiKey || !apiSecret || !from) return { ok: false, error: 'SOLAPI 환경변수 미설정' }
-  if (!o.pfId || !o.templateId) return { ok: false, error: '알림톡 채널(pfId)·템플릿(templateId)이 필요합니다.' }
-  const enc = new TextEncoder()
-  const date = new Date().toISOString()
-  const salt = crypto.randomUUID().replace(/-/g, '')
-  const keyObj = await crypto.subtle.importKey('raw', enc.encode(apiSecret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
-  const sig = await crypto.subtle.sign('HMAC', keyObj, enc.encode(date + salt))
-  const signature = [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('')
-  try {
-    const res = await fetch('https://api.solapi.com/messages/v4/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `HMAC-SHA256 apiKey=${apiKey}, date=${date}, salt=${salt}, signature=${signature}`,
-      },
-      body: JSON.stringify({
-        message: {
-          to: o.to, from, text: o.text,
-          kakaoOptions: { pfId: o.pfId, templateId: o.templateId, variables: o.variables || {}, disableSms: false },
-        },
-      }),
-    })
-    return res.ok ? { ok: true } : { ok: false, error: `알림톡 응답 ${res.status}` }
-  } catch (e: any) {
-    return { ok: false, error: String(e?.message || e).slice(0, 120) }
-  }
-}
+// 카카오 알림톡은 알리고(Aligo)로 이관됨 → functions/api/_aligo.ts 의 aligoAlimtalk 사용

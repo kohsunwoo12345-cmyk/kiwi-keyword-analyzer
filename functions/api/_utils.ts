@@ -11,6 +11,14 @@ export interface Env {
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
   GOOGLE_REDIRECT_URI?: string
+  // 알리고(Aligo) 문자·알림톡
+  ALIGO_API_KEY?: string
+  ALIGO_USER_ID?: string
+  ALIGO_SENDER?: string
+  ALIGO_SENDER_KEY?: string
+  ALIGO_TEMPLATE_CODE?: string
+  ALIGO_PROXY_URL?: string
+  ALIGO_PROXY_TOKEN?: string
 }
 
 /** 관리자 마스터 비밀번호 (환경변수 ADMIN_PASSWORD, 없으면 빈 값 → 특수 로그인 비활성). 코드에 하드코딩하지 않음. */

@@ -1,8 +1,7 @@
 import { json, getSessionUser, resolveDB } from '../../_utils'
-import { makeSolapiAuthHeader } from '../../_solapi'
 
-// GET /api/kakao/user/channels → 사용자의 카카오 알림톡 발신 채널 목록
-// SUPERPLACE Hono 라우트 이식. 세션 사용자 기준(getSessionUser)으로만 조회.
+// GET /api/kakao/user/channels → 사용자의 카카오 알림톡 발신 채널(발신프로필) 목록
+// 알리고(Aligo) 기준. DB(kakao_channels) 우선, 없으면 환경변수 발신프로필(ALIGO_SENDER_KEY)로 기본 채널 제공.
 export const onRequestGet: PagesFunction<any> = async ({ request, env }) => {
   try {
     const db = resolveDB(env)
@@ -69,47 +68,20 @@ export const onRequestGet: PagesFunction<any> = async ({ request, env }) => {
       createdAt: r.created_at || '',
     }))
 
-    // channel_id가 32자 미만이면 Solapi에서 실제 channelId 보정
-    const hasInvalidId = channels.some((ch: any) => (ch.channelId || '').length !== 32)
-    if (hasInvalidId) {
-      try {
-        const apiKey = String((env as any)?.SOLAPI_API_KEY || '').trim()
-        const apiSecret = String((env as any)?.SOLAPI_API_SECRET || '').trim()
-        if (apiKey && apiSecret) {
-          const auth = await makeSolapiAuthHeader(apiKey, apiSecret)
-          const res = await fetch('https://api.solapi.com/kakao/v2/channels', { headers: { Authorization: auth } })
-          if (res.ok) {
-            const data: any = await res.json()
-            const solapiList: any[] = Array.isArray(data)
-              ? data
-              : Array.isArray(data?.channelList)
-                ? data.channelList
-                : Array.isArray(data?.data)
-                  ? data.data
-                  : Array.isArray(data?.channels)
-                    ? data.channels
-                    : []
-            channels = channels.map((ch: any) => {
-              if ((ch.channelId || '').length === 32) return ch
-              const rawSearch = (ch.searchId || ch.channelId || '').replace(/^@/, '')
-              const found = solapiList.find(
-                (s: any) =>
-                  String(s.searchId || '').replace(/^@/, '') === rawSearch ||
-                  s.channelId === ch.channelId ||
-                  s.pfId === ch.channelId,
-              )
-              if (found?.channelId) {
-                db.prepare(`UPDATE kakao_channels SET channel_id=? WHERE user_id=? AND search_id=?`)
-                  .bind(found.channelId, userId, ch.searchId || '')
-                  .run()
-                  .catch(() => {})
-                return { ...ch, channelId: found.channelId, channelName: found.channelName || ch.channelName }
-              }
-              return ch
-            })
-          }
-        }
-      } catch (_) {}
+    // DB 채널이 없으면 환경변수 발신프로필(ALIGO_SENDER_KEY)로 기본 채널 제공 → 도구 즉시 사용 가능
+    if (channels.length === 0) {
+      const senderKey = String((env as any)?.ALIGO_SENDER_KEY || '').trim()
+      const sender = String((env as any)?.ALIGO_SENDER || '').replace(/[^0-9]/g, '')
+      if (senderKey) {
+        channels = [{
+          channelId: senderKey,
+          channelName: 'BYGENCY 알림톡',
+          searchId: '',
+          phoneNumber: sender,
+          categoryCode: '',
+          createdAt: '',
+        }]
+      }
     }
 
     return json({ ok: true, channels })
