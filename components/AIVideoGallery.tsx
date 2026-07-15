@@ -32,6 +32,11 @@ const M: Dict = {
   '도시 야경 타임랩스': { en: 'City night timelapse', ja: '都市夜景タイムラプス', zh: '城市夜景延时' },
   '뷰티 제품 광고': { en: 'Beauty product ad', ja: 'ビューティー製品広告', zh: '美妆产品广告' },
   '산 정상 일출': { en: 'Mountain summit sunrise', ja: '山頂の日の出', zh: '山顶日出' },
+  '영상 예시는 오픈 라이선스 샘플 시네마틱이며, 실제 서비스에서는 각 모델로 생성한 결과물로 대체됩니다.': {
+    en: 'Sample clips are open-licensed cinematics; in the product these are replaced by each model’s own generated output.',
+    ja: '映像例はオープンライセンスのサンプルで、実サービスでは各モデルの生成結果に置き換わります。',
+    zh: '示例视频为开放许可样片；正式服务中将替换为各模型的实际生成结果。',
+  },
 }
 
 type Clip = {
@@ -42,7 +47,17 @@ type Clip = {
   grad: string
   glow: string // radial highlight position/color
   tag?: 'node' | 'control'
+  src?: string
 }
+
+/** 저작권 없이 사용 가능한(오픈 라이선스) 샘플 시네마틱 클립. 방문자 브라우저에서 직접 재생됨.
+ *  ※ 자체 AI 생성 mp4 로 교체 가능 — public/videos 에 넣으면 자체 호스팅됩니다. */
+const VIDEOS = [
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+]
 
 const CLIPS: Clip[] = [
   { cap: '노을 해변, 걷는 인물', model: 'Seedance 2.0', dur: '0:05', ar: 'p', grad: 'from-orange-400 via-rose-500 to-blue-800', glow: 'radial-gradient(circle at 72% 24%, rgba(255,236,180,0.9), transparent 42%)', tag: 'control' },
@@ -66,8 +81,26 @@ const LEGEND = ['Google Veo 3.1', 'Seedance 2.0', 'Runway Gen-4', 'Luma Ray 2', 
 function ClipCard({ c, t }: { c: Clip; t: (s: string) => string }) {
   return (
     <div className={cn('group relative h-56 overflow-hidden rounded-xl border border-white/10 shadow-lg transition-transform duration-300 hover:scale-[1.03]', ARW[c.ar])}>
+      {/* 그라데이션 포스터 (영상 로딩 전 / 실패 시 폴백) */}
       <div className={cn('absolute inset-0 bg-gradient-to-br', c.grad)} />
       <div className="absolute inset-0" style={{ backgroundImage: c.glow }} />
+
+      {/* 실제 영상 (방문자 브라우저에서 재생, 실패하면 포스터가 그대로 보임) */}
+      {c.src && (
+        <video
+          src={c.src}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={(e) => {
+            e.currentTarget.style.display = 'none'
+          }}
+        />
+      )}
+
       <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
       {/* 모델 배지 */}
@@ -95,8 +128,9 @@ function ClipCard({ c, t }: { c: Clip; t: (s: string) => string }) {
 
 export function AIVideoGallery() {
   const t = useT(M)
-  const row1 = CLIPS.slice(0, 6)
-  const row2 = CLIPS.slice(6)
+  const withSrc = CLIPS.map((c, i) => ({ ...c, src: VIDEOS[i % VIDEOS.length] }))
+  const row1 = withSrc.slice(0, 6)
+  const row2 = withSrc.slice(6)
   return (
     <section className="relative overflow-hidden border-t border-white/10 py-24">
       <div className="relative mx-auto max-w-7xl px-5">
@@ -104,10 +138,10 @@ export function AIVideoGallery() {
           <SectionTag>
             <Sparkles size={13} /> {t('지금 제작되는 AI 영상')}
           </SectionTag>
-          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
+          <h2 className="mt-5 break-keep text-balance text-4xl font-bold tracking-tight sm:text-5xl">
             {t('모든 최상위 모델로,')} <span className="brand-text">{t('노드형 파이프라인에서')}</span>
           </h2>
-          <p className="mt-5 text-balance text-lg leading-relaxed text-[var(--text-soft)]">
+          <p className="mx-auto mt-5 max-w-xl break-keep text-balance text-lg leading-relaxed text-[var(--text-soft)]">
             {t('프롬프트 한 줄이 레퍼런스 이미지 → ControlNet 정밀 제어 → 최상위 영상 모델을 거쳐 완성됩니다. 각 모델로 실제 생성되는 영상들입니다.')}
           </p>
 
@@ -120,7 +154,7 @@ export function AIVideoGallery() {
             ].map((x) => {
               const Icon = x.icon
               return (
-                <span key={x.label} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.05] px-3 py-1.5 text-xs font-semibold text-slate-200">
+                <span key={x.label} className="inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-white/12 bg-white/[0.05] px-3 py-1.5 text-xs font-semibold text-slate-200">
                   <Icon size={13} className="text-blue-300" /> {x.label}
                 </span>
               )
@@ -159,6 +193,9 @@ export function AIVideoGallery() {
             </span>
           ))}
         </div>
+        <p className="mt-6 text-center text-[11px] leading-relaxed text-[var(--text-dim)]">
+          {t('영상 예시는 오픈 라이선스 샘플 시네마틱이며, 실제 서비스에서는 각 모델로 생성한 결과물로 대체됩니다.')}
+        </p>
       </div>
     </section>
   )

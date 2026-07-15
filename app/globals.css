@@ -167,6 +167,9 @@ body {
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
+  /* 한국어 줄바꿈: 단어(어절) 단위로만 끊어 '만들고'가 '만/들고'처럼 쪼개지지 않게 */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 @layer base {
