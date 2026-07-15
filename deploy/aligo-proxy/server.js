@@ -11,11 +11,12 @@
  *
  * 실행:
  *   ALIGO_PROXY_TOKEN=발급한긴랜덤토큰 PORT=8080 node server.js
- * 의존성 없음(Node 내장 http/https 만 사용). Node 16+ 권장.
+ * 참고: 알리고 앞단 보안이 Node TLS 지문을 403 처리하므로, 실제 전송은 curl 로 위임한다.
+ *       (서버에 curl 이 설치돼 있어야 함)
  */
 'use strict'
 const http = require('http')
-const https = require('https')
+const { spawn } = require('child_process')
 
 const PORT = Number(process.env.PORT || 8080)
 const TOKEN = String(process.env.ALIGO_PROXY_TOKEN || '') // Cloudflare 의 ALIGO_PROXY_TOKEN 과 동일하게 설정
@@ -55,17 +56,18 @@ const server = http.createServer((req, res) => {
   })
   req.on('end', () => {
     const data = Buffer.concat(chunks)
-    const preq = https.request(
-      target,
-      { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8', 'Content-Length': data.length, 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36', 'Accept': 'application/json, text/plain, */*' } },
-      (pres) => {
-        res.writeHead(pres.statusCode || 502, { 'Content-Type': pres.headers['content-type'] || 'application/json; charset=utf-8' })
-        pres.pipe(res)
-      },
-    )
-    preq.on('error', (e) => deny(res, 502, 'upstream error: ' + String(e && e.message || e)))
-    preq.write(data)
-    preq.end()
+    // curl 로 위임 (알리고 WAF 우회). --data-binary @- 로 원본 본문을 그대로 전달.
+    const c = spawn('curl', ['-s', '-X', 'POST', target, '-H', 'Content-Type: application/x-www-form-urlencoded; charset=utf-8', '--data-binary', '@-', '--max-time', '25'])
+    const out = []
+    c.stdout.on('data', (x) => out.push(x))
+    c.on('error', () => deny(res, 502, 'curl spawn failed (curl 설치 필요)'))
+    c.on('close', (code) => {
+      if (code !== 0) return deny(res, 502, 'curl exit ' + code)
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
+      res.end(Buffer.concat(out))
+    })
+    c.stdin.write(data)
+    c.stdin.end()
   })
 })
 

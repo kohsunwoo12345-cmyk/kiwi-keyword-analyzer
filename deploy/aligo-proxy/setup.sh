@@ -21,7 +21,8 @@ echo "-- Node: $(node -v 2>/dev/null || echo '설치 실패')"
 # 2) 프록시 프로그램 작성
 mkdir -p /opt/bygency-aligo-proxy
 cat > /opt/bygency-aligo-proxy/server.js <<'JS'
-const http=require('http'),https=require('https');
+// 알리고 앞단 보안이 Node TLS 지문을 403 처리하므로, 실제 전송은 curl 로 위임한다.
+const http=require('http'),{spawn}=require('child_process');
 const T=process.env.ALIGO_PROXY_TOKEN||'';
 http.createServer((q,s)=>{
   if(q.method==='GET'){s.writeHead(200,{'Content-Type':'application/json'});return s.end('{"ok":true,"service":"bygency-aligo-proxy"}')}
@@ -32,9 +33,15 @@ http.createServer((q,s)=>{
   if(u.protocol!=='https:'||!/(^|\.)aligo\.in$/i.test(u.hostname)){s.writeHead(400);return s.end('{"proxyError":"host not allowed"}')}
   let b=[],n=0;q.on('data',c=>{n+=c.length;if(n>1048576){q.destroy();return}b.push(c)}).on('end',()=>{
     const d=Buffer.concat(b);
-    const r=https.request(t,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded; charset=utf-8','Content-Length':d.length,'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36','Accept':'application/json, text/plain, */*'}},p=>{
-      s.writeHead(p.statusCode||502,{'Content-Type':p.headers['content-type']||'application/json'});p.pipe(s)});
-    r.on('error',e=>{s.writeHead(502);s.end('{"proxyError":"upstream"}')});r.write(d);r.end();
+    const c=spawn('curl',['-s','-X','POST',t,'-H','Content-Type: application/x-www-form-urlencoded; charset=utf-8','--data-binary','@-','--max-time','25']);
+    let out=[];
+    c.stdout.on('data',x=>out.push(x));
+    c.on('error',e=>{try{s.writeHead(502);s.end('{"proxyError":"curl-spawn"}')}catch(_){}});
+    c.on('close',code=>{
+      if(code!==0){try{s.writeHead(502,{'Content-Type':'application/json'});s.end('{"proxyError":"curl '+code+'"}')}catch(_){}return}
+      try{s.writeHead(200,{'Content-Type':'application/json; charset=utf-8'});s.end(Buffer.concat(out))}catch(_){}
+    });
+    c.stdin.write(d);c.stdin.end();
   });
 }).listen(8080,()=>console.log('bygency-aligo-proxy on :8080'));
 JS
