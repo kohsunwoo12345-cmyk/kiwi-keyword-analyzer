@@ -44,12 +44,14 @@ function formBody(params: Record<string, any>): string {
 async function aligoCall(env: any, target: string, params: Record<string, any>): Promise<{ ok: boolean; status: number; data: any; error?: string }> {
   const body = formBody(params)
   const proxy = String(env?.ALIGO_PROXY_URL || '').trim()
+  const UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
   try {
     let res: Response
     if (proxy) {
       const headers: Record<string, string> = {
         'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
         'X-Aligo-Target': target,
+        'User-Agent': UA,
       }
       const token = String(env?.ALIGO_PROXY_TOKEN || '').trim()
       if (token) headers['X-Aligo-Token'] = token
@@ -57,7 +59,7 @@ async function aligoCall(env: any, target: string, params: Record<string, any>):
     } else {
       res = await fetch(target, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8' },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8', 'User-Agent': UA, 'Accept': 'application/json, text/plain, */*' },
         body,
       })
     }

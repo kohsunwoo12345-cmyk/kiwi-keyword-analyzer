@@ -57,7 +57,7 @@ const server = http.createServer((req, res) => {
     const data = Buffer.concat(chunks)
     const preq = https.request(
       target,
-      { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8', 'Content-Length': data.length } },
+      { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8', 'Content-Length': data.length, 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36', 'Accept': 'application/json, text/plain, */*' } },
       (pres) => {
         res.writeHead(pres.statusCode || 502, { 'Content-Type': pres.headers['content-type'] || 'application/json; charset=utf-8' })
         pres.pipe(res)

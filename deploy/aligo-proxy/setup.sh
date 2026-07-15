@@ -32,7 +32,7 @@ http.createServer((q,s)=>{
   if(u.protocol!=='https:'||!/(^|\.)aligo\.in$/i.test(u.hostname)){s.writeHead(400);return s.end('{"proxyError":"host not allowed"}')}
   let b=[],n=0;q.on('data',c=>{n+=c.length;if(n>1048576){q.destroy();return}b.push(c)}).on('end',()=>{
     const d=Buffer.concat(b);
-    const r=https.request(t,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded; charset=utf-8','Content-Length':d.length}},p=>{
+    const r=https.request(t,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded; charset=utf-8','Content-Length':d.length,'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36','Accept':'application/json, text/plain, */*'}},p=>{
       s.writeHead(p.statusCode||502,{'Content-Type':p.headers['content-type']||'application/json'});p.pipe(s)});
     r.on('error',e=>{s.writeHead(502);s.end('{"proxyError":"upstream"}')});r.write(d);r.end();
   });
@@ -51,7 +51,8 @@ Restart=always
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-systemctl enable --now bygency-aligo-proxy || true
+systemctl enable bygency-aligo-proxy >/dev/null 2>&1 || true
+systemctl restart bygency-aligo-proxy || true
 
 # 4) 방화벽 8080 열기 (있으면)
 command -v ufw >/dev/null 2>&1 && ufw allow 8080/tcp >/dev/null 2>&1 || true
