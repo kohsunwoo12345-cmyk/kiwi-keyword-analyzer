@@ -24,7 +24,8 @@ export const onRequestGet: PagesFunction<any> = async ({ request, env }) => {
         content: t.content || '',
         categoryCode: t.categoryCode || '',
         messageType: t.messageType || 'BA',
-        status: t.status || 'APPROVED',
+        status: t.status || 'REGISTERED', // APPROVED | PENDING | REGISTERED | REJECTED (알리고 정규화)
+        inspStatus: t.inspStatus || '',
         rejectReason: t.rejectReason || '',
         buttons: t.buttons || [],
         dateCreated: t.dateCreated || '',

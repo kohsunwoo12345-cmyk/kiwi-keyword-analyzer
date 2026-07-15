@@ -159,7 +159,7 @@ export const alimtalkPage = `<!DOCTYPE html>
         <!-- 채널 없을 때 -->
         <div id="noChannelBanner" class="hidden mt-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-xs text-blue-700 flex items-center justify-between">
           <span><i class="fas fa-info-circle mr-1"></i>등록된 채널이 없습니다.</span>
-          <a href="/kakao/alimtalk/channel" class="font-bold underline">채널 등록 →</a>
+          <a href="/dashboard_USE17237_612/alimtalk/templates" target="_top" class="font-bold underline">채널 등록 →</a>
         </div>
       </div>
 

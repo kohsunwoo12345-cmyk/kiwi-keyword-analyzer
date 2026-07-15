@@ -12,16 +12,19 @@ import {
 const inputCls =
   'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-amber-500'
 
-/** 알리고 템플릿 상태 → 한국어 3단계 */
-function mapStatus(s: string): '승인' | '검수중' | '반려' {
+/** 알리고 템플릿 상태 → 한국어 검수 단계 (승인/검수중/등록됨/반려) */
+function mapStatus(s: string): '승인' | '검수중' | '등록됨' | '반려' {
   const u = String(s || '').toUpperCase()
-  if (u.includes('APR') || u.includes('승인') || u === 'A' || u === 'Y') return '승인'
+  if (u.includes('APPROV') || u.includes('APR') || u.includes('승인') || u === 'A' || u === 'Y') return '승인'
   if (u.includes('REJ') || u.includes('반려') || u.includes('반송')) return '반려'
+  if (u.includes('PEND') || u.includes('REQ') || u.includes('심사') || u.includes('검수')) return '검수중'
+  if (u.includes('REGIST') || u.includes('등록')) return '등록됨'
   return '검수중'
 }
 const statusMeta: Record<string, { badge: string; icon: typeof Check }> = {
   승인: { badge: 'border-emerald-200 bg-emerald-50 text-emerald-700', icon: Check },
   검수중: { badge: 'border-amber-200 bg-amber-50 text-amber-700', icon: Clock },
+  등록됨: { badge: 'border-sky-200 bg-sky-50 text-sky-700', icon: Clock },
   반려: { badge: 'border-rose-200 bg-rose-50 text-rose-700', icon: AlertCircle },
 }
 
@@ -232,8 +235,10 @@ export default function AlimtalkTemplatesPage() {
                       <a href="/dashboard_USE17237_612/alimtalk" className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 hover:underline"><Send size={12} /> 이 템플릿으로 발송</a>
                     ) : st === '반려' ? (
                       <button onClick={() => reRequest(t.templateId)} className="text-xs font-semibold text-amber-600 hover:underline">수정 후 다시 승인요청</button>
+                    ) : st === '등록됨' ? (
+                      <button onClick={() => reRequest(t.templateId)} className="text-xs font-semibold text-sky-600 hover:underline">승인 요청 보내기</button>
                     ) : (
-                      <span className="text-xs text-[var(--text-dim)]">카카오 심사 대기 중…</span>
+                      <span className="text-xs text-[var(--text-dim)]">카카오 심사 진행 중…</span>
                     )}
                   </div>
                 </div>

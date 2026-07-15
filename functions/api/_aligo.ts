@@ -194,15 +194,26 @@ export async function aligoTemplates(env: any, senderKey?: string): Promise<{ ok
   if (r.error) return { ok: false, error: r.error }
   if (Number(r.data?.code) === 0) {
     const list = r.data?.list || []
-    const templates = list.map((t: any) => ({
-      templateId: t.templtCode || t.templateCode || '',
-      name: t.templtName || t.templateName || '',
-      content: t.templtContent || t.templateContent || '',
-      status: t.status || t.inspStatus || '',
-      messageType: t.templtMessageType || 'BA',
-      buttons: t.buttons || [],
-      dateCreated: t.cdate || '',
-    }))
+    const templates = list.map((t: any) => {
+      const insp = String(t.inspStatus || t.insp_status || '').toUpperCase()
+      const raw = String(t.status || '').toUpperCase()
+      // 알리고 검수상태 정규화: APPROVED / PENDING(심사중) / REGISTERED(요청전) / REJECTED
+      let status = 'REGISTERED'
+      if (insp === 'APR' || raw === 'A' || raw === 'APPROVED' || raw.includes('승인')) status = 'APPROVED'
+      else if (insp === 'REJ' || raw.includes('반려') || raw.includes('REJECT')) status = 'REJECTED'
+      else if (insp === 'REQ' || raw === 'R' || raw.includes('심사') || raw.includes('검수')) status = 'PENDING'
+      return {
+        templateId: t.templtCode || t.templateCode || '',
+        name: t.templtName || t.templateName || '',
+        content: t.templtContent || t.templateContent || '',
+        status,
+        inspStatus: insp || raw,
+        rejectReason: t.comments || t.rejectReason || t.reject_reason || '',
+        messageType: t.templtMessageType || 'BA',
+        buttons: t.buttons || [],
+        dateCreated: t.cdate || '',
+      }
+    })
     return { ok: true, templates }
   }
   return { ok: false, error: r.data?.message || `템플릿 조회 실패 (${r.data?.code ?? r.status})` }

@@ -568,7 +568,7 @@ export async function sendAlimtalk(input: { to: string | string[]; text: string;
 
 /* ── 카카오 알림톡 채널·템플릿 관리 (알리고) ── */
 export interface KakaoChannel { channelId: string; channelName: string; searchId?: string; phoneNumber?: string; categoryCode?: string; createdAt?: string }
-export interface KakaoTemplate { templateId: string; name: string; content: string; status: string; messageType?: string; rejectReason?: string; buttons?: any[]; dateCreated?: string }
+export interface KakaoTemplate { templateId: string; name: string; content: string; status: string; inspStatus?: string; messageType?: string; rejectReason?: string; buttons?: any[]; dateCreated?: string }
 
 export async function kakaoChannels(): Promise<{ ok: boolean; channels: KakaoChannel[]; error?: string }> {
   try { const r = await fetch('/api/kakao/user/channels', { credentials: 'include' }); const d = await r.json(); return { ok: !!d.ok, channels: d.channels || [], error: d.error } } catch { return { ok: false, channels: [], error: '네트워크 오류' } }
