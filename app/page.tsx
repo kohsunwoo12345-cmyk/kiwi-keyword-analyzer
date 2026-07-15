@@ -740,11 +740,6 @@ const TRUST = [
 
 const PLANS = [
   {
-    name: 'Starter', price: '무료', period: '', desc: '개인 마케터의 시작',
-    features: ['랜딩페이지 1개', '월 500 DB 수집', '유튜브·블로그 분석', '기본 리포트'],
-    cta: '무료로 시작', highlight: false,
-  },
-  {
     name: 'Pro', price: '₩89,000', period: '/월', desc: '성장하는 팀을 위한 선택',
     features: ['랜딩페이지 무제한', '월 30,000 DB 수집', '전체 분석 + 광고 통합', 'CRM · 알림톡 캠페인', 'AI 챗봇 어시스턴트', '팀 협업 5인'],
     cta: 'Pro 시작하기', highlight: true,
@@ -1187,7 +1182,7 @@ export default function Home() {
             <p className="mt-5 text-lg text-[var(--text-soft)]">{t('무료로 시작하고 필요할 때 업그레이드하세요.')}</p>
           </Reveal>
 
-          <div className="mx-auto mt-16 grid max-w-5xl gap-6 lg:grid-cols-3">
+          <div className="mx-auto mt-16 grid max-w-3xl gap-6 sm:grid-cols-2">
             {PLANS.map((p, i) => (
               <Reveal key={p.name} delay={i * 100} className={p.highlight ? 'lg:-mt-4' : ''}>
                 <div
