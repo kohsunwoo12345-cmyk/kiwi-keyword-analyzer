@@ -26,7 +26,7 @@ const M: Dict = {
   회사소개: { en: 'About', ja: '会社概要', zh: '关于' },
   문의: { en: 'Contact', ja: 'お問い合わせ', zh: '联系' },
   로그인: { en: 'Log in', ja: 'ログイン', zh: '登录' },
-  '무료로 시작하기': { en: 'Get started free', ja: '無料で始める', zh: '免费开始' },
+  '지금 시작하기': { en: 'Get started', ja: '今すぐ始める', zh: '立即开始' },
   시작하기: { en: 'Start', ja: '始める', zh: '开始' },
   대시보드: { en: 'Dashboard', ja: 'ダッシュボード', zh: '控制台' },
   '대시보드로 이동': { en: 'Go to dashboard', ja: 'ダッシュボードへ', zh: '进入控制台' },
@@ -109,7 +109,7 @@ export function Navbar() {
                   {t('로그인')}
                 </Link>
                 <Button href="/signup" size="sm" className="group">
-                  {t('무료로 시작하기')}
+                  {t('지금 시작하기')}
                   <ArrowRight size={15} className="transition-transform duration-300 group-hover:translate-x-0.5" />
                 </Button>
               </>

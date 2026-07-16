@@ -53,7 +53,7 @@ const M: Dict = {
     ja: '。それぞれPlus・Pro・Maxに分かれており、片方だけでも両方一緒でも使えます。契約に縛られず、いつでもアップ・ダウンできます。',
     zh: '。两者各分为 Plus、Pro、Max，可只用其一，也可两者并用。没有合约，随时升降级。',
   },
-  '신용카드 불필요': { en: 'No credit card required', ja: 'クレジットカード不要', zh: '无需信用卡' },
+  '웹에서 바로 실행': { en: 'Runs in your browser', ja: 'ブラウザですぐ実行', zh: '浏览器中即刻运行' },
   '3분 만에 세팅': { en: 'Set up in 3 minutes', ja: '3分でセットアップ', zh: '3分钟完成设置' },
   '언제든 해지': { en: 'Cancel anytime', ja: 'いつでも解約可能', zh: '随时取消' },
 
@@ -309,12 +309,12 @@ const M: Dict = {
     ja: 'マーケティングも動画も、両方今日から始められます',
     zh: '营销与视频，今天都能开始',
   },
-  '신용카드 없이 3분이면 세팅 완료. 필요한 플랜 하나로 가볍게 시작하고, 언제든 다른 트랙을 더하세요.': {
-    en: 'Set up in 3 minutes, no credit card. Start light with the one plan you need, and add the other track whenever you like.',
-    ja: 'クレジットカードなしで3分あればセットアップ完了。必要なプラン一つで気軽に始めて、いつでも別のトラックを追加できます。',
-    zh: '无需信用卡，3分钟即可完成设置。用一个所需方案轻松起步，随时可添加另一条方案线。',
+  '3분이면 세팅 완료. 필요한 플랜 하나로 가볍게 시작하고, 언제든 다른 트랙을 더하세요.': {
+    en: 'Set up in 3 minutes. Start light with the one plan you need, and add the other track whenever you like.',
+    ja: '3分あればセットアップ完了。必要なプラン一つで気軽に始めて、いつでも別のトラックを追加できます。',
+    zh: '3分钟即可完成设置。用一个所需方案轻松起步，随时可添加另一条方案线。',
   },
-  '무료로 시작하기': { en: 'Start for free', ja: '無料で始める', zh: '免费开始' },
+  '지금 시작하기': { en: 'Get started', ja: '今すぐ始める', zh: '立即开始' },
 }
 
 type Tier = {
@@ -616,7 +616,7 @@ export default function PricingPage() {
             <b className="font-semibold text-[var(--text)]">{t('노드형 AI 영상 제작')}</b>{t('. 각각 Plus·Pro·Max로 나뉘어 있어, 하나만 써도 되고 둘 다 함께 써도 됩니다. 약정 없이 언제든 올리고 내리세요.')}
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-[var(--text-dim)] animate-fade-up delay-300">
-            {['신용카드 불필요', '3분 만에 세팅', '언제든 해지'].map((s) => (
+            {['웹에서 바로 실행', '3분 만에 세팅', '언제든 해지'].map((s) => (
               <span key={s} className="flex items-center gap-1.5">
                 <Check size={15} className="text-emerald-500" /> {t(s)}
               </span>
@@ -780,7 +780,7 @@ export default function PricingPage() {
                 {t('마케팅과 영상, 둘 다 오늘 시작할 수 있습니다')}
               </h2>
               <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-white/85">
-                {t('신용카드 없이 3분이면 세팅 완료. 필요한 플랜 하나로 가볍게 시작하고, 언제든 다른 트랙을 더하세요.')}
+                {t('3분이면 세팅 완료. 필요한 플랜 하나로 가볍게 시작하고, 언제든 다른 트랙을 더하세요.')}
               </p>
               <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Button
@@ -788,7 +788,7 @@ export default function PricingPage() {
                   size="lg"
                   className="!bg-white !text-blue-700 hover:!bg-blue-50 hover:!brightness-100"
                 >
-                  {t('무료로 시작하기')} <ArrowRight size={18} />
+                  {t('지금 시작하기')} <ArrowRight size={18} />
                 </Button>
                 <Button
                   href="/contact"

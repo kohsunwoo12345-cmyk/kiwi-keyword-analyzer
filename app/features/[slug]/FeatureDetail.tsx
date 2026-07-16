@@ -103,7 +103,7 @@ const M: Dict = {
   '홈으로 돌아가기': { en: 'Back to home', ja: 'ホームに戻る', zh: '返回首页' },
   '홈': { en: 'Home', ja: 'ホーム', zh: '首页' },
   '기능': { en: 'Features', ja: '機能', zh: '功能' },
-  '무료로 시작하기': { en: 'Get started free', ja: '無料で始める', zh: '免费开始' },
+  '지금 시작하기': { en: 'Get started', ja: '今すぐ始める', zh: '立即开始' },
   '문의하기': { en: 'Contact us', ja: 'お問い合わせ', zh: '联系我们' },
   '핵심 역량': { en: 'Core capabilities', ja: 'コア機能', zh: '核心能力' },
   '이 해내는 것들': { en: ' delivers for you', ja: 'ができること', zh: ' 能为你做的事' },
@@ -114,7 +114,7 @@ const M: Dict = {
   '직접 체험해보세요': { en: 'Try it yourself', ja: '自分で体験してみる', zh: '亲自体验' },
   '더 알아보기': { en: 'Learn more', ja: 'もっと知る', zh: '了解更多' },
   '다른 기능도 살펴보세요': { en: 'Explore other features too', ja: '他の機能も見てみましょう', zh: '也看看其他功能' },
-  ', 지금 무료로 시작하세요': { en: ', get started free today', ja: '、今すぐ無料で始めましょう', zh: '，立即免费开始' },
+  ', 지금 시작하세요': { en: ', get started today', ja: '、今すぐ始めましょう', zh: '，立即开始' },
   '. BYGENCY 하나로 마케팅의 모든 과정을 연결하세요.': { en: '. Connect every step of your marketing with BYGENCY alone.', ja: '。BYGENCY一つでマーケティングのすべての工程をつなげましょう。', zh: '。用一个BYGENCY，连接营销的每一个环节。' },
   '준비 중인 데모입니다.': { en: 'This demo is coming soon.', ja: '準備中のデモです。', zh: '演示正在准备中。' },
 
@@ -443,7 +443,7 @@ export function FeatureDetail({ slug }: { slug: string }) {
 
           <div className="mt-9 flex flex-col items-center justify-center gap-3 animate-fade-up delay-300 sm:flex-row">
             <Button href="/signup" size="lg" className="group">
-              {t('무료로 시작하기')}
+              {t('지금 시작하기')}
               <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
             </Button>
             <Button href="/contact" variant="outline" size="lg">
@@ -580,14 +580,14 @@ export function FeatureDetail({ slug }: { slug: string }) {
                 </span>
               </div>
               <h2 className="text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                {feature.title}{t(', 지금 무료로 시작하세요')}
+                {feature.title}{t(', 지금 시작하세요')}
               </h2>
               <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-white/85">
                 {t(meta.tagline)}{t('. BYGENCY 하나로 마케팅의 모든 과정을 연결하세요.')}
               </p>
               <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Button href="/signup" size="lg" className="!bg-white !text-blue-700 hover:!bg-blue-50 hover:!brightness-100">
-                  {t('무료로 시작하기')} <ArrowRight size={18} />
+                  {t('지금 시작하기')} <ArrowRight size={18} />
                 </Button>
                 <Button href="/contact" size="lg" className="!border !border-white/40 !bg-white/10 !text-white hover:!bg-white/20">
                   {t('문의하기')}

@@ -7,7 +7,7 @@ import { Mail, Lock, Eye, EyeOff, ArrowLeft, ArrowRight, AlertCircle } from 'luc
 import { Logo } from '@/components/Brand'
 import { Button } from '@/components/ui'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
-import { GoogleAuthConsent, OrDivider } from '@/components/GoogleAuthButton'
+import { GoogleAuthButton, OrDivider } from '@/components/GoogleAuthButton'
 import { login } from '@/lib/auth'
 
 const OAUTH_ERRORS: Record<string, string> = {
@@ -114,9 +114,9 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* 구글로 로그인 (필수 동의 포함) */}
+            {/* 구글로 로그인 — 약관 동의는 로그인 이후 단계에서 진행 */}
             <div className="mt-6 space-y-4">
-              <GoogleAuthConsent label="구글로 로그인 (Continue with Google)" />
+              <GoogleAuthButton label="구글로 로그인 (Continue with Google)" />
               <OrDivider text="또는 이메일로 로그인" />
             </div>
 

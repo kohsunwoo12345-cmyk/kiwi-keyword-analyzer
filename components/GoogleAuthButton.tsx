@@ -21,7 +21,7 @@ export function GoogleAuthButton({ label = '구글로 계속하기', refCode }: 
   return (
     <a
       href={href}
-      className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[#1f2328] shadow-sm transition-all hover:bg-slate-50 hover:shadow-md"
+      className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-[#2b2e35] bg-[#15171c] px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#1e2127] hover:shadow-md"
     >
       <GoogleIcon />
       {label}
@@ -148,7 +148,7 @@ function ConsentLine({
         className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-[var(--border)] accent-blue-600"
       />
       <span className={'leading-snug ' + (error ? 'text-rose-500' : 'text-[var(--text-soft)]')}>
-        <span className={required ? 'font-semibold text-rose-400' : 'text-[var(--text-dim)]'}>
+        <span className="font-medium text-slate-400">
           {required ? '[필수] ' : '[선택] '}
         </span>
         {label}

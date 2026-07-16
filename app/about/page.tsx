@@ -180,7 +180,7 @@ const M: Dict = {
   '도입은': { en: 'Getting started takes', ja: '導入は', zh: '接入只需' },
   '세 단계면 끝': { en: 'just three steps', ja: 'たった三ステップ', zh: '三步' },
   '가입하고 워크스페이스 열기': { en: 'Sign up & open your workspace', ja: '登録してワークスペースを開く', zh: '注册并开启工作空间' },
-  '신용카드 없이 3분. 가입 즉시 나만의 노드 워크스페이스가 열립니다.': {
+  '설치 없이 3분. 가입 즉시 나만의 노드 워크스페이스가 열립니다.': {
     en: 'Three minutes, no credit card. Your own node workspace opens the moment you sign up.',
     ja: 'クレジットカード不要、3分。登録した瞬間に自分専用のノードワークスペースが開きます。',
     zh: '三分钟，无需信用卡。注册即刻开启专属节点工作空间。',
@@ -226,7 +226,7 @@ const M: Dict = {
     ja: '散らばったツールを転々とする代わりに、一つにまとめて成果に集中する時です。私たちはその道のりを最後まで共にします。',
     zh: '与其在零散的工具间辗转，不如将它们整合为一，专注于成效。这段旅程，我们将全程与你同行。',
   },
-  '무료로 시작하기': { en: 'Start for free', ja: '無料で始める', zh: '免费开始' },
+  '지금 시작하기': { en: 'Get started', ja: '今すぐ始める', zh: '立即开始' },
   '요금제 보기': { en: 'View pricing', ja: '料金プランを見る', zh: '查看价格方案' },
 }
 
@@ -537,7 +537,7 @@ export default function AboutPage() {
                   size="lg"
                   className="!bg-white !text-blue-700 hover:!bg-blue-50 hover:!brightness-100"
                 >
-                  {t('무료로 시작하기')} <ArrowRight size={18} />
+                  {t('지금 시작하기')} <ArrowRight size={18} />
                 </Button>
                 <Link
                   href="/pricing"
@@ -605,7 +605,7 @@ const PERSONAS = [
 ]
 
 const STEPS = [
-  { no: '01', title: '가입하고 워크스페이스 열기', desc: '신용카드 없이 3분. 가입 즉시 나만의 노드 워크스페이스가 열립니다.' },
+  { no: '01', title: '가입하고 워크스페이스 열기', desc: '설치 없이 3분. 가입 즉시 나만의 노드 워크스페이스가 열립니다.' },
   { no: '02', title: '채널 연결하고 데이터 모으기', desc: '랜딩페이지·분석·CRM을 연결하면 흩어져 있던 데이터가 한 곳에 쌓입니다.' },
   { no: '03', title: 'AI로 실행하고 성과 확인', desc: 'AI가 콘텐츠·영상·캠페인을 실행하고, 성과는 숫자로 바로 확인합니다.' },
 ]

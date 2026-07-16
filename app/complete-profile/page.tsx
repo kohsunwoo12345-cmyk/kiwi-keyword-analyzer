@@ -26,9 +26,15 @@ export default function CompleteProfilePage() {
   const [address2, setAddress2] = useState('')
   const [phone, setPhone] = useState('')
   const [refCode, setRefCode] = useState('')
+  const [agreeTos, setAgreeTos] = useState(false)
+  const [agreePrivacy, setAgreePrivacy] = useState(false)
+  const [agreeMkt, setAgreeMkt] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // 간편로그인(구글) 후 아직 필수 약관에 동의하지 않은 회원 → 이 화면에서 동의를 받는다.
+  const needConsent = !!user && user.role !== 'admin' && !(user.tosConsent === 1 && user.privacyConsent === 1)
 
   // 인증/완료 상태에 따른 리다이렉트
   useEffect(() => {
@@ -37,7 +43,8 @@ export default function CompleteProfilePage() {
       router.replace('/login')
       return
     }
-    if (user.addressComplete) {
+    const consentDone = user.role === 'admin' || (user.tosConsent === 1 && user.privacyConsent === 1)
+    if (user.addressComplete && consentDone) {
       router.replace(user.role === 'admin' ? '/adminsunkoh028741_11263' : '/dashboard_USE17237_612')
       return
     }
@@ -55,6 +62,7 @@ export default function CompleteProfilePage() {
     if (!country) e.country = '국가를 선택해 주세요.'
     if (!postalCode.trim()) e.postalCode = '우편번호를 입력해 주세요.'
     if (!address1.trim()) e.address1 = '사업장 주소를 입력해 주세요.'
+    if (needConsent && !(agreeTos && agreePrivacy)) e.consent = '필수 약관에 모두 동의해 주세요.'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -72,6 +80,7 @@ export default function CompleteProfilePage() {
         address2: address2.trim() || undefined,
         phone: phone.trim() || undefined,
         ref: refCode.trim() || undefined,
+        ...(needConsent ? { tos: agreeTos ? 1 : 0, privacy: agreePrivacy ? 1 : 0, marketing: agreeMkt ? 1 : 0 } : {}),
       })
       if (!res.ok || !res.user) {
         setFormError(res.error || '주소 저장에 실패했습니다.')
@@ -82,7 +91,7 @@ export default function CompleteProfilePage() {
     })()
   }
 
-  if (!ready || !user || user.addressComplete) {
+  if (!ready || !user || (user.addressComplete && !needConsent)) {
     return (
       <main className="site-dark grid min-h-screen place-items-center bg-[var(--bg)]">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
@@ -243,6 +252,37 @@ export default function CompleteProfilePage() {
                   />
                 </div>
               </div>
+
+              {/* 약관 동의 — 간편로그인(구글) 후 이 단계에서 필수 동의 */}
+              {needConsent && (
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-4">
+                  <p className="mb-3 text-sm font-medium">서비스 이용을 위해 약관에 동의해 주세요.</p>
+                  <div className="space-y-2.5">
+                    <label className="flex cursor-pointer items-start gap-2.5 text-sm text-[var(--text-soft)] select-none">
+                      <input type="checkbox" checked={agreeTos} onChange={(e) => setAgreeTos(e.target.checked)} className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-[var(--border)] accent-blue-600" />
+                      <span className="leading-snug">
+                        <span className="font-medium text-slate-400">[필수] </span>
+                        <a href="/legal/terms" target="_blank" rel="noreferrer" className="font-medium text-blue-300 hover:underline">서비스 이용약관</a>에 동의합니다.
+                      </span>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-2.5 text-sm text-[var(--text-soft)] select-none">
+                      <input type="checkbox" checked={agreePrivacy} onChange={(e) => setAgreePrivacy(e.target.checked)} className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-[var(--border)] accent-blue-600" />
+                      <span className="leading-snug">
+                        <span className="font-medium text-slate-400">[필수] </span>
+                        <a href="/legal/privacy" target="_blank" rel="noreferrer" className="font-medium text-blue-300 hover:underline">개인정보처리방침</a>에 동의합니다.
+                      </span>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-2.5 text-sm text-[var(--text-soft)] select-none">
+                      <input type="checkbox" checked={agreeMkt} onChange={(e) => setAgreeMkt(e.target.checked)} className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-[var(--border)] accent-blue-600" />
+                      <span className="leading-snug">
+                        <span className="font-medium text-slate-400">[선택] </span>
+                        마케팅 정보 수신에 동의합니다.
+                      </span>
+                    </label>
+                  </div>
+                  {errors.consent && <p className="mt-2 text-xs text-rose-300">{errors.consent}</p>}
+                </div>
+              )}
 
               <Button type="submit" size="lg" disabled={loading} className="mt-1 w-full">
                 {loading ? '저장 중…' : '입력 완료하고 시작하기'}

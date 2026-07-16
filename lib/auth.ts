@@ -100,6 +100,9 @@ export async function saveAddress(input: {
   address2?: string
   phone?: string
   ref?: string
+  tos?: number
+  privacy?: number
+  marketing?: number
 }): Promise<AuthResult> {
   return postJson('/api/account/address', input)
 }

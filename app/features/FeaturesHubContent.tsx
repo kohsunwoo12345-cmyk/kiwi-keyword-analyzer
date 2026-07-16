@@ -21,7 +21,7 @@ const M: Dict = {
     ja: '獲得・分析・転換・自動化。マーケターの毎日に必要な7つのツールを、一つのノードワークスペースに繋ぎました。各機能をクリックして、実際に動くデモを今すぐ体験してください。',
     zh: '获客、分析、转化、自动化。将营销人每天所需的 7 大工具连接进同一个节点工作区。点击任意功能，立即体验真实可用的演示。',
   },
-  '무료로 시작하기': { en: 'Get started free', ja: '無料で始める', zh: '免费开始' },
+  '지금 시작하기': { en: 'Get started', ja: '今すぐ始める', zh: '立即开始' },
   '요금제 보기': { en: 'View pricing', ja: '料金を見る', zh: '查看价格' },
   '자세히 보기 · 데모 체험': { en: 'Learn more · Try demo', ja: '詳しく見る · デモ体験', zh: '了解详情 · 体验演示' },
   '7가지 기능, 오늘부터 하나의 워크스페이스에서': {
@@ -29,10 +29,10 @@ const M: Dict = {
     ja: '7つの機能を、今日から一つのワークスペースで',
     zh: '七大功能，从今天起同处一个工作区',
   },
-  '신용카드 없이 3분이면 세팅 완료. 지금 시작해서 흩어진 마케팅을 하나로 모으세요.': {
-    en: 'Set up in 3 minutes, no credit card. Start now and bring your scattered marketing together.',
-    ja: 'クレジットカード不要、3分でセットアップ完了。今すぐ始めて、散らばったマーケティングを一つにまとめましょう。',
-    zh: '无需信用卡，3 分钟即可完成设置。立即开始，把零散的营销整合到一起。',
+  '3분이면 세팅 완료. 지금 시작해서 흩어진 마케팅을 하나로 모으세요.': {
+    en: 'Set up in 3 minutes. Start now and bring your scattered marketing together.',
+    ja: '3分でセットアップ完了。今すぐ始めて、散らばったマーケティングを一つにまとめましょう。',
+    zh: '3 分钟即可完成设置。立即开始，把零散的营销整合到一起。',
   },
   '도입 문의': { en: 'Contact sales', ja: '導入のお問い合わせ', zh: '咨询采购' },
 }
@@ -63,7 +63,7 @@ export function FeaturesHubContent() {
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 animate-fade-up delay-300 sm:flex-row">
             <Button href="/signup" size="lg" className="group">
-              {t('무료로 시작하기')}
+              {t('지금 시작하기')}
               <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
             </Button>
             <Button href="/pricing" variant="outline" size="lg">
@@ -149,11 +149,11 @@ export function FeaturesHubContent() {
                 {t('7가지 기능, 오늘부터 하나의 워크스페이스에서')}
               </h2>
               <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-white/85">
-                {t('신용카드 없이 3분이면 세팅 완료. 지금 시작해서 흩어진 마케팅을 하나로 모으세요.')}
+                {t('3분이면 세팅 완료. 지금 시작해서 흩어진 마케팅을 하나로 모으세요.')}
               </p>
               <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Button href="/signup" size="lg" className="!bg-white !text-blue-700 hover:!bg-blue-50 hover:!brightness-100">
-                  {t('무료로 시작하기')} <ArrowRight size={18} />
+                  {t('지금 시작하기')} <ArrowRight size={18} />
                 </Button>
                 <Button href="/contact" size="lg" className="!border !border-white/40 !bg-white/10 !text-white hover:!bg-white/20">
                   {t('도입 문의')}

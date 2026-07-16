@@ -25,7 +25,7 @@ import { Logo, LogoMark } from '@/components/Brand'
 import { Button } from '@/components/ui'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { Counter } from '@/components/motion'
-import { GoogleAuthConsent, OrDivider } from '@/components/GoogleAuthButton'
+import { GoogleAuthButton, OrDivider } from '@/components/GoogleAuthButton'
 import { signup } from '@/lib/auth'
 
 const inputBase =
@@ -35,7 +35,7 @@ const BENEFITS = [
   '랜딩페이지 노코드 빌더로 DB 자동 수집',
   '유튜브·블로그·광고 성과 통합 분석 대시보드',
   '문자·알림톡 CRM으로 재구매까지 자동화',
-  '카드 등록 없이 14일 무료 체험',
+  '노드형 AI 영상 스튜디오로 광고·콘텐츠 제작',
 ]
 
 const PROMO_STATS = [
@@ -201,7 +201,7 @@ export default function SignupPage() {
                   <br />한 곳에서 매출을 만듭니다.
                 </h2>
                 <p className="mt-3 text-sm leading-relaxed text-white/80">
-                  흩어진 마케팅 데이터를 하나로 모아 무엇이 매출을 만드는지 보여드려요. 지금 무료로
+                  흩어진 마케팅 데이터를 하나로 모아 무엇이 매출을 만드는지 보여드려요. 지금
                   시작하세요.
                 </p>
               </div>
@@ -236,9 +236,9 @@ export default function SignupPage() {
               <div className="lg:hidden">
                 <Logo size={32} href={null} wordClassName="text-white" />
               </div>
-              <h1 className="mt-5 text-2xl font-bold tracking-tight lg:mt-0">무료로 시작하기</h1>
+              <h1 className="mt-5 text-2xl font-bold tracking-tight lg:mt-0">지금 시작하기</h1>
               <p className="mt-2 text-sm text-[var(--text-soft)]">
-                14일 무료 체험, 카드 등록이 필요 없어요.
+                몇 분이면 나만의 워크스페이스가 열려요.
               </p>
 
               {formError && (
@@ -248,9 +248,9 @@ export default function SignupPage() {
                 </div>
               )}
 
-              {/* 구글로 계속하기 (필수 동의 포함) */}
+              {/* 구글로 계속하기 — 약관 동의는 로그인 이후 단계에서 진행 */}
               <div className="mt-6 space-y-4">
-                <GoogleAuthConsent label="구글로 계속하기 (Continue with Google)" refCode={refCode} />
+                <GoogleAuthButton label="구글로 계속하기 (Continue with Google)" refCode={refCode} />
                 <OrDivider text="또는 이메일로 가입" />
               </div>
 
@@ -464,7 +464,7 @@ export default function SignupPage() {
                 </div>
 
                 <Button type="submit" size="lg" disabled={loading} className="mt-1 w-full">
-                  {loading ? '가입 중…' : '무료로 시작하기'}
+                  {loading ? '가입 중…' : '가입하기'}
                   {!loading && <ArrowRight size={17} />}
                 </Button>
               </form>
@@ -507,7 +507,7 @@ function ConsentRow({
         className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-[var(--border)] accent-blue-600"
       />
       <span className="leading-snug">
-        <span className={required ? 'text-rose-400' : 'text-[var(--text-dim)]'}>
+        <span className="text-slate-400">
           {required ? '(필수) ' : '(선택) '}
         </span>
         {label}

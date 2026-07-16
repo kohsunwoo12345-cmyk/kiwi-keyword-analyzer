@@ -21,6 +21,23 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!address1) return json({ ok: false, error: '주소를 입력해 주세요.' }, 400)
 
   const now = new Date().toISOString()
+
+  // 약관 동의 — 간편로그인(구글) 후 아직 동의하지 않은 회원은 이 단계에서 필수 동의를 받는다.
+  const isAdmin = me.role === 'admin'
+  const consentPending = !isAdmin && !(Number(me.tos_consent) === 1 && Number(me.privacy_consent) === 1)
+  if (consentPending) {
+    const tosOk = b.tos === 1 || b.tos === '1' || b.tos === true
+    const privacyOk = b.privacy === 1 || b.privacy === '1' || b.privacy === true
+    if (!tosOk || !privacyOk) {
+      return json({ ok: false, error: '필수 약관(이용약관·개인정보처리방침)에 모두 동의해 주세요.' }, 400)
+    }
+    const mktOk = b.marketing === 1 || b.marketing === '1' || b.marketing === true
+    await db
+      .prepare('UPDATE users SET tos_consent = 1, privacy_consent = 1, marketing_consent = ?, consent_at = ? WHERE id = ?')
+      .bind(mktOk ? 1 : 0, now, me.id)
+      .run()
+    await logActivity(db, me.id, 'consent', `약관 동의(간편로그인) · 마케팅수신 ${mktOk ? '동의' : '미동의'}`).catch(() => {})
+  }
   await db
     .prepare('UPDATE users SET country = ?, postal_code = ?, address1 = ?, address2 = ?, address_at = ? WHERE id = ?')
     .bind(country, postalCode, address1, address2, now, me.id)

@@ -62,10 +62,10 @@ const M: Dict = {
     ja: '散らばったマーケティングツールを一つのノードワークスペースに統合しました。',
     zh: '我们将分散的营销工具整合到一个节点工作区中。',
   },
-  '무료로 시작하기': {
-    en: 'Start for free',
-    ja: '無料で始める',
-    zh: '免费开始',
+  '지금 시작하기': {
+    en: 'Get started',
+    ja: '今すぐ始める',
+    zh: '立即开始',
   },
   '기능 둘러보기': {
     en: 'Explore features',
@@ -441,7 +441,7 @@ const M: Dict = {
     ja: '追いつくコストは、先延ばしにするほど大きくなります。最も安いスタートラインは、いつも「今日」です。',
     zh: '追赶的成本会随拖延而增加。最便宜的起跑线，永远是「今天」。',
   },
-  '지금 무료로 시작하기': {
+  '지금 바로 시작하기': {
     en: 'Start free now',
     ja: '今すぐ無料で始める',
     zh: '立即免费开始',
@@ -687,7 +687,7 @@ const M: Dict = {
     ja: '今すぐBYGENCYを始めましょう',
     zh: '立即开启 BYGENCY',
   },
-  '탭 20개, 도구 5개, 매주 반복되던 수작업. 오늘부로 정리하세요. 신용카드 없이, 3분이면 첫 워크스페이스가 열립니다.': {
+  '탭 20개, 도구 5개, 매주 반복되던 수작업. 오늘부로 정리하세요. 3분이면 첫 워크스페이스가 열립니다.': {
     en: '20 tabs, 5 tools, manual work repeated every week — put an end to it today. No credit card, and your first workspace opens in 3 minutes.',
     ja: 'タブ20個、ツール5個、毎週繰り返す手作業。今日で終わりにしましょう。クレジットカードなし、3分で最初のワークスペースが開きます。',
     zh: '20 个标签页、5 个工具、每周重复的手动操作，从今天起彻底清理。无需信用卡，3 分钟即可开启你的第一个工作区。',
@@ -802,7 +802,7 @@ export default function Home() {
 
           <div className="mt-9 flex flex-col items-center justify-center gap-3 animate-fade-up delay-300 sm:flex-row">
             <Button href="/signup" size="lg" className="group">
-              {t('무료로 시작하기')}
+              {t('지금 시작하기')}
               <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
             </Button>
             <Button href="/features" size="lg" className="!border !border-white/25 !bg-white/10 !text-white backdrop-blur hover:!bg-white/20">
@@ -1121,7 +1121,7 @@ export default function Home() {
             </p>
             <div className="mt-9 flex justify-center">
               <Button href="/signup" size="lg" className="group">
-                {t('지금 무료로 시작하기')}
+                {t('지금 바로 시작하기')}
                 <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
               </Button>
             </div>
@@ -1259,11 +1259,11 @@ export default function Home() {
                 {t('지금 바로 BYGENCY를 시작하세요')}
               </h2>
               <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-white/85">
-                {t('탭 20개, 도구 5개, 매주 반복되던 수작업. 오늘부로 정리하세요. 신용카드 없이, 3분이면 첫 워크스페이스가 열립니다.')}
+                {t('탭 20개, 도구 5개, 매주 반복되던 수작업. 오늘부로 정리하세요. 3분이면 첫 워크스페이스가 열립니다.')}
               </p>
               <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Button href="/signup" size="lg" className="!bg-white !text-blue-700 hover:!bg-blue-50 hover:!brightness-100">
-                  {t('무료로 시작하기')} <ArrowRight size={18} />
+                  {t('지금 시작하기')} <ArrowRight size={18} />
                 </Button>
                 <Button href="/login" size="lg" className="!border !border-white/40 !bg-white/10 !text-white hover:!bg-white/20">
                   {t('로그인')}

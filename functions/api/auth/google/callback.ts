@@ -68,21 +68,22 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     let u: any = await db.prepare('SELECT * FROM users WHERE email = ?').bind(email).first()
 
     if (!u) {
-      // 신규 회원: 필수 동의(이용약관·개인정보처리방침)가 없으면 동의 화면으로 되돌림
+      // 신규 회원: 약관 동의는 로그인 이후 /complete-profile 단계에서 받는다.
+      //   (구글 버튼에서 사전 체크를 요구하지 않음 → 여기서는 동의 pending 으로 생성)
       const isAdminEmail = email === ADMIN_EMAIL
-      if (!isAdminEmail && !(tosOk && privacyOk)) {
-        return redirect(request, '/login?error=consent_required', [clearState])
-      }
       // 신규 회원 생성 (비밀번호는 랜덤 해시 — 비밀번호 로그인 불가, password_set=0)
       const id = 'u_' + crypto.randomUUID().replace(/-/g, '').slice(0, 14)
       const role = isAdminEmail ? 'admin' : 'user'
       const ph = await hashPassword(crypto.randomUUID() + crypto.randomUUID())
+      // 관리자는 동의 단계 없이 통과, 일반 신규는 pending(0). (start 에서 넘어온 플래그가 있으면 존중)
+      const tosVal = isAdminEmail ? 1 : (tosOk ? 1 : 0)
+      const privacyVal = isAdminEmail ? 1 : (privacyOk ? 1 : 0)
       await db
         .prepare(
           `INSERT INTO users (id, name, email, password_hash, company, phone, plan, role, status, points, credits, created_at, last_active, provider, tos_consent, privacy_consent, marketing_consent, consent_at, password_set)
            VALUES (?, ?, ?, ?, '', '', '없음', ?, 'active', 0, 0, ?, ?, 'google', ?, ?, ?, ?, 0)`,
         )
-        .bind(id, name, email, ph, role, now, now, tosOk ? 1 : 1, privacyOk ? 1 : 1, mktOk ? 1 : 0, now)
+        .bind(id, name, email, ph, role, now, now, tosVal, privacyVal, mktOk ? 1 : 0, now)
         .run()
       await logActivity(db, id, 'signup', '구글 계정으로 가입').catch(() => {})
       await ensureReferralCode(db, id).catch(() => {})
@@ -114,10 +115,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     // 세션 발급
     const token = await createSession(db, u.id, { ip: clientIp(request), ua: request.headers.get('User-Agent') || '', country: geo.country })
 
-    // 이동 위치: 관리자→콘솔, 주소 미입력→주소 입력, 그 외→대시보드
+    // 이동 위치: 관리자→콘솔, 필수 약관 미동의 또는 주소 미입력→가입 마무리, 그 외→대시보드
     const isAdmin = u.email === ADMIN_EMAIL || u.role === 'admin'
+    const consentOk = isAdmin || (Number(u.tos_consent) === 1 && Number(u.privacy_consent) === 1)
     const addressComplete = isAdmin || !!(u.country && u.postal_code && u.address1)
-    const dest = isAdmin ? ADMIN : addressComplete ? DASH : '/complete-profile'
+    const dest = isAdmin ? ADMIN : consentOk && addressComplete ? DASH : '/complete-profile'
 
     return redirect(request, dest, [sessionCookie(token), clearState])
   } catch {
