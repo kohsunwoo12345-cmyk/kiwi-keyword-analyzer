@@ -409,6 +409,7 @@ export async function ensureSchema(db: D1Database) {
     db.prepare(`CREATE TABLE IF NOT EXISTS branches (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      owner_id TEXT,               -- 지사 대표 계정(이 계정의 추천코드로 들어온 결제가 수익원)
       percent REAL DEFAULT 0,      -- 순수익 대비 지사 지급률(%)
       cost_rate REAL DEFAULT 0,    -- 원가/비용율(%) — 순수익 = 결제액 × (1 - cost_rate/100) - 추천리워드
       memo TEXT DEFAULT '',
@@ -449,6 +450,9 @@ export async function ensureSchema(db: D1Database) {
   })
   await addMissingColumns(db, 'plan_requests', {
     track: "track TEXT DEFAULT 'marketer'",
+  })
+  await addMissingColumns(db, 'branches', {
+    owner_id: 'owner_id TEXT', // 지사 대표 계정
   })
   await addMissingColumns(db, 'sessions', {
     ip: 'ip TEXT',

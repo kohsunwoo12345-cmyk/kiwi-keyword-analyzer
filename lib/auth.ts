@@ -314,16 +314,14 @@ export async function adminReferrals(q = ''): Promise<AdminReferrals> {
 
 /* ===== 지사 정산 ===== */
 export interface BranchRow {
-  id: string; name: string; percent: number; costRate: number; memo: string; createdAt: string
-  refPaidCount: number; referrerCount: number
+  id: string; name: string; memo: string; createdAt: string
+  ownerId: string; ownerName: string; ownerEmail: string; ownerCode: string
+  percent: number; costRate: number
+  refPaidCount: number
   grossKrw: number; rewardKrw: number; netProfitKrw: number; owedKrw: number; settledKrw: number; outstandingKrw: number
 }
-export interface SettlementReferrer {
-  id: string; name: string; email: string; branchId: string; branchName: string
-  refPaidCount: number; grossKrw: number; rewardKrw: number; netProfitKrw: number; owedKrw: number
-}
 export interface SettlementPayment {
-  id: string; friendName: string; friendEmail: string; referrerId: string; referrerName: string
+  id: string; friendName: string; friendEmail: string; referrerId: string; referrerName: string; referrerCode: string
   branchId: string; branchName: string; track: string; plan: string
   priceKrw: number; rewardCredits: number; rewardKrw: number; netProfitKrw: number; owedKrw: number; createdAt: string
 }
@@ -331,19 +329,25 @@ export interface SettlementRecord { id: string; branchId: string; branchName: st
 export interface AdminSettlement {
   ok: boolean; error?: string
   branches?: BranchRow[]
-  referrers?: SettlementReferrer[]
   payments?: SettlementPayment[]
   settlements?: SettlementRecord[]
   totals?: { paymentsCount: number; grossKrw: number; rewardKrw: number; netProfitKrw: number; owedKrw: number; settledKrw: number; outstandingKrw: number }
 }
+export interface SettlementUser { id: string; name: string; email: string; referralCode: string; plan: string; videoPlan: string }
 export async function adminSettlement(): Promise<AdminSettlement> {
   try {
     const r = await fetch('/api/admin/settlement', { credentials: 'include' })
     return await r.json()
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
+export async function adminSettlementUsers(q = ''): Promise<{ ok: boolean; users?: SettlementUser[]; error?: string }> {
+  try {
+    const r = await fetch(`/api/admin/settlement?users=${encodeURIComponent(q)}`, { credentials: 'include' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
 export async function adminSettlementAction(
-  action: 'create_branch' | 'update_branch' | 'delete_branch' | 'assign' | 'settle' | 'delete_settlement',
+  action: 'create_branch' | 'update_branch' | 'delete_branch' | 'set_owner' | 'settle' | 'delete_settlement',
   payload: Record<string, unknown> = {},
 ): Promise<{ ok: boolean; error?: string }> {
   return postJson('/api/admin/settlement', { action, ...payload })
