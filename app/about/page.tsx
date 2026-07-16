@@ -13,6 +13,12 @@ import {
   User,
   Mail,
   ExternalLink,
+  Check,
+  X,
+  Rocket,
+  Store,
+  TrendingUp,
+  Sparkles,
 } from 'lucide-react'
 import Link from 'next/link'
 import { Navbar } from '@/components/layout/Navbar'
@@ -86,6 +92,110 @@ const M: Dict = {
     en: 'No great product should be buried simply because its makers didn’t know how to get the word out. With AI and automation, we lower the barrier to professional marketing, aiming to be an all-in-one growth platform where anyone — from solo founders to agencies — can execute at an expert level.',
     ja: '優れた製品を作っても、伝え方が分からず埋もれてしまうことがあってはなりません。私たちはAIと自動化で専門的なマーケティングへの参入障壁を下げ、一人の起業家から代理店まで、誰もがプロレベルで実行できるオールインワンのグロースプラットフォームを目指します。',
     zh: '好的产品不应因不懂如何推广而被埋没。我们以 AI 与自动化降低专业营销的门槛，致力于打造一个从个人创业者到代理机构，人人都能以专家水准执行的一体化增长平台。',
+  },
+
+  // ===== WHY (BEFORE/AFTER) =====
+  '왜 BYGENCY인가': { en: 'Why BYGENCY', ja: 'なぜBYGENCYか', zh: '为何选择 BYGENCY' },
+  '툴은 늘어나는데': { en: 'More tools, yet', ja: 'ツールは増えるのに', zh: '工具越来越多，' },
+  '성과는 제자리인가요?': { en: 'results stay flat?', ja: '成果は横ばい？', zh: '成效却原地踏步？' },
+  '문제는 도구의 개수가 아니라, 도구들이 서로 이어지지 않는다는 데 있습니다. BYGENCY는 흩어진 일을 하나로 연결해 낭비를 성과로 바꿉니다.': {
+    en: 'The problem isn’t the number of tools — it’s that they don’t connect. BYGENCY links scattered work into one flow, turning waste into results.',
+    ja: '問題はツールの数ではなく、それらが互いに繋がっていないことです。BYGENCYは散らばった業務を一つに繋ぎ、無駄を成果に変えます。',
+    zh: '问题不在于工具的数量，而在于它们彼此互不相通。BYGENCY 将分散的工作连成一体，把浪费转化为成效。',
+  },
+  'BYGENCY 없이': { en: 'Without BYGENCY', ja: 'BYGENCYなし', zh: '没有 BYGENCY' },
+  'BYGENCY 하나로': { en: 'With BYGENCY', ja: 'BYGENCYひとつで', zh: '有了 BYGENCY' },
+  '랜딩·분석·문자·CRM·영상… 매달 5~6개 구독료가 빠져나갑니다': {
+    en: 'Landing pages, analytics, SMS, CRM, video… 5–6 subscriptions draining your budget every month.',
+    ja: 'ランディング・分析・SMS・CRM・動画…毎月5〜6個のサブスク費用が出ていきます。',
+    zh: '落地页、分析、短信、CRM、视频……每月 5–6 项订阅费不断流出。',
+  },
+  '툴마다 흩어진 데이터를 매번 엑셀로 옮겨 붙입니다': {
+    en: 'Data scattered across tools, copied into spreadsheets over and over.',
+    ja: 'ツールごとに散らばったデータを、毎回エクセルに貼り付けます。',
+    zh: '数据散落在各工具中，每次都要复制粘贴到表格里。',
+  },
+  '무엇이 성과를 냈는지 끝내 알 수 없습니다': {
+    en: 'You never really learn what actually drove results.',
+    ja: '何が成果を生んだのか、結局分からないままです。',
+    zh: '究竟是什么带来了成效，最终仍无从得知。',
+  },
+  '반복 작업에 하루가 다 지나갑니다': {
+    en: 'A whole day disappears into repetitive busywork.',
+    ja: '繰り返し作業で一日が過ぎ去ります。',
+    zh: '一整天都耗在重复性琐事上。',
+  },
+  '수집·분석·CRM·AI 영상까지, 구독 하나로 끝냅니다': {
+    en: 'Collection, analytics, CRM, and AI video — all in a single subscription.',
+    ja: '収集・分析・CRM・AI動画まで、サブスク一つで完結します。',
+    zh: '采集、分析、CRM 到 AI 视频，一份订阅全部搞定。',
+  },
+  '모든 채널 데이터가 한 화면에 실시간으로 모입니다': {
+    en: 'Every channel’s data gathers on one screen, in real time.',
+    ja: 'すべてのチャネルのデータが、一画面にリアルタイムで集まります。',
+    zh: '所有渠道的数据实时汇聚于同一界面。',
+  },
+  '무엇이 매출을 만들었는지 숫자로 증명됩니다': {
+    en: 'What made the sales is proven in numbers.',
+    ja: '何が売上を生んだのかが、数字で証明されます。',
+    zh: '是什么带来了业绩，用数字来证明。',
+  },
+  'AI와 자동화가 반복 실행을 대신합니다': {
+    en: 'AI and automation handle the repetitive execution for you.',
+    ja: 'AIと自動化が、繰り返しの実行を代行します。',
+    zh: 'AI 与自动化替你完成重复的执行工作。',
+  },
+
+  // ===== PERSONAS =====
+  '누구를 위한 서비스인가': { en: 'Who it’s for', ja: '誰のためのサービスか', zh: '为谁而生' },
+  '이런 분들께': { en: 'Built for', ja: 'こんな方に', zh: '为这些人' },
+  '가장 잘 맞습니다': { en: 'people like you', ja: 'ぴったりです', zh: '量身打造' },
+  '1인 창업가': { en: 'Solo founders', ja: '一人起業家', zh: '个人创业者' },
+  '제품은 좋은데 알릴 방법이 막막한 대표님. 마케터 한 명 몫을 BYGENCY가 대신합니다.': {
+    en: 'A great product but no idea how to get it out there. BYGENCY does the work of a full marketer.',
+    ja: '製品は良いのに、広め方が分からない代表へ。マーケター一人分をBYGENCYが担います。',
+    zh: '产品很好却不知如何推广的创始人——BYGENCY 顶得上一名专职营销人员。',
+  },
+  '소상공인·자영업': { en: 'Local & small business', ja: '小規模事業者', zh: '小微商户' },
+  '매장 홍보부터 단골 관리까지. 플레이스 순위, 문자·알림톡, 리뷰 관리를 한 곳에서 해결합니다.': {
+    en: 'From storefront promotion to loyalty. Place ranking, SMS/alerts, and review management in one place.',
+    ja: '店舗集客から常連管理まで。プレイス順位・SMS/通知・レビュー管理を一箇所で。',
+    zh: '从门店推广到老客维护。地图排名、短信/提醒、评价管理，一处搞定。',
+  },
+  '성장기 스타트업': { en: 'Growth-stage startups', ja: '成長期スタートアップ', zh: '成长期创业公司' },
+  '빠르게 실험하고 빠르게 배웁니다. 채널별 성과를 실시간으로 보고 예산을 바로 옮기세요.': {
+    en: 'Experiment fast, learn fast. See per-channel performance live and move budget instantly.',
+    ja: '素早く試し、素早く学ぶ。チャネル別の成果をリアルタイムで見て予算を即移動。',
+    zh: '快速试验、快速学习。实时查看各渠道成效，即刻调配预算。',
+  },
+  '마케팅 대행사': { en: 'Marketing agencies', ja: 'マーケティング代理店', zh: '营销代理机构' },
+  '여러 클라이언트를 하나의 워크스페이스로. 리포트 자동화로 보고에 쓰던 시간을 되찾습니다.': {
+    en: 'Manage many clients in one workspace. Automated reports win back the hours you spent reporting.',
+    ja: '複数のクライアントを一つのワークスペースに。レポート自動化で報告の時間を取り戻します。',
+    zh: '在一个工作空间管理多个客户。报表自动化，夺回花在汇报上的时间。',
+  },
+
+  // ===== STEPS =====
+  '시작은 3분': { en: 'Live in 3 minutes', ja: '開始はわずか3分', zh: '3 分钟即可开始' },
+  '도입은': { en: 'Getting started takes', ja: '導入は', zh: '接入只需' },
+  '세 단계면 끝': { en: 'just three steps', ja: 'たった三ステップ', zh: '三步' },
+  '가입하고 워크스페이스 열기': { en: 'Sign up & open your workspace', ja: '登録してワークスペースを開く', zh: '注册并开启工作空间' },
+  '신용카드 없이 3분. 가입 즉시 나만의 노드 워크스페이스가 열립니다.': {
+    en: 'Three minutes, no credit card. Your own node workspace opens the moment you sign up.',
+    ja: 'クレジットカード不要、3分。登録した瞬間に自分専用のノードワークスペースが開きます。',
+    zh: '三分钟，无需信用卡。注册即刻开启专属节点工作空间。',
+  },
+  '채널 연결하고 데이터 모으기': { en: 'Connect channels & gather data', ja: 'チャネルを繋いでデータを集める', zh: '连接渠道并汇集数据' },
+  '랜딩페이지·분석·CRM을 연결하면 흩어져 있던 데이터가 한 곳에 쌓입니다.': {
+    en: 'Connect landing pages, analytics, and CRM, and your scattered data stacks up in one place.',
+    ja: 'ランディング・分析・CRMを繋ぐと、散らばっていたデータが一箇所に集まります。',
+    zh: '连接落地页、分析与 CRM，分散的数据便汇聚到同一处。',
+  },
+  'AI로 실행하고 성과 확인': { en: 'Execute with AI & see results', ja: 'AIで実行し成果を確認', zh: '用 AI 执行并查看成效' },
+  'AI가 콘텐츠·영상·캠페인을 실행하고, 성과는 숫자로 바로 확인합니다.': {
+    en: 'AI runs your content, video, and campaigns — and results show up in numbers right away.',
+    ja: 'AIがコンテンツ・動画・キャンペーンを実行し、成果は数字ですぐに確認できます。',
+    zh: 'AI 执行内容、视频与营销活动，成效即刻以数字呈现。',
   },
 
   // ===== CORE VALUES =====
@@ -169,6 +279,59 @@ export default function AboutPage() {
         </div>
       </section>
 
+      {/* ===== WHY (BEFORE / AFTER) ===== */}
+      <section className="py-20">
+        <div className="mx-auto max-w-6xl px-5">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <SectionTag>{t('왜 BYGENCY인가')}</SectionTag>
+            <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+              {t('툴은 늘어나는데')} <span className="brand-text">{t('성과는 제자리인가요?')}</span>
+            </h2>
+            <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
+              {t('문제는 도구의 개수가 아니라, 도구들이 서로 이어지지 않는다는 데 있습니다. BYGENCY는 흩어진 일을 하나로 연결해 낭비를 성과로 바꿉니다.')}
+            </p>
+          </Reveal>
+
+          <div className="mt-14 grid gap-5 lg:grid-cols-2">
+            <Reveal variant="left">
+              <div className="h-full rounded-2xl border border-rose-500/20 bg-rose-500/[0.04] p-8">
+                <span className="inline-flex items-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-300">
+                  <X size={13} /> {t('BYGENCY 없이')}
+                </span>
+                <ul className="mt-6 space-y-4">
+                  {BEFORE.map((item) => (
+                    <li key={item} className="flex items-start gap-3 text-[15px] leading-relaxed text-[var(--text-soft)]">
+                      <span className="mt-1 grid h-5 w-5 flex-shrink-0 place-items-center rounded-full bg-rose-500/15 text-rose-300">
+                        <X size={12} />
+                      </span>
+                      {t(item)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Reveal>
+            <Reveal variant="right" delay={100}>
+              <div className="relative h-full overflow-hidden rounded-2xl border border-blue-400/30 bg-gradient-to-br from-blue-500/[0.08] to-cyan-500/[0.05] p-8">
+                <div className="animate-drift-slow pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-blue-400/25 blur-2xl" />
+                <span className="relative inline-flex items-center gap-2 rounded-full border border-blue-400/40 bg-blue-500/15 px-3 py-1 text-xs font-semibold text-blue-200">
+                  <Sparkles size={13} /> {t('BYGENCY 하나로')}
+                </span>
+                <ul className="relative mt-6 space-y-4">
+                  {AFTER.map((item) => (
+                    <li key={item} className="flex items-start gap-3 text-[15px] font-medium leading-relaxed">
+                      <span className="mt-1 grid h-5 w-5 flex-shrink-0 place-items-center rounded-full bg-blue-500/20 text-blue-200">
+                        <Check size={12} />
+                      </span>
+                      {t(item)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
       {/* ===== MISSION / VISION ===== */}
       <section className="py-20">
         <div className="mx-auto max-w-6xl px-5">
@@ -205,6 +368,34 @@ export default function AboutPage() {
         </div>
       </section>
 
+      {/* ===== PERSONAS ===== */}
+      <section className="py-20">
+        <div className="mx-auto max-w-6xl px-5">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <SectionTag>{t('누구를 위한 서비스인가')}</SectionTag>
+            <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+              {t('이런 분들께')} <span className="brand-text">{t('가장 잘 맞습니다')}</span>
+            </h2>
+          </Reveal>
+          <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {PERSONAS.map((p, i) => {
+              const Icon = p.icon
+              return (
+                <Reveal key={p.title} variant="scale" delay={i * 90}>
+                  <div className="card hover-lift h-full p-7">
+                    <span className={`inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${p.color} text-white shadow-lg`}>
+                      <Icon size={22} />
+                    </span>
+                    <h3 className="mt-5 text-lg font-semibold">{t(p.title)}</h3>
+                    <p className="mt-2.5 text-sm leading-relaxed text-[var(--text-soft)]">{t(p.desc)}</p>
+                  </div>
+                </Reveal>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* ===== CORE VALUES ===== */}
       <section className="border-y border-white/10 bg-white/[0.015] py-24">
         <div className="mx-auto max-w-6xl px-5">
@@ -231,6 +422,32 @@ export default function AboutPage() {
                 </Reveal>
               )
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== STEPS ===== */}
+      <section className="py-24">
+        <div className="mx-auto max-w-6xl px-5">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <SectionTag>{t('시작은 3분')}</SectionTag>
+            <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+              {t('도입은')} <span className="brand-text">{t('세 단계면 끝')}</span>
+            </h2>
+          </Reveal>
+          <div className="relative mt-14 grid gap-5 md:grid-cols-3">
+            {STEPS.map((s, i) => (
+              <Reveal key={s.no} delay={i * 100}>
+                <div className="card hover-lift relative h-full p-8">
+                  <div className="flex items-center gap-3">
+                    <span className="brand-text text-5xl font-bold leading-none tracking-tight">{s.no}</span>
+                    <span className="h-px flex-1 bg-gradient-to-r from-blue-400/40 to-transparent" />
+                  </div>
+                  <h3 className="mt-6 text-lg font-semibold">{t(s.title)}</h3>
+                  <p className="mt-2.5 text-sm leading-relaxed text-[var(--text-soft)]">{t(s.desc)}</p>
+                </div>
+              </Reveal>
+            ))}
           </div>
         </div>
       </section>
@@ -344,6 +561,53 @@ const STATS = [
   { to: 12400, suffix: '+', label: '일일 수집 DB' },
   { to: 38, suffix: '%', label: '평균 전환율 상승' },
   { to: 2.7, suffix: 'x', decimals: 1, label: 'ROAS 개선' },
+]
+
+const BEFORE = [
+  '랜딩·분석·문자·CRM·영상… 매달 5~6개 구독료가 빠져나갑니다',
+  '툴마다 흩어진 데이터를 매번 엑셀로 옮겨 붙입니다',
+  '무엇이 성과를 냈는지 끝내 알 수 없습니다',
+  '반복 작업에 하루가 다 지나갑니다',
+]
+
+const AFTER = [
+  '수집·분석·CRM·AI 영상까지, 구독 하나로 끝냅니다',
+  '모든 채널 데이터가 한 화면에 실시간으로 모입니다',
+  '무엇이 매출을 만들었는지 숫자로 증명됩니다',
+  'AI와 자동화가 반복 실행을 대신합니다',
+]
+
+const PERSONAS = [
+  {
+    icon: Rocket,
+    title: '1인 창업가',
+    desc: '제품은 좋은데 알릴 방법이 막막한 대표님. 마케터 한 명 몫을 BYGENCY가 대신합니다.',
+    color: 'from-blue-500 to-indigo-600',
+  },
+  {
+    icon: Store,
+    title: '소상공인·자영업',
+    desc: '매장 홍보부터 단골 관리까지. 플레이스 순위, 문자·알림톡, 리뷰 관리를 한 곳에서 해결합니다.',
+    color: 'from-sky-500 to-blue-600',
+  },
+  {
+    icon: TrendingUp,
+    title: '성장기 스타트업',
+    desc: '빠르게 실험하고 빠르게 배웁니다. 채널별 성과를 실시간으로 보고 예산을 바로 옮기세요.',
+    color: 'from-cyan-500 to-blue-500',
+  },
+  {
+    icon: Building2,
+    title: '마케팅 대행사',
+    desc: '여러 클라이언트를 하나의 워크스페이스로. 리포트 자동화로 보고에 쓰던 시간을 되찾습니다.',
+    color: 'from-teal-500 to-cyan-600',
+  },
+]
+
+const STEPS = [
+  { no: '01', title: '가입하고 워크스페이스 열기', desc: '신용카드 없이 3분. 가입 즉시 나만의 노드 워크스페이스가 열립니다.' },
+  { no: '02', title: '채널 연결하고 데이터 모으기', desc: '랜딩페이지·분석·CRM을 연결하면 흩어져 있던 데이터가 한 곳에 쌓입니다.' },
+  { no: '03', title: 'AI로 실행하고 성과 확인', desc: 'AI가 콘텐츠·영상·캠페인을 실행하고, 성과는 숫자로 바로 확인합니다.' },
 ]
 
 const VALUES = [
