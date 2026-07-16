@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { MessageCircle, RefreshCw, Send, Headset, Circle } from 'lucide-react'
+import { MessageCircle, RefreshCw, Send, Headset, Circle, CheckCheck, Check, Bot } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button, StatCard } from '@/components/ui'
 import { Reveal } from '@/components/motion'
@@ -208,8 +208,18 @@ export default function AdminSupportPage() {
                         )}
                         <div className="mt-1 truncate text-xs text-[var(--text-soft)]">
                           {c.last_sender === 'admin' && <span className="text-violet-500">나: </span>}
+                          {c.last_sender === 'bot' && <span className="text-amber-500">자동응답: </span>}
                           {c.last_text || '—'}
                         </div>
+                        {(c.last_sender === 'admin' || c.last_sender === 'bot') && (
+                          <div className="mt-0.5">
+                            {(c.userUnread ?? 0) > 0 ? (
+                              <span className="text-[10px] font-medium text-amber-500">고객 미확인</span>
+                            ) : (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-sky-500"><CheckCheck size={10} /> 고객 읽음</span>
+                            )}
+                          </div>
+                        )}
                       </button>
                     )
                   })}
@@ -253,22 +263,37 @@ export default function AdminSupportPage() {
                       <p className="py-20 text-center text-sm text-[var(--text-dim)]">아직 메시지가 없습니다.</p>
                     ) : (
                       messages.map((m, i) => {
-                        const admin = m.sender === 'admin'
+                        const isBot = m.sender === 'bot'
+                        const ours = m.sender === 'admin' || isBot
                         return (
-                          <div key={i} className={cn('flex', admin ? 'justify-end' : 'justify-start')}>
-                            <div className={cn('max-w-[78%]', admin ? 'items-end text-right' : 'items-start text-left')}>
+                          <div key={m.id || i} className={cn('flex', ours ? 'justify-end' : 'justify-start')}>
+                            <div className={cn('flex max-w-[78%] flex-col', ours ? 'items-end text-right' : 'items-start text-left')}>
+                              {isBot && (
+                                <span className="mb-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-amber-500">
+                                  <Bot size={11} /> 자동응답
+                                </span>
+                              )}
                               <div
                                 className={cn(
                                   'inline-block whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm',
-                                  admin
-                                    ? 'rounded-br-sm bg-violet-600 text-white'
+                                  ours
+                                    ? isBot
+                                      ? 'rounded-br-sm bg-amber-500 text-white'
+                                      : 'rounded-br-sm bg-violet-600 text-white'
                                     : 'rounded-bl-sm border border-[var(--border)] bg-white text-[var(--text)]',
                                 )}
                               >
                                 {m.text}
                               </div>
-                              <div className="mt-1 text-[10px] text-[var(--text-dim)] tabular-nums">
-                                {fmtDateTime(m.at)}
+                              <div className={cn('mt-1 flex items-center gap-1.5 text-[10px] text-[var(--text-dim)] tabular-nums', ours ? 'justify-end' : 'justify-start')}>
+                                <span>{fmtDateTime(m.at)}</span>
+                                {ours && (
+                                  m.readUser ? (
+                                    <span className="flex items-center gap-0.5 font-medium text-sky-500"><CheckCheck size={12} /> 읽음</span>
+                                  ) : (
+                                    <span className="flex items-center gap-0.5 text-[var(--text-dim)]"><Check size={12} /> 안읽음</span>
+                                  )
+                                )}
                               </div>
                             </div>
                           </div>

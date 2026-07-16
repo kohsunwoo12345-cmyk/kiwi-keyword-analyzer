@@ -249,22 +249,26 @@ export async function adminAiUsage(days = 30): Promise<AiUsageStats> {
 }
 
 /* ── 고객센터 채팅 (사용자) ── */
-export interface ChatMsg { sender: 'user' | 'admin' | 'bot'; text: string; at: string }
+export interface ChatMsg { sender: 'user' | 'admin' | 'bot'; text: string; at: string; id?: string; readUser?: number; readAdmin?: number }
 export async function chatSend(text: string, convId?: string, name?: string, email?: string): Promise<{ ok: boolean; conv_id?: string; error?: string }> {
   try {
     const r = await fetch('/api/chat/send', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify({ text, conv_id: convId, name, email }) })
     return await r.json()
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
-export async function chatThread(convId?: string): Promise<{ ok: boolean; conv_id?: string; messages?: ChatMsg[] }> {
+export async function chatThread(convId?: string, seen = false): Promise<{ ok: boolean; conv_id?: string; messages?: ChatMsg[] }> {
   try {
-    const r = await fetch(`/api/chat/thread${convId ? `?conv_id=${encodeURIComponent(convId)}` : ''}`, { credentials: 'include' })
+    const qs = new URLSearchParams()
+    if (convId) qs.set('conv_id', convId)
+    if (seen) qs.set('seen', '1') // 채팅창을 연 상태에서만 읽음 처리(정확한 읽음 표시)
+    const q = qs.toString()
+    const r = await fetch(`/api/chat/thread${q ? `?${q}` : ''}`, { credentials: 'include' })
     return await r.json()
   } catch { return { ok: false, messages: [] } }
 }
 
 /* ── 고객센터 채팅 (관리자) ── */
-export interface SupportConv { conv_id: string; name: string; email: string; user_id: string; total: number; unread: number; last_at: string; last_sender: string; last_text: string }
+export interface SupportConv { conv_id: string; name: string; email: string; user_id: string; total: number; unread: number; userUnread?: number; last_at: string; last_sender: string; last_text: string }
 export interface SupportThread { ok: boolean; unread?: number; conv?: { conv_id: string; name: string; email: string; user_id: string }; messages?: ChatMsg[]; conversations?: SupportConv[] }
 export async function adminSupport(convId?: string): Promise<SupportThread> {
   try {

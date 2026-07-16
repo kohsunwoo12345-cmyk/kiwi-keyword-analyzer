@@ -14,6 +14,7 @@ type L = Record<string, string>
 const T: Record<string, L> = {
   title: { ko: 'BYGENCY 고객센터', en: 'BYGENCY Support', ja: 'BYGENCYサポート', zh: 'BYGENCY 客服' },
   online: { ko: '온라인 · 보통 몇 분 내 답변', en: 'Online · usually replies in minutes', ja: 'オンライン · 通常数分で返信', zh: '在线 · 通常几分钟内回复' },
+  typing: { ko: '고객센터에서 입력중…', en: 'Support is typing…', ja: 'サポートが入力中…', zh: '客服正在输入…' },
   hello: { ko: '안녕하세요! 👋 BYGENCY 고객센터입니다. 무엇을 도와드릴까요?', en: 'Hi there! 👋 This is BYGENCY Support. How can we help?', ja: 'こんにちは！👋 BYGENCYサポートです。ご用件をお聞かせください。', zh: '您好！👋 这里是 BYGENCY 客服，有什么可以帮您？' },
   ph: { ko: '메시지를 입력하세요…', en: 'Type a message…', ja: 'メッセージを入力…', zh: '输入消息…' },
   open: { ko: '고객센터 채팅', en: 'Chat with support', ja: 'サポートチャット', zh: '联系客服' },
@@ -41,7 +42,11 @@ export function SupportChat() {
   const [convId, setConvId] = useState<string>('')
   const [unseen, setUnseen] = useState(0)
   const [sending, setSending] = useState(false)
+  const [typing, setTyping] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)
+  const awaitingRef = useRef(false)     // 답변 대기 중
+  const replyBaseRef = useRef(0)        // 전송 시점의 상담원 메시지 수
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const t = (k: string) => T[k]?.[lang] || T[k]?.ko || k
 
   const hidden = /^\/(adminsunkoh028741_11263|dashboard_USE17237_612|studio-nvc-prv)/.test(pathname)
@@ -51,7 +56,7 @@ export function SupportChat() {
   }, [])
 
   async function poll() {
-    const r = await chatThread(convId || undefined)
+    const r = await chatThread(convId || undefined, open)
     if (r.ok && r.messages) {
       setMsgs(r.messages)
       if (r.conv_id && r.conv_id !== convId) {
@@ -59,6 +64,12 @@ export function SupportChat() {
         try { localStorage.setItem(CONV_KEY, r.conv_id) } catch { /* */ }
       }
       const adminCount = r.messages.filter((m) => m.sender !== 'user').length
+      // 답변 대기 중이었는데 상담원 메시지가 새로 도착 → 입력중 종료
+      if (awaitingRef.current && adminCount > replyBaseRef.current) {
+        awaitingRef.current = false
+        setTyping(false)
+        if (typingTimerRef.current) { clearTimeout(typingTimerRef.current); typingTimerRef.current = null }
+      }
       let seen = 0
       try { seen = Number(localStorage.getItem(SEEN_KEY) || 0) } catch { /* */ }
       if (!open) setUnseen(Math.max(0, adminCount - seen))
@@ -81,13 +92,19 @@ export function SupportChat() {
       setTimeout(() => bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' }), 60)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, msgs.length])
+  }, [open, msgs.length, typing])
 
   async function sendText(text: string) {
     const trimmed = text.trim()
     if (!trimmed || sending) return
     setInput('')
     setSending(true)
+    // 상담원 답변 대기 → 입력중 표시
+    replyBaseRef.current = msgs.filter((m) => m.sender !== 'user').length
+    awaitingRef.current = true
+    setTyping(true)
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+    typingTimerRef.current = setTimeout(() => { awaitingRef.current = false; setTyping(false) }, 12000)
     setMsgs((m) => [...m, { sender: 'user', text: trimmed, at: new Date().toISOString() }])
     const r = await chatSend(trimmed, convId || undefined)
     if (r.ok && r.conv_id) {
@@ -120,8 +137,8 @@ export function SupportChat() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] font-bold leading-tight">{t('title')}</p>
                 <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/85">
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-300" />
-                  {t('online')}
+                  <span className={cn('inline-block h-1.5 w-1.5 rounded-full', typing ? 'animate-pulse bg-amber-300' : 'bg-emerald-300')} />
+                  {typing ? t('typing') : t('online')}
                 </p>
               </div>
               <button onClick={() => setOpen(false)} aria-label="닫기" className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg text-white/85 transition hover:bg-white/15 hover:text-white">
@@ -183,6 +200,22 @@ export function SupportChat() {
                 </div>
               )
             })}
+
+            {/* 입력중 표시 */}
+            {typing && (
+              <div className="animate-bubble-in flex items-end gap-2 pt-2">
+                <span className="mb-1 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-sky-500 text-white">
+                  <Headset size={13} />
+                </span>
+                <div className="rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.05] px-4 py-3">
+                  <span className="flex items-center gap-1">
+                    <i className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: '0ms' }} />
+                    <i className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: '150ms' }} />
+                    <i className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: '300ms' }} />
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 빠른 질문 */}

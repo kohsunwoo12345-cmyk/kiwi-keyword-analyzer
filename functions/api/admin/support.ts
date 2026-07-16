@@ -25,18 +25,24 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   const convId = String(url.searchParams.get('conv_id') || '').slice(0, 60)
   if (convId) {
-    const messages = await rows('SELECT sender, text, created_at FROM support_chats WHERE conv_id = ? ORDER BY created_at ASC LIMIT 500', convId)
+    const messages = await rows('SELECT id, sender, text, read_user, read_admin, created_at FROM support_chats WHERE conv_id = ? ORDER BY created_at ASC LIMIT 500', convId)
     await db.prepare("UPDATE support_chats SET read_admin = 1 WHERE conv_id = ? AND sender = 'user' AND read_admin = 0").bind(convId).run().catch(() => {})
     const head = await one('SELECT name, email, user_id FROM support_chats WHERE conv_id = ? ORDER BY created_at ASC LIMIT 1', convId)
-    return json({ ok: true, unread, conv: { conv_id: convId, name: head.name || '게스트', email: head.email || '', user_id: head.user_id || '' }, messages: messages.map((m: any) => ({ sender: m.sender, text: m.text, at: m.created_at })) })
+    return json({
+      ok: true,
+      unread,
+      conv: { conv_id: convId, name: head.name || '게스트', email: head.email || '', user_id: head.user_id || '' },
+      messages: messages.map((m: any) => ({ id: m.id, sender: m.sender, text: m.text, at: m.created_at, readUser: Number(m.read_user) || 0, readAdmin: Number(m.read_admin) || 0 })),
+    })
   }
 
-  // 대화 목록 (마지막 메시지 + 대화별 미읽음)
+  // 대화 목록 (마지막 메시지 + 대화별 미읽음 + 고객이 답장을 읽었는지)
   const convs = await rows(
     `SELECT conv_id,
             MAX(name) AS name, MAX(email) AS email, MAX(user_id) AS user_id,
             COUNT(*) AS total,
             SUM(CASE WHEN sender='user' AND read_admin=0 THEN 1 ELSE 0 END) AS unread,
+            SUM(CASE WHEN sender IN ('admin','bot') AND read_user=0 THEN 1 ELSE 0 END) AS user_unread,
             MAX(created_at) AS last_at
      FROM support_chats GROUP BY conv_id ORDER BY last_at DESC LIMIT 200`,
   )
@@ -51,6 +57,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       user_id: c.user_id || '',
       total: Number(c.total) || 0,
       unread: Number(c.unread) || 0,
+      userUnread: Number(c.user_unread) || 0,
       last_at: c.last_at,
       last_sender: last.sender || '',
       last_text: last.text || '',
