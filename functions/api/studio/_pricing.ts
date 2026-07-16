@@ -80,7 +80,6 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   'Kling 1.6 Pro (텍스트→영상)': { u: 'sec', usd: 0.049, prov: 'kling' },
   'Kling 1.6 Pro (이미지→영상)': { u: 'sec', usd: 0.049, prov: 'kling' },
   'Kling 1.6 Standard (이미지→영상)': { u: 'sec', usd: 0.028, prov: 'kling' },
-  'Kling 1.6 Pro (영상→영상 V2V)': { u: 'sec', usd: 0.049, prov: 'kling' },
   'Grok Imagine': { u: 'img', usd: 0.07, prov: 'xai' },
   'Nano Banana': { u: 'img', usd: 0.039, prov: 'nanobanana' },
   'GPT Image 2': { u: 'img', usd: 0.08, prov: 'openai' },

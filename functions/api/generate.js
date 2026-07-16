@@ -299,7 +299,7 @@ export function buildFluxPayload(b) {
 const FAL_QUEUE = "https://queue.fal.run/";
 const FAL_IMG_SIZE = { "1:1": "square_hd", "16:9": "landscape_16_9", "9:16": "portrait_16_9", "4:5": "portrait_4_3" };
 
-/* ── Kling (클링) — fal.ai 경유. 서버 env FAL_KEY 사용. 텍스트/이미지/영상→영상 ── */
+/* ── Kling (클링) fal.ai 폴백용 엔드포인트. 텍스트→영상 / 이미지→영상 (진짜 V2V는 Runway Aleph 사용) ── */
 const KLING_FAL = {
   "Kling 2.1 Master (텍스트→영상)": "fal-ai/kling-video/v2.1/master/text-to-video",
   "Kling 2.1 Master (이미지→영상)": "fal-ai/kling-video/v2.1/master/image-to-video",
@@ -308,7 +308,6 @@ const KLING_FAL = {
   "Kling 1.6 Pro (텍스트→영상)": "fal-ai/kling-video/v1.6/pro/text-to-video",
   "Kling 1.6 Pro (이미지→영상)": "fal-ai/kling-video/v1.6/pro/image-to-video",
   "Kling 1.6 Standard (이미지→영상)": "fal-ai/kling-video/v1.6/standard/image-to-video",
-  "Kling 1.6 Pro (영상→영상 V2V)": "fal-ai/kling-video/v1.6/pro/image-to-video",
   "Kling 2.0": "fal-ai/kling-video/v2/master/image-to-video",
   "Kling 1.6": "fal-ai/kling-video/v1.6/pro/image-to-video",
 };
@@ -352,7 +351,6 @@ const KLING_API = {
   "Kling 1.6 Pro (텍스트→영상)": { m: "kling-v1-6", mode: "pro", ep: "text2video" },
   "Kling 1.6 Pro (이미지→영상)": { m: "kling-v1-6", mode: "pro", ep: "image2video" },
   "Kling 1.6 Standard (이미지→영상)": { m: "kling-v1-6", mode: "std", ep: "image2video" },
-  "Kling 1.6 Pro (영상→영상 V2V)": { m: "kling-v1-6", mode: "pro", ep: "image2video" },
   "Kling 2.0": { m: "kling-v2-master", mode: "pro", ep: "image2video" },
   "Kling 1.6": { m: "kling-v1-6", mode: "pro", ep: "image2video" },
 };

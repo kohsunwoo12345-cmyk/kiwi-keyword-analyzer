@@ -1171,7 +1171,7 @@ var MODELS = [
  ['영상 · Kling','Kling 2.1 Master (텍스트→영상)'],['영상 · Kling','Kling 2.1 Master (이미지→영상)'],
  ['영상 · Kling','Kling 2.0 Master (텍스트→영상)'],['영상 · Kling','Kling 2.0 Master (이미지→영상)'],
  ['영상 · Kling','Kling 1.6 Pro (텍스트→영상)'],['영상 · Kling','Kling 1.6 Pro (이미지→영상)'],
- ['영상 · Kling','Kling 1.6 Standard (이미지→영상)'],['영상 → 영상 (V2V·실사화)','Kling 1.6 Pro (영상→영상 V2V)'],
+ ['영상 · Kling','Kling 1.6 Standard (이미지→영상)'],
  ['이미지 (레퍼런스 편집·I2I)','Flux Kontext Max (레퍼런스 편집)'],
  ['이미지 (레퍼런스 편집·I2I)','Flux Kontext Pro (레퍼런스 편집)'],
  ['이미지 (텍스트·편집)','Nano Banana'],
@@ -1244,7 +1244,6 @@ var MODEL_COST = {
   'Kling 1.6 Pro (텍스트→영상)':       { u:'sec', usd:0.049, prov:'kling' },
   'Kling 1.6 Pro (이미지→영상)':       { u:'sec', usd:0.049, prov:'kling' },
   'Kling 1.6 Standard (이미지→영상)':  { u:'sec', usd:0.028, prov:'kling' },
-  'Kling 1.6 Pro (영상→영상 V2V)':     { u:'sec', usd:0.049, prov:'kling' },
   'Grok Imagine':                    { u:'img', usd:0.07,  prov:'xai' },
   'Nano Banana':                     { u:'img', usd:0.039, prov:'nanobanana' },
   'GPT Image 2':                     { u:'img', usd:0.08,  prov:'openai' },
@@ -1456,7 +1455,7 @@ var MODEL_PROVIDER = {
   'Kling 2.1 Master (텍스트→영상)':'kling','Kling 2.1 Master (이미지→영상)':'kling',
   'Kling 2.0 Master (텍스트→영상)':'kling','Kling 2.0 Master (이미지→영상)':'kling',
   'Kling 1.6 Pro (텍스트→영상)':'kling','Kling 1.6 Pro (이미지→영상)':'kling',
-  'Kling 1.6 Standard (이미지→영상)':'kling','Kling 1.6 Pro (영상→영상 V2V)':'kling',
+  'Kling 1.6 Standard (이미지→영상)':'kling',
   'Kling 2.0':'kling','Kling 1.6':'kling'
 };
 function providerOf(model){ return MODEL_PROVIDER[model] || 'fal'; }
@@ -1516,7 +1515,6 @@ var FAL_MODEL_ID = {
   'Kling 1.6 Pro (텍스트→영상)':'fal-ai/kling-video/v1.6/pro/text-to-video',
   'Kling 1.6 Pro (이미지→영상)':'fal-ai/kling-video/v1.6/pro/image-to-video',
   'Kling 1.6 Standard (이미지→영상)':'fal-ai/kling-video/v1.6/standard/image-to-video',
-  'Kling 1.6 Pro (영상→영상 V2V)':'fal-ai/kling-video/v1.6/pro/image-to-video',
   'Kling 2.0':'fal-ai/kling-video/v2/master/image-to-video','Kling 1.6':'fal-ai/kling-video/v1.6/pro/image-to-video'
 };
 var ADAPTERS = {
