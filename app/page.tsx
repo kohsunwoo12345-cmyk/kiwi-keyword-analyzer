@@ -660,6 +660,16 @@ const M: Dict = {
     ja: 'Proを始める',
     zh: '开通 Pro',
   },
+  'Plus 시작하기': {
+    en: 'Get Plus',
+    ja: 'Plusを始める',
+    zh: '开通 Plus',
+  },
+  '규모에 맞게 필요한 만큼만. 언제든 업그레이드·다운그레이드하세요.': {
+    en: 'Only what you need, at your scale. Upgrade or downgrade anytime.',
+    ja: '規模に合わせて必要な分だけ。いつでもアップ・ダウングレード可能。',
+    zh: '按需按规模付费，随时升级或降级。',
+  },
   '도입 문의': {
     en: 'Contact sales',
     ja: '導入のお問い合わせ',
@@ -740,14 +750,19 @@ const TRUST = [
 
 const PLANS = [
   {
-    name: 'Pro', price: '₩89,000', period: '/월', desc: '성장하는 팀을 위한 선택',
-    features: ['랜딩페이지 무제한', '월 30,000 DB 수집', '전체 분석 + 광고 통합', 'CRM · 알림톡 캠페인', 'AI 챗봇 어시스턴트', '팀 협업 5인'],
-    cta: 'Pro 시작하기', highlight: true,
+    name: 'Plus', price: '₩29,000', period: '/월', desc: '혼자 마케팅을 챙기는 1인 사업자·입문 단계',
+    features: ['월 3,000 DB 수집', '유튜브·블로그 기본 분석', '플레이스 순위 조회', '문자 발송 (건별 차감)', '기본 리포트 대시보드'],
+    cta: 'Plus 시작하기', href: '/signup', highlight: false,
   },
   {
-    name: 'Business', price: '문의', period: '', desc: '대행사·엔터프라이즈',
-    features: ['모든 Pro 기능', 'DB 수집 무제한', 'AI 영상 제작 무제한', '전담 매니저', 'API·화이트라벨'],
-    cta: '도입 문의', highlight: false,
+    name: 'Pro', price: '₩89,000', period: '/월', desc: '성과에 집중하는 성장기 마케팅 팀',
+    features: ['월 30,000 DB 수집', '유튜브·블로그·플레이스 전체 분석', 'CRM · 고객 세그먼트 관리', '알림톡 · 문자 캠페인 자동화', '팀 협업 5인 · 권한 관리', '맞춤 리포트 · 성과 추적'],
+    cta: 'Pro 시작하기', href: '/signup', highlight: true,
+  },
+  {
+    name: 'Max', price: '₩249,000', period: '/월', desc: '여러 브랜드를 운영하는 대행사·인하우스 실무',
+    features: ['DB 수집 무제한', '마케터 전 기능 잠금 해제', '알림톡 · 문자 대량 발송 최적 단가', '팀 협업 무제한 · 워크스페이스 분리', 'API 연동 · 데이터 내보내기', '전담 매니저 · 우선 기술 지원'],
+    cta: '도입 문의', href: '/pricing', highlight: false,
   },
 ]
 
@@ -1179,10 +1194,10 @@ export default function Home() {
             <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
               {t('규모에 맞게 성장하세요')}
             </h2>
-            <p className="mt-5 text-lg text-[var(--text-soft)]">{t('무료로 시작하고 필요할 때 업그레이드하세요.')}</p>
+            <p className="mt-5 text-lg text-[var(--text-soft)]">{t('규모에 맞게 필요한 만큼만. 언제든 업그레이드·다운그레이드하세요.')}</p>
           </Reveal>
 
-          <div className="mx-auto mt-16 grid max-w-3xl gap-6 sm:grid-cols-2">
+          <div className="mx-auto mt-16 grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {PLANS.map((p, i) => (
               <Reveal key={p.name} delay={i * 100} className={p.highlight ? 'lg:-mt-4' : ''}>
                 <div
@@ -1211,7 +1226,7 @@ export default function Home() {
                       </li>
                     ))}
                   </ul>
-                  <Button href="/signup" variant={p.highlight ? 'primary' : 'outline'} className="mt-8 w-full">
+                  <Button href={p.href} variant={p.highlight ? 'primary' : 'outline'} className="mt-8 w-full">
                     {t(p.cta)}
                   </Button>
                 </div>
