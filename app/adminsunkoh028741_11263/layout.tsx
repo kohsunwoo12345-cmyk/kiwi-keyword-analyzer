@@ -17,6 +17,7 @@ import {
   MessageCircle,
   UserPlus,
   IdCard,
+  Landmark,
   Menu,
   X,
   ArrowLeft,
@@ -38,6 +39,7 @@ const NAV = [
   { title: '접속 통계', href: `${ADMIN_BASE}/stats`, icon: BarChart3 },
   { title: '고객센터', href: `${ADMIN_BASE}/support`, icon: MessageCircle, badge: 'support' as const },
   { title: '회원가입정보', href: `${ADMIN_BASE}/referrals`, icon: IdCard },
+  { title: '지사 정산', href: `${ADMIN_BASE}/settlement`, icon: Landmark },
   { title: 'AI 정산', href: `${ADMIN_BASE}/ai-usage`, icon: Wallet },
   { title: '설정', href: '#', icon: Settings },
 ]

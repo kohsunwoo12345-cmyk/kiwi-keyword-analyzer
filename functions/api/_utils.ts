@@ -405,6 +405,24 @@ export async function ensureSchema(db: D1Database) {
       created_at TEXT NOT NULL
     )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_reward_referrer ON referral_rewards(referrer_id)`),
+    // 지사(파트너) — 추천인을 지사에 배정하고, 지사별 순수익 지급률로 정산
+    db.prepare(`CREATE TABLE IF NOT EXISTS branches (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      percent REAL DEFAULT 0,      -- 순수익 대비 지사 지급률(%)
+      cost_rate REAL DEFAULT 0,    -- 원가/비용율(%) — 순수익 = 결제액 × (1 - cost_rate/100) - 추천리워드
+      memo TEXT DEFAULT '',
+      created_at TEXT NOT NULL
+    )`),
+    // 지사 정산 지급 기록(정산 완료 내역)
+    db.prepare(`CREATE TABLE IF NOT EXISTS branch_settlements (
+      id TEXT PRIMARY KEY,
+      branch_id TEXT NOT NULL,
+      amount_krw INTEGER NOT NULL,
+      note TEXT DEFAULT '',
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_bset_branch ON branch_settlements(branch_id)`),
   ])
   // 기존 테이블에 신규 컬럼 보강 (누락된 것만 추가)
   await addMissingColumns(db, 'users', {
@@ -427,6 +445,7 @@ export async function ensureSchema(db: D1Database) {
     address_at: 'address_at TEXT',
     provider: "provider TEXT DEFAULT 'email'",
     credit_markup: 'credit_markup REAL', // 회원별 AI 과금 배수(원가=1). NULL/0 = 모델 기본(2.5/3.0)
+    branch_id: 'branch_id TEXT', // 추천인이 소속된 지사(정산 대상)
   })
   await addMissingColumns(db, 'plan_requests', {
     track: "track TEXT DEFAULT 'marketer'",

@@ -312,6 +312,43 @@ export async function adminReferrals(q = ''): Promise<AdminReferrals> {
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
 
+/* ===== 지사 정산 ===== */
+export interface BranchRow {
+  id: string; name: string; percent: number; costRate: number; memo: string; createdAt: string
+  refPaidCount: number; referrerCount: number
+  grossKrw: number; rewardKrw: number; netProfitKrw: number; owedKrw: number; settledKrw: number; outstandingKrw: number
+}
+export interface SettlementReferrer {
+  id: string; name: string; email: string; branchId: string; branchName: string
+  refPaidCount: number; grossKrw: number; rewardKrw: number; netProfitKrw: number; owedKrw: number
+}
+export interface SettlementPayment {
+  id: string; friendName: string; friendEmail: string; referrerId: string; referrerName: string
+  branchId: string; branchName: string; track: string; plan: string
+  priceKrw: number; rewardCredits: number; rewardKrw: number; netProfitKrw: number; owedKrw: number; createdAt: string
+}
+export interface SettlementRecord { id: string; branchId: string; branchName: string; amountKrw: number; note: string; createdAt: string }
+export interface AdminSettlement {
+  ok: boolean; error?: string
+  branches?: BranchRow[]
+  referrers?: SettlementReferrer[]
+  payments?: SettlementPayment[]
+  settlements?: SettlementRecord[]
+  totals?: { paymentsCount: number; grossKrw: number; rewardKrw: number; netProfitKrw: number; owedKrw: number; settledKrw: number; outstandingKrw: number }
+}
+export async function adminSettlement(): Promise<AdminSettlement> {
+  try {
+    const r = await fetch('/api/admin/settlement', { credentials: 'include' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+export async function adminSettlementAction(
+  action: 'create_branch' | 'update_branch' | 'delete_branch' | 'assign' | 'settle' | 'delete_settlement',
+  payload: Record<string, unknown> = {},
+): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/admin/settlement', { action, ...payload })
+}
+
 export interface CombinedLogs {
   ok: boolean; error?: string
   activity?: GlobalActivityRow[]
