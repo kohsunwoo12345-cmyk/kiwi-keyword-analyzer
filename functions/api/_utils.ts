@@ -111,7 +111,7 @@ export async function ensureSchema(db: D1Database) {
       password_hash TEXT NOT NULL,
       company TEXT,
       phone TEXT,
-      plan TEXT DEFAULT 'Starter',
+      plan TEXT DEFAULT '없음',
       role TEXT DEFAULT 'user',
       status TEXT DEFAULT 'active',
       points INTEGER DEFAULT 0,

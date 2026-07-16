@@ -151,7 +151,7 @@ export async function adminUsers(): Promise<{
     admins: number
     suspended: number
     newToday: number
-    byPlan: { Starter: number; Pro: number; Business: number }
+    byPlan: { Plus: number; Pro: number; Max: number }
   }
 }> {
   try {

@@ -343,9 +343,9 @@ export default function AdminUsersPage() {
           return !w.online || u.status === 'suspended'
         case 'suspended':
           return u.status === 'suspended'
-        case 'Starter':
+        case 'Plus':
         case 'Pro':
-        case 'Business':
+        case 'Max':
           return u.plan === filter
         default:
           return true

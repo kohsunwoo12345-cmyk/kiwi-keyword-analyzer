@@ -42,9 +42,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const today = new Date().toISOString().slice(0, 10)
   const newToday = users.filter((u: any) => (u.createdAt || '').slice(0, 10) === today).length
   const byPlan = {
-    Starter: users.filter((u: any) => u.plan === 'Starter').length,
+    Plus: users.filter((u: any) => u.plan === 'Plus').length,
     Pro: users.filter((u: any) => u.plan === 'Pro').length,
-    Business: users.filter((u: any) => u.plan === 'Business').length,
+    Max: users.filter((u: any) => u.plan === 'Max').length,
   }
 
   return json({ ok: true, users, stats: { total, admins, suspended, newToday, byPlan } })
