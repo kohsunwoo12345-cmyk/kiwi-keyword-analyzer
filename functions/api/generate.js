@@ -313,6 +313,70 @@ const KLING_FAL = {
   "Kling 1.6": "fal-ai/kling-video/v1.6/pro/image-to-video",
 };
 function klingModelId(b) { return KLING_FAL[b.model] || "fal-ai/kling-video/v2/master/image-to-video"; }
+
+/* ── Kling 공식 오픈플랫폼 API (직접 호출) — 환경변수 KLING_* 만 넣으면 우선 사용 ──
+   AccessKey/SecretKey(JWT HS256) 방식 또는 단일 토큰(KLING_API_KEY) 방식 모두 지원. */
+function klingCreds(env) {
+  const ak = pick(env, ["KLING_ACCESS_KEY", "Kling_AccessKey", "KLING_AK", "KLINGAI_ACCESS_KEY", "kling_access_key"]);
+  const sk = pick(env, ["KLING_SECRET_KEY", "Kling_SecretKey", "KLING_SK", "KLINGAI_SECRET_KEY", "kling_secret_key"]);
+  const token = pick(env, ["KLING_API_KEY", "Kling_API_KEY", "KLINGAI_API_KEY", "KLING_JWT", "kling_api_key"]);
+  const base = (pick(env, ["KLING_API_BASE", "Kling_API_BASE", "kling_api_base"]) || "https://api-singapore.klingai.com").replace(/\/+$/, "");
+  if (ak && sk) return { mode: "aksk", ak, sk, base };
+  if (token) return { mode: "token", token, base };
+  return null;
+}
+function _b64url(bytes) {
+  const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let bin = "";
+  for (let i = 0; i < arr.length; i++) bin += String.fromCharCode(arr[i]);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function _b64urlStr(str) { return _b64url(new TextEncoder().encode(str)); }
+async function klingJWT(ak, sk) {
+  const now = Math.floor(Date.now() / 1000);
+  const data = _b64urlStr(JSON.stringify({ alg: "HS256", typ: "JWT" })) + "." +
+               _b64urlStr(JSON.stringify({ iss: ak, exp: now + 1800, nbf: now - 5 }));
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(sk), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));
+  return data + "." + _b64url(sig);
+}
+async function klingAuth(cr) {
+  return "Bearer " + (cr.mode === "aksk" ? await klingJWT(cr.ak, cr.sk) : cr.token);
+}
+// 표시 이름 → 공식 API 스펙 (model_name / mode / 엔드포인트)
+const KLING_API = {
+  "Kling 2.1 Master (텍스트→영상)": { m: "kling-v2-1-master", mode: "pro", ep: "text2video" },
+  "Kling 2.1 Master (이미지→영상)": { m: "kling-v2-1-master", mode: "pro", ep: "image2video" },
+  "Kling 2.0 Master (텍스트→영상)": { m: "kling-v2-master", mode: "pro", ep: "text2video" },
+  "Kling 2.0 Master (이미지→영상)": { m: "kling-v2-master", mode: "pro", ep: "image2video" },
+  "Kling 1.6 Pro (텍스트→영상)": { m: "kling-v1-6", mode: "pro", ep: "text2video" },
+  "Kling 1.6 Pro (이미지→영상)": { m: "kling-v1-6", mode: "pro", ep: "image2video" },
+  "Kling 1.6 Standard (이미지→영상)": { m: "kling-v1-6", mode: "std", ep: "image2video" },
+  "Kling 1.6 Pro (영상→영상 V2V)": { m: "kling-v1-6", mode: "pro", ep: "image2video" },
+  "Kling 2.0": { m: "kling-v2-master", mode: "pro", ep: "image2video" },
+  "Kling 1.6": { m: "kling-v1-6", mode: "pro", ep: "image2video" },
+};
+function klingApiSpec(b) {
+  return KLING_API[b.model] || { m: "kling-v2-master", mode: "pro", ep: (b.firstFrame || b.refImage || b.image_url) ? "image2video" : "text2video" };
+}
+function _stripDataUri(v) { return v ? String(v).replace(/^data:[^,]+,/, "") : ""; }
+function buildKlingApiPayload(b, spec) {
+  const dur = (Number(b.seconds) > 7 ? "10" : "5");
+  const p = { model_name: spec.m, prompt: String(b.prompt || "").slice(0, 2500), mode: spec.mode, duration: dur };
+  if (b.negative) p.negative_prompt = String(b.negative).slice(0, 2500);
+  const cfg = Number(b.cfg);
+  if (Number.isFinite(cfg) && cfg >= 0 && cfg <= 1) p.cfg_scale = cfg;   // Kling cfg_scale 범위 0~1
+  if (spec.ep === "image2video") {
+    const img = _stripDataUri(b.firstFrame || b.refImage || b.image_url);
+    if (img) p.image = img;                       // URL 또는 순수 base64
+    const tail = _stripDataUri(b.lastFrame);
+    if (tail) p.image_tail = tail;
+  } else {
+    p.aspect_ratio = (b.ratio || "16:9");
+  }
+  return p;
+}
+
 function buildKlingPayload(b) {
   const id = klingModelId(b);
   const p = { prompt: String(b.prompt || ""), duration: (Number(b.seconds) > 7 ? "10" : "5"), aspect_ratio: (b.ratio || "16:9") };
@@ -470,6 +534,7 @@ async function handle(context) {
         hailuo:   !!k.hailuo,
         luma:     !!k.luma,
         fal:      !!k.fal,
+        kling:    !!(klingCreds(env) || k.fal),
         nanobanana: !!(gcpCreds(env) || k.google),
         openai:   !!k.openai,
         // 스튜디오가 실제로 쓰는 Seedance 모델 결정값 진단 (모델ID는 비밀 아님)
@@ -1051,6 +1116,24 @@ async function handle(context) {
       return json({ status: j.state || "dreaming" });
     }
     if (provider === "kling") {
+      // 1순위: 클링 공식 API 폴링
+      const cr = klingCreds(env);
+      if (cr) {
+        const task = u.searchParams.get("task");
+        const ep = u.searchParams.get("ep") || "text2video";
+        if (!task) return json({ status: "failed", error: "no task" }, 400);
+        const auth = await klingAuth(cr);
+        const r = await fetchT(cr.base + "/v1/videos/" + ep + "/" + encodeURIComponent(task), { headers: { "Authorization": auth } });
+        const j = await r.json().catch(() => ({}));
+        if (j.code !== 0) return json({ status: "failed", error: String(j.message || "Kling 조회 실패").slice(0, 200) });
+        const st = String((j.data && j.data.task_status) || "").toLowerCase();
+        if (st === "failed") return json({ status: "failed", error: String((j.data && j.data.task_status_msg) || "Kling 생성 실패").slice(0, 200) });
+        if (st !== "succeed") return json({ status: st || "processing" });
+        const vids = (j.data && j.data.task_result && j.data.task_result.videos) || [];
+        const url = vids[0] && vids[0].url;
+        return url ? json({ url, kind: "video" }) : json({ status: "failed", error: "Kling: 결과 영상 URL 없음" });
+      }
+      // 2순위(폴백): fal.ai 폴링
       const task = u.searchParams.get("task");
       const model = u.searchParams.get("model") || "";
       if (!task || !model || !k.fal) return json({ status: "failed", error: "no task/model/key" }, 400);
@@ -1320,7 +1403,23 @@ async function handle(context) {
   }
 
   if (provider === "kling") {
-    if (!k.fal) return json({ error: "Kling(fal.ai) 연동이 설정되지 않았습니다. 환경변수 FAL_KEY 를 넣어주세요." }, 500);
+    // 1순위: 클링 공식 오픈플랫폼 API (KLING_ACCESS_KEY+KLING_SECRET_KEY 또는 KLING_API_KEY)
+    const cr = klingCreds(env);
+    if (cr) {
+      const spec = klingApiSpec(b);
+      const auth = await klingAuth(cr);
+      const r = await fetchT(cr.base + "/v1/videos/" + spec.ep, {
+        method: "POST",
+        headers: { "Authorization": auth, "Content-Type": "application/json" },
+        body: JSON.stringify(buildKlingApiPayload(b, spec))
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.code !== 0 || !(j.data && j.data.task_id))
+        return json({ error: "Kling: " + String(j.message || JSON.stringify(j) || "요청 실패").slice(0, 200) }, 502);
+      return json({ statusUrl: "/api/generate?provider=kling&task=" + encodeURIComponent(j.data.task_id) + "&ep=" + spec.ep });
+    }
+    // 2순위(폴백): fal.ai 경유 (FAL_KEY 있을 때만)
+    if (!k.fal) return json({ error: "Kling 연동이 설정되지 않았습니다. 환경변수 KLING_ACCESS_KEY·KLING_SECRET_KEY(또는 KLING_API_KEY) 를 넣어주세요." }, 500);
     const model = klingModelId(b);
     const r = await fetchT(FAL_QUEUE + model, {
       method: "POST",
