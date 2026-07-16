@@ -118,7 +118,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     // 이동 위치: 관리자→콘솔, 필수 약관 미동의 또는 주소 미입력→가입 마무리, 그 외→대시보드
     const isAdmin = u.email === ADMIN_EMAIL || u.role === 'admin'
     const consentOk = isAdmin || (Number(u.tos_consent) === 1 && Number(u.privacy_consent) === 1)
-    const addressComplete = isAdmin || !!(u.country && u.postal_code && u.address1)
+    const addressComplete = isAdmin || !!(u.country && u.address1)
     const dest = isAdmin ? ADMIN : consentOk && addressComplete ? DASH : '/complete-profile'
 
     return redirect(request, dest, [sessionCookie(token), clearState])

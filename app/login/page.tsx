@@ -114,13 +114,7 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* 구글로 로그인 — 약관 동의는 로그인 이후 단계에서 진행 */}
-            <div className="mt-6 space-y-4">
-              <GoogleAuthButton label="구글로 로그인 (Continue with Google)" />
-              <OrDivider text="또는 이메일로 로그인" />
-            </div>
-
-            <form onSubmit={onSubmit} className="mt-4 space-y-4">
+            <form onSubmit={onSubmit} className="mt-6 space-y-4">
               <div>
                 <label htmlFor="email" className="mb-1.5 block text-sm font-medium">
                   이메일
@@ -194,6 +188,12 @@ export default function LoginPage() {
                 {!loading && <ArrowRight size={17} />}
               </Button>
             </form>
+
+            {/* 구글로 로그인 — 하단, 약관 동의는 로그인 이후 단계에서 진행 */}
+            <div className="mt-6 space-y-4">
+              <OrDivider text="또는" />
+              <GoogleAuthButton label="구글로 로그인 (Continue with Google)" />
+            </div>
           </div>
 
           <p className="mt-6 text-center text-sm text-[var(--text-soft)]">

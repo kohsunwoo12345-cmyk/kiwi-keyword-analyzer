@@ -10,14 +10,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const b: any = await request.json().catch(() => ({}))
   const country = String(b.country || '').trim().slice(0, 60)
+  const company = String(b.company || '').trim().slice(0, 100)
   const postalCode = String(b.postalCode || b.postal_code || '').trim().slice(0, 20)
   const address1 = String(b.address1 || '').trim().slice(0, 200)
   const address2 = String(b.address2 || '').trim().slice(0, 200)
-  const phone = String(b.phone || '').replace(/[^0-9]/g, '').slice(0, 20)
+  // 국가번호(+82 등)가 앞에 붙은 형태를 허용 — 맨 앞 '+' 는 유지하고 나머지는 숫자만 남긴다
+  const rawPhone = String(b.phone || '').trim()
+  const phone = (rawPhone.startsWith('+') ? '+' : '') + rawPhone.replace(/\D/g, '').slice(0, 20)
   const ref = String(b.ref || b.referral || '').trim().toUpperCase().slice(0, 32)
 
   if (!country) return json({ ok: false, error: '국가를 선택해 주세요.' }, 400)
-  if (!postalCode) return json({ ok: false, error: '우편번호를 입력해 주세요.' }, 400)
   if (!address1) return json({ ok: false, error: '주소를 입력해 주세요.' }, 400)
 
   const now = new Date().toISOString()
@@ -42,6 +44,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     .prepare('UPDATE users SET country = ?, postal_code = ?, address1 = ?, address2 = ?, address_at = ? WHERE id = ?')
     .bind(country, postalCode, address1, address2, now, me.id)
     .run()
+
+  // 회사 이름 (입력 시에만 갱신) — 회원가입 정보에 반영
+  if (company) {
+    await db.prepare('UPDATE users SET company = ? WHERE id = ?').bind(company, me.id).run().catch(() => {})
+  }
 
   // 전화번호 (입력 시에만 갱신)
   if (phone) {

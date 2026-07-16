@@ -95,7 +95,8 @@ export async function signup(input: {
 /** 가입 후 사업장 주소(국가·우편번호·주소) 저장 */
 export async function saveAddress(input: {
   country: string
-  postalCode: string
+  company?: string
+  postalCode?: string
   address1: string
   address2?: string
   phone?: string

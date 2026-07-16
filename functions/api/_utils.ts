@@ -818,8 +818,8 @@ export function publicUser(u: any) {
     postalCode: u.postal_code || '',
     address1: u.address1 || '',
     address2: u.address2 || '',
-    // 관리자는 주소 입력 면제, 그 외에는 국가·우편번호·기본주소가 모두 있어야 완료
-    addressComplete: isAdmin || !!(u.country && u.postal_code && u.address1),
+    // 관리자는 주소 입력 면제, 그 외에는 국가·기본주소가 있으면 완료 (우편번호는 선택)
+    addressComplete: isAdmin || !!(u.country && u.address1),
     createdAt: u.created_at,
     lastActive: u.last_active,
   }

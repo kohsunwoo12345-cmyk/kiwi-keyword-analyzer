@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { MapPin, Building2, Mail, Hash, ArrowRight, AlertCircle, Check, LogOut, Globe, Phone, UserPlus } from 'lucide-react'
+import { MapPin, Building2, Mail, Hash, ArrowRight, AlertCircle, Check, LogOut, Globe, Phone, UserPlus, Briefcase } from 'lucide-react'
 import { Logo } from '@/components/Brand'
 import { Button } from '@/components/ui'
 import { useAuth, saveAddress, logout } from '@/lib/auth'
@@ -10,22 +10,29 @@ import { useAuth, saveAddress, logout } from '@/lib/auth'
 const inputBase =
   'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] pl-11 pr-3.5 py-3 text-sm outline-none transition-colors focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 placeholder:text-[var(--text-dim)]'
 
-const COUNTRIES = [
-  '대한민국', '미국', '일본', '중국', '대만', '홍콩', '싱가포르', '캐나다', '영국', '호주',
-  '독일', '프랑스', '네덜란드', '스페인', '이탈리아', '베트남', '태국', '인도네시아', '말레이시아',
-  '필리핀', '인도', '아랍에미리트', '사우디아라비아', '브라질', '멕시코', '기타',
-]
+// 국가 → 국제전화 국가번호 (선택 시 전화번호 앞에 자동으로 붙는다)
+const COUNTRY_DIAL: Record<string, string> = {
+  대한민국: '+82', 미국: '+1', 일본: '+81', 중국: '+86', 대만: '+886', 홍콩: '+852',
+  싱가포르: '+65', 캐나다: '+1', 영국: '+44', 호주: '+61', 독일: '+49', 프랑스: '+33',
+  네덜란드: '+31', 스페인: '+34', 이탈리아: '+39', 베트남: '+84', 태국: '+66',
+  인도네시아: '+62', 말레이시아: '+60', 필리핀: '+63', 인도: '+91', 아랍에미리트: '+971',
+  사우디아라비아: '+966', 브라질: '+55', 멕시코: '+52', 기타: '',
+}
+const COUNTRIES = Object.keys(COUNTRY_DIAL)
 
 export default function CompleteProfilePage() {
   const router = useRouter()
   const { user, ready } = useAuth()
 
   const [country, setCountry] = useState('대한민국')
+  const [company, setCompany] = useState('')
   const [postalCode, setPostalCode] = useState('')
   const [address1, setAddress1] = useState('')
   const [address2, setAddress2] = useState('')
   const [phone, setPhone] = useState('')
   const [refCode, setRefCode] = useState('')
+
+  const dialCode = COUNTRY_DIAL[country] || ''
   const [agreeTos, setAgreeTos] = useState(false)
   const [agreePrivacy, setAgreePrivacy] = useState(false)
   const [agreeMkt, setAgreeMkt] = useState(false)
@@ -50,17 +57,23 @@ export default function CompleteProfilePage() {
     }
     // 기존 입력값이 있으면 채워두기
     if (user.country) setCountry(user.country)
+    if (user.company) setCompany(user.company)
     if (user.postalCode) setPostalCode(user.postalCode)
     if (user.address1) setAddress1(user.address1)
     if (user.address2) setAddress2(user.address2)
-    if (user.phone) setPhone(user.phone)
+    // 저장된 전화번호에서 국가번호를 떼고 로컬 번호만 입력창에 채운다
+    if (user.phone) {
+      const code = COUNTRY_DIAL[user.country || country] || ''
+      setPhone(code ? user.phone.replace(code, '').trim() : user.phone)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, user])
 
   function validate() {
     const e: Record<string, string> = {}
     if (!country) e.country = '국가를 선택해 주세요.'
-    if (!postalCode.trim()) e.postalCode = '우편번호를 입력해 주세요.'
+    if (!company.trim()) e.company = '회사 이름을 입력해 주세요.'
+    if (!phone.trim()) e.phone = '전화번호를 입력해 주세요.'
     if (!address1.trim()) e.address1 = '사업장 주소를 입력해 주세요.'
     if (needConsent && !(agreeTos && agreePrivacy)) e.consent = '필수 약관에 모두 동의해 주세요.'
     setErrors(e)
@@ -73,12 +86,15 @@ export default function CompleteProfilePage() {
     if (!validate()) return
     setLoading(true)
     ;(async () => {
+      const localPhone = phone.trim()
+      const fullPhone = dialCode ? `${dialCode} ${localPhone}` : localPhone
       const res = await saveAddress({
         country,
-        postalCode: postalCode.trim(),
+        company: company.trim(),
+        postalCode: postalCode.trim() || undefined,
         address1: address1.trim(),
         address2: address2.trim() || undefined,
-        phone: phone.trim() || undefined,
+        phone: fullPhone,
         ref: refCode.trim() || undefined,
         ...(needConsent ? { tos: agreeTos ? 1 : 0, privacy: agreePrivacy ? 1 : 0, marketing: agreeMkt ? 1 : 0 } : {}),
       })
@@ -122,9 +138,9 @@ export default function CompleteProfilePage() {
             <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.06] px-3.5 py-1.5 text-xs font-semibold text-blue-200 backdrop-blur">
               <MapPin size={13} /> 가입 마지막 단계
             </span>
-            <h1 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">사업장 주소를 입력해 주세요</h1>
+            <h1 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">가입 정보를 입력해 주세요</h1>
             <p className="mt-2 text-sm text-[var(--text-soft)]">
-              {user.name}님, 서비스 이용을 위해 국가와 사업장 주소·우편번호를 모두 입력해야 합니다.
+              {user.name}님, 서비스 이용을 위해 국가·회사 이름·전화번호·사업장 주소를 입력해 주세요.
             </p>
           </div>
 
@@ -159,23 +175,48 @@ export default function CompleteProfilePage() {
                 {errors.country && <p className="mt-1.5 text-xs text-rose-300">{errors.country}</p>}
               </div>
 
-              {/* 전화번호 */}
+              {/* 회사 이름 */}
               <div>
-                <label htmlFor="phone" className="mb-1.5 block text-sm font-medium">
-                  전화번호 <span className="ml-1 text-xs font-normal text-[var(--text-dim)]">(선택)</span>
+                <label htmlFor="company" className="mb-1.5 block text-sm font-medium">
+                  회사 이름 <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
-                  <Phone size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" />
+                  <Briefcase size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" />
                   <input
-                    id="phone"
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="010-0000-0000"
-                    autoComplete="tel"
+                    id="company"
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                    placeholder="예: (주)바이전시"
+                    autoComplete="organization"
                     className={inputBase}
                   />
                 </div>
+                {errors.company && <p className="mt-1.5 text-xs text-rose-300">{errors.company}</p>}
+              </div>
+
+              {/* 전화번호 — 국가 선택 시 국가번호가 앞에 자동으로 붙습니다 */}
+              <div>
+                <label htmlFor="phone" className="mb-1.5 block text-sm font-medium">
+                  전화번호 <span className="text-rose-500">*</span>
+                </label>
+                <div className="flex gap-2">
+                  <div className="flex min-w-[68px] items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3 text-sm font-medium text-[var(--text-soft)]">
+                    {dialCode || '—'}
+                  </div>
+                  <div className="relative flex-1">
+                    <Phone size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" />
+                    <input
+                      id="phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="10-0000-0000"
+                      autoComplete="tel"
+                      className={inputBase}
+                    />
+                  </div>
+                </div>
+                {errors.phone && <p className="mt-1.5 text-xs text-rose-300">{errors.phone}</p>}
               </div>
 
               {/* 추천인 코드 (아직 추천 연결이 없을 때만) */}
@@ -200,7 +241,7 @@ export default function CompleteProfilePage() {
               {/* 우편번호 */}
               <div>
                 <label htmlFor="postal" className="mb-1.5 block text-sm font-medium">
-                  우편번호 <span className="text-rose-500">*</span>
+                  우편번호 <span className="ml-1 text-xs font-normal text-[var(--text-dim)]">(선택)</span>
                 </label>
                 <div className="relative">
                   <Hash size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" />
