@@ -4511,7 +4511,6 @@ function nvRelink(){ try{ drawLinks(); drawMinimap(); }catch(e){} }
 requestAnimationFrame(function(){ requestAnimationFrame(nvRelink); });
 window.addEventListener('load', nvRelink, { passive:true });
 if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink); }
-})();
 
 /* ════════════════════════════════════════════════════════════════════════
    하단 플로팅 툴바 + 주석(annotation) 엔진 — 힉스필드 스타일 캔버스 도구
@@ -4699,6 +4698,7 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
   document.addEventListener('keydown',function(e){ if(e.key==='Escape' && TOOL!=='select'){ setTool('select'); } });
 
   renderAnnos();
+})();
 })();
 </script>
 </body>
