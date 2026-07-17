@@ -51,46 +51,42 @@ type Shot = {
 /** 홈 쇼케이스 사진 — public/images/showcase/ 에 파일을 넣으면 자동으로 표시되고,
  *  없으면 그라데이션 포스터가 폴백으로 유지됩니다. */
 const SHOTS: Shot[] = [
-  { cap: '모터스포츠 광고컷', model: 'Nano Banana', ar: 'l', src: '/images/showcase/1.png', grad: 'from-red-600 via-rose-600 to-slate-800', glow: 'radial-gradient(circle at 30% 30%, rgba(255,180,150,0.55), transparent 45%)', tag: 'node' },
-  { cap: '스타디움 현장 스케치', model: 'GPT Image 2', ar: 'p', src: '/images/showcase/2.png', grad: 'from-slate-800 via-indigo-800 to-amber-500', glow: 'radial-gradient(circle at 50% 25%, rgba(255,230,170,0.5), transparent 42%)' },
-  { cap: '의료 상담 컷', model: 'Flux 1.1 Pro', ar: 'l', src: '/images/showcase/3.png', grad: 'from-sky-700 via-slate-600 to-slate-200', glow: 'radial-gradient(circle at 65% 30%, rgba(210,230,255,0.5), transparent 45%)', tag: 'control' },
-  { cap: '관중 클로즈업', model: 'Nano Banana', ar: 'l', src: '/images/showcase/4.png', grad: 'from-slate-900 via-blue-900 to-slate-700', glow: 'radial-gradient(circle at 45% 30%, rgba(150,180,255,0.5), transparent 45%)' },
-  { cap: '스포츠 액션', model: 'GPT Image', ar: 'l', src: '/images/showcase/5.png', grad: 'from-zinc-900 via-neutral-800 to-orange-700', glow: 'radial-gradient(circle at 60% 35%, rgba(255,160,110,0.5), transparent 45%)', tag: 'node' },
-  { cap: '브랜드 필름 스틸', model: 'Flux Kontext', ar: 'l', src: '/images/showcase/6.png', grad: 'from-slate-800 via-zinc-700 to-blue-800', glow: 'radial-gradient(circle at 40% 30%, rgba(160,190,255,0.5), transparent 45%)', tag: 'control' },
-  { cap: '제품 광고 클로즈업', model: 'Runway Gen-4', ar: 'l', src: '/images/showcase/7.png', grad: 'from-slate-700 via-zinc-600 to-amber-500', glow: 'radial-gradient(circle at 60% 30%, rgba(255,255,255,0.5), transparent 40%)' },
-  { cap: '도시 야경 스틸', model: 'Nano Banana', ar: 'l', src: '/images/showcase/8.png', grad: 'from-blue-800 via-indigo-800 to-purple-800', glow: 'radial-gradient(circle at 30% 70%, rgba(120,160,255,0.55), transparent 45%)', tag: 'node' },
-  { cap: '인물 시네마틱 포트레이트', model: 'GPT Image 2', ar: 'l', src: '/images/showcase/9.png', grad: 'from-rose-500 via-purple-600 to-slate-900', glow: 'radial-gradient(circle at 50% 30%, rgba(255,200,230,0.5), transparent 42%)', tag: 'control' },
-  { cap: '뷰티 제품 광고', model: 'Flux 1.1 Pro', ar: 'l', src: '/images/showcase/10.png', grad: 'from-rose-400 via-pink-500 to-purple-600', glow: 'radial-gradient(circle at 55% 28%, rgba(255,225,235,0.6), transparent 40%)' },
-  { cap: '패션 룩북', model: 'GPT Image 2', ar: 'p', src: '/images/showcase/11.png', grad: 'from-pink-500 via-fuchsia-600 to-violet-700', glow: 'radial-gradient(circle at 50% 20%, rgba(255,210,240,0.5), transparent 42%)' },
-  { cap: '브랜드 필름 스틸', model: 'Nano Banana', ar: 'l', src: '/images/showcase/12.png', grad: 'from-zinc-800 via-slate-700 to-red-600', glow: 'radial-gradient(circle at 70% 60%, rgba(255,120,90,0.5), transparent 45%)', tag: 'node' },
-  { cap: '제품 광고 클로즈업', model: 'Flux Kontext', ar: 'l', src: '/images/showcase/13.png', grad: 'from-slate-700 via-zinc-600 to-amber-500', glow: 'radial-gradient(circle at 60% 30%, rgba(255,255,255,0.5), transparent 40%)', tag: 'control' },
-  { cap: '스포츠 액션', model: 'GPT Image', ar: 'l', src: '/images/showcase/14.png', grad: 'from-zinc-900 via-neutral-800 to-orange-700', glow: 'radial-gradient(circle at 60% 35%, rgba(255,160,110,0.5), transparent 45%)' },
-  { cap: '도시 야경 스틸', model: 'Flux 1.1 Pro', ar: 'l', src: '/images/showcase/15.png', grad: 'from-blue-700 via-indigo-700 to-purple-800', glow: 'radial-gradient(circle at 30% 70%, rgba(120,160,255,0.55), transparent 45%)', tag: 'control' },
-  { cap: '모터스포츠 광고컷', model: 'Nano Banana', ar: 'l', src: '/images/showcase/16.png', grad: 'from-red-600 via-rose-600 to-slate-800', glow: 'radial-gradient(circle at 30% 30%, rgba(255,180,150,0.55), transparent 45%)', tag: 'node' },
-  { cap: '스포츠 액션', model: 'GPT Image 2', ar: 'l', src: '/images/showcase/17.png', grad: 'from-zinc-900 via-neutral-800 to-orange-700', glow: 'radial-gradient(circle at 60% 35%, rgba(255,160,110,0.5), transparent 45%)' },
-  { cap: '브랜드 필름 스틸', model: 'Flux Kontext', ar: 'l', src: '/images/showcase/18.png', grad: 'from-slate-800 via-zinc-700 to-blue-800', glow: 'radial-gradient(circle at 40% 30%, rgba(160,190,255,0.5), transparent 45%)', tag: 'control' },
-  { cap: '관중 클로즈업', model: 'Nano Banana', ar: 'l', src: '/images/showcase/19.png', grad: 'from-slate-900 via-blue-900 to-slate-700', glow: 'radial-gradient(circle at 45% 30%, rgba(150,180,255,0.5), transparent 45%)', tag: 'node' },
-  { cap: '제품 광고 클로즈업', model: 'Flux 1.1 Pro', ar: 'l', src: '/images/showcase/20.png', grad: 'from-slate-700 via-zinc-600 to-amber-500', glow: 'radial-gradient(circle at 60% 30%, rgba(255,255,255,0.5), transparent 40%)' },
+  { cap: '모터스포츠 광고컷', model: 'Nano Banana', ar: 'l', src: '/images/showcase/1.webp', grad: 'from-red-600 via-rose-600 to-slate-800', glow: 'radial-gradient(circle at 30% 30%, rgba(255,180,150,0.55), transparent 45%)', tag: 'node' },
+  { cap: '스타디움 현장 스케치', model: 'GPT Image 2', ar: 'p', src: '/images/showcase/2.webp', grad: 'from-slate-800 via-indigo-800 to-amber-500', glow: 'radial-gradient(circle at 50% 25%, rgba(255,230,170,0.5), transparent 42%)' },
+  { cap: '의료 상담 컷', model: 'Flux 1.1 Pro', ar: 'l', src: '/images/showcase/3.webp', grad: 'from-sky-700 via-slate-600 to-slate-200', glow: 'radial-gradient(circle at 65% 30%, rgba(210,230,255,0.5), transparent 45%)', tag: 'control' },
+  { cap: '관중 클로즈업', model: 'Nano Banana', ar: 'l', src: '/images/showcase/4.webp', grad: 'from-slate-900 via-blue-900 to-slate-700', glow: 'radial-gradient(circle at 45% 30%, rgba(150,180,255,0.5), transparent 45%)' },
+  { cap: '스포츠 액션', model: 'GPT Image', ar: 'l', src: '/images/showcase/5.webp', grad: 'from-zinc-900 via-neutral-800 to-orange-700', glow: 'radial-gradient(circle at 60% 35%, rgba(255,160,110,0.5), transparent 45%)', tag: 'node' },
+  { cap: '브랜드 필름 스틸', model: 'Flux Kontext', ar: 'l', src: '/images/showcase/6.webp', grad: 'from-slate-800 via-zinc-700 to-blue-800', glow: 'radial-gradient(circle at 40% 30%, rgba(160,190,255,0.5), transparent 45%)', tag: 'control' },
+  { cap: '제품 광고 클로즈업', model: 'Runway Gen-4', ar: 'l', src: '/images/showcase/7.webp', grad: 'from-slate-700 via-zinc-600 to-amber-500', glow: 'radial-gradient(circle at 60% 30%, rgba(255,255,255,0.5), transparent 40%)' },
+  { cap: '도시 야경 스틸', model: 'Nano Banana', ar: 'l', src: '/images/showcase/8.webp', grad: 'from-blue-800 via-indigo-800 to-purple-800', glow: 'radial-gradient(circle at 30% 70%, rgba(120,160,255,0.55), transparent 45%)', tag: 'node' },
+  { cap: '인물 시네마틱 포트레이트', model: 'GPT Image 2', ar: 'l', src: '/images/showcase/9.webp', grad: 'from-rose-500 via-purple-600 to-slate-900', glow: 'radial-gradient(circle at 50% 30%, rgba(255,200,230,0.5), transparent 42%)', tag: 'control' },
+  { cap: '뷰티 제품 광고', model: 'Flux 1.1 Pro', ar: 'l', src: '/images/showcase/10.webp', grad: 'from-rose-400 via-pink-500 to-purple-600', glow: 'radial-gradient(circle at 55% 28%, rgba(255,225,235,0.6), transparent 40%)' },
+  { cap: '패션 룩북', model: 'GPT Image 2', ar: 'p', src: '/images/showcase/11.webp', grad: 'from-pink-500 via-fuchsia-600 to-violet-700', glow: 'radial-gradient(circle at 50% 20%, rgba(255,210,240,0.5), transparent 42%)' },
+  { cap: '브랜드 필름 스틸', model: 'Nano Banana', ar: 'l', src: '/images/showcase/12.webp', grad: 'from-zinc-800 via-slate-700 to-red-600', glow: 'radial-gradient(circle at 70% 60%, rgba(255,120,90,0.5), transparent 45%)', tag: 'node' },
+  { cap: '제품 광고 클로즈업', model: 'Flux Kontext', ar: 'l', src: '/images/showcase/13.webp', grad: 'from-slate-700 via-zinc-600 to-amber-500', glow: 'radial-gradient(circle at 60% 30%, rgba(255,255,255,0.5), transparent 40%)', tag: 'control' },
+  { cap: '스포츠 액션', model: 'GPT Image', ar: 'l', src: '/images/showcase/14.webp', grad: 'from-zinc-900 via-neutral-800 to-orange-700', glow: 'radial-gradient(circle at 60% 35%, rgba(255,160,110,0.5), transparent 45%)' },
+  { cap: '도시 야경 스틸', model: 'Flux 1.1 Pro', ar: 'l', src: '/images/showcase/15.webp', grad: 'from-blue-700 via-indigo-700 to-purple-800', glow: 'radial-gradient(circle at 30% 70%, rgba(120,160,255,0.55), transparent 45%)', tag: 'control' },
+  { cap: '모터스포츠 광고컷', model: 'Nano Banana', ar: 'l', src: '/images/showcase/16.webp', grad: 'from-red-600 via-rose-600 to-slate-800', glow: 'radial-gradient(circle at 30% 30%, rgba(255,180,150,0.55), transparent 45%)', tag: 'node' },
+  { cap: '스포츠 액션', model: 'GPT Image 2', ar: 'l', src: '/images/showcase/17.webp', grad: 'from-zinc-900 via-neutral-800 to-orange-700', glow: 'radial-gradient(circle at 60% 35%, rgba(255,160,110,0.5), transparent 45%)' },
+  { cap: '브랜드 필름 스틸', model: 'Flux Kontext', ar: 'l', src: '/images/showcase/18.webp', grad: 'from-slate-800 via-zinc-700 to-blue-800', glow: 'radial-gradient(circle at 40% 30%, rgba(160,190,255,0.5), transparent 45%)', tag: 'control' },
+  { cap: '관중 클로즈업', model: 'Nano Banana', ar: 'l', src: '/images/showcase/19.webp', grad: 'from-slate-900 via-blue-900 to-slate-700', glow: 'radial-gradient(circle at 45% 30%, rgba(150,180,255,0.5), transparent 45%)', tag: 'node' },
+  { cap: '제품 광고 클로즈업', model: 'Flux 1.1 Pro', ar: 'l', src: '/images/showcase/20.webp', grad: 'from-slate-700 via-zinc-600 to-amber-500', glow: 'radial-gradient(circle at 60% 30%, rgba(255,255,255,0.5), transparent 40%)' },
 ]
 
 const ARW: Record<Shot['ar'], string> = { p: 'w-44', l: 'w-80', s: 'w-56' }
 
 const LEGEND = ['Nano Banana', 'GPT Image 2', 'Flux 1.1 Pro Ultra', 'Flux Kontext Max', 'Grok Imagine', 'Runway Gen-4']
 
-function ShotCard({ c, t }: { c: Shot; t: (s: string) => string }) {
+function ShotCard({ c, t, eager }: { c: Shot; t: (s: string) => string; eager?: boolean }) {
   return (
-    <div className={cn('group relative h-56 overflow-hidden rounded-xl border border-white/10 shadow-lg transition-transform duration-300 hover:scale-[1.03]', ARW[c.ar])}>
-      {/* 그라데이션 포스터 (이미지 로딩 전 / 파일 없을 때 폴백) */}
-      <div className={cn('absolute inset-0 bg-gradient-to-br', c.grad)} />
-      <div className="absolute inset-0" style={{ backgroundImage: c.glow }} />
-
-      {/* 실제 사진 (파일이 있으면 표시, 없으면 onError 로 숨겨져 포스터가 보임) */}
+    <div className={cn('group relative h-56 overflow-hidden rounded-xl border border-white/10 bg-[#0c0f18] shadow-lg transition-transform duration-300 hover:scale-[1.03]', ARW[c.ar])}>
+      {/* 사진 (홀로그램 그라데이션 없이 사진만 노출, 로딩 전엔 어두운 배경) */}
       <img
         src={c.src}
         alt={t(c.cap)}
-        loading="lazy"
+        loading={eager ? 'eager' : 'lazy'}
+        decoding="async"
         className="absolute inset-0 h-full w-full object-cover"
-        onError={(e) => { e.currentTarget.style.display = 'none' }}
       />
 
       <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
@@ -154,12 +150,12 @@ export function AIVideoGallery() {
       <Reveal delay={100} className="mt-14 space-y-4">
         <div className="marquee-mask overflow-hidden">
           <div className="marquee-track gap-4">
-            {[...row1, ...row1].map((c, i) => <div key={i} className="flex-shrink-0"><ShotCard c={c} t={t} /></div>)}
+            {[...row1, ...row1].map((c, i) => <div key={i} className="flex-shrink-0"><ShotCard c={c} t={t} eager={i < row1.length} /></div>)}
           </div>
         </div>
         <div className="marquee-mask overflow-hidden">
           <div className="marquee-track marquee-rev gap-4">
-            {[...row2, ...row2].map((c, i) => <div key={i} className="flex-shrink-0"><ShotCard c={c} t={t} /></div>)}
+            {[...row2, ...row2].map((c, i) => <div key={i} className="flex-shrink-0"><ShotCard c={c} t={t} eager={i < row2.length} /></div>)}
           </div>
         </div>
       </Reveal>
