@@ -29,6 +29,22 @@ async function fetchUsdKrw(): Promise<number | null> {
 }
 
 /** 전역 모델별 배수 (settings.model_markups JSON). {모델명: 배수}. 없으면 {}. */
+// 레퍼런스 이미지 1장 추가당 크레딧 가산율(%) 기본값
+export const REF_SURCHARGE_DEFAULT = 0.5
+// 회원별 레퍼런스 가산율 해석: 회원 지정값 > 전역 설정 > 기본(0.5%)
+export async function resolveRefSurcharge(db: D1Database, userId: string): Promise<number> {
+  try {
+    if (userId) {
+      const u: any = await db.prepare('SELECT ref_surcharge FROM users WHERE id = ?').bind(userId).first()
+      if (u && u.ref_surcharge != null && Number(u.ref_surcharge) >= 0) return Number(u.ref_surcharge)
+    }
+  } catch { /* 컬럼 없음 */ }
+  try {
+    const row: any = await db.prepare("SELECT value FROM settings WHERE key = 'ref_surcharge_pct'").first()
+    if (row && row.value != null && row.value !== '') { const n = Number(row.value); if (n >= 0) return n }
+  } catch { /* noop */ }
+  return REF_SURCHARGE_DEFAULT
+}
 export async function getModelMarkups(db: D1Database): Promise<Record<string, number>> {
   try {
     const row: any = await db.prepare("SELECT value FROM settings WHERE key = 'model_markups'").first()

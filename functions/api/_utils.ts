@@ -463,6 +463,7 @@ export async function ensureSchema(db: D1Database) {
     credit_markup: 'credit_markup REAL', // 회원별 AI 과금 배수(원가=1). NULL/0 = 모델 기본(2.5/3.0)
     branch_id: 'branch_id TEXT', // 추천인이 소속된 지사(정산 대상)
     mcp_token: 'mcp_token TEXT', // 회원별 개인 MCP 연결 토큰(본인 계정으로 크레딧 차감)
+    ref_surcharge: 'ref_surcharge REAL', // 레퍼런스 이미지 1장 추가당 크레딧 가산율(%). NULL=전역 기본값
   })
   await addMissingColumns(db, 'plan_requests', {
     track: "track TEXT DEFAULT 'marketer'",

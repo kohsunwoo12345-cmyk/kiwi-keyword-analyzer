@@ -1,5 +1,7 @@
-import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser, setSetting, logAudit, clientIp } from '../_utils'
-import { MODEL_COST, PROV_LABEL, computeCharge, getUsdKrw, getModelMarkups, CREDIT_KRW } from '../studio/_pricing'
+import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser, setSetting, getSetting, logAudit, clientIp } from '../_utils'
+import { MODEL_COST, PROV_LABEL, computeCharge, getUsdKrw, getModelMarkups, CREDIT_KRW, REF_SURCHARGE_DEFAULT } from '../studio/_pricing'
+
+const clampPct = (v: any) => Math.max(0, Math.min(100, Math.round((Number(v) || 0) * 1000) / 1000))
 
 const clampMk = (v: any) => Math.max(1, Math.min(100, Math.round((Number(v) || 1) * 100) / 100))
 const unitsFor = (kind: string) => (kind === 'video' ? 8 : 1)
@@ -20,14 +22,16 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const q = String(url.searchParams.get('q') || '').trim()
     const like = '%' + q + '%'
     const rows = (q
-      ? await db.prepare("SELECT id,name,email,plan,credits,credit_markup,created_at FROM users WHERE role != 'admin' AND (name LIKE ? OR email LIKE ?) ORDER BY created_at DESC LIMIT 1000").bind(like, like).all()
-      : await db.prepare("SELECT id,name,email,plan,credits,credit_markup,created_at FROM users WHERE role != 'admin' ORDER BY created_at DESC LIMIT 1000").all()
+      ? await db.prepare("SELECT id,name,email,plan,credits,credit_markup,ref_surcharge,created_at FROM users WHERE role != 'admin' AND (name LIKE ? OR email LIKE ?) ORDER BY created_at DESC LIMIT 1000").bind(like, like).all()
+      : await db.prepare("SELECT id,name,email,plan,credits,credit_markup,ref_surcharge,created_at FROM users WHERE role != 'admin' ORDER BY created_at DESC LIMIT 1000").all()
     ).results || []
     const ovMap: Record<string, number> = {}
     try {
       const ov = (await db.prepare('SELECT user_id, COUNT(*) c FROM user_model_markups WHERE multiplier > 0 GROUP BY user_id').all()).results || []
       for (const r of ov as any[]) ovMap[r.user_id] = Number(r.c) || 0
     } catch { /* table 없음 */ }
+    const gsur = await getSetting(db, 'ref_surcharge_pct')
+    const refDefault = gsur != null && gsur !== '' && Number(gsur) >= 0 ? Number(gsur) : REF_SURCHARGE_DEFAULT
     return json({
       ok: true,
       users: (rows as any[]).map((u) => ({
@@ -35,8 +39,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         credits: Math.round((Number(u.credits) || 0) * 100) / 100,
         overall: Number(u.credit_markup) || 0, // 0 = 기본 배수 사용
         overrides: ovMap[u.id] || 0,           // 모델별 개별 지정 개수
+        refSurcharge: u.ref_surcharge == null ? null : Number(u.ref_surcharge), // null = 전역 기본값 사용
       })),
       defaultMarkup: { video: 3.0, image: 2.5 },
+      refSurchargeDefault: refDefault,
     })
   }
 
@@ -148,6 +154,28 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     await db.prepare('UPDATE users SET credit_markup = 0 WHERE id = ?').bind(uid).run()
     await logAudit(db, admin, 'user_markup_overall_reset', uid, '기본', 'info', ip)
     return json({ ok: true })
+  }
+  // 레퍼런스 이미지 추가당 가산율(%) — 회원별 / 전역
+  if (action === 'set_user_refsur') {
+    const uid = String(b.userId || '')
+    if (!uid) return json({ ok: false, error: 'userId 필요' }, 400)
+    const pct = clampPct(b.pct)
+    await db.prepare('UPDATE users SET ref_surcharge = ? WHERE id = ?').bind(pct, uid).run()
+    await logAudit(db, admin, 'user_ref_surcharge', uid, pct + '%/장', 'info', ip)
+    return json({ ok: true, pct })
+  }
+  if (action === 'reset_user_refsur') {
+    const uid = String(b.userId || '')
+    if (!uid) return json({ ok: false, error: 'userId 필요' }, 400)
+    await db.prepare('UPDATE users SET ref_surcharge = NULL WHERE id = ?').bind(uid).run()
+    await logAudit(db, admin, 'user_ref_surcharge_reset', uid, '기본', 'info', ip)
+    return json({ ok: true })
+  }
+  if (action === 'set_global_refsur') {
+    const pct = clampPct(b.pct)
+    await setSetting(db, 'ref_surcharge_pct', String(pct))
+    await logAudit(db, admin, 'global_ref_surcharge', '전역', pct + '%/장', 'high', ip)
+    return json({ ok: true, pct })
   }
   return json({ ok: false, error: '알 수 없는 작업입니다.' }, 400)
 }

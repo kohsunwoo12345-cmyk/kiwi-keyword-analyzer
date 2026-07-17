@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity } from '../_utils'
-import { computeCharge, ensureAiUsage, getUsdKrw, resolveMarkup } from '../studio/_pricing'
+import { computeCharge, ensureAiUsage, getUsdKrw, resolveMarkup, resolveRefSurcharge } from '../studio/_pricing'
 
 // POST /api/usage/record { model, kind, units, res?, audio?, provider? }
 //  → 스튜디오 생성 1건 확정. BYGENCY 세션으로 사용자 식별 → 크레딧 100% 차감 + 정산 기록.
@@ -29,11 +29,17 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     markup,
   )
 
+  // 레퍼런스 이미지 추가당 가산: 1장 추가마다 +surPct%. (회원별/전역 설정)
+  const refCount = Math.max(0, Number(b.refs) || 0)
+  const surPct = me ? await resolveRefSurcharge(db, me.id) : 0.5
+  const refMult = 1 + (surPct / 100) * refCount
+  const wantCredits = Math.round(c.credits * refMult * 100) / 100
+
   // 크레딧 100% 차감 (로그인 사용자만). 소수 크레딧 지원, 잔액 부족 시 있는 만큼만 차감하고 마이너스는 방지.
   let charged = 0
   if (me) {
     const balance = Number(me.credits) || 0
-    charged = Math.round(Math.min(balance, c.credits) * 100) / 100
+    charged = Math.round(Math.min(balance, wantCredits) * 100) / 100
     if (charged > 0) {
       const after = Math.round((balance - charged) * 100) / 100
       await db.prepare('UPDATE users SET credits = ? WHERE id = ?').bind(after, me.id).run()
@@ -77,7 +83,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: String((e as any)?.message || e).slice(0, 160) }, 500)
   }
 
-  return json({ ok: true, stored: true, charged, credits: c.credits })
+  return json({ ok: true, stored: true, charged, credits: wantCredits, refCount, refSurchargePct: surPct })
 }
 
 export const onRequestOptions: PagesFunction<Env> = async () =>

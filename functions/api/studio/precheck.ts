@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB } from '../_utils'
-import { computeCharge, getUsdKrw } from './_pricing'
+import { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge } from './_pricing'
 
 // POST /api/studio/precheck { model, units?, kind?, res?, audio? }
 //  → 생성 전 크레딧 사전 확인. 부족하면 402 {needPlan:true} 로 응답해 플랜 유도.
@@ -12,21 +12,26 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const b: any = await request.json().catch(() => ({}))
   const rate = await getUsdKrw(db)
-  const c = computeCharge({ model: String(b.model || ''), units: Number(b.units) || 0, kind: b.kind, res: b.res, audio: !!b.audio }, rate)
+  const model = String(b.model || '')
+  const markup = await resolveMarkup(db, me.id, model, Number(me.credit_markup) || 0)
+  const c = computeCharge({ model, units: Number(b.units) || 0, kind: b.kind, res: b.res, audio: !!b.audio }, rate, markup)
+  const surPct = await resolveRefSurcharge(db, me.id)
+  const refMult = 1 + (surPct / 100) * Math.max(0, Number(b.refs) || 0)
+  const need = Math.round(c.credits * refMult * 100) / 100
   const balance = Number(me.credits) || 0
 
-  if (balance < c.credits) {
+  if (balance < need) {
     return json(
       {
         ok: false,
         needPlan: true,
-        error: `크레딧이 부족합니다. 필요 ${c.credits.toLocaleString('ko-KR')}크레딧 · 보유 ${balance.toLocaleString('ko-KR')}크레딧`,
-        need: c.credits,
+        error: `크레딧이 부족합니다. 필요 ${need.toLocaleString('ko-KR')}크레딧 · 보유 ${balance.toLocaleString('ko-KR')}크레딧`,
+        need,
         balance,
         model: c.model,
       },
       402,
     )
   }
-  return json({ ok: true, need: c.credits, balance, model: c.model, revenueKrw: c.revenueKrw })
+  return json({ ok: true, need, balance, model: c.model, refSurchargePct: surPct })
 }

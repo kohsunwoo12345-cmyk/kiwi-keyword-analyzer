@@ -15,17 +15,37 @@ export function UserMarkupList() {
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [edits, setEdits] = useState<Record<string, string>>({})
+  const [refEdits, setRefEdits] = useState<Record<string, string>>({})
+  const [refDefault, setRefDefault] = useState<number>(0.5)
+  const [gsur, setGsur] = useState('')
   const [toast, setToast] = useState<string | null>(null)
 
   function reload(query = q) {
     setLoading(true)
     adminUserMarkups(query).then((r) => {
       setUsers(r.users || [])
+      if (typeof r.refSurchargeDefault === 'number') { setRefDefault(r.refSurchargeDefault); setGsur(String(r.refSurchargeDefault)) }
       const e: Record<string, string> = {}
-      for (const u of r.users || []) e[u.id] = u.overall > 0 ? String(u.overall) : ''
-      setEdits(e)
+      const rf: Record<string, string> = {}
+      for (const u of r.users || []) { e[u.id] = u.overall > 0 ? String(u.overall) : ''; rf[u.id] = u.refSurcharge == null ? '' : String(u.refSurcharge) }
+      setEdits(e); setRefEdits(rf)
       setLoading(false)
     })
+  }
+  async function saveRef(u: UserMarkupRow) {
+    const raw = (refEdits[u.id] || '').trim()
+    setBusy(u.id + ':ref')
+    const r = raw === ''
+      ? await adminModelPricingAction('reset_user_refsur', { userId: u.id })
+      : await adminModelPricingAction('set_user_refsur', { userId: u.id, pct: Number(raw) })
+    setBusy(null)
+    if (r.ok) { setToast(`${u.name || u.email} 레퍼런스 가산율 저장`); reload() } else setToast(r.error || '처리 실패')
+  }
+  async function saveGlobalSur() {
+    setBusy('global:ref')
+    const r = await adminModelPricingAction('set_global_refsur', { pct: Number(gsur) })
+    setBusy(null)
+    if (r.ok) { setToast(`전역 레퍼런스 가산율 ${gsur}%/장 저장`); reload() } else setToast(r.error || '처리 실패')
   }
   useEffect(() => { reload('') /* eslint-disable-next-line */ }, [])
   useEffect(() => { const t = setTimeout(() => reload(q), 300); return () => clearTimeout(t) /* eslint-disable-next-line */ }, [q])
@@ -47,8 +67,21 @@ export function UserMarkupList() {
       action={<Button variant="outline" size="sm" onClick={() => reload()}><RefreshCw size={14} className={cn(loading && 'animate-spin')} /> 새로고침</Button>}
     >
       <p className="mb-3 text-sm text-[var(--text-soft)]">
-        회원마다 적용 중인 <b>전체 배수(원가율)</b>를 한눈에 봅니다. 빈칸이면 <b>기본</b>(영상 ×3.0 · 이미지/Seedance 2.0 ×2.5). 값을 넣고 저장하면 그 회원의 모든 모델에 적용됩니다(원가 이하 ×1 미만 불가). 모델별 세부 조정은 위의 <b>특정 회원</b> 탭에서 하세요.
+        회원마다 <b>전체 배수(원가율)</b>와 <b>레퍼런스 가산율</b>을 조절합니다. 배수 빈칸이면 <b>기본</b>(영상 ×3.0 · 이미지/Seedance 2.0 ×2.5). 이미지 생성 시 레퍼런스를 <b>1장 추가할 때마다 소모 크레딧을 가산율(%)만큼</b> 더 차감합니다.
       </p>
+
+      {/* 전역 레퍼런스 가산율 기본값 */}
+      <div className="mb-4 flex flex-wrap items-end gap-2 rounded-xl border border-[var(--border-soft)] bg-slate-50 p-3">
+        <div>
+          <label className="mb-1 block text-[11px] text-[var(--text-dim)]">전역 레퍼런스 가산율 (레퍼런스 1장당 %)</label>
+          <div className="flex items-center gap-1">
+            <input value={gsur} onChange={(e) => setGsur(e.target.value.replace(/[^0-9.]/g, ''))} className="w-24 rounded-lg border border-[var(--border-soft)] bg-white px-3 py-2 text-right text-sm" />
+            <span className="text-sm text-[var(--text-soft)]">% / 장</span>
+          </div>
+        </div>
+        <Button size="sm" disabled={busy === 'global:ref'} onClick={saveGlobalSur}><Save size={14} /> 전역 기본값 저장</Button>
+        <span className="text-xs text-[var(--text-dim)]">회원별로 지정하지 않으면 이 값이 적용됩니다. (기본 0.5%)</span>
+      </div>
 
       <div className="relative mb-3 max-w-xs">
         <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" />
@@ -63,6 +96,7 @@ export function UserMarkupList() {
               <th className="px-2 py-2 font-medium">플랜</th>
               <th className="px-2 py-2 font-medium">보유 크레딧</th>
               <th className="px-2 py-2 font-medium">전체 배수(원가율)</th>
+              <th className="px-2 py-2 font-medium">레퍼런스 가산율(%/장)</th>
               <th className="px-2 py-2 font-medium">모델별 개별</th>
               <th className="px-2 py-2 font-medium"></th>
             </tr>
@@ -91,6 +125,18 @@ export function UserMarkupList() {
                     </div>
                   </td>
                   <td className="px-2 py-2">
+                    <div className="flex items-center gap-1">
+                      <input
+                        value={refEdits[u.id] ?? ''}
+                        onChange={(e) => setRefEdits((p) => ({ ...p, [u.id]: e.target.value.replace(/[^0-9.]/g, '') }))}
+                        placeholder={`기본 ${refDefault}`}
+                        className="w-16 rounded-lg border border-[var(--border-soft)] bg-white px-2 py-1.5 text-right text-sm"
+                      />
+                      <span className="text-[10px] text-[var(--text-dim)]">%/장</span>
+                      <Button size="sm" variant="outline" disabled={busy === u.id + ':ref'} onClick={() => saveRef(u)}><Save size={12} /></Button>
+                    </div>
+                  </td>
+                  <td className="px-2 py-2">
                     {u.overrides > 0
                       ? <Badge className="border-amber-200 bg-amber-50 text-amber-700">{u.overrides}개 모델</Badge>
                       : <span className="text-xs text-[var(--text-dim)]">-</span>}
@@ -104,7 +150,7 @@ export function UserMarkupList() {
               )
             })}
             {users.length === 0 && (
-              <tr><td colSpan={6} className="py-8 text-center text-[var(--text-dim)]">{loading ? '불러오는 중…' : '회원이 없습니다.'}</td></tr>
+              <tr><td colSpan={7} className="py-8 text-center text-[var(--text-dim)]">{loading ? '불러오는 중…' : '회원이 없습니다.'}</td></tr>
             )}
           </tbody>
         </table>

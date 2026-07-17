@@ -1675,7 +1675,7 @@ function fmtUsd(v){ return '$'+(v||0).toFixed(2); }
 function fmtKrw(v){ return '₩'+Math.round((v||0)*USD_KRW).toLocaleString('ko-KR'); }
 function updateCostChip(){ var c=document.getElementById('costChip'); if(c)c.textContent=fmtKrw(costTotal()); }
 /* 실제 생성 1건 기록. (provider, model, seconds, kind, res, audioOn) */
-function recordCost(provider, model, seconds, kind, res, audioOn){
+function recordCost(provider, model, seconds, kind, res, audioOn, refCount){
   var m = MODEL_COST[model];
   var isImg = m ? m.u==='img' : (kind==='image');
   var prov = m ? m.prov : provider;
@@ -1695,7 +1695,7 @@ function recordCost(provider, model, seconds, kind, res, audioOn){
   // 사용자별 집계용으로 서버(D1)에도 기록 — 관리자 대시보드에서 조회. (실패는 무시)
   try{
     fetch('/api/usage/record',{ method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
-      body: JSON.stringify({ provider:prov, model:model||prov, kind:isImg?'image':'video', units:units, res:isImg?null:(res||'1080p'), audio:!!audioAdd, usd:usd }) }).catch(function(){});
+      body: JSON.stringify({ provider:prov, model:model||prov, kind:isImg?'image':'video', units:units, res:isImg?null:(res||'1080p'), audio:!!audioAdd, usd:usd, refs:Math.max(0,Number(refCount)||0) }) }).catch(function(){});
   }catch(e){}
 }
 /* 비용 팝업 */
@@ -1869,6 +1869,13 @@ function providerOf(model){ return MODEL_PROVIDER[model] || 'fal'; }
    영상 레퍼런스(V2V)는 실제로 영상→영상을 지원하는 모델만 연결 허용.
    나머지 모델은 사진 레퍼런스·프롬프트만 연결되게 한다(vidref 차단). */
 function modelV2V(model){ return /V2V 자동|모션 전이|Runway Aleph|Seedance 2\.0/.test(model||''); }
+/* 이미지 모델별 레퍼런스 최대 장수 — 실제 API가 다중 이미지를 받는 모델만 12장, 나머지는 1장 */
+var MODEL_REF_LIMIT = {
+  'Nano Banana':12, 'GPT Image 2':12,'GPT Image 1.5':12,'GPT Image':12,'GPT Image Mini':12,
+  'Flux Kontext Max (레퍼런스 편집)':1,'Flux Kontext Pro (레퍼런스 편집)':1,
+  'Flux 1.1 Pro Ultra':1,'Flux 1.1 Pro':1,'Flux Pro':1,'Flux Dev':1,'Grok Imagine':1
+};
+function modelRefLimit(model){ var v=MODEL_REF_LIMIT[model]; return v==null?1:v; }
 /* 모델 로더의 "실효 모델" — 모델선택 노드가 연결돼 있으면 그 모델, 아니면 자체 콤보 */
 function effModel(n){ if(!n||!n.w)return ''; if(n.type!=='model')return n.w.model||'';
   var mp=inputNodeOf(n.id,'modelsel'); return (mp&&mp.w&&mp.w.model)||n.w.model||''; }
@@ -2422,14 +2429,17 @@ function generateImageNode(n){
     ims.forEach(function(u){ if(u&&raw.indexOf(u)<0)raw.push(u); });
   });
   (n.w.imgs||[]).forEach(function(u){ if(u&&raw.indexOf(u)<0)raw.push(u); });   // 직접 업로드
-  raw=raw.slice(0,12);
+  var limit=modelRefLimit(n.w.model);
+  if(raw.length>limit){ toast(n.w.model+' 모델은 레퍼런스 최대 '+limit+'장 — 앞의 '+limit+'장만 사용합니다.'); }
+  raw=raw.slice(0,limit);
   var isFlux=/^Flux/.test(n.w.model||'') && !/Kontext/.test(n.w.model||'');
   var cnList=(isFlux && n.w.cnList)?n.w.cnList.slice():[];
   if(cnList.length && !raw.length){ toast('ControlNet은 레퍼런스 이미지가 필요합니다 — ref 포트에 이미지를 연결하세요'); return; }
+  var refCountUsed=0;
   n.w.imgGenerating=true; n.w.imgError=null; render();
   Promise.all(raw.map(function(r){ return shrinkImageSrc(r,1024,0.85); })).then(function(shr){
-   var refs=shr.filter(Boolean); var refImg=refs[0]||null;
-   if(refs.length>1) toast('레퍼런스 '+refs.length+'장으로 생성 중… (Nano Banana·GPT는 다중 레퍼런스 지원)');
+   var refs=shr.filter(Boolean); var refImg=refs[0]||null; refCountUsed=refs.length;
+   if(refs.length>1) toast('레퍼런스 '+refs.length+'장으로 생성 중… (1장당 크레딧 소폭 가산)');
    return generateWithAPI({ model:n.w.model, prompt:prompt, ratio:n.w.ratio||'1:1',
     refImage:refImg, refImages:refs, firstFrame:refImg,
     controlnets:cnList,
@@ -2440,7 +2450,7 @@ function generateImageNode(n){
         var info=showGenError(n.w.imgError, (res&&res.provider)||providerOf(n.w.model), n.w.model);
         toast((info&&info.title)||('이미지 생성 실패: '+String(n.w.imgError).slice(0,80))); render(); return; }
       n.w.img=res.url; n.w.imgKind=res.kind||'image';
-      if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image');   // 결과 나온 성공 건은 모두 기록(모델 기준 제공사)
+      if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image', null, false, refCountUsed);   // 레퍼런스 장수만큼 크레딧 가산
       saveToGallery(res.url, 'image', n.w.model, 0, null);
       toast('이미지 생성 완료'); snapshot(); render();
     })
