@@ -75,12 +75,42 @@ button .ico{ margin-right:5px; }
 .pf-back{ position:fixed; inset:0; z-index:9000; display:none; align-items:center; justify-content:center; padding:16px;
   background:rgba(8,10,16,.62); backdrop-filter:blur(4px); }
 .pf-back.on{ display:flex; }
-.pf-modal{ width:100%; max-width:440px; max-height:88vh; overflow:auto; border-radius:16px; background:#14161d; border:1px solid #2c2f3a;
-  box-shadow:0 30px 80px -20px rgba(0,0,0,.8); color:#dfe3ec; font-size:13px; }
-.pf-head{ padding:16px 18px; border-bottom:1px solid #23262f; display:flex; align-items:center; justify-content:space-between; }
-.pf-head h3{ margin:0; font-size:15px; font-weight:800; color:#f0f2f7; }
-.pf-x{ cursor:pointer; color:#8a8f9c; font-size:18px; line-height:1; padding:2px 6px; border-radius:6px; }
+/* 2-pane 클로드식 계정 패널 */
+.pf-shell{ width:100%; max-width:760px; height:min(560px,88vh); display:flex; overflow:hidden; border-radius:18px;
+  background:#14161d; border:1px solid #2c2f3a; box-shadow:0 30px 80px -20px rgba(0,0,0,.8); color:#dfe3ec; font-size:13px; }
+.pf-side{ width:210px; flex-shrink:0; background:#0f1117; border-right:1px solid #23262f; padding:16px 12px; display:flex; flex-direction:column; }
+.pf-user{ display:flex; align-items:center; gap:10px; padding:6px 6px 14px; }
+.pf-ava{ width:38px; height:38px; flex-shrink:0; display:inline-flex; }
+.pf-ava svg{ width:38px; height:38px; }
+.pf-user-t{ min-width:0; display:flex; flex-direction:column; }
+.pf-user-t b{ font-size:13.5px; color:#f0f2f7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pf-user-t span{ font-size:11px; color:#8a8f9c; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pf-nav2{ display:flex; flex-direction:column; gap:2px; margin-top:6px; }
+.pf-navi{ display:flex; align-items:center; gap:10px; width:100%; text-align:left; border:none; background:transparent; color:#c0c5d2;
+  font-size:13px; font-weight:600; padding:9px 11px; border-radius:9px; cursor:pointer; }
+.pf-navi .pfn-ic{ display:inline-flex; } .pf-navi .pfn-ic svg{ width:16px; height:16px; }
+.pf-navi:hover{ background:#191c26; color:#fff; }
+.pf-navi.on{ background:#1e2233; color:#fff; }
+.pf-side .pf-logout{ margin-top:auto; }
+.pf-main{ flex:1; min-width:0; position:relative; overflow-y:auto; padding:22px 24px; }
+.pf-x{ position:absolute; top:14px; right:16px; cursor:pointer; color:#8a8f9c; font-size:19px; line-height:1; padding:2px 7px; border-radius:6px; z-index:2; }
 .pf-x:hover{ color:#ff9b9b; background:#20232c; }
+.pf-pane{ display:none; }
+.pf-pane.on{ display:block; animation:pfFade .18s ease; }
+@keyframes pfFade{ from{ opacity:0; transform:translateY(4px) } to{ opacity:1; transform:none } }
+.pf-h3{ margin:0 0 16px; font-size:17px; font-weight:800; color:#f0f2f7; }
+.pf-h4{ margin:0 0 8px; font-size:12px; font-weight:700; color:#aeb4c2; }
+.pf-stats{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:22px; }
+.pf-stat{ background:#0f1117; border:1px solid #23262f; border-radius:12px; padding:12px 14px; }
+.pf-stat span{ display:block; font-size:11px; color:#8a8f9c; }
+.pf-stat b{ display:block; margin-top:5px; font-size:19px; font-weight:800; color:#eef0f8; }
+.pf-uselist{ display:flex; flex-direction:column; gap:6px; }
+.pf-usemsg{ padding:14px; text-align:center; color:#6b7080; font-size:12px; }
+.pf-useitem{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 12px; border:1px solid #1e2029; border-radius:10px; background:#0f1117; }
+.pf-useitem .m{ min-width:0; } .pf-useitem .m b{ display:block; font-size:12.5px; color:#e8eaf0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pf-useitem .m span{ font-size:10.5px; color:#6b7080; }
+.pf-useitem .c{ flex-shrink:0; font-size:12px; font-weight:700; color:#8fa0ff; }
+.pf-hint{ margin-top:14px; font-size:12px; color:#8a8f9c; } .pf-hint b{ color:#8fa0ff; }
 .pf-body{ padding:16px 18px; }
 .pf-row{ display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid #1e2029; }
 .pf-row:last-child{ border-bottom:0; }
@@ -896,49 +926,81 @@ textarea.wtext.code::placeholder{ color:#5a5c66; }
 
 <!-- 프로필 모달 -->
 <div class="pf-back" id="pfBack">
-  <div class="pf-modal" role="dialog" aria-modal="true">
-    <div class="pf-head">
-      <h3>내 계정</h3>
-      <span class="pf-x" id="pfClose" title="닫기">×</span>
-    </div>
-    <div class="pf-body">
-      <div class="pf-row"><span class="k">이름</span><span class="v" id="pfName">-</span></div>
-      <div class="pf-row"><span class="k">이메일</span><span class="v" id="pfEmail">-</span></div>
-      <div class="pf-row"><span class="k">로그인 방식</span><span class="v" id="pfProvider">-</span></div>
-      <div class="pf-row"><span class="k">영상 플랜</span><span class="v" id="pfPlan">-</span></div>
-      <div class="pf-row"><span class="k">보유 크레딧</span><span class="v" id="pfCredits">-</span></div>
-
-      <div class="pf-nav">
-        <a class="pf-navbtn" id="pfNavUsage" href="/dashboard_USE17237_612/credits"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6" rx="1"/><rect x="12" y="8" width="3" height="10" rx="1"/><rect x="17" y="4" width="3" height="14" rx="1"/></svg></span>사용량</a>
-        <a class="pf-navbtn" id="pfNavSettings" href="/dashboard_USE17237_612/profile"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>설정</a>
-        <a class="pf-navbtn" id="pfNavUpgrade" href="/pricing"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg></span>요금제 업그레이드</a>
-        <button class="pf-navbtn" id="pfNavLang" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>언어 <b id="pfLangCur" style="color:#8fa0ff;font-weight:600">한국어</b></button>
-        <button class="pf-navbtn danger" id="pfNavDelete" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></span>계정 삭제</button>
+  <div class="pf-shell" role="dialog" aria-modal="true">
+    <!-- 왼쪽 사이드바 -->
+    <aside class="pf-side">
+      <div class="pf-user">
+        <span class="pf-ava">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="11" fill="url(#pfg2)"/><circle cx="12" cy="9.4" r="3.4" fill="#fff"/><path d="M5.6 19.2c.8-3.2 3.3-4.9 6.4-4.9s5.6 1.7 6.4 4.9A11 11 0 0112 21a11 11 0 01-6.4-1.8z" fill="#fff"/><defs><linearGradient id="pfg2" x1="2" y1="2" x2="22" y2="22"><stop stop-color="#6f7bff"/><stop offset="1" stop-color="#9a5cff"/></linearGradient></defs></svg>
+        </span>
+        <div class="pf-user-t"><b id="pfName">-</b><span id="pfEmail">-</span></div>
       </div>
-      <div class="pf-lang" id="pfLangBox" style="display:none">
-        <a class="pf-langopt" data-lang="ko">한국어</a>
-        <a class="pf-langopt" data-lang="en">English</a>
-      </div>
-
-      <div class="pf-sec">
-        <h4 id="pfPwTitle">비밀번호 변경</h4>
-        <input class="pf-inp" type="password" id="pfCur" placeholder="현재 비밀번호" autocomplete="current-password">
-        <input class="pf-inp" type="password" id="pfNext" placeholder="새 비밀번호 (8자 이상)" autocomplete="new-password">
-        <button class="pf-btn" id="pfPwBtn">변경</button>
-        <div class="pf-msg" id="pfPwMsg"></div>
-      </div>
-
+      <nav class="pf-nav2">
+        <button class="pf-navi on" data-sec="usage" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6" rx="1"/><rect x="12" y="8" width="3" height="10" rx="1"/><rect x="17" y="4" width="3" height="14" rx="1"/></svg></span>사용량</button>
+        <button class="pf-navi" data-sec="plan" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/></svg></span>요금제</button>
+        <button class="pf-navi" data-sec="settings" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>설정</button>
+        <button class="pf-navi" data-sec="lang" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>언어</button>
+        <button class="pf-navi" data-sec="account" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>계정</button>
+      </nav>
       <button class="pf-logout" id="pfLogout">로그아웃</button>
+    </aside>
 
-      <div class="pf-del-toggle"><a id="pfDelToggle">계정 삭제</a></div>
-      <div class="pf-del" id="pfDelBox" style="display:none">
-        <h4>계정 삭제</h4>
-        <p id="pfDelDesc">계정을 삭제하면 모든 데이터가 영구히 삭제되며 되돌릴 수 없습니다. 확인을 위해 비밀번호를 입력해 주세요.</p>
-        <input class="pf-inp" type="password" id="pfDelPw" placeholder="비밀번호 입력" autocomplete="current-password">
-        <input class="pf-inp" type="email" id="pfDelEmail" placeholder="계정 이메일 입력" autocomplete="off" style="display:none">
-        <button class="pf-btn" id="pfDelBtn">영구 삭제</button>
-        <div class="pf-msg" id="pfDelMsg"></div>
-      </div>
+    <!-- 오른쪽 콘텐츠 -->
+    <div class="pf-main">
+      <span class="pf-x" id="pfClose" title="닫기">×</span>
+
+      <section class="pf-pane on" data-pane="usage">
+        <h3 class="pf-h3">사용량</h3>
+        <div class="pf-stats">
+          <div class="pf-stat"><span>보유 크레딧</span><b id="pfCredits">-</b></div>
+          <div class="pf-stat"><span>이번 달 생성</span><b id="pfUseMonthCount">-</b></div>
+          <div class="pf-stat"><span>이번 달 사용 크레딧</span><b id="pfUseMonthCr">-</b></div>
+          <div class="pf-stat"><span>누적 생성</span><b id="pfUseTotalCount">-</b></div>
+        </div>
+        <h4 class="pf-h4">최근 생성 내역</h4>
+        <div class="pf-uselist" id="pfUseList"><div class="pf-usemsg">불러오는 중…</div></div>
+      </section>
+
+      <section class="pf-pane" data-pane="plan">
+        <h3 class="pf-h3">요금제</h3>
+        <div class="pf-row"><span class="k">영상 플랜</span><span class="v" id="pfPlan">-</span></div>
+        <div class="pf-row"><span class="k">로그인 방식</span><span class="v" id="pfProvider">-</span></div>
+        <a class="pf-btn" id="pfPlanLink" href="/pricing" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;margin-top:14px">요금제 자세히 보기 · 업그레이드 ↗</a>
+      </section>
+
+      <section class="pf-pane" data-pane="settings">
+        <h3 class="pf-h3">설정</h3>
+        <div class="pf-row"><span class="k">이메일</span><span class="v" id="pfEmailSet">-</span></div>
+        <div class="pf-sec">
+          <h4 class="pf-h4" id="pfPwTitle">비밀번호 변경</h4>
+          <input class="pf-inp" type="password" id="pfCur" placeholder="현재 비밀번호" autocomplete="current-password">
+          <input class="pf-inp" type="password" id="pfNext" placeholder="새 비밀번호 (8자 이상)" autocomplete="new-password">
+          <button class="pf-btn" id="pfPwBtn">변경</button>
+          <div class="pf-msg" id="pfPwMsg"></div>
+        </div>
+      </section>
+
+      <section class="pf-pane" data-pane="lang">
+        <h3 class="pf-h3">언어</h3>
+        <div class="pf-lang" id="pfLangBox" style="display:flex">
+          <a class="pf-langopt" data-lang="ko">한국어</a>
+          <a class="pf-langopt" data-lang="en">English</a>
+        </div>
+        <p class="pf-hint">현재 언어: <b id="pfLangCur">한국어</b></p>
+      </section>
+
+      <section class="pf-pane" data-pane="account">
+        <h3 class="pf-h3">계정</h3>
+        <button class="pf-logout" id="pfLogout2" style="max-width:220px">로그아웃</button>
+        <div class="pf-del" id="pfDelBox" style="margin-top:20px">
+          <h4>계정 삭제</h4>
+          <p id="pfDelDesc">계정을 삭제하면 모든 데이터가 영구히 삭제되며 되돌릴 수 없습니다. 확인을 위해 비밀번호를 입력해 주세요.</p>
+          <input class="pf-inp" type="password" id="pfDelPw" placeholder="비밀번호 입력" autocomplete="current-password">
+          <input class="pf-inp" type="email" id="pfDelEmail" placeholder="계정 이메일 입력" autocomplete="off" style="display:none">
+          <button class="pf-btn" id="pfDelBtn">영구 삭제</button>
+          <div class="pf-msg" id="pfDelMsg"></div>
+        </div>
+      </section>
     </div>
   </div>
 </div>
@@ -3843,31 +3905,57 @@ function doStudioLogout(){
 /* ── 프로필 모달 ── */
 var PF_ME=null;
 function pfEl(id){ return document.getElementById(id); }
+function pfSetText(id,t){ var e=pfEl(id); if(e)e.textContent=t; }
+function pfShowSec(sec){
+  Array.prototype.forEach.call(document.querySelectorAll('.pf-navi'),function(b){ b.classList.toggle('on', b.getAttribute('data-sec')===sec); });
+  Array.prototype.forEach.call(document.querySelectorAll('.pf-pane'),function(p){ p.classList.toggle('on', p.getAttribute('data-pane')===sec); });
+}
+function pfKind(k){ return k==='image'?'이미지':'영상'; }
+function pfWhen(iso){ try{ var d=new Date(iso); var p=function(n){return(n<10?'0':'')+n;}; return (d.getMonth()+1)+'/'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); }catch(e){ return ''; } }
+function loadUsage(){
+  var list=pfEl('pfUseList'); if(list) list.innerHTML='<div class="pf-usemsg">불러오는 중…</div>';
+  fetch('/api/account/usage',{credentials:'include',cache:'no-store'}).then(function(r){return r.json();}).then(function(d){
+    if(!d||!d.ok){ if(list)list.innerHTML='<div class="pf-usemsg">불러오기 실패</div>'; return; }
+    pfSetText('pfCredits',(Number(d.credits)||0).toLocaleString('ko-KR'));
+    pfSetText('pfUseMonthCount',(d.month?d.month.count:0)+'건');
+    pfSetText('pfUseMonthCr',(Math.round((d.month?d.month.credits:0)*10)/10).toLocaleString('ko-KR'));
+    pfSetText('pfUseTotalCount',(d.total?d.total.count:0)+'건');
+    if(list){
+      if(!d.recent||!d.recent.length){ list.innerHTML='<div class="pf-usemsg">아직 생성 내역이 없습니다.</div>'; return; }
+      list.innerHTML=d.recent.map(function(r){
+        return '<div class="pf-useitem"><div class="m"><b>'+(r.model||r.provider||'-')+'</b><span>'+pfKind(r.kind)+' · '+pfWhen(r.at)+'</span></div>'
+          +'<span class="c">-'+(Math.round((r.credits||0)*10)/10)+' 크레딧</span></div>';
+      }).join('');
+    }
+  }).catch(function(){ if(list)list.innerHTML='<div class="pf-usemsg">불러오기 실패</div>'; });
+}
 function openProfile(){
   var back=pfEl('pfBack'); if(!back)return;
   back.classList.add('on');
-  pfEl('pfPwMsg').textContent=''; pfEl('pfDelMsg').textContent='';
+  pfShowSec('usage');
+  pfSetText('pfPwMsg',''); pfSetText('pfDelMsg','');
+  loadUsage();
   fetch('/api/account/overview',{credentials:'include',cache:'no-store'})
     .then(function(r){ return r.json(); })
     .then(function(d){
-      if(!d||!d.ok||!d.user){ pfEl('pfName').textContent='로그인이 필요합니다'; return; }
+      if(!d||!d.ok||!d.user){ pfSetText('pfName','로그인이 필요합니다'); return; }
       var u=d.user; PF_ME=u;
       var prov=(u.provider==='google')?'구글':(u.provider==='kakao')?'카카오':'일반(이메일)';
       var social=u.provider&&u.provider!=='email'&&!u.passwordSet;
-      pfEl('pfName').textContent=u.name||'-';
-      pfEl('pfEmail').textContent=u.email||'-';
-      pfEl('pfProvider').textContent=prov;
-      pfEl('pfPlan').textContent=(u.videoPlan&&u.videoPlan!=='없음')?u.videoPlan:'미가입';
-      pfEl('pfCredits').textContent=(Number(u.credits)||0).toLocaleString('ko-KR')+' 개';
+      pfSetText('pfName',u.name||'-');
+      pfSetText('pfEmail',u.email||'-');
+      pfSetText('pfEmailSet',u.email||'-');
+      pfSetText('pfProvider',prov);
+      pfSetText('pfPlan',(u.videoPlan&&u.videoPlan!=='없음')?u.videoPlan:'미가입');
       // 간편로그인(비번 없음) → 비밀번호 최초 설정 / 계정삭제는 이메일 확인
-      pfEl('pfPwTitle').textContent=social?'비밀번호 설정':'비밀번호 변경';
-      pfEl('pfCur').style.display=social?'none':'';
-      pfEl('pfPwBtn').textContent=social?'비밀번호 설정':'변경';
-      pfEl('pfDelPw').style.display=social?'none':'';
-      pfEl('pfDelEmail').style.display=social?'':'none';
-      pfEl('pfDelDesc').textContent='계정을 삭제하면 모든 데이터가 영구히 삭제되며 되돌릴 수 없습니다. 확인을 위해 '+(social?'계정 이메일 주소를':'비밀번호를')+' 입력해 주세요.';
+      pfSetText('pfPwTitle',social?'비밀번호 설정':'비밀번호 변경');
+      var cur=pfEl('pfCur'); if(cur)cur.style.display=social?'none':'';
+      pfSetText('pfPwBtn',social?'비밀번호 설정':'변경');
+      var dpw=pfEl('pfDelPw'); if(dpw)dpw.style.display=social?'none':'';
+      var dem=pfEl('pfDelEmail'); if(dem)dem.style.display=social?'':'none';
+      pfSetText('pfDelDesc','계정을 삭제하면 모든 데이터가 영구히 삭제되며 되돌릴 수 없습니다. 확인을 위해 '+(social?'계정 이메일 주소를':'비밀번호를')+' 입력해 주세요.');
     })
-    .catch(function(){ pfEl('pfName').textContent='불러오기 실패'; });
+    .catch(function(){ pfSetText('pfName','불러오기 실패'); });
 }
 function closeProfile(){ var b=pfEl('pfBack'); if(b)b.classList.remove('on'); }
 function wireProfile(){
@@ -3875,11 +3963,17 @@ function wireProfile(){
   var x=pfEl('pfClose'); if(x)x.addEventListener('click',closeProfile);
   var back=pfEl('pfBack'); if(back)back.addEventListener('click',function(e){ if(e.target===back)closeProfile(); });
   var lo=pfEl('pfLogout'); if(lo)lo.addEventListener('click',doStudioLogout);
+  var lo2=pfEl('pfLogout2'); if(lo2)lo2.addEventListener('click',doStudioLogout);
+  // 왼쪽 사이드바 섹션 전환 (사용량/요금제/설정/언어/계정) — 페이지 이동 없음
+  Array.prototype.forEach.call(document.querySelectorAll('.pf-navi'),function(b){
+    b.addEventListener('click',function(){ pfShowSec(b.getAttribute('data-sec')); });
+  });
   function toggleDel(){ var box=pfEl('pfDelBox'); if(box){ box.style.display=(box.style.display==='none'?'':'none'); if(box.style.display!=='none') box.scrollIntoView({behavior:'smooth',block:'nearest'}); } }
   var dt=pfEl('pfDelToggle'); if(dt)dt.addEventListener('click',toggleDel);
   var nd=pfEl('pfNavDelete'); if(nd)nd.addEventListener('click',toggleDel);
   // 언어 선택
-  try{ var lg=localStorage.getItem('nvLang')||'ko'; var lc=pfEl('pfLangCur'); if(lc)lc.textContent=(lg==='en'?'English':'한국어'); }catch(e){}
+  try{ var lg=localStorage.getItem('nvLang')||'ko'; var lc=pfEl('pfLangCur'); if(lc)lc.textContent=(lg==='en'?'English':'한국어');
+    Array.prototype.forEach.call(document.querySelectorAll('.pf-langopt'),function(o){ o.classList.toggle('on',o.getAttribute('data-lang')===lg); }); }catch(e){}
   var lb=pfEl('pfNavLang'); if(lb)lb.addEventListener('click',function(){ var box=pfEl('pfLangBox'); if(box)box.style.display=(box.style.display==='none'?'flex':'none'); });
   Array.prototype.forEach.call(document.querySelectorAll('.pf-langopt'),function(a){
     a.addEventListener('click',function(){
