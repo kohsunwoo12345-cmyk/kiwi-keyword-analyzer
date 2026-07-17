@@ -449,6 +449,8 @@ textarea.wtext.code:focus{ border:0; }
 .wbtn{ height:24px; background:#4e4e4e; border:none; border-radius:12px; color:#ddd; font-size:11px;
   cursor:pointer; width:100%; }
 .wbtn:hover{ background:#5e5e5e; }
+.addref-row{ display:flex; gap:6px; }
+.addref-btn{ flex:1; height:26px; }
 input.wurl{ min-height:0; height:24px; padding:3px 10px; border-radius:12px; flex:1;
   background:#222; border:1px solid #191919; color:#ddd; font-size:11px; font-family:inherit; outline:none; }
 input.wurl:focus{ border-color:#4fb0a5; }
@@ -754,6 +756,16 @@ html,body{ background:var(--w-bg); color:var(--w-text);
 .node-dot:hover{ background:#4a4c54; }
 .iorow .in-label,.iorow .out-label{ color:var(--w-text-2); }
 .port{ border:2px solid #191a1e; box-shadow:0 0 0 1px #3a3c44; }
+
+/* 노드 디자인 폴리시 — 심플하고 고급감 있게 (좌측 액센트 바·호버 리프트·여백 정돈) */
+.node{ transition:box-shadow .18s ease, border-color .18s ease; }
+.node:hover{ box-shadow:0 16px 38px -12px rgba(0,0,0,.62); border-color:#3d3f4a; }
+.node-title{ letter-spacing:.005em; padding-left:13px; }
+.node-title::before{ content:''; position:absolute; left:0; top:6px; bottom:6px; width:3px; border-radius:3px;
+  background:var(--hd,#7c5cff); opacity:.9; }
+.node.collapsed .node-title::before{ bottom:6px; }
+.node-body{ gap:6px; padding:9px 11px 12px; }
+.node.sel{ box-shadow:0 0 0 1px var(--w-accent), 0 16px 40px -12px rgba(0,0,0,.6); }
 
 /* 위젯 — 다크 필 */
 .widget{ background:var(--w-field); border:1px solid var(--w-border-2); color:var(--w-text); border-radius:10px; }
@@ -2504,6 +2516,25 @@ function revoiceNode(n){
     .catch(function(err){ n.w.generating=false; n.w.error=String(err&&err.message||err);
       toast(String(n.w.error).slice(0,90)); render(); });
 }
+/* AI 프롬프트 작성 노드 — GPT/Gemini 로 생성 프롬프트를 작성해 n.w.text(출력)에 저장 */
+function generatePromptNode(n){
+  if(!n || n.w.pgGenerating) return;
+  var bn=inputNodeOf(n.id,'brief');
+  var brief=((bn&&bn.w&&bn.w.text)||n.w.brief||'').trim();
+  if(!brief){ toast('무엇을 만들지 먼저 적어주세요 (아이디어·주제)'); return; }
+  var provider=(n.w.pgprovider==='Gemini')?'gemini':'gpt';
+  var kind=(n.w.pgkind==='영상')?'video':'image';
+  n.w.pgGenerating=true; n.w.pgError=null; render();
+  fetch('/api/studio/promptgen',{ method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+    body:JSON.stringify({ provider:provider, brief:brief, kind:kind }) })
+    .then(function(r){ return r.json(); })
+    .then(function(j){ n.w.pgGenerating=false;
+      if(!j||!j.ok){ n.w.pgError=(j&&j.error)||'프롬프트 생성 실패'; toast(n.w.pgError); render(); return; }
+      n.w.text=j.prompt; toast('프롬프트 생성 완료 — 생성 노드의 프롬프트 입력에 연결하세요'); snapshot(); render();
+    })
+    .catch(function(e){ n.w.pgGenerating=false; n.w.pgError=String(e&&e.message||e); render(); });
+}
+
 function generateImageNode(n){
   if(!n || n.w.imgGenerating) return;
   var is3D=(n.type==='img3d'||n.type==='gen3d');
@@ -2617,9 +2648,22 @@ var DEFS = {
              widgets:[{k:'text',t:'textarea',ph:'subject: 도심 야경\nmotion: 미래적 전기차 슬로우 모션\nstyle: cinematic, 4K'}] },
  negative: { cat:'입력', title:'네거티브 프롬프트', hd:'#3a2323', ins:[], outs:[['out','텍스트','TEXT']],
              widgets:[{k:'text',t:'textarea',ph:'blur, distortion, low-quality,\nwatermark, text'}] },
+ promptgen:{ cat:'입력', title:'AI 프롬프트 작성 (GPT·Gemini)', hd:'#233a2e',
+             ins:[['brief','아이디어·주제 (선택)','TEXT']],
+             outs:[['out','프롬프트 → 생성 노드','TEXT']],
+             widgets:[{k:'pgprovider',t:'combo',label:'AI',opts:['GPT','Gemini'],def:'GPT'},
+                      {k:'pgkind',t:'combo',label:'용도',opts:['이미지','영상'],def:'이미지'},
+                      {k:'brief',t:'textarea',ph:'무엇을 만들지 간단히 적어주세요\n(예: 밤 도심을 달리는 전기차 광고)'},
+                      {k:'pggen',t:'promptgenbtn',label:'프롬프트 생성'},
+                      {k:'text',t:'promptout'}] },
  reference:{ cat:'입력', title:'옴니 레퍼런스 (이미지·영상)', hd:'#1f2f3f', ins:[], outs:[['out','이미지','IMAGE']],
              widgets:[{k:'frameCount',t:'combo',label:'영상 프레임 수',opts:['1','3','5','8'],def:'3'},
                       {k:'img',t:'image',omni:true}] },
+ imageref: { cat:'입력', title:'이미지 레퍼런스', hd:'#1f3350', ins:[], outs:[['out','이미지','IMAGE']],
+             widgets:[{k:'img',t:'image',imageOnly:true}] },
+ videoref: { cat:'입력', title:'영상 레퍼런스 (최대 20분)', hd:'#1f3f33', ins:[], outs:[['out','영상','VIDEO']],
+             widgets:[{k:'frameCount',t:'combo',label:'영상 프레임 수',opts:['1','3','5','8'],def:'3'},
+                      {k:'img',t:'image',videoOnly:true}] },
  modelpick:{ cat:'모델', title:'모델 선택', hd:'#2c2440', ins:[],
              outs:[['out','선택한 모델 → 로더','MODEL']],
              widgets:[{k:'model',t:'combo',label:'model',opts:'MODELS',def:'Seedance 2.0'},
@@ -2635,7 +2679,7 @@ var DEFS = {
                       {k:'seedModel',t:'seedid'},
                       {k:'seedOpts',t:'seedopts'},
                       {k:'fluxctrl',t:'fluxctrl'},
-                      {k:'refup',t:'image',addref:true},
+                      {k:'addref',t:'addrefbtns'},
                       {k:'cfg',t:'slider',label:'cfg',min:0,max:100,def:70},
                       {k:'seed',t:'seed',def:156680208700286},
                       {k:'run',t:'button',label:'Execute Node'}] },
@@ -2725,6 +2769,15 @@ var I18N = {
     '3D 변환 (레퍼런스 → 3D)':'3D Convert (Reference → 3D)','3D 이미지 생성':'3D Image Generation','3D 스타일':'3D Style','3D로 변환':'Convert to 3D',
     '레퍼런스 이미지 (최대 12장 · 다중 연결)':'Reference images (up to 12 · multi)','추가 지시(선택)':'Extra instruction (optional)','3D 이미지 → 레퍼런스':'3D image → Reference','레퍼런스(선택·최대 12장)':'References (optional · up to 12)',
     '3D 렌더 (CGI)':'3D Render (CGI)','입체 팝아웃 (3D 효과)':'Pop-out (3D effect)','피규어·미니어처':'Figurine / Miniature','클레이·점토 3D':'Clay 3D','아이소메트릭 3D':'Isometric 3D','3D 입체 로고·제품':'3D Logo / Product',
+    // 레퍼런스·프롬프트작성·위브·리보이스 등 (신규/누락 번역)
+    'AI 프롬프트 작성 (GPT·Gemini)':'AI Prompt Writer (GPT / Gemini)','아이디어·주제 (선택)':'Idea / topic (optional)','프롬프트 → 생성 노드':'Prompt → generator node','용도':'Purpose','프롬프트 생성':'Generate prompt',
+    '무엇을 만들지 간단히 적어주세요\n(예: 밤 도심을 달리는 전기차 광고)':'Briefly describe what to make\n(e.g. an EV ad driving through the city at night)',
+    '이미지 레퍼런스':'Image Reference','영상 레퍼런스 (최대 20분)':'Video Reference (up to 20 min)','＋ 이미지 레퍼런스':'＋ Image reference','＋ 영상 레퍼런스':'＋ Video reference',
+    '레퍼런스 (최대 12장 · 다중 연결)':'References (up to 12 · multi-connect)','생성할 이미지 설명 (또는 왼쪽에 프롬프트 노드 연결)':'Describe the image to generate (or connect a prompt node on the left)',
+    '영상 이어붙이기 (연속)':'Stitch Videos (continuous)','영상들 (왼쪽→오른쪽 순서)':'Videos (left → right order)','이어진 영상 → 레퍼런스':'Stitched video → Reference','영상 이어붙이기':'Stitch videos',
+    '영상에 입힐 대사/해설을 입력하세요...\n(비우면 왼쪽 [대본] 노드의 텍스트를 사용)':'Enter the lines/narration for the video...\n(leave empty to use the [Script] node on the left)',
+    '한국어·여성(밝은)':'Korean · Female (bright)','목소리 교체 → 립싱크':'Voice Swap → Lipsync','영상 (말소리 포함)':'Video (with speech)','목소리 교체·립싱크 영상 → 레퍼런스':'Voice-swapped / lipsync video → Reference','교체할 목소리':'Replacement voice','일레븐랩스·여성(Rachel)':'ElevenLabs · Female (Rachel)','목소리 교체 + 립싱크':'Swap voice + lipsync','메모를 입력하세요...':'Enter a memo...',
+    '생성된 프롬프트가 여기 표시됩니다':'The generated prompt appears here','[프롬프트 생성]을 누르세요':'Press [Generate prompt]',
     '출력 (영상·이미지)':'Output (Video / Image)','AI 음성 (해설·립싱크)':'AI Voice (Narration / Lipsync)','노트':'Note','프레임 추출':'Frame Extract','리라우트':'Reroute',
     // 포트 라벨
     '텍스트':'Text','이미지':'Image','영상':'Video','생성물':'Output','프레임':'Frame','모델 선택 (선택)':'Model (optional)','프롬프트':'Prompt','네거티브':'Negative',
@@ -2764,6 +2817,14 @@ var I18N = {
     '왜 막혔나요':'Why was it blocked?','이렇게 해보세요':'Try this','캔버스에 가져왔습니다':'Imported to canvas','연결 끊음':'Disconnected'
   },
   ja: {
+    // 3D·레퍼런스·프롬프트작성·위브·리보이스 등 (신규/누락)
+    '3D 변환 (레퍼런스 → 3D)':'3D変換 (リファレンス→3D)','3D 이미지 생성':'3D画像生成','3D 스타일':'3Dスタイル','3D로 변환':'3Dに変換','레퍼런스 이미지 (최대 12장 · 다중 연결)':'リファレンス画像 (最大12枚・複数接続)','추가 지시(선택)':'追加指示 (任意)','3D 이미지 → 레퍼런스':'3D画像 → リファレンス','레퍼런스(선택·최대 12장)':'リファレンス (任意・最大12枚)',
+    'AI 프롬프트 작성 (GPT·Gemini)':'AIプロンプト作成 (GPT・Gemini)','아이디어·주제 (선택)':'アイデア・テーマ (任意)','프롬프트 → 생성 노드':'プロンプト → 生成ノード','용도':'用途','프롬프트 생성':'プロンプト生成','무엇을 만들지 간단히 적어주세요\n(예: 밤 도심을 달리는 전기차 광고)':'何を作るか簡単に入力してください\n(例: 夜の都会を走るEVの広告)',
+    '이미지 레퍼런스':'画像リファレンス','영상 레퍼런스 (최대 20분)':'動画リファレンス (最大20分)','＋ 이미지 레퍼런스':'＋ 画像リファレンス','＋ 영상 레퍼런스':'＋ 動画リファレンス','레퍼런스 (최대 12장 · 다중 연결)':'リファレンス (最大12枚・複数接続)','생성할 이미지 설명 (또는 왼쪽에 프롬프트 노드 연결)':'生成する画像の説明 (または左にプロンプトノードを接続)',
+    '영상 이어붙이기 (연속)':'動画の連結 (連続)','영상들 (왼쪽→오른쪽 순서)':'動画 (左→右の順)','이어진 영상 → 레퍼런스':'連結した動画 → リファレンス','영상 이어붙이기':'動画を連結','영상에 입힐 대사/해설을 입력하세요...\n(비우면 왼쪽 [대본] 노드의 텍스트를 사용)':'動画に入れるセリフ/ナレーションを入力...\n(空欄なら左の[台本]ノードのテキストを使用)',
+    '한국어·여성(밝은)':'韓国語・女性(明るい)','목소리 교체 → 립싱크':'声の差し替え → リップシンク','영상 (말소리 포함)':'動画 (音声あり)','목소리 교체·립싱크 영상 → 레퍼런스':'声差し替え・リップシンク動画 → リファレンス','교체할 목소리':'差し替える声','일레븐랩스·여성(Rachel)':'ElevenLabs・女性(Rachel)','목소리 교체 + 립싱크':'声を差し替え + リップシンク','메모를 입력하세요...':'メモを入力...',
+    '생성된 프롬프트가 여기 표시됩니다':'生成されたプロンプトがここに表示されます','[프롬프트 생성]을 누르세요':'[プロンプト生成]を押してください','＋ 레퍼런스 추가 (이미지·영상)':'＋ リファレンス追加 (画像・動画)','Execute Node':'Execute Node',
+    '입체 팝아웃 (3D 효과)':'ポップアウト (3D効果)','피규어·미니어처':'フィギュア・ミニチュア','클레이·점토 3D':'クレイ3D','아이소메트릭 3D':'アイソメトリック3D','3D 렌더 (CGI)':'3Dレンダー (CGI)','3D 입체 로고·제품':'3Dロゴ・製品',
     '프롬프트 (Positive)':'プロンプト (Positive)','네거티브 프롬프트':'ネガティブ プロンプト','옴니 레퍼런스 (이미지·영상)':'オムニ参照 (画像・動画)','모델 선택':'モデル選択','AI 모델 로더':'AIモデル ローダー',
     '이미지 생성':'画像生成','영상 설정':'動画設定','출력 (영상·이미지)':'出力 (動画・画像)','AI 음성 (해설·립싱크)':'AI音声 (ナレーション・リップシンク)','노트':'メモ','프레임 추출':'フレーム抽出','리라우트':'リルート',
     '텍스트':'テキスト','이미지':'画像','영상':'動画','생성물':'出力','프레임':'フレーム','프롬프트':'プロンプト','네거티브':'ネガティブ','첫 프레임':'最初のフレーム','마지막 프레임':'最後のフレーム',
@@ -2773,6 +2834,14 @@ var I18N = {
     '선택':'選択','이동':'移動','펜':'ペン','화살표':'矢印','사각형':'四角形','원':'円','스티키':'付箋','하트':'ハート','댓글':'コメント','노드 추가':'ノード追加','이 노드 실행':'このノードを実行'
   },
   zh: {
+    // 3D·레퍼런스·프롬프트작성·위브·리보이스 등 (신규/누락)
+    '3D 변환 (레퍼런스 → 3D)':'3D转换 (参考→3D)','3D 이미지 생성':'3D图像生成','3D 스타일':'3D风格','3D로 변환':'转换为3D','레퍼런스 이미지 (최대 12장 · 다중 연결)':'参考图像 (最多12张·多连接)','추가 지시(선택)':'附加指示 (可选)','3D 이미지 → 레퍼런스':'3D图像 → 参考','레퍼런스(선택·최대 12장)':'参考 (可选·最多12张)',
+    'AI 프롬프트 작성 (GPT·Gemini)':'AI提示词生成 (GPT·Gemini)','아이디어·주제 (선택)':'创意·主题 (可选)','프롬프트 → 생성 노드':'提示词 → 生成节点','용도':'用途','프롬프트 생성':'生成提示词','무엇을 만들지 간단히 적어주세요\n(예: 밤 도심을 달리는 전기차 광고)':'简单描述要制作的内容\n(例: 夜晚穿行城市的电动车广告)',
+    '이미지 레퍼런스':'图像参考','영상 레퍼런스 (최대 20분)':'视频参考 (最长20分钟)','＋ 이미지 레퍼런스':'＋ 图像参考','＋ 영상 레퍼런스':'＋ 视频参考','레퍼런스 (최대 12장 · 다중 연결)':'参考 (最多12张·多连接)','생성할 이미지 설명 (또는 왼쪽에 프롬프트 노드 연결)':'描述要生成的图像 (或在左侧连接提示词节点)',
+    '영상 이어붙이기 (연속)':'视频拼接 (连续)','영상들 (왼쪽→오른쪽 순서)':'视频 (从左到右顺序)','이어진 영상 → 레퍼런스':'拼接后的视频 → 参考','영상 이어붙이기':'拼接视频','영상에 입힐 대사/해설을 입력하세요...\n(비우면 왼쪽 [대본] 노드의 텍스트를 사용)':'输入要配到视频的台词/解说...\n(留空则使用左侧[脚本]节点的文本)',
+    '한국어·여성(밝은)':'韩语·女声(明亮)','목소리 교체 → 립싱크':'换声 → 对口型','영상 (말소리 포함)':'视频 (含语音)','목소리 교체·립싱크 영상 → 레퍼런스':'换声·对口型视频 → 参考','교체할 목소리':'替换的声音','일레븐랩스·여성(Rachel)':'ElevenLabs·女声(Rachel)','목소리 교체 + 립싱크':'换声 + 对口型','메모를 입력하세요...':'输入备注...',
+    '생성된 프롬프트가 여기 표시됩니다':'生成的提示词将显示在此','[프롬프트 생성]을 누르세요':'请点击[生成提示词]','＋ 레퍼런스 추가 (이미지·영상)':'＋ 添加参考 (图片·视频)','Execute Node':'Execute Node',
+    '입체 팝아웃 (3D 효과)':'弹出 (3D效果)','피규어·미니어처':'手办·微缩模型','클레이·점토 3D':'黏土3D','아이소메트릭 3D':'等距3D','3D 렌더 (CGI)':'3D渲染 (CGI)','3D 입체 로고·제품':'3D标志·产品',
     '프롬프트 (Positive)':'提示词 (Positive)','네거티브 프롬프트':'负面提示词','옴니 레퍼런스 (이미지·영상)':'全能参考 (图片·视频)','모델 선택':'选择模型','AI 모델 로더':'AI模型加载器',
     '이미지 생성':'图片生成','영상 설정':'视频设置','출력 (영상·이미지)':'输出 (视频·图片)','AI 음성 (해설·립싱크)':'AI语音 (解说·对口型)','노트':'便签','프레임 추출':'帧提取','리라우트':'重新布线',
     '텍스트':'文本','이미지':'图片','영상':'视频','생성물':'输出','프레임':'帧','프롬프트':'提示词','네거티브':'负面','첫 프레임':'首帧','마지막 프레임':'尾帧',
@@ -3092,7 +3161,7 @@ function addNode(type,x,y,skipSnap){
     collapsed:false, bypass:false, color:'', title:def.title };
   def.widgets.forEach(function(w){ if('def' in w) n.w[w.k]=w.def; else if(w.t==='textarea') n.w[w.k]=''; });
   if(type==='output'){ n.w.vid=null; n.w.model=null; n.w.sec=null; }
-  if(type==='reference'){ n.w.imgs=[]; n.w.vids=[]; }
+  if(type==='reference'||type==='imageref'||type==='videoref'){ n.w.imgs=[]; n.w.vids=[]; }
   state.nodes.push(n);
   if(!skipSnap){ snapshot(); render(); }
   return n;
@@ -3234,6 +3303,18 @@ function widgetHTML(n,w){
     if(n.w.frameImg) return '<div class="wpreview"><span class="badge">프레임</span><img src="'+esc(n.w.frameImg)+'" alt="추출 프레임"></div>'+
       '<div class="refcnt">우측 IMAGE 포트 → 다음 모델의 "첫 프레임"에 연결 → 이어지는 영상</div>';
     return '<div class="wpreview" style="aspect-ratio:16/9;"><span class="empty">추출된 프레임 없음<br>영상 출력을 연결하고 실행</span></div>';
+  }
+  if(w.t==='promptgenbtn') return '<button class="wbtn" data-promptgen>'+ICON.sparkle+' '+esc(w.label)+'</button>';
+  if(w.t==='promptout'){
+    if(n.w.pgGenerating) return '<div class="wpreview genwrap" style="min-height:64px;"><div class="genring"><span class="genorbit"></span></div><div class="gentext">프롬프트 생성 중<i>.</i><i>.</i><i>.</i></div></div>';
+    if(n.w.pgError) return '<div class="seedid-hint" style="color:#e6879a;padding:2px 2px 4px;">'+esc(String(n.w.pgError).slice(0,160))+'</div>';
+    if(!n.w.text) return '<div class="wpreview"><span class="empty">생성된 프롬프트가 여기 표시됩니다<br>[프롬프트 생성]을 누르세요</span></div>';
+    return '<textarea class="wtext" data-w="text" style="min-height:78px;">'+esc(n.w.text)+'</textarea>';
+  }
+  if(w.t==='addrefbtns'){   // 모델 로더: +래퍼런스 → 레퍼런스 노드를 생성·연결
+    return '<div class="addref-row">'+
+      '<button class="wbtn addref-btn" data-addref="imageref">＋ 이미지 레퍼런스</button>'+
+      '<button class="wbtn addref-btn" data-addref="videoref">＋ 영상 레퍼런스</button></div>';
   }
   if(w.t==='image'){
     if(n.w.img && !n.w.imgs){ n.w.imgs=[n.w.img]; n.w.img=null; }  // 구버전 마이그레이션
@@ -3662,8 +3743,12 @@ function addOmniRefFile(n, file){
     n.w.imgs=n.w.imgs||[]; n.w.vids=n.w.vids||[];
     var isVid=/^video\//.test(file.type), isImg=/^image\//.test(file.type);
     if(!isVid && !isImg){ toast('이미지 또는 영상만 업로드 가능합니다'); resolve(false); return; }
-    var lim=isVid?80*1024*1024:8*1024*1024;
-    if(file.size>lim){ toast((isVid?'80MB':'8MB')+' 이하 파일만 업로드 가능합니다'); resolve(false); return; }
+    // 노드 종류별 제약: 이미지 레퍼런스=이미지만, 영상 레퍼런스=영상만
+    if(n.type==='imageref' && isVid){ toast('이미지 레퍼런스에는 이미지만 넣을 수 있어요 (영상은 영상 레퍼런스 노드 사용)'); resolve(false); return; }
+    if(n.type==='videoref' && isImg){ toast('영상 레퍼런스에는 영상만 넣을 수 있어요 (이미지는 이미지 레퍼런스 노드 사용)'); resolve(false); return; }
+    var lim=isVid?500*1024*1024:8*1024*1024;   // 20분 영상 허용 위해 상향
+    if(file.size>lim){ toast((isVid?'500MB':'8MB')+' 이하 파일만 업로드 가능합니다'); resolve(false); return; }
+    var proceed=function(){
     var rd=new FileReader();
     rd.onload=function(){
       var data=rd.result;
@@ -3680,8 +3765,40 @@ function addOmniRefFile(n, file){
     };
     rd.onerror=function(){ toast('파일을 읽지 못했습니다'); resolve(false); };
     rd.readAsDataURL(file);
+    };  // proceed 끝
+    if(isVid){ checkVideoDuration(file, 20).then(function(ok){ if(!ok){ toast('영상은 20분 이하만 업로드할 수 있어요'); resolve(false); return; } proceed(); }); }
+    else proceed();
   });
 }
+/* 영상 길이 제한 검사 (분). 메타데이터를 못 읽으면 통과(락아웃 방지) */
+function checkVideoDuration(file, maxMin){
+  return new Promise(function(resolve){
+    try{
+      var v=document.createElement('video'); v.preload='metadata';
+      var url=URL.createObjectURL(file), done=false;
+      var to=setTimeout(function(){ if(!done){ done=true; try{URL.revokeObjectURL(url);}catch(_){} resolve(true); } }, 8000);
+      v.onloadedmetadata=function(){ if(done)return; done=true; clearTimeout(to); var d=v.duration||0; try{URL.revokeObjectURL(url);}catch(_){} resolve(!(d>maxMin*60+1)); };
+      v.onerror=function(){ if(done)return; done=true; clearTimeout(to); try{URL.revokeObjectURL(url);}catch(_){} resolve(true); };
+      v.src=url;
+    }catch(e){ resolve(true); }
+  });
+}
+
+/* +래퍼런스: 대상(모델 로더)에 이미지/영상 레퍼런스 노드를 생성하고 선으로 연결 */
+function spawnRefFor(target, kind){
+  var port = kind==='videoref' ? 'vidref' : 'ref';
+  if(port==='vidref' && !portAllowed(target,'vidref')){
+    toast('이 모델은 영상 레퍼런스(V2V)를 지원하지 않습니다. 이미지 레퍼런스를 사용하세요.'); return;
+  }
+  var used = state.links.filter(function(l){ return l.to===target.id && l.toPort===port; }).length;
+  var rn = addNode(kind, target.x - 260, target.y + used*140, true); rn.w.imgs=[]; rn.w.vids=[];
+  var t = kind==='videoref' ? 'VIDEO' : 'IMAGE';
+  state.links.push({ from:rn.id, fromPort:'out', to:target.id, toPort:port, type:t });
+  snapshot(); render();
+  toast(kind==='videoref' ? '영상 레퍼런스 노드를 연결했어요. 영상을 업로드하세요. (최대 20분)'
+                          : '이미지 레퍼런스 노드를 연결했어요. 이미지를 업로드하세요.');
+}
+
 /* 여러 파일 순차 추가 (영상 프레임 추출이 비동기라 순서 보장) */
 function addOmniRefFiles(n, files, doneMsg){
   (function next(i){
@@ -3697,8 +3814,10 @@ canvas.addEventListener('drop',function(e){
   var files=Array.prototype.slice.call((e.dataTransfer&&e.dataTransfer.files)||[]).filter(function(f){return /^(image|video)\//.test(f.type);});
   if(!files.length){ toast('이미지 또는 영상 파일만 가능합니다'); return; }
   var w=screenToWorld(e.clientX,e.clientY);
-  var n=addNode('reference',w.x,w.y,true); n.w.imgs=[]; n.w.vids=[];
-  addOmniRefFiles(n, files, '옴니 레퍼런스 %n개 추가됨');
+  var imgs=files.filter(function(f){return /^image\//.test(f.type);});
+  var vids=files.filter(function(f){return /^video\//.test(f.type);});
+  if(imgs.length){ var ni=addNode('imageref',w.x,w.y,true); ni.w.imgs=[]; ni.w.vids=[]; addOmniRefFiles(ni, imgs, '이미지 레퍼런스 %n개 추가됨'); }
+  if(vids.length){ var nv=addNode('videoref',w.x+(imgs.length?300:0),w.y,true); nv.w.imgs=[]; nv.w.vids=[]; addOmniRefFiles(nv, vids, '영상 레퍼런스 추가됨'); }
 });
 
 /* 위젯 이벤트(위임) */
@@ -3773,6 +3892,7 @@ canvas.addEventListener('click',function(e){
   }
   if(e.target.closest('[data-runnode]')){ runQueue(); return; }
   if(e.target.closest('[data-imggen]')){ generateImageNode(n2); return; }
+  if(e.target.closest('[data-promptgen]')){ generatePromptNode(n2); return; }
   if(e.target.closest('[data-dlimg]')){
     if(!n2.w.img){ toast('생성된 이미지가 없습니다'); return; }
     var a=document.createElement('a'); a.href=n2.w.img;
@@ -3795,6 +3915,8 @@ canvas.addEventListener('click',function(e){
   if(e.target.closest('[data-weave]')){ weaveNode(n2); return; }
   if(e.target.closest('[data-revoice]')){ revoiceNode(n2); return; }
   if(e.target.closest('[data-upload]')){ host.querySelector('[data-file]').click(); return; }
+  var arf=e.target.closest('[data-addref]');
+  if(arf){ spawnRefFor(n2, arf.getAttribute('data-addref')); return; }
   var rdel=e.target.closest('[data-refdel]');
   if(rdel){ var ri=+rdel.getAttribute('data-refdel');
     (n2.w.imgs||[]).splice(ri,1); if(n2.w.vids)n2.w.vids.splice(ri,1); snapshot(); render(); return; }
@@ -3856,11 +3978,13 @@ function openDD(anchor,n,k){
 function hideDD(){ dd.style.display='none'; ddCtx=null; }
 dd.addEventListener('click',function(e){
   var di=e.target.closest('.di'); if(!di||!ddCtx)return;
-  var wasModel=ddCtx.k==='model'||ddCtx.k==='nmode';
-  ddCtx.n.w[ddCtx.k]=di.dataset.v; ddCtx.anchor.querySelector('.wvalue').textContent=di.dataset.v;
+  // hideDD() 가 ddCtx 를 null 로 만들기 전에 필요한 값을 먼저 확보 (이전엔 hideDD 후 ddCtx.k 접근 → 에러로 render() 미실행 = 옵션이 새로고침해야 나오던 원인)
+  var k=ddCtx.k, node=ddCtx.n, anchor=ddCtx.anchor;
+  var wasModel=(k==='model'||k==='nmode');
+  node.w[k]=di.dataset.v; anchor.querySelector('.wvalue').textContent=di.dataset.v;
   autosave(); hideDD();
-  if(ddCtx.k==='model') pruneModelPorts();   // 모델 변경 → 미지원 포트(V2V) 연결 정리
-  if(wasModel)render();   // Seedance 커스텀 ID / 음성 방식 안내 반영
+  if(k==='model') pruneModelPorts();   // 모델 변경 → 미지원 포트(V2V) 연결 정리
+  if(wasModel) render();               // 모델별 옵션(seedopts/fluxctrl 등) 즉시 반영
 });
 
 /* ════════ 컨텍스트 메뉴 ════════ */
@@ -3951,6 +4075,7 @@ canvas.addEventListener('contextmenu',function(e){
   // 카테고리별로 묶어 ComfyUI 처럼 하위 메뉴(fly-out)로 구성
   var cats={};
   Object.keys(DEFS).forEach(function(t){
+    if(t==='reference')return;   // 옴니 레퍼런스 제거 (이미지/영상 레퍼런스로 대체)
     var c=DEFS[t].cat; (cats[c]=cats[c]||[]).push({label:DEFS[t].title,fn:(function(tt){return function(){ addNode(tt,w.x,w.y); };})(t)});
   });
   var catSub=Object.keys(cats).map(function(c){ return {label:c,sub:cats[c]}; });
@@ -3988,6 +4113,7 @@ function buildSearch(q){
   q=q.toLowerCase();
   var html='';
   Object.keys(DEFS).forEach(function(t){
+    if(t==='reference')return;   // 옴니 레퍼런스 숨김
     var d=DEFS[t], label=(d.cat+' '+d.title).toLowerCase();
     if(label.indexOf(q)>-1||t.indexOf(q)>-1)
       html+='<div class="si" data-t="'+t+'"><span>'+esc(d.title)+'</span><small>'+esc(d.cat)+'</small></div>';
@@ -4364,6 +4490,7 @@ function buildLib(q){
   q=(q||'').toLowerCase();
   var cats={};
   Object.keys(DEFS).forEach(function(t){
+    if(t==='reference')return;   // 옴니 레퍼런스 숨김
     var d=DEFS[t];
     if(q && d.title.toLowerCase().indexOf(q)===-1 && d.cat.toLowerCase().indexOf(q)===-1) return;
     (cats[d.cat]=cats[d.cat]||[]).push(t);

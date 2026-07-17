@@ -100,9 +100,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         }
       }
 
-      // 웰컴 보너스 (가입 크레딧 지급은 제공하지 않음 — 포인트만)
-      await applyBalance(db, id, 'point', 1000, '가입 축하 포인트').catch(() => {})
-      await addNotification(db, id, 'BYGENCY에 오신 것을 환영합니다 🎉', '가입 축하 포인트 1,000P를 지급했어요. 친구를 초대하고 친구가 요금제에 가입하면 결제액의 1%를 크레딧으로 받을 수 있어요!').catch(() => {})
+      // 가입 축하 포인트·크레딧 지급 없음 (요금제 결제로만 사용 가능)
+      await addNotification(db, id, 'BYGENCY에 오신 것을 환영합니다 🎉', '가입이 완료되었어요. 요금제를 활성화하면 마케팅 대시보드와 노드형 AI 영상 제작을 모두 사용할 수 있어요.').catch(() => {})
 
       u = await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first()
     } else {
