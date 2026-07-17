@@ -383,6 +383,26 @@ function buildKlingApiPayload(b, spec) {
   return p;
 }
 
+/* ── 모션 전이(Motion Transfer) 레이어 — 힉스필드식 ──
+   레퍼런스 영상 전체를 fal의 video-to-video 모델에 넣어 원본의 움직임(리듬·제스처·카메라 무빙)을
+   유지한 채 프롬프트 스타일로 변환. base 모델과 무관하게 공통으로 작동한다.
+   실제 fal 엔드포인트는 환경변수로 지정(모델 교체 자유). 기본값은 Wan V2V. */
+function falV2VModel(env) {
+  return pick(env, ["FAL_V2V_MODEL", "V2V_FAL_MODEL", "FAL_MOTION_MODEL", "fal_v2v_model"]) || "fal-ai/wan-vace-14b";
+}
+function buildMotionPayload(b) {
+  const p = {
+    prompt: String(b.prompt || "").slice(0, 2500),
+    video_url: b.srcVideo || null,
+  };
+  if (b.negative) p.negative_prompt = String(b.negative).slice(0, 2000);
+  // 스타일 반영 강도(0=원본 최대 보존, 1=스타일 최대) — 모델이 지원하면 사용
+  const st = Number(b.v2vStrength);
+  if (Number.isFinite(st)) p.strength = Math.max(0, Math.min(1, st));
+  if (b.ratio) p.aspect_ratio = b.ratio;
+  return p;
+}
+
 function buildKlingPayload(b) {
   const id = klingModelId(b);
   const p = { prompt: String(b.prompt || ""), duration: (Number(b.seconds) > 7 ? "10" : "5"), aspect_ratio: (b.ratio || "16:9") };
@@ -541,7 +561,8 @@ async function handle(context) {
         luma:     !!k.luma,
         fal:      !!k.fal,
         kling:    !!(klingCreds(env) || k.fal),
-        v2vAuto:  !!(k.runway || k.seedance),
+        v2vAuto:  !!(k.runway || k.seedance || k.fal),
+        motion:   !!k.fal,
         nanobanana: !!(gcpCreds(env) || k.google),
         openai:   !!k.openai,
         // 스튜디오가 실제로 쓰는 Seedance 모델 결정값 진단 (모델ID는 비밀 아님)
@@ -1122,6 +1143,22 @@ async function handle(context) {
       }
       return json({ status: j.state || "dreaming" });
     }
+    if (provider === "falq") {
+      // 범용 fal 큐 폴링 (모션 전이 등)
+      const task = u.searchParams.get("task");
+      const model = u.searchParams.get("model") || "";
+      if (!task || !model || !k.fal) return json({ status: "failed", error: "no task/model/key" }, 400);
+      const base = FAL_QUEUE + model + "/requests/" + encodeURIComponent(task);
+      const sr = await fetchT(base + "/status", { headers: { "Authorization": "Key " + k.fal } });
+      const sj = await sr.json().catch(() => ({}));
+      const st = String(sj.status || "").toUpperCase();
+      if (st === "FAILED" || sj.error) return json({ status: "failed", error: sj.error || "생성 실패" });
+      if (st !== "COMPLETED") return json({ status: (st || "IN_PROGRESS").toLowerCase() });
+      const rr = await fetchT(base, { headers: { "Authorization": "Key " + k.fal } });
+      const rj = await rr.json().catch(() => ({}));
+      const url = (rj.video && rj.video.url) || rj.url || (rj.output && rj.output.video && rj.output.video.url) || (Array.isArray(rj.videos) && rj.videos[0] && rj.videos[0].url);
+      return url ? json({ url, kind: "video" }) : json({ status: "failed", error: "모션 전이: 결과 영상 URL 없음" });
+    }
     if (provider === "kling") {
       // 1순위: 클링 공식 API 폴링
       const cr = klingCreds(env);
@@ -1246,7 +1283,20 @@ async function handle(context) {
       return json({ error: "Seedance V2V 실패: " + String(lastErr).slice(0, 200) }, 502);
     }
 
-    // 3순위(브리지): 네이티브 V2V 키가 없어도, 원본 프레임을 이미지→영상으로 이어받아 변환 (Kling)
+    // 3순위: 모션 전이(fal) — 원본 영상의 움직임을 유지하며 스타일 변환 (base 모델 무관 공통 레이어)
+    if (hasNativeSrc && k.fal) {
+      const model = falV2VModel(env);
+      const r = await fetchT(FAL_QUEUE + model, {
+        method: "POST", headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
+        body: JSON.stringify(buildMotionPayload(b))
+      });
+      const j = await r.json().catch(() => ({}));
+      const reqId = j.request_id || j.requestId;
+      if (r.ok && reqId) return json({ statusUrl: "/api/generate?provider=falq&task=" + encodeURIComponent(reqId) + "&model=" + encodeURIComponent(model), routed: "motion" });
+      // 모션 전이 실패 → 프레임 브리지로 계속
+    }
+
+    // 4순위(브리지): 위가 모두 안 되면, 원본 프레임을 이미지→영상으로 이어받아 변환 (Kling)
     if (hasSrcFrame(b)) {
       const cr = klingCreds(env);
       const kb = Object.assign({}, b, { model: "Kling 2.1 Master (이미지→영상)" });
@@ -1276,6 +1326,22 @@ async function handle(context) {
     }
 
     return json({ error: "V2V(영상→영상)를 하려면 Runway·Seedance(최고정확도) 또는 Kling·fal 중 하나 이상의 키가 필요합니다." }, 500);
+  }
+
+  /* 모션 전이(Motion Transfer) 단독 — 원본 영상의 움직임 유지 + 스타일 변환 (fal video-to-video) */
+  if (provider === "motion") {
+    if (!k.fal) return json({ error: "모션 전이(V2V)는 FAL_API_KEY 가 필요합니다." }, 500);
+    const src = b.srcVideo || "";
+    if (!/^https?:\/\//.test(src)) return json({ error: "모션 전이는 원본 영상의 공개 URL이 필요합니다. 영상을 옴니 레퍼런스(영상)에 넣으면 자동 업로드됩니다(R2)." }, 400);
+    const model = falV2VModel(env);
+    const r = await fetchT(FAL_QUEUE + model, {
+      method: "POST", headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
+      body: JSON.stringify(buildMotionPayload(b))
+    });
+    const j = await r.json().catch(() => ({}));
+    const reqId = j.request_id || j.requestId;
+    if (!r.ok || !reqId) return json({ error: "모션 전이(fal " + model + ") 실패: " + String(j.detail || j.error || JSON.stringify(j)).slice(0, 200) }, 502);
+    return json({ statusUrl: "/api/generate?provider=falq&task=" + encodeURIComponent(reqId) + "&model=" + encodeURIComponent(model) });
   }
 
   if (provider === "runway_aleph") {
