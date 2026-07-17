@@ -311,7 +311,13 @@ const KLING_FAL = {
   "Kling 2.0": "fal-ai/kling-video/v2/master/image-to-video",
   "Kling 1.6": "fal-ai/kling-video/v1.6/pro/image-to-video",
 };
-function klingModelId(b) { return KLING_FAL[b.model] || "fal-ai/kling-video/v2/master/image-to-video"; }
+// 원본 프레임(영상 브리지)이 있으면 텍스트→영상이라도 이미지→영상으로 강제 (V2V 브리지)
+function hasSrcFrame(b) { return !!(b && (b.firstFrame || b.refImage || b.image_url)); }
+function klingModelId(b) {
+  let id = KLING_FAL[b.model] || "fal-ai/kling-video/v2/master/image-to-video";
+  if (hasSrcFrame(b) && /text-to-video/.test(id)) id = id.replace("text-to-video", "image-to-video");
+  return id;
+}
 
 /* ── Kling 공식 오픈플랫폼 API (직접 호출) — 환경변수 KLING_* 만 넣으면 우선 사용 ──
    AccessKey/SecretKey(JWT HS256) 방식 또는 단일 토큰(KLING_API_KEY) 방식 모두 지원. */
@@ -355,7 +361,9 @@ const KLING_API = {
   "Kling 1.6": { m: "kling-v1-6", mode: "pro", ep: "image2video" },
 };
 function klingApiSpec(b) {
-  return KLING_API[b.model] || { m: "kling-v2-master", mode: "pro", ep: (b.firstFrame || b.refImage || b.image_url) ? "image2video" : "text2video" };
+  const base = KLING_API[b.model] || { m: "kling-v2-master", mode: "pro", ep: "text2video" };
+  // 원본 프레임(영상 브리지)이 있으면 image2video 로 강제 → 어떤 클링 모델이든 V2V처럼 변환
+  return { ...base, ep: hasSrcFrame(b) ? "image2video" : base.ep };
 }
 function _stripDataUri(v) { return v ? String(v).replace(/^data:[^,]+,/, "") : ""; }
 function buildKlingApiPayload(b, spec) {
@@ -1197,11 +1205,12 @@ async function handle(context) {
      둘 다 실패/미설정이면 명확히 안내. (프레임 재조립식 저품질 우회는 쓰지 않음) */
   if (provider === "v2v_auto") {
     const srcUrl = b.srcVideo || "";
-    if (!srcUrl || !/^https?:\/\//.test(srcUrl))
-      return json({ error: "V2V(영상→영상)는 원본 영상의 공개 URL이 필요합니다. 영상을 옴니 레퍼런스(영상)에 넣으면 자동 업로드됩니다(R2)." }, 400);
+    const hasNativeSrc = srcUrl && /^https?:\/\//.test(srcUrl);
+    if (!hasNativeSrc && !hasSrcFrame(b))
+      return json({ error: "V2V(영상→영상)는 원본 영상이 필요합니다. 영상을 옴니 레퍼런스(영상)에 넣으면 자동 업로드됩니다(R2)." }, 400);
 
-    // 1순위: Runway Gen-4 Aleph — 실사 V2V 최상급
-    if (k.runway) {
+    // 1순위: Runway Gen-4 Aleph — 실사 V2V 최상급 (원본 영상 URL 필요)
+    if (hasNativeSrc && k.runway) {
       const payload = buildAlephPayload(b);
       const r = await fetchT("https://api.dev.runwayml.com/v1/video_to_video", {
         method: "POST",
@@ -1214,8 +1223,8 @@ async function handle(context) {
       // Aleph 실패 → Seedance 로 폴백
     }
 
-    // 2순위: Seedance V2V (reference_video)
-    if (k.seedance) {
+    // 2순위: Seedance V2V (reference_video, 원본 영상 URL 필요)
+    if (hasNativeSrc && k.seedance) {
       const sb = Object.assign({}, b, { model: "Seedance 2.0" }); // reference_video 지원 모델 강제
       const payload = buildSeedancePayload(sb, env);
       const hosts = pick(env, ["SEEDANCE_USE_CN", "seedance_use_cn"]) ? ["bp", "vc"] : ["bp"];
@@ -1237,7 +1246,36 @@ async function handle(context) {
       return json({ error: "Seedance V2V 실패: " + String(lastErr).slice(0, 200) }, 502);
     }
 
-    return json({ error: "V2V(영상→영상)를 하려면 Runway_API_KEY(권장·최고정확도) 또는 Seedance_API_KEY 중 하나 이상이 필요합니다." }, 500);
+    // 3순위(브리지): 네이티브 V2V 키가 없어도, 원본 프레임을 이미지→영상으로 이어받아 변환 (Kling)
+    if (hasSrcFrame(b)) {
+      const cr = klingCreds(env);
+      const kb = Object.assign({}, b, { model: "Kling 2.1 Master (이미지→영상)" });
+      if (cr) {
+        const spec = klingApiSpec(kb);
+        const auth = await klingAuth(cr);
+        const r = await fetchT(cr.base + "/v1/videos/image2video", {
+          method: "POST", headers: { "Authorization": auth, "Content-Type": "application/json" },
+          body: JSON.stringify(buildKlingApiPayload(kb, spec))
+        });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok && j.code === 0 && j.data && j.data.task_id)
+          return json({ statusUrl: "/api/generate?provider=kling&task=" + encodeURIComponent(j.data.task_id) + "&ep=image2video", routed: "kling_bridge" });
+        if (!k.fal) return json({ error: "V2V 브리지(Kling) 실패: " + String(j.message || JSON.stringify(j)).slice(0, 200) }, 502);
+      }
+      if (k.fal) {
+        const model = klingModelId(kb);
+        const r = await fetchT(FAL_QUEUE + model, {
+          method: "POST", headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
+          body: JSON.stringify(buildKlingPayload(kb))
+        });
+        const j = await r.json().catch(() => ({}));
+        const reqId = j.request_id || j.requestId;
+        if (r.ok && reqId) return json({ statusUrl: "/api/generate?provider=kling&task=" + encodeURIComponent(reqId) + "&model=" + encodeURIComponent(model), routed: "kling_bridge_fal" });
+        return json({ error: "V2V 브리지(fal Kling) 실패: " + String(j.error || JSON.stringify(j)).slice(0, 200) }, 502);
+      }
+    }
+
+    return json({ error: "V2V(영상→영상)를 하려면 Runway·Seedance(최고정확도) 또는 Kling·fal 중 하나 이상의 키가 필요합니다." }, 500);
   }
 
   if (provider === "runway_aleph") {

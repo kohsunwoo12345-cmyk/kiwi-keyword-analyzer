@@ -1707,7 +1707,7 @@ function hostMedia(src){
   }).catch(function(){ return src; });
 }
 /* 공개 URL이 필요한(또는 URL이 더 안전한) 제공사는 이미지도 R2 URL로 변환. Veo(google)만 base64 필요 → 제외 */
-var URL_PROVIDERS={ luma:1, runway:1, runway_aleph:1, hailuo:1 };
+var URL_PROVIDERS={ luma:1, runway:1, runway_aleph:1, hailuo:1, kling:1, v2v_auto:1 };
 async function resolveMediaForProvider(prov, params){
   // Seedance 는 이미지를 "작은 base64 인라인"으로 보낸다. (검증: base64 제출 782ms 성공)
   //   → bp 가 우리 R2 를 fetch 하지 않으므로, 갓 올린 이미지의 fetch 지연으로 인한 502 가 사라짐.
@@ -2402,7 +2402,7 @@ function widgetHTML(n,w){
             : imgs.length>1 ? (imgs.length+'개'+(nVid?' · 영상 '+nVid:'')+' · 첫 번째가 대표')
             : (nVid?'영상 레퍼런스 · 프레임을 모델에 전달':'');
     var v2v = n.w.srcVideoUploading ? '<div class="refcnt" style="color:#e6cf7f">'+ICON.spin+' 원본 영상 업로드 중… (V2V 준비)</div>'
-            : n.w.srcVideoUrl ? '<div class="refcnt" style="color:#8fe6b8">'+ICON.check+' V2V 가능 — 모델을 "V2V 자동(최고정확도)"으로 두면 최적 모델로 자동 변환</div>' : '';
+            : n.w.srcVideoUrl ? '<div class="refcnt" style="color:#8fe6b8">'+ICON.check+' V2V 가능 — 어떤 모델이든 원본 프레임을 이어받아 변환됩니다. (최고정확도는 "V2V 자동" 또는 "Runway Aleph")</div>' : '';
     return grid+
       (cnt?'<div class="refcnt">'+cnt+'</div>':'')+ v2v+
       '<button class="wbtn" data-upload>내 PC에서 업로드 (이미지·영상, 여러 개)</button>'+
