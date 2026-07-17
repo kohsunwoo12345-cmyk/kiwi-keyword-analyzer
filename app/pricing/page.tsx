@@ -21,6 +21,7 @@ import {
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { Button, SectionTag } from '@/components/ui'
+import { PlanStartButton } from '@/components/PlanStartButton'
 import { Reveal } from '@/components/motion'
 import { LogoMark } from '@/components/Brand'
 import { cn } from '@/lib/utils'
@@ -509,7 +510,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
   )
 }
 
-function PlanCard({ p, i }: { p: Tier; i: number }) {
+function PlanCard({ p, i, track }: { p: Tier; i: number; track: 'video' | 'marketer' }) {
   const t = useT(M)
   return (
     <Reveal delay={i * 100} className={p.highlight ? 'lg:-mt-4' : ''}>
@@ -540,13 +541,14 @@ function PlanCard({ p, i }: { p: Tier; i: number }) {
             </li>
           ))}
         </ul>
-        <Button
-          href={p.href}
+        <PlanStartButton
+          track={track}
+          plan={p.name}
+          label={t(p.cta)}
           variant={p.highlight ? 'primary' : 'outline'}
           className="mt-8 w-full"
-        >
-          {t(p.cta)}
-        </Button>
+          contact={p.href === '/contact'}
+        />
       </div>
     </Reveal>
   )
@@ -559,6 +561,7 @@ function TrackSection({
   accent,
   desc,
   tiers,
+  track,
 }: {
   icon: typeof Megaphone
   tag: string
@@ -566,6 +569,7 @@ function TrackSection({
   accent: string
   desc: string
   tiers: Tier[]
+  track: 'video' | 'marketer'
 }) {
   const t = useT(M)
   return (
@@ -584,7 +588,7 @@ function TrackSection({
 
       <div className="mx-auto mt-12 grid max-w-5xl gap-6 lg:grid-cols-3">
         {tiers.map((p, i) => (
-          <PlanCard key={p.name} p={p} i={i} />
+          <PlanCard key={p.name} p={p} i={i} track={track} />
         ))}
       </div>
     </div>
@@ -625,22 +629,8 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* ===== TRACK 1: 마케터 전용 ===== */}
+      {/* ===== TRACK 1: AI 영상 제작 (가장 먼저) ===== */}
       <section className="pb-6">
-        <div className="mx-auto max-w-6xl px-5">
-          <TrackSection
-            icon={Megaphone}
-            tag="마케터 전용 플랜"
-            title="마케팅, 한 화면에서"
-            accent="끝냅니다"
-            desc="DB 수집부터 유튜브·블로그·플레이스 분석, 문자·알림톡, CRM, 리포트까지. 흩어진 마케팅 도구를 하나로 합치는 올인원 트랙입니다."
-            tiers={MARKETER_TIERS}
-          />
-        </div>
-      </section>
-
-      {/* ===== TRACK 2: AI 영상 제작 ===== */}
-      <section className="pt-14 pb-6">
         <div className="mx-auto max-w-6xl px-5">
           <TrackSection
             icon={Clapperboard}
@@ -649,6 +639,22 @@ export default function PricingPage() {
             accent="AI 영상 스튜디오"
             desc="NODE STUDIO 노드 에디터에서 블록을 연결하듯 광고·숏폼 영상을 생성합니다. 크레딧 차감 방식이라, 만든 만큼만 비용이 나갑니다."
             tiers={VIDEO_TIERS}
+            track="video"
+          />
+        </div>
+      </section>
+
+      {/* ===== TRACK 2: 마케터 전용 ===== */}
+      <section className="pt-14 pb-6">
+        <div className="mx-auto max-w-6xl px-5">
+          <TrackSection
+            icon={Megaphone}
+            tag="마케터 전용 플랜"
+            title="마케팅, 한 화면에서"
+            accent="끝냅니다"
+            desc="DB 수집부터 유튜브·블로그·플레이스 분석, 문자·알림톡, CRM, 리포트까지. 흩어진 마케팅 도구를 하나로 합치는 올인원 트랙입니다."
+            tiers={MARKETER_TIERS}
+            track="marketer"
           />
         </div>
       </section>

@@ -30,6 +30,7 @@ import { AIVideoGallery } from '@/components/AIVideoGallery'
 import { AIVideoShowcase } from '@/components/AIVideoShowcase'
 import { YouTubeLogo, NaverBlogLogo, KakaoLogo, AdPlatformsCluster } from '@/components/logos/BrandMarks'
 import { Button, SectionTag } from '@/components/ui'
+import { PlanStartButton } from '@/components/PlanStartButton'
 import { Reveal, Marquee } from '@/components/motion'
 import { LogoMark } from '@/components/Brand'
 import { FEATURES } from '@/lib/features'
@@ -748,21 +749,22 @@ const TRUST = [
   { icon: LifeBuoy, label: '한국어 지원팀' },
 ]
 
+// 홈 요금제 = 노드형 AI 영상 제작 플랜 (Plus·Pro·Max)
 const PLANS = [
   {
-    name: 'Plus', price: '₩29,000', period: '/월', desc: '혼자 마케팅을 챙기는 1인 사업자·입문 단계',
-    features: ['월 3,000 DB 수집', '유튜브·블로그 기본 분석', '플레이스 순위 조회', '문자 발송 (건별 차감)', '기본 리포트 대시보드'],
+    name: 'Plus', price: '₩49,000', period: '/월', desc: '숏폼 영상을 직접 만들어보는 시작 단계',
+    features: ['월 1,500 크레딧 제공', '노드 에디터 기본 워크플로우', '기본 영상 생성 모델', '숏폼·광고 템플릿 제공', '1080p 렌더링'],
     cta: 'Plus 시작하기', href: '/signup', highlight: false,
   },
   {
-    name: 'Pro', price: '₩89,000', period: '/월', desc: '성과에 집중하는 성장기 마케팅 팀',
-    features: ['월 30,000 DB 수집', '유튜브·블로그·플레이스 전체 분석', 'CRM · 고객 세그먼트 관리', '알림톡 · 문자 캠페인 자동화', '팀 협업 5인 · 권한 관리', '맞춤 리포트 · 성과 추적'],
+    name: 'Pro', price: '₩149,000', period: '/월', desc: '콘텐츠를 대량으로 찍어내는 제작 팀',
+    features: ['월 6,000 크레딧 제공', '고급 모델 (Seedance · Veo 등)', '워터마크 제거', '노드 커스텀 워크플로우 저장', '음성·자막 자동 생성', '팀 공유 · 에셋 라이브러리'],
     cta: 'Pro 시작하기', href: '/signup', highlight: true,
   },
   {
-    name: 'Max', price: '₩249,000', period: '/월', desc: '여러 브랜드를 운영하는 대행사·인하우스 실무',
-    features: ['DB 수집 무제한', '마케터 전 기능 잠금 해제', '알림톡 · 문자 대량 발송 최적 단가', '팀 협업 무제한 · 워크스페이스 분리', 'API 연동 · 데이터 내보내기', '전담 매니저 · 우선 기술 지원'],
-    cta: '도입 문의', href: '/pricing', highlight: false,
+    name: 'Max', price: '₩390,000', period: '/월', desc: '영상을 끊김 없이 쏟아내는 스튜디오·대행사',
+    features: ['월 20,000 크레딧 (무제한급)', '최상위 영상·이미지 모델 전체', '우선 렌더 큐 · 대기 없는 처리', '4K 고해상도 렌더링', 'API · 배치 렌더 자동화', '전담 매니저 · 우선 지원'],
+    cta: '도입 문의', href: '/contact', highlight: false,
   },
 ]
 
@@ -1226,9 +1228,14 @@ export default function Home() {
                       </li>
                     ))}
                   </ul>
-                  <Button href={p.href} variant={p.highlight ? 'primary' : 'outline'} className="mt-8 w-full">
-                    {t(p.cta)}
-                  </Button>
+                  <PlanStartButton
+                    track="video"
+                    plan={p.name}
+                    label={t(p.cta)}
+                    variant={p.highlight ? 'primary' : 'outline'}
+                    className="mt-8 w-full"
+                    contact={p.href === '/contact'}
+                  />
                 </div>
               </Reveal>
             ))}

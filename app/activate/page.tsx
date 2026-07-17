@@ -55,6 +55,17 @@ export default function ActivatePage() {
     if (ready && user) loadReqs()
   }, [ready, user])
 
+  // 쿼리스트링(track/plan)으로 넘어오면 해당 플랜을 미리 선택 → 바로 신청 가능
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search)
+      const tk = q.get('track')
+      const pl = q.get('plan')
+      if (tk === 'video' || tk === 'marketer') setTrack(tk)
+      if (pl === 'Plus' || pl === 'Pro' || pl === 'Max') setPlan(pl as PlanKey)
+    } catch {}
+  }, [])
+
   const hasPlan = !!user && (user.role === 'admin' || user.hasPlan === 1)
   const pending = reqs.find((r) => r.status === 'pending')
 
