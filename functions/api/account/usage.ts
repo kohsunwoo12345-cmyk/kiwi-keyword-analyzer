@@ -11,7 +11,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
 
   const rows = (await db
-    .prepare('SELECT provider, model, kind, credits, cost_krw, units, created_at FROM ai_usage WHERE user_id = ? ORDER BY created_at DESC LIMIT 60')
+    .prepare('SELECT provider, model, kind, credits, cost_krw, units, created_at FROM ai_usage WHERE user_id = ? ORDER BY created_at DESC LIMIT 300')
     .bind(me.id)
     .all()).results || []
 

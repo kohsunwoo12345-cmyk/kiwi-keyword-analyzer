@@ -28,6 +28,29 @@ async function fetchUsdKrw(): Promise<number | null> {
   return null
 }
 
+/** 전역 모델별 배수 (settings.model_markups JSON). {모델명: 배수}. 없으면 {}. */
+export async function getModelMarkups(db: D1Database): Promise<Record<string, number>> {
+  try {
+    const row: any = await db.prepare("SELECT value FROM settings WHERE key = 'model_markups'").first()
+    if (!row || !row.value) return {}
+    const o = JSON.parse(row.value)
+    return o && typeof o === 'object' ? o : {}
+  } catch {
+    return {}
+  }
+}
+/** 회원·모델별 배수 해석 우선순위: 회원×모델 override > 회원 전체 배수 > 전역 모델 배수 > 기본값 */
+export async function resolveMarkup(db: D1Database, userId: string, model: string, userMarkup: number): Promise<number | undefined> {
+  try {
+    const um: any = await db.prepare('SELECT multiplier FROM user_model_markups WHERE user_id = ? AND model = ?').bind(userId, model).first()
+    if (um && Number(um.multiplier) > 0) return Number(um.multiplier)
+  } catch { /* table 없을 수 있음 */ }
+  if (userMarkup && userMarkup > 0) return userMarkup
+  const gm = await getModelMarkups(db)
+  if (gm[model] && Number(gm[model]) > 0) return Number(gm[model])
+  return undefined // computeCharge 기본값(2.5/3.0)
+}
+
 /** 오늘자 USD→KRW 환율 (하루 1회 조회 후 D1 캐시). 결제/생성 시점의 그날 환율을 반환. */
 export async function getUsdKrw(db: D1Database): Promise<number> {
   const today = new Date().toISOString().slice(0, 10)

@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity } from '../_utils'
-import { computeCharge, ensureAiUsage, getUsdKrw } from '../studio/_pricing'
+import { computeCharge, ensureAiUsage, getUsdKrw, resolveMarkup } from '../studio/_pricing'
 
 // POST /api/usage/record { model, kind, units, res?, audio?, provider? }
 //  → 스튜디오 생성 1건 확정. BYGENCY 세션으로 사용자 식별 → 크레딧 100% 차감 + 정산 기록.
@@ -13,17 +13,20 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   const b: any = await request.json().catch(() => ({}))
   const rate = await getUsdKrw(db) // 결제(생성) 시점의 그날 환율
-  const memberMarkup = me ? Number(me.credit_markup) || 0 : 0 // 회원별 배수(원가=1). 0=모델 기본
+  const model = String(b.model || '')
+  const memberMarkup = me ? Number(me.credit_markup) || 0 : 0 // 회원별 전체 배수(원가=1). 0=미설정
+  // 회원×모델 override > 회원 전체 배수 > 전역 모델 배수 > 기본값
+  const markup = me ? await resolveMarkup(db, me.id, model, memberMarkup) : (memberMarkup || undefined)
   const c = computeCharge(
     {
-      model: String(b.model || ''),
+      model,
       units: Number(b.units) || 0,
       kind: b.kind,
       res: b.res,
       audio: !!b.audio,
     },
     rate,
-    memberMarkup || undefined,
+    markup,
   )
 
   // 크레딧 100% 차감 (로그인 사용자만). 소수 크레딧 지원, 잔액 부족 시 있는 만큼만 차감하고 마이너스는 방지.

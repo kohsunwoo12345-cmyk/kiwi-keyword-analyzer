@@ -26,6 +26,7 @@ import { AreaTrend, Donut } from '@/components/dash/Charts'
 import { Panel, Badge, Button } from '@/components/ui'
 import { Reveal, Counter } from '@/components/motion'
 import { MemberPricing } from '@/components/admin/MemberPricing'
+import { ModelPricing } from '@/components/admin/ModelPricing'
 import {
   adminUsers,
   adminActivity,
@@ -241,6 +242,11 @@ export default function AdminDashboard() {
         {/* 회원 목록 + 회원별 가격(AI 과금 배수) 조정 */}
         <Reveal>
           <MemberPricing />
+        </Reveal>
+
+        {/* AI 모델별 과금 배수 (전체/회원별) */}
+        <Reveal>
+          <ModelPricing />
         </Reveal>
 
         {/* 크레딧 충전 승인 대기 */}

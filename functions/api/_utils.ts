@@ -424,6 +424,13 @@ export async function ensureSchema(db: D1Database) {
       created_at TEXT NOT NULL
     )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_bset_branch ON branch_settlements(branch_id)`),
+    // 회원별·모델별 AI 과금 배수 override (없으면 전역 model_markups → 기본값)
+    db.prepare(`CREATE TABLE IF NOT EXISTS user_model_markups (
+      user_id TEXT NOT NULL,
+      model TEXT NOT NULL,
+      multiplier REAL NOT NULL,
+      PRIMARY KEY (user_id, model)
+    )`),
     // 관리자 로그인 허용 기기/IP (보안 잠금 ON 시 등록된 IP 또는 기기에서만 관리자 로그인 허용)
     db.prepare(`CREATE TABLE IF NOT EXISTS admin_devices (
       id TEXT PRIMARY KEY,

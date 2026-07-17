@@ -370,6 +370,31 @@ export async function adminSettlementBranch(branchId: string): Promise<BranchDet
     return await r.json()
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
+
+/* ===== 모델별 AI 과금 배수 ===== */
+export interface ModelPriceRow {
+  model: string; provider: string; kind: string
+  baseCredits: number; defaultMarkup: number
+  globalMarkup: number; userMarkup: number; effectiveMarkup: number; effectiveCredits: number
+}
+export interface AdminModelPricing {
+  ok: boolean; error?: string
+  usdKrw?: number; creditKrw?: number
+  userId?: string; userName?: string; userOverall?: number
+  models?: ModelPriceRow[]
+}
+export async function adminModelPricing(userId = ''): Promise<AdminModelPricing> {
+  try {
+    const r = await fetch('/api/admin/model-pricing' + (userId ? `?userId=${encodeURIComponent(userId)}` : ''), { credentials: 'include' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+export async function adminModelPricingAction(
+  action: 'set_global' | 'reset_global' | 'set_global_all' | 'reset_global_all' | 'set_user' | 'set_user_all' | 'reset_user',
+  payload: Record<string, unknown> = {},
+): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/admin/model-pricing', { action, ...payload })
+}
 export async function adminSettlementAction(
   action: 'create_branch' | 'update_branch' | 'delete_branch' | 'set_owner' | 'settle' | 'delete_settlement',
   payload: Record<string, unknown> = {},

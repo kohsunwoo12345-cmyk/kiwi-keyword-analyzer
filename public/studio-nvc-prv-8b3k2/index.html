@@ -937,6 +937,7 @@ textarea.wtext.code::placeholder{ color:#5a5c66; }
       </div>
       <nav class="pf-nav2">
         <button class="pf-navi on" data-sec="usage" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6" rx="1"/><rect x="12" y="8" width="3" height="10" rx="1"/><rect x="17" y="4" width="3" height="14" rx="1"/></svg></span>사용량</button>
+        <button class="pf-navi" data-sec="billing" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h12l4 4v16l-3-1.5L14 22l-3-1.5L8 22l-3-1.5L2 22V6z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span>결제 내역</button>
         <button class="pf-navi" data-sec="plan" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/></svg></span>요금제</button>
         <button class="pf-navi" data-sec="settings" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>설정</button>
         <button class="pf-navi" data-sec="lang" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>언어</button>
@@ -957,8 +958,18 @@ textarea.wtext.code::placeholder{ color:#5a5c66; }
           <div class="pf-stat"><span>이번 달 사용 크레딧</span><b id="pfUseMonthCr">-</b></div>
           <div class="pf-stat"><span>누적 생성</span><b id="pfUseTotalCount">-</b></div>
         </div>
-        <h4 class="pf-h4">최근 생성 내역</h4>
+        <h4 class="pf-h4">사용 내역 (크레딧 차감)</h4>
         <div class="pf-uselist" id="pfUseList"><div class="pf-usemsg">불러오는 중…</div></div>
+      </section>
+
+      <section class="pf-pane" data-pane="billing">
+        <h3 class="pf-h3">결제 내역</h3>
+        <div class="pf-stats">
+          <div class="pf-stat"><span>총 결제 금액</span><b id="pfPayTotal">-</b></div>
+          <div class="pf-stat"><span>결제 건수</span><b id="pfPayCount">-</b></div>
+        </div>
+        <h4 class="pf-h4">결제·충전 내역</h4>
+        <div class="pf-uselist" id="pfPayList"><div class="pf-usemsg">불러오는 중…</div></div>
       </section>
 
       <section class="pf-pane" data-pane="plan">
@@ -3909,6 +3920,25 @@ function pfSetText(id,t){ var e=pfEl(id); if(e)e.textContent=t; }
 function pfShowSec(sec){
   Array.prototype.forEach.call(document.querySelectorAll('.pf-navi'),function(b){ b.classList.toggle('on', b.getAttribute('data-sec')===sec); });
   Array.prototype.forEach.call(document.querySelectorAll('.pf-pane'),function(p){ p.classList.toggle('on', p.getAttribute('data-pane')===sec); });
+  if(sec==='usage') loadUsage();
+  if(sec==='billing') loadPayments();
+}
+function pfWon(n){ return '₩'+(Math.round(Number(n)||0)).toLocaleString('ko-KR'); }
+function loadPayments(){
+  var list=pfEl('pfPayList'); if(list) list.innerHTML='<div class="pf-usemsg">불러오는 중…</div>';
+  fetch('/api/account/payments',{credentials:'include',cache:'no-store'}).then(function(r){return r.json();}).then(function(d){
+    if(!d||!d.ok){ if(list)list.innerHTML='<div class="pf-usemsg">불러오기 실패</div>'; return; }
+    pfSetText('pfPayTotal',pfWon(d.totalKrw));
+    pfSetText('pfPayCount',(d.count||0)+'건');
+    if(list){
+      if(!d.items||!d.items.length){ list.innerHTML='<div class="pf-usemsg">결제 내역이 없습니다.</div>'; return; }
+      list.innerHTML=d.items.map(function(it){
+        var sub=pfWhen(it.at)+(it.memo?' · '+it.memo:'')+(it.credits?' · +'+it.credits+' 크레딧':'');
+        return '<div class="pf-useitem"><div class="m"><b>'+(it.title||'-')+'</b><span>'+sub+'</span></div>'
+          +'<span class="c">'+pfWon(it.amountKrw)+'</span></div>';
+      }).join('');
+    }
+  }).catch(function(){ if(list)list.innerHTML='<div class="pf-usemsg">불러오기 실패</div>'; });
 }
 function pfKind(k){ return k==='image'?'이미지':'영상'; }
 function pfWhen(iso){ try{ var d=new Date(iso); var p=function(n){return(n<10?'0':'')+n;}; return (d.getMonth()+1)+'/'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); }catch(e){ return ''; } }
@@ -3934,7 +3964,6 @@ function openProfile(){
   back.classList.add('on');
   pfShowSec('usage');
   pfSetText('pfPwMsg',''); pfSetText('pfDelMsg','');
-  loadUsage();
   fetch('/api/account/overview',{credentials:'include',cache:'no-store'})
     .then(function(r){ return r.json(); })
     .then(function(d){
