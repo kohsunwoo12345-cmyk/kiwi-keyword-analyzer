@@ -1587,6 +1587,18 @@ var IMG_MODELS = [
  ['이미지','Flux 1.1 Pro Ultra'],['이미지','Flux 1.1 Pro'],['이미지','Flux Pro'],['이미지','Flux Dev'],
  ['이미지','Grok Imagine']
 ];
+/* 3D 변환·3D 이미지 생성 노드의 스타일 프리셋 — 각 라벨에 실제 프롬프트 지시문 매핑.
+   레퍼런스를 넣으면 I2I(편집)로, 없으면 T2I(생성)로 동일 파이프라인에서 처리된다. */
+var STYLE3D = [
+ ['3D 렌더 (CGI)',        'Recreate this as a high-quality 3D rendered CGI image — Pixar/Octane render look, soft studio lighting, volumetric depth, subsurface scattering, glossy materials, ultra-detailed, photorealistic 3D'],
+ ['입체 팝아웃 (3D 효과)', 'Give this a strong stereoscopic 3D pop-out effect with exaggerated depth of field, layered parallax, dramatic perspective and dimensional lighting so it looks three-dimensional'],
+ ['피규어·미니어처',      'Turn this into a collectible 3D figurine / miniature model — glossy plastic material, detailed sculpt on a round base, studio product photography, tilt-shift, soft rim light'],
+ ['클레이·점토 3D',       'Claymation-style 3D render — soft matte clay material, handcrafted look, rounded shapes, playful stop-motion aesthetic, soft ambient lighting'],
+ ['아이소메트릭 3D',      'Clean isometric 3D render — geometric low-poly shapes, soft ambient occlusion, miniature diorama, game-art style, even studio lighting'],
+ ['3D 입체 로고·제품',    'Premium 3D product/logo render — extruded volumetric shapes, reflective glass and metal materials, studio HDRI lighting, floating composition, sharp specular highlights']
+];
+function style3dPrompt(label){ for(var i=0;i<STYLE3D.length;i++){ if(STYLE3D[i][0]===label) return STYLE3D[i][1]; } return STYLE3D[0][1]; }
+var STYLE3D_OPTS = STYLE3D.map(function(s){ return s[0]; });
 var SAMPLE_VIDS=['/videos/portfolio-01.mp4?v=3','/videos/portfolio-02.mp4?v=2','/videos/portfolio-03.mp4?v=2','/videos/marketing.mp4'];
 var POSTER='/images/marketing-hero.png';
 
@@ -2488,8 +2500,11 @@ function revoiceNode(n){
 }
 function generateImageNode(n){
   if(!n || n.w.imgGenerating) return;
+  var is3D=(n.type==='img3d'||n.type==='gen3d');
   var pn=inputNodeOf(n.id,'prompt');
-  var prompt=((pn&&pn.w&&pn.w.text)||n.w.prompt||'').trim();
+  var userPrompt=((pn&&pn.w&&pn.w.text)||n.w.prompt||'').trim();
+  var prompt=userPrompt;
+  if(is3D){ prompt=style3dPrompt(n.w.style3d)+(userPrompt?(' — 추가 지시: '+userPrompt):''); }  // 3D 스타일 지시문 + (선택)사용자 지시
   if(!prompt){ toast('프롬프트를 입력하세요 (노드 안 또는 프롬프트 노드 연결)'); return; }
   // ── 레퍼런스 최대 12장: (1) ref 포트 다중 연결 각 노드의 이미지 + (2) 이 노드에 직접 업로드한 사진 ──
   var raw=[];
@@ -2502,6 +2517,7 @@ function generateImageNode(n){
   var limit=modelRefLimit(n.w.model);
   if(raw.length>limit){ toast(n.w.model+' 모델은 레퍼런스 최대 '+limit+'장 — 앞의 '+limit+'장만 사용합니다.'); }
   raw=raw.slice(0,limit);
+  if(n.type==='img3d' && !raw.length){ toast('3D로 변환할 레퍼런스 이미지를 연결하거나 직접 업로드하세요'); return; }  // 3D 변환은 레퍼런스 필수
   var isFlux=/^Flux/.test(n.w.model||'') && !/Kontext/.test(n.w.model||'');
   var cnList=(isFlux && n.w.cnList)?n.w.cnList.slice():[];
   if(cnList.length && !raw.length){ toast('ControlNet은 레퍼런스 이미지가 필요합니다 — ref 포트에 이미지를 연결하세요'); return; }
@@ -2626,6 +2642,26 @@ var DEFS = {
                       {k:'fluxctrl',t:'fluxctrl'},
                       {k:'gen',t:'imggenbtn',label:'이미지 생성'},
                       {k:'imgout',t:'imagegenout'}] },
+ img3d:    { cat:'모델', title:'3D 변환 (레퍼런스 → 3D)', hd:'#2a2440',
+             ins:[['ref','레퍼런스 이미지 (최대 12장 · 다중 연결)','IMAGE'],['prompt','추가 지시(선택)','TEXT']],
+             outs:[['out','3D 이미지 → 레퍼런스','IMAGE']],
+             widgets:[{k:'style3d',t:'combo',label:'3D 스타일',opts:'STYLE3D',def:'3D 렌더 (CGI)'},
+                      {k:'model',t:'combo',label:'model',opts:'IMG_MODELS',def:'Nano Banana'},
+                      {k:'prompt',t:'textarea',ph:'추가 지시(선택): 예) 배경 흰색, 정면 각도\n(레퍼런스 사진을 3D로 변환합니다)'},
+                      {k:'ratio',t:'combo',label:'ratio',opts:['1:1','16:9','9:16','4:5'],def:'1:1'},
+                      {k:'refup',t:'image'},
+                      {k:'gen',t:'imggenbtn',label:'3D로 변환'},
+                      {k:'imgout',t:'imagegenout'}] },
+ gen3d:    { cat:'모델', title:'3D 이미지 생성', hd:'#243a40',
+             ins:[['prompt','프롬프트(선택)','TEXT'],['ref','레퍼런스(선택·최대 12장)','IMAGE']],
+             outs:[['out','3D 이미지 → 레퍼런스','IMAGE']],
+             widgets:[{k:'style3d',t:'combo',label:'3D 스타일',opts:'STYLE3D',def:'3D 렌더 (CGI)'},
+                      {k:'model',t:'combo',label:'model',opts:'IMG_MODELS',def:'Nano Banana'},
+                      {k:'prompt',t:'textarea',ph:'만들 3D 이미지 설명 (예: 우주를 떠다니는 전기차)\n(또는 왼쪽에 프롬프트 노드 연결)'},
+                      {k:'ratio',t:'combo',label:'ratio',opts:['1:1','16:9','9:16','4:5'],def:'1:1'},
+                      {k:'refup',t:'image'},
+                      {k:'gen',t:'imggenbtn',label:'3D 이미지 생성'},
+                      {k:'imgout',t:'imagegenout'}] },
  video:    { cat:'설정', title:'영상 설정', hd:'#3a3323', ins:[['in','생성물','GEN']], outs:[['out','영상','VIDEO']],
              widgets:[{k:'sec',t:'slider',label:'길이(초)',min:1,max:60,def:8},
                       {k:'ar',t:'combo',label:'ratio',opts:['16:9','9:16','1:1','4:5'],def:'16:9'},
@@ -2678,6 +2714,10 @@ var I18N = {
     // 노드 제목
     '프롬프트 (Positive)':'Prompt (Positive)','네거티브 프롬프트':'Negative Prompt','옴니 레퍼런스 (이미지·영상)':'Omni Reference (Image / Video)',
     '모델 선택':'Select Model','AI 모델 로더':'AI Model Loader','이미지 생성':'Image Generation','영상 설정':'Video Settings',
+    // 3D 노드
+    '3D 변환 (레퍼런스 → 3D)':'3D Convert (Reference → 3D)','3D 이미지 생성':'3D Image Generation','3D 스타일':'3D Style','3D로 변환':'Convert to 3D',
+    '레퍼런스 이미지 (최대 12장 · 다중 연결)':'Reference images (up to 12 · multi)','추가 지시(선택)':'Extra instruction (optional)','3D 이미지 → 레퍼런스':'3D image → Reference','레퍼런스(선택·최대 12장)':'References (optional · up to 12)',
+    '3D 렌더 (CGI)':'3D Render (CGI)','입체 팝아웃 (3D 효과)':'Pop-out (3D effect)','피규어·미니어처':'Figurine / Miniature','클레이·점토 3D':'Clay 3D','아이소메트릭 3D':'Isometric 3D','3D 입체 로고·제품':'3D Logo / Product',
     '출력 (영상·이미지)':'Output (Video / Image)','AI 음성 (해설·립싱크)':'AI Voice (Narration / Lipsync)','노트':'Note','프레임 추출':'Frame Extract','리라우트':'Reroute',
     // 포트 라벨
     '텍스트':'Text','이미지':'Image','영상':'Video','생성물':'Output','프레임':'Frame','모델 선택 (선택)':'Model (optional)','프롬프트':'Prompt','네거티브':'Negative',
@@ -3693,7 +3733,8 @@ canvas.addEventListener('click',function(e){
     var combo=e.target.closest('[data-combo]'), k=combo.dataset.combo;
     var wdef=DEFS[n2.type].widgets.find(function(w){return w.k===k;});
     var opts=wdef.opts==='MODELS'?MODELS.map(function(m){return m[1];})
-            :wdef.opts==='IMG_MODELS'?IMG_MODELS.map(function(m){return m[1];}):wdef.opts;
+            :wdef.opts==='IMG_MODELS'?IMG_MODELS.map(function(m){return m[1];})
+            :wdef.opts==='STYLE3D'?STYLE3D_OPTS:wdef.opts;
     var i=opts.indexOf(String(n2.w[k])); i=(i+(+cyc.dataset.cyc)+opts.length)%opts.length;
     n2.w[k]=opts[i]; combo.querySelector('.wvalue').textContent=opts[i]; autosave();
     if(k==='model'){ pruneModelPorts(); render(); }   // 모델 변경 → 미지원 포트 정리 + 재렌더
@@ -3799,7 +3840,7 @@ function openDD(anchor,n,k){
   if(wdef.opts==='MODELS' || wdef.opts==='IMG_MODELS'){
     var list=wdef.opts==='IMG_MODELS'?IMG_MODELS:MODELS, cat='';
     list.forEach(function(m){ if(m[0]!==cat){cat=m[0];html+='<div class="dh">'+cat+'</div>';} html+='<div class="di" data-v="'+esc(m[1])+'">'+esc(m[1])+'</div>'; });
-  } else wdef.opts.forEach(function(o){ html+='<div class="di" data-v="'+esc(o)+'">'+esc(o)+'</div>'; });
+  } else { var arr=(wdef.opts==='STYLE3D')?STYLE3D_OPTS:wdef.opts; arr.forEach(function(o){ html+='<div class="di" data-v="'+esc(o)+'">'+esc(o)+'</div>'; }); }
   dd.innerHTML=html;
   var r=anchor.getBoundingClientRect();
   dd.style.left=Math.min(r.left,innerWidth-230)+'px'; dd.style.top=Math.min(r.bottom+4,innerHeight-300)+'px';
