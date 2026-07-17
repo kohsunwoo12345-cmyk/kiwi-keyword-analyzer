@@ -76,6 +76,20 @@ function zipStore(files: { name: string; data: Uint8Array }[]): Uint8Array {
   return concat([...chunks, centralBytes, eocd])
 }
 
+// 시트 → CSV 문자열 (엑셀 한글용 UTF-8 BOM 포함)
+export function sheetToCsv(sh: Sheet): string {
+  const esc = (v: any) => {
+    const s = v == null ? '' : String(v)
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+  }
+  const lines = [sh.headers, ...sh.rows].map((row) => row.map(esc).join(','))
+  return String.fromCharCode(0xFEFF) + lines.join('\r\n')
+}
+// 여러 파일을 하나의 ZIP(무압축)으로 — 전체 DB를 테이블별 CSV 묶음으로 받을 때 사용
+export function zipFiles(files: { name: string; data: Uint8Array }[]): Uint8Array {
+  return zipStore(files)
+}
+
 export function buildXlsx(sheets: Sheet[]): Uint8Array {
   if (!sheets.length) sheets = [{ name: 'Sheet1', headers: ['(비어 있음)'], rows: [] }]
   const files: { name: string; data: Uint8Array }[] = []

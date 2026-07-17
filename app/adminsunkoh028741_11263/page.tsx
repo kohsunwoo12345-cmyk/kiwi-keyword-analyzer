@@ -101,6 +101,7 @@ export default function AdminDashboard() {
   const [ready, setReady] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [fmt, setFmt] = useState<'xlsx' | 'csv'>('xlsx') // DB 다운로드 형식
 
   function loadApprovals() {
     adminApprovals().then((r) => setCreditPending(r.creditRequests.filter((c) => c.status === 'pending')))
@@ -192,24 +193,39 @@ export default function AdminDashboard() {
         accent={ACCENT}
         action={
           <div className="flex flex-wrap items-center gap-2">
+            {/* 다운로드 형식 선택 (엑셀 / CSV) */}
+            <div className="inline-flex overflow-hidden rounded-lg border border-[var(--border-soft)]">
+              {(['xlsx', 'csv'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFmt(f)}
+                  className={
+                    'px-2.5 py-2 text-xs font-bold transition ' +
+                    (fmt === f ? 'bg-slate-800 text-white' : 'bg-white text-[var(--text-soft)] hover:bg-slate-50')
+                  }
+                >
+                  {f === 'xlsx' ? '엑셀' : 'CSV'}
+                </button>
+              ))}
+            </div>
             <a
-              href="/api/admin/export-db?scope=marketing"
+              href={`/api/admin/export-db?scope=marketing&format=${fmt}`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"
-              title="마케팅 수신동의(marketing) 한 회원만 엑셀로 내려받습니다"
+              title="마케팅 수신동의 회원만 내려받습니다"
             >
               <Download size={15} /> 수신동의 회원
             </a>
             <a
-              href="/api/admin/export-db?scope=members"
+              href={`/api/admin/export-db?scope=members&format=${fmt}`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
-              title="전체(일반) 회원 명단을 엑셀로 내려받습니다"
+              title="전체(일반) 회원 명단을 내려받습니다"
             >
               <Download size={15} /> 전체 회원
             </a>
             <a
-              href="/api/admin/export-db"
+              href={`/api/admin/export-db?format=${fmt}`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
-              title="주요 DB 테이블 전체를 하나의 엑셀(.xlsx)로 내려받습니다"
+              title="주요 DB 테이블 전체를 내려받습니다 (CSV는 테이블별 CSV ZIP)"
             >
               <Download size={15} /> 전체 DB
             </a>

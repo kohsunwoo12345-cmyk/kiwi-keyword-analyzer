@@ -1,5 +1,5 @@
 import { Env, ensureSchema, seedAdmin, resolveDB, requireAdminUser, logAudit, clientIp } from '../_utils'
-import { buildXlsx, type Sheet } from './_xlsx'
+import { buildXlsx, sheetToCsv, zipFiles, type Sheet } from './_xlsx'
 
 // GET /api/admin/export-db  → 주요 DB 테이블을 한 엑셀(.xlsx) 파일로 내보내기 (관리자 전용)
 const TABLES = [
@@ -61,34 +61,47 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const guard = await requireAdminUser(request, db)
   if (guard.error) return guard.error
 
-  const scope = String(new URL(request.url).searchParams.get('scope') || 'full')
+  const url = new URL(request.url)
+  const scope = String(url.searchParams.get('scope') || 'full')
+  const isCsv = String(url.searchParams.get('format') || 'xlsx') === 'csv'
   const today = new Date().toISOString().slice(0, 10)
   const admin = { id: guard.me.id, email: guard.me.email }
   const ip = clientIp(request)
-  const file = (buf: Uint8Array, fname: string) => new Response(buf, {
+  const enc = new TextEncoder()
+  const file = (buf: Uint8Array, fname: string, ct: string) => new Response(buf, {
     headers: {
-      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename="${fname}"`,
+      'Content-Type': ct,
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(fname)}`,
       'Cache-Control': 'no-store',
     },
   })
+  const XLSX_CT = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  const CSV_CT = 'text/csv; charset=utf-8'
+  // 단일 시트 응답 (엑셀 or CSV)
+  const single = (sheet: Sheet, base: string) => isCsv
+    ? file(enc.encode(sheetToCsv(sheet)), `${base}-${today}.csv`, CSV_CT)
+    : file(buildXlsx([sheet]), `${base}-${today}.xlsx`, XLSX_CT)
 
   // 수신동의(마케팅 동의) 회원만
   if (scope === 'marketing') {
     const sheet = await memberSheet(db, "role != 'admin' AND marketing_consent = 1", '수신동의회원')
-    try { await logAudit(db, admin, 'db_export', 'members-marketing', String(sheet.rows.length) + '명', 'high', ip) } catch { /* noop */ }
-    return file(buildXlsx([sheet]), `bygency-수신동의회원-${today}.xlsx`)
+    try { await logAudit(db, admin, 'db_export', 'members-marketing' + (isCsv ? '-csv' : ''), String(sheet.rows.length) + '명', 'high', ip) } catch { /* noop */ }
+    return single(sheet, 'bygency-수신동의회원')
   }
   // 전체(일반) 회원 명단
   if (scope === 'members') {
     const sheet = await memberSheet(db, "role != 'admin'", '전체회원')
-    try { await logAudit(db, admin, 'db_export', 'members-all', String(sheet.rows.length) + '명', 'high', ip) } catch { /* noop */ }
-    return file(buildXlsx([sheet]), `bygency-전체회원-${today}.xlsx`)
+    try { await logAudit(db, admin, 'db_export', 'members-all' + (isCsv ? '-csv' : ''), String(sheet.rows.length) + '명', 'high', ip) } catch { /* noop */ }
+    return single(sheet, 'bygency-전체회원')
   }
 
-  // 기본: 주요 테이블 전체 덤프
+  // 기본: 주요 테이블 전체 — 엑셀은 다중 시트, CSV는 테이블별 CSV를 ZIP으로 묶어 제공
   const sheets: Sheet[] = []
   for (const t of TABLES) { const s = await dump(db, t); if (s) sheets.push(s) }
-  try { await logAudit(db, admin, 'db_export', 'full-db', sheets.map((s) => s.name).join(','), 'high', ip) } catch { /* noop */ }
-  return file(buildXlsx(sheets), `bygency-db-${today}.xlsx`)
+  try { await logAudit(db, admin, 'db_export', 'full-db' + (isCsv ? '-csv' : ''), sheets.map((s) => s.name).join(','), 'high', ip) } catch { /* noop */ }
+  if (isCsv) {
+    const zip = zipFiles(sheets.map((s) => ({ name: s.name + '.csv', data: enc.encode(sheetToCsv(s)) })))
+    return file(zip, `bygency-db-${today}-csv.zip`, 'application/zip')
+  }
+  return file(buildXlsx(sheets), `bygency-db-${today}.xlsx`, XLSX_CT)
 }
