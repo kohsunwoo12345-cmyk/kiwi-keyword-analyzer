@@ -1,4 +1,4 @@
-import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser, CREDIT_KRW } from '../_utils'
+import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser, CREDIT_KRW, planPriceKrw } from '../_utils'
 
 const r2 = (n: number) => Math.round(n) // 원 단위 반올림
 
@@ -36,6 +36,73 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         plan: u.plan || '없음',
         videoPlan: u.video_plan || '없음',
       })),
+    })
+  }
+
+  // ── 지사 상세: 대표의 추천코드로 가입한 하위 회원 전원 + 결제(KST)/사용량 ──
+  const branchQ = url.searchParams.get('branch')
+  if (branchQ !== null) {
+    const branch: any = await db.prepare('SELECT * FROM branches WHERE id = ?').bind(branchQ).first()
+    if (!branch) return json({ ok: false, error: '지사를 찾을 수 없습니다.' }, 404)
+    const ownerId = branch.owner_id || ''
+    const owner: any = ownerId ? await db.prepare('SELECT id, name, email, referral_code FROM users WHERE id = ?').bind(ownerId).first() : null
+    const percent = Number(branch.percent) || 0
+    const costRate = Number(branch.cost_rate) || 0
+
+    const members: any[] = ownerId
+      ? ((await db.prepare("SELECT id, name, email, plan, video_plan, credits, created_at FROM users WHERE referred_by = ? AND id != ? ORDER BY created_at DESC LIMIT 500").bind(ownerId, ownerId).all()).results || [])
+      : []
+    const ids = members.map((m) => m.id)
+
+    // 정산 대상 결제(첫 유료) — referral_rewards
+    const rewards: any[] = ownerId ? ((await db.prepare('SELECT * FROM referral_rewards WHERE referrer_id = ?').bind(ownerId).all()).results || []) : []
+    const rewardByFriend = new Map<string, any>()
+    for (const rw of rewards) rewardByFriend.set(rw.friend_id, rw)
+
+    // 플랜 결제(승인) 이력 + AI 사용량 — 하위 회원 대상
+    const planByUser = new Map<string, any[]>()
+    const usageByUser = new Map<string, any>()
+    if (ids.length) {
+      const ph = ids.map(() => '?').join(',')
+      const planRows: any[] = (await db.prepare(`SELECT user_id, track, to_plan, decided_at FROM plan_requests WHERE status='approved' AND user_id IN (${ph}) ORDER BY decided_at DESC`).bind(...ids).all()).results || []
+      for (const p of planRows) {
+        const arr = planByUser.get(p.user_id) || []
+        arr.push({ track: p.track === 'video' ? 'video' : 'marketer', plan: p.to_plan, priceKrw: planPriceKrw(p.track, p.to_plan), at: p.decided_at })
+        planByUser.set(p.user_id, arr)
+      }
+      const useRows: any[] = (await db.prepare(`SELECT user_id, COUNT(*) c, SUM(credits) cr, SUM(cost_krw) ck, MAX(created_at) last FROM ai_usage WHERE user_id IN (${ph}) GROUP BY user_id`).bind(...ids).all()).results || []
+      for (const u of useRows) usageByUser.set(u.user_id, { count: Number(u.c) || 0, credits: Number(u.cr) || 0, costKrw: Number(u.ck) || 0, lastAt: u.last || '' })
+    }
+
+    const memberOut = members.map((m) => {
+      const rw = rewardByFriend.get(m.id)
+      const gross = rw ? Number(rw.price_krw) || 0 : 0
+      const rewardKrw = rw ? r2((Number(rw.reward_credits) || 0) * CREDIT_KRW) : 0
+      const net = rw ? Math.max(0, r2(gross * (1 - costRate / 100)) - rewardKrw) : 0
+      const owed = r2((net * percent) / 100)
+      return {
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        plan: m.plan || '없음',
+        videoPlan: m.video_plan || '없음',
+        credits: Number(m.credits) || 0,
+        createdAt: m.created_at,
+        firstPaid: rw ? { track: rw.track === 'video' ? 'video' : 'marketer', plan: rw.plan, priceKrw: gross, at: rw.created_at } : null,
+        planEvents: planByUser.get(m.id) || [],
+        usage: usageByUser.get(m.id) || { count: 0, credits: 0, costKrw: 0, lastAt: '' },
+        grossKrw: gross,
+        rewardKrw,
+        netProfitKrw: net,
+        owedKrw: owed,
+      }
+    })
+
+    return json({
+      ok: true,
+      branch: { id: branch.id, name: branch.name, ownerId, ownerName: owner?.name || (ownerId ? '(탈퇴/미상)' : ''), ownerEmail: owner?.email || '', ownerCode: owner?.referral_code || '', percent, costRate },
+      memberCount: members.length,
+      members: memberOut,
     })
   }
 

@@ -350,6 +350,26 @@ export async function adminSettlementUsers(q = ''): Promise<{ ok: boolean; users
     return await r.json()
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
+export interface SettlementPlanEvent { track: string; plan: string; priceKrw: number; at: string }
+export interface BranchMember {
+  id: string; name: string; email: string; plan: string; videoPlan: string; credits: number; createdAt: string
+  firstPaid: SettlementPlanEvent | null
+  planEvents: SettlementPlanEvent[]
+  usage: { count: number; credits: number; costKrw: number; lastAt: string }
+  grossKrw: number; rewardKrw: number; netProfitKrw: number; owedKrw: number
+}
+export interface BranchDetail {
+  ok: boolean; error?: string
+  branch?: { id: string; name: string; ownerId: string; ownerName: string; ownerEmail: string; ownerCode: string; percent: number; costRate: number }
+  memberCount?: number
+  members?: BranchMember[]
+}
+export async function adminSettlementBranch(branchId: string): Promise<BranchDetail> {
+  try {
+    const r = await fetch(`/api/admin/settlement?branch=${encodeURIComponent(branchId)}`, { credentials: 'include' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
 export async function adminSettlementAction(
   action: 'create_branch' | 'update_branch' | 'delete_branch' | 'set_owner' | 'settle' | 'delete_settlement',
   payload: Record<string, unknown> = {},

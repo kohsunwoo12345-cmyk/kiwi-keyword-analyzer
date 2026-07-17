@@ -23,8 +23,10 @@ import {
   adminSettlement,
   adminSettlementAction,
   adminSettlementUsers,
+  adminSettlementBranch,
   type AdminSettlement,
   type SettlementUser,
+  type BranchDetail,
 } from '@/lib/auth'
 import { kstLong } from '@/lib/time'
 import { cn } from '@/lib/utils'
@@ -52,6 +54,19 @@ export default function AdminSettlementPage() {
   const [settleAmt, setSettleAmt] = useState<Record<string, string>>({})
   const [settleNote, setSettleNote] = useState<Record<string, string>>({})
   const [ownerEditing, setOwnerEditing] = useState<string | null>(null)
+
+  // 지사 상세(하위 회원 결제/사용량)
+  const [detailOpen, setDetailOpen] = useState<string | null>(null)
+  const [detail, setDetail] = useState<BranchDetail | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  function toggleDetail(branchId: string) {
+    if (detailOpen === branchId) { setDetailOpen(null); setDetail(null); return }
+    setDetailOpen(branchId)
+    setDetail(null)
+    setDetailLoading(true)
+    adminSettlementBranch(branchId).then((r) => { setDetail(r); setDetailLoading(false) })
+  }
 
   function reload() {
     setLoading(true)
@@ -222,7 +237,15 @@ export default function AdminSettlementPage() {
                           <Wallet size={14} /> 정산 지급 기록
                         </Button>
                         <span className="text-xs text-[var(--text-dim)]">누적 정산 {won(b.settledKrw)}</span>
+                        <button className="ml-auto text-xs font-semibold text-sky-600 hover:underline" onClick={() => toggleDetail(b.id)}>
+                          {detailOpen === b.id ? '상세 기록 닫기 ▲' : '상세 기록 보기 ▼'}
+                        </button>
                       </div>
+
+                      {/* 하위 회원 상세(아이디·결제 KST·플랜·사용량) */}
+                      {detailOpen === b.id && (
+                        <BranchDetailTable loading={detailLoading} detail={detailOpen === detail?.branch?.id ? detail : null} />
+                      )}
                     </div>
                   )
                 })}
@@ -396,6 +419,82 @@ function Mini({ label, value, accent }: { label: string; value: string; accent?:
     <div className="rounded-lg bg-slate-50 px-3 py-2">
       <div className="text-[11px] text-[var(--text-dim)]">{label}</div>
       <div className={cn('mt-0.5 font-semibold', accent || 'text-[var(--text)]')}>{value}</div>
+    </div>
+  )
+}
+
+function BranchDetailTable({ loading, detail }: { loading: boolean; detail: BranchDetail | null }) {
+  if (loading || !detail) {
+    return <div className="mt-3 border-t border-[var(--border-soft)] pt-3 text-center text-sm text-[var(--text-dim)]">{loading ? '상세 기록 불러오는 중…' : '불러오지 못했습니다.'}</div>
+  }
+  const b = detail.branch
+  const members = detail.members || []
+  if (!b?.ownerId) return <div className="mt-3 border-t border-[var(--border-soft)] pt-3 text-center text-sm text-amber-600">대표 계정을 먼저 지정하세요. 대표의 추천코드로 가입한 회원만 집계됩니다.</div>
+  return (
+    <div className="mt-3 border-t border-[var(--border-soft)] pt-3">
+      <div className="mb-2 text-xs text-[var(--text-dim)]">
+        대표 <b className="text-[var(--text)]">{b.ownerName}</b> ({b.ownerEmail}) · 추천코드 <b className="text-violet-600">{b.ownerCode || '없음'}</b> · 하위 회원 <b>{detail.memberCount}명</b> · 지급률 {b.percent}% · 원가율 {b.costRate}%
+      </div>
+      {members.length === 0 ? (
+        <p className="py-6 text-center text-sm text-[var(--text-dim)]">이 대표의 추천코드로 가입한 회원이 아직 없습니다.</p>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-[var(--border-soft)]">
+          <table className="w-full min-w-[980px] text-xs">
+            <thead>
+              <tr className="border-b border-[var(--border-soft)] bg-slate-50 text-left text-[var(--text-dim)]">
+                <th className="px-3 py-2 font-medium">회원 · 아이디</th>
+                <th className="px-3 py-2 font-medium">이메일</th>
+                <th className="px-3 py-2 font-medium">현재 플랜</th>
+                <th className="px-3 py-2 font-medium">가입일(KST)</th>
+                <th className="px-3 py-2 font-medium">정산 결제(첫 유료·KST)</th>
+                <th className="px-3 py-2 font-medium">플랜 결제 이력(KST)</th>
+                <th className="px-3 py-2 font-medium">AI 사용</th>
+                <th className="px-3 py-2 font-medium">순수익</th>
+                <th className="px-3 py-2 font-medium">지급액</th>
+              </tr>
+            </thead>
+            <tbody>
+              {members.map((m) => (
+                <tr key={m.id} className="border-b border-[var(--border-soft)] last:border-0 align-top hover:bg-slate-50">
+                  <td className="px-3 py-2">
+                    <div className="font-semibold">{m.name}</div>
+                    <div className="font-mono text-[10px] text-[var(--text-dim)]">{m.id}</div>
+                  </td>
+                  <td className="px-3 py-2 text-[var(--text-soft)]">{m.email}</td>
+                  <td className="px-3 py-2">
+                    <div>마케터 {m.plan}</div>
+                    <div className="text-[var(--text-dim)]">영상 {m.videoPlan}</div>
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-[var(--text-soft)]">{kstLong(m.createdAt)}</td>
+                  <td className="px-3 py-2">
+                    {m.firstPaid ? (
+                      <div>
+                        <div className="font-medium">{planLabel(m.firstPaid.track, m.firstPaid.plan)} · {won(m.firstPaid.priceKrw)}</div>
+                        <div className="whitespace-nowrap text-[var(--text-dim)]">{kstLong(m.firstPaid.at)}</div>
+                      </div>
+                    ) : <span className="text-[var(--text-dim)]">미결제</span>}
+                  </td>
+                  <td className="px-3 py-2">
+                    {m.planEvents.length === 0 ? <span className="text-[var(--text-dim)]">—</span> : (
+                      <div className="space-y-0.5">
+                        {m.planEvents.map((p, i) => (
+                          <div key={i} className="whitespace-nowrap">{planLabel(p.track, p.plan)} · {won(p.priceKrw)} <span className="text-[var(--text-dim)]">{kstLong(p.at)}</span></div>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <div>{m.usage.count}건 · {m.usage.credits}C</div>
+                    <div className="text-[var(--text-dim)]">{won(m.usage.costKrw)}{m.usage.lastAt ? ` · ${kstLong(m.usage.lastAt)}` : ''}</div>
+                  </td>
+                  <td className="px-3 py-2 font-medium text-emerald-600">{won(m.netProfitKrw)}</td>
+                  <td className="px-3 py-2 font-medium text-sky-600">{won(m.owedKrw)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
