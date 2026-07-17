@@ -4506,6 +4506,26 @@ function loadAllForUser(){ loadApiConfig(); loadCostLog(); updateCostChip(); upd
     .catch(function(){ loadAllForUser(); });   // /api/me 네트워크 실패 시 게스트로라도 동작(락아웃 방지)
 })();
 
+/* 회원가입 직후(?welcome=1) — 요금제 활성화 유도 오버레이 */
+(function(){
+  try{
+    if(new URLSearchParams(location.search).get('welcome')!=='1') return;
+    var ov=document.createElement('div'); ov.id='welcomeOv';
+    ov.style.cssText='position:fixed;inset:0;z-index:9500;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(8,7,12,.74);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);';
+    ov.innerHTML='<div style="width:100%;max-width:440px;border-radius:20px;border:1px solid rgba(139,92,246,.32);background:linear-gradient(180deg,#171226,#111019);box-shadow:0 30px 80px -20px rgba(0,0,0,.8);padding:30px 26px;color:#e9e3f6;text-align:center;font-family:inherit;">'+
+      '<div style="width:64px;height:64px;margin:0 auto 12px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:32px;background:rgba(139,92,246,.16);border:1px solid rgba(139,92,246,.3);">🎬</div>'+
+      '<div style="font-size:21px;font-weight:800;letter-spacing:-.01em;">BYGENCY에 오신 걸 환영합니다!</div>'+
+      '<p style="margin:11px 0 2px;font-size:13.5px;line-height:1.75;color:#a9a2bd;">노드형 AI 스튜디오에 바로 입장했어요.<br>영상·이미지를 생성하려면 <b style="color:#c3a8ff">요금제를 활성화</b>해 크레딧을 받으세요.</p>'+
+      '<a href="/pricing" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:20px;padding:13px;border-radius:12px;background:linear-gradient(135deg,#7c5cff,#a855f7);color:#fff;font-size:14px;font-weight:700;text-decoration:none;box-shadow:0 8px 24px -6px rgba(139,92,246,.5);">요금제 활성화하기 →</a>'+
+      '<button id="welcomeSkip" style="margin-top:10px;width:100%;padding:11px;border-radius:12px;border:1px solid #2c2f3a;background:transparent;color:#9a93ac;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">먼저 스튜디오 둘러볼게요</button>'+
+      '</div>';
+    function close(){ if(ov.parentNode)ov.parentNode.removeChild(ov); try{ var u=new URL(location.href); u.searchParams.delete('welcome'); history.replaceState(null,'',u.pathname+(u.search||'')); }catch(e){} }
+    ov.addEventListener('click',function(e){ if(e.target===ov)close(); });
+    function mount(){ document.body.appendChild(ov); var sk=document.getElementById('welcomeSkip'); if(sk)sk.addEventListener('click',close); }
+    if(document.body)mount(); else document.addEventListener('DOMContentLoaded',mount);
+  }catch(e){}
+})();
+
 /* 로드/폰트 확정 후 링크 재계산 (첫 접속 시 레이아웃 늦음으로 인한 노드 끊김 방지) */
 function nvRelink(){ try{ drawLinks(); drawMinimap(); }catch(e){} }
 requestAnimationFrame(function(){ requestAnimationFrame(nvRelink); });

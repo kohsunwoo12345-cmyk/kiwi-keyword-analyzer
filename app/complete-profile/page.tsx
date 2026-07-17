@@ -103,7 +103,9 @@ export default function CompleteProfilePage() {
         setLoading(false)
         return
       }
-      router.replace(res.user.role === 'admin' ? '/adminsunkoh028741_11263' : '/dashboard_USE17237_612')
+      // 회원가입 완료 → 대시보드가 아니라 노드형 스튜디오로 바로 입장 + 요금제 활성화 유도
+      if (res.user.role === 'admin') router.replace('/adminsunkoh028741_11263')
+      else window.location.replace('/studio-nvc-prv-8b3k2/?welcome=1')
     })()
   }
 
