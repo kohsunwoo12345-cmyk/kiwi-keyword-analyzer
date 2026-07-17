@@ -32,6 +32,7 @@ export default function DashboardHome() {
     [tx],
   )
   const name = user?.name || '마케터'
+  const hasPlan = user?.role === 'admin' || user?.hasPlan === 1
 
   // 최근 14일 크레딧 사용 추이 (실데이터)
   const trend = useMemo(() => {
@@ -61,15 +62,36 @@ export default function DashboardHome() {
         title={`안녕하세요, ${name}님 👋`}
         desc="내 계정의 실제 크레딧·활동 현황입니다."
         action={
-          <Button href="/dashboard_USE17237_612/credits" size="sm">
-            크레딧 충전 <ArrowRight size={16} />
-          </Button>
+          hasPlan ? (
+            <Button href="/dashboard_USE17237_612/credits" size="sm">
+              크레딧 충전 <ArrowRight size={16} />
+            </Button>
+          ) : undefined
         }
       />
 
       <div className="space-y-6 p-6 lg:p-8">
-        {/* 노드형 영상 스튜디오 바로가기 — 영상/둘 다 선택 회원 */}
-        {(user?.products === 'both' || user?.products === 'video' || user?.role === 'admin') && (
+        {/* 플랜 미보유 → 요금제 활성화 유도 (도구는 숨김, 홈만 노출) */}
+        {ready && !hasPlan && (
+          <div className="relative flex flex-col items-start justify-between gap-4 overflow-hidden rounded-2xl border border-violet-500/25 bg-gradient-to-br from-violet-600/15 to-fuchsia-600/10 p-6 sm:flex-row sm:items-center">
+            <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-56 rounded-full bg-violet-500/20 blur-[70px]" />
+            <div className="relative">
+              <h3 className="text-base font-bold">아직 요금제가 없습니다</h3>
+              <p className="mt-1 text-sm text-[var(--text-soft)]">
+                요금제를 활성화하면 마케팅 도구와 노드형 AI 영상 제작을 모두 사용할 수 있어요.
+              </p>
+            </div>
+            <Link
+              href="/activate"
+              className="relative inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 px-5 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
+            >
+              바로 요금제를 활성화해 주세요 <ArrowRight size={15} />
+            </Link>
+          </div>
+        )}
+
+        {/* 노드형 영상 스튜디오 바로가기 — 유료 플랜 + 영상/둘 다 선택 회원 */}
+        {hasPlan && (user?.products === 'both' || user?.products === 'video' || user?.role === 'admin') && (
           <a
             href="/studio-nvc-prv-8b3k2/"
             className="group relative flex items-center justify-between gap-4 overflow-hidden rounded-2xl border border-violet-500/25 bg-gradient-to-br from-violet-600/15 to-fuchsia-600/10 p-5 transition hover:border-violet-500/50"
@@ -145,24 +167,26 @@ export default function DashboardHome() {
           </Panel>
         </div>
 
-        {/* feature quick links */}
-        <div>
-          <h3 className="mb-4 font-semibold">마케팅 도구 바로가기</h3>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {FEATURES.map((f) => {
-              const Icon = f.icon
-              return (
-                <Link key={f.slug} href={`/dashboard_USE17237_612/${f.slug}`} className="group card hover-lift p-5">
-                  <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${f.color}`}>
-                    <Icon size={18} className="text-white" />
-                  </div>
-                  <h4 className="mt-3 text-sm font-semibold">{f.title}</h4>
-                  <p className="mt-1 line-clamp-2 text-xs text-[var(--text-soft)]">{f.desc}</p>
-                </Link>
-              )
-            })}
+        {/* feature quick links — 유료 플랜에서만 노출 */}
+        {hasPlan && (
+          <div>
+            <h3 className="mb-4 font-semibold">마케팅 도구 바로가기</h3>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {FEATURES.map((f) => {
+                const Icon = f.icon
+                return (
+                  <Link key={f.slug} href={`/dashboard_USE17237_612/${f.slug}`} className="group card hover-lift p-5">
+                    <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${f.color}`}>
+                      <Icon size={18} className="text-white" />
+                    </div>
+                    <h4 className="mt-3 text-sm font-semibold">{f.title}</h4>
+                    <p className="mt-1 line-clamp-2 text-xs text-[var(--text-soft)]">{f.desc}</p>
+                  </Link>
+                )
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )

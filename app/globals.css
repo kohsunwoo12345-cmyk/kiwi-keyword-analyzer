@@ -492,3 +492,31 @@ body {
   }
   .orbit-item { transform: translate(-50%, -50%) rotate(var(--a, 0deg)) translateX(var(--r)) rotate(calc(-1 * var(--a, 0deg))); }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   대시보드 테마 (라이트/다크 전환)
+   .dash-shell 에 .site-light 또는 .site-dark 클래스를 부여하면 토큰이 재매핑되고,
+   토큰을 쓰지 않고 하드코딩된 라이트 유틸리티(bg-white·slate·violet-50 등)는
+   아래 스코프 규칙으로 다크 토큰에 매핑된다. (라이트는 기본값이라 재정의 없음)
+   ═══════════════════════════════════════════════════════════════════════ */
+.dash-shell.site-dark { color: var(--text); background: var(--bg); }
+.dash-shell.site-dark .bg-white { background-color: var(--bg-soft) !important; }
+.dash-shell.site-dark .bg-slate-50,
+.dash-shell.site-dark .bg-slate-100 { background-color: var(--panel-2) !important; }
+.dash-shell.site-dark .bg-slate-200,
+.dash-shell.site-dark .bg-slate-300 { background-color: rgba(255, 255, 255, 0.13) !important; }
+.dash-shell.site-dark .hover\:bg-slate-50:hover,
+.dash-shell.site-dark .hover\:bg-slate-100:hover { background-color: rgba(255, 255, 255, 0.06) !important; }
+.dash-shell.site-dark .hover\:bg-slate-800:hover { background-color: rgba(255, 255, 255, 0.12) !important; }
+.dash-shell.site-dark .bg-violet-50,
+.dash-shell.site-dark .hover\:bg-violet-50\/50:hover { background-color: rgba(139, 92, 246, 0.16) !important; }
+.dash-shell.site-dark .text-slate-800,
+.dash-shell.site-dark .text-slate-700 { color: var(--text) !important; }
+.dash-shell.site-dark .text-slate-600,
+.dash-shell.site-dark .text-slate-500 { color: var(--text-soft) !important; }
+.dash-shell.site-dark .text-slate-400,
+.dash-shell.site-dark .text-slate-300 { color: var(--text-dim) !important; }
+.dash-shell.site-dark .text-violet-700 { color: #c4b5fd !important; }
+.dash-shell.site-dark .border-slate-200,
+.dash-shell.site-dark .border-slate-300 { border-color: var(--border) !important; }
+.dash-shell.site-dark .from-violet-50 { --tw-gradient-from: rgba(139, 92, 246, 0.13) var(--tw-gradient-from-position) !important; }

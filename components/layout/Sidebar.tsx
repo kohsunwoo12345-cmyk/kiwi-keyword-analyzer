@@ -4,10 +4,11 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Menu, X, ChevronDown, LogOut, Shield } from 'lucide-react'
+import { Menu, X, ChevronDown, LogOut, Shield, Moon, Sun, Sparkles } from 'lucide-react'
 import { NAV_HOME, NAV_CATEGORIES, type NavCategory } from '@/lib/nav'
 import { Logo } from '@/components/Brand'
 import { useAuth, logout } from '@/lib/auth'
+import { useDashTheme } from '@/components/dash/DashThemeProvider'
 import { cn } from '@/lib/utils'
 
 function useActiveCat(pathname: string | null) {
@@ -16,6 +17,8 @@ function useActiveCat(pathname: string | null) {
 
 function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
+  const { user } = useAuth()
+  const hasPlan = user?.role === 'admin' || user?.hasPlan === 1
   const activeCat = useActiveCat(pathname)
   const [open, setOpen] = useState<Record<string, boolean>>(
     activeCat ? { [activeCat]: true } : {},
@@ -49,20 +52,36 @@ function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
         홈
       </Link>
 
-      <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-widest text-[var(--text-dim)]">
-        마케팅 도구
-      </p>
+      {hasPlan ? (
+        <>
+          <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-widest text-[var(--text-dim)]">
+            마케팅 도구
+          </p>
 
-      {NAV_CATEGORIES.map((cat) => (
-        <CategoryBlock
-          key={cat.id}
-          cat={cat}
-          open={!!open[cat.id]}
-          onToggle={() => toggle(cat.id)}
-          pathname={pathname}
-          onNavigate={onNavigate}
-        />
-      ))}
+          {NAV_CATEGORIES.map((cat) => (
+            <CategoryBlock
+              key={cat.id}
+              cat={cat}
+              open={!!open[cat.id]}
+              onToggle={() => toggle(cat.id)}
+              pathname={pathname}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </>
+      ) : (
+        /* 플랜 미보유 → 도구 숨김, 요금제 활성화 유도만 노출 */
+        <Link
+          href="/activate"
+          onClick={onNavigate}
+          className="mt-4 flex items-center gap-2.5 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2.5 text-sm font-semibold text-violet-600 transition hover:bg-violet-500/15"
+        >
+          <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg brand-gradient text-white">
+            <Sparkles size={14} />
+          </span>
+          요금제 활성화하기
+        </Link>
+      )}
     </nav>
   )
 }
@@ -188,6 +207,34 @@ export function Sidebar() {
   )
 }
 
+function ThemeToggle() {
+  const { theme, setTheme } = useDashTheme()
+  return (
+    <div className="flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-1">
+      <button
+        onClick={() => setTheme('light')}
+        className={cn(
+          'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors',
+          theme === 'light' ? 'bg-white text-slate-800 shadow-sm' : 'text-[var(--text-dim)] hover:text-[var(--text-soft)]',
+        )}
+        aria-pressed={theme === 'light'}
+      >
+        <Sun size={13} /> 라이트
+      </button>
+      <button
+        onClick={() => setTheme('dark')}
+        className={cn(
+          'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors',
+          theme === 'dark' ? 'bg-slate-900 text-white shadow-sm' : 'text-[var(--text-dim)] hover:text-[var(--text-soft)]',
+        )}
+        aria-pressed={theme === 'dark'}
+      >
+        <Moon size={13} /> 다크
+      </button>
+    </div>
+  )
+}
+
 function UserFooter() {
   const router = useRouter()
   const { user } = useAuth()
@@ -196,6 +243,7 @@ function UserFooter() {
 
   return (
     <div className="space-y-2 border-t border-[var(--border)] p-3">
+      <ThemeToggle />
       {user?.role === 'admin' && (
         <Link
           href="/adminsunkoh028741_11263"
