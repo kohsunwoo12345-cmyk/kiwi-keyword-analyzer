@@ -879,6 +879,107 @@ textarea.wtext.code::placeholder{ color:#5a5c66; }
 .health-row .hr-ok{ background:#14331f; color:#7fe0a6; border-color:#2e6b4d; }
 .health-row .hr-no{ background:#3a1c1c; color:#ff9b9b; border-color:#6a2b2b; }
 .health-row .hr-run{ background:#33301a; color:#e6cf7f; border-color:#6a5f2b; }
+
+/* ============================================================
+   HIGGSFIELD 캔버스 스킨 — 딥블랙 + 바이올렛 글래스
+   기하학(노드 위치/포트/선 연결)은 그대로. 색·배경·보더·그림자만 재정의.
+   ★ #edges (노드 선 연결) 렌더링은 건드리지 않음.
+   ============================================================ */
+:root{
+  --w-bg:#08070c;
+  --w-surface:#151221;
+  --w-border:#272233;
+  --w-border-2:#342c44;
+  --w-text:#f3f1f8;
+  --w-text-2:#a49fb4;
+  --w-text-3:#6e687d;
+  --w-accent:#8b5cf6;
+  --w-hover:#241d31;
+  --w-field:#1b1626;
+  --hf-accent:#8b5cf6;
+  --hf-accent-2:#c084fc;
+  --hf-glow:rgba(139,92,246,.38);
+  --w-shadow:0 1px 2px rgba(0,0,0,.5),0 12px 34px rgba(0,0,0,.55);
+  --w-shadow-lg:0 28px 70px rgba(0,0,0,.66);
+}
+html,body{ background:var(--w-bg); }
+
+/* 캔버스 — 딥블랙 + 은은한 바이올렛 앰비언스 + 파인 도트 그리드 */
+#canvas{ background-color:#08070c;
+  background-image:
+    radial-gradient(1200px 680px at 18% -12%, rgba(124,92,246,.13), transparent 60%),
+    radial-gradient(1000px 620px at 92% 112%, rgba(192,132,252,.08), transparent 62%),
+    radial-gradient(circle, rgba(255,255,255,.055) 1px, transparent 1px);
+  background-size:auto, auto, 24px 24px;
+  background-position:0 0, 0 0, 0 0; }
+
+/* 상단바 · 레일 — 글래스 */
+.top{ background:rgba(15,12,21,.82); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--w-border); }
+.top-logo i{ background:linear-gradient(135deg,var(--hf-accent),var(--hf-accent-2)); border-radius:3px;
+  box-shadow:0 0 9px var(--hf-glow); }
+#studioVer{ color:#c9b6ff !important; background:rgba(139,92,246,.18); }
+#rail{ background:rgba(15,12,21,.9); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border-right:1px solid var(--w-border); }
+#rail button:hover{ background:var(--w-hover); color:#e9e3f6; }
+#rail button.on{ background:rgba(139,92,246,.16); color:#d9ccff; }
+
+/* 노드 — 바이올렛 틴트 글래스 카드 · 소프트 글로우 */
+.node{ background:linear-gradient(180deg,#1a1626,#141019);
+  border:1px solid var(--w-border-2); border-radius:16px;
+  box-shadow:0 1px 0 rgba(255,255,255,.035) inset, 0 14px 36px rgba(0,0,0,.55); }
+.node:hover{ border-color:#453a59; }
+.node.sel{ outline:none; border-color:var(--w-accent);
+  box-shadow:0 0 0 1px var(--w-accent), 0 0 30px -4px var(--hf-glow), 0 14px 36px rgba(0,0,0,.55); }
+/* 노드 타이틀 — 타입별 색(--hd) 유지하되 그라디언트 시트로 고급화 */
+.node-title{
+  background:linear-gradient(180deg,
+    color-mix(in srgb, var(--hd,#8b5cf6) 30%, #1d1828),
+    color-mix(in srgb, var(--hd,#8b5cf6) 9%, #161221));
+  border-bottom:1px solid color-mix(in srgb, var(--hd,#8b5cf6) 24%, #241f30);
+  color:#f3f1f8; font-weight:600; }
+.node.collapsed .node-title{ border-bottom:none; }
+.node .nid{ color:color-mix(in srgb, var(--hd,#a78bfa) 55%, #b9a8e6); }
+.node-dot{ border-color:#5a5170; }
+.node-dot:hover{ background:var(--w-accent); border-color:var(--w-accent); }
+
+/* 포트 — 바이올렛 링 호버 */
+.port{ border:2px solid #141019; box-shadow:0 0 0 1px #3a3348; }
+.port:hover{ box-shadow:0 0 0 1px var(--w-accent), 0 0 11px -1px var(--hf-glow); }
+
+/* 위젯/필드 — 바이올렛 포커스 */
+.widget{ background:var(--w-field); border:1px solid var(--w-border-2); border-radius:11px; }
+.widget input[type=range]{ background:#3a3348; }
+.widget input[type=range]::-webkit-slider-thumb{ background:var(--w-accent); }
+.widget input[type=range]::-moz-range-thumb{ background:var(--w-accent); }
+textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewrap:focus-within{ border-color:var(--w-accent); }
+.codebar .cglyph{ color:#a78bfa; }
+.wbtn:hover{ background:#332b42; }
+
+/* 실행 중 노드 · 하이라이트 — 바이올렛(그린 대신) */
+.node.exec{ outline:2px solid var(--hf-accent-2); box-shadow:0 0 26px -4px var(--hf-glow), 0 14px 36px rgba(0,0,0,.55); }
+.node-prog{ background:linear-gradient(90deg,var(--hf-accent),var(--hf-accent-2)); }
+
+/* 실행 큐 버튼 — 시그니처 바이올렛 그라디언트 */
+.queue-btn{ background:linear-gradient(135deg,#7c5cff,#a855f7); box-shadow:0 4px 18px -3px var(--hf-glow); }
+.queue-btn:hover{ background:linear-gradient(135deg,#8b6bff,#b866ff); filter:brightness(1.03); }
+
+/* 미니맵/힌트/줌 — 글래스 */
+#minimap{ background:rgba(17,13,24,.94); border:1px solid var(--w-border); }
+#hint{ background:rgba(20,16,28,.94); border:1px solid var(--w-border); }
+#zoomBadge{ background:rgba(20,16,28,.95); border:1px solid var(--w-border); }
+#toast{ background:#221c30; border:1px solid var(--w-border-2); }
+
+/* 우하단 FAB */
+#fabs button{ background:rgba(21,18,33,.92); border:1px solid var(--w-border-2); }
+#fabs button:hover{ color:#e9e3f6; border-color:#453a59; }
+
+/* 모달 액센트 버튼 (이미 --w-accent 사용) — 그라디언트로 격상 */
+.api-save,.flow-load{ background:linear-gradient(135deg,#7c5cff,#a855f7); box-shadow:0 3px 12px -2px var(--hf-glow); }
+.api-save:hover,.flow-load:hover{ filter:brightness(1.06); }
+
+/* 선택 박스 · 검색/드롭다운 하이라이트 (--w-accent 자동 반영) */
+#selbox{ border:1px dashed var(--w-accent); background:rgba(139,92,246,.10); }
 </style>
 </head>
 <body>
