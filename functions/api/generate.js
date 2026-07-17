@@ -26,6 +26,19 @@ function keys(env) {
     openai: pick(env, ["GPT_API_KEY", "OPENAI_API_KEY", "gpt_api_key", "openai_api_key"])
   };
 }
+/* R2 버킷 자동 감지 (업로드/media 호스팅과 동일 규칙) */
+function r2BucketOf(env) {
+  for (const name of ["MEDIA", "BUCKET", "R2", "R2_BUCKET", "STORAGE", "ASSETS",
+                      "media", "bucket", "r2", "storage", "MEDIA_BUCKET", "UPLOADS", "uploads"]) {
+    const v = env[name];
+    if (v && typeof v.put === "function" && typeof v.get === "function") return v;
+  }
+  for (const kk in env) { const v = env[kk];
+    if (v && typeof v.put === "function" && typeof v.get === "function" &&
+        (typeof v.createMultipartUpload === "function" || typeof v.head === "function")) return v; }
+  return null;
+}
+
 /* ── GCP 서비스 계정 OAuth2 (Vertex AI 정식 인증 — 지역 무관) ── */
 export function gcpCreds(env) {
   // 방법 A: 세 개의 개별 변수
@@ -1326,6 +1339,48 @@ async function handle(context) {
     }
 
     return json({ error: "V2V(영상→영상)를 하려면 Runway·Seedance(최고정확도) 또는 Kling·fal 중 하나 이상의 키가 필요합니다." }, 500);
+  }
+
+  /* 나레이션(AI 음성 해설) 합성 — 대본→TTS 음성 생성 후 원본 영상에 오디오 트랙을 입힘.
+     ① /api/tts/v2/speak 로 음성(mp3) 합성 → R2 호스팅  ② fal ffmpeg 로 영상+음성 병합. */
+  if (provider === "narrate") {
+    if (!k.fal) return json({ error: "나레이션 합성에는 FAL_API_KEY(영상·음성 병합)이 필요합니다." }, 500);
+    const videoUrl = String(b.videoUrl || b.srcVideo || "").trim();
+    if (!/^https?:\/\//.test(videoUrl))
+      return json({ error: "나레이션을 입힐 영상의 공개 URL이 필요합니다. (출력 노드의 영상을 나레이션 노드에 연결하세요)" }, 400);
+    const origin = new URL(request.url).origin;
+    let audioUrl = String(b.audioUrl || "").trim();
+    if (!/^https?:\/\//.test(audioUrl)) {
+      const text = String(b.text || b.narration || "").trim();
+      if (!text) return json({ error: "나레이션 대본(텍스트)을 입력하세요." }, 400);
+      // 자체 다중엔진 TTS(Google/OpenAI/ElevenLabs) 호출 → mp3 바이트
+      const tr = await fetchT(origin + "/api/tts/v2/speak", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text.slice(0, 4000), voice_id: b.voice || "gtts:ko-KR-Neural2-A", speaking_rate: Number(b.rate) || 1.0 })
+      }, 60000);
+      const ctt = (tr.headers.get("content-type") || "").toLowerCase();
+      if (!tr.ok || /json/.test(ctt)) {
+        let em = ""; try { em = /json/.test(ctt) ? String((await tr.json()).error || "") : (await tr.text()); } catch {}
+        return json({ error: "나레이션 음성 합성 실패: " + em.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 220) }, 502);
+      }
+      const audioBuf = await tr.arrayBuffer();
+      if (!audioBuf || audioBuf.byteLength < 64) return json({ error: "나레이션 음성이 비어 있습니다(TTS 응답 없음)." }, 502);
+      const bucket = r2BucketOf(env);
+      if (!bucket) return json({ error: "나레이션 오디오 저장용 R2 버킷을 찾을 수 없습니다." }, 500);
+      const key = "narr/" + crypto.randomUUID() + ".mp3";
+      await bucket.put(key, audioBuf, { httpMetadata: { contentType: "audio/mpeg" } });
+      audioUrl = origin + "/api/media/" + key;
+    }
+    // fal ffmpeg — 원본 영상 + 나레이션 오디오 병합 (env 로 모델 교체 가능)
+    const model = pick(env, ["FAL_MERGE_MODEL", "fal_merge_model"]) || "fal-ai/ffmpeg-api/merge-audio-video";
+    const r = await fetchT(FAL_QUEUE + model, {
+      method: "POST", headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
+      body: JSON.stringify({ video_url: videoUrl, audio_url: audioUrl })
+    });
+    const j = await r.json().catch(() => ({}));
+    const reqId = j.request_id || j.requestId;
+    if (!r.ok || !reqId) return json({ error: "나레이션 합성(fal " + model + ") 실패: " + String(j.detail || j.error || JSON.stringify(j)).slice(0, 220) }, 502);
+    return json({ statusUrl: "/api/generate?provider=falq&task=" + encodeURIComponent(reqId) + "&model=" + encodeURIComponent(model), audioUrl });
   }
 
   /* 모션 전이(Motion Transfer) 단독 — 원본 영상의 움직임 유지 + 스타일 변환 (fal video-to-video) */

@@ -1429,7 +1429,15 @@ function paintIcons(root){
 }
 paintIcons();
 /* ════════ 타입/노드 정의 ════════ */
-var PORT_COLORS = { TEXT:'#ffab40', IMAGE:'#42a5f5', GEN:'#f48fb1', VIDEO:'#81c784', '*':'#9aa0b5' };
+var PORT_COLORS = { TEXT:'#ffab40', IMAGE:'#42a5f5', GEN:'#f48fb1', VIDEO:'#81c784', MODEL:'#a78bfa', AUDIO:'#4dd0e1', '*':'#9aa0b5' };
+/* 나레이션 목소리 (표시명 → TTS voice_id). 서버 /api/tts/v2/speak 규격. */
+var VOICE_OPTS = ['한국어·여성(밝은)','한국어·여성(차분)','한국어·남성(뉴스)','한국어·여성(Wavenet)','한국어·남성(Wavenet)','영어·여성(Nova)','영어·남성(Onyx)','영어·여성(Shimmer)'];
+var VOICE_ID = {
+  '한국어·여성(밝은)':'gtts:ko-KR-Neural2-A', '한국어·여성(차분)':'gtts:ko-KR-Neural2-B',
+  '한국어·남성(뉴스)':'gtts:ko-KR-Neural2-C', '한국어·여성(Wavenet)':'gtts:ko-KR-Wavenet-A',
+  '한국어·남성(Wavenet)':'gtts:ko-KR-Wavenet-C', '영어·여성(Nova)':'openai:tts-1:nova',
+  '영어·남성(Onyx)':'openai:tts-1:onyx', '영어·여성(Shimmer)':'openai:tts-1:shimmer'
+};
 function typeOK(a,b){ return a===b || a==='*' || b==='*'; }
 /* 실제 백엔드(/api/generate)에 연결되어 지금 바로 생성 가능한 모델만 노출 */
 var MODELS = [
@@ -1497,6 +1505,7 @@ var RES_MULT = { '720p':0.6, '1080p':1.0, '4K':2.6 };   // 1080p 기준 해상�
 var MODEL_COST = {
   'V2V 자동 (최고정확도·모델 자동선택)': { u:'sec', usd:0.15, prov:'v2v_auto' },
   '모션 전이 (원본 움직임 유지·Motion Transfer)': { u:'sec', usd:0.12, prov:'motion' },
+  '나레이션 (AI 음성 해설)': { u:'sec', usd:0.02, prov:'narrate' },
   'Runway Aleph (영상→실사 V2V)':      { u:'sec', usd:0.15, prov:'runway_aleph' },
   'Google Veo 3.1':                    { u:'sec', usd:0.40, audio:0.35, prov:'google' },
   'Runway Gen-4':                    { u:'sec', usd:0.05, prov:'runway' },
@@ -1532,7 +1541,7 @@ var MODEL_COST = {
   'Flux Dev':                        { u:'img', usd:0.025, prov:'flux' }
 };
 // 제공사 집계 라벨
-var PROV_LABEL = { google:'Google Veo', runway:'Runway', runway_aleph:'Runway Aleph', v2v_auto:'V2V 자동', motion:'모션 전이',
+var PROV_LABEL = { google:'Google Veo', runway:'Runway', runway_aleph:'Runway Aleph', v2v_auto:'V2V 자동', motion:'모션 전이', narrate:'나레이션',
   seedance:'Seedance', hailuo:'MiniMax Hailuo', luma:'Luma', xai:'Grok', flux:'Flux',
   falcontrol:'fal ControlNet', nanobanana:'Nano Banana', openai:'GPT Image', kling:'Kling' };
 // 구버전 recordCost(provider,...) 호환용 — 제공사 대표 단가
@@ -1714,6 +1723,7 @@ var PROVIDERS = [
 var MODEL_PROVIDER = {
   'V2V 자동 (최고정확도·모델 자동선택)':'v2v_auto',
   '모션 전이 (원본 움직임 유지·Motion Transfer)':'motion',
+  '나레이션 (AI 음성 해설)':'narrate',
   'Runway Aleph (영상→실사 V2V)':'runway_aleph',
   'Google Veo 3.1':'google',
   'Runway Gen-4':'runway',
@@ -2123,6 +2133,43 @@ function cannyPreview(srcUrl){
 }
 /* "이미지 생성" 노드 단독 실행 — 프롬프트(+레퍼런스)로 이미지 1장 생성해 노드에 표시.
    결과는 n.w.img 에 저장되어 우측 IMAGE 포트로 다른 모델의 레퍼런스/첫 프레임에 연결 가능. */
+/* 나레이션 노드 실행 — 원본 영상 + AI 음성 해설 합성 (서버: provider=narrate) */
+function narrateNode(n){
+  if(!n || n.w.generating) return;
+  var srcN=inputNodeOf(n.id,'in');
+  // 원본 영상은 공개 URL 이어야 함 (출력 노드의 provider mp4 URL 또는 R2 호스팅 URL).
+  var srcU = srcN && srcN.w ? (srcN.w.srcVideoUrl
+              || (/^https?:\/\//.test(srcN.w.vid||'') ? srcN.w.vid : null)
+              || (/^https?:\/\//.test(srcN.w.url||'') ? srcN.w.url : null)) : null;
+  if(!srcU){ toast('나레이션을 입힐 영상을 연결하세요 — 출력 노드의 완성 영상(원격 URL)을 "영상" 입력에 연결합니다.'); return; }
+  var scriptN=inputNodeOf(n.id,'script');
+  var text=((n.w.ntext||'').trim()) || (scriptN&&scriptN.w?(scriptN.w.text||'').trim():'') || '';
+  if(!text){ toast('나레이션 대본을 입력하세요 (노드 안 또는 [대본] 노드 연결)'); return; }
+  var voiceId=VOICE_ID[n.w.voice]||'gtts:ko-KR-Neural2-A';
+  var rate=Math.max(0.5, Math.min(2.0, (Number(n.w.rate)||100)/100));
+  n.w.generating=true; n.w.error=null; render();
+  (function(){ var em=document.getElementById('nd-'+n.id); if(em)em.classList.add('exec'); })();
+  callProxy({ provider:'narrate', videoUrl:srcU, text:text, voice:voiceId, rate:rate })
+    .then(function(res){
+      n.w.generating=false;
+      if(!res || res.error){
+        var msg=(res&&res.error)||'나레이션 합성 실패';
+        n.w.error=msg; var info=showGenError(msg,'narrate','나레이션 (AI 음성 해설)');
+        toast((info&&info.title)||('나레이션 실패: '+String(msg).slice(0,80))); render(); return;
+      }
+      n.w.vid=res.url; n.w.kind='video'; n.w.model='나레이션'; n.w.poster=res.poster||(srcN&&srcN.w&&srcN.w.poster)||null;
+      n.w.sec=(srcN&&srcN.w&&srcN.w.sec)||8; n.w.srcVideoUrl=res.url;   // 후속 노드에서 V2V/재활용 가능
+      recordCost('narrate','나레이션 (AI 음성 해설)', n.w.sec||8, 'video', '1080p', true);
+      saveToGallery(res.url,'video','나레이션',n.w.sec,n.w.poster);
+      toast('나레이션이 적용된 영상이 완성됐습니다.');
+      render(); snapshot();
+      var e2=document.getElementById('nd-'+n.id); if(e2)e2.classList.add('exec');
+    })
+    .catch(function(err){
+      n.w.generating=false; n.w.error=String(err&&err.message||err);
+      toast('나레이션 오류: '+String(n.w.error).slice(0,80)); render();
+    });
+}
 function generateImageNode(n){
   if(!n || n.w.imgGenerating) return;
   var pn=inputNodeOf(n.id,'prompt');
@@ -2221,8 +2268,13 @@ var DEFS = {
  reference:{ cat:'입력', title:'옴니 레퍼런스 (이미지·영상)', hd:'#1f2f3f', ins:[], outs:[['out','이미지','IMAGE']],
              widgets:[{k:'frameCount',t:'combo',label:'영상 프레임 수',opts:['1','3','5','8'],def:'3'},
                       {k:'img',t:'image',omni:true}] },
+ modelpick:{ cat:'모델', title:'모델 선택', hd:'#2c2440', ins:[],
+             outs:[['out','선택한 모델 → 로더','MODEL']],
+             widgets:[{k:'model',t:'combo',label:'model',opts:'MODELS',def:'Seedance 2.0'},
+                      {k:'pickinfo',t:'pickinfo'}] },
  model:    { cat:'모델', title:'AI 모델 로더', hd:'#2c2440',
-             ins:[['prompt','프롬프트','TEXT'],['negative','네거티브','TEXT'],
+             ins:[['modelsel','모델 선택 (선택)','MODEL'],
+                  ['prompt','프롬프트','TEXT'],['negative','네거티브','TEXT'],
                   ['ref','사진 레퍼런스 (여러 장)','IMAGE'],
                   ['vidref','영상 레퍼런스 (V2V·프레임)','*'],
                   ['first','첫 프레임','IMAGE'],['last','마지막 프레임','IMAGE']],
@@ -2252,6 +2304,14 @@ var DEFS = {
  output:   { cat:'출력', title:'출력 (영상·이미지)', hd:'#233a33', ins:[['in','생성물','*']],
              outs:[['out','결과 → 레퍼런스','IMAGE']],
              widgets:[{k:'vid',t:'videoout'}] },
+ narrate:  { cat:'오디오', title:'나레이션 (AI 음성 해설)', hd:'#3a2c1c',
+             ins:[['in','영상','*'],['script','대본 (텍스트·선택)','TEXT']],
+             outs:[['out','나레이션 영상 → 레퍼런스','*']],
+             widgets:[{k:'ntext',t:'textarea',ph:'영상에 입힐 나레이션 대본을 입력하세요...\n(비우면 왼쪽 [대본] 노드의 텍스트를 사용)'},
+                      {k:'voice',t:'combo',label:'목소리',opts:VOICE_OPTS,def:'한국어·여성(밝은)'},
+                      {k:'rate',t:'slider',label:'말속도(%)',min:60,max:160,def:100},
+                      {k:'vid',t:'videoout'},
+                      {k:'run',t:'narratebtn',label:'나레이션 입히기'}] },
  note:     { cat:'유틸', title:'노트', hd:'', ins:[], outs:[],
              widgets:[{k:'text',t:'textarea',ph:'메모를 입력하세요...'}] },
  frame:    { cat:'유틸', title:'프레임 추출', hd:'#1f3a3a',
@@ -2642,6 +2702,13 @@ function widgetHTML(n,w){
   if(w.t==='button') return '<button class="wbtn" data-runnode>'+ICON.sparkle+' '+esc(w.label)+'</button>';
   if(w.t==='framebtn') return '<button class="wbtn" data-framego>'+ICON.fit+' '+esc(w.label)+'</button>';
   if(w.t==='imggenbtn') return '<button class="wbtn" data-imggen>'+ICON.sparkle+' '+esc(w.label)+'</button>';
+  if(w.t==='narratebtn') return '<button class="wbtn" data-narrate>'+ICON.sparkle+' '+esc(w.label)+'</button>';
+  if(w.t==='pickinfo'){
+    var pm=n.w.model||'', prov=MODEL_PROVIDER[pm]||'fal';
+    var cat=(MODELS.filter(function(m){return m[1]===pm;})[0]||['',''])[0]||'';
+    return '<div class="refcnt">'+(cat?('분류: <b>'+esc(cat)+'</b> · '):'')+'제공사: <b>'+esc(PROV_LABEL[prov]||prov)+'</b></div>'+
+      '<div class="refcnt">우측 <b>MODEL</b> 포트 → <b>AI 모델 로더</b>의 "모델 선택" 입력에 연결하면 이 모델로 생성됩니다.</div>';
+  }
   if(w.t==='imagegenout'){
     if(n.w.imgGenerating) return '<div class="wpreview genwrap" style="min-height:100px;"><div class="genring"><span class="genorbit"></span></div><div class="gentext">생성 중<i>.</i><i>.</i><i>.</i></div></div>';
     if(n.w.imgError) return '<div class="wpreview vperr"><span class="vperr-x">'+ICON.close+'</span><b>생성 실패</b><span class="vperr-msg">'+esc(String(n.w.imgError).slice(0,180))+'</span><span class="vperr-hint">키 미설정이면 그 모델은 생성이 안 됩니다</span></div>';
@@ -3204,6 +3271,7 @@ canvas.addEventListener('click',function(e){
     });
     return;
   }
+  if(e.target.closest('[data-narrate]')){ narrateNode(n2); return; }
   if(e.target.closest('[data-upload]')){ host.querySelector('[data-file]').click(); return; }
   var rdel=e.target.closest('[data-refdel]');
   if(rdel){ var ri=+rdel.getAttribute('data-refdel');
@@ -3550,6 +3618,9 @@ function runQueue(){
           }
           if(n.type==='model'){
             var outs=downstreamOutputs(id);
+            // 모델 선택 노드가 연결돼 있으면 그 모델을 사용(없으면 로더 자체 콤보)
+            var mpk=inputNodeOf(id,'modelsel');
+            var chosenModel=(mpk&&mpk.w&&mpk.w.model)?mpk.w.model:n.w.model;
             var pr=upstream(id,'prompt');
             var ng=upstream(id,'negative');
             var rfs=inputNodesOf(id,'ref');       // 사진 레퍼런스 포트
@@ -3557,6 +3628,7 @@ function runQueue(){
             var ff=inputNodeOf(id,'first'), lf=inputNodeOf(id,'last');
             function imgsOf(node){ if(!node)return [];
               if(node.type==='output') return node.w.lastImg?[node.w.lastImg]:[];
+              if(node.type==='narrate') return node.w.poster?[node.w.poster]:[];
               if(node.type==='frame') return node.w.frameImg?[node.w.frameImg]:[];
               if(node.w.imgs&&node.w.imgs.length)return node.w.imgs; return node.w.img?[node.w.img]:[]; }
             // 사진 포트: 이미지=참고 사진. (하위호환) 영상이 섞여 있으면 그 프레임은 영상 프레임으로 분리.
@@ -3572,7 +3644,7 @@ function runQueue(){
               if(nd.type==='output' && nd.w.kind==='video' && nd.w.vid && !srcVid) srcVid=nd.w.vid; });
             // (하위호환) 사진 포트에 넣은 옴니 노드의 원본 영상 URL 도 fallback 으로 사용
             if(!srcVid) rfs.forEach(function(nd){ if(nd&&nd.w&&nd.w.srcVideoUrl) srcVid=nd.w.srcVideoUrl; });
-            var seed2 = /Seedance 2\.0/.test(n.w.model||'');   // reference_video 지원 모델
+            var seed2 = /Seedance 2\.0/.test(chosenModel||'');   // reference_video 지원 모델
             // 3D 베이스 대표 프레임 + 별도 참고(배경) 사진을 모두 레퍼런스로 보낸다(둘을 순서로 구분).
             var threeD = imgsOf(ff)[0] || vFrames[0] || null;
             var bgPhotos = photoRefs.filter(function(im){ return im!==threeD; });
@@ -3606,7 +3678,7 @@ function runQueue(){
             render();
             (function(){ var em=document.getElementById('nd-'+id); if(em)em.classList.add('exec'); })();
             generateWithAPI({
-              model:n.w.model,
+              model:chosenModel,
               prompt: basePrompt,
               negative: ng?ng.w.text:'',
               refImage: ffImg,
@@ -3624,25 +3696,25 @@ function runQueue(){
               watermark: n.w.seedWatermark===true,
               audioUrl: (n.w.seedAudioUrl||'').trim() || undefined,
               // Flux(비-Kontext) 이미지 모델일 때만 ControlNet·LoRA 적용
-              controlnets: (/^Flux/.test(n.w.model||'')&&!/Kontext/.test(n.w.model||'')&&n.w.cnList)?n.w.cnList.slice():[],
+              controlnets: (/^Flux/.test(chosenModel||'')&&!/Kontext/.test(chosenModel||'')&&n.w.cnList)?n.w.cnList.slice():[],
               cnSteps: (n.w.cnSteps==null?28:n.w.cnSteps), cnGuidance: (n.w.cnGuidance==null?3.5:n.w.cnGuidance),
               cfg:n.w.cfg, seed:n.w.seed
             }).then(function(res){
               if(!res || res.error){   // 실제 생성 실패 — 데모로 감추지 않고 원인 표시
                 var msg=(res&&res.error)||'생성 실패';
                 outs.forEach(function(o){ o.w.generating=false; o.w.error=msg; });
-                var info=showGenError(msg, (res&&res.provider)||providerOf(n.w.model), n.w.model);   // 원인 해설 팝업
+                var info=showGenError(msg, (res&&res.provider)||providerOf(chosenModel), chosenModel);   // 원인 해설 팝업
                 toast((info&&info.title)||('생성 실패: '+String(msg).slice(0,80)));
                 render(); step(); return;
               }
               if(res.url && res.type!=='error')   // 실제 결과(URL)가 나온 성공 건은 모두 기록 — 모델 기준 제공사(시댄스 누락 방지)
-                recordCost(res.type||providerOf(n.w.model), n.w.model, vSet?vSet.w.sec:8, res.kind, vSet?vSet.w.res:'1080p', n.w.seedAudio===true);
+                recordCost(res.type||providerOf(chosenModel), chosenModel, vSet?vSet.w.sec:8, res.kind, vSet?vSet.w.res:'1080p', n.w.seedAudio===true);
               outs.forEach(function(o){
                 var vs=upstream(o.id,'video');
                 o.w.generating=false; o.w.error=null;
-                o.w.vid=res.url; o.w.kind=res.kind||'video'; o.w.poster=res.poster||null; o.w.model=n.w.model; o.w.sec=vs?vs.w.sec:8;
+                o.w.vid=res.url; o.w.kind=res.kind||'video'; o.w.poster=res.poster||null; o.w.model=chosenModel; o.w.sec=vs?vs.w.sec:8;
               });
-              saveToGallery(res.url, res.kind||'video', n.w.model, vSet?vSet.w.sec:8, res.poster);  // 보관함 자동 저장
+              saveToGallery(res.url, res.kind||'video', chosenModel, vSet?vSet.w.sec:8, res.poster);  // 보관함 자동 저장
               n.w.seed=Math.floor(Math.random()*9e14);
               render();
               var el2=document.getElementById('nd-'+id); if(el2)el2.classList.add('exec');
@@ -3650,7 +3722,7 @@ function runQueue(){
             }).catch(function(e){
               var em=String(e&&e.message||e||'오류');
               outs.forEach(function(o){ o.w.generating=false; o.w.error=em; });
-              var info=showGenError(em, providerOf(n.w.model), n.w.model);
+              var info=showGenError(em, providerOf(chosenModel), chosenModel);
               toast((info&&info.title)||'생성 오류'); render(); step();
             });
             return;
