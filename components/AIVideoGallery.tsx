@@ -51,17 +51,17 @@ type Shot = {
 /** 홈 쇼케이스 사진 — public/images/showcase/ 에 파일을 넣으면 자동으로 표시되고,
  *  없으면 그라데이션 포스터가 폴백으로 유지됩니다. */
 const SHOTS: Shot[] = [
-  { cap: '모터스포츠 광고컷', model: 'Nano Banana', ar: 'l', src: '/images/showcase/1.jpg', grad: 'from-red-600 via-rose-600 to-slate-800', glow: 'radial-gradient(circle at 30% 30%, rgba(255,180,150,0.55), transparent 45%)', tag: 'node' },
-  { cap: '스타디움 현장 스케치', model: 'GPT Image 2', ar: 'p', src: '/images/showcase/2.jpg', grad: 'from-slate-800 via-indigo-800 to-amber-500', glow: 'radial-gradient(circle at 50% 25%, rgba(255,230,170,0.5), transparent 42%)' },
-  { cap: '의료 상담 컷', model: 'Flux 1.1 Pro', ar: 'l', src: '/images/showcase/3.jpg', grad: 'from-sky-700 via-slate-600 to-slate-200', glow: 'radial-gradient(circle at 65% 30%, rgba(210,230,255,0.5), transparent 45%)', tag: 'control' },
-  { cap: '관중 클로즈업', model: 'Nano Banana', ar: 'l', src: '/images/showcase/4.jpg', grad: 'from-slate-900 via-blue-900 to-slate-700', glow: 'radial-gradient(circle at 45% 30%, rgba(150,180,255,0.5), transparent 45%)' },
-  { cap: '스포츠 액션', model: 'GPT Image', ar: 'l', src: '/images/showcase/5.jpg', grad: 'from-zinc-900 via-neutral-800 to-orange-700', glow: 'radial-gradient(circle at 60% 35%, rgba(255,160,110,0.5), transparent 45%)', tag: 'node' },
-  { cap: '제품 광고 클로즈업', model: 'Runway Gen-4', ar: 's', src: '/images/showcase/1.jpg', grad: 'from-slate-700 via-zinc-600 to-amber-500', glow: 'radial-gradient(circle at 60% 30%, rgba(255,255,255,0.5), transparent 40%)' },
-  { cap: '인물 시네마틱 포트레이트', model: 'Flux Kontext', ar: 'p', src: '/images/showcase/4.jpg', grad: 'from-rose-500 via-purple-600 to-slate-900', glow: 'radial-gradient(circle at 50% 30%, rgba(255,200,230,0.5), transparent 42%)', tag: 'control' },
-  { cap: '브랜드 필름 스틸', model: 'Nano Banana', ar: 'l', src: '/images/showcase/5.jpg', grad: 'from-zinc-800 via-slate-700 to-red-600', glow: 'radial-gradient(circle at 70% 60%, rgba(255,120,90,0.5), transparent 45%)', tag: 'node' },
-  { cap: '패션 룩북', model: 'GPT Image 2', ar: 'p', src: '/images/showcase/2.jpg', grad: 'from-pink-500 via-fuchsia-600 to-violet-700', glow: 'radial-gradient(circle at 50% 20%, rgba(255,210,240,0.5), transparent 42%)' },
-  { cap: '도시 야경 스틸', model: 'Flux 1.1 Pro', ar: 'l', src: '/images/showcase/3.jpg', grad: 'from-blue-700 via-indigo-700 to-purple-800', glow: 'radial-gradient(circle at 30% 70%, rgba(120,160,255,0.55), transparent 45%)', tag: 'control' },
-  { cap: '뷰티 제품 광고', model: 'Flux Kontext', ar: 'p', src: '/images/showcase/4.jpg', grad: 'from-rose-400 via-pink-500 to-purple-600', glow: 'radial-gradient(circle at 55% 28%, rgba(255,225,235,0.6), transparent 40%)' },
+  { cap: '모터스포츠 광고컷', model: 'Nano Banana', ar: 'l', src: '/images/showcase/1.png', grad: 'from-red-600 via-rose-600 to-slate-800', glow: 'radial-gradient(circle at 30% 30%, rgba(255,180,150,0.55), transparent 45%)', tag: 'node' },
+  { cap: '스타디움 현장 스케치', model: 'GPT Image 2', ar: 'p', src: '/images/showcase/2.png', grad: 'from-slate-800 via-indigo-800 to-amber-500', glow: 'radial-gradient(circle at 50% 25%, rgba(255,230,170,0.5), transparent 42%)' },
+  { cap: '의료 상담 컷', model: 'Flux 1.1 Pro', ar: 'l', src: '/images/showcase/3.png', grad: 'from-sky-700 via-slate-600 to-slate-200', glow: 'radial-gradient(circle at 65% 30%, rgba(210,230,255,0.5), transparent 45%)', tag: 'control' },
+  { cap: '관중 클로즈업', model: 'Nano Banana', ar: 'l', src: '/images/showcase/4.png', grad: 'from-slate-900 via-blue-900 to-slate-700', glow: 'radial-gradient(circle at 45% 30%, rgba(150,180,255,0.5), transparent 45%)' },
+  { cap: '스포츠 액션', model: 'GPT Image', ar: 'l', src: '/images/showcase/5.png', grad: 'from-zinc-900 via-neutral-800 to-orange-700', glow: 'radial-gradient(circle at 60% 35%, rgba(255,160,110,0.5), transparent 45%)', tag: 'node' },
+  { cap: '제품 광고 클로즈업', model: 'Runway Gen-4', ar: 's', src: '/images/showcase/1.png', grad: 'from-slate-700 via-zinc-600 to-amber-500', glow: 'radial-gradient(circle at 60% 30%, rgba(255,255,255,0.5), transparent 40%)' },
+  { cap: '인물 시네마틱 포트레이트', model: 'Flux Kontext', ar: 'p', src: '/images/showcase/4.png', grad: 'from-rose-500 via-purple-600 to-slate-900', glow: 'radial-gradient(circle at 50% 30%, rgba(255,200,230,0.5), transparent 42%)', tag: 'control' },
+  { cap: '브랜드 필름 스틸', model: 'Nano Banana', ar: 'l', src: '/images/showcase/5.png', grad: 'from-zinc-800 via-slate-700 to-red-600', glow: 'radial-gradient(circle at 70% 60%, rgba(255,120,90,0.5), transparent 45%)', tag: 'node' },
+  { cap: '패션 룩북', model: 'GPT Image 2', ar: 'p', src: '/images/showcase/2.png', grad: 'from-pink-500 via-fuchsia-600 to-violet-700', glow: 'radial-gradient(circle at 50% 20%, rgba(255,210,240,0.5), transparent 42%)' },
+  { cap: '도시 야경 스틸', model: 'Flux 1.1 Pro', ar: 'l', src: '/images/showcase/3.png', grad: 'from-blue-700 via-indigo-700 to-purple-800', glow: 'radial-gradient(circle at 30% 70%, rgba(120,160,255,0.55), transparent 45%)', tag: 'control' },
+  { cap: '뷰티 제품 광고', model: 'Flux Kontext', ar: 'p', src: '/images/showcase/4.png', grad: 'from-rose-400 via-pink-500 to-purple-600', glow: 'radial-gradient(circle at 55% 28%, rgba(255,225,235,0.6), transparent 40%)' },
 ]
 
 const ARW: Record<Shot['ar'], string> = { p: 'w-44', l: 'w-80', s: 'w-56' }
