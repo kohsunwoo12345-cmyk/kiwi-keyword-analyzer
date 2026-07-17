@@ -390,10 +390,20 @@ export async function adminModelPricing(userId = ''): Promise<AdminModelPricing>
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
 export async function adminModelPricingAction(
-  action: 'set_global' | 'reset_global' | 'set_global_all' | 'reset_global_all' | 'set_user' | 'set_user_all' | 'reset_user',
+  action: 'set_global' | 'reset_global' | 'set_global_all' | 'reset_global_all' | 'set_user' | 'set_user_all' | 'reset_user' | 'set_user_overall' | 'reset_user_overall',
   payload: Record<string, unknown> = {},
 ): Promise<{ ok: boolean; error?: string }> {
   return postJson('/api/admin/model-pricing', { action, ...payload })
+}
+export interface UserMarkupRow {
+  id: string; name: string; email: string; plan: string
+  credits: number; overall: number; overrides: number
+}
+export async function adminUserMarkups(q = ''): Promise<{ ok: boolean; error?: string; users?: UserMarkupRow[]; defaultMarkup?: { video: number; image: number } }> {
+  try {
+    const r = await fetch('/api/admin/model-pricing?list=users' + (q ? `&q=${encodeURIComponent(q)}` : ''), { credentials: 'include', cache: 'no-store' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
 }
 export interface CreditsRecallInfo {
   ok: boolean

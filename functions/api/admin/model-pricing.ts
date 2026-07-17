@@ -14,6 +14,32 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (guard.error) return guard.error
 
   const url = new URL(request.url)
+
+  // 회원별 원가율 목록 — 모든 사용자의 배수를 한눈에
+  if (url.searchParams.get('list') === 'users') {
+    const q = String(url.searchParams.get('q') || '').trim()
+    const like = '%' + q + '%'
+    const rows = (q
+      ? await db.prepare("SELECT id,name,email,plan,credits,credit_markup,created_at FROM users WHERE role != 'admin' AND (name LIKE ? OR email LIKE ?) ORDER BY created_at DESC LIMIT 1000").bind(like, like).all()
+      : await db.prepare("SELECT id,name,email,plan,credits,credit_markup,created_at FROM users WHERE role != 'admin' ORDER BY created_at DESC LIMIT 1000").all()
+    ).results || []
+    const ovMap: Record<string, number> = {}
+    try {
+      const ov = (await db.prepare('SELECT user_id, COUNT(*) c FROM user_model_markups WHERE multiplier > 0 GROUP BY user_id').all()).results || []
+      for (const r of ov as any[]) ovMap[r.user_id] = Number(r.c) || 0
+    } catch { /* table 없음 */ }
+    return json({
+      ok: true,
+      users: (rows as any[]).map((u) => ({
+        id: u.id, name: u.name || '', email: u.email || '', plan: u.plan || '없음',
+        credits: Math.round((Number(u.credits) || 0) * 100) / 100,
+        overall: Number(u.credit_markup) || 0, // 0 = 기본 배수 사용
+        overrides: ovMap[u.id] || 0,           // 모델별 개별 지정 개수
+      })),
+      defaultMarkup: { video: 3.0, image: 2.5 },
+    })
+  }
+
   const userId = String(url.searchParams.get('userId') || '')
   const rate = await getUsdKrw(db)
   const gm = await getModelMarkups(db)
@@ -105,6 +131,22 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const uid = String(b.userId || '')
     if (b.model) await db.prepare('DELETE FROM user_model_markups WHERE user_id = ? AND model = ?').bind(uid, String(b.model)).run()
     else await db.prepare('DELETE FROM user_model_markups WHERE user_id = ?').bind(uid).run()
+    return json({ ok: true })
+  }
+  // 회원 "전체 배수"(users.credit_markup) — 모델별 개별 지정이 없을 때 이 값이 적용됨
+  if (action === 'set_user_overall') {
+    const uid = String(b.userId || '')
+    if (!uid) return json({ ok: false, error: 'userId 필요' }, 400)
+    const mk = clampMk(b.markup)
+    await db.prepare('UPDATE users SET credit_markup = ? WHERE id = ?').bind(mk, uid).run()
+    await logAudit(db, admin, 'user_markup_overall', uid, '×' + mk, 'info', ip)
+    return json({ ok: true, markup: mk })
+  }
+  if (action === 'reset_user_overall') {
+    const uid = String(b.userId || '')
+    if (!uid) return json({ ok: false, error: 'userId 필요' }, 400)
+    await db.prepare('UPDATE users SET credit_markup = 0 WHERE id = ?').bind(uid).run()
+    await logAudit(db, admin, 'user_markup_overall_reset', uid, '기본', 'info', ip)
     return json({ ok: true })
   }
   return json({ ok: false, error: '알 수 없는 작업입니다.' }, 400)
