@@ -1177,13 +1177,14 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 
       <section class="pf-pane" data-pane="mcp">
         <h3 class="pf-h3">MCP 연결 · Claude에서 바로 생성</h3>
-        <p class="pf-hint" style="margin-top:-6px;margin-bottom:14px;">Claude(데스크톱·웹·Cursor·Claude Code)에 이 스튜디오를 연결하면, 대화창에서 바로 <b>영상·이미지 생성</b>을 시킬 수 있습니다. API 키는 서버에만 있고 노출되지 않습니다.</p>
+        <p class="pf-hint" style="margin-top:-6px;margin-bottom:14px;">Claude(데스크톱·웹·Cursor·Claude Code)에 연결하면 대화창에서 바로 <b>영상·이미지 생성</b>을 시킬 수 있습니다. 생성 1건마다 <b style="color:#c3a8ff">내 계정 크레딧에서 차감</b>됩니다.</p>
 
-        <h4 class="pf-h4">MCP 서버 주소</h4>
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
-          <input class="pf-inp" id="pfMcpUrl" readonly value="" style="font-family:ui-monospace,monospace;margin-bottom:0;">
+        <h4 class="pf-h4">내 전용 연결 주소 (개인 토큰 포함)</h4>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+          <input class="pf-inp" id="pfMcpUrl" readonly value="발급 중…" style="font-family:ui-monospace,monospace;margin-bottom:0;">
           <button class="pf-btn" id="pfMcpCopy" style="width:auto;padding:9px 16px;white-space:nowrap;">복사</button>
         </div>
+        <div class="mcp-steps" style="margin-bottom:8px;">이 주소에는 <b>내 개인 토큰</b>이 들어 있어 <b>남에게 공유 금지</b>입니다. 유출됐다면 <a href="#" id="pfMcpRegen" style="color:#a78bfa;">토큰 재발급</a>(기존 연결은 끊깁니다).</div>
         <div class="mcp-tools">
           <span class="mcp-tool">generate_image</span><span class="mcp-tool">generate_video</span>
           <span class="mcp-tool">check_video_status</span><span class="mcp-tool">list_models</span>
@@ -3907,11 +3908,16 @@ document.getElementById('mKeys').addEventListener('click',function(){
 /* Claude MCP 연결 모달 */
 (function(){
   var m=document.getElementById('mcpModal');
-  function open(){
-    // 절대 주소로 채워 외부 클라이언트(클로드 데스크톱 등)에 그대로 붙여넣게 함
-    var origin=(location&&location.origin)||''; var url=origin+'/api/mcp';
+  function setUrl(url){
     var i=document.getElementById('mcpUrl'); if(i)i.value=url;
     var cli=document.getElementById('mcpCli'); if(cli)cli.textContent='claude mcp add --transport http bygency '+url;
+  }
+  function open(){
+    // 회원 개인 연결 URL(토큰 포함)을 발급해 채움 — 이 URL로 생성하면 본인 계정 크레딧이 차감됨
+    var origin=(location&&location.origin)||''; setUrl('발급 중…');
+    fetch('/api/account/mcp-token',{credentials:'include',cache:'no-store'}).then(function(r){return r.json();})
+      .then(function(d){ setUrl((d&&d.ok&&d.url)?d.url:(origin+'/api/mcp')); })
+      .catch(function(){ setUrl(origin+'/api/mcp'); });
     m.classList.add('show');
   }
   function close(){ m.classList.remove('show'); }
@@ -4224,12 +4230,22 @@ function pfShowSec(sec){
   if(sec==='billing') loadPayments();
   if(sec==='mcp') pfFillMcp();
 }
-function pfFillMcp(){
-  var origin=(location&&location.origin)||''; var url=origin+'/api/mcp';
+function pfSetMcpUrl(url){
   var u=pfEl('pfMcpUrl'); if(u)u.value=url;
   var cli=pfEl('pfMcpCli'); if(cli)cli.textContent='claude mcp add --transport http bygency '+url;
   var api=pfEl('pfMcpApi'); if(api)api.textContent='"mcp_servers": [{ "type": "url", "url": "'+url+'", "name": "bygency" }]';
   var op=pfEl('pfMcpOpen'); if(op)op.href=url;
+}
+function pfFillMcp(regen){
+  var origin=(location&&location.origin)||'';
+  var u=pfEl('pfMcpUrl'); if(u&&!regen)u.value='발급 중…';
+  fetch('/api/account/mcp-token',regen?{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({regenerate:true})}:{credentials:'include',cache:'no-store'})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d&&d.ok&&d.url){ pfSetMcpUrl(d.url); if(regen)toast('MCP 토큰을 재발급했습니다. 기존 연결은 끊깁니다.'); }
+      else { pfSetMcpUrl(origin+'/api/mcp'); if(u)u.value=(d&&d.error)?('로그인 필요 — '+d.error):origin+'/api/mcp'; }
+    })
+    .catch(function(){ pfSetMcpUrl(origin+'/api/mcp'); });
 }
 function pfWon(n){ return '₩'+(Math.round(Number(n)||0)).toLocaleString('ko-KR'); }
 function loadPayments(){
@@ -4307,6 +4323,9 @@ function wireProfile(){
   Array.prototype.forEach.call(document.querySelectorAll('.pf-navi'),function(b){
     b.addEventListener('click',function(){ pfShowSec(b.getAttribute('data-sec')); });
   });
+  // MCP 토큰 재발급
+  var rg=pfEl('pfMcpRegen'); if(rg)rg.addEventListener('click',function(e){ e.preventDefault();
+    if(confirm('MCP 토큰을 재발급하면 지금 연결해둔 Claude·Cursor 연결이 모두 끊깁니다. 계속할까요?')) pfFillMcp(true); });
   // MCP 서버 주소 복사
   var mc=pfEl('pfMcpCopy'); if(mc)mc.addEventListener('click',function(){
     var i=pfEl('pfMcpUrl'); if(!i)return; var v=i.value||((location.origin||'')+'/api/mcp');

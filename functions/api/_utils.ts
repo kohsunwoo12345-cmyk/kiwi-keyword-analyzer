@@ -462,6 +462,7 @@ export async function ensureSchema(db: D1Database) {
     provider: "provider TEXT DEFAULT 'email'",
     credit_markup: 'credit_markup REAL', // 회원별 AI 과금 배수(원가=1). NULL/0 = 모델 기본(2.5/3.0)
     branch_id: 'branch_id TEXT', // 추천인이 소속된 지사(정산 대상)
+    mcp_token: 'mcp_token TEXT', // 회원별 개인 MCP 연결 토큰(본인 계정으로 크레딧 차감)
   })
   await addMissingColumns(db, 'plan_requests', {
     track: "track TEXT DEFAULT 'marketer'",
@@ -919,6 +920,24 @@ export async function getSessionUser(request: Request, db: D1Database) {
     .bind(token, new Date().toISOString())
     .first()
   return row || null
+}
+
+/** MCP 개인 토큰으로 사용자 조회 (본인 계정 기준 크레딧 차감용). 없으면 null. */
+export async function getUserByMcpToken(db: D1Database, token: string | null) {
+  if (!token || token.length < 12) return null
+  const row = await db.prepare('SELECT * FROM users WHERE mcp_token = ? LIMIT 1').bind(token).first()
+  return row || null
+}
+
+/** 회원의 MCP 토큰을 반환(없으면 새로 발급). regenerate=true면 무조건 재발급. */
+export async function ensureMcpToken(db: D1Database, userId: string, regenerate = false): Promise<string> {
+  if (!regenerate) {
+    const cur: any = await db.prepare('SELECT mcp_token FROM users WHERE id = ?').bind(userId).first()
+    if (cur && cur.mcp_token) return cur.mcp_token as string
+  }
+  const tok = 'bgm_' + crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '').slice(0, 8)
+  await db.prepare('UPDATE users SET mcp_token = ? WHERE id = ?').bind(tok, userId).run()
+  return tok
 }
 
 /** 관리자 계정이 없고 ADMIN_PASSWORD 환경변수가 설정된 경우에만 생성 (하드코딩 비밀번호 없음) */

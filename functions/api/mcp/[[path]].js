@@ -12,8 +12,51 @@
 // 키는 Cloudflare 환경변수에서만 읽으며 응답에 절대 포함되지 않습니다.
 
 import { onRequest as generateApi } from "../generate.js";
+import { resolveDB, ensureSchema, getUserByMcpToken } from "../_utils";
+import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage } from "../studio/_pricing";
 
 const SERVER_INFO = { name: "bygency-studio", version: "1.0.0" };
+
+// MCP 모델 → 스튜디오 과금 모델명 매핑 (본인 계정 크레딧 차감용)
+const CHARGE_MAP = {
+  veo: { model: "Google Veo 3.1", kind: "video" },
+  runway: { model: "Runway Gen-4", kind: "video" },
+  seedance: { model: "Seedance 1.0 Pro", kind: "video" },
+  nanobanana: { model: "Nano Banana", kind: "image" },
+  gpt: { model: "GPT Image", kind: "image" },
+  grok: { model: "Grok Imagine", kind: "image" },
+};
+
+async function estimateMcp(db, me, mcpModel, units, res, audio) {
+  const map = CHARGE_MAP[mcpModel]; if (!map) return null;
+  const rate = await getUsdKrw(db);
+  const markup = await resolveMarkup(db, me.id, map.model, Number(me.credit_markup) || 0);
+  return computeCharge({ model: map.model, units: units || 0, kind: map.kind, res, audio: !!audio }, rate, markup);
+}
+// 크레딧 차감 + 사용/거래 기록 (스튜디오 usage/record 와 동일 규칙)
+async function commitCharge(db, me, c, units) {
+  try { await ensureAiUsage(db); } catch {}
+  const balance = Number(me.credits) || 0;
+  const charged = Math.round(Math.min(balance, c.credits) * 100) / 100;
+  if (charged > 0) {
+    const after = Math.round((balance - charged) * 100) / 100;
+    await db.prepare("UPDATE users SET credits = ? WHERE id = ?").bind(after, me.id).run();
+    try {
+      await db.prepare(
+        "INSERT INTO transactions (id,user_id,kind,amount,balance_after,memo,created_at) VALUES (?,?,'credit',?,?,?,?)"
+      ).bind("t_" + crypto.randomUUID().slice(0, 16), me.id, -charged, after, "MCP 생성 · " + c.model, new Date().toISOString()).run();
+    } catch {}
+    me.credits = after;
+  }
+  try {
+    const id = "au" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    await db.prepare(
+      "INSERT INTO ai_usage (id,user_id,email,name,provider,model,kind,units,usd,cost_krw,credits,revenue_krw,markup,usd_krw,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    ).bind(id, me.id, me.email || "", me.name || "", c.provider, c.model, c.kind,
+      units || (c.kind === "image" ? 1 : 0), c.usd, c.costKrw, charged, charged * 50, c.markup, c.usdKrw, new Date().toISOString()).run();
+  } catch {}
+  return charged;
+}
 const PROTO_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
 const TOOLS = [
@@ -128,15 +171,24 @@ async function hostDataUrl(env, origin, dataUrl) {
 }
 
 /* ── 도구 실행 ── */
-async function runTool(name, args, env, origin) {
+async function runTool(name, args, env, origin, ctx) {
   args = args || {};
+  const me = ctx && ctx.user, db = ctx && ctx.db;
 
   if (name === "list_models") return MODEL_INFO;
 
   if (name === "generate_image") {
     if (!args.prompt) throw new Error("prompt는 필수입니다");
     const imgMap = { nanobanana: "nanobanana", nano: "nanobanana", gpt: "openai", gptimage: "openai", openai: "openai", grok: "xai", xai: "xai" };
-    const provider = imgMap[String(args.model || "nanobanana").toLowerCase()] || "nanobanana";
+    const modelKey = String(args.model || "nanobanana").toLowerCase();
+    const provider = imgMap[modelKey] || "nanobanana";
+    // 크레딧 사전 확인(로그인 토큰 사용자) — 부족하면 생성 자체를 막음
+    let est = null;
+    if (me && db) {
+      est = await estimateMcp(db, me, CHARGE_MAP[modelKey] ? modelKey : (provider === "openai" ? "gpt" : provider === "xai" ? "grok" : "nanobanana"), 1);
+      if (est && (Number(me.credits) || 0) < est.credits)
+        throw new Error("크레딧이 부족합니다. 필요 " + est.credits + "크레딧 · 보유 " + (Number(me.credits) || 0) + "크레딧. bygency.co/pricing 에서 충전하세요.");
+    }
     const ref = args.reference_image_url || null;
     const j = await callGeneratePOST(env, origin, {
       provider, prompt: args.prompt, negative: args.negative_prompt || "",
@@ -146,7 +198,10 @@ async function runTool(name, args, env, origin) {
     let url = j.url;
     // 나노바나나는 base64 data URL 을 반환 → MCP 응답 폭증 방지 위해 R2 에 올려 공개 URL 로 교체
     if (url && url.startsWith("data:")) { const hosted = await hostDataUrl(env, origin, url); if (hosted) url = hosted; }
-    return { status: "succeeded", image_url: url, model: provider === "nanobanana" ? "nanobanana" : "grok" };
+    let charged = null;
+    if (me && db && est) charged = await commitCharge(db, me, est, 1);
+    return { status: "succeeded", image_url: url, model: provider === "nanobanana" ? "nanobanana" : provider === "openai" ? "gpt" : "grok",
+      credits_charged: charged == null ? undefined : charged, credits_remaining: me ? me.credits : undefined };
   }
 
   if (name === "generate_video") {
@@ -154,25 +209,37 @@ async function runTool(name, args, env, origin) {
     const provider = providerMap[args.model];
     if (!provider) throw new Error("model은 veo/runway/seedance 중 하나여야 합니다");
     if (!args.prompt) throw new Error("prompt는 필수입니다");
+    const seconds = args.seconds || 8;
+    // 크레딧 사전 확인 (dry_run 은 과금 없음)
+    let est = null;
+    if (me && db && !args.dry_run) {
+      est = await estimateMcp(db, me, args.model, seconds, "1080p");
+      if (est && (Number(me.credits) || 0) < est.credits)
+        throw new Error("크레딧이 부족합니다. 필요 " + est.credits + "크레딧 · 보유 " + (Number(me.credits) || 0) + "크레딧. bygency.co/pricing 에서 충전하세요.");
+    }
     const body = {
       provider,
       prompt: args.prompt,
       negative: args.negative_prompt || "",
       firstFrame: args.first_frame_url || null,
       refImage: args.reference_image_url || null,
-      seconds: args.seconds || 8,
+      seconds,
       ratio: args.ratio || "16:9",
       dryRun: !!args.dry_run
     };
     const j = await callGeneratePOST(env, origin, body);
     if (j.error) throw new Error(j.error);
     if (j.dryRun) return { dry_run: true, provider: j.provider, payload: j.payload, note: j.note };
-    if (j.url) return { status: "succeeded", video_url: j.url, kind: j.kind || "video" };
-    if (j.statusUrl) return {
+    // 생성이 시작/완료되면(=과금 발생) 이 시점에 크레딧 차감. check_video_status 는 추가 차감 없음.
+    let charged = null;
+    if (me && db && est) charged = await commitCharge(db, me, est, seconds);
+    const extra = charged == null ? {} : { credits_charged: charged, credits_remaining: me ? me.credits : undefined };
+    if (j.url) return Object.assign({ status: "succeeded", video_url: j.url, kind: j.kind || "video" }, extra);
+    if (j.statusUrl) return Object.assign({
       status: "generating",
       task: j.statusUrl,
-      next: "check_video_status 도구에 이 task 값을 그대로 넣어 15~30초 간격으로 확인하세요 (보통 1~5분 소요)"
-    };
+      next: "check_video_status 도구에 이 task 값을 그대로 넣어 15~30초 간격으로 확인하세요 (보통 1~5분 소요). 크레딧은 이미 차감되었습니다."
+    }, extra);
     throw new Error("예상치 못한 응답: " + JSON.stringify(j).slice(0, 200));
   }
 
@@ -202,7 +269,7 @@ async function runTool(name, args, env, origin) {
 function rpcResult(id, result) { return { jsonrpc: "2.0", id, result }; }
 function rpcError(id, code, message) { return { jsonrpc: "2.0", id, error: { code, message } }; }
 
-async function handleRpc(msg, env, origin) {
+async function handleRpc(msg, env, origin, ctx) {
   if (!msg || msg.jsonrpc !== "2.0" || !msg.method) return rpcError(msg && msg.id != null ? msg.id : null, -32600, "invalid request");
   const { method, id, params } = msg;
   const isNotification = (id === undefined || id === null) && method.startsWith("notifications/");
@@ -212,6 +279,8 @@ async function handleRpc(msg, env, origin) {
     if (method === "initialize") {
       const want = params && params.protocolVersion;
       const proto = PROTO_VERSIONS.includes(want) ? want : PROTO_VERSIONS[1];
+      const acct = ctx && ctx.user ? (ctx.user.email || ctx.user.name || "회원") : null;
+      const bal = ctx && ctx.user ? (Number(ctx.user.credits) || 0) : null;
       return rpcResult(id, {
         protocolVersion: proto,
         capabilities: { tools: {} },
@@ -219,7 +288,9 @@ async function handleRpc(msg, env, origin) {
         instructions:
           "BYGENCY(바이전시) AI 스튜디오 MCP 서버입니다. generate_video로 영상 생성을 시작하고 " +
           "check_video_status로 완료를 확인하세요(1~5분 소요). generate_image는 즉시 이미지 URL을 반환합니다. " +
-          "실제 생성은 과금이 발생하므로 사용자의 명시적 요청이 있을 때만 실행하세요. 테스트는 dry_run:true를 사용하세요."
+          "생성 1건마다 연결된 본인 BYGENCY 계정" + (acct ? "(" + acct + ", 잔여 " + bal + "크레딧)" : "") +
+          "에서 크레딧이 차감됩니다. 크레딧이 부족하면 생성이 거부됩니다(bygency.co/pricing 에서 충전). " +
+          "실제 생성은 과금이 발생하므로 사용자의 명시적 요청이 있을 때만 실행하고, 테스트는 dry_run:true를 사용하세요."
       });
     }
     if (method === "ping") return rpcResult(id, {});
@@ -227,7 +298,7 @@ async function handleRpc(msg, env, origin) {
     if (method === "tools/call") {
       const name = params && params.name;
       try {
-        const out = await runTool(name, params && params.arguments, env, origin);
+        const out = await runTool(name, params && params.arguments, env, origin, ctx);
         return rpcResult(id, { content: [{ type: "text", text: JSON.stringify(out, null, 2) }] });
       } catch (e) {
         return rpcResult(id, { content: [{ type: "text", text: String(e.message || e) }], isError: true });
@@ -241,14 +312,18 @@ async function handleRpc(msg, env, origin) {
   }
 }
 
-/* ── 인증: MCP_AUTH_TOKEN 설정 시 Bearer 헤더 또는 URL 경로 세그먼트로 검증 ── */
-function authorized(request, env, pathToken) {
-  const token = env.MCP_AUTH_TOKEN || env.mcp_auth_token || null;
-  if (!token) return true; // 토큰 미설정 → 공개 (설정 권장)
-  const h = request.headers.get("Authorization") || "";
-  if (h === "Bearer " + token) return true;
-  if (pathToken && pathToken === token) return true;
-  return false;
+/* ── 인증: 회원별 개인 MCP 토큰(본인 계정 크레딧 차감) 우선, 전역 MCP_AUTH_TOKEN 은 관리자 폴백 ──
+   반환: { user } 회원 · { global:true } 전역 · null 미인증 */
+async function resolveMcpAuth(request, env, db, pathToken) {
+  const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  const cand = pathToken || bearer || "";
+  if (cand && db) {
+    const u = await getUserByMcpToken(db, cand);
+    if (u) return { user: u };
+  }
+  const gtok = env.MCP_AUTH_TOKEN || env.mcp_auth_token || null;
+  if (gtok && cand === gtok) return { global: true };
+  return null;
 }
 
 const CORS = {
@@ -270,17 +345,36 @@ export async function onRequest(context) {
   const pathToken = params && params.path && params.path.length ? params.path[0] : null;
 
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-  if (!authorized(request, env, pathToken))
-    return jres({ jsonrpc: "2.0", id: null, error: { code: -32001, message: "unauthorized" } }, 401);
-  if (request.method === "GET")    return jres({   // 브라우저로 열면 상태 표시(Claude 는 POST 로 호출 — 영향 없음)
-    server: SERVER_INFO.name, version: SERVER_INFO.version, status: "ok",
-    transport: "streamable-http (stateless)",
-    endpoint: origin + "/api/mcp",
-    tools: TOOLS.map(t => t.name),
-    connect: "Claude → 설정 → 커넥터 → 커스텀 커넥터 추가 → 이 URL 등록. (이 페이지가 보이면 서버는 정상입니다)"
-  }, 200);
+
+  // GET = 상태 페이지(공개). 토큰이 있으면 그 회원의 잔여 크레딧까지 표시.
+  if (request.method === "GET") {
+    let who = null, credits = null;
+    try {
+      const db = resolveDB(env);
+      if (db) { await ensureSchema(db); const a = await resolveMcpAuth(request, env, db, pathToken);
+        if (a && a.user) { who = a.user.email || a.user.name || "회원"; credits = Number(a.user.credits) || 0; } }
+    } catch {}
+    return jres({
+      server: SERVER_INFO.name, version: SERVER_INFO.version, status: "ok",
+      transport: "streamable-http (stateless)",
+      endpoint: origin + "/api/mcp",
+      authenticated: !!who, account: who || undefined, credits: credits == null ? undefined : credits,
+      tools: TOOLS.map(t => t.name),
+      connect: who
+        ? "연결 정상 · 이 계정으로 크레딧이 차감됩니다."
+        : "개인 연결 URL(스튜디오 프로필 → MCP 연결)을 등록하세요. 토큰 없이 이 URL만 등록하면 생성이 거부됩니다."
+    }, 200);
+  }
   if (request.method === "DELETE") return new Response(null, { status: 200, headers: CORS }); // 세션 없음
   if (request.method !== "POST")   return jres({ error: "method not allowed" }, 405);
+
+  // POST = 실제 RPC. 회원 개인 토큰(또는 전역 토큰) 필수.
+  const db = resolveDB(env);
+  if (db) { try { await ensureSchema(db); } catch {} }
+  const auth = await resolveMcpAuth(request, env, db, pathToken);
+  if (!auth) return jres({ jsonrpc: "2.0", id: null, error: { code: -32001,
+    message: "unauthorized: 개인 MCP 토큰이 필요합니다. bygency.co 스튜디오 → 프로필 → MCP 연결에서 개인 URL을 발급받아 등록하세요." } }, 401);
+  const ctx = { db, user: auth.user || null };
 
   let body;
   try { body = await request.json(); }
@@ -288,9 +382,9 @@ export async function onRequest(context) {
 
   if (Array.isArray(body)) { // 배치
     const out = [];
-    for (const m of body) { const r = await handleRpc(m, env, origin); if (r) out.push(r); }
+    for (const m of body) { const r = await handleRpc(m, env, origin, ctx); if (r) out.push(r); }
     return out.length ? jres(out) : new Response(null, { status: 202, headers: CORS });
   }
-  const r = await handleRpc(body, env, origin);
+  const r = await handleRpc(body, env, origin, ctx);
   return r ? jres(r) : new Response(null, { status: 202, headers: CORS }); // 알림 → 202
 }
