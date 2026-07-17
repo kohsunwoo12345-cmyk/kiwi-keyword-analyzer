@@ -29,6 +29,7 @@ import { AIPipeline } from '@/components/AIPipeline'
 import { AIVideoGallery } from '@/components/AIVideoGallery'
 import { AIVideoShowcase } from '@/components/AIVideoShowcase'
 import { YouTubeLogo, NaverBlogLogo, KakaoLogo, AdPlatformsCluster } from '@/components/logos/BrandMarks'
+import { ClaudeMark } from '@/components/ClaudeMark'
 import { Button, SectionTag } from '@/components/ui'
 import { PlanStartButton } from '@/components/PlanStartButton'
 import { Reveal, Marquee } from '@/components/motion'
@@ -144,6 +145,8 @@ const M: Dict = {
     zh: '在 Claude 中通过 MCP 直接生成图片与视频，按您自己的账户积分扣费。',
   },
   '연동 방법 보기': { en: 'See how to connect', ja: '連携方法を見る', zh: '查看对接方法' },
+  '클로드 MCP 소개': { en: 'About Claude MCP', ja: 'Claude MCPの紹介', zh: '了解 Claude MCP' },
+  '클로드 MCP 소개 보기': { en: 'See the Claude MCP introduction', ja: 'Claude MCPの紹介を見る', zh: '查看 Claude MCP 介绍' },
 
   // ===== PAIN =====
   '솔직히, 지금 이렇지 않나요?': {
@@ -775,20 +778,6 @@ const PLANS = [
   },
 ]
 
-/** Claude(클로드) 스타일 선버스트 마크 */
-function ClaudeMark({ size = 34 }: { size?: number }) {
-  const rays = 12
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" role="img" aria-label="Claude">
-      <g transform="translate(50,50)">
-        {Array.from({ length: rays }).map((_, i) => (
-          <rect key={i} x={-3.1} y={-46} width={6.2} height={30} rx={3.1} fill="#D97757" transform={`rotate(${(360 / rays) * i})`} />
-        ))}
-      </g>
-    </svg>
-  )
-}
-
 export default function Home() {
   const t = useT(M)
   return (
@@ -872,10 +861,17 @@ export default function Home() {
               </p>
             </div>
             <Link
-              href="/docs/mcp"
-              className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+              href="/claude-mcp"
+              aria-label={t('클로드 MCP 소개 보기')}
+              className="group inline-flex flex-shrink-0 items-center gap-2 rounded-xl bg-gradient-to-br from-[#D97757] to-[#c0603f] px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-[#D97757]/25 transition hover:brightness-110"
             >
-              {t('연동 방법 보기')} <ArrowRight size={15} />
+              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
+                <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
+                <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
+                <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+              </svg>
+              {t('클로드 MCP 소개')}
             </Link>
           </div>
         </Reveal>
