@@ -379,6 +379,9 @@ button .ico{ margin-right:5px; }
   cursor:crosshair; z-index:5; top:5px; transition:transform .12s; box-shadow:0 0 0 1px rgba(0,0,0,.4); }
 .port.in{ left:-15px; } .port.out{ right:-15px; }
 .port:hover{ transform:scale(1.35); }
+/* 현재 모델이 미지원하는 입력 포트(예: V2V 미지원 모델의 영상 레퍼런스) — 연결 불가 */
+.port.port-off{ opacity:.28; filter:grayscale(1); pointer-events:none; box-shadow:none; }
+.in-label.io-off{ opacity:.4; text-decoration:line-through; }
 
 /* 위젯 (ComfyUI 필 스타일) */
 .widget{ display:flex; align-items:center; height:24px; border-radius:12px;
@@ -1860,6 +1863,30 @@ var MODEL_PROVIDER = {
 };
 function providerOf(model){ return MODEL_PROVIDER[model] || 'fal'; }
 
+/* ── 모델별 능력 게이팅 ──
+   영상 레퍼런스(V2V)는 실제로 영상→영상을 지원하는 모델만 연결 허용.
+   나머지 모델은 사진 레퍼런스·프롬프트만 연결되게 한다(vidref 차단). */
+function modelV2V(model){ return /V2V 자동|모션 전이|Runway Aleph|Seedance 2\.0/.test(model||''); }
+/* 모델 로더의 "실효 모델" — 모델선택 노드가 연결돼 있으면 그 모델, 아니면 자체 콤보 */
+function effModel(n){ if(!n||!n.w)return ''; if(n.type!=='model')return n.w.model||'';
+  var mp=inputNodeOf(n.id,'modelsel'); return (mp&&mp.w&&mp.w.model)||n.w.model||''; }
+/* 대상 노드의 입력 포트가 현재 모델에서 연결 허용되는지 */
+function portAllowed(node, port){
+  if(!node||node.type!=='model') return true;
+  if(port==='vidref') return modelV2V(effModel(node));   // V2V 미지원 → 영상 레퍼런스 차단
+  return true;   // 프롬프트·네거티브·사진 레퍼런스·첫/마지막 프레임·모델선택은 항상 허용
+}
+/* 모델이 바뀌어 더 이상 지원하지 않는 vidref 연결을 정리 */
+function pruneModelPorts(){
+  var before=state.links.length;
+  state.links=state.links.filter(function(l){
+    if(l.toPort!=='vidref') return true;
+    var tn=state.nodes.find(function(x){return x.id===l.to;});
+    return !(tn && tn.type==='model' && !modelV2V(effModel(tn)));
+  });
+  if(state.links.length!==before){ toast('V2V 미지원 모델이라 영상 레퍼런스 연결을 해제했습니다. (사진 레퍼런스·프롬프트만 가능)'); snapshot(); }
+}
+
 /* 비동기 job 폴링 헬퍼 (대부분의 영상 API 는 생성요청→상태폴링 구조) */
 function wait(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
 async function pollJob(url, headers, pick, tries){
@@ -2913,8 +2940,9 @@ function nodeHTML(n){
   var maxIO=Math.max(def.ins.length,def.outs.length);
   for(var i=0;i<maxIO;i++){
     var inp=def.ins[i], out=def.outs[i];
+    var inpOff=!!(inp && n.type==='model' && !portAllowed(n, inp[0]));   // 현재 모델이 이 포트를 미지원
     rows+='<div class="iorow">'+
-      (inp?'<span class="port in" data-port="'+inp[0]+'" data-dir="in" data-type="'+inp[2]+'" style="background:'+PORT_COLORS[inp[2]]+'"></span><span class="in-label">'+inp[1]+'</span>':'<span></span>')+
+      (inp?'<span class="port in'+(inpOff?' port-off':'')+'" data-port="'+inp[0]+'" data-dir="in" data-type="'+inp[2]+'" style="background:'+PORT_COLORS[inp[2]]+'"></span><span class="in-label'+(inpOff?' io-off':'')+'">'+inp[1]+(inpOff?' · 미지원':'')+'</span>':'<span></span>')+
       (out?'<span class="out-label">'+out[1]+'</span><span class="port out" data-port="'+out[0]+'" data-dir="out" data-type="'+out[2]+'" style="background:'+PORT_COLORS[out[2]]+'"></span>':'')+
       '</div>';
   }
@@ -3206,7 +3234,8 @@ window.addEventListener('mouseup',function(e){
     var pout=e.target.closest?e.target.closest('.port.out'):null;
     if(connect.from&&pin){
       var toN=pin.closest('.node').dataset.node;
-      if(toN!==connect.from.node&&typeOK(pin.dataset.type,connect.type)){
+      var toNode=state.nodes.find(function(x){return x.id===toN;});
+      if(toN!==connect.from.node&&typeOK(pin.dataset.type,connect.type)&&portAllowed(toNode,pin.dataset.port)){
         var lt=connect.type==='*'?pin.dataset.type:connect.type;
         if(pin.dataset.port==='ref') /* 레퍼런스 입력은 다중 연결 허용 — 같은 노드 중복만 제거 */
           state.links=state.links.filter(function(l){return !(l.to===toN&&l.toPort==='ref'&&l.from===connect.from.node);});
@@ -3214,11 +3243,13 @@ window.addEventListener('mouseup',function(e){
           state.links=state.links.filter(function(l){return !(l.to===toN&&l.toPort===pin.dataset.port);});
         state.links.push({from:connect.from.node,fromPort:connect.from.port,to:toN,toPort:pin.dataset.port,type:lt});
         snapshot();
-      } else if(!typeOK(pin.dataset.type,connect.type)) toast('타입 불일치: '+connect.type+' → '+pin.dataset.type);
+      } else if(!portAllowed(toNode,pin.dataset.port)) toast('이 모델은 영상→영상(V2V)을 지원하지 않습니다. 사진 레퍼런스 또는 프롬프트를 연결하세요.');
+      else if(!typeOK(pin.dataset.type,connect.type)) toast('타입 불일치: '+connect.type+' → '+pin.dataset.type);
     }
     if(connect.toFixed&&pout){
       var fromN=pout.closest('.node').dataset.node;
-      if(fromN!==connect.toFixed.node&&typeOK(pout.dataset.type,connect.type)){
+      var fixNode=state.nodes.find(function(x){return x.id===connect.toFixed.node;});
+      if(fromN!==connect.toFixed.node&&typeOK(pout.dataset.type,connect.type)&&portAllowed(fixNode,connect.toFixed.port)){
         var lt2=connect.type==='*'?pout.dataset.type:connect.type;
         if(connect.toFixed.port==='ref')
           state.links=state.links.filter(function(l){return !(l.to===connect.toFixed.node&&l.toPort==='ref'&&l.from===fromN);});
@@ -3226,7 +3257,7 @@ window.addEventListener('mouseup',function(e){
           state.links=state.links.filter(function(l){return !(l.to===connect.toFixed.node&&l.toPort===connect.toFixed.port);});
         state.links.push({from:fromN,fromPort:pout.dataset.port,to:connect.toFixed.node,toPort:connect.toFixed.port,type:lt2});
         snapshot();
-      }
+      } else if(!portAllowed(fixNode,connect.toFixed.port)) toast('이 모델은 영상→영상(V2V)을 지원하지 않습니다. 사진 레퍼런스 또는 프롬프트를 연결하세요.');
     }
     connect.el.remove(); connect=null; render();
   }
@@ -3351,7 +3382,8 @@ canvas.addEventListener('click',function(e){
             :wdef.opts==='IMG_MODELS'?IMG_MODELS.map(function(m){return m[1];}):wdef.opts;
     var i=opts.indexOf(String(n2.w[k])); i=(i+(+cyc.dataset.cyc)+opts.length)%opts.length;
     n2.w[k]=opts[i]; combo.querySelector('.wvalue').textContent=opts[i]; autosave();
-    if(k==='model'||k==='nmode')render();   // Seedance 커스텀 ID / 음성 방식(해설·립싱크) 안내 반영
+    if(k==='model'){ pruneModelPorts(); render(); }   // 모델 변경 → 미지원 포트 정리 + 재렌더
+    else if(k==='nmode')render();   // 음성 방식(해설·립싱크) 안내 반영
     return;
   }
   if(e.target.closest('[data-open]')){
@@ -3463,6 +3495,7 @@ dd.addEventListener('click',function(e){
   var wasModel=ddCtx.k==='model'||ddCtx.k==='nmode';
   ddCtx.n.w[ddCtx.k]=di.dataset.v; ddCtx.anchor.querySelector('.wvalue').textContent=di.dataset.v;
   autosave(); hideDD();
+  if(ddCtx.k==='model') pruneModelPorts();   // 모델 변경 → 미지원 포트(V2V) 연결 정리
   if(wasModel)render();   // Seedance 커스텀 ID / 음성 방식 안내 반영
 });
 
