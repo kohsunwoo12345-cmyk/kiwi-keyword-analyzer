@@ -1605,6 +1605,11 @@ var IMG_MODELS = [
  ['이미지','Flux 1.1 Pro Ultra'],['이미지','Flux 1.1 Pro'],['이미지','Flux Pro'],['이미지','Flux Dev'],
  ['이미지','Grok Imagine']
 ];
+/* 프롬프트 작성 노드 모델 — GPT/Gemini 전 모델 (제공사는 이름 접두사로 자동 판별) */
+var PROMPT_MODELS = [
+ ['GPT','gpt-4o'],['GPT','gpt-4o-mini'],['GPT','gpt-4.1'],['GPT','gpt-4.1-mini'],['GPT','gpt-4.1-nano'],['GPT','gpt-4-turbo'],['GPT','gpt-3.5-turbo'],
+ ['Gemini','gemini-2.5-pro'],['Gemini','gemini-2.5-flash'],['Gemini','gemini-2.5-flash-lite'],['Gemini','gemini-2.0-flash'],['Gemini','gemini-2.0-flash-lite'],['Gemini','gemini-1.5-pro'],['Gemini','gemini-1.5-flash'],['Gemini','gemini-1.5-flash-8b']
+];
 /* 3D 변환·3D 이미지 생성 노드의 스타일 프리셋 — 각 라벨에 실제 프롬프트 지시문 매핑.
    레퍼런스를 넣으면 I2I(편집)로, 없으면 T2I(생성)로 동일 파이프라인에서 처리된다. */
 var STYLE3D = [
@@ -1908,14 +1913,22 @@ var MODEL_REF_LIMIT = {
   'Flux 1.1 Pro Ultra':1,'Flux 1.1 Pro':1,'Flux Pro':1,'Flux Dev':1,'Grok Imagine':1
 };
 function modelRefLimit(model){ var v=MODEL_REF_LIMIT[model]; return v==null?1:v; }
+/* 이미지 레퍼런스 포트 연결이 모델 최대치를 넘으면 초과 안내 */
+function refExceedToast(nodeId, port){
+  if(port!=='ref') return;
+  var nd=state.nodes.find(function(x){return x.id===nodeId;}); if(!nd)return;
+  if(nd.type!=='model'&&nd.type!=='imagegen'&&nd.type!=='img3d'&&nd.type!=='gen3d') return;
+  var lim = nd.type==='model' ? 4 : modelRefLimit(nd.w.model);
+  var cnt = state.links.filter(function(l){return l.to===nodeId && l.toPort==='ref';}).length;
+  if(cnt>lim) toast('이 모델은 이미지 레퍼런스 최대 '+lim+'개까지 지원합니다. 초과된 '+(cnt-lim)+'개는 생성 시 제외됩니다.');
+}
 /* 모델 로더의 "실효 모델" — 모델선택 노드가 연결돼 있으면 그 모델, 아니면 자체 콤보 */
 function effModel(n){ if(!n||!n.w)return ''; if(n.type!=='model')return n.w.model||'';
   var mp=inputNodeOf(n.id,'modelsel'); return (mp&&mp.w&&mp.w.model)||n.w.model||''; }
 /* 대상 노드의 입력 포트가 현재 모델에서 연결 허용되는지 */
 function portAllowed(node, port){
-  if(!node||node.type!=='model') return true;
-  if(port==='vidref') return modelV2V(effModel(node));   // V2V 미지원 → 영상 레퍼런스 차단
-  return true;   // 프롬프트·네거티브·사진 레퍼런스·첫/마지막 프레임·모델선택은 항상 허용
+  // 모든 포트에 자유롭게 연결 허용 — '미지원' 표시 없이 첨부되는 것만 첨부된다.
+  return true;
 }
 /* 모델이 바뀌어 더 이상 지원하지 않는 vidref 연결을 정리 */
 function pruneModelPorts(){
@@ -2522,11 +2535,12 @@ function generatePromptNode(n){
   var bn=inputNodeOf(n.id,'brief');
   var brief=((bn&&bn.w&&bn.w.text)||n.w.brief||'').trim();
   if(!brief){ toast('무엇을 만들지 먼저 적어주세요 (아이디어·주제)'); return; }
-  var provider=(n.w.pgprovider==='Gemini')?'gemini':'gpt';
+  var model=n.w.pgmodel||'gpt-4o-mini';
+  var provider=/^gemini/i.test(model)?'gemini':'gpt';
   var kind=(n.w.pgkind==='영상')?'video':'image';
   n.w.pgGenerating=true; n.w.pgError=null; render();
   fetch('/api/studio/promptgen',{ method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
-    body:JSON.stringify({ provider:provider, brief:brief, kind:kind }) })
+    body:JSON.stringify({ provider:provider, model:model, brief:brief, kind:kind }) })
     .then(function(r){ return r.json(); })
     .then(function(j){ n.w.pgGenerating=false;
       if(!j||!j.ok){ n.w.pgError=(j&&j.error)||'프롬프트 생성 실패'; toast(n.w.pgError); render(); return; }
@@ -2651,7 +2665,7 @@ var DEFS = {
  promptgen:{ cat:'입력', title:'AI 프롬프트 작성 (GPT·Gemini)', hd:'#233a2e',
              ins:[['brief','아이디어·주제 (선택)','TEXT']],
              outs:[['out','프롬프트 → 생성 노드','TEXT']],
-             widgets:[{k:'pgprovider',t:'combo',label:'AI',opts:['GPT','Gemini'],def:'GPT'},
+             widgets:[{k:'pgmodel',t:'combo',label:'모델',opts:'PROMPT_MODELS',def:'gpt-4o-mini'},
                       {k:'pgkind',t:'combo',label:'용도',opts:['이미지','영상'],def:'이미지'},
                       {k:'brief',t:'textarea',ph:'무엇을 만들지 간단히 적어주세요\n(예: 밤 도심을 달리는 전기차 광고)'},
                       {k:'pggen',t:'promptgenbtn',label:'프롬프트 생성'},
@@ -2661,7 +2675,7 @@ var DEFS = {
                       {k:'img',t:'image',omni:true}] },
  imageref: { cat:'입력', title:'이미지 레퍼런스', hd:'#1f3350', ins:[], outs:[['out','이미지','IMAGE']],
              widgets:[{k:'img',t:'image',imageOnly:true}] },
- videoref: { cat:'입력', title:'영상 레퍼런스 (최대 20분)', hd:'#1f3f33', ins:[], outs:[['out','영상','VIDEO']],
+ videoref: { cat:'입력', title:'영상 레퍼런스', hd:'#1f3f33', ins:[], outs:[['out','영상','VIDEO']],
              widgets:[{k:'frameCount',t:'combo',label:'영상 프레임 수',opts:['1','3','5','8'],def:'3'},
                       {k:'img',t:'image',videoOnly:true}] },
  modelpick:{ cat:'모델', title:'모델 선택', hd:'#2c2440', ins:[],
@@ -2671,8 +2685,8 @@ var DEFS = {
  model:    { cat:'모델', title:'AI 모델 로더', hd:'#2c2440',
              ins:[['modelsel','모델 선택 (선택)','MODEL'],
                   ['prompt','프롬프트','TEXT'],['negative','네거티브','TEXT'],
-                  ['ref','사진 레퍼런스 (여러 장)','IMAGE'],
-                  ['vidref','영상 레퍼런스 (V2V·프레임)','*'],
+                  ['ref','이미지 레퍼런스','IMAGE'],
+                  ['vidref','영상 레퍼런스','*'],
                   ['first','첫 프레임','IMAGE'],['last','마지막 프레임','IMAGE']],
              outs:[['out','생성물','GEN']],
              widgets:[{k:'model',t:'combo',label:'model',opts:'MODELS',def:'Seedance 2.0'},
@@ -2687,9 +2701,7 @@ var DEFS = {
              ins:[['prompt','프롬프트(선택)','TEXT'],['ref','레퍼런스 (최대 12장 · 다중 연결)','IMAGE']],
              outs:[['out','생성 이미지 → 레퍼런스','IMAGE']],
              widgets:[{k:'model',t:'combo',label:'model',opts:'IMG_MODELS',def:'Nano Banana'},
-                      {k:'prompt',t:'textarea',ph:'생성할 이미지 설명 (또는 왼쪽에 프롬프트 노드 연결)'},
                       {k:'ratio',t:'combo',label:'ratio',opts:['1:1','16:9','9:16','4:5'],def:'1:1'},
-                      {k:'refup',t:'image'},
                       {k:'fluxctrl',t:'fluxctrl'},
                       {k:'gen',t:'imggenbtn',label:'이미지 생성'},
                       {k:'imgout',t:'imagegenout'}] },
@@ -3252,14 +3264,12 @@ function widgetHTML(n,w){
     var preview = n.w.cnPreview ?
       ('<div class="wpreview" style="aspect-ratio:1/1;margin-top:6px;"><span class="badge">전처리 미리보기 (Canny)</span><img src="'+esc(n.w.cnPreview)+'" alt="canny preview"></div>') : '';
     return '<div class="seedopts-wrap" style="background:#111c22;border-color:#254048;">'+
-      '<div class="seedopts-hd" style="color:#6fc9dd;">'+ICON.gear+' ControlNet (fal · 다중 스택)</div>'+
-      '<div class="seedopt-lb">연결된 <b>레퍼런스</b>의 구조를 따라 생성. 여러 개 켜면 <b>동시 적용</b>(최대 3).</div>'+
+      '<div class="seedopts-hd" style="color:#6fc9dd;">'+ICON.gear+' ControlNet (fal)</div>'+
       '<span class="up-seg" style="width:100%;">'+chips+'</span>'+
       rows+
       globals+
       '<button class="wbtn" data-cnpreview style="margin-top:6px;">'+ICON.image+' 전처리 미리보기 (Canny)</button>'+
       preview+
-      '<div class="seedid-hint" style="margin-top:5px;">강도=구조 반영 · 시작/끝%=적용 구간 · steps=품질/속도 · guidance=프롬프트 세기. 미리보기는 Canny(브라우저 무료), 실제 Depth/Pose는 생성 시 fal이 추출.</div>'+
     '</div>';
   }
   if(w.t==='button') return '<button class="wbtn" data-runnode>'+ICON.sparkle+' '+esc(w.label)+'</button>';
@@ -3293,7 +3303,7 @@ function widgetHTML(n,w){
   if(w.t==='imagegenout'){
     if(n.w.imgGenerating) return '<div class="wpreview genwrap" style="min-height:100px;"><div class="genring"><span class="genorbit"></span></div><div class="gentext">생성 중<i>.</i><i>.</i><i>.</i></div></div>';
     if(n.w.imgError) return '<div class="wpreview vperr"><span class="vperr-x">'+ICON.close+'</span><b>생성 실패</b><span class="vperr-msg">'+esc(String(n.w.imgError).slice(0,180))+'</span><span class="vperr-hint">키 미설정이면 그 모델은 생성이 안 됩니다</span></div>';
-    if(!n.w.img) return '<div class="wpreview" style="aspect-ratio:1/1;"><span class="empty">생성된 이미지 없음<br>모델·프롬프트 후 <b>'+ICON.sparkle+' 이미지 생성</b></span></div>';
+    if(!n.w.img) return '<div class="wpreview" style="aspect-ratio:1/1;"></div>';
     return '<div class="wpreview"><span class="badge">'+esc(n.w.model||'이미지')+'</span><img src="'+esc(n.w.img)+'" alt="생성 이미지"></div>'+
       '<button class="wbtn" data-dlimg>'+ICON.dl+' 이미지 저장</button>'+
       '<div class="refcnt">우측 IMAGE 포트 → 다른 모델의 <b>레퍼런스/첫 프레임</b>에 연결해 재활용</div>';
@@ -3322,7 +3332,7 @@ function widgetHTML(n,w){
     var vtag=function(i){ return vids[i]?'<b class="vtag">'+ICON.video+' 영상</b>':''; };
     var grid;
     if(!imgs.length){
-      grid='<div class="wpreview" style="aspect-ratio:16/10;"><span class="empty">옴니 레퍼런스 없음<br>이미지 또는 <b style="color:#81c784">영상</b>을 업로드하세요<br>(3D 모델링 영상 등 — 대표 프레임이 레퍼런스로 들어갑니다)</span></div>';
+      grid='<div class="wpreview upload-empty" data-upload style="aspect-ratio:16/10;cursor:pointer;"><span class="empty">'+ICON.image+' Click to add</span></div>';
     } else if(imgs.length===1){
       grid='<div class="refsingle">'+vtag(0)+'<img src="'+esc(imgs[0])+'" alt="ref1">'+
            '<i data-refdel="0" title="제거">'+ICON.close+'</i></div>';
@@ -3684,9 +3694,8 @@ window.addEventListener('mouseup',function(e){
         else
           state.links=state.links.filter(function(l){return !(l.to===toN&&l.toPort===pin.dataset.port);});
         state.links.push({from:connect.from.node,fromPort:connect.from.port,to:toN,toPort:pin.dataset.port,type:lt});
-        snapshot();
-      } else if(!portAllowed(toNode,pin.dataset.port)) toast('이 모델은 영상→영상(V2V)을 지원하지 않습니다. 사진 레퍼런스 또는 프롬프트를 연결하세요.');
-      else if(!typeOK(pin.dataset.type,connect.type)) toast('타입 불일치: '+connect.type+' → '+pin.dataset.type);
+        snapshot(); refExceedToast(toN, pin.dataset.port);
+      } else if(!typeOK(pin.dataset.type,connect.type)) toast('타입 불일치: '+connect.type+' → '+pin.dataset.type);
     }
     if(connect.toFixed&&pout){
       var fromN=pout.closest('.node').dataset.node;
@@ -3698,8 +3707,8 @@ window.addEventListener('mouseup',function(e){
         else
           state.links=state.links.filter(function(l){return !(l.to===connect.toFixed.node&&l.toPort===connect.toFixed.port);});
         state.links.push({from:fromN,fromPort:pout.dataset.port,to:connect.toFixed.node,toPort:connect.toFixed.port,type:lt2});
-        snapshot();
-      } else if(!portAllowed(fixNode,connect.toFixed.port)) toast('이 모델은 영상→영상(V2V)을 지원하지 않습니다. 사진 레퍼런스 또는 프롬프트를 연결하세요.');
+        snapshot(); refExceedToast(connect.toFixed.node, connect.toFixed.port);
+      }
     }
     connect.el.remove(); connect=null; render();
   }
@@ -3860,6 +3869,7 @@ canvas.addEventListener('click',function(e){
     var wdef=DEFS[n2.type].widgets.find(function(w){return w.k===k;});
     var opts=wdef.opts==='MODELS'?MODELS.map(function(m){return m[1];})
             :wdef.opts==='IMG_MODELS'?IMG_MODELS.map(function(m){return m[1];})
+            :wdef.opts==='PROMPT_MODELS'?PROMPT_MODELS.map(function(m){return m[1];})
             :wdef.opts==='STYLE3D'?STYLE3D_OPTS:wdef.opts;
     var i=opts.indexOf(String(n2.w[k])); i=(i+(+cyc.dataset.cyc)+opts.length)%opts.length;
     n2.w[k]=opts[i]; combo.querySelector('.wvalue').textContent=opts[i]; autosave();
@@ -3963,17 +3973,38 @@ canvas.addEventListener('click',function(e){
 
 /* 콤보 드롭다운 */
 var dd=document.getElementById('dd'), ddCtx=null;
+function ddFilter(q){
+  q=(q||'').toLowerCase().trim();
+  var kids=Array.prototype.slice.call(dd.children);
+  var lastHead=null, headHasVisible=false;
+  kids.forEach(function(el){
+    if(el.classList.contains('dd-search')) return;
+    if(el.classList.contains('dh')){
+      if(lastHead) lastHead.style.display=headHasVisible?'':'none';
+      lastHead=el; headHasVisible=false; return;
+    }
+    if(el.classList.contains('di')){
+      var show=!q || el.textContent.toLowerCase().indexOf(q)>-1;
+      el.style.display=show?'':'none'; if(show)headHasVisible=true;
+    }
+  });
+  if(lastHead) lastHead.style.display=headHasVisible?'':'none';
+}
 function openDD(anchor,n,k){
   var wdef=DEFS[n.type].widgets.find(function(w){return w.k===k;});
+  var isModelList=(wdef.opts==='MODELS' || wdef.opts==='IMG_MODELS' || wdef.opts==='PROMPT_MODELS');
   var html='';
-  if(wdef.opts==='MODELS' || wdef.opts==='IMG_MODELS'){
-    var list=wdef.opts==='IMG_MODELS'?IMG_MODELS:MODELS, cat='';
+  if(isModelList){
+    html+='<input class="dd-search" type="text" placeholder="모델 검색…" spellcheck="false" autocomplete="off" style="position:sticky;top:0;z-index:1;display:block;width:calc(100% - 12px);margin:6px;padding:6px 9px;border-radius:7px;border:1px solid #34363e;background:#151517;color:#e6e6ea;font-size:11px;outline:none;font-family:inherit;box-sizing:border-box;">';
+    var list=wdef.opts==='IMG_MODELS'?IMG_MODELS:wdef.opts==='PROMPT_MODELS'?PROMPT_MODELS:MODELS, cat='';
     list.forEach(function(m){ if(m[0]!==cat){cat=m[0];html+='<div class="dh">'+cat+'</div>';} html+='<div class="di" data-v="'+esc(m[1])+'">'+esc(m[1])+'</div>'; });
   } else { var arr=(wdef.opts==='STYLE3D')?STYLE3D_OPTS:wdef.opts; arr.forEach(function(o){ html+='<div class="di" data-v="'+esc(o)+'">'+esc(o)+'</div>'; }); }
   dd.innerHTML=html;
   var r=anchor.getBoundingClientRect();
   dd.style.left=Math.min(r.left,innerWidth-230)+'px'; dd.style.top=Math.min(r.bottom+4,innerHeight-300)+'px';
   dd.style.display='block'; ddCtx={n:n,k:k,anchor:anchor};
+  if(isModelList){ var si=dd.querySelector('.dd-search');
+    if(si){ si.addEventListener('keydown',function(ev){ ev.stopPropagation(); }); si.addEventListener('input',function(){ ddFilter(this.value); }); setTimeout(function(){ try{si.focus();}catch(e){} },0); } }
 }
 function hideDD(){ dd.style.display='none'; ddCtx=null; }
 dd.addEventListener('click',function(e){

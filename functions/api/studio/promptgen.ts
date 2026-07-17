@@ -1,4 +1,4 @@
-import { Env, json, resolveDB, ensureSchema, getSessionUser } from '../_utils'
+import { Env, json, resolveDB, ensureSchema, getSessionUser, getSetting, applyBalance } from '../_utils'
 
 function pick(env: any, names: string[]): string {
   for (const n of names) { const v = env?.[n]; if (v) return String(v) }
@@ -12,62 +12,83 @@ Rules:
 - Be specific about subject, composition, lighting, mood, camera, lens, color, and style.
 - For video, include motion/camera movement. Keep it under 120 words.`
 
-// POST /api/studio/promptgen { provider:'gpt'|'gemini', brief, kind:'image'|'video' } → { ok, prompt }
+// 프롬프트 작성 크레딧 비용 (관리자 ai-pricing 에서 조절, 기본 1)
+async function promptCost(db: any): Promise<number> {
+  try { const v = await getSetting(db, 'promptgen_credits'); const n = Number(v); if (v != null && isFinite(n) && n >= 0) return Math.round(n * 100) / 100 } catch {}
+  return 1
+}
+
+// POST /api/studio/promptgen { provider, model, brief, kind } → { ok, prompt }
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env)
-  if (db) { try { await ensureSchema(db); const me = await getSessionUser(request, db); if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401) } catch {} }
+  let me: any = null
+  if (db) { try { await ensureSchema(db); me = await getSessionUser(request, db); if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401) } catch {} }
 
   const b: any = await request.json().catch(() => ({}))
-  const provider = b.provider === 'gemini' ? 'gemini' : 'gpt'
+  const model = String(b.model || '').trim()
+  const isGemini = b.provider === 'gemini' || /^gemini/i.test(model)
   const kind = b.kind === 'video' ? 'video' : 'image'
   const brief = String(b.brief || '').trim().slice(0, 2000)
   if (!brief) return json({ ok: false, error: '무엇을 만들지 간단히 적어주세요.' }, 400)
+
+  // 크레딧 사전 확인 (관리자 설정 비용)
+  const cost = db ? await promptCost(db) : 0
+  if (db && me && cost > 0) {
+    const isAdmin = me.role === 'admin' || me.email === (env as any).ADMIN_EMAIL
+    if (!isAdmin && (Number(me.credits) || 0) < cost) {
+      return json({ ok: false, error: `크레딧이 부족합니다. (프롬프트 작성 ${cost} 크레딧 필요)`, needCredit: true }, 402)
+    }
+  }
 
   const userMsg = `Target: ${kind} generation.\nBrief: ${brief}\n\nWrite the single best ${kind} generation prompt.`
   const openaiKey = pick(env, ['GPT_API_KEY', 'OPENAI_API_KEY', 'gpt_api_key', 'openai_api_key'])
   const googleKey = pick(env, ['VEO_API_KEY', 'veo_api_key', 'GEMINI_API_KEY', 'gemini_api_key', 'GOOGLE_API_KEY'])
 
   try {
-    if (provider === 'gemini') {
+    let prompt = ''
+    if (isGemini) {
       if (!googleKey) return json({ ok: false, error: 'Gemini(Google) API 키가 설정되지 않았습니다.' }, 400)
+      const gm = /^gemini/i.test(model) ? model : 'gemini-2.5-flash'
       const r = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(googleKey),
+        'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(gm) + ':generateContent?key=' + encodeURIComponent(googleKey),
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: SYS }] },
             contents: [{ role: 'user', parts: [{ text: userMsg }] }],
-            generationConfig: { temperature: 0.9, maxOutputTokens: 400 },
+            generationConfig: { temperature: 0.9, maxOutputTokens: 500 },
           }),
         },
       )
       const j: any = await r.json().catch(() => ({}))
       if (!r.ok) return json({ ok: false, error: 'Gemini 오류: ' + String(j?.error?.message || r.status).slice(0, 160) }, 502)
-      const text = (j?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('').trim()
-      if (!text) return json({ ok: false, error: 'Gemini 응답이 비어 있습니다.' }, 502)
-      return json({ ok: true, prompt: text, provider: 'gemini' })
+      prompt = (j?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('').trim()
+    } else {
+      if (!openaiKey) return json({ ok: false, error: 'OpenAI(GPT) API 키가 설정되지 않았습니다.' }, 400)
+      const gpt = /^gpt|^o[0-9]/i.test(model) ? model : 'gpt-4o-mini'
+      const r = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + openaiKey },
+        body: JSON.stringify({
+          model: gpt,
+          temperature: 0.9,
+          max_tokens: 500,
+          messages: [{ role: 'system', content: SYS }, { role: 'user', content: userMsg }],
+        }),
+      })
+      const j: any = await r.json().catch(() => ({}))
+      if (!r.ok) return json({ ok: false, error: 'GPT 오류: ' + String(j?.error?.message || r.status).slice(0, 160) }, 502)
+      prompt = String(j?.choices?.[0]?.message?.content || '').trim()
     }
-    // OpenAI (GPT)
-    if (!openaiKey) return json({ ok: false, error: 'OpenAI(GPT) API 키가 설정되지 않았습니다.' }, 400)
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + openaiKey },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        temperature: 0.9,
-        max_tokens: 400,
-        messages: [
-          { role: 'system', content: SYS },
-          { role: 'user', content: userMsg },
-        ],
-      }),
-    })
-    const j: any = await r.json().catch(() => ({}))
-    if (!r.ok) return json({ ok: false, error: 'GPT 오류: ' + String(j?.error?.message || r.status).slice(0, 160) }, 502)
-    const text = String(j?.choices?.[0]?.message?.content || '').trim()
-    if (!text) return json({ ok: false, error: 'GPT 응답이 비어 있습니다.' }, 502)
-    return json({ ok: true, prompt: text, provider: 'gpt' })
+    if (!prompt) return json({ ok: false, error: '응답이 비어 있습니다.' }, 502)
+
+    // 성공 시에만 크레딧 차감
+    if (db && me && cost > 0) {
+      const isAdmin = me.role === 'admin' || me.email === (env as any).ADMIN_EMAIL
+      if (!isAdmin) await applyBalance(db, me.id, 'credit', -cost, `프롬프트 작성 (${isGemini ? 'Gemini' : 'GPT'} · ${model || 'auto'})`).catch(() => {})
+    }
+    return json({ ok: true, prompt, provider: isGemini ? 'gemini' : 'gpt', model, cost })
   } catch (e: any) {
     return json({ ok: false, error: '프롬프트 생성 실패: ' + String(e?.message || e).slice(0, 160) }, 500)
   }
