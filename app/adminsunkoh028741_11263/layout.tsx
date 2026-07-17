@@ -14,6 +14,7 @@ import {
   ScrollText,
   BarChart3,
   Wallet,
+  Gauge,
   MessageCircle,
   UserPlus,
   IdCard,
@@ -41,6 +42,7 @@ const NAV = [
   { title: '회원가입정보', href: `${ADMIN_BASE}/referrals`, icon: IdCard },
   { title: '지사 정산', href: `${ADMIN_BASE}/settlement`, icon: Landmark },
   { title: 'AI 정산', href: `${ADMIN_BASE}/ai-usage`, icon: Wallet },
+  { title: 'AI 비용 (원가율)', href: `${ADMIN_BASE}/ai-pricing`, icon: Gauge },
   { title: '설정', href: '#', icon: Settings },
 ]
 
