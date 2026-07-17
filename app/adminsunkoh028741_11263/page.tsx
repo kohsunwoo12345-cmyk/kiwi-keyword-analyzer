@@ -191,13 +191,27 @@ export default function AdminDashboard() {
         desc="가입 회원과 서비스 지표를 실제 데이터로 모니터링합니다."
         accent={ACCENT}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href="/api/admin/export-db?scope=marketing"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"
+              title="마케팅 수신동의(marketing) 한 회원만 엑셀로 내려받습니다"
+            >
+              <Download size={15} /> 수신동의 회원
+            </a>
+            <a
+              href="/api/admin/export-db?scope=members"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
+              title="전체(일반) 회원 명단을 엑셀로 내려받습니다"
+            >
+              <Download size={15} /> 전체 회원
+            </a>
             <a
               href="/api/admin/export-db"
               className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
-              title="주요 DB 테이블을 하나의 엑셀(.xlsx) 파일로 내려받습니다"
+              title="주요 DB 테이블 전체를 하나의 엑셀(.xlsx)로 내려받습니다"
             >
-              <Download size={15} /> DB 엑셀 다운로드
+              <Download size={15} /> 전체 DB
             </a>
             <Button href="/adminsunkoh028741_11263/users" size="sm">
               회원 관리 <ChevronRight size={16} />
