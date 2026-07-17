@@ -12,6 +12,7 @@ import {
   setSetting,
   clientIp,
   addNotification,
+  deviceSig,
 } from '../_utils'
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
@@ -68,10 +69,17 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   ])
 
   const whitelistMode = (await getSetting(db, 'whitelist_mode')) === 'on'
+  const adminLock = (await getSetting(db, 'admin_login_lock')) === 'on'
+  const adminDevices = (await db.prepare('SELECT id, label, device, ip, created_at FROM admin_devices ORDER BY created_at DESC LIMIT 100').all()).results || []
+  const currentIp = clientIp(request)
+  const currentDevice = deviceSig(request.headers.get('User-Agent') || '')
 
   return json({
     ok: true,
-    settings: { whitelistMode },
+    settings: { whitelistMode, adminLock },
+    adminDevices,
+    currentIp,
+    currentDevice,
     blocked: blocked.results || [],
     whitelist: whitelist.results || [],
     logs: logs.results || [],
@@ -154,6 +162,33 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       const on = body.enabled ? 'on' : 'off'
       await setSetting(db, 'whitelist_mode', on)
       await logAudit(db, admin, 'whitelist_mode', on, '', 'high', adminIp)
+      break
+    }
+    case 'admin-device-add': {
+      // 현재 접속 중인 기기/IP를 관리자 허용 목록에 등록
+      const device = deviceSig(request.headers.get('User-Agent') || '')
+      const label = String(body.label || '').trim().slice(0, 60) || '내 기기'
+      await db
+        .prepare('INSERT INTO admin_devices (id, label, device, ip, created_at) VALUES (?, ?, ?, ?, ?)')
+        .bind('ad_' + crypto.randomUUID().slice(0, 14), label, device, adminIp, now)
+        .run()
+      await logAudit(db, admin, 'admin_device_add', `${device} / ${adminIp}`, label, 'high', adminIp)
+      break
+    }
+    case 'admin-device-del': {
+      await db.prepare('DELETE FROM admin_devices WHERE id = ?').bind(String(body.id || '')).run()
+      await logAudit(db, admin, 'admin_device_del', String(body.id || ''), '', 'warn', adminIp)
+      break
+    }
+    case 'admin-lock': {
+      const on = body.enabled ? 'on' : 'off'
+      if (on === 'on') {
+        // 잠금 켜기 전 등록된 기기/IP가 반드시 있어야 함(영구 잠김 방지)
+        const cnt: any = await db.prepare('SELECT COUNT(*) AS n FROM admin_devices').first()
+        if (!Number(cnt?.n)) return json({ ok: false, error: '먼저 현재 기기/IP를 등록한 뒤 잠금을 켜세요.' }, 400)
+      }
+      await setSetting(db, 'admin_login_lock', on)
+      await logAudit(db, admin, 'admin_login_lock', on, '', 'high', adminIp)
       break
     }
     case 'clear-logs': {

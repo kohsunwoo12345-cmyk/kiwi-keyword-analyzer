@@ -17,6 +17,8 @@ import {
   recordLoginFailure,
   countRecentLoginFailures,
   logSecurity,
+  getSetting,
+  deviceSig,
 } from './_utils'
 
 const BRUTE_FORCE_LIMIT = 8 // 15분 내 이 횟수 초과 실패 시 IP 자동 차단
@@ -56,6 +58,19 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   // ── 관리자: 확정 비밀번호로 항상 로그인 가능 (없으면 생성, 있으면 동기화) ──
   if (email === ADMIN_EMAIL && password === adminPassword(env)) {
+    // 관리자 로그인 기기/IP 잠금 — 등록된 기기 또는 IP가 아니면 차단
+    if ((await getSetting(db, 'admin_login_lock')) === 'on') {
+      const devs: any[] = (await db.prepare('SELECT device, ip FROM admin_devices').all()).results || []
+      if (devs.length) {
+        const reqDevice = deviceSig(ua)
+        const ipOk = devs.some((d) => d.ip === ip)
+        const devOk = devs.some((d) => d.device === reqDevice)
+        if (!ipOk && !devOk) {
+          await logSecurity(db, { ip, method: 'POST', path: '/api/login', status: 403, severity: 'high', detail: `관리자 로그인 기기/IP 제한 차단 (${reqDevice})`, country: geo.country, city: geo.city, ua })
+          return json({ ok: false, error: '등록되지 않은 기기·IP에서는 관리자 로그인이 제한되어 있습니다.' }, 403)
+        }
+      }
+    }
     const ph = await hashPassword(password)
     const existing: any = await db.prepare('SELECT * FROM users WHERE email = ?').bind(email).first()
     if (existing) {

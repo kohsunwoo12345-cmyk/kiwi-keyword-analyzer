@@ -424,6 +424,14 @@ export async function ensureSchema(db: D1Database) {
       created_at TEXT NOT NULL
     )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_bset_branch ON branch_settlements(branch_id)`),
+    // 관리자 로그인 허용 기기/IP (보안 잠금 ON 시 등록된 IP 또는 기기에서만 관리자 로그인 허용)
+    db.prepare(`CREATE TABLE IF NOT EXISTS admin_devices (
+      id TEXT PRIMARY KEY,
+      label TEXT DEFAULT '',
+      device TEXT DEFAULT '',
+      ip TEXT DEFAULT '',
+      created_at TEXT NOT NULL
+    )`),
   ])
   // 기존 테이블에 신규 컬럼 보강 (누락된 것만 추가)
   await addMissingColumns(db, 'users', {
@@ -655,6 +663,26 @@ export function geoFrom(request: Request): { country: string; city: string; regi
     isp: cf.asOrganization || '',
     asn: cf.asn ? String(cf.asn) : '',
   }
+}
+
+/** User-Agent → 안정적인 기기 서명(OS · 브라우저). 관리자 로그인 기기 제한 매칭용. */
+export function deviceSig(ua: string): string {
+  const s = String(ua || '')
+  let os = '기타'
+  if (/iPhone|iPad|iPod/i.test(s)) os = 'iOS'
+  else if (/Android/i.test(s)) os = 'Android'
+  else if (/Windows/i.test(s)) os = 'Windows'
+  else if (/Mac OS X|Macintosh/i.test(s)) os = 'Mac'
+  else if (/Linux/i.test(s)) os = 'Linux'
+  let br = '기타'
+  if (/Edg\//i.test(s)) br = 'Edge'
+  else if (/OPR\/|Opera/i.test(s)) br = 'Opera'
+  else if (/SamsungBrowser/i.test(s)) br = 'Samsung'
+  else if (/Whale/i.test(s)) br = 'Whale'
+  else if (/Chrome\//i.test(s)) br = 'Chrome'
+  else if (/Firefox\//i.test(s)) br = 'Firefox'
+  else if (/Safari/i.test(s)) br = 'Safari'
+  return `${os} · ${br}`
 }
 
 /* ── 전역 설정 (key/value) ── */

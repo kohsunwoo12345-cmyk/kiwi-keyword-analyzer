@@ -319,6 +319,7 @@ export default function AdminSecurityPage() {
   /* ── 화이트리스트 tab ── */
   const [wlIp, setWlIp] = useState('')
   const [wlLabel, setWlLabel] = useState('')
+  const [devLabel, setDevLabel] = useState('내 기기')
   async function submitWhitelist() {
     const trimmed = wlIp.trim()
     if (!trimmed) return showToast('허용할 IP를 입력하세요.', 'err')
@@ -617,6 +618,83 @@ export default function AdminSecurityPage() {
         {/* ══════════ 화이트리스트 ══════════ */}
         {tab === 'whitelist' && (
           <div className="space-y-6">
+            {/* 관리자 로그인 기기·IP 잠금 */}
+            <Reveal>
+              <div className={cn('card p-5', data.settings.adminLock && 'ring-1 ring-rose-300')}>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <span className={cn('grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl', data.settings.adminLock ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-500')}>
+                      {data.settings.adminLock ? <Lock size={20} /> : <Unlock size={20} />}
+                    </span>
+                    <div>
+                      <p className="font-semibold">관리자 로그인 기기·IP 잠금</p>
+                      <p className="mt-0.5 text-sm text-[var(--text-soft)]">
+                        켜면 아래 등록된 <b>IP 또는 기기</b>에서만 관리자 로그인이 가능합니다. 그 외에는 비밀번호가 맞아도 로그인이 차단됩니다.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    role="switch"
+                    aria-checked={!!data.settings.adminLock}
+                    disabled={busy}
+                    onClick={() => {
+                      const next = !data.settings.adminLock
+                      if (next && !(data.adminDevices?.length)) return showToast('먼저 현재 기기/IP를 등록한 뒤 잠금을 켜세요.', 'err')
+                      if (next && !confirmed('잠금을 켜면 등록된 IP/기기 외에서는 관리자 로그인이 불가합니다. 현재 기기가 등록되어 있는지 확인하세요. 계속할까요?')) return
+                      run(() => adminSecurityAction('admin-lock', { enabled: next }), next ? '관리자 로그인 잠금 ON' : '관리자 로그인 잠금 OFF')
+                    }}
+                    className={cn('relative h-7 w-12 flex-shrink-0 rounded-full transition-colors duration-200 disabled:opacity-50', data.settings.adminLock ? 'bg-rose-500' : 'bg-slate-300')}
+                  >
+                    <span className={cn('absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200', data.settings.adminLock ? 'translate-x-5 left-1' : 'left-1')} />
+                  </button>
+                </div>
+
+                {/* 현재 접속 정보 + 등록 */}
+                <div className="mt-4 flex flex-col gap-2.5 rounded-xl bg-slate-50 p-3 sm:flex-row sm:items-center">
+                  <div className="flex flex-1 flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                    <span className="flex items-center gap-1.5"><Monitor size={14} className="text-slate-400" /> 현재 기기: <b>{data.currentDevice || '-'}</b></span>
+                    <span className="flex items-center gap-1.5"><Smartphone size={14} className="text-slate-400" /> 현재 IP: <b>{data.currentIp || '-'}</b></span>
+                  </div>
+                  <input value={devLabel} onChange={(e) => setDevLabel(e.target.value)} placeholder="기기 이름" className={cn(INPUT_CLS, 'sm:max-w-[160px]')} />
+                  <Button variant="primary" size="md" className="sm:flex-shrink-0" disabled={busy} onClick={() => run(() => adminSecurityAction('admin-device-add', { label: devLabel.trim() || '내 기기' }), '현재 기기/IP를 등록했습니다.')}>
+                    <Smartphone size={15} /> 이 기기·IP 등록
+                  </Button>
+                </div>
+
+                {/* 등록된 기기 목록 */}
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full min-w-[520px] text-sm">
+                    <thead>
+                      <tr className={THEAD_CLS}>
+                        <th className={TH_CLS}>기기 이름</th>
+                        <th className={TH_CLS}>기종</th>
+                        <th className={TH_CLS}>IP</th>
+                        <th className={TH_CLS}>등록일</th>
+                        <th className={TH_CLS}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(data.adminDevices || []).length === 0 ? (
+                        <tr><td colSpan={5} className="py-6 text-center text-[var(--text-dim)]">등록된 기기가 없습니다. 현재 기기를 먼저 등록하세요.</td></tr>
+                      ) : (
+                        (data.adminDevices || []).map((d) => (
+                          <tr key={d.id} className="border-b border-[var(--border-soft)] last:border-0">
+                            <td className="px-3 py-2 font-medium">{d.label || '내 기기'}</td>
+                            <td className="px-3 py-2 text-[var(--text-soft)]">{d.device}</td>
+                            <td className="px-3 py-2 font-mono text-xs">{d.ip}</td>
+                            <td className="px-3 py-2 text-xs text-[var(--text-dim)]">{fmtDateTime(d.created_at)}</td>
+                            <td className="px-3 py-2 text-right">
+                              <button className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50" disabled={busy} onClick={() => { if (confirmed('이 기기 등록을 삭제할까요?')) run(() => adminSecurityAction('admin-device-del', { id: d.id }), '등록을 삭제했습니다.') }}>삭제</button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </Reveal>
+
             <Reveal>
               <div
                 className={cn(

@@ -504,9 +504,14 @@ export interface ExportRow { admin_email: string; filename: string; kind: string
 export interface ReportRow { id: string; reporter_email: string | null; target_type: string; target_id: string; target_desc: string; reason: string; status: string; created_at: string; decided_at: string | null }
 export interface InstallRow { id: string; user_email: string | null; endpoint: string; platform: string; allowed: number; ip: string; country: string; city: string; ua: string; created_at: string }
 
+export interface AdminDevice { id: string; label: string; device: string; ip: string; created_at: string }
+
 export interface SecurityBundle {
   ok: boolean; error?: string
-  settings: { whitelistMode: boolean }
+  settings: { whitelistMode: boolean; adminLock?: boolean }
+  adminDevices?: AdminDevice[]
+  currentIp?: string
+  currentDevice?: string
   blocked: BlockedIp[]; whitelist: WhitelistIp[]; logs: SecLog[]; loginFailures: LoginFail[]
   sessions: SessionRow[]; audit: AuditRow[]; exports: ExportRow[]; reports: ReportRow[]; installs: InstallRow[]
   stats: {
@@ -517,7 +522,8 @@ export interface SecurityBundle {
 
 export async function adminSecurity(): Promise<SecurityBundle> {
   const empty: SecurityBundle = {
-    ok: false, settings: { whitelistMode: false }, blocked: [], whitelist: [], logs: [], loginFailures: [],
+    ok: false, settings: { whitelistMode: false, adminLock: false }, adminDevices: [], currentIp: '', currentDevice: '',
+    blocked: [], whitelist: [], logs: [], loginFailures: [],
     sessions: [], audit: [], exports: [], reports: [], installs: [],
     stats: { blockedCount: 0, whitelistCount: 0, events24: 0, threats24: 0, loginFails24: 0, activeSessions: 0, pendingReports: 0, installsTotal: 0, pushAllowed: 0 },
   }
@@ -533,6 +539,7 @@ export async function adminSecurity(): Promise<SecurityBundle> {
 export type SecurityAction =
   | 'block' | 'unblock' | 'delete-ip' | 'unblock-many' | 'unblock-all'
   | 'whitelist-add' | 'whitelist-remove' | 'whitelist-mode'
+  | 'admin-device-add' | 'admin-device-del' | 'admin-lock'
   | 'clear-logs' | 'clear-login-failures'
   | 'force-logout' | 'force-logout-user' | 'force-logout-all'
   | 'report-action' | 'push-send' | 'export-log'
