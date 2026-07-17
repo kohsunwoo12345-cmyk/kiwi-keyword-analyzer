@@ -638,6 +638,11 @@ async function handle(context) {
         motion:   !!k.fal,
         nanobanana: !!(gcpCreds(env) || k.google),
         openai:   !!k.openai,
+        // 음성/립싱크 파이프라인 연동 상태
+        elevenlabs: !!pick(env, ["ElevenLabs_API_KEY", "ELEVENLABS_API_KEY", "elevenlabs_api_key"]),
+        lipsync:  !!k.fal,                                                                     // fal sync-lipsync
+        revoice:  !!(pick(env, ["ElevenLabs_API_KEY", "ELEVENLABS_API_KEY", "elevenlabs_api_key"]) && k.fal), // 목소리 교체+립싱크
+        narrateReady: !!(k.fal && pick(env, ["Text_to_Speech", "OpenAI_Text_to_speech", "ElevenLabs_API_KEY", "OPENAI_API_KEY"])), // TTS+병합
         // 스튜디오가 실제로 쓰는 Seedance 모델 결정값 진단 (모델ID는 비밀 아님)
         seedanceModelOverride: pick(env, ["SEEDANCE_MODEL_ID", "seedance_model_id"]) || null,
         seedance20Maps: SEEDANCE_IDS["Seedance 2.0"]
