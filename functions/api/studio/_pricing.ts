@@ -57,6 +57,7 @@ const RES_MULT: Record<string, number> = { '720p': 0.6, '1080p': 1.0, '4K': 2.6 
 // 모델 표시명 → 단가.  u:'sec'(영상 초당) | 'img'(이미지 장당), usd, audio(오디오 초당 추가), prov(집계용)
 export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?: number; prov: string }> = {
   'Runway Aleph (영상→실사 V2V)': { u: 'sec', usd: 0.15, prov: 'runway_aleph' },
+  'V2V 자동 (최고정확도·모델 자동선택)': { u: 'sec', usd: 0.15, prov: 'v2v_auto' },
   'Google Veo 3.1': { u: 'sec', usd: 0.40, audio: 0.35, prov: 'google' },
   'Runway Gen-4': { u: 'sec', usd: 0.05, prov: 'runway' },
   'Seedance 2.0': { u: 'sec', usd: 0.062, audio: 0.02, prov: 'seedance' },
@@ -95,7 +96,7 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
 }
 
 export const PROV_LABEL: Record<string, string> = {
-  google: 'Google Veo', runway: 'Runway', runway_aleph: 'Runway Aleph', seedance: 'Seedance',
+  google: 'Google Veo', runway: 'Runway', runway_aleph: 'Runway Aleph', v2v_auto: 'V2V 자동', seedance: 'Seedance',
   hailuo: 'MiniMax Hailuo', luma: 'Luma', xai: 'Grok', flux: 'Flux', falcontrol: 'fal ControlNet',
   nanobanana: 'Nano Banana', openai: 'GPT Image', kling: 'Kling',
 }

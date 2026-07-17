@@ -1161,6 +1161,7 @@ var PORT_COLORS = { TEXT:'#ffab40', IMAGE:'#42a5f5', GEN:'#f48fb1', VIDEO:'#81c7
 function typeOK(a,b){ return a===b || a==='*' || b==='*'; }
 /* 실제 백엔드(/api/generate)에 연결되어 지금 바로 생성 가능한 모델만 노출 */
 var MODELS = [
+ ['영상 → 영상 (V2V·실사화)','V2V 자동 (최고정확도·모델 자동선택)'],
  ['영상 → 영상 (V2V·실사화)','Runway Aleph (영상→실사 V2V)'],
  ['영상','Google Veo 3.1'],['영상','Runway Gen-4'],
  ['영상','Seedance 2.0'],['영상','Seedance 2.0 Fast'],['영상','Seedance 1.5 Pro'],
@@ -1221,6 +1222,7 @@ var USD_KRW = 1400;
 var RES_MULT = { '720p':0.6, '1080p':1.0, '4K':2.6 };   // 1080p 기준 해상도 배율
 // 모델 표시명 → 실제 단가.  u:'sec'(영상 초당) | 'img'(이미지 장당), usd, audio(오디오 초당 추가), prov(집계용)
 var MODEL_COST = {
+  'V2V 자동 (최고정확도·모델 자동선택)': { u:'sec', usd:0.15, prov:'v2v_auto' },
   'Runway Aleph (영상→실사 V2V)':      { u:'sec', usd:0.15, prov:'runway_aleph' },
   'Google Veo 3.1':                    { u:'sec', usd:0.40, audio:0.35, prov:'google' },
   'Runway Gen-4':                    { u:'sec', usd:0.05, prov:'runway' },
@@ -1256,7 +1258,7 @@ var MODEL_COST = {
   'Flux Dev':                        { u:'img', usd:0.025, prov:'flux' }
 };
 // 제공사 집계 라벨
-var PROV_LABEL = { google:'Google Veo', runway:'Runway', runway_aleph:'Runway Aleph',
+var PROV_LABEL = { google:'Google Veo', runway:'Runway', runway_aleph:'Runway Aleph', v2v_auto:'V2V 자동',
   seedance:'Seedance', hailuo:'MiniMax Hailuo', luma:'Luma', xai:'Grok', flux:'Flux',
   falcontrol:'fal ControlNet', nanobanana:'Nano Banana', openai:'GPT Image', kling:'Kling' };
 // 구버전 recordCost(provider,...) 호환용 — 제공사 대표 단가
@@ -1436,6 +1438,7 @@ var PROVIDERS = [
 ];
 /* 모델명 → 제공사. 실제 백엔드에 연결된 모델만 매핑. */
 var MODEL_PROVIDER = {
+  'V2V 자동 (최고정확도·모델 자동선택)':'v2v_auto',
   'Runway Aleph (영상→실사 V2V)':'runway_aleph',
   'Google Veo 3.1':'google',
   'Runway Gen-4':'runway',
@@ -2399,7 +2402,7 @@ function widgetHTML(n,w){
             : imgs.length>1 ? (imgs.length+'개'+(nVid?' · 영상 '+nVid:'')+' · 첫 번째가 대표')
             : (nVid?'영상 레퍼런스 · 프레임을 모델에 전달':'');
     var v2v = n.w.srcVideoUploading ? '<div class="refcnt" style="color:#e6cf7f">'+ICON.spin+' 원본 영상 업로드 중… (V2V 준비)</div>'
-            : n.w.srcVideoUrl ? '<div class="refcnt" style="color:#8fe6b8">'+ICON.check+' V2V 가능 — 모델을 "Runway Aleph"로 두면 실사화</div>' : '';
+            : n.w.srcVideoUrl ? '<div class="refcnt" style="color:#8fe6b8">'+ICON.check+' V2V 가능 — 모델을 "V2V 자동(최고정확도)"으로 두면 최적 모델로 자동 변환</div>' : '';
     return grid+
       (cnt?'<div class="refcnt">'+cnt+'</div>':'')+ v2v+
       '<button class="wbtn" data-upload>내 PC에서 업로드 (이미지·영상, 여러 개)</button>'+

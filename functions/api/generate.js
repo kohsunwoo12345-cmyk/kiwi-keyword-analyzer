@@ -533,6 +533,7 @@ async function handle(context) {
         luma:     !!k.luma,
         fal:      !!k.fal,
         kling:    !!(klingCreds(env) || k.fal),
+        v2vAuto:  !!(k.runway || k.seedance),
         nanobanana: !!(gcpCreds(env) || k.google),
         openai:   !!k.openai,
         // 스튜디오가 실제로 쓰는 Seedance 모델 결정값 진단 (모델ID는 비밀 아님)
@@ -1188,6 +1189,55 @@ async function handle(context) {
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.id) return json({ error: "Runway HTTP " + r.status + ": " + String(j.error || j.message || JSON.stringify(j)).slice(0, 220) }, 502);
     return json({ statusUrl: "/api/generate?provider=runway&task=" + encodeURIComponent(j.id) });
+  }
+
+  /* ── V2V 자동 라우팅 (정확도 최상) ──
+     원본 영상 하나로 진짜 영상→영상 변환을 수행. 사용 가능한 네이티브 V2V 모델 중
+     최고 품질을 자동 선택: 1) Runway Gen-4 Aleph(실사 리스타일 최상급) → 2) Seedance V2V(reference_video).
+     둘 다 실패/미설정이면 명확히 안내. (프레임 재조립식 저품질 우회는 쓰지 않음) */
+  if (provider === "v2v_auto") {
+    const srcUrl = b.srcVideo || "";
+    if (!srcUrl || !/^https?:\/\//.test(srcUrl))
+      return json({ error: "V2V(영상→영상)는 원본 영상의 공개 URL이 필요합니다. 영상을 옴니 레퍼런스(영상)에 넣으면 자동 업로드됩니다(R2)." }, 400);
+
+    // 1순위: Runway Gen-4 Aleph — 실사 V2V 최상급
+    if (k.runway) {
+      const payload = buildAlephPayload(b);
+      const r = await fetchT("https://api.dev.runwayml.com/v1/video_to_video", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + k.runway, "X-Runway-Version": RUNWAY_VER, "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.id) return json({ statusUrl: "/api/generate?provider=runway&task=" + encodeURIComponent(j.id), routed: "runway_aleph" });
+      if (!k.seedance) return json({ error: "Runway Aleph V2V 실패 HTTP " + r.status + ": " + String(j.error || j.message || JSON.stringify(j)).slice(0, 200) }, 502);
+      // Aleph 실패 → Seedance 로 폴백
+    }
+
+    // 2순위: Seedance V2V (reference_video)
+    if (k.seedance) {
+      const sb = Object.assign({}, b, { model: "Seedance 2.0" }); // reference_video 지원 모델 강제
+      const payload = buildSeedancePayload(sb, env);
+      const hosts = pick(env, ["SEEDANCE_USE_CN", "seedance_use_cn"]) ? ["bp", "vc"] : ["bp"];
+      let lastErr = null;
+      for (const hostId of hosts) {
+        let r, j;
+        try {
+          r = await fetchT(ARK_HOSTS[hostId] + "/contents/generations/tasks", {
+            method: "POST",
+            headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          }, 22000);
+          j = await r.json().catch(() => ({}));
+        } catch (e) { lastErr = String((e && e.message) || e).slice(0, 140); continue; }
+        if (r.ok && j.id) return json({ statusUrl: "/api/generate?provider=seedance&host=" + hostId + "&task=" + encodeURIComponent(j.id), routed: "seedance" });
+        lastErr = "HTTP " + r.status + " " + ((j.error && (j.error.message || j.error.code)) || "");
+        if (r.status !== 401 && r.status !== 403 && r.status !== 404) break;
+      }
+      return json({ error: "Seedance V2V 실패: " + String(lastErr).slice(0, 200) }, 502);
+    }
+
+    return json({ error: "V2V(영상→영상)를 하려면 Runway_API_KEY(권장·최고정확도) 또는 Seedance_API_KEY 중 하나 이상이 필요합니다." }, 500);
   }
 
   if (provider === "runway_aleph") {
