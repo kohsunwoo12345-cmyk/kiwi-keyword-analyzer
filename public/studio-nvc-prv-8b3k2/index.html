@@ -1506,6 +1506,7 @@ var MODEL_COST = {
   'V2V 자동 (최고정확도·모델 자동선택)': { u:'sec', usd:0.15, prov:'v2v_auto' },
   '모션 전이 (원본 움직임 유지·Motion Transfer)': { u:'sec', usd:0.12, prov:'motion' },
   '나레이션 (AI 음성 해설)': { u:'sec', usd:0.02, prov:'narrate' },
+  '립싱크 (인물 말하기)': { u:'sec', usd:0.10, prov:'lipsync' },
   'Runway Aleph (영상→실사 V2V)':      { u:'sec', usd:0.15, prov:'runway_aleph' },
   'Google Veo 3.1':                    { u:'sec', usd:0.40, audio:0.35, prov:'google' },
   'Runway Gen-4':                    { u:'sec', usd:0.05, prov:'runway' },
@@ -1541,7 +1542,7 @@ var MODEL_COST = {
   'Flux Dev':                        { u:'img', usd:0.025, prov:'flux' }
 };
 // 제공사 집계 라벨
-var PROV_LABEL = { google:'Google Veo', runway:'Runway', runway_aleph:'Runway Aleph', v2v_auto:'V2V 자동', motion:'모션 전이', narrate:'나레이션',
+var PROV_LABEL = { google:'Google Veo', runway:'Runway', runway_aleph:'Runway Aleph', v2v_auto:'V2V 자동', motion:'모션 전이', narrate:'나레이션', lipsync:'립싱크',
   seedance:'Seedance', hailuo:'MiniMax Hailuo', luma:'Luma', xai:'Grok', flux:'Flux',
   falcontrol:'fal ControlNet', nanobanana:'Nano Banana', openai:'GPT Image', kling:'Kling' };
 // 구버전 recordCost(provider,...) 호환용 — 제공사 대표 단가
@@ -1724,6 +1725,7 @@ var MODEL_PROVIDER = {
   'V2V 자동 (최고정확도·모델 자동선택)':'v2v_auto',
   '모션 전이 (원본 움직임 유지·Motion Transfer)':'motion',
   '나레이션 (AI 음성 해설)':'narrate',
+  '립싱크 (인물 말하기)':'lipsync',
   'Runway Aleph (영상→실사 V2V)':'runway_aleph',
   'Google Veo 3.1':'google',
   'Runway Gen-4':'runway',
@@ -2147,27 +2149,32 @@ function narrateNode(n){
   if(!text){ toast('나레이션 대본을 입력하세요 (노드 안 또는 [대본] 노드 연결)'); return; }
   var voiceId=VOICE_ID[n.w.voice]||'gtts:ko-KR-Neural2-A';
   var rate=Math.max(0.5, Math.min(2.0, (Number(n.w.rate)||100)/100));
+  var isLip=/립싱크/.test(n.w.nmode||'');
+  var prov=isLip?'lipsync':'narrate';
+  var modelNm=isLip?'립싱크 (인물 말하기)':'나레이션 (AI 음성 해설)';
+  var label=isLip?'립싱크':'나레이션';
   n.w.generating=true; n.w.error=null; render();
   (function(){ var em=document.getElementById('nd-'+n.id); if(em)em.classList.add('exec'); })();
-  callProxy({ provider:'narrate', videoUrl:srcU, text:text, voice:voiceId, rate:rate })
+  toast(isLip?'립싱크 생성 중… 입 모양 동기화는 시간이 걸립니다.':'나레이션 합성 중…');
+  callProxy({ provider:prov, videoUrl:srcU, text:text, voice:voiceId, rate:rate })
     .then(function(res){
       n.w.generating=false;
       if(!res || res.error){
-        var msg=(res&&res.error)||'나레이션 합성 실패';
-        n.w.error=msg; var info=showGenError(msg,'narrate','나레이션 (AI 음성 해설)');
-        toast((info&&info.title)||('나레이션 실패: '+String(msg).slice(0,80))); render(); return;
+        var msg=(res&&res.error)||(label+' 실패');
+        n.w.error=msg; var info=showGenError(msg,prov,modelNm);
+        toast((info&&info.title)||(label+' 실패: '+String(msg).slice(0,80))); render(); return;
       }
-      n.w.vid=res.url; n.w.kind='video'; n.w.model='나레이션'; n.w.poster=res.poster||(srcN&&srcN.w&&srcN.w.poster)||null;
+      n.w.vid=res.url; n.w.kind='video'; n.w.model=label; n.w.poster=res.poster||(srcN&&srcN.w&&srcN.w.poster)||null;
       n.w.sec=(srcN&&srcN.w&&srcN.w.sec)||8; n.w.srcVideoUrl=res.url;   // 후속 노드에서 V2V/재활용 가능
-      recordCost('narrate','나레이션 (AI 음성 해설)', n.w.sec||8, 'video', '1080p', true);
-      saveToGallery(res.url,'video','나레이션',n.w.sec,n.w.poster);
-      toast('나레이션이 적용된 영상이 완성됐습니다.');
+      recordCost(prov,modelNm, n.w.sec||8, 'video', '1080p', true);
+      saveToGallery(res.url,'video',label,n.w.sec,n.w.poster);
+      toast(isLip?'인물이 말하는 립싱크 영상이 완성됐습니다.':'나레이션이 적용된 영상이 완성됐습니다.');
       render(); snapshot();
       var e2=document.getElementById('nd-'+n.id); if(e2)e2.classList.add('exec');
     })
     .catch(function(err){
       n.w.generating=false; n.w.error=String(err&&err.message||err);
-      toast('나레이션 오류: '+String(n.w.error).slice(0,80)); render();
+      toast(label+' 오류: '+String(n.w.error).slice(0,80)); render();
     });
 }
 function generateImageNode(n){
@@ -2304,14 +2311,16 @@ var DEFS = {
  output:   { cat:'출력', title:'출력 (영상·이미지)', hd:'#233a33', ins:[['in','생성물','*']],
              outs:[['out','결과 → 레퍼런스','IMAGE']],
              widgets:[{k:'vid',t:'videoout'}] },
- narrate:  { cat:'오디오', title:'나레이션 (AI 음성 해설)', hd:'#3a2c1c',
+ narrate:  { cat:'오디오', title:'AI 음성 (해설·립싱크)', hd:'#3a2c1c',
              ins:[['in','영상','*'],['script','대본 (텍스트·선택)','TEXT']],
-             outs:[['out','나레이션 영상 → 레퍼런스','*']],
-             widgets:[{k:'ntext',t:'textarea',ph:'영상에 입힐 나레이션 대본을 입력하세요...\n(비우면 왼쪽 [대본] 노드의 텍스트를 사용)'},
+             outs:[['out','음성 영상 → 레퍼런스','*']],
+             widgets:[{k:'nmode',t:'combo',label:'방식',opts:['해설 (보이스오버)','립싱크 (인물 말하기)'],def:'해설 (보이스오버)'},
+                      {k:'ntext',t:'textarea',ph:'영상에 입힐 대사/해설을 입력하세요...\n(비우면 왼쪽 [대본] 노드의 텍스트를 사용)'},
                       {k:'voice',t:'combo',label:'목소리',opts:VOICE_OPTS,def:'한국어·여성(밝은)'},
                       {k:'rate',t:'slider',label:'말속도(%)',min:60,max:160,def:100},
+                      {k:'nmodehint',t:'nmodehint'},
                       {k:'vid',t:'videoout'},
-                      {k:'run',t:'narratebtn',label:'나레이션 입히기'}] },
+                      {k:'run',t:'narratebtn',label:'음성 입히기'}] },
  note:     { cat:'유틸', title:'노트', hd:'', ins:[], outs:[],
              widgets:[{k:'text',t:'textarea',ph:'메모를 입력하세요...'}] },
  frame:    { cat:'유틸', title:'프레임 추출', hd:'#1f3a3a',
@@ -2702,7 +2711,13 @@ function widgetHTML(n,w){
   if(w.t==='button') return '<button class="wbtn" data-runnode>'+ICON.sparkle+' '+esc(w.label)+'</button>';
   if(w.t==='framebtn') return '<button class="wbtn" data-framego>'+ICON.fit+' '+esc(w.label)+'</button>';
   if(w.t==='imggenbtn') return '<button class="wbtn" data-imggen>'+ICON.sparkle+' '+esc(w.label)+'</button>';
-  if(w.t==='narratebtn') return '<button class="wbtn" data-narrate>'+ICON.sparkle+' '+esc(w.label)+'</button>';
+  if(w.t==='nmodehint'){
+    var lip=/립싱크/.test(n.w.nmode||'');
+    return lip
+      ? '<div class="refcnt" style="color:#c3a8ff">'+ICON.check+' 립싱크 — 화면 속 <b>인물의 입 모양</b>이 음성에 맞춰 실제로 움직입니다. (얼굴이 정면으로 보이는 영상에 가장 잘 됩니다)</div>'
+      : '<div class="refcnt">해설(보이스오버) — 영상 위에 <b>목소리만</b> 얹습니다. 입 모양은 바뀌지 않습니다.</div>';
+  }
+  if(w.t==='narratebtn'){ var lipb=/립싱크/.test(n.w.nmode||''); return '<button class="wbtn" data-narrate>'+ICON.sparkle+' '+(lipb?'립싱크 생성':esc(w.label))+'</button>'; }
   if(w.t==='pickinfo'){
     var pm=n.w.model||'', prov=MODEL_PROVIDER[pm]||'fal';
     var cat=(MODELS.filter(function(m){return m[1]===pm;})[0]||['',''])[0]||'';
@@ -3225,7 +3240,7 @@ canvas.addEventListener('click',function(e){
             :wdef.opts==='IMG_MODELS'?IMG_MODELS.map(function(m){return m[1];}):wdef.opts;
     var i=opts.indexOf(String(n2.w[k])); i=(i+(+cyc.dataset.cyc)+opts.length)%opts.length;
     n2.w[k]=opts[i]; combo.querySelector('.wvalue').textContent=opts[i]; autosave();
-    if(k==='model')render();   // Seedance 커스텀 ID 필드 노출/숨김 반영
+    if(k==='model'||k==='nmode')render();   // Seedance 커스텀 ID / 음성 방식(해설·립싱크) 안내 반영
     return;
   }
   if(e.target.closest('[data-open]')){
@@ -3334,10 +3349,10 @@ function openDD(anchor,n,k){
 function hideDD(){ dd.style.display='none'; ddCtx=null; }
 dd.addEventListener('click',function(e){
   var di=e.target.closest('.di'); if(!di||!ddCtx)return;
-  var wasModel=ddCtx.k==='model';
+  var wasModel=ddCtx.k==='model'||ddCtx.k==='nmode';
   ddCtx.n.w[ddCtx.k]=di.dataset.v; ddCtx.anchor.querySelector('.wvalue').textContent=di.dataset.v;
   autosave(); hideDD();
-  if(wasModel)render();   // Seedance 커스텀 ID 필드 노출/숨김 반영
+  if(wasModel)render();   // Seedance 커스텀 ID / 음성 방식 안내 반영
 });
 
 /* ════════ 컨텍스트 메뉴 ════════ */
