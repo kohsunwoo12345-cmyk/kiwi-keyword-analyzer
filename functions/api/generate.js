@@ -488,12 +488,47 @@ export function buildFalControlPayload(b) {
 /* ── Nano Banana (Gemini 2.5 Flash Image) — 텍스트/이미지→이미지 ──
    Vertex(서비스계정) 우선, 없으면 AI Studio 키. role:"user" 필수(Vertex). */
 const NANO_MODEL = "gemini-2.5-flash-image";
+
+/* http(s) 이미지 URL → data:URI(base64). 실패/비이미지/과대(6MB↑)면 null. */
+async function urlToDataUri(u) {
+  try {
+    const r = await fetchT(u, {}, 15000);
+    if (!r.ok) return null;
+    const ct = (r.headers.get("content-type") || "image/png").split(";")[0];
+    if (!/^image\//.test(ct)) return null;
+    const buf = new Uint8Array(await r.arrayBuffer());
+    if (!buf.length || buf.length > 6 * 1024 * 1024) return null;
+    let bin = ""; for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+    return "data:" + ct + ";base64," + btoa(bin);
+  } catch { return null; }
+}
+/* 다중 레퍼런스 이미지 수집(최대 max장) → data:URI 배열. URL 은 base64 로 변환. */
+async function collectRefDataUris(b, max) {
+  max = max || 12;
+  const raw = [];
+  if (b.firstFrame) raw.push(b.firstFrame);
+  if (Array.isArray(b.refImages)) for (const u of b.refImages) raw.push(u);
+  if (b.refImage) raw.push(b.refImage);
+  const out = [], seen = {};
+  for (const u of raw) {
+    if (!u || seen[u]) continue; seen[u] = 1;
+    if (/^data:image\//i.test(u)) out.push(u);
+    else if (/^https?:\/\//i.test(u)) { const d = await urlToDataUri(u); if (d) out.push(d); }
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 export function buildNanoPayload(b) {
   const prompt = (b.prompt || "").slice(0, 2000);
-  const ref = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;   // 편집용 입력 이미지(선택)
   const parts = [{ text: prompt }];
-  const m = ref && /^data:(image\/[^;]+);base64,(.+)$/.exec(String(ref));
-  if (m) parts.push({ inlineData: { mimeType: m[1], data: m[2] } });
+  // _refs(핸들러가 준비한 data:URI 배열)가 있으면 전부 인라인, 없으면 단일 폴백
+  const refs = Array.isArray(b._refs) && b._refs.length ? b._refs
+    : (function () { const r = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage; return r ? [r] : []; })();
+  for (const ref of refs) {
+    const m = /^data:(image\/[^;]+);base64,(.+)$/.exec(String(ref));
+    if (m) parts.push({ inlineData: { mimeType: m[1], data: m[2] } });
+  }
   return { contents: [{ role: "user", parts }] };
 }
 
@@ -1564,7 +1599,8 @@ async function handle(context) {
   if (provider === "nanobanana") {
     const sa = gcpCreds(env);
     if (!sa && !k.google) return json({ error: "나노바나나: 구글 인증이 없습니다 (Vertex 서비스계정 또는 VEO_API_KEY 필요)" }, 500);
-    const payload = JSON.stringify(buildNanoPayload(b));
+    const nanoRefs = await collectRefDataUris(b, 12);   // 레퍼런스 최대 12장 (합성/편집)
+    const payload = JSON.stringify(buildNanoPayload(Object.assign({}, b, { _refs: nanoRefs })));
     let r;
     if (sa) {   // Vertex(서비스계정) — Veo와 동일 인증
       let tok; try { tok = await gcpToken(sa.email, sa.pem); } catch (e) { return json({ error: "나노바나나 토큰 실패: " + String((e && e.message) || e).slice(0, 160) }, 502); }
@@ -1588,16 +1624,20 @@ async function handle(context) {
   if (provider === "openai") {
     if (!k.openai) return json({ error: "OpenAI 연동이 설정되지 않았습니다 (GPT_API_KEY 미설정)" }, 500);
     const p = buildOpenAIImagePayload(b);
-    const ref = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
-    const m = ref && /^data:(image\/[^;]+);base64,(.+)$/.exec(String(ref));
+    const oaRefs = await collectRefDataUris(b, 12);   // 레퍼런스 최대 12장
     let r;
-    if (m) {   // 편집 (images/edits · multipart)
-      const bin = atob(m[2]); const buf = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    if (oaRefs.length) {   // 편집 (images/edits · multipart) — 여러 장 image[] 로 첨부
       const fd = new FormData();
       fd.append("model", p.model); fd.append("prompt", p.prompt); fd.append("size", p.size); fd.append("n", "1");
-      fd.append("image", new Blob([buf], { type: m[1] }), "image.png");
-      r = await fetchT(openaiBase(env) + "/v1/images/edits", { method: "POST", headers: { "Authorization": "Bearer " + k.openai }, body: fd }, 90000);
+      let added = 0;
+      for (const ref of oaRefs) {
+        const m = /^data:(image\/[^;]+);base64,(.+)$/.exec(ref); if (!m) continue;
+        const bin = atob(m[2]); const buf = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        fd.append(oaRefs.length > 1 ? "image[]" : "image", new Blob([buf], { type: m[1] }), "img" + added + ".png");
+        added++;
+      }
+      r = await fetchT(openaiBase(env) + "/v1/images/edits", { method: "POST", headers: { "Authorization": "Bearer " + k.openai }, body: fd }, 120000);
     } else {   // 생성 (images/generations)
       r = await fetchT(openaiBase(env) + "/v1/images/generations", {
         method: "POST", headers: { "Authorization": "Bearer " + k.openai, "Content-Type": "application/json" },

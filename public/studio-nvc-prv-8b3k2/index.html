@@ -2288,6 +2288,22 @@ async function generateWithAPI(params){
   return { error: err||('생성 실패'+diag), type:'error', provider:prov };
 }
 
+/* 레퍼런스 이미지 압축 — data:URI 는 ≤1024px JPEG 로 축소(12장이 3MB 초과하지 않게), URL 은 그대로(서버가 처리) */
+function shrinkImageSrc(src, max, q){
+  return new Promise(function(resolve){
+    if(!src){ resolve(null); return; }
+    if(/^https?:\/\//.test(src)){ resolve(src); return; }   // URL 은 서버가 base64 변환
+    var img=new Image(); img.crossOrigin='anonymous';
+    img.onload=function(){ try{
+      var w=img.naturalWidth||512, h=img.naturalHeight||512, sc=Math.min(1,(max||1024)/Math.max(w,h));
+      var c=document.createElement('canvas'); c.width=Math.max(2,Math.round(w*sc)); c.height=Math.max(2,Math.round(h*sc));
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      resolve(c.toDataURL('image/jpeg', q||0.85));
+    }catch(e){ resolve(src); } };
+    img.onerror=function(){ resolve(src); };
+    img.src=sameOriginMedia(src);
+  });
+}
 /* 노드에서 대표 이미지 1장 얻기 (레퍼런스 연결용) */
 function imgOfNode(node){ if(!node||!node.w)return null;
   if(node.type==='output') return node.w.lastImg||null;
@@ -2398,15 +2414,26 @@ function generateImageNode(n){
   var pn=inputNodeOf(n.id,'prompt');
   var prompt=((pn&&pn.w&&pn.w.text)||n.w.prompt||'').trim();
   if(!prompt){ toast('프롬프트를 입력하세요 (노드 안 또는 프롬프트 노드 연결)'); return; }
-  var rn=inputNodeOf(n.id,'ref')||inputNodeOf(n.id,'vidref'); var refImg=rn?imgOfNode(rn):null;
+  // ── 레퍼런스 최대 12장: (1) ref 포트 다중 연결 각 노드의 이미지 + (2) 이 노드에 직접 업로드한 사진 ──
+  var raw=[];
+  inputNodesOf(n.id,'ref').concat(inputNodesOf(n.id,'vidref')).forEach(function(nd){
+    if(!nd||!nd.w) return;
+    var ims=(nd.w.imgs&&nd.w.imgs.length)?nd.w.imgs.slice():(imgOfNode(nd)?[imgOfNode(nd)]:[]);
+    ims.forEach(function(u){ if(u&&raw.indexOf(u)<0)raw.push(u); });
+  });
+  (n.w.imgs||[]).forEach(function(u){ if(u&&raw.indexOf(u)<0)raw.push(u); });   // 직접 업로드
+  raw=raw.slice(0,12);
   var isFlux=/^Flux/.test(n.w.model||'') && !/Kontext/.test(n.w.model||'');
   var cnList=(isFlux && n.w.cnList)?n.w.cnList.slice():[];
-  if(cnList.length && !refImg){ toast('ControlNet은 레퍼런스 이미지가 필요합니다 — ref 포트에 이미지를 연결하세요'); return; }
+  if(cnList.length && !raw.length){ toast('ControlNet은 레퍼런스 이미지가 필요합니다 — ref 포트에 이미지를 연결하세요'); return; }
   n.w.imgGenerating=true; n.w.imgError=null; render();
-  generateWithAPI({ model:n.w.model, prompt:prompt, ratio:n.w.ratio||'1:1',
-    refImage:refImg, refImages:refImg?[refImg]:[], firstFrame:refImg,
+  Promise.all(raw.map(function(r){ return shrinkImageSrc(r,1024,0.85); })).then(function(shr){
+   var refs=shr.filter(Boolean); var refImg=refs[0]||null;
+   if(refs.length>1) toast('레퍼런스 '+refs.length+'장으로 생성 중… (Nano Banana·GPT는 다중 레퍼런스 지원)');
+   return generateWithAPI({ model:n.w.model, prompt:prompt, ratio:n.w.ratio||'1:1',
+    refImage:refImg, refImages:refs, firstFrame:refImg,
     controlnets:cnList,
-    cnSteps:(n.w.cnSteps==null?28:n.w.cnSteps), cnGuidance:(n.w.cnGuidance==null?3.5:n.w.cnGuidance) })
+    cnSteps:(n.w.cnSteps==null?28:n.w.cnSteps), cnGuidance:(n.w.cnGuidance==null?3.5:n.w.cnGuidance) }); })
     .then(function(res){
       n.w.imgGenerating=false;
       if(!res || res.error){ n.w.imgError=(res&&res.error)||'생성 실패';
@@ -2510,11 +2537,12 @@ var DEFS = {
                       {k:'seed',t:'seed',def:156680208700286},
                       {k:'run',t:'button',label:'이 노드 실행'}] },
  imagegen: { cat:'모델', title:'이미지 생성', hd:'#243a40',
-             ins:[['prompt','프롬프트(선택)','TEXT'],['ref','레퍼런스(선택·편집용)','IMAGE']],
+             ins:[['prompt','프롬프트(선택)','TEXT'],['ref','레퍼런스 (최대 12장 · 다중 연결)','IMAGE']],
              outs:[['out','생성 이미지 → 레퍼런스','IMAGE']],
-             widgets:[{k:'model',t:'combo',label:'model',opts:'IMG_MODELS',def:'Flux 1.1 Pro Ultra'},
+             widgets:[{k:'model',t:'combo',label:'model',opts:'IMG_MODELS',def:'Nano Banana'},
                       {k:'prompt',t:'textarea',ph:'생성할 이미지 설명 (또는 왼쪽에 프롬프트 노드 연결)'},
                       {k:'ratio',t:'combo',label:'ratio',opts:['1:1','16:9','9:16','4:5'],def:'1:1'},
+                      {k:'refup',t:'image'},
                       {k:'fluxctrl',t:'fluxctrl'},
                       {k:'gen',t:'imggenbtn',label:'이미지 생성'},
                       {k:'imgout',t:'imagegenout'}] },
