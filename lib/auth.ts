@@ -395,6 +395,21 @@ export async function adminModelPricingAction(
 ): Promise<{ ok: boolean; error?: string }> {
   return postJson('/api/admin/model-pricing', { action, ...payload })
 }
+export interface CreditsRecallInfo {
+  ok: boolean
+  error?: string
+  total?: { users: number; credits: number }
+  nonAdmin?: { users: number; credits: number }
+}
+export async function adminCreditsRecallInfo(): Promise<CreditsRecallInfo> {
+  try {
+    const r = await fetch('/api/admin/credits-recall', { credentials: 'include', cache: 'no-store' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+export async function adminCreditsRecall(includeAdmin: boolean): Promise<{ ok: boolean; error?: string; affected?: number; recalled?: number }> {
+  return postJson('/api/admin/credits-recall', { confirm: 'RECALL', includeAdmin })
+}
 export async function adminSettlementAction(
   action: 'create_branch' | 'update_branch' | 'delete_branch' | 'set_owner' | 'settle' | 'delete_settlement',
   payload: Record<string, unknown> = {},

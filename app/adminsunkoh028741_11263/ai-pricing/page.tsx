@@ -3,6 +3,8 @@
 import { Gauge } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { ModelPricing } from '@/components/admin/ModelPricing'
+import { CreditsRecall } from '@/components/admin/CreditsRecall'
+import { Reveal } from '@/components/motion'
 
 const ACCENT = '#7c3aed'
 
@@ -17,7 +19,12 @@ export default function AiPricingPage() {
         accent={ACCENT}
       />
       <div className="space-y-6 p-6 lg:p-8">
-        <ModelPricing />
+        <Reveal>
+          <ModelPricing />
+        </Reveal>
+        <Reveal>
+          <CreditsRecall />
+        </Reveal>
       </div>
     </div>
   )
