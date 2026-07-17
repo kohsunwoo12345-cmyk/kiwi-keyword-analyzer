@@ -1161,6 +1161,8 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
         <div class="pf-lang" id="pfLangBox" style="display:flex">
           <a class="pf-langopt" data-lang="ko">한국어</a>
           <a class="pf-langopt" data-lang="en">English</a>
+          <a class="pf-langopt" data-lang="ja">日本語</a>
+          <a class="pf-langopt" data-lang="zh">中文</a>
         </div>
         <p class="pf-hint">현재 언어: <b id="pfLangCur">한국어</b></p>
       </section>
@@ -2470,6 +2472,107 @@ var DEFS = {
              widgets:[], reroute:true }
 };
 
+/* ════════ 다국어(i18n) — 언어 설정 시 스튜디오 UI 전체 번역 ════════
+   원문(한국어)을 각 노드/속성에 저장해 두고, 선택 언어의 사전으로 치환한다.
+   render() 로 노드가 새로 그려질 때마다 world 를 다시 번역해 동적 UI 도 적용된다. */
+var I18N = {
+  en: {
+    // 노드 제목
+    '프롬프트 (Positive)':'Prompt (Positive)','네거티브 프롬프트':'Negative Prompt','옴니 레퍼런스 (이미지·영상)':'Omni Reference (Image / Video)',
+    '모델 선택':'Select Model','AI 모델 로더':'AI Model Loader','이미지 생성':'Image Generation','영상 설정':'Video Settings',
+    '출력 (영상·이미지)':'Output (Video / Image)','AI 음성 (해설·립싱크)':'AI Voice (Narration / Lipsync)','노트':'Note','프레임 추출':'Frame Extract','리라우트':'Reroute',
+    // 포트 라벨
+    '텍스트':'Text','이미지':'Image','영상':'Video','생성물':'Output','프레임':'Frame','모델 선택 (선택)':'Model (optional)','프롬프트':'Prompt','네거티브':'Negative',
+    '사진 레퍼런스 (여러 장)':'Photo References (multiple)','영상 레퍼런스 (V2V·프레임)':'Video Reference (V2V / Frames)','첫 프레임':'First Frame','마지막 프레임':'Last Frame',
+    '선택한 모델 → 로더':'Selected model → Loader','프롬프트(선택)':'Prompt (optional)','레퍼런스(선택·편집용)':'Reference (optional / edit)',
+    '생성 이미지 → 레퍼런스':'Generated image → Reference','결과 → 레퍼런스':'Result → Reference','대본 (텍스트·선택)':'Script (text / optional)','음성 영상 → 레퍼런스':'Voiced video → Reference',
+    ' · 미지원':' · unsupported',
+    // 위젯 라벨/버튼
+    '영상 프레임 수':'Video frames','이 노드 실행':'Run this node','길이(초)':'Length (s)','말속도(%)':'Speed (%)','방식':'Mode','목소리':'Voice',
+    '위치':'Position','시간(초)':'Time (s)','이 프레임 추출':'Extract this frame','음성 입히기':'Apply voice','립싱크 생성':'Generate lipsync','이미지 저장':'Save image','영상 저장':'Save video','화질 업스케일':'Upscale','이미지 생성':'Generate image',
+    // 콤보 옵션
+    '부드럽게':'Smooth','보통':'Normal','역동적':'Dynamic','마지막 프레임':'Last frame','첫 프레임':'First frame','중간(50%)':'Middle (50%)','직접 지정(초)':'Custom (s)',
+    '해설 (보이스오버)':'Narration (voiceover)','립싱크 (인물 말하기)':'Lipsync (person speaks)',
+    // 카테고리
+    '입력':'Input','모델':'Model','설정':'Settings','출력':'Output','오디오':'Audio','유틸':'Utility',
+    // 하단 툴바 툴팁
+    '선택':'Select','이동':'Pan','펜':'Pen','화살표':'Arrow','사각형':'Rectangle','원':'Ellipse','스티키':'Sticky','하트':'Heart','댓글':'Comment','노드 추가':'Add node','프레임':'Frame',
+    // 상단바 · 메뉴 · 툴바
+    '보관함':'Library','결제 내역':'Payments','사용량':'Usage','언어':'Language','계정':'Account','요금제':'Plan','로그아웃':'Log out',
+    '복사':'Copy','저장':'Save','변경':'Change','삭제':'Delete','전체 삭제':'Delete all','닫기':'Close','불러오기':'Load','불러오기 / 관리':'Load / Manage','불러오는 중…':'Loading…',
+    '가져오기':'Import','다운로드':'Download','새로고침':'Refresh','노드 검색':'Search nodes','노드 라이브러리':'Node Library','노드 편집기':'Node Editor',
+    '실행 취소':'Undo','다시 실행':'Redo','전체 선택':'Select all','선택 그룹화':'Group selection','단축키 보기':'Shortcuts','미니맵 토글':'Toggle minimap',
+    '새 워크플로 탭':'New workflow tab','영상 워크플로':'Video workflow','이미지 워크플로':'Image workflow','워크플로 열기':'Open workflow','기록 초기화':'Reset history',
+    '보관함 비우기':'Clear library','← 대시보드로':'← Dashboard','내 계정':'My account','내 계정 열기':'Open my account','로그인 계정':'Signed-in account','랜덤 시드':'Random seed','원본으로':'To original',
+    '영상·이미지 넣기':'Add video / image','영상·이미지 생성':'Generate video / image','내 컴퓨터에서 이미지·영상을 옴니 레퍼런스로 추가':'Add image/video from your PC as Omni Reference',
+    '실행':'Run','생성':'Generate',
+    // 프로필
+    '보유 크레딧':'Credits','이번 달 생성':'This month','이번 달 사용 크레딧':'Credits used (month)','누적 생성':'Total generated','사용 내역 (크레딧 차감)':'Usage history (credit deduction)',
+    '총 결제 금액':'Total paid','결제 건수':'Payments','결제·충전 내역':'Payment & top-up history','영상 플랜':'Video plan','로그인 방식':'Login method','비밀번호 변경':'Change password','비밀번호 설정':'Set password',
+    '현재 언어:':'Language:','한국어':'Korean','계정 삭제':'Delete account','영구 삭제':'Delete permanently','요금제 자세히 보기 · 업그레이드 ↗':'View plans · Upgrade ↗','이메일':'Email',
+    'MCP 연결':'MCP','MCP 연결 · Claude에서 바로 생성':'MCP · Generate right in Claude','내 전용 연결 주소 (개인 토큰 포함)':'My personal connect URL (token included)','토큰 재발급':'Regenerate token',
+    '개발자 문서 열기 · MCP 연동 방식 자세히 보기 ↗':'Open developer docs · MCP integration ↗','MCP 서버 주소':'MCP server URL',
+    // 환영 오버레이
+    'BYGENCY에 오신 걸 환영합니다!':'Welcome to BYGENCY!','요금제 활성화하기 →':'Activate a plan →','먼저 스튜디오 둘러볼게요':'Explore the studio first',
+    // 모달/기타
+    '생성한 이미지·영상 보관함':'Your generated library','실단가 기준 비용':'Cost (actual pricing)','생성 실패':'Generation failed','생성 중':'Generating…','결과 없음':'No results','기록 초기화':'Reset history',
+    '왜 막혔나요':'Why was it blocked?','이렇게 해보세요':'Try this','캔버스에 가져왔습니다':'Imported to canvas','연결 끊음':'Disconnected'
+  },
+  ja: {
+    '프롬프트 (Positive)':'プロンプト (Positive)','네거티브 프롬프트':'ネガティブ プロンプト','옴니 레퍼런스 (이미지·영상)':'オムニ参照 (画像・動画)','모델 선택':'モデル選択','AI 모델 로더':'AIモデル ローダー',
+    '이미지 생성':'画像生成','영상 설정':'動画設定','출력 (영상·이미지)':'出力 (動画・画像)','AI 음성 (해설·립싱크)':'AI音声 (ナレーション・リップシンク)','노트':'メモ','프레임 추출':'フレーム抽出','리라우트':'リルート',
+    '텍스트':'テキスト','이미지':'画像','영상':'動画','생성물':'出力','프레임':'フレーム','프롬프트':'プロンプト','네거티브':'ネガティブ','첫 프레임':'最初のフレーム','마지막 프레임':'最後のフレーム',
+    '입력':'入力','모델':'モデル','설정':'設定','출력':'出力','오디오':'音声','유틸':'ユーティリティ',
+    '보관함':'ライブラリ','결제 내역':'決済履歴','사용량':'使用量','언어':'言語','계정':'アカウント','요금제':'プラン','로그아웃':'ログアウト','복사':'コピー','저장':'保存','변경':'変更','삭제':'削除','닫기':'閉じる','새로고침':'更新',
+    '보유 크레딧':'クレジット残高','현재 언어:':'言語:','한국어':'韓国語','MCP 연결':'MCP','BYGENCY에 오신 걸 환영합니다!':'BYGENCYへようこそ！','요금제 활성화하기 →':'プランを有効化 →','먼저 스튜디오 둘러볼게요':'先にスタジオを見る',
+    '선택':'選択','이동':'移動','펜':'ペン','화살표':'矢印','사각형':'四角形','원':'円','스티키':'付箋','하트':'ハート','댓글':'コメント','노드 추가':'ノード追加','이 노드 실행':'このノードを実行'
+  },
+  zh: {
+    '프롬프트 (Positive)':'提示词 (Positive)','네거티브 프롬프트':'负面提示词','옴니 레퍼런스 (이미지·영상)':'全能参考 (图片·视频)','모델 선택':'选择模型','AI 모델 로더':'AI模型加载器',
+    '이미지 생성':'图片生成','영상 설정':'视频设置','출력 (영상·이미지)':'输出 (视频·图片)','AI 음성 (해설·립싱크)':'AI语音 (解说·对口型)','노트':'便签','프레임 추출':'帧提取','리라우트':'重新布线',
+    '텍스트':'文本','이미지':'图片','영상':'视频','생성물':'输出','프레임':'帧','프롬프트':'提示词','네거티브':'负面','첫 프레임':'首帧','마지막 프레임':'尾帧',
+    '입력':'输入','모델':'模型','설정':'设置','출력':'输出','오디오':'音频','유틸':'工具',
+    '보관함':'素材库','결제 내역':'付款记录','사용량':'用量','언어':'语言','계정':'账户','요금제':'套餐','로그아웃':'退出','복사':'复制','저장':'保存','변경':'修改','삭제':'删除','닫기':'关闭','새로고침':'刷新',
+    '보유 크레딧':'积分余额','현재 언어:':'语言:','한국어':'韩语','MCP 연결':'MCP','BYGENCY에 오신 걸 환영합니다!':'欢迎来到 BYGENCY！','요금제 활성화하기 →':'激活套餐 →','먼저 스튜디오 둘러볼게요':'先逛逛工作室',
+    '선택':'选择','이동':'平移','펜':'画笔','화살표':'箭头','사각형':'矩形','원':'椭圆','스티키':'便签','하트':'爱心','댓글':'评论','노드 추가':'添加节点','이 노드 실행':'运行此节点'
+  }
+};
+var I18N_LANG = (function(){ try{ return localStorage.getItem('nvLang')||'ko'; }catch(e){ return 'ko'; } })();
+function i18nDict(){ return I18N_LANG!=='ko' ? (I18N[I18N_LANG]||null) : null; }
+function tr(ko){ var d=i18nDict(); if(!d)return ko; var k=String(ko==null?'':ko).trim(); return d[k]!=null?d[k]:ko; }
+function i18nText(node){
+  var orig = node.__ko!=null ? node.__ko : (node.__ko=node.nodeValue);
+  if(orig==null) return; var key=orig.trim(); if(!key) return;
+  var d=i18nDict();
+  node.nodeValue = (d && d[key]!=null) ? orig.replace(key, d[key]) : orig;
+}
+function i18nAttr(el){
+  ['placeholder','title','data-tip','aria-label'].forEach(function(a){
+    var has=el.hasAttribute&&el.hasAttribute(a), had=el.__koA&&el.__koA[a]!=null;
+    if(!has && !had) return;
+    el.__koA=el.__koA||{};
+    var orig = el.__koA[a]!=null ? el.__koA[a] : (el.__koA[a]=el.getAttribute(a));
+    if(orig==null) return; var key=String(orig).trim(); if(!key) return;
+    var d=i18nDict();
+    el.setAttribute(a, (d && d[key]!=null) ? d[key] : orig);
+  });
+}
+function applyI18n(root){
+  root=root||document.body; if(!root) return;
+  try{
+    var w=document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null), n, texts=[];
+    while((n=w.nextNode())) texts.push(n);
+    texts.forEach(i18nText);
+    if(root.nodeType===1) i18nAttr(root);
+    Array.prototype.forEach.call(root.querySelectorAll('[placeholder],[title],[data-tip],[aria-label]'), i18nAttr);
+  }catch(e){}
+}
+function applyLang(lang){
+  I18N_LANG=lang; try{ localStorage.setItem('nvLang',lang); }catch(e){}
+  try{ document.documentElement.setAttribute('lang', lang); }catch(e){}
+  applyI18n(document.body);
+}
+
 /* ════════ 상태 ════════ */
 var state={ nodes:[], links:[], groups:[], annos:[], seq:1, pan:{x:70,y:60}, zoom:1 };
 var sel=new Set(), undoStack=[], redoStack=[], clipboard=null;
@@ -2977,6 +3080,7 @@ function render(){
   });
   drawLinks(); applyView(); drawMinimap();
   if(window.__renderAnnos) window.__renderAnnos();
+  if(I18N_LANG!=='ko') applyI18n(world);   // 새로 그려진 노드도 선택 언어로 번역
 }
 
 function portPos(nodeId,portId,dir){
@@ -4375,19 +4479,21 @@ function wireProfile(){
   var dt=pfEl('pfDelToggle'); if(dt)dt.addEventListener('click',toggleDel);
   var nd=pfEl('pfNavDelete'); if(nd)nd.addEventListener('click',toggleDel);
   // 언어 선택
-  try{ var lg=localStorage.getItem('nvLang')||'ko'; var lc=pfEl('pfLangCur'); if(lc)lc.textContent=(lg==='en'?'English':'한국어');
+  var LANG_NAMES={ ko:'한국어', en:'English', ja:'日本語', zh:'中文' };
+  try{ var lg=localStorage.getItem('nvLang')||'ko'; var lc=pfEl('pfLangCur'); if(lc)lc.textContent=LANG_NAMES[lg]||'한국어';
     Array.prototype.forEach.call(document.querySelectorAll('.pf-langopt'),function(o){ o.classList.toggle('on',o.getAttribute('data-lang')===lg); }); }catch(e){}
   var lb=pfEl('pfNavLang'); if(lb)lb.addEventListener('click',function(){ var box=pfEl('pfLangBox'); if(box)box.style.display=(box.style.display==='none'?'flex':'none'); });
   Array.prototype.forEach.call(document.querySelectorAll('.pf-langopt'),function(a){
     a.addEventListener('click',function(){
       var lang=a.getAttribute('data-lang');
-      try{ localStorage.setItem('nvLang',lang); }catch(e){}
-      var lc=pfEl('pfLangCur'); if(lc)lc.textContent=(lang==='en'?'English':'한국어');
+      applyLang(lang);   // 스튜디오 UI 전체 번역
+      var lc=pfEl('pfLangCur'); if(lc)lc.textContent=LANG_NAMES[lang]||lang;
       Array.prototype.forEach.call(document.querySelectorAll('.pf-langopt'),function(o){ o.classList.toggle('on',o===a); });
       var box=pfEl('pfLangBox'); if(box)box.style.display='none';
-      if(lang==='en') alert('영어 인터페이스는 순차적으로 제공될 예정입니다. (English UI is rolling out soon.)');
     });
   });
+  // 저장된 언어가 한국어가 아니면 로드 시 즉시 전체 적용
+  try{ if(I18N_LANG!=='ko') applyLang(I18N_LANG); }catch(e){}
   var pwb=pfEl('pfPwBtn'); if(pwb)pwb.addEventListener('click',function(){
     var social=PF_ME&&PF_ME.provider&&PF_ME.provider!=='email'&&!PF_ME.passwordSet;
     var cur=pfEl('pfCur').value, nx=pfEl('pfNext').value, msg=pfEl('pfPwMsg');
