@@ -66,7 +66,11 @@ const SHOTS: Shot[] = [
   { cap: '제품 광고 클로즈업', model: 'Flux Kontext', ar: 'l', src: '/images/showcase/13.png', grad: 'from-slate-700 via-zinc-600 to-amber-500', glow: 'radial-gradient(circle at 60% 30%, rgba(255,255,255,0.5), transparent 40%)', tag: 'control' },
   { cap: '스포츠 액션', model: 'GPT Image', ar: 'l', src: '/images/showcase/14.png', grad: 'from-zinc-900 via-neutral-800 to-orange-700', glow: 'radial-gradient(circle at 60% 35%, rgba(255,160,110,0.5), transparent 45%)' },
   { cap: '도시 야경 스틸', model: 'Flux 1.1 Pro', ar: 'l', src: '/images/showcase/15.png', grad: 'from-blue-700 via-indigo-700 to-purple-800', glow: 'radial-gradient(circle at 30% 70%, rgba(120,160,255,0.55), transparent 45%)', tag: 'control' },
-  { cap: '모터스포츠 광고컷', model: 'Nano Banana', ar: 'l', src: '/images/showcase/1.png', grad: 'from-red-600 via-rose-600 to-slate-800', glow: 'radial-gradient(circle at 30% 30%, rgba(255,180,150,0.55), transparent 45%)', tag: 'node' },
+  { cap: '모터스포츠 광고컷', model: 'Nano Banana', ar: 'l', src: '/images/showcase/16.png', grad: 'from-red-600 via-rose-600 to-slate-800', glow: 'radial-gradient(circle at 30% 30%, rgba(255,180,150,0.55), transparent 45%)', tag: 'node' },
+  { cap: '스포츠 액션', model: 'GPT Image 2', ar: 'l', src: '/images/showcase/17.png', grad: 'from-zinc-900 via-neutral-800 to-orange-700', glow: 'radial-gradient(circle at 60% 35%, rgba(255,160,110,0.5), transparent 45%)' },
+  { cap: '브랜드 필름 스틸', model: 'Flux Kontext', ar: 'l', src: '/images/showcase/18.png', grad: 'from-slate-800 via-zinc-700 to-blue-800', glow: 'radial-gradient(circle at 40% 30%, rgba(160,190,255,0.5), transparent 45%)', tag: 'control' },
+  { cap: '관중 클로즈업', model: 'Nano Banana', ar: 'l', src: '/images/showcase/19.png', grad: 'from-slate-900 via-blue-900 to-slate-700', glow: 'radial-gradient(circle at 45% 30%, rgba(150,180,255,0.5), transparent 45%)', tag: 'node' },
+  { cap: '제품 광고 클로즈업', model: 'Flux 1.1 Pro', ar: 'l', src: '/images/showcase/20.png', grad: 'from-slate-700 via-zinc-600 to-amber-500', glow: 'radial-gradient(circle at 60% 30%, rgba(255,255,255,0.5), transparent 40%)' },
 ]
 
 const ARW: Record<Shot['ar'], string> = { p: 'w-44', l: 'w-80', s: 'w-56' }
