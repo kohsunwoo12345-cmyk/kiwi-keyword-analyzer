@@ -2,10 +2,10 @@
 //
 // 연결 방법:
 //   · claude.ai / Claude Desktop:  설정 → 커넥터 → 커스텀 커넥터 추가
-//       URL: https://nextvisionccompany.net/api/mcp            (MCP_AUTH_TOKEN 미설정 시)
-//       URL: https://nextvisionccompany.net/api/mcp/<토큰>      (MCP_AUTH_TOKEN 설정 시)
+//       URL: https://bygency.co/api/mcp            (MCP_AUTH_TOKEN 미설정 시)
+//       URL: https://bygency.co/api/mcp/<토큰>      (MCP_AUTH_TOKEN 설정 시)
 //   · Claude Code:
-//       claude mcp add --transport http nextvision https://nextvisionccompany.net/api/mcp \
+//       claude mcp add --transport http bygency https://bygency.co/api/mcp \
 //         --header "Authorization: Bearer <토큰>"
 //
 // 제공 도구: generate_video / check_video_status / generate_image / list_models
@@ -13,7 +13,7 @@
 
 import { onRequest as generateApi } from "../generate.js";
 
-const SERVER_INFO = { name: "nextvision-studio", version: "1.0.0" };
+const SERVER_INFO = { name: "bygency-studio", version: "1.0.0" };
 const PROTO_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
 const TOOLS = [
@@ -87,7 +87,7 @@ const MODEL_INFO = {
     { id: "gpt", name: "GPT Image (OpenAI gpt-image-1)", input: "텍스트(+편집용 입력 이미지 선택)", note: "generate_image 도구(model:gpt). 미국 릴레이 경유. 생성 15~40초" },
     { id: "grok", name: "Grok Imagine", input: "텍스트", note: "generate_image 도구(model:grok). 즉시 URL 반환" }
   ],
-  tip: "이어지는 영상: 영상1 완료 → 마지막 장면 이미지를 영상2의 first_frame_url로 전달. 노드 스튜디오(https://nextvisionccompany.net/studio/)에서는 노드 연결로 자동화됩니다."
+  tip: "이어지는 영상: 영상1 완료 → 마지막 장면 이미지를 영상2의 first_frame_url로 전달. 노드 스튜디오(https://bygency.co/studio-nvc-prv-8b3k2/)에서는 노드 연결로 자동화됩니다."
 };
 
 /* ── 내부 헬퍼: 기존 /api/generate 핸들러 재사용 ── */
@@ -187,7 +187,7 @@ async function runTool(name, args, env, origin) {
         const mb = Math.round(j.url.length * 0.75 / 1048576 * 10) / 10;
         return { status: "succeeded", kind: j.kind || "video",
                  note: "영상 생성 완료 (약 " + mb + "MB). base64 대용량이라 URL로 제공할 수 없습니다. " +
-                       "다운로드하려면 노드 스튜디오(https://nextvisionccompany.net/studio/)에서 같은 프롬프트로 실행하거나, runway/seedance 모델을 사용하세요(CDN URL 제공)." };
+                       "다운로드하려면 노드 스튜디오(https://bygency.co/studio-nvc-prv-8b3k2/)에서 같은 프롬프트로 실행하거나, runway/seedance 모델을 사용하세요(CDN URL 제공)." };
       }
       const abs = String(j.url).charAt(0) === "/" ? origin + j.url : j.url;
       return { status: "succeeded", video_url: abs, kind: j.kind || "video" };
@@ -217,7 +217,7 @@ async function handleRpc(msg, env, origin) {
         capabilities: { tools: {} },
         serverInfo: SERVER_INFO,
         instructions:
-          "넥스트비전컴퍼니 AI 스튜디오 MCP 서버입니다. generate_video로 영상 생성을 시작하고 " +
+          "BYGENCY(바이전시) AI 스튜디오 MCP 서버입니다. generate_video로 영상 생성을 시작하고 " +
           "check_video_status로 완료를 확인하세요(1~5분 소요). generate_image는 즉시 이미지 URL을 반환합니다. " +
           "실제 생성은 과금이 발생하므로 사용자의 명시적 요청이 있을 때만 실행하세요. 테스트는 dry_run:true를 사용하세요."
       });

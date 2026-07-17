@@ -85,6 +85,25 @@ button .ico{ margin-right:5px; }
 .pf-user-t{ min-width:0; display:flex; flex-direction:column; }
 .pf-user-t b{ font-size:13.5px; color:#f0f2f7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .pf-user-t span{ font-size:11px; color:#8a8f9c; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* 사이드바 상시 크레딧 배지 */
+.pf-credit{ display:flex; align-items:center; gap:10px; margin:2px 4px 12px; padding:11px 12px; border-radius:12px;
+  background:linear-gradient(135deg,rgba(124,92,246,.20),rgba(168,85,247,.10)); border:1px solid rgba(139,92,246,.32); }
+.pf-credit-ic{ display:inline-flex; }
+.pf-credit-ic svg{ width:20px; height:20px; color:#c3a8ff; }
+.pf-credit-t{ display:flex; flex-direction:column; line-height:1.2; min-width:0; }
+.pf-credit-t span{ font-size:10.5px; color:#9a93ac; }
+.pf-credit-t b{ font-size:18px; font-weight:800; color:#f0ecff; letter-spacing:-.01em; }
+.pf-credit-t b small{ font-size:11px; font-weight:600; color:#a89ec6; margin-left:2px; }
+/* MCP 매뉴얼 */
+.mcp-steps{ font-size:12.5px; line-height:1.75; color:#c0c5d2; }
+.mcp-steps b{ color:#e8eaf0; }
+.mcp-steps code,.mcp-code{ font-family:ui-monospace,Menlo,Consolas,monospace; }
+.mcp-steps code{ background:#12141a; border:1px solid #2a2d36; border-radius:5px; padding:1px 6px; font-size:11.5px; color:#c9d3e6; }
+.mcp-code{ display:block; background:#0f1117; border:1px solid #23262f; border-radius:9px; padding:10px 12px;
+  font-size:11.5px; color:#d7dae2; overflow-x:auto; white-space:pre; margin:2px 0 6px; }
+.mcp-tools{ display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 2px; }
+.mcp-tool{ font-size:10.5px; font-weight:700; color:#c3a8ff; background:rgba(139,92,246,.14);
+  border:1px solid rgba(139,92,246,.3); border-radius:20px; padding:3px 10px; font-family:ui-monospace,monospace; }
 .pf-nav2{ display:flex; flex-direction:column; gap:2px; margin-top:6px; }
 .pf-navi{ display:flex; align-items:center; gap:10px; width:100%; text-align:left; border:none; background:transparent; color:#c0c5d2;
   font-size:13px; font-weight:600; padding:9px 11px; border-radius:9px; cursor:pointer; }
@@ -1073,6 +1092,10 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
         </span>
         <div class="pf-user-t"><b id="pfName">-</b><span id="pfEmail">-</span></div>
       </div>
+      <div class="pf-credit" title="보유 크레딧">
+        <span class="pf-credit-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.2A2.4 2.4 0 0 1 12 7.4c1.4 0 2.5.9 2.5 2s-1.1 1.5-2.5 1.5-2.5.6-2.5 1.7.9 2 2.5 2a2.4 2.4 0 0 0 2.5-1.8"/></svg></span>
+        <div class="pf-credit-t"><span>보유 크레딧</span><b id="pfCreditsSide">-<small>크레딧</small></b></div>
+      </div>
       <nav class="pf-nav2">
         <button class="pf-navi on" data-sec="usage" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6" rx="1"/><rect x="12" y="8" width="3" height="10" rx="1"/><rect x="17" y="4" width="3" height="14" rx="1"/></svg></span>사용량</button>
         <button class="pf-navi" data-sec="billing" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h12l4 4v16l-3-1.5L14 22l-3-1.5L8 22l-3-1.5L2 22V6z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span>결제 내역</button>
@@ -1080,6 +1103,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
         <button class="pf-navi" data-sec="settings" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>설정</button>
         <button class="pf-navi" data-sec="lang" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>언어</button>
         <button class="pf-navi" data-sec="account" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>계정</button>
+        <button class="pf-navi" data-sec="mcp" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6M7 8h10v3a5 5 0 0 1-10 0z"/><path d="M12 16v6"/></svg></span>MCP 연결</button>
       </nav>
       <button class="pf-logout" id="pfLogout">로그아웃</button>
     </aside>
@@ -1148,6 +1172,42 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
           <input class="pf-inp" type="email" id="pfDelEmail" placeholder="계정 이메일 입력" autocomplete="off" style="display:none">
           <button class="pf-btn" id="pfDelBtn">영구 삭제</button>
           <div class="pf-msg" id="pfDelMsg"></div>
+        </div>
+      </section>
+
+      <section class="pf-pane" data-pane="mcp">
+        <h3 class="pf-h3">MCP 연결 · Claude에서 바로 생성</h3>
+        <p class="pf-hint" style="margin-top:-6px;margin-bottom:14px;">Claude(데스크톱·웹·Cursor·Claude Code)에 이 스튜디오를 연결하면, 대화창에서 바로 <b>영상·이미지 생성</b>을 시킬 수 있습니다. API 키는 서버에만 있고 노출되지 않습니다.</p>
+
+        <h4 class="pf-h4">MCP 서버 주소</h4>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+          <input class="pf-inp" id="pfMcpUrl" readonly value="" style="font-family:ui-monospace,monospace;margin-bottom:0;">
+          <button class="pf-btn" id="pfMcpCopy" style="width:auto;padding:9px 16px;white-space:nowrap;">복사</button>
+        </div>
+        <div class="mcp-tools">
+          <span class="mcp-tool">generate_image</span><span class="mcp-tool">generate_video</span>
+          <span class="mcp-tool">check_video_status</span><span class="mcp-tool">list_models</span>
+        </div>
+
+        <div class="pf-sec"><h4 class="pf-h4">① Claude 데스크톱 · claude.ai (커스텀 커넥터)</h4>
+          <div class="mcp-steps">설정(Settings) → <b>커넥터(Connectors)</b> → <b>커스텀 커넥터 추가(Add custom connector)</b> → 위 <b>서버 주소</b>를 붙여넣고 저장 → 대화에서 “영상 만들어줘”라고 하면 도구가 실행됩니다.<br>※ Pro/Team/Enterprise 플랜에서 커스텀 커넥터가 지원됩니다.</div>
+        </div>
+        <div class="pf-sec"><h4 class="pf-h4">② Cursor</h4>
+          <div class="mcp-steps">Settings → <b>MCP</b> → <b>Add new MCP server</b> → Type을 <b>HTTP</b>로 두고 URL에 위 주소를 입력.</div>
+        </div>
+        <div class="pf-sec"><h4 class="pf-h4">③ Claude Code (터미널)</h4>
+          <pre class="mcp-code" id="pfMcpCli">claude mcp add --transport http bygency &lt;URL&gt;</pre>
+          <div class="mcp-steps">추가 후 <b>/mcp</b> 명령으로 연결 상태를 확인하세요.</div>
+        </div>
+        <div class="pf-sec"><h4 class="pf-h4">④ Claude API (개발자)</h4>
+          <pre class="mcp-code" id="pfMcpApi">"mcp_servers": [{ "type": "url", "url": "&lt;URL&gt;", "name": "bygency" }]</pre>
+          <div class="mcp-steps">Messages API 요청에 <code>mcp_servers</code> 배열로 추가하고 <code>anthropic-beta: mcp-client-2025-04-04</code> 헤더를 넣으세요.</div>
+        </div>
+        <div class="pf-sec"><h4 class="pf-h4">인증 토큰 (선택 · 권장)</h4>
+          <div class="mcp-steps">서버 환경변수 <code>MCP_AUTH_TOKEN</code>을 설정하면 아무나 접근하지 못합니다. 그때는 주소 뒤에 <code>/토큰</code>을 붙이거나(<code>&lt;URL&gt;/토큰</code>), 헤더에 <code>Authorization: Bearer 토큰</code>을 추가하세요.</div>
+        </div>
+        <div class="pf-sec" style="border-top:none;padding-top:2px;">
+          <div class="mcp-steps">연결 확인: 브라우저로 <a id="pfMcpOpen" href="#" target="_blank" rel="noopener" style="color:#a78bfa;">서버 주소</a>를 열었을 때 <code>status: ok</code> JSON이 보이면 정상입니다.</div>
         </div>
       </section>
     </div>
@@ -1334,7 +1394,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 
       <div class="api-row">
         <div class="api-prov">② Claude Code (터미널)</div>
-        <div style="margin-top:6px;background:#12141a;border:1px solid #2a2d36;border-radius:8px;padding:10px 12px;font-family:monospace;font-size:12px;color:#d7dae2;overflow-x:auto;white-space:pre;">claude mcp add --transport http bygency /api/mcp</div>
+        <div id="mcpCli" style="margin-top:6px;background:#12141a;border:1px solid #2a2d36;border-radius:8px;padding:10px 12px;font-family:monospace;font-size:12px;color:#d7dae2;overflow-x:auto;white-space:pre;">claude mcp add --transport http bygency /api/mcp</div>
         <div class="api-models" style="margin-top:6px;">그다음 <b>/mcp</b> 로 연결 확인. (인증 토큰을 쓰면 <code>--header "Authorization: Bearer &lt;토큰&gt;"</code> 추가)</div>
       </div>
 
@@ -3847,7 +3907,13 @@ document.getElementById('mKeys').addEventListener('click',function(){
 /* Claude MCP 연결 모달 */
 (function(){
   var m=document.getElementById('mcpModal');
-  function open(){ m.classList.add('show'); }
+  function open(){
+    // 절대 주소로 채워 외부 클라이언트(클로드 데스크톱 등)에 그대로 붙여넣게 함
+    var origin=(location&&location.origin)||''; var url=origin+'/api/mcp';
+    var i=document.getElementById('mcpUrl'); if(i)i.value=url;
+    var cli=document.getElementById('mcpCli'); if(cli)cli.textContent='claude mcp add --transport http bygency '+url;
+    m.classList.add('show');
+  }
   function close(){ m.classList.remove('show'); }
   document.getElementById('mMcp').addEventListener('click',open);
   document.getElementById('mcpClose').addEventListener('click',close);
@@ -4156,6 +4222,14 @@ function pfShowSec(sec){
   Array.prototype.forEach.call(document.querySelectorAll('.pf-pane'),function(p){ p.classList.toggle('on', p.getAttribute('data-pane')===sec); });
   if(sec==='usage') loadUsage();
   if(sec==='billing') loadPayments();
+  if(sec==='mcp') pfFillMcp();
+}
+function pfFillMcp(){
+  var origin=(location&&location.origin)||''; var url=origin+'/api/mcp';
+  var u=pfEl('pfMcpUrl'); if(u)u.value=url;
+  var cli=pfEl('pfMcpCli'); if(cli)cli.textContent='claude mcp add --transport http bygency '+url;
+  var api=pfEl('pfMcpApi'); if(api)api.textContent='"mcp_servers": [{ "type": "url", "url": "'+url+'", "name": "bygency" }]';
+  var op=pfEl('pfMcpOpen'); if(op)op.href=url;
 }
 function pfWon(n){ return '₩'+(Math.round(Number(n)||0)).toLocaleString('ko-KR'); }
 function loadPayments(){
@@ -4180,7 +4254,9 @@ function loadUsage(){
   var list=pfEl('pfUseList'); if(list) list.innerHTML='<div class="pf-usemsg">불러오는 중…</div>';
   fetch('/api/account/usage',{credentials:'include',cache:'no-store'}).then(function(r){return r.json();}).then(function(d){
     if(!d||!d.ok){ if(list)list.innerHTML='<div class="pf-usemsg">불러오기 실패</div>'; return; }
-    pfSetText('pfCredits',(Number(d.credits)||0).toLocaleString('ko-KR'));
+    var creditStr=(Number(d.credits)||0).toLocaleString('ko-KR');
+    pfSetText('pfCredits',creditStr);
+    var cs=pfEl('pfCreditsSide'); if(cs)cs.innerHTML=creditStr+'<small>크레딧</small>';
     pfSetText('pfUseMonthCount',(d.month?d.month.count:0)+'건');
     pfSetText('pfUseMonthCr',(Math.round((d.month?d.month.credits:0)*10)/10).toLocaleString('ko-KR'));
     pfSetText('pfUseTotalCount',(d.total?d.total.count:0)+'건');
@@ -4227,9 +4303,16 @@ function wireProfile(){
   var back=pfEl('pfBack'); if(back)back.addEventListener('click',function(e){ if(e.target===back)closeProfile(); });
   var lo=pfEl('pfLogout'); if(lo)lo.addEventListener('click',doStudioLogout);
   var lo2=pfEl('pfLogout2'); if(lo2)lo2.addEventListener('click',doStudioLogout);
-  // 왼쪽 사이드바 섹션 전환 (사용량/요금제/설정/언어/계정) — 페이지 이동 없음
+  // 왼쪽 사이드바 섹션 전환 (사용량/요금제/설정/언어/계정/MCP) — 페이지 이동 없음
   Array.prototype.forEach.call(document.querySelectorAll('.pf-navi'),function(b){
     b.addEventListener('click',function(){ pfShowSec(b.getAttribute('data-sec')); });
+  });
+  // MCP 서버 주소 복사
+  var mc=pfEl('pfMcpCopy'); if(mc)mc.addEventListener('click',function(){
+    var i=pfEl('pfMcpUrl'); if(!i)return; var v=i.value||((location.origin||'')+'/api/mcp');
+    function ok(){ var o=mc.textContent; mc.textContent='복사됨 ✓'; setTimeout(function(){ mc.textContent=o; },1400); }
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(ok).catch(function(){ i.select(); document.execCommand('copy'); ok(); }); }
+    else { i.select(); document.execCommand('copy'); ok(); }
   });
   function toggleDel(){ var box=pfEl('pfDelBox'); if(box){ box.style.display=(box.style.display==='none'?'':'none'); if(box.style.display!=='none') box.scrollIntoView({behavior:'smooth',block:'nearest'}); } }
   var dt=pfEl('pfDelToggle'); if(dt)dt.addEventListener('click',toggleDel);
