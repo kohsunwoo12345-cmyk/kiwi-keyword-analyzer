@@ -1975,9 +1975,56 @@ var ADAPTERS = {
 /* ── 결과물 마지막 프레임 추출 (영상 체이닝용) ── */
 function sameOriginMedia(url){
   if(!url) return url;
-  if(url.indexOf('data:')===0 || url.charAt(0)==='/' || url.indexOf(location.origin)===0) return url;
+  if(url.indexOf('data:')===0 || url.indexOf('blob:')===0 || url.charAt(0)==='/' || url.indexOf(location.origin)===0) return url;
   return '/api/generate?media='+encodeURIComponent(url);
 }
+/* ── 여러 영상을 하나의 연속 영상으로 이어붙이기 (캔버스+MediaRecorder, 브라우저 내 실동작) ──
+   각 클립을 순서대로 재생하며 한 캔버스에 그려 연속 녹화 → 하나의 webm 으로 합친다. */
+function concatVideos(urls, onProg){
+  return new Promise(function(resolve,reject){
+    if(typeof MediaRecorder==='undefined'){ reject(new Error('이 브라우저는 영상 이어붙이기를 지원하지 않습니다')); return; }
+    urls=(urls||[]).filter(Boolean);
+    if(urls.length<2){ reject(new Error('이어붙일 영상이 2개 이상 필요합니다')); return; }
+    var canvas0=document.createElement('canvas'), ctx=null, w=0, h=0, rec=null, chunks=[], fps=30, done=false;
+    var tm=setTimeout(function(){ if(!done){ done=true; try{rec&&rec.stop();}catch(e){} reject(new Error('처리 시간 초과')); } }, 300000);
+    function finish(){ if(done)return; done=true; clearTimeout(tm);
+      if(!rec){ reject(new Error('첫 영상을 불러오지 못했습니다')); return; }
+      rec.onstop=function(){ resolve({ url:URL.createObjectURL(new Blob(chunks,{type:'video/webm'})), kind:'video', dim:w+'×'+h }); };
+      setTimeout(function(){ try{rec.stop();}catch(e){} }, 200);
+    }
+    function playClip(i){
+      if(i>=urls.length){ finish(); return; }
+      var v=document.createElement('video'); v.crossOrigin='anonymous'; v.muted=true; v.playsInline=true; v.preload='auto';
+      var vdone=false, vtm=setTimeout(function(){ if(!vdone){ vdone=true; next(); } }, 90000);
+      function next(){ clearTimeout(vtm); try{v.pause();v.src='';}catch(e){} playClip(i+1); }
+      v.addEventListener('loadedmetadata',function(){
+        var vw=v.videoWidth||1280, vh=v.videoHeight||720;
+        if(!ctx){
+          w=vw; h=vh; canvas0.width=w; canvas0.height=h; ctx=canvas0.getContext('2d');
+          var stream=canvas0.captureStream(fps);
+          var mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].filter(function(m){return MediaRecorder.isTypeSupported(m);})[0]||'video/webm';
+          try{ rec=new MediaRecorder(stream,{ mimeType:mime, videoBitsPerSecond:Math.min(24000000,Math.round(w*h*fps*0.12)) }); }
+          catch(e){ clearTimeout(tm); reject(new Error('레코더 생성 실패')); return; }
+          rec.ondataavailable=function(e){ if(e.data&&e.data.size)chunks.push(e.data); };
+          try{ rec.start(); }catch(e){ clearTimeout(tm); reject(new Error('레코더 시작 실패')); return; }
+        }
+        var sc=Math.max(w/vw, h/vh), dw=vw*sc, dh=vh*sc, dx=(w-dw)/2, dy=(h-dh)/2;  // cover-fit
+        function draw(){ try{ ctx.drawImage(v,dx,dy,dw,dh); }catch(e){} }
+        function tick(){ if(done||vdone)return; draw();
+          if(onProg&&isFinite(v.duration)&&v.duration>0) onProg((i+Math.min(1,v.currentTime/v.duration))/urls.length);
+          if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(tick); else requestAnimationFrame(tick); }
+        v.addEventListener('ended',function(){ if(vdone)return; vdone=true; draw(); next(); },{once:true});
+        var pr=v.play();
+        if(pr&&pr.then)pr.then(function(){ if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(tick); else requestAnimationFrame(tick); }).catch(function(){ if(!vdone){vdone=true;next();} });
+        else { if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(tick); else requestAnimationFrame(tick); }
+      });
+      v.addEventListener('error',function(){ if(!vdone){ vdone=true; next(); } });
+      v.src=sameOriginMedia(urls[i]);
+    }
+    playClip(0);
+  });
+}
+try{ window.__concatVideos=concatVideos; }catch(e){}   // 검증/디버그 훅
 /* 프레임을 참조용 크기로 축소해 data:URI 생성 — 최대 변 1024px.
    원본 해상도 그대로 보내면 프레임 여러 장에서 payload 가 폭증해 서버 함수가 죽습니다(502). */
 function _frameDataURL(v, q){
@@ -2316,6 +2363,36 @@ function narrateNode(n){
       toast(label+' 오류: '+String(n.w.error).slice(0,80)); render();
     });
 }
+/* 영상 이어붙이기 노드 실행 — 연결된 영상들을 왼쪽→오른쪽 순서로 하나의 연속 영상으로 합침 */
+function weaveNode(n){
+  if(!n || n.w.generating) return;
+  var clips=inputNodesOf(n.id,'clips').filter(Boolean);
+  var withX=clips.map(function(nd){
+    var u = nd.w ? (nd.w.srcVideoUrl
+              || (/^(https?:|blob:)/.test(nd.w.vid||'') ? nd.w.vid : null)
+              || (/^(https?:|blob:)/.test(nd.w.url||'') ? nd.w.url : null)) : null;
+    return { url:u, x:nd.x };
+  }).filter(function(o){ return o.url; });
+  withX.sort(function(a,b){ return a.x-b.x; });   // 캔버스 왼쪽→오른쪽 = 재생 순서
+  var urls=withX.map(function(o){ return o.url; });
+  if(urls.length<2){ toast('이어붙일 영상을 2개 이상 연결하세요 (출력 노드의 영상).'); return; }
+  n.w.generating=true; n.w.error=null; render();
+  (function(){ var em=document.getElementById('nd-'+n.id); if(em)em.classList.add('exec'); })();
+  toast('영상 '+urls.length+'개 이어붙이는 중… (전체 길이만큼 소요)');
+  concatVideos(urls, function(p){
+    var host=document.getElementById('nd-'+n.id); if(host){ var m=host.querySelector('.up-msg')||host.querySelector('.gentext'); }
+  }).then(function(res){
+    n.w.generating=false;
+    n.w.vid=res.url; n.w.kind='video'; n.w.model='이어붙인 영상'; n.w.poster=null; n.w.sec=0; n.w.srcVideoUrl=res.url;
+    saveToGallery(res.url,'video','이어붙인 영상',0,null);
+    toast('연속 영상 완성! ('+res.dim+')');
+    render(); snapshot();
+    var e2=document.getElementById('nd-'+n.id); if(e2)e2.classList.add('exec');
+  }).catch(function(err){
+    n.w.generating=false; n.w.error=String(err&&err.message||err);
+    toast('이어붙이기 실패: '+String(n.w.error).slice(0,80)); render();
+  });
+}
 function generateImageNode(n){
   if(!n || n.w.imgGenerating) return;
   var pn=inputNodeOf(n.id,'prompt');
@@ -2450,6 +2527,12 @@ var DEFS = {
  output:   { cat:'출력', title:'출력 (영상·이미지)', hd:'#233a33', ins:[['in','생성물','*']],
              outs:[['out','결과 → 레퍼런스','IMAGE']],
              widgets:[{k:'vid',t:'videoout'}] },
+ weave:    { cat:'출력', title:'영상 이어붙이기 (연속)', hd:'#233a3f',
+             ins:[['clips','영상들 (왼쪽→오른쪽 순서)','*']],
+             outs:[['out','이어진 영상 → 레퍼런스','*']],
+             widgets:[{k:'weaveinfo',t:'weaveinfo'},
+                      {k:'vid',t:'videoout'},
+                      {k:'run',t:'weavebtn',label:'영상 이어붙이기'}] },
  narrate:  { cat:'오디오', title:'AI 음성 (해설·립싱크)', hd:'#3a2c1c',
              ins:[['in','영상','*'],['script','대본 (텍스트·선택)','TEXT']],
              outs:[['out','음성 영상 → 레퍼런스','*']],
@@ -2958,6 +3041,13 @@ function widgetHTML(n,w){
       : '<div class="refcnt">해설(보이스오버) — 영상 위에 <b>목소리만</b> 얹습니다. 입 모양은 바뀌지 않습니다.</div>';
   }
   if(w.t==='narratebtn'){ var lipb=/립싱크/.test(n.w.nmode||''); return '<button class="wbtn" data-narrate>'+ICON.sparkle+' '+(lipb?'립싱크 생성':esc(w.label))+'</button>'; }
+  if(w.t==='weavebtn') return '<button class="wbtn" data-weave>'+ICON.sparkle+' '+esc(w.label)+'</button>';
+  if(w.t==='weaveinfo'){
+    var cnt=inputNodesOf(n.id,'clips').filter(function(nd){ return nd&&nd.w&&(nd.w.srcVideoUrl||nd.w.vid); }).length;
+    return '<div class="refcnt">'+(cnt>=2
+        ? ICON.check+' 영상 '+cnt+'개 연결됨 — 왼쪽→오른쪽 순서로 하나의 연속 영상으로 이어붙입니다.'
+        : '출력(영상) 노드를 <b>2개 이상</b> 이 포트에 연결하세요. 각 영상의 <b>마지막 프레임 → 다음 모델 첫 프레임</b>으로 이으면 자연스럽게 연결됩니다.')+'</div>';
+  }
   if(w.t==='pickinfo'){
     var pm=n.w.model||'', prov=MODEL_PROVIDER[pm]||'fal';
     var cat=(MODELS.filter(function(m){return m[1]===pm;})[0]||['',''])[0]||'';
@@ -3341,8 +3431,8 @@ window.addEventListener('mouseup',function(e){
       var toNode=state.nodes.find(function(x){return x.id===toN;});
       if(toN!==connect.from.node&&typeOK(pin.dataset.type,connect.type)&&portAllowed(toNode,pin.dataset.port)){
         var lt=connect.type==='*'?pin.dataset.type:connect.type;
-        if(pin.dataset.port==='ref') /* 레퍼런스 입력은 다중 연결 허용 — 같은 노드 중복만 제거 */
-          state.links=state.links.filter(function(l){return !(l.to===toN&&l.toPort==='ref'&&l.from===connect.from.node);});
+        if(pin.dataset.port==='ref'||pin.dataset.port==='clips') /* 레퍼런스·이어붙이기 입력은 다중 연결 허용 — 같은 노드 중복만 제거 */
+          state.links=state.links.filter(function(l){return !(l.to===toN&&l.toPort===pin.dataset.port&&l.from===connect.from.node);});
         else
           state.links=state.links.filter(function(l){return !(l.to===toN&&l.toPort===pin.dataset.port);});
         state.links.push({from:connect.from.node,fromPort:connect.from.port,to:toN,toPort:pin.dataset.port,type:lt});
@@ -3355,8 +3445,8 @@ window.addEventListener('mouseup',function(e){
       var fixNode=state.nodes.find(function(x){return x.id===connect.toFixed.node;});
       if(fromN!==connect.toFixed.node&&typeOK(pout.dataset.type,connect.type)&&portAllowed(fixNode,connect.toFixed.port)){
         var lt2=connect.type==='*'?pout.dataset.type:connect.type;
-        if(connect.toFixed.port==='ref')
-          state.links=state.links.filter(function(l){return !(l.to===connect.toFixed.node&&l.toPort==='ref'&&l.from===fromN);});
+        if(connect.toFixed.port==='ref'||connect.toFixed.port==='clips')
+          state.links=state.links.filter(function(l){return !(l.to===connect.toFixed.node&&l.toPort===connect.toFixed.port&&l.from===fromN);});
         else
           state.links=state.links.filter(function(l){return !(l.to===connect.toFixed.node&&l.toPort===connect.toFixed.port);});
         state.links.push({from:fromN,fromPort:pout.dataset.port,to:connect.toFixed.node,toPort:connect.toFixed.port,type:lt2});
@@ -3534,6 +3624,7 @@ canvas.addEventListener('click',function(e){
     return;
   }
   if(e.target.closest('[data-narrate]')){ narrateNode(n2); return; }
+  if(e.target.closest('[data-weave]')){ weaveNode(n2); return; }
   if(e.target.closest('[data-upload]')){ host.querySelector('[data-file]').click(); return; }
   var rdel=e.target.closest('[data-refdel]');
   if(rdel){ var ri=+rdel.getAttribute('data-refdel');
@@ -3892,7 +3983,7 @@ function runQueue(){
             var ff=inputNodeOf(id,'first'), lf=inputNodeOf(id,'last');
             function imgsOf(node){ if(!node)return [];
               if(node.type==='output') return node.w.lastImg?[node.w.lastImg]:[];
-              if(node.type==='narrate') return node.w.poster?[node.w.poster]:[];
+              if(node.type==='narrate'||node.type==='weave') return node.w.poster?[node.w.poster]:[];
               if(node.type==='frame') return node.w.frameImg?[node.w.frameImg]:[];
               if(node.w.imgs&&node.w.imgs.length)return node.w.imgs; return node.w.img?[node.w.img]:[]; }
             // 사진 포트: 이미지=참고 사진. (하위호환) 영상이 섞여 있으면 그 프레임은 영상 프레임으로 분리.
