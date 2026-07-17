@@ -935,8 +935,14 @@ textarea.wtext.code::placeholder{ color:#5a5c66; }
   background:#c0293f; color:#fff; font-size:12px; display:none; align-items:center; justify-content:center; cursor:pointer;
   box-shadow:0 2px 6px rgba(0,0,0,.5); }
 #annoHtml .anno.asel .adel{ display:flex; }
-#annoSvg path.astroke,#annoSvg line.astroke{ fill:none; stroke-linecap:round; stroke-linejoin:round; }
-#annoSvg .ahit{ fill:none; stroke:transparent; stroke-width:16; cursor:pointer; pointer-events:stroke; }
+/* SVG 주석(펜·화살표·도형) 선택 시 뜨는 삭제 버튼 */
+#annoHtml .adel-float{ position:absolute; width:22px; height:22px; border-radius:50%; transform:translate(-50%,-50%);
+  background:#c0293f; color:#fff; font-size:13px; display:flex; align-items:center; justify-content:center; cursor:pointer;
+  pointer-events:auto; box-shadow:0 2px 8px rgba(0,0,0,.55); z-index:6; user-select:none; }
+#annoHtml .adel-float:hover{ background:#e0344e; }
+#annoSvg path.astroke,#annoSvg line.astroke,#annoSvg rect.astroke,#annoSvg ellipse.astroke{ fill:none; stroke-linecap:round; stroke-linejoin:round; }
+#annoSvg .ahit{ fill:none; stroke:transparent; stroke-width:18; cursor:pointer; pointer-events:stroke; }
+#annoSvg .ahit-fill{ fill:transparent; stroke:transparent; stroke-width:18; cursor:pointer; pointer-events:all; }
 #annoSvg .asel-svg{ stroke:#a855f7 !important; }
 
 /* ============================================================
@@ -2629,9 +2635,10 @@ var DEFS = {
                       {k:'seedModel',t:'seedid'},
                       {k:'seedOpts',t:'seedopts'},
                       {k:'fluxctrl',t:'fluxctrl'},
+                      {k:'refup',t:'image',addref:true},
                       {k:'cfg',t:'slider',label:'cfg',min:0,max:100,def:70},
                       {k:'seed',t:'seed',def:156680208700286},
-                      {k:'run',t:'button',label:'이 노드 실행'}] },
+                      {k:'run',t:'button',label:'Execute Node'}] },
  imagegen: { cat:'모델', title:'이미지 생성', hd:'#243a40',
              ins:[['prompt','프롬프트(선택)','TEXT'],['ref','레퍼런스 (최대 12장 · 다중 연결)','IMAGE']],
              outs:[['out','생성 이미지 → 레퍼런스','IMAGE']],
@@ -3252,7 +3259,7 @@ function widgetHTML(n,w){
             : n.w.srcVideoUrl ? '<div class="refcnt" style="color:#8fe6b8">'+ICON.check+' V2V 가능 — 어떤 모델이든 원본 프레임을 이어받아 변환됩니다. (최고정확도는 "V2V 자동" 또는 "Runway Aleph")</div>' : '';
     return grid+
       (cnt?'<div class="refcnt">'+cnt+'</div>':'')+ v2v+
-      '<button class="wbtn" data-upload>내 PC에서 업로드 (이미지·영상, 여러 개)</button>'+
+      '<button class="wbtn" data-upload>'+(w.addref?'＋ 레퍼런스 추가 (이미지·영상)':'내 PC에서 업로드 (이미지·영상, 여러 개)')+'</button>'+
       '<input type="file" accept="image/*,video/*,.mp4,.mov,.webm,.m4v,.avi,.mkv,.gif" multiple data-file style="display:none">';
   }
   if(w.t==='videoout'){
@@ -4153,6 +4160,9 @@ function runQueue(){
             rfs.forEach(function(nd){ if(!nd||!nd.w)return;
               var ims=imgsOf(nd), vd=nd.w.vids||[];
               ims.forEach(function(im,ix){ if(vd[ix]) vFrames.push(im); else photoRefs.push(im); }); });
+            // 이 노드에 직접 업로드한 레퍼런스(＋ 버튼)도 포함
+            if(n.w.imgs&&n.w.imgs.length){ var nvd=n.w.vids||[];
+              n.w.imgs.forEach(function(im,ix){ if(nvd[ix]){ if(vFrames.indexOf(im)<0)vFrames.push(im); } else if(photoRefs.indexOf(im)<0)photoRefs.push(im); }); }
             // 영상 레퍼런스 포트: 여기 연결된 것은 "영상"으로 취급 → 대표 프레임=영상 프레임, srcVideoUrl 우선.
             var srcVid=null;
             vrfs.forEach(function(nd){ if(!nd||!nd.w)return;
@@ -4963,8 +4973,13 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
         else { sh.setAttribute('cx',n.x+n.w/2);sh.setAttribute('cy',n.y+n.h/2);sh.setAttribute('rx',n.w/2);sh.setAttribute('ry',n.h/2); }
         sh.setAttribute('fill','none'); sh.setAttribute('stroke',a.color||SHAPE); sh.setAttribute('stroke-width',a.width||(a.frame?2:PENW));
         if(a.frame) sh.setAttribute('stroke-dasharray','9 7');
-        sh.setAttribute('data-anno',a.id); sh.style.pointerEvents='visibleStroke'; sh.style.cursor='pointer';
-        annoSvg.appendChild(sh);
+        sh.style.pointerEvents='none';
+        // 넓은 투명 히트 영역(테두리+내부) — 얇은 선이 아니라 도형 전체를 클릭해 선택 가능
+        var hs=document.createElementNS(SVGNS,tag); hs.setAttribute('class','ahit-fill');
+        if(tag==='rect'){ hs.setAttribute('x',n.x);hs.setAttribute('y',n.y);hs.setAttribute('width',n.w);hs.setAttribute('height',n.h);hs.setAttribute('rx',a.frame?14:6); }
+        else { hs.setAttribute('cx',n.x+n.w/2);hs.setAttribute('cy',n.y+n.h/2);hs.setAttribute('rx',n.w/2);hs.setAttribute('ry',n.h/2); }
+        hs.setAttribute('data-anno',a.id);
+        annoSvg.appendChild(sh); annoSvg.appendChild(hs);
       } else {
         // HTML 주석 (텍스트·스티키·이모지)
         var d=document.createElement('div'); d.className='anno '+(a.t==='text'?'a-text':a.t==='sticky'?'a-sticky':'a-emoji')+(isSel?' asel':'');
@@ -4974,7 +4989,20 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
         var x=document.createElement('span'); x.className='adel'; x.textContent='✕'; x.setAttribute('data-adel',a.id); d.appendChild(x);
         annoHtml.appendChild(d);
       }
+      // 선택된 SVG 주석(펜·화살표·도형)에는 떠 있는 삭제(✕) 버튼을 표시 — 클릭 한 번으로 삭제
+      if(isSel && (a.t==='pen'||a.t==='arrow'||a.t==='rect'||a.t==='ellipse')){
+        var bb=annoBBox(a);
+        var db=document.createElement('span'); db.className='adel-float'; db.textContent='✕'; db.setAttribute('data-adel',a.id); db.title='삭제';
+        db.style.left=(bb.maxX+8)+'px'; db.style.top=(bb.minY-8)+'px';
+        annoHtml.appendChild(db);
+      }
     });
+  }
+  // 주석의 경계 상자(월드 좌표) — 삭제 버튼 위치 계산용
+  function annoBBox(a){
+    if(a.t==='pen'){ var xs=a.pts.map(function(p){return p[0];}), ys=a.pts.map(function(p){return p[1];});
+      return { minX:Math.min.apply(null,xs), minY:Math.min.apply(null,ys), maxX:Math.max.apply(null,xs), maxY:Math.max.apply(null,ys) }; }
+    return { minX:Math.min(a.x1,a.x2), minY:Math.min(a.y1,a.y2), maxX:Math.max(a.x1,a.x2), maxY:Math.max(a.y1,a.y2) };
   }
   window.__renderAnnos=renderAnnos;
   window.__annoDelete=function(){ if(selAnno){ state.annos=annos().filter(function(a){return a.id!==selAnno;}); selAnno=null; snapshot(); renderAnnos(); return true; } return false; };
