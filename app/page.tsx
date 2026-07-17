@@ -137,6 +137,13 @@ const M: Dict = {
     ja: '主要なマーケティングチャネルのデータを一か所で統合連携',
     zh: '在同一处整合对接主要营销渠道数据',
   },
+  '클로드 MCP 연동': { en: 'Claude MCP integration', ja: 'Claude MCP連携', zh: 'Claude MCP 对接' },
+  'Claude(클로드)에서 MCP로 바로 이미지·영상을 생성하세요. 본인 계정 크레딧으로 차감됩니다.': {
+    en: 'Generate images & videos right inside Claude via MCP — billed to your own account credits.',
+    ja: 'Claude内からMCPで画像・動画を直接生成。ご自身のアカウントのクレジットから差し引かれます。',
+    zh: '在 Claude 中通过 MCP 直接生成图片与视频，按您自己的账户积分扣费。',
+  },
+  '연동 방법 보기': { en: 'See how to connect', ja: '連携方法を見る', zh: '查看对接方法' },
 
   // ===== PAIN =====
   '솔직히, 지금 이렇지 않나요?': {
@@ -768,6 +775,20 @@ const PLANS = [
   },
 ]
 
+/** Claude(클로드) 스타일 선버스트 마크 */
+function ClaudeMark({ size = 34 }: { size?: number }) {
+  const rays = 12
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" role="img" aria-label="Claude">
+      <g transform="translate(50,50)">
+        {Array.from({ length: rays }).map((_, i) => (
+          <rect key={i} x={-3.1} y={-46} width={6.2} height={30} rx={3.1} fill="#D97757" transform={`rotate(${(360 / rays) * i})`} />
+        ))}
+      </g>
+    </svg>
+  )
+}
+
 export default function Home() {
   const t = useT(M)
   return (
@@ -836,6 +857,29 @@ export default function Home() {
 
       {/* ===== AI 영상 갤러리 (힉스필드 스타일, 모델별 제작 영상) ===== */}
       <AIVideoGallery />
+
+      {/* ===== 클로드 MCP 연동 배지 ===== */}
+      <section className="border-b border-white/10 py-12">
+        <Reveal className="mx-auto max-w-3xl px-5">
+          <div className="mx-auto flex flex-col items-center gap-4 rounded-2xl border border-white/12 bg-white/[0.03] px-6 py-6 text-center sm:flex-row sm:text-left">
+            <span className="grid h-14 w-14 flex-shrink-0 place-items-center rounded-2xl border border-[#D97757]/30 bg-[#D97757]/10">
+              <ClaudeMark size={34} />
+            </span>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold tracking-tight">{t('클로드 MCP 연동')}</h3>
+              <p className="mt-1 text-sm text-slate-300">
+                {t('Claude(클로드)에서 MCP로 바로 이미지·영상을 생성하세요. 본인 계정 크레딧으로 차감됩니다.')}
+              </p>
+            </div>
+            <Link
+              href="/docs/mcp"
+              className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+            >
+              {t('연동 방법 보기')} <ArrowRight size={15} />
+            </Link>
+          </div>
+        </Reveal>
+      </section>
 
       {/* ===== 채널 오빗 (실제 로고 공전) ===== */}
       <section className="relative overflow-hidden border-y border-white/10 py-20 text-white">
