@@ -24,8 +24,24 @@ export interface Feature {
 
 export const FEATURES: Feature[] = [
   {
-    slug: 'leads',
+    slug: 'video',
     no: 1,
+    title: '노드형 AI 영상 스튜디오',
+    short: 'AI 영상 스튜디오',
+    desc: '모든 AI 영상 모델을 노드로 연결하고, ControlNet으로 카메라·포즈·모션 하나하나까지 제어해 원하는 장면을 정확히 만들어냅니다.',
+    icon: Clapperboard,
+    color: 'from-purple-500 to-violet-500',
+    accent: '#a855f7',
+    points: [
+      '모든 AI 모델 지원 — Kling · Google Veo · Runway · Seedance · Luma · Hailuo',
+      'ControlNet 모션 제어 — 포즈·뎁스·엣지·캐니로 동작 하나하나 조절',
+      '텍스트→영상 · 이미지→영상 · 영상→영상(V2V·실사화)',
+      '노드 워크플로우로 컷·장면을 자유롭게 연결하고 재사용',
+    ],
+  },
+  {
+    slug: 'leads',
+    no: 2,
     title: 'DB 수집 랜딩페이지',
     short: '랜딩 · DB수집',
     desc: '노코드 빌더로 고객 DB를 수집하는 랜딩페이지를 만들고, 유입·전환을 실시간으로 추적합니다.',
@@ -36,7 +52,7 @@ export const FEATURES: Feature[] = [
   },
   {
     slug: 'youtube',
-    no: 2,
+    no: 3,
     title: '유튜브 분석',
     short: '유튜브 분석',
     desc: '채널·영상·키워드 성과를 분석하고 떡상 가능성이 높은 콘텐츠 전략을 도출합니다.',
@@ -47,7 +63,7 @@ export const FEATURES: Feature[] = [
   },
   {
     slug: 'blog',
-    no: 3,
+    no: 4,
     title: '블로그 분석',
     short: '블로그 분석',
     desc: '네이버·티스토리 블로그 지수와 키워드 상위노출 가능성을 진단합니다.',
@@ -58,7 +74,7 @@ export const FEATURES: Feature[] = [
   },
   {
     slug: 'team',
-    no: 4,
+    no: 5,
     title: '팀 협업 & AI 챗봇',
     short: '팀 · AI챗봇',
     desc: '업무를 보드로 관리하고 AI 어시스턴트가 콘텐츠·카피·분석을 즉시 도와줍니다.',
@@ -69,7 +85,7 @@ export const FEATURES: Feature[] = [
   },
   {
     slug: 'crm',
-    no: 5,
+    no: 6,
     title: '고객관리 CRM',
     short: 'CRM 마케팅',
     desc: '수집한 DB를 파이프라인으로 관리하고 문자·알림톡 캠페인으로 전환시킵니다.',
@@ -80,7 +96,7 @@ export const FEATURES: Feature[] = [
   },
   {
     slug: 'ads',
-    no: 6,
+    no: 7,
     title: '실제 광고 분석',
     short: '광고 분석',
     desc: '메타·구글·네이버 광고 성과를 한 곳에서 통합 분석하고 ROAS를 최적화합니다.',
@@ -88,17 +104,6 @@ export const FEATURES: Feature[] = [
     color: 'from-fuchsia-500 to-pink-500',
     accent: '#d946ef',
     points: ['통합 대시보드', 'ROAS·CPA 추적', '소재별 성과 비교', 'AI 예산 최적화 제안'],
-  },
-  {
-    slug: 'video',
-    no: 7,
-    title: 'AI 영상 제작',
-    short: 'AI 영상',
-    desc: '텍스트 프롬프트만으로 광고·숏폼 영상을 생성합니다. (Higgsfield 스타일)',
-    icon: Clapperboard,
-    color: 'from-purple-500 to-violet-500',
-    accent: '#a855f7',
-    points: ['텍스트→영상 생성', '카메라 모션 프리셋', '숏폼·광고 템플릿', '브랜드 스타일 학습'],
   },
 ]
 

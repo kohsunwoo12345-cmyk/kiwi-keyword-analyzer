@@ -38,6 +38,29 @@ const M: Dict = {
   '잠자던 DB를 매출로 깨우다': { en: 'Wake dormant data into revenue', ja: '眠っていたDBを売上へ目覚めさせる', zh: '唤醒沉睡的数据带来销售' },
   '광고비 한 푼도 새지 않게': { en: 'So not a cent of ad spend leaks', ja: '広告費を1円も無駄にしない', zh: '让每一分广告费都不浪费' },
   '텍스트 한 줄이 영상이 되는 순간': { en: 'The moment one line of text becomes video', ja: '一行のテキストが動画になる瞬間', zh: '一行文字变成视频的瞬间' },
+  '모션 하나하나까지 제어하는 노드형 AI 영상': { en: 'Node-based AI video, controlled motion by motion', ja: 'モーションの一つひとつまで制御するノード型AI動画', zh: '连每个动作都可控的节点式 AI 视频' },
+  '지원 AI 모델': { en: 'Supported AI models', ja: '対応AIモデル', zh: '支持的 AI 模型' },
+  'ControlNet 제어': { en: 'ControlNet controls', ja: 'ControlNet制御', zh: 'ControlNet 控制' },
+  '최신 AI 영상 모델을 모두 지원합니다 — Kling · Google Veo · Runway · Seedance · Luma · Hailuo를 한 화면에서 골라 씁니다.': {
+    en: 'Supports every latest AI video model — pick from Kling, Google Veo, Runway, Seedance, Luma, and Hailuo on one canvas.',
+    ja: '最新のAI動画モデルをすべてサポート — Kling・Google Veo・Runway・Seedance・Luma・Hailuoを一画面で選んで使います。',
+    zh: '支持所有最新 AI 视频模型——在一屏中选用 Kling、Google Veo、Runway、Seedance、Luma、Hailuo。',
+  },
+  'ControlNet으로 포즈·뎁스·엣지·캐니를 잡아 인물의 동작과 카메라 움직임을 하나하나 정밀하게 제어합니다.': {
+    en: 'With ControlNet — pose, depth, edge, and canny — you precisely control character motion and camera movement, one by one.',
+    ja: 'ControlNetでポーズ・深度・エッジ・キャニーを押さえ、人物の動きとカメラワークを一つひとつ精密に制御します。',
+    zh: '通过 ControlNet 的姿势、深度、边缘、Canny，逐一精确控制人物动作与镜头运动。',
+  },
+  '텍스트→영상, 이미지→영상, 영상→영상(V2V)을 노드로 연결해 컷과 장면을 자유롭게 구성하고 재사용합니다.': {
+    en: 'Connect text-to-video, image-to-video, and video-to-video (V2V) as nodes to freely compose and reuse cuts and scenes.',
+    ja: 'テキスト→動画、画像→動画、動画→動画(V2V)をノードでつなぎ、カットとシーンを自由に構成・再利用します。',
+    zh: '将文本→视频、图像→视频、视频→视频(V2V)以节点连接，自由编排并复用镜头与场景。',
+  },
+  '원본 영상을 실사처럼 변환하고, 브랜드 톤을 유지한 채 여러 편을 대량으로 찍어냅니다.': {
+    en: 'Transform source footage to photoreal, and mass-produce many videos while keeping your brand tone.',
+    ja: '元映像を実写のように変換し、ブランドトーンを保ったまま複数本を大量制作します。',
+    zh: '将原始素材转为写实，在保持品牌调性的同时批量制作多支视频。',
+  },
   '마케팅을 한 단계 끌어올리는 기능': { en: 'A feature that takes your marketing to the next level', ja: 'マーケティングを一段引き上げる機能', zh: '让营销更上一层楼的功能' },
 
   /* ── stat labels ── */
@@ -317,17 +340,17 @@ const META: Record<string, Meta> = {
     ],
   },
   video: {
-    tagline: '텍스트 한 줄이 영상이 되는 순간',
+    tagline: '모션 하나하나까지 제어하는 노드형 AI 영상',
     stats: [
+      { to: 6, suffix: '+', label: '지원 AI 모델' },
       { to: 90, suffix: '%', label: '제작 시간 절감' },
-      { to: 60, suffix: '초', label: '평균 생성 시간' },
-      { to: 50, suffix: '+', label: '스타일 프리셋' },
+      { to: 4, suffix: '종', label: 'ControlNet 제어' },
     ],
     notes: [
-      '외주 견적과 촬영 일정을 잡는 동안 트렌드는 지나갑니다. 한 줄 프롬프트만 입력하면 영상이 만들어집니다.',
-      '전문가급 카메라 워크를 프리셋으로 적용해, 장비도 촬영팀도 없이 완성도를 끌어올립니다.',
-      '숏폼·광고용 템플릿으로 즉시 완성해, 아이디어가 식기 전에 바로 올립니다.',
-      '브랜드 톤을 학습해 여러 편을 만들어도 스타일이 흔들리지 않습니다.',
+      '최신 AI 영상 모델을 모두 지원합니다 — Kling · Google Veo · Runway · Seedance · Luma · Hailuo를 한 화면에서 골라 씁니다.',
+      'ControlNet으로 포즈·뎁스·엣지·캐니를 잡아 인물의 동작과 카메라 움직임을 하나하나 정밀하게 제어합니다.',
+      '텍스트→영상, 이미지→영상, 영상→영상(V2V)을 노드로 연결해 컷과 장면을 자유롭게 구성하고 재사용합니다.',
+      '원본 영상을 실사처럼 변환하고, 브랜드 톤을 유지한 채 여러 편을 대량으로 찍어냅니다.',
     ],
   },
 }

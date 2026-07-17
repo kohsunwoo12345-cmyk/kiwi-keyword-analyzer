@@ -235,10 +235,10 @@ const M: Dict = {
     ja: 'AI動画制作',
     zh: 'AI 视频制作',
   },
-  '노드형 AI 영상 스튜디오를 중심으로, 마케팅에 필요한 나머지 기능이 하나로 연결됩니다.': {
-    en: 'Centered on a node-based AI video studio, everything else you need for marketing connects into one.',
-    ja: 'ノード型AI動画スタジオを中心に、マーケティングに必要な残りの機能が一つにつながります。',
-    zh: '以节点式 AI 视频工作室为中心，营销所需的其余功能连成一体。',
+  '모든 AI 영상 모델과 ControlNet 모션 제어를 노드로 연결해 원하는 장면을 정확히 만들고, 마케팅에 필요한 나머지 기능까지 하나로 잇습니다.': {
+    en: 'Connect every AI video model and ControlNet motion control as nodes to build exactly the scene you want — and everything else your marketing needs, unified.',
+    ja: 'すべてのAI動画モデルとControlNetのモーション制御をノードでつなぎ、狙った場面を正確に作り、マーケティングに必要な残りの機能まで一つにつなげます。',
+    zh: '将所有 AI 视频模型与 ControlNet 动作控制以节点连接，精准打造想要的画面，并把营销所需的其余功能一并串联。',
   },
   '마케팅을 완성하는 부가 서비스': {
     en: 'Add-on services that complete your marketing',
@@ -922,7 +922,7 @@ export default function Home() {
               {t('마케팅의 중심,')} <span className="brand-text">{t('AI 영상 제작')}</span>
             </h2>
             <p className="mt-5 text-balance text-lg text-[var(--text-soft)]">
-              {t('노드형 AI 영상 스튜디오를 중심으로, 마케팅에 필요한 나머지 기능이 하나로 연결됩니다.')}
+              {t('모든 AI 영상 모델과 ControlNet 모션 제어를 노드로 연결해 원하는 장면을 정확히 만들고, 마케팅에 필요한 나머지 기능까지 하나로 잇습니다.')}
             </p>
           </Reveal>
 
