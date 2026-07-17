@@ -1553,6 +1553,8 @@ var VOICE_ID = {
   '한국어·남성(Wavenet)':'gtts:ko-KR-Wavenet-C', '영어·여성(Nova)':'openai:tts-1:nova',
   '영어·남성(Onyx)':'openai:tts-1:onyx', '영어·여성(Shimmer)':'openai:tts-1:shimmer'
 };
+// 목소리 교체(Speech-to-Speech)는 일레븐랩스 보이스만 사용
+var EL_VOICE_OPTS = ['일레븐랩스·여성(Rachel)','일레븐랩스·여성(Sarah)','일레븐랩스·남성(Adam)','일레븐랩스·남성(Antoni)','일레븐랩스·여성(Aria)'];
 function typeOK(a,b){ return a===b || a==='*' || b==='*'; }
 /* 실제 백엔드(/api/generate)에 연결되어 지금 바로 생성 가능한 모델만 노출 */
 var MODELS = [
@@ -2032,6 +2034,38 @@ function concatVideos(urls, onProg){
   });
 }
 try{ window.__concatVideos=concatVideos; }catch(e){}   // 검증/디버그 훅
+
+/* ── 영상에서 음성만 추출 → WAV(모노 22.05kHz) Blob. 음성이 없으면 reject. ── */
+function encodeWav(ab){
+  var ch=ab.getChannelData(0), sr=ab.sampleRate, targetSr=22050, ratio=sr/targetSr;
+  var outLen=Math.max(1,Math.floor(ch.length/ratio));
+  var buf=new ArrayBuffer(44+outLen*2), view=new DataView(buf);
+  function wstr(o,s){ for(var i=0;i<s.length;i++)view.setUint8(o+i,s.charCodeAt(i)); }
+  wstr(0,'RIFF'); view.setUint32(4,36+outLen*2,true); wstr(8,'WAVE'); wstr(12,'fmt ');
+  view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,1,true);
+  view.setUint32(24,targetSr,true); view.setUint32(28,targetSr*2,true); view.setUint16(32,2,true); view.setUint16(34,16,true);
+  wstr(36,'data'); view.setUint32(40,outLen*2,true);
+  var off=44;
+  for(var i=0;i<outLen;i++){ var s=ch[Math.floor(i*ratio)]||0; s=Math.max(-1,Math.min(1,s)); view.setInt16(off, s<0?s*0x8000:s*0x7FFF, true); off+=2; }
+  return new Blob([view],{type:'audio/wav'});
+}
+function extractAudioWav(url){
+  return fetch(sameOriginMedia(url)).then(function(r){ if(!r.ok)throw new Error('영상 로드 실패'); return r.arrayBuffer(); }).then(function(buf){
+    var AC=window.AudioContext||window.webkitAudioContext; if(!AC) throw new Error('이 브라우저는 오디오 디코딩을 지원하지 않습니다');
+    var ac=new AC();
+    return ac.decodeAudioData(buf.slice(0)).then(function(ab){
+      var ch=ab.getChannelData(0), sound=false;
+      for(var i=0;i<ch.length;i+=997){ if(Math.abs(ch[i])>0.004){ sound=true; break; } }
+      if(!sound){ try{ac.close();}catch(e){} throw new Error('영상에 말소리가 없습니다. 먼저 [AI 음성] 노드로 나레이션을 입히거나, 목소리가 담긴 영상을 사용하세요.'); }
+      var wav=encodeWav(ab); try{ac.close();}catch(e){} return wav;
+    }, function(){ try{ac.close();}catch(e){} throw new Error('영상의 오디오를 디코딩하지 못했습니다(오디오 트랙이 없거나 코덱 미지원).'); });
+  });
+}
+function hostAudioBlob(blob){
+  return fetch('/api/upload',{method:'POST',headers:{'Content-Type':blob.type||'audio/wav'},body:blob,credentials:'include'})
+    .then(function(r){ return r.json(); }).then(function(j){ return (j&&j.url)||null; }).catch(function(){ return null; });
+}
+try{ window.__extractAudioWav=extractAudioWav; }catch(e){}   // 검증 훅
 /* 프레임을 참조용 크기로 축소해 data:URI 생성 — 최대 변 1024px.
    원본 해상도 그대로 보내면 프레임 여러 장에서 payload 가 폭증해 서버 함수가 죽습니다(502). */
 function _frameDataURL(v, q){
@@ -2416,6 +2450,42 @@ function weaveNode(n){
     toast('이어붙이기 실패: '+String(n.w.error).slice(0,80)); render();
   });
 }
+/* 목소리 교체 → 립싱크 노드 실행: 영상에서 음성 추출 → 일레븐랩스 STS 교체 → fal 립싱크 */
+function revoiceNode(n){
+  if(!n || n.w.generating) return;
+  var srcN=inputNodeOf(n.id,'in');
+  var srcU = srcN && srcN.w ? (srcN.w.srcVideoUrl
+              || (/^(https?:|blob:)/.test(srcN.w.vid||'') ? srcN.w.vid : null)) : null;
+  if(!srcU){ toast('말소리가 있는 영상을 연결하세요 ([AI 음성] 노드 결과 또는 사람이 말하는 영상).'); return; }
+  var voiceId=VOICE_ID[n.w.voice]||'el:21m00Tcm4TlvDq8ikWAM';
+  if(!/^el:/.test(voiceId)){ toast('일레븐랩스 목소리를 선택하세요.'); return; }
+  n.w.generating=true; n.w.error=null; render();
+  (function(){ var em=document.getElementById('nd-'+n.id); if(em)em.classList.add('exec'); })();
+  toast('영상에서 말소리 추출 중…');
+  extractAudioWav(srcU)
+    .then(function(wav){ toast('추출 음성 업로드 중…'); return hostAudioBlob(wav); })
+    .then(function(audioUrl){
+      if(!audioUrl) throw new Error('추출 음성 업로드 실패 (로그인/네트워크 확인)');
+      // revoice 는 원본 영상도 공개 URL 이어야 립싱크 가능
+      if(!/^https?:\/\//.test(srcU)) throw new Error('립싱크할 영상은 공개 URL 이어야 합니다. 출력 노드의 완성 영상을 연결하세요.');
+      toast('일레븐랩스 목소리 교체 + 립싱크 중… (시간이 걸립니다)');
+      return callProxy({ provider:'revoice', videoUrl:srcU, audioUrl:audioUrl, voice:voiceId });
+    })
+    .then(function(res){
+      n.w.generating=false;
+      if(!res || res.error){ var msg=(res&&res.error)||'목소리 교체 실패';
+        n.w.error=msg; var info=showGenError(msg,'lipsync','목소리 교체·립싱크');
+        toast((info&&info.title)||('목소리 교체 실패: '+String(msg).slice(0,80))); render(); return; }
+      n.w.vid=res.url; n.w.kind='video'; n.w.model='목소리 교체·립싱크'; n.w.poster=(srcN&&srcN.w&&srcN.w.poster)||null;
+      n.w.sec=(srcN&&srcN.w&&srcN.w.sec)||8; n.w.srcVideoUrl=res.url;
+      recordCost('lipsync','립싱크 (인물 말하기)', n.w.sec||8, 'video', '1080p', true);
+      saveToGallery(res.url,'video','목소리 교체·립싱크',n.w.sec,n.w.poster);
+      toast('목소리 교체 + 립싱크 영상 완성!'); render(); snapshot();
+      var e2=document.getElementById('nd-'+n.id); if(e2)e2.classList.add('exec');
+    })
+    .catch(function(err){ n.w.generating=false; n.w.error=String(err&&err.message||err);
+      toast(String(n.w.error).slice(0,90)); render(); });
+}
 function generateImageNode(n){
   if(!n || n.w.imgGenerating) return;
   var pn=inputNodeOf(n.id,'prompt');
@@ -2581,6 +2651,13 @@ var DEFS = {
                       {k:'nmodehint',t:'nmodehint'},
                       {k:'vid',t:'videoout'},
                       {k:'run',t:'narratebtn',label:'음성 입히기'}] },
+ revoice:  { cat:'오디오', title:'목소리 교체 → 립싱크', hd:'#3a1c2c',
+             ins:[['in','영상 (말소리 포함)','*']],
+             outs:[['out','목소리 교체·립싱크 영상 → 레퍼런스','*']],
+             widgets:[{k:'voice',t:'combo',label:'교체할 목소리',opts:EL_VOICE_OPTS,def:'일레븐랩스·여성(Rachel)'},
+                      {k:'revinfo',t:'revinfo'},
+                      {k:'vid',t:'videoout'},
+                      {k:'run',t:'revoicebtn',label:'목소리 교체 + 립싱크'}] },
  note:     { cat:'유틸', title:'노트', hd:'', ins:[], outs:[],
              widgets:[{k:'text',t:'textarea',ph:'메모를 입력하세요...'}] },
  frame:    { cat:'유틸', title:'프레임 추출', hd:'#1f3a3a',
@@ -3080,6 +3157,11 @@ function widgetHTML(n,w){
   }
   if(w.t==='narratebtn'){ var lipb=/립싱크/.test(n.w.nmode||''); return '<button class="wbtn" data-narrate>'+ICON.sparkle+' '+(lipb?'립싱크 생성':esc(w.label))+'</button>'; }
   if(w.t==='weavebtn') return '<button class="wbtn" data-weave>'+ICON.sparkle+' '+esc(w.label)+'</button>';
+  if(w.t==='revoicebtn') return '<button class="wbtn" data-revoice>'+ICON.sparkle+' '+esc(w.label)+'</button>';
+  if(w.t==='revinfo'){
+    return '<div class="refcnt">영상의 <b>말소리를 추출</b> → 일레븐랩스로 <b>목소리 교체</b> → 그 음성에 맞춰 <b>립싱크</b>. '+
+      '<b>말소리가 담긴 영상</b>(예: [AI 음성] 노드 결과 또는 사람이 말하는 영상)과 <b>정면 얼굴</b>이 필요합니다.</div>';
+  }
   if(w.t==='weaveinfo'){
     var cnt=inputNodesOf(n.id,'clips').filter(function(nd){ return nd&&nd.w&&(nd.w.srcVideoUrl||nd.w.vid); }).length;
     return '<div class="refcnt">'+(cnt>=2
@@ -3663,6 +3745,7 @@ canvas.addEventListener('click',function(e){
   }
   if(e.target.closest('[data-narrate]')){ narrateNode(n2); return; }
   if(e.target.closest('[data-weave]')){ weaveNode(n2); return; }
+  if(e.target.closest('[data-revoice]')){ revoiceNode(n2); return; }
   if(e.target.closest('[data-upload]')){ host.querySelector('[data-file]').click(); return; }
   var rdel=e.target.closest('[data-refdel]');
   if(rdel){ var ri=+rdel.getAttribute('data-refdel');
@@ -4021,7 +4104,7 @@ function runQueue(){
             var ff=inputNodeOf(id,'first'), lf=inputNodeOf(id,'last');
             function imgsOf(node){ if(!node)return [];
               if(node.type==='output') return node.w.lastImg?[node.w.lastImg]:[];
-              if(node.type==='narrate'||node.type==='weave') return node.w.poster?[node.w.poster]:[];
+              if(node.type==='narrate'||node.type==='weave'||node.type==='revoice') return node.w.poster?[node.w.poster]:[];
               if(node.type==='frame') return node.w.frameImg?[node.w.frameImg]:[];
               if(node.w.imgs&&node.w.imgs.length)return node.w.imgs; return node.w.img?[node.w.img]:[]; }
             // 사진 포트: 이미지=참고 사진. (하위호환) 영상이 섞여 있으면 그 프레임은 영상 프레임으로 분리.

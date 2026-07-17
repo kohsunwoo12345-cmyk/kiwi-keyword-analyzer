@@ -1446,6 +1446,58 @@ async function handle(context) {
     return json({ statusUrl: "/api/generate?provider=falq&task=" + encodeURIComponent(reqId) + "&model=" + encodeURIComponent(model), audioUrl: tts.audioUrl });
   }
 
+  /* 목소리 교체 → 립싱크 (Revoice) — 영상에서 뽑은 음성을 ElevenLabs Speech-to-Speech 로
+     다른 목소리로 교체한 뒤, 그 음성에 맞춰 인물 입 모양을 립싱크. (클라이언트가 추출 음성 URL 제공) */
+  if (provider === "revoice") {
+    const el = pick(env, ["ElevenLabs_API_KEY", "ELEVENLABS_API_KEY", "elevenlabs_api_key"]);
+    if (!el) return json({ error: "목소리 교체에는 ElevenLabs_API_KEY 가 필요합니다." }, 500);
+    if (!k.fal) return json({ error: "립싱크에는 FAL_API_KEY 가 필요합니다." }, 500);
+    const videoUrl = String(b.videoUrl || "").trim();
+    const audioUrl = String(b.audioUrl || "").trim();
+    if (!/^https?:\/\//.test(videoUrl)) return json({ error: "영상의 공개 URL이 필요합니다(얼굴이 보이는 영상)." }, 400);
+    if (!/^https?:\/\//.test(audioUrl)) return json({ error: "영상에서 추출한 음성의 공개 URL이 필요합니다(영상에 말소리가 있어야 합니다)." }, 400);
+    const voice = (String(b.voice || "").replace(/^el:/, "").trim()) || "21m00Tcm4TlvDq8ikWAM";
+    const stsModel = String(b.stsModel || "eleven_multilingual_sts_v2");
+    const origin = new URL(request.url).origin;
+
+    // 1) 추출 음성 가져오기
+    const ar = await fetchT(audioUrl, {}, 30000);
+    if (!ar.ok) return json({ error: "추출한 음성을 불러오지 못했습니다." }, 502);
+    const inBuf = await ar.arrayBuffer();
+    if (!inBuf || inBuf.byteLength < 128) return json({ error: "추출한 음성이 비어 있습니다(영상에 말소리가 없을 수 있습니다)." }, 400);
+    const inType = ar.headers.get("content-type") || "audio/wav";
+
+    // 2) ElevenLabs Speech-to-Speech — 억양·타이밍 유지하며 목소리만 교체
+    const fd = new FormData();
+    fd.append("audio", new Blob([inBuf], { type: inType }), "in." + (/wav/i.test(inType) ? "wav" : /mp3|mpeg/i.test(inType) ? "mp3" : "webm"));
+    fd.append("model_id", stsModel);
+    fd.append("output_format", "mp3_44100_128");
+    fd.append("remove_background_noise", "true");
+    const sr = await fetchT("https://api.elevenlabs.io/v1/speech-to-speech/" + encodeURIComponent(voice),
+      { method: "POST", headers: { "xi-api-key": el, "accept": "audio/mpeg" }, body: fd }, 120000);
+    if (!sr.ok) { let et = ""; try { et = await sr.text(); } catch {} return json({ error: "일레븐랩스 목소리 교체 실패 HTTP " + sr.status + ": " + et.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 220) }, 502); }
+    const newBuf = await sr.arrayBuffer();
+    if (!newBuf || newBuf.byteLength < 128) return json({ error: "교체된 음성이 비어 있습니다." }, 502);
+
+    // 3) R2 호스팅
+    const bucket = r2BucketOf(env);
+    if (!bucket) return json({ error: "오디오 저장용 R2 버킷을 찾을 수 없습니다." }, 500);
+    const key = "revoice/" + crypto.randomUUID() + ".mp3";
+    await bucket.put(key, newBuf, { httpMetadata: { contentType: "audio/mpeg" } });
+    const newAudioUrl = origin + "/api/media/" + key;
+
+    // 4) fal 립싱크 — 원본 영상 + 교체된 음성
+    const model = pick(env, ["FAL_LIPSYNC_MODEL", "fal_lipsync_model"]) || "fal-ai/sync-lipsync";
+    const r2 = await fetchT(FAL_QUEUE + model, {
+      method: "POST", headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
+      body: JSON.stringify({ video_url: videoUrl, audio_url: newAudioUrl, sync_mode: "cut_off" })
+    });
+    const j2 = await r2.json().catch(() => ({}));
+    const reqId2 = j2.request_id || j2.requestId;
+    if (!r2.ok || !reqId2) return json({ error: "립싱크(fal " + model + ") 실패: " + String(j2.detail || j2.error || JSON.stringify(j2)).slice(0, 220) }, 502);
+    return json({ statusUrl: "/api/generate?provider=falq&task=" + encodeURIComponent(reqId2) + "&model=" + encodeURIComponent(model), audioUrl: newAudioUrl });
+  }
+
   /* 모션 전이(Motion Transfer) 단독 — 원본 영상의 움직임 유지 + 스타일 변환 (fal video-to-video) */
   if (provider === "motion") {
     if (!k.fal) return json({ error: "모션 전이(V2V)는 FAL_API_KEY 가 필요합니다." }, 500);

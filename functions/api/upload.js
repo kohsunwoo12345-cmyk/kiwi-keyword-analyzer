@@ -6,7 +6,7 @@
 
 import { resolveDB, getSessionUser } from "./_utils";
 
-const ALLOWED_CT = /^(image\/(png|jpe?g|gif|webp|avif|svg\+xml)|video\/(mp4|webm|quicktime|x-matroska))(;|$)/i;
+const ALLOWED_CT = /^(image\/(png|jpe?g|gif|webp|avif|svg\+xml)|video\/(mp4|webm|quicktime|x-matroska)|audio\/(mpeg|mp3|wav|x-wav|wave|webm|ogg|mp4|aac|x-m4a|m4a))(;|$)/i;
 
 function r2Bucket(env) {
   // ① 흔한 바인딩 이름 우선
@@ -54,7 +54,7 @@ export async function onRequest(context) {
 
   try {
     const ct = request.headers.get("Content-Type") || "application/octet-stream";
-    if (!ALLOWED_CT.test(ct)) return j({ error: "이미지/영상 파일만 업로드할 수 있습니다." }, 415);
+    if (!ALLOWED_CT.test(ct)) return j({ error: "이미지/영상/오디오 파일만 업로드할 수 있습니다." }, 415);
     const buf = await request.arrayBuffer();
     if (!buf || buf.byteLength === 0) return j({ error: "빈 파일" }, 400);
     if (buf.byteLength > 200 * 1024 * 1024) return j({ error: "200MB 초과 파일은 업로드할 수 없습니다" }, 413);
