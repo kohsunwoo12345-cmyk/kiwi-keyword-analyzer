@@ -31,6 +31,9 @@ export interface User {
   address1?: string
   address2?: string
   addressComplete?: boolean
+  accountType?: '' | 'team' | 'individual'
+  products?: '' | 'video' | 'marketing' | 'both'
+  hasPlan?: number // 1 = 승인된 유료 플랜 보유 (없으면 마케팅·영상 모두 사용 불가)
   createdAt: string
   lastActive: string | null
 }
@@ -104,6 +107,8 @@ export async function saveAddress(input: {
   tos?: number
   privacy?: number
   marketing?: number
+  accountType?: 'team' | 'individual'
+  products?: 'video' | 'marketing' | 'both'
 }): Promise<AuthResult> {
   return postJson('/api/account/address', input)
 }

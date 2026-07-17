@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { Wallet, Coins, TrendingDown, Activity as ActivityIcon, ArrowRight, Sparkles } from 'lucide-react'
+import { Wallet, Coins, TrendingDown, Activity as ActivityIcon, ArrowRight, Sparkles, Clapperboard } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { StatCard, Panel, Button } from '@/components/ui'
 import { Counter } from '@/components/motion'
@@ -68,6 +68,28 @@ export default function DashboardHome() {
       />
 
       <div className="space-y-6 p-6 lg:p-8">
+        {/* 노드형 영상 스튜디오 바로가기 — 영상/둘 다 선택 회원 */}
+        {(user?.products === 'both' || user?.products === 'video' || user?.role === 'admin') && (
+          <a
+            href="/studio-nvc-prv-8b3k2/"
+            className="group relative flex items-center justify-between gap-4 overflow-hidden rounded-2xl border border-violet-500/25 bg-gradient-to-br from-violet-600/15 to-fuchsia-600/10 p-5 transition hover:border-violet-500/50"
+          >
+            <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-56 rounded-full bg-violet-500/20 blur-[70px]" />
+            <div className="relative flex items-center gap-4">
+              <span className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg shadow-violet-500/30">
+                <Clapperboard size={22} />
+              </span>
+              <div>
+                <h3 className="text-sm font-bold">노드형 AI 영상 스튜디오</h3>
+                <p className="mt-0.5 text-xs text-[var(--text-soft)]">블록을 연결하듯 광고·숏폼 영상을 생성하세요.</p>
+              </div>
+            </div>
+            <span className="relative inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-bold text-white transition group-hover:bg-white/15">
+              영상 노드 스튜디오로 <ArrowRight size={15} />
+            </span>
+          </a>
+        )}
+
         {/* 실데이터 스탯 */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard label="보유 크레딧" value={(<Counter to={user?.credits ?? 0} />) as unknown as string} icon={Wallet} accent="#f59e0b" />

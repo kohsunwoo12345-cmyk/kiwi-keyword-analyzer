@@ -55,6 +55,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     await db.prepare('UPDATE users SET phone = ? WHERE id = ?').bind(phone, me.id).run().catch(() => {})
   }
 
+  // 온보딩 선택 — 팀/개인, 사용할 제품(영상/마케팅/둘다). 회원가입 정보에 반영.
+  const accountType = ['team', 'individual'].includes(String(b.accountType)) ? String(b.accountType) : ''
+  if (accountType) await db.prepare('UPDATE users SET account_type = ? WHERE id = ?').bind(accountType, me.id).run().catch(() => {})
+  const products = ['video', 'marketing', 'both'].includes(String(b.products)) ? String(b.products) : ''
+  if (products) await db.prepare('UPDATE users SET products = ? WHERE id = ?').bind(products, me.id).run().catch(() => {})
+
   // 추천인 코드 — 아직 추천 관계가 없는 경우에만 적용 (구글 가입자 등)
   if (ref && !me.referred_by) {
     const referrer: any = await db.prepare('SELECT id, name FROM users WHERE referral_code = ?').bind(ref).first().catch(() => null)

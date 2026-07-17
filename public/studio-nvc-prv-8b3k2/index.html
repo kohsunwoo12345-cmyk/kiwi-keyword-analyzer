@@ -4814,11 +4814,30 @@ wireProfile();
 })();
 
 function loadAllForUser(){ loadApiConfig(); loadCostLog(); updateCostChip(); updateLibChip(); boot(); }
+/* 요금제 미활성 하드 게이트 — 결제(승인)된 플랜이 없으면 스튜디오 사용 불가.
+   관리자는 면제. 비로그인/네트워크 실패는 락아웃 방지를 위해 통과. */
+function showPlanGate(){
+  if(document.getElementById('planGateOv'))return;
+  var ov=document.createElement('div'); ov.id='planGateOv';
+  ov.style.cssText='position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(8,7,12,.92);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);';
+  ov.innerHTML='<div style="width:100%;max-width:460px;border-radius:22px;border:1px solid rgba(139,92,246,.34);background:linear-gradient(180deg,#171226,#100f18);box-shadow:0 40px 100px -20px rgba(0,0,0,.85);padding:34px 28px;color:#e9e3f6;text-align:center;font-family:inherit;">'+
+    '<div style="width:66px;height:66px;margin:0 auto 14px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:32px;background:rgba(139,92,246,.16);border:1px solid rgba(139,92,246,.3);">🔒</div>'+
+    '<div style="font-size:22px;font-weight:800;letter-spacing:-.01em;">요금제를 활성화해 주세요</div>'+
+    '<p style="margin:12px 0 2px;font-size:13.5px;line-height:1.8;color:#a9a2bd;">노드형 AI 영상 제작은 <b style="color:#c3a8ff">요금제 결제 후</b> 이용할 수 있어요.<br>계좌 입금 후 승인 신청을 하면 관리자 승인 즉시<br><b style="color:#c3a8ff">마케팅 대시보드와 영상 제작 둘 다</b> 열립니다.</p>'+
+    '<a href="/activate" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:22px;padding:14px;border-radius:13px;background:linear-gradient(135deg,#7c5cff,#a855f7);color:#fff;font-size:14.5px;font-weight:800;text-decoration:none;box-shadow:0 10px 28px -6px rgba(139,92,246,.55);">바로 요금제를 활성화해 주세요 →</a>'+
+    '<a href="/dashboard_USE17237_612" style="display:block;margin-top:10px;font-size:12.5px;color:#8b84a0;text-decoration:none;">대시보드로 돌아가기</a>'+
+    '</div>';
+  function mount(){ document.body.appendChild(ov); }
+  if(document.body)mount(); else document.addEventListener('DOMContentLoaded',mount);
+}
 (function resolveUser(){
   fetch('/api/me',{cache:'no-store'}).then(function(r){ return r.status===401?{__noauth:true}:r.json(); })
-    .then(function(u){
-      if(u && u.__noauth){ void 0; return; }  // 비로그인 → 로그인 요구
+    .then(function(d){
+      if(d && d.__noauth){ void 0; return loadAllForUser(); }  // 비로그인 → 통과(락아웃 방지)
+      var u=(d&&d.user)||d;                                    // /api/me 는 {ok,user} 래핑
       if(u && u.id){ UID='u'+String(u.id); paintUserChip(u); }
+      var isAdmin=u && u.role==='admin';
+      if(u && u.id && !isAdmin && Number(u.hasPlan)!==1){ showPlanGate(); }  // 요금제 미활성 → 하드 게이트
       loadAllForUser();
     })
     .catch(function(){ loadAllForUser(); });   // /api/me 네트워크 실패 시 게스트로라도 동작(락아웃 방지)
@@ -4834,7 +4853,7 @@ function loadAllForUser(){ loadApiConfig(); loadCostLog(); updateCostChip(); upd
       '<div style="width:64px;height:64px;margin:0 auto 12px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:32px;background:rgba(139,92,246,.16);border:1px solid rgba(139,92,246,.3);">🎬</div>'+
       '<div style="font-size:21px;font-weight:800;letter-spacing:-.01em;">BYGENCY에 오신 걸 환영합니다!</div>'+
       '<p style="margin:11px 0 2px;font-size:13.5px;line-height:1.75;color:#a9a2bd;">노드형 AI 스튜디오에 바로 입장했어요.<br>영상·이미지를 생성하려면 <b style="color:#c3a8ff">요금제를 활성화</b>해 크레딧을 받으세요.</p>'+
-      '<a href="/pricing" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:20px;padding:13px;border-radius:12px;background:linear-gradient(135deg,#7c5cff,#a855f7);color:#fff;font-size:14px;font-weight:700;text-decoration:none;box-shadow:0 8px 24px -6px rgba(139,92,246,.5);">요금제 활성화하기 →</a>'+
+      '<a href="/activate" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:20px;padding:13px;border-radius:12px;background:linear-gradient(135deg,#7c5cff,#a855f7);color:#fff;font-size:14px;font-weight:700;text-decoration:none;box-shadow:0 8px 24px -6px rgba(139,92,246,.5);">요금제 활성화하기 →</a>'+
       '<button id="welcomeSkip" style="margin-top:10px;width:100%;padding:11px;border-radius:12px;border:1px solid #2c2f3a;background:transparent;color:#9a93ac;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">먼저 스튜디오 둘러볼게요</button>'+
       '</div>';
     function close(){ if(ov.parentNode)ov.parentNode.removeChild(ov); try{ var u=new URL(location.href); u.searchParams.delete('welcome'); history.replaceState(null,'',u.pathname+(u.search||'')); }catch(e){} }

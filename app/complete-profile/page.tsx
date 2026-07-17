@@ -36,6 +36,10 @@ export default function CompleteProfilePage() {
   const [agreeTos, setAgreeTos] = useState(false)
   const [agreePrivacy, setAgreePrivacy] = useState(false)
   const [agreeMkt, setAgreeMkt] = useState(false)
+  const [accountType, setAccountType] = useState<'team' | 'individual' | ''>('')
+  const [products, setProducts] = useState<'video' | 'marketing' | 'both' | ''>('')
+  const allAgreed = agreeTos && agreePrivacy && agreeMkt
+  const toggleAll = () => { const v = !allAgreed; setAgreeTos(v); setAgreePrivacy(v); setAgreeMkt(v) }
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -76,6 +80,8 @@ export default function CompleteProfilePage() {
     if (!phone.trim()) e.phone = '전화번호를 입력해 주세요.'
     if (!address1.trim()) e.address1 = '사업장 주소를 입력해 주세요.'
     if (needConsent && !(agreeTos && agreePrivacy)) e.consent = '필수 약관에 모두 동의해 주세요.'
+    if (!accountType) e.accountType = '팀 또는 개인을 선택해 주세요.'
+    if (!products) e.products = '사용할 제품을 선택해 주세요.'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -96,6 +102,8 @@ export default function CompleteProfilePage() {
         address2: address2.trim() || undefined,
         phone: fullPhone,
         ref: refCode.trim() || undefined,
+        accountType: (accountType || undefined) as 'team' | 'individual' | undefined,
+        products: (products || undefined) as 'video' | 'marketing' | 'both' | undefined,
         ...(needConsent ? { tos: agreeTos ? 1 : 0, privacy: agreePrivacy ? 1 : 0, marketing: agreeMkt ? 1 : 0 } : {}),
       })
       if (!res.ok || !res.user) {
@@ -103,9 +111,10 @@ export default function CompleteProfilePage() {
         setLoading(false)
         return
       }
-      // 회원가입 완료 → 대시보드가 아니라 노드형 스튜디오로 바로 입장 + 요금제 활성화 유도
-      if (res.user.role === 'admin') router.replace('/adminsunkoh028741_11263')
-      else window.location.replace('/studio-nvc-prv-8b3k2/?welcome=1')
+      // 회원가입 완료 → 선택한 제품에 따라 이동 (요금제 미활성 시 각 화면에서 활성화 유도)
+      if (res.user.role === 'admin') { router.replace('/adminsunkoh028741_11263'); return }
+      if (products === 'video') window.location.replace('/studio-nvc-prv-8b3k2/?welcome=1')
+      else router.replace('/dashboard_USE17237_612') // marketing · both → 대시보드(영상은 버튼으로 이동)
     })()
   }
 
@@ -300,6 +309,10 @@ export default function CompleteProfilePage() {
               {needConsent && (
                 <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-4">
                   <p className="mb-3 text-sm font-medium">서비스 이용을 위해 약관에 동의해 주세요.</p>
+                  <button type="button" onClick={toggleAll} className={'mb-3 flex w-full items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm font-semibold transition ' + (allAgreed ? 'border-blue-500/50 bg-blue-500/15 text-blue-200' : 'border-[var(--border)] bg-[var(--panel)] text-[var(--text-soft)] hover:bg-white/5')}>
+                    <span className={'flex h-4 w-4 items-center justify-center rounded ' + (allAgreed ? 'bg-blue-600 text-white' : 'border border-[var(--border)]')}>{allAgreed && <Check size={12} />}</span>
+                    전체 동의 (필수·선택 항목 모두)
+                  </button>
                   <div className="space-y-2.5">
                     <label className="flex cursor-pointer items-start gap-2.5 text-sm text-[var(--text-soft)] select-none">
                       <input type="checkbox" checked={agreeTos} onChange={(e) => setAgreeTos(e.target.checked)} className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-[var(--border)] accent-blue-600" />
@@ -326,6 +339,43 @@ export default function CompleteProfilePage() {
                   {errors.consent && <p className="mt-2 text-xs text-rose-300">{errors.consent}</p>}
                 </div>
               )}
+
+              {/* 팀 / 개인 */}
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-4">
+                <p className="mb-2.5 text-sm font-medium">어떤 형태로 사용하시나요? <span className="text-rose-500">*</span></p>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {([['team', '팀', 'Building2'], ['individual', '개인', 'UserPlus']] as const).map(([v, label]) => (
+                    <button key={v} type="button" onClick={() => setAccountType(v)}
+                      className={'flex items-center justify-center gap-2 rounded-lg border py-3 text-sm font-semibold transition ' + (accountType === v ? 'border-blue-500 bg-blue-500/15 text-blue-200' : 'border-[var(--border)] bg-[var(--panel)] text-[var(--text-soft)] hover:bg-white/5')}>
+                      {v === 'team' ? <Building2 size={16} /> : <UserPlus size={16} />} {label}
+                    </button>
+                  ))}
+                </div>
+                {errors.accountType && <p className="mt-1.5 text-xs text-rose-300">{errors.accountType}</p>}
+              </div>
+
+              {/* 사용할 제품 */}
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-4">
+                <p className="mb-2.5 text-sm font-medium">무엇을 사용하시겠어요? <span className="text-rose-500">*</span></p>
+                <div className="space-y-2">
+                  {([
+                    ['video', '노드형 AI 영상 제작', '노드 스튜디오로 바로 입장'],
+                    ['marketing', '마케팅 대시보드', '문자·블로그·플레이스 등 통합 마케팅'],
+                    ['both', '둘 다 사용', '대시보드에서 영상 스튜디오로 바로 이동 가능'],
+                  ] as const).map(([v, title, desc]) => (
+                    <button key={v} type="button" onClick={() => setProducts(v)}
+                      className={'flex w-full items-start gap-3 rounded-lg border px-3.5 py-3 text-left transition ' + (products === v ? 'border-blue-500 bg-blue-500/15' : 'border-[var(--border)] bg-[var(--panel)] hover:bg-white/5')}>
+                      <span className={'mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border ' + (products === v ? 'border-blue-500 bg-blue-600 text-white' : 'border-[var(--border)]')}>{products === v && <Check size={11} />}</span>
+                      <span>
+                        <span className="block text-sm font-semibold text-[var(--text)]">{title}</span>
+                        <span className="block text-xs text-[var(--text-dim)]">{desc}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                {errors.products && <p className="mt-1.5 text-xs text-rose-300">{errors.products}</p>}
+                <p className="mt-2.5 text-[11px] leading-relaxed text-[var(--text-dim)]">가입 후 <b className="text-[var(--text-soft)]">요금제를 활성화</b>해야 사용할 수 있습니다. 플랜을 결제하면 두 제품 모두 사용 가능하게 전환됩니다.</p>
+              </div>
 
               <Button type="submit" size="lg" disabled={loading} className="mt-1 w-full">
                 {loading ? '저장 중…' : '입력 완료하고 시작하기'}

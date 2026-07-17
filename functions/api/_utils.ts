@@ -464,6 +464,8 @@ export async function ensureSchema(db: D1Database) {
     branch_id: 'branch_id TEXT', // 추천인이 소속된 지사(정산 대상)
     mcp_token: 'mcp_token TEXT', // 회원별 개인 MCP 연결 토큰(본인 계정으로 크레딧 차감)
     ref_surcharge: 'ref_surcharge REAL', // 레퍼런스 이미지 1장 추가당 크레딧 가산율(%). NULL=전역 기본값
+    account_type: 'account_type TEXT', // team | individual (가입 시 선택)
+    products: 'products TEXT',          // video | marketing | both (사용할 제품 선택)
   })
   await addMissingColumns(db, 'plan_requests', {
     track: "track TEXT DEFAULT 'marketer'",
@@ -880,6 +882,11 @@ export function publicUser(u: any) {
     address2: u.address2 || '',
     // 관리자는 면제. 그 외에는 국가·회사이름·전화번호·기본주소가 모두 있어야 완료 (우편번호는 선택)
     addressComplete: isAdmin || !!(u.country && u.company && u.phone && u.address1),
+    // 온보딩 선택 (팀/개인 · 사용할 제품)
+    accountType: u.account_type || '',              // team | individual
+    products: u.products || (isAdmin ? 'both' : ''), // video | marketing | both
+    // 유료 플랜 보유 여부(승인된 플랜). 없으면 마케팅·영상 모두 사용 불가
+    hasPlan: isAdmin || (u.plan && u.plan !== '없음') || (u.video_plan && u.video_plan !== '없음') ? 1 : 0,
     createdAt: u.created_at,
     lastActive: u.last_active,
   }
