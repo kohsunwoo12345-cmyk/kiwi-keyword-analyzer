@@ -10,6 +10,7 @@ import {
   CreditCard,
   Crown,
   ChevronRight,
+  Download,
   KeyRound,
   Coins,
   Wallet,
@@ -190,9 +191,18 @@ export default function AdminDashboard() {
         desc="가입 회원과 서비스 지표를 실제 데이터로 모니터링합니다."
         accent={ACCENT}
         action={
-          <Button href="/adminsunkoh028741_11263/users" size="sm">
-            회원 관리 <ChevronRight size={16} />
-          </Button>
+          <div className="flex items-center gap-2">
+            <a
+              href="/api/admin/export-db"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+              title="주요 DB 테이블을 하나의 엑셀(.xlsx) 파일로 내려받습니다"
+            >
+              <Download size={15} /> DB 엑셀 다운로드
+            </a>
+            <Button href="/adminsunkoh028741_11263/users" size="sm">
+              회원 관리 <ChevronRight size={16} />
+            </Button>
+          </div>
         }
       />
 

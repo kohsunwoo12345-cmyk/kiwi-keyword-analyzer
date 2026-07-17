@@ -89,7 +89,6 @@ function ConsentCell({ r }: { r: ReferralRow }) {
       </div>
       <div className="flex flex-wrap gap-1">
         {item('마케팅', !!r.marketingConsent)}
-        {item('AI데이터', !!r.aiConsent)}
       </div>
       {r.consentAt && <span className="text-[10px] text-[var(--text-dim)]">{fmtKST(r.consentAt)}</span>}
     </div>
@@ -101,7 +100,6 @@ const consentText = (r: ReferralRow) =>
     `약관:${r.tosConsent ? 'Y' : 'N'}`,
     `개인정보:${r.privacyConsent ? 'Y' : 'N'}`,
     `마케팅:${r.marketingConsent ? 'Y' : 'N'}`,
-    `AI:${r.aiConsent ? 'Y' : 'N'}`,
   ].join(' ')
 
 /** 결제된 플랜들을 사람이 읽을 수 있는 문자열로 조합 */
