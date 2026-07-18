@@ -27,7 +27,7 @@ import {
   ArrowLeft,
 } from 'lucide-react'
 import { Logo } from '@/components/Brand'
-import { adminSupportCount } from '@/lib/auth'
+import { adminSupportCount, adminPendingCounts } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 // 보안을 위한 난독화된 관리자 경로 (추측 불가)
@@ -38,7 +38,7 @@ const NAV = [
   { title: '회원 관리', href: `${ADMIN_BASE}/users`, icon: Users },
   { title: '실시간 모니터링', href: `${ADMIN_BASE}/users`, icon: Activity, exactHref: `${ADMIN_BASE}/users#live` },
   { title: '보안', href: `${ADMIN_BASE}/security`, icon: ShieldAlert },
-  { title: '승인 관리', href: `${ADMIN_BASE}/approvals`, icon: BadgeCheck },
+  { title: '승인 관리', href: `${ADMIN_BASE}/approvals`, icon: BadgeCheck, badge: 'approvals' as const },
   { title: '로그 기록', href: `${ADMIN_BASE}/logs`, icon: ScrollText },
   { title: '접속 통계', href: `${ADMIN_BASE}/stats`, icon: BarChart3 },
   { title: '고객센터', href: `${ADMIN_BASE}/support`, icon: MessageCircle, badge: 'support' as const },
@@ -55,9 +55,13 @@ const NAV = [
 function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
   const [supportUnread, setSupportUnread] = useState(0)
+  const [pendingApprovals, setPendingApprovals] = useState(0)
   useEffect(() => {
     let alive = true
-    const load = () => adminSupportCount().then((n) => { if (alive) setSupportUnread(n) })
+    const load = () => {
+      adminSupportCount().then((n) => { if (alive) setSupportUnread(n) })
+      adminPendingCounts().then((p) => { if (alive) setPendingApprovals(p.approvals) })
+    }
     load()
     const iv = setInterval(load, 20000)
     return () => { alive = false; clearInterval(iv) }
@@ -69,7 +73,8 @@ function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
       </p>
       {NAV.map((it) => {
         const Icon = it.icon
-        const badgeCount = (it as any).badge === 'support' ? supportUnread : 0
+        const bt = (it as any).badge
+        const badgeCount = bt === 'support' ? supportUnread : bt === 'approvals' ? pendingApprovals : 0
         const active =
           it.href !== '#' &&
           (pathname === it.href || (it.href !== ADMIN_BASE && pathname.startsWith(it.href)))

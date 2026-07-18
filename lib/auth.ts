@@ -376,6 +376,14 @@ export async function adminSupportCount(): Promise<number> {
     return j?.unread || 0
   } catch { return 0 }
 }
+export interface AdminPendingCounts { ok: boolean; approvals: number; plans: number; credits: number; points: number; senders: number; team: number; contacts: number }
+export async function adminPendingCounts(): Promise<AdminPendingCounts> {
+  try {
+    const r = await fetch('/api/admin/pending', { credentials: 'include' })
+    const j = await r.json()
+    return { ok: !!j.ok, approvals: j.approvals || 0, plans: j.plans || 0, credits: j.credits || 0, points: j.points || 0, senders: j.senders || 0, team: j.team || 0, contacts: j.contacts || 0 }
+  } catch { return { ok: false, approvals: 0, plans: 0, credits: 0, points: 0, senders: 0, team: 0, contacts: 0 } }
+}
 
 /* ── 추천/친구 ── */
 export interface RefUser { id: string; name: string; email: string; plan: string; videoPlan: string; paid: boolean; via?: string; since?: string; createdAt: string }
