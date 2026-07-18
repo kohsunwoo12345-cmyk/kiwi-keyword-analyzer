@@ -4959,7 +4959,7 @@ function pfHandleTossReturn(){
     var q=new URLSearchParams(location.search);
     var pk=q.get('paymentKey'), oid=q.get('orderId'), amt=q.get('amount');
     var clean=function(){ try{ history.replaceState({},'',pfTopupPath()); }catch(e){} };
-    if(pk&&oid&&amt){
+    if(pk&&oid&&amt&&q.get('topup')==='1'){
       openProfile(); pfShowSec('topup'); pfTopMsg('','결제 승인 중…');
       fetch('/api/payments/confirm',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({paymentKey:pk,orderId:oid,amount:Number(amt)})})
         .then(function(r){return r.json();}).then(function(d){
@@ -5484,7 +5484,10 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
    ════════════════════════════════════════════════════════════════════════ */
 (function(){
   var meId=null, meName='', teams=[], curTeam=null, lastTs='', pollTimer=null, open=false;
+  var tpActive=false, tpSeatKrw=44000, tpSeats=0;
   var esc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); };
+  function payApi(body){ return fetch('/api/team/pay',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json();}); }
+  function payGet(){ return fetch('/api/team/pay',{credentials:'include',cache:'no-store'}).then(function(r){return r.json();}).catch(function(){return{};}); }
   function api(method, body){
     var opt={ method:method, credentials:'include', headers:{'Content-Type':'application/json'} };
     if(body)opt.body=JSON.stringify(body);
@@ -5524,16 +5527,47 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
     var panel=document.createElement('div'); panel.id='twPanel';
     document.body.appendChild(btn); document.body.appendChild(panel);
     btn.addEventListener('click',toggle);
+    payReturn();
   }
   function toggle(){ open=!open; var p=document.getElementById('twPanel'); p.classList.toggle('on',open); if(open){ curTeam=null; refresh(); } else stopPoll(); }
   function stopPoll(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
+  function showPayMsg(el,cls,txt){ if(!el)return; el.style.display='block'; el.style.color=cls==='ok'?'#8fe6b8':'#ef8a9a'; el.textContent=txt; }
+  function teamPay(seats){
+    var msg=document.getElementById('twPayMsg');
+    var btn=document.querySelector('[data-teampay]'); if(btn){ btn.disabled=true; btn.textContent='결제 준비 중…'; }
+    var reset=function(){ if(btn){ btn.disabled=false; btn.textContent='결제하고 팀 시작'; } };
+    payApi({action:'prepare',seats:seats,months:1}).then(function(p){
+      if(!p||!p.ok){ reset(); showPayMsg(msg,'err',(p&&p.error)||'결제 준비 실패'); return; }
+      if(p.approval){ reset(); showPayMsg(msg,'ok','신청이 접수되었습니다. 관리자 승인 후 활성화됩니다.'); return; }
+      function go(TP){ try{ var toss=TP(p.clientKey); toss.requestPayment('카드',{ amount:p.amount, orderId:p.orderId, orderName:p.orderName, customerName:p.customerName, customerEmail:p.customerEmail, successUrl:location.origin+location.pathname+'?teampay=1', failUrl:location.origin+location.pathname+'?teampay=fail' }); }catch(e){ reset(); showPayMsg(msg,'err',(e&&e.message)||'결제 시작 실패'); } }
+      if(window.TossPayments){ go(window.TossPayments); }
+      else{ var s=document.createElement('script'); s.src='https://js.tosspayments.com/v1/payment'; s.onload=function(){ go(window.TossPayments); }; s.onerror=function(){ reset(); showPayMsg(msg,'err','결제 모듈 로드 실패'); }; document.head.appendChild(s); }
+    }).catch(function(){ reset(); showPayMsg(msg,'err','네트워크 오류'); });
+  }
+  function payReturn(){
+    try{
+      var q=new URLSearchParams(location.search); var mk=q.get('teampay');
+      if(mk!=='1'&&mk!=='fail') return;
+      var pk=q.get('paymentKey'), oid=q.get('orderId'), amt=q.get('amount');
+      var clean=function(){ try{ history.replaceState({},'',location.origin+location.pathname); }catch(e){} };
+      if(mk==='fail'){ clean(); return; }
+      if(pk&&oid&&amt){
+        payApi({action:'confirm',paymentKey:pk,orderId:oid,amount:Number(amt)}).then(function(d){
+          clean();
+          if(d&&d.ok){ open=true; var pnl=document.getElementById('twPanel'); if(pnl)pnl.classList.add('on'); curTeam=null; refresh(); setTimeout(function(){ alert('팀 요금제가 활성화되었습니다! 팀을 만들어 노드를 공유해보세요.'); },200); }
+          else { alert((d&&d.error)||'팀 요금제 결제 승인에 실패했습니다.'); }
+        }).catch(function(){ clean(); });
+      }
+    }catch(e){}
+  }
 
   function refresh(){
     get('').then(function(d){
       if(!d||!d.ok){ renderNeedLogin(); return; }
       meId=d.meId; meName=d.meName||''; teams=d.teams||[];
       var dot=document.getElementById('twDot'); if(dot){ var n=(d.invites||[]).length; dot.textContent=n; dot.style.display=n>0?'flex':'none'; }
-      if(curTeam) renderChat(); else renderHome(d.invites||[]);
+      payGet().then(function(s){ tpActive=!!(s&&s.active); tpSeatKrw=(s&&s.seatKrw)||44000; tpSeats=(s&&s.seats)||0;
+        if(curTeam) renderChat(); else renderHome(d.invites||[]); });
     }).catch(renderNeedLogin);
   }
   function renderNeedLogin(){ var p=document.getElementById('twPanel'); p.innerHTML=
@@ -5550,15 +5584,27 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
     var teamHtml = teams.length ? '<div class="tw-lbl">내 팀</div>'+teams.map(function(t){
       return '<div class="tw-inv" style="cursor:pointer;display:flex;align-items:center;gap:8px;" data-team="'+esc(t.id)+'"><span style="font-size:16px;">👥</span><b style="flex:1;">'+esc(t.name)+'</b><span class="tw-hint">'+(t.members?t.members.length:1)+'명</span></div>';
     }).join('') : '<p class="tw-hint">아직 팀이 없어요. 새 팀을 만들어 팀원을 초대하세요.</p>';
+    // 팀 요금제 활성: 새 팀 만들기 / 비활성: 결제 안내
+    var makeHtml = tpActive
+      ? '<div class="tw-lbl">새 팀 만들기'+(tpSeats?' <span class="tw-hint">· '+tpSeats+'좌석</span>':'')+'</div><div class="tw-row"><input class="tw-in" id="twNewName" placeholder="팀 이름 (예: 마케팅팀)" maxlength="40"><button class="tw-btn" data-newteam>만들기</button></div>'
+      : '<div class="tw-lbl">팀 요금제</div>'+
+        '<div class="tw-inv" style="line-height:1.6;">팀 워크플로우(팀 채팅·노드 공유)는 <b style="color:#c3a8ff">팀 요금제</b>가 필요합니다. 좌석당 <b style="color:#c3a8ff">₩'+tpSeatKrw.toLocaleString('ko-KR')+'</b>/월.'+
+        '<div class="tw-row" style="margin-top:9px;align-items:center;"><span class="tw-hint" style="align-self:center;">좌석</span><input class="tw-in" id="twSeats" type="number" min="1" max="100" value="3" style="max-width:64px;text-align:center;"><span id="twSeatSum" style="align-self:center;font-size:12.5px;font-weight:800;color:#c3a8ff;"></span></div>'+
+        '<button class="tw-btn" data-teampay style="width:100%;margin-top:9px;">결제하고 팀 시작</button>'+
+        '<div class="tw-err" id="twPayMsg" style="display:none;margin-top:6px;"></div></div>';
     p.innerHTML='<div class="tw-hd">👥 팀워크<span class="tw-x" data-twx title="채팅 접기">×</span></div>'+
-      '<div class="tw-body">'+invHtml+
-      '<div class="tw-lbl">새 팀 만들기</div><div class="tw-row"><input class="tw-in" id="twNewName" placeholder="팀 이름 (예: 마케팅팀)" maxlength="40"><button class="tw-btn" data-newteam>만들기</button></div>'+
-      teamHtml+'</div>';
+      '<div class="tw-body">'+invHtml+ makeHtml + teamHtml+'</div>';
     bindX();
-    p.querySelector('[data-newteam]').addEventListener('click',function(){
+    var mkBtn=p.querySelector('[data-newteam]');
+    if(mkBtn) mkBtn.addEventListener('click',function(){
       var nm=(p.querySelector('#twNewName').value||'').trim(); if(!nm)return;
-      post({action:'create',name:nm}).then(function(r){ if(r.ok){ refresh(); } else alert(r.error||'실패'); });
+      post({action:'create',name:nm}).then(function(r){ if(r.ok){ refresh(); } else if(r.needTeamPlan){ tpActive=false; renderHome(invites); } else alert(r.error||'실패'); });
     });
+    var seatIn=p.querySelector('#twSeats'), seatSum=p.querySelector('#twSeatSum');
+    function updSum(){ if(seatIn&&seatSum){ var n=Math.max(1,Math.min(100,Number(seatIn.value)||1)); seatSum.textContent='= ₩'+(n*tpSeatKrw).toLocaleString('ko-KR')+'/월'; } }
+    if(seatIn){ seatIn.addEventListener('input',updSum); updSum(); }
+    var payBtn=p.querySelector('[data-teampay]');
+    if(payBtn) payBtn.addEventListener('click',function(){ var n=Math.max(1,Math.min(100,Number(seatIn&&seatIn.value)||1)); teamPay(n); });
     Array.prototype.forEach.call(p.querySelectorAll('[data-team]'),function(el){ el.addEventListener('click',function(){ curTeam=teams.filter(function(t){return t.id===el.getAttribute('data-team');})[0]; lastTs=''; renderChat(); }); });
     Array.prototype.forEach.call(p.querySelectorAll('[data-acc]'),function(el){ el.addEventListener('click',function(){ post({action:'respond',inviteId:el.getAttribute('data-acc'),accept:true}).then(refresh); }); });
     Array.prototype.forEach.call(p.querySelectorAll('[data-dec]'),function(el){ el.addEventListener('click',function(){ post({action:'respond',inviteId:el.getAttribute('data-dec'),accept:false}).then(refresh); }); });

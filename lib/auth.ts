@@ -784,14 +784,15 @@ export interface PlanReq { id: string; user_id: string; name: string | null; ema
 export interface SenderReq { id: string; user_id: string; name: string | null; email: string | null; phone: string; label: string | null; status: string; created_at: string; decided_at: string | null }
 export interface PointReq { id: string; user_id: string; name: string | null; email: string | null; amount: number; memo: string | null; status: string; created_at: string; decided_at: string | null }
 export interface CreditReq { id: string; user_id: string; name: string | null; email: string | null; amount: number; price: number; memo: string | null; status: string; created_at: string; decided_at: string | null }
+export interface TeamOrderReq { id: string; user_id: string; name: string | null; email: string | null; seats: number; months: number; amount: number; status: string; created_at: string; paid_at: string | null }
 export interface ContactMsg { id: string; name: string | null; email: string | null; phone: string | null; company: string | null; message: string | null; status: string; created_at: string }
 export interface PublicLead { id: string; name: string | null; phone: string | null; email: string | null; source: string | null; country: string | null; created_at: string }
 
 export async function adminApprovals(): Promise<{
   ok: boolean; error?: string
-  planRequests: PlanReq[]; senderNumbers: SenderReq[]; pointRequests: PointReq[]; creditRequests: CreditReq[]; signups: User[]
+  planRequests: PlanReq[]; senderNumbers: SenderReq[]; pointRequests: PointReq[]; creditRequests: CreditReq[]; teamOrders: TeamOrderReq[]; signups: User[]
   contacts: ContactMsg[]; leads: PublicLead[]
-  stats?: { pendingPlans: number; pendingSenders: number; pendingPoints: number; pendingCredits: number; totalMembers: number; newContacts: number; leadsTotal: number }
+  stats?: { pendingPlans: number; pendingSenders: number; pendingPoints: number; pendingCredits: number; pendingTeam: number; totalMembers: number; newContacts: number; leadsTotal: number }
 }> {
   try {
     const r = await fetch('/api/admin/approvals', { credentials: 'include' })
@@ -799,15 +800,15 @@ export async function adminApprovals(): Promise<{
     return {
       ok: !!d.ok, error: d.error,
       planRequests: d.planRequests || [], senderNumbers: d.senderNumbers || [],
-      pointRequests: d.pointRequests || [], creditRequests: d.creditRequests || [],
+      pointRequests: d.pointRequests || [], creditRequests: d.creditRequests || [], teamOrders: d.teamOrders || [],
       signups: d.signups || [], contacts: d.contacts || [], leads: d.leads || [], stats: d.stats,
     }
   } catch {
-    return { ok: false, error: '네트워크 오류', planRequests: [], senderNumbers: [], pointRequests: [], creditRequests: [], signups: [], contacts: [], leads: [] }
+    return { ok: false, error: '네트워크 오류', planRequests: [], senderNumbers: [], pointRequests: [], creditRequests: [], teamOrders: [], signups: [], contacts: [], leads: [] }
   }
 }
 export async function adminApprovalAction(
-  type: 'plan' | 'sender' | 'point' | 'credit',
+  type: 'plan' | 'sender' | 'point' | 'credit' | 'team',
   id: string,
   decision: 'approve' | 'reject',
 ): Promise<{ ok: boolean; error?: string }> {

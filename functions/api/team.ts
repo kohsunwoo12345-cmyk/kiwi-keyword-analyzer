@@ -1,4 +1,11 @@
-import { Env, json, resolveDB, ensureSchema, getSessionUser, addNotification } from './_utils'
+import { Env, json, resolveDB, ensureSchema, getSessionUser, addNotification, ADMIN_EMAIL } from './_utils'
+
+// 팀 요금제 활성 여부(만료 이전 or 관리자)
+function teamPlanActive(u: any): boolean {
+  if (!u) return false
+  if (u.email === ADMIN_EMAIL || u.role === 'admin') return true
+  return Number(u.team_plan) === 1 && !!u.team_until && u.team_until > new Date().toISOString()
+}
 
 async function ensureTeamTables(db: D1Database) {
   await db.batch([
@@ -62,6 +69,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const now = new Date().toISOString()
 
   if (action === 'create') {
+    if (!teamPlanActive(me)) return json({ ok: false, error: '팀 요금제 결제가 필요합니다.', needTeamPlan: true }, 402)
     const name = String(b.name || '').trim().slice(0, 40)
     if (!name) return json({ ok: false, error: '팀 이름을 입력하세요.' }, 400)
     const id = uid('tm_')
@@ -75,6 +83,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const ident = String(b.ident || '').trim()
     if (!teamId || !ident) return json({ ok: false, error: '팀과 아이디를 입력하세요.' }, 400)
     if (!(await isMember(db, teamId, me.id))) return json({ ok: false, error: '팀 멤버만 초대할 수 있습니다.' }, 403)
+    // 좌석 라이선스는 팀 오너 기준: 오너의 팀 요금제가 활성이어야 하고 좌석 여유가 있어야 함
+    const owner: any = await db.prepare('SELECT u.* FROM teams t JOIN users u ON u.id = t.owner_id WHERE t.id = ?').bind(teamId).first()
+    if (!teamPlanActive(owner)) return json({ ok: false, error: '팀 오너의 팀 요금제가 만료되었거나 없습니다.', needTeamPlan: true }, 402)
+    const seatLimit = owner.email === ADMIN_EMAIL || owner.role === 'admin' ? 99 : Number(owner.team_seats) || 0
+    const memCount = Number((await db.prepare('SELECT COUNT(*) AS c FROM team_members WHERE team_id = ?').bind(teamId).first() as any)?.c) || 0
+    const pendCount = Number((await db.prepare("SELECT COUNT(*) AS c FROM team_invites WHERE team_id = ? AND status='pending'").bind(teamId).first() as any)?.c) || 0
+    if (memCount + pendCount >= seatLimit) return json({ ok: false, error: `좌석이 부족합니다 (${seatLimit}좌석). 팀 요금제에서 좌석을 추가하세요.`, seatFull: true }, 409)
     // 아이디(이메일) 또는 추천코드로 사용자 조회
     const target: any = await db.prepare('SELECT id, name FROM users WHERE email = ? OR referral_code = ?').bind(ident.toLowerCase(), ident.toUpperCase()).first()
     if (!target) return json({ ok: false, error: '해당 아이디의 사용자를 찾을 수 없습니다.', notFound: true }, 404)

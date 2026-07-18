@@ -233,6 +233,19 @@ export async function ensureSchema(db: D1Database) {
       paid_at TEXT
     )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_order_user ON credit_orders(user_id, created_at)`),
+    // 팀 요금제(좌석당) 주문
+    db.prepare(`CREATE TABLE IF NOT EXISTS team_orders (
+      order_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      seats INTEGER NOT NULL,
+      months INTEGER NOT NULL DEFAULT 1,
+      amount INTEGER NOT NULL,
+      status TEXT DEFAULT 'pending',  -- pending | paid | failed
+      payment_key TEXT,
+      created_at TEXT NOT NULL,
+      paid_at TEXT
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_team_order_user ON team_orders(user_id, created_at)`),
     // 보안: 허용 IP 화이트리스트
     db.prepare(`CREATE TABLE IF NOT EXISTS ip_whitelist (
       ip TEXT PRIMARY KEY,
@@ -466,6 +479,9 @@ export async function ensureSchema(db: D1Database) {
     ref_surcharge: 'ref_surcharge REAL', // 레퍼런스 이미지 1장 추가당 크레딧 가산율(%). NULL=전역 기본값
     account_type: 'account_type TEXT', // team | individual (가입 시 선택)
     products: 'products TEXT',          // video | marketing | both (사용할 제품 선택)
+    team_plan: 'team_plan INTEGER DEFAULT 0', // 팀 워크플로우 요금제 보유(1=오너/구매자)
+    team_seats: 'team_seats INTEGER DEFAULT 0', // 구매한 좌석 수(오너 본인 포함)
+    team_until: "team_until TEXT DEFAULT ''",   // 팀 요금제 만료일(ISO). 이 날짜 이후 비활성
   })
   await addMissingColumns(db, 'plan_requests', {
     track: "track TEXT DEFAULT 'marketer'",
@@ -887,6 +903,10 @@ export function publicUser(u: any) {
     products: u.products || (isAdmin ? 'both' : ''), // video | marketing | both
     // 유료 플랜 보유 여부(승인된 플랜). 없으면 마케팅·영상 모두 사용 불가
     hasPlan: isAdmin || (u.plan && u.plan !== '없음') || (u.video_plan && u.video_plan !== '없음') ? 1 : 0,
+    // 팀 요금제(좌석당) — 만료일 이전이면 활성. 관리자는 항상 활성.
+    teamPlan: isAdmin || (Number(u.team_plan) === 1 && u.team_until && u.team_until > new Date().toISOString()) ? 1 : 0,
+    teamSeats: isAdmin ? 99 : Number(u.team_seats) || 0,
+    teamUntil: u.team_until || '',
     createdAt: u.created_at,
     lastActive: u.last_active,
   }

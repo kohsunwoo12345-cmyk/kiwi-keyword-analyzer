@@ -60,6 +60,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     .all()).results || []
   const signups = signupRows.map((u: any) => publicUser(u))
 
+  const teamOrders = (await db
+    .prepare(
+      `SELECT o.order_id AS id, o.user_id, u.name, u.email, o.seats, o.months, o.amount, o.status, o.created_at, o.paid_at
+       FROM team_orders o LEFT JOIN users u ON u.id = o.user_id
+       ORDER BY (o.status='pending') DESC, o.created_at DESC LIMIT 300`,
+    )
+    .all()).results || []
+
   // 공개 폼 수집: 문의 + 랜딩 DB 리드
   const contacts = (await db
     .prepare('SELECT id, name, email, phone, company, message, status, created_at FROM contact_messages ORDER BY created_at DESC LIMIT 200')
@@ -72,6 +80,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const pendingSenders = senderNumbers.filter((r: any) => r.status === 'pending').length
   const pendingPoints = pointRequests.filter((r: any) => r.status === 'pending').length
   const pendingCredits = creditRequests.filter((r: any) => r.status === 'pending').length
+  const pendingTeam = teamOrders.filter((r: any) => r.status === 'pending').length
 
   const newContacts = contacts.filter((c: any) => c.status === 'new').length
 
@@ -81,10 +90,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     senderNumbers,
     pointRequests,
     creditRequests,
+    teamOrders,
     signups,
     contacts,
     leads,
-    stats: { pendingPlans, pendingSenders, pendingPoints, pendingCredits, totalMembers: signups.length, newContacts, leadsTotal: leads.length },
+    stats: { pendingPlans, pendingSenders, pendingPoints, pendingCredits, pendingTeam, totalMembers: signups.length, newContacts, leadsTotal: leads.length },
   })
 }
 
@@ -154,6 +164,22 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       await addNotification(db, req.user_id, '크레딧 충전이 반려되었습니다', `크레딧 ${req.amount.toLocaleString()}개 충전 신청이 반려되었습니다.`)
     }
     await logAudit(db, admin, 'approve_credit', String(req.amount), decision, 'info', adminIp)
+  } else if (type === 'team') {
+    const req: any = await db.prepare('SELECT * FROM team_orders WHERE order_id = ?').bind(id).first()
+    if (!req) return json({ ok: false, error: '요청을 찾을 수 없습니다.' }, 404)
+    if (decision === 'approve') {
+      const nowMs = Date.now()
+      const u: any = await db.prepare('SELECT team_until FROM users WHERE id = ?').bind(req.user_id).first()
+      const base = u && u.team_until && new Date(u.team_until).getTime() > nowMs ? new Date(u.team_until).getTime() : nowMs
+      const until = new Date(base + (Number(req.months) || 1) * 30 * 86400000).toISOString()
+      await db.prepare("UPDATE team_orders SET status = 'paid', paid_at = ? WHERE order_id = ?").bind(now, id).run()
+      await db.prepare('UPDATE users SET team_plan = 1, team_seats = ?, team_until = ? WHERE id = ?').bind(Number(req.seats) || 1, until, req.user_id).run()
+      await addNotification(db, req.user_id, '팀 요금제가 활성화되었습니다 👥', `${req.seats}좌석 팀 요금제가 활성화되었습니다. 스튜디오 팀워크에서 팀을 만들어보세요!`)
+    } else {
+      await db.prepare("UPDATE team_orders SET status = 'failed' WHERE order_id = ?").bind(id).run()
+      await addNotification(db, req.user_id, '팀 요금제 신청이 반려되었습니다', `팀 요금제(${req.seats}좌석) 신청이 반려되었습니다.`)
+    }
+    await logAudit(db, admin, 'approve_team', String(req.seats), decision, 'info', adminIp)
   } else {
     return json({ ok: false, error: '알 수 없는 유형입니다.' }, 400)
   }

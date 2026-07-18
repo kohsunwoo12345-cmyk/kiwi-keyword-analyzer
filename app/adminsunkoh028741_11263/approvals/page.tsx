@@ -29,6 +29,7 @@ import {
   type SenderReq,
   type PointReq,
   type CreditReq,
+  type TeamOrderReq,
   type User,
   type ContactMsg,
   type PublicLead,
@@ -125,6 +126,7 @@ export default function AdminApprovalsPage() {
   const [senderNumbers, setSenderNumbers] = useState<SenderReq[]>([])
   const [pointRequests, setPointRequests] = useState<PointReq[]>([])
   const [creditRequests, setCreditRequests] = useState<CreditReq[]>([])
+  const [teamOrders, setTeamOrders] = useState<TeamOrderReq[]>([])
   const [signups, setSignups] = useState<User[]>([])
   const [contacts, setContacts] = useState<ContactMsg[]>([])
   const [leads, setLeads] = useState<PublicLead[]>([])
@@ -133,6 +135,7 @@ export default function AdminApprovalsPage() {
     pendingSenders: number
     pendingPoints: number
     pendingCredits: number
+    pendingTeam?: number
     totalMembers: number
     newContacts?: number
     leadsTotal?: number
@@ -141,6 +144,7 @@ export default function AdminApprovalsPage() {
     pendingSenders: 0,
     pendingPoints: 0,
     pendingCredits: 0,
+    pendingTeam: 0,
     totalMembers: 0,
   })
   const [loading, setLoading] = useState(true)
@@ -163,6 +167,7 @@ export default function AdminApprovalsPage() {
       setSenderNumbers(r.senderNumbers)
       setPointRequests(r.pointRequests)
       setCreditRequests(r.creditRequests)
+      setTeamOrders(r.teamOrders || [])
       setSignups(r.signups)
       setContacts(r.contacts)
       setLeads(r.leads)
@@ -172,6 +177,7 @@ export default function AdminApprovalsPage() {
           pendingSenders: r.senderNumbers.filter((s) => s.status === 'pending').length,
           pendingPoints: r.pointRequests.filter((p) => p.status === 'pending').length,
           pendingCredits: r.creditRequests.filter((c) => c.status === 'pending').length,
+          pendingTeam: (r.teamOrders || []).filter((c) => c.status === 'pending').length,
           totalMembers: r.signups.length,
         },
       )
@@ -183,7 +189,7 @@ export default function AdminApprovalsPage() {
   }, [])
 
   async function decide(
-    type: 'plan' | 'sender' | 'point' | 'credit',
+    type: 'plan' | 'sender' | 'point' | 'credit' | 'team',
     id: string,
     decision: 'approve' | 'reject',
   ) {
@@ -198,7 +204,7 @@ export default function AdminApprovalsPage() {
     }
   }
 
-  function ActionCell({ type, id }: { type: 'plan' | 'sender' | 'point' | 'credit'; id: string }) {
+  function ActionCell({ type, id }: { type: 'plan' | 'sender' | 'point' | 'credit' | 'team'; id: string }) {
     return (
       <div className="flex items-center justify-end gap-1.5">
         <Button
@@ -530,6 +536,67 @@ export default function AdminApprovalsPage() {
                     <tr>
                       <td colSpan={7} className="py-10 text-center text-[var(--text-dim)]">
                         {loading ? '불러오는 중…' : '크레딧 충전 요청이 없습니다.'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        </Reveal>
+
+        {/* 팀 요금제 신청 (카드 미설정 시 승인 대기분) */}
+        <Reveal>
+          <Panel
+            title={
+              <span className="flex items-center gap-2">
+                <Users size={16} className="text-violet-600" /> 팀 요금제 신청
+                {(stats.pendingTeam ?? 0) > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                    <Clock size={11} /> {stats.pendingTeam} 대기
+                  </span>
+                )}
+              </span>
+            }
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border-soft)] text-left text-xs text-[var(--text-dim)]">
+                    <th className="pb-2.5 font-medium">회원</th>
+                    <th className="pb-2.5 font-medium">좌석</th>
+                    <th className="pb-2.5 font-medium">개월</th>
+                    <th className="pb-2.5 font-medium">결제 금액</th>
+                    <th className="pb-2.5 font-medium">신청일</th>
+                    <th className="pb-2.5 font-medium">상태</th>
+                    <th className="pb-2.5 text-right font-medium">액션</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teamOrders.map((c) => (
+                    <tr key={c.id} className="border-b border-[var(--border-soft)] last:border-0 hover:bg-slate-50">
+                      <td className="py-3"><MemberCell name={c.name} email={c.email} /></td>
+                      <td className="py-3"><span className="font-bold text-violet-600">{c.seats}좌석</span></td>
+                      <td className="py-3 text-[var(--text-soft)]">{c.months}개월</td>
+                      <td className="whitespace-nowrap py-3 text-[var(--text-soft)]">{c.amount.toLocaleString()}원</td>
+                      <td className="whitespace-nowrap py-3 text-[var(--text-soft)]">
+                        {fmtDate(c.created_at)}
+                        <span className="ml-1 text-xs text-[var(--text-dim)]">· {timeAgo(c.created_at)}</span>
+                      </td>
+                      <td className="py-3"><Badge className={statusBadgeClass(c.status === 'paid' ? 'approved' : c.status === 'failed' ? 'rejected' : c.status)}>{c.status === 'paid' ? '활성' : c.status === 'failed' ? '반려' : statusLabel(c.status)}</Badge></td>
+                      <td className="py-3">
+                        {c.status === 'pending' ? (
+                          <ActionCell type="team" id={c.id} />
+                        ) : (
+                          <div className="text-right text-xs text-[var(--text-dim)]">{c.paid_at ? fmtDate(c.paid_at) : '처리 완료'}</div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {teamOrders.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="py-10 text-center text-[var(--text-dim)]">
+                        {loading ? '불러오는 중…' : '팀 요금제 신청이 없습니다.'}
                       </td>
                     </tr>
                   )}
