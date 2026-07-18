@@ -8,8 +8,6 @@ import {
   Cpu,
   Film,
   Play,
-  ArrowRight,
-  ArrowDown,
   Check,
   Sparkles,
   Loader2,
@@ -162,7 +160,7 @@ function LivePipeline({ t }: { t: (s: string) => string }) {
 
   return (
     <div className="mt-14 [perspective:2200px]">
-      <div className="flex flex-col items-stretch gap-4 lg:flex-row lg:items-stretch lg:[transform-style:preserve-3d] lg:[transform:rotateX(8deg)_rotateZ(-0.4deg)]">
+      <div className="flex flex-col items-stretch gap-4 lg:flex-row lg:items-center lg:[transform-style:preserve-3d] lg:[transform:rotateX(15deg)_rotateY(-2deg)]">
       {STAGES.map((s, i) => {
         const Icon = s.icon
         const status: 'done' | 'active' | 'pending' = i <= doneUpto ? 'done' : i === active ? 'active' : 'pending'
@@ -215,15 +213,50 @@ function LivePipeline({ t }: { t: (s: string) => string }) {
               </div>
             </div>
 
-            {/* 연결 화살표 (흐름이 지나가면 밝아짐) */}
+            {/* 3D 파이프 연결부 (흐름이 지나가면 에너지 펄스) */}
             {i < STAGES.length - 1 && (
-              <div className="flex items-center justify-center py-1 lg:px-1 lg:py-0">
-                <span
-                  className={cn('grid h-7 w-7 place-items-center rounded-full border transition-all duration-500', i < active ? 'border-blue-400/60 bg-blue-500/25 text-blue-200' : 'border-white/10 bg-white/[0.04] text-slate-500')}
-                >
-                  <ArrowRight size={15} className="hidden lg:block" />
-                  <ArrowDown size={15} className="lg:hidden" />
-                </span>
+              <div className="relative flex items-center justify-center px-0.5 py-1.5 lg:px-1.5 lg:py-0 lg:[transform:translateZ(24px)]">
+                {/* 데스크톱: 가로 3D 튜브 */}
+                <div className="relative hidden h-4 w-14 lg:block">
+                  <div
+                    className="absolute inset-0 overflow-hidden rounded-full"
+                    style={{
+                      background: 'linear-gradient(to bottom,#0b1120 0%,#324c86 34%,#b7ccff 50%,#324c86 66%,#090e1a 100%)',
+                      boxShadow: '0 9px 18px -8px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.35)',
+                    }}
+                  >
+                    <span
+                      className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full"
+                      style={{
+                        background: 'radial-gradient(circle, rgba(205,226,255,.98), rgba(90,140,255,.3) 58%, transparent 72%)',
+                        animation: i < active ? 'pipeFlow 2s linear infinite' : 'none',
+                        opacity: i < active ? 1 : 0.2,
+                      }}
+                    />
+                  </div>
+                  {/* 좌우 캡(입체 링) */}
+                  <span className="absolute -left-0.5 top-1/2 h-4 w-1.5 -translate-y-1/2 rounded-full bg-[#0b1120] shadow-[inset_0_1px_0_rgba(255,255,255,.25)]" />
+                  <span className="absolute -right-0.5 top-1/2 h-4 w-1.5 -translate-y-1/2 rounded-full bg-[#0b1120] shadow-[inset_0_1px_0_rgba(255,255,255,.25)]" />
+                </div>
+                {/* 모바일: 세로 3D 튜브 */}
+                <div className="relative h-10 w-4 lg:hidden">
+                  <div
+                    className="absolute inset-0 overflow-hidden rounded-full"
+                    style={{
+                      background: 'linear-gradient(to right,#0b1120 0%,#324c86 34%,#b7ccff 50%,#324c86 66%,#090e1a 100%)',
+                      boxShadow: '0 8px 16px -8px rgba(0,0,0,.85), inset 1px 0 0 rgba(255,255,255,.3)',
+                    }}
+                  >
+                    <span
+                      className="absolute left-1/2 h-3.5 w-3.5 -translate-x-1/2 rounded-full"
+                      style={{
+                        background: 'radial-gradient(circle, rgba(205,226,255,.98), rgba(90,140,255,.3) 58%, transparent 72%)',
+                        animation: i < active ? 'pipeFlowV 2s linear infinite' : 'none',
+                        opacity: i < active ? 1 : 0.2,
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
             )}
           </div>

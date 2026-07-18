@@ -23,7 +23,7 @@ import {
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { HeroOrbit } from '@/components/HeroOrbit'
-import { HeroBackdrop } from '@/components/HeroBackdrop'
+import { HeroPhotoWall } from '@/components/HeroPhotoWall'
 import { HeroDashboard } from '@/components/HeroDashboard'
 import { AIPipeline } from '@/components/AIPipeline'
 import { AIVideoGallery } from '@/components/AIVideoGallery'
@@ -786,8 +786,8 @@ export default function Home() {
 
       {/* ===== HERO ===== */}
       <section className="relative overflow-hidden pt-36 pb-24 text-white sm:pt-40 sm:pb-28">
-        {/* 배경: 깔끔한 프리미엄 배경 (텍스트 선명도 유지) */}
-        <HeroBackdrop />
+        {/* 배경: AI 제작 사진이 흐르는 프리미엄 포토월 */}
+        <HeroPhotoWall />
 
         <div className="relative z-10 mx-auto max-w-4xl px-5 text-center">
           <div className="flex justify-center animate-fade-up">

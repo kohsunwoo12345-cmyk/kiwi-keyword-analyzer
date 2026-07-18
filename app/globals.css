@@ -520,3 +520,26 @@ body {
 .dash-shell.site-dark .border-slate-200,
 .dash-shell.site-dark .border-slate-300 { border-color: var(--border) !important; }
 .dash-shell.site-dark .from-violet-50 { --tw-gradient-from: rgba(139, 92, 246, 0.13) var(--tw-gradient-from-position) !important; }
+
+/* 히어로 배경 사진 벽 — 세로 스크롤(위/아래) 무한 루프 */
+@keyframes heroWallUp { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+@keyframes heroWallDown { from { transform: translateY(-50%); } to { transform: translateY(0); } }
+
+/* 3D 파이프 내부를 흐르는 에너지 펄스 */
+@keyframes pipeFlow {
+  0% { left: -30%; opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { left: 110%; opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*="heroWallUp"], [style*="heroWallDown"] { animation: none !important; }
+}
+
+/* 3D 파이프 세로 방향 펄스 (모바일) */
+@keyframes pipeFlowV {
+  0% { top: -30%; opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { top: 110%; opacity: 0; }
+}
