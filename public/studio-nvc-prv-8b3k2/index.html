@@ -2367,6 +2367,18 @@ async function resolveMediaForProvider(prov, params){
 /* 통합 진입점: 프록시(서버 키) > 직접어댑터 순. 실패하면 실제 오류를 그대로 반환.
    ※ 예전엔 실패 시 넥스트비전 데모 영상으로 조용히 대체했으나, 그러면 "생성된 것처럼"
      보여 혼동을 줌 → 이제 실패 원인(키 미설정/호출 오류)을 노드에 그대로 표시한다. */
+/* 크레딧 사전 확인 게이트 — 잔액 부족 시 안내 후 문구 반환(생성 차단), 통과 시 null.
+   pc = {model, units, kind, res, audio, refs} */
+async function creditGate(pc){
+  try{
+    var r=await fetch('/api/studio/precheck',{ method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify(pc) });
+    if(r.status===402){ var j={}; try{ j=await r.json(); }catch(e){}
+      if(typeof window!=='undefined' && window.confirm((j.error||'크레딧이 부족합니다.')+'\n\n요금제 페이지로 이동할까요?')){ window.location.href='/pricing'; }
+      return j.error||'크레딧이 부족합니다.';
+    }
+  }catch(e){ /* precheck 네트워크 실패 → 통과(락아웃 방지) */ }
+  return null;
+}
 async function generateWithAPI(params){
   var prov=providerOf(params.model);
   // ControlNet(Canny/Depth/Pose · 다중 스택) 이 켜져 있으면 fal ControlNet 경로로 라우팅 (컴피UI식)
@@ -2377,7 +2389,7 @@ async function generateWithAPI(params){
   try{
     var _pcImg = !!(MODEL_COST[params.model] && MODEL_COST[params.model].u==='img');
     var _pc = await fetch('/api/studio/precheck',{ method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
-      body: JSON.stringify({ model:params.model, units:params.seconds||8, kind:_pcImg?'image':'video', res:params.res||'1080p', audio:!!params.generateAudio }) });
+      body: JSON.stringify({ model:params.model, units:params.seconds||8, kind:_pcImg?'image':'video', res:params.res||'1080p', audio:!!params.generateAudio, refs:Number(params.refCount)||0 }) });
     if(_pc.status===402){
       var _pj={}; try{ _pj=await _pc.json(); }catch(e){}
       if(typeof window!=='undefined' && window.confirm((_pj.error||'크레딧이 부족합니다.')+'\n\n요금제 페이지로 이동할까요?')){ window.location.href='/pricing'; }
@@ -2494,7 +2506,7 @@ function cannyPreview(srcUrl){
 /* "이미지 생성" 노드 단독 실행 — 프롬프트(+레퍼런스)로 이미지 1장 생성해 노드에 표시.
    결과는 n.w.img 에 저장되어 우측 IMAGE 포트로 다른 모델의 레퍼런스/첫 프레임에 연결 가능. */
 /* 나레이션 노드 실행 — 원본 영상 + AI 음성 해설 합성 (서버: provider=narrate) */
-function narrateNode(n){
+async function narrateNode(n){
   if(!n || n.w.generating) return;
   var srcN=inputNodeOf(n.id,'in');
   // 원본 영상은 공개 URL 이어야 함 (출력 노드의 provider mp4 URL 또는 R2 호스팅 URL).
@@ -2511,6 +2523,9 @@ function narrateNode(n){
   var prov=isLip?'lipsync':'narrate';
   var modelNm=isLip?'립싱크 (인물 말하기)':'나레이션 (AI 음성 해설)';
   var label=isLip?'립싱크':'나레이션';
+  var _secN=(srcN&&srcN.w&&srcN.w.sec)||8;
+  var _gN=await creditGate({model:modelNm, units:_secN, kind:'video', res:'1080p', audio:true});
+  if(_gN){ n.w.error=_gN; render(); return; }
   n.w.generating=true; n.w.error=null; render();
   (function(){ var em=document.getElementById('nd-'+n.id); if(em)em.classList.add('exec'); })();
   toast(isLip?'립싱크 생성 중… 입 모양 동기화는 시간이 걸립니다.':'나레이션 합성 중…');
@@ -2566,7 +2581,7 @@ function weaveNode(n){
   });
 }
 /* 목소리 교체 → 립싱크 노드 실행: 영상에서 음성 추출 → 일레븐랩스 STS 교체 → fal 립싱크 */
-function revoiceNode(n){
+async function revoiceNode(n){
   if(!n || n.w.generating) return;
   var srcN=inputNodeOf(n.id,'in');
   var srcU = srcN && srcN.w ? (srcN.w.srcVideoUrl
@@ -2574,6 +2589,8 @@ function revoiceNode(n){
   if(!srcU){ toast('말소리가 있는 영상을 연결하세요 ([AI 음성] 노드 결과 또는 사람이 말하는 영상).'); return; }
   var voiceId=VOICE_ID[n.w.voice]||'el:21m00Tcm4TlvDq8ikWAM';
   if(!/^el:/.test(voiceId)){ toast('일레븐랩스 목소리를 선택하세요.'); return; }
+  var _gR=await creditGate({model:'립싱크 (인물 말하기)', units:(srcN&&srcN.w&&srcN.w.sec)||8, kind:'video', res:'1080p', audio:true});
+  if(_gR){ n.w.error=_gR; render(); return; }
   n.w.generating=true; n.w.error=null; render();
   (function(){ var em=document.getElementById('nd-'+n.id); if(em)em.classList.add('exec'); })();
   toast('영상에서 말소리 추출 중…');
@@ -2650,7 +2667,7 @@ function generateImageNode(n){
    var refs=shr.filter(Boolean); var refImg=refs[0]||null; refCountUsed=refs.length; refUsedList=refs.slice(0,4);
    if(refs.length>1) toast('레퍼런스 '+refs.length+'장으로 생성 중… (1장당 크레딧 소폭 가산)');
    return generateWithAPI({ model:n.w.model, prompt:prompt, ratio:n.w.ratio||'1:1',
-    refImage:refImg, refImages:refs, firstFrame:refImg,
+    refImage:refImg, refImages:refs, firstFrame:refImg, refCount:refs.length,
     controlnets:cnList,
     cnSteps:(n.w.cnSteps==null?28:n.w.cnSteps), cnGuidance:(n.w.cnGuidance==null?3.5:n.w.cnGuidance) }); })
     .then(function(res){
@@ -5226,6 +5243,9 @@ pfHandleTossReturn();
     if(!prompt || busy) return;
     var model=chEl('chModel').value, sec=Number(chEl('chSec').value)||8, ratio=chEl('chRatio').value||'16:9';
     ta.value=''; grow(ta); addMe(prompt);
+    // 크레딧 사전 확인 (잔액 부족 시 생성 차단)
+    var _gC=await creditGate({model:model, units:sec, kind:'video', res:'1080p', audio:false});
+    if(_gC){ addAI('⚠️ '+_gC); return; }
     busy=true; chEl('chSend').disabled=true;
     var loading=addAI('<span class="ch-dots"><i></i><i></i><i></i></span> 영상 생성 중… (수십 초~수 분 소요)');
     try{
