@@ -3211,6 +3211,34 @@ function newDoc(){
   loadDefault(); d.data=docSnap();
   renderTabs(); autosave(); toast('새 워크플로 탭');
 }
+
+/* ── 팀 노드 공유 브릿지 (별도 IIFE 팀 위젯에서 접근) ── */
+// 현재 캔버스 그래프를 공유용으로 직렬화. 대용량 base64(생성결과·업로드 미디어)는 제거해 경량화.
+window.__nvExportGraph=function(){
+  saveActiveIntoDoc();
+  var g;
+  try{ g=JSON.parse(JSON.stringify(docSnap())); }catch(e){ g=docSnap(); }
+  var isData=function(v){ return typeof v==='string' && v.indexOf('data:')===0; };
+  (g.nodes||[]).forEach(function(n){
+    if(!n||!n.w)return; var w=n.w;
+    ['img','vid','poster','upscaled','srcVideoUrl'].forEach(function(k){ if(isData(w[k]))w[k]=null; });
+    if(Array.isArray(w.imgs)) w.imgs=w.imgs.filter(function(u){ return !isData(u); });
+    w.generating=false; w.upscaling=false; w.extracting=false;
+  });
+  return { nodeCount:(g.nodes||[]).length, graph:g };
+};
+// 공유받은 그래프를 새 워크플로 탭으로 저장. keep=true 면 현재 탭 유지(방해 없이 추가).
+window.__nvImportGraph=function(graph, name, keep){
+  if(!graph||!graph.nodes) return false;
+  saveActiveIntoDoc();
+  var prev=activeDocId;
+  var d={ id:newDocId(), name:name||'공유 워크플로', data:graph };
+  STUDIO_DOCS.push(d);
+  if(keep){ activeDocId=prev; renderTabs(); autosave(); }
+  else { activeDocId=d.id; loadDocIntoState(d); renderTabs(); autosave(); }
+  return true;
+};
+window.__nvToast=function(m){ try{ toast(m); }catch(e){} };
 function closeDoc(id){
   if(STUDIO_DOCS.length<=1){ toast('마지막 워크플로는 닫을 수 없습니다'); return; }
   var idx=-1; for(var i=0;i<STUDIO_DOCS.length;i++) if(STUDIO_DOCS[i].id===id) idx=i;
@@ -5566,6 +5594,11 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
       if(!d||!d.ok){ renderNeedLogin(); return; }
       meId=d.meId; meName=d.meName||''; teams=d.teams||[];
       var dot=document.getElementById('twDot'); if(dot){ var n=(d.invites||[]).length; dot.textContent=n; dot.style.display=n>0?'flex':'none'; }
+      // 받은 노드 공유 → 내 워크플로에 새 탭으로 자동 저장(현재 탭 유지)
+      if(d.shares&&d.shares.length&&window.__nvImportGraph){
+        var cnt=0; d.shares.forEach(function(sh){ if(window.__nvImportGraph(sh.graph, '공유: '+(sh.fromName||'팀원'), true)){ cnt++; post({action:'share_ack',shareId:sh.id}); } });
+        if(cnt&&window.__nvToast) window.__nvToast('공유받은 워크플로 '+cnt+'개를 새 탭으로 저장했어요');
+      }
       payGet().then(function(s){ tpActive=!!(s&&s.active); tpSeatKrw=(s&&s.seatKrw)||44000; tpSeats=(s&&s.seats)||0;
         if(curTeam) renderChat(); else renderHome(d.invites||[]); });
     }).catch(renderNeedLogin);
@@ -5617,7 +5650,11 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
     p.innerHTML='<div class="tw-hd"><span class="tw-x" data-twback style="margin-left:0;margin-right:2px;">‹</span>'+esc(t.name)+'<span class="tw-x" data-twx title="채팅 접기">×</span></div>'+
       '<div style="padding:9px 13px 4px;border-bottom:1px solid rgba(255,255,255,.06);">'+mems+
       '<div class="tw-row" style="margin-top:7px;margin-bottom:2px;"><input class="tw-in" id="twInvite" placeholder="초대할 아이디(이메일) 입력"><button class="tw-btn" data-inv>초대</button></div>'+
-      '<div class="tw-err" id="twInvErr" style="display:none;"></div></div>'+
+      '<div class="tw-err" id="twInvErr" style="display:none;"></div>'+
+      '<button class="tw-btn tw-ghost" data-share style="width:100%;margin-top:2px;display:flex;align-items:center;justify-content:center;gap:6px;">'+
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>'+
+        '현재 워크플로 팀에 공유</button>'+
+      '<div class="tw-err" id="twShareMsg" style="display:none;"></div></div>'+
       '<div class="tw-msgs" id="twMsgs"></div>'+
       '<div class="tw-foot"><input class="tw-in" id="twMsg" placeholder="메시지 입력…"><button class="tw-btn" data-send>전송</button></div>';
     bindX();
@@ -5630,6 +5667,18 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
         if(r.ok){ p.querySelector('#twInvite').value=''; invErr.style.color='#8fe6b8'; invErr.textContent=(r.invitedName||v)+'님에게 초대를 보냈어요.'; invErr.style.display='block'; }
         else { invErr.style.color='#ef8a9a'; invErr.textContent=r.error||'초대 실패'; invErr.style.display='block'; }
       });
+    });
+    var shareMsg=p.querySelector('#twShareMsg');
+    function showShare(cls,txt){ if(!shareMsg)return; shareMsg.style.display='block'; shareMsg.style.color=cls==='ok'?'#8fe6b8':(cls==='err'?'#ef8a9a':'#a9a2bd'); shareMsg.textContent=txt; }
+    p.querySelector('[data-share]').addEventListener('click',function(){
+      if(!window.__nvExportGraph){ showShare('err','공유 기능을 사용할 수 없습니다.'); return; }
+      var ex; try{ ex=window.__nvExportGraph(); }catch(e){ ex=null; }
+      if(!ex||!ex.nodeCount){ showShare('err','공유할 노드가 없습니다. 캔버스에 노드를 추가하세요.'); return; }
+      showShare('','공유 중…');
+      post({action:'share',teamId:t.id,graph:ex.graph,name:(t.name||'팀')+' 워크플로'}).then(function(r){
+        if(r&&r.ok) showShare('ok','팀원 '+r.sent+'명에게 워크플로(노드 '+ex.nodeCount+'개)를 공유했어요.');
+        else showShare('err',(r&&r.error)||'공유에 실패했습니다.');
+      }).catch(function(){ showShare('err','네트워크 오류'); });
     });
     function send(){ var mi=p.querySelector('#twMsg'); var v=(mi.value||'').trim(); if(!v)return; mi.value='';
       post({action:'send',teamId:t.id,text:v}).then(function(r){ if(r.ok)loadMsgs(); }); }

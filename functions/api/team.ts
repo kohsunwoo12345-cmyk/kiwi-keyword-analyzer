@@ -14,6 +14,9 @@ async function ensureTeamTables(db: D1Database) {
     db.prepare(`CREATE TABLE IF NOT EXISTS team_invites (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, from_user_id TEXT NOT NULL, to_user_id TEXT NOT NULL, status TEXT DEFAULT 'pending', created_at TEXT NOT NULL)`),
     db.prepare(`CREATE TABLE IF NOT EXISTS team_messages (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, user_id TEXT NOT NULL, name TEXT, text TEXT NOT NULL, created_at TEXT NOT NULL)`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_tm_team ON team_messages(team_id, created_at)`),
+    // 노드 공유: 발신자→각 수신자별 1행. received=1 이면 수신자 워크플로에 저장 완료.
+    db.prepare(`CREATE TABLE IF NOT EXISTS team_shares (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, from_user_id TEXT NOT NULL, from_name TEXT, to_user_id TEXT NOT NULL, name TEXT, graph TEXT NOT NULL, node_count INTEGER DEFAULT 0, received INTEGER DEFAULT 0, created_at TEXT NOT NULL)`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_ts_to ON team_shares(to_user_id, received)`),
   ])
 }
 const uid = (p: string) => p + crypto.randomUUID().slice(0, 16)
@@ -55,7 +58,16 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const invites = (await db.prepare(
     `SELECT i.id, i.team_id AS teamId, t.name AS teamName, u.name AS fromName FROM team_invites i JOIN teams t ON t.id = i.team_id JOIN users u ON u.id = i.from_user_id WHERE i.to_user_id = ? AND i.status = 'pending' ORDER BY i.created_at DESC`,
   ).bind(me.id).all()).results || []
-  return json({ ok: true, teams, invites, meId: me.id, meName: me.name })
+  // 내게 온 미수신 노드 공유
+  const shareRows = (await db.prepare(
+    `SELECT id, from_name, name, graph, node_count, created_at FROM team_shares WHERE to_user_id = ? AND received = 0 ORDER BY created_at ASC LIMIT 20`,
+  ).bind(me.id).all()).results || []
+  const shares = (shareRows as any[]).map((s) => {
+    let graph: any = null
+    try { graph = JSON.parse(s.graph) } catch { graph = null }
+    return { id: s.id, fromName: s.from_name || '', name: s.name || '', nodeCount: s.node_count || 0, graph, created_at: s.created_at }
+  }).filter((s) => s.graph)
+  return json({ ok: true, teams, invites, shares, meId: me.id, meName: me.name })
 }
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -112,6 +124,34 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (accept) {
       await db.prepare('INSERT OR IGNORE INTO team_members (team_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)').bind(inv.team_id, me.id, 'member', now).run()
     }
+    return json({ ok: true })
+  }
+
+  if (action === 'share') {
+    const teamId = String(b.teamId || '')
+    if (!teamId) return json({ ok: false, error: '팀을 선택하세요.' }, 400)
+    if (!(await isMember(db, teamId, me.id))) return json({ ok: false, error: '팀 멤버가 아닙니다.' }, 403)
+    const graph = b.graph
+    if (!graph || !Array.isArray(graph.nodes) || !graph.nodes.length) return json({ ok: false, error: '공유할 노드가 없습니다.' }, 400)
+    const graphStr = JSON.stringify(graph)
+    if (graphStr.length > 900000) return json({ ok: false, error: '워크플로가 너무 큽니다. 생성 결과가 큰 노드는 줄여서 공유하세요.' }, 413)
+    const name = String(b.name || '공유 워크플로').slice(0, 60)
+    const nodeCount = graph.nodes.length
+    // 팀의 다른 멤버 전원에게 전달
+    const members = (await db.prepare('SELECT user_id FROM team_members WHERE team_id = ? AND user_id != ?').bind(teamId, me.id).all()).results || []
+    if (!members.length) return json({ ok: false, error: '공유할 팀원이 없습니다. 먼저 팀원을 초대하세요.' }, 400)
+    for (const m of members as any[]) {
+      await db.prepare('INSERT INTO team_shares (id, team_id, from_user_id, from_name, to_user_id, name, graph, node_count, received, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)')
+        .bind(uid('sh_'), teamId, me.id, me.name, m.user_id, name, graphStr, nodeCount, now).run()
+      await addNotification(db, m.user_id, '워크플로가 공유되었어요 🔗', `${me.name}님이 "${name}"(노드 ${nodeCount}개)를 공유했습니다. 스튜디오 팀워크에서 내 워크플로로 저장하세요.`).catch(() => {})
+    }
+    return json({ ok: true, sent: members.length })
+  }
+
+  if (action === 'share_ack') {
+    const shareId = String(b.shareId || '')
+    if (!shareId) return json({ ok: false, error: 'shareId 필요' }, 400)
+    await db.prepare('UPDATE team_shares SET received = 1 WHERE id = ? AND to_user_id = ?').bind(shareId, me.id).run()
     return json({ ok: true })
   }
 
