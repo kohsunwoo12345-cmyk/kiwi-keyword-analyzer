@@ -1,9 +1,10 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB } from '../_utils'
+import { CREDIT_KRW } from '../studio/_pricing'
 
-// 크레딧 수량 → 결제 금액(원) 서버측 산정 (클라이언트 조작 방지)
+// 크레딧 수량 → 결제 금액(원) 서버측 산정 (클라이언트 조작 방지).
+// 1크레딧 = CREDIT_KRW(50원) 로 균일 환산.
 function priceFor(credits: number): number {
-  const table: Record<number, number> = { 10: 9900, 50: 39000, 100: 69000, 300: 180000 }
-  return table[credits] ?? credits * 990
+  return Math.round(credits * CREDIT_KRW)
 }
 
 // POST /api/payments/prepare { credits } → Toss 주문 생성(orderId/amount 반환)

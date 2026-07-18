@@ -845,11 +845,12 @@ export const CREDIT_COSTS: Record<string, { cost: number; label: string }> = {
   place: { cost: 1, label: '플레이스 순위 조회' },
 }
 /** 크레딧 충전 패키지 */
+// 1크레딧 = 50원 균일 환산 (구매·과금 동일 기준)
 export const CREDIT_PACKAGES: { credits: number; price: number; badge?: string }[] = [
-  { credits: 10, price: 9900 },
-  { credits: 50, price: 39000, badge: '인기' },
-  { credits: 100, price: 69000, badge: '추천' },
-  { credits: 300, price: 180000 },
+  { credits: 10, price: 500 },
+  { credits: 50, price: 2500, badge: '인기' },
+  { credits: 100, price: 5000, badge: '추천' },
+  { credits: 300, price: 15000 },
 ]
 
 export async function requestCredit(amount: number, price?: number, memo?: string): Promise<{ ok: boolean; error?: string }> {
