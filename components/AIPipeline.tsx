@@ -64,9 +64,9 @@ const STAGES: Stage[] = [
   {
     key: 'ref', icon: ImageIcon, title: '레퍼런스 이미지 생성', sub: '이미지 모델로 레퍼런스 컷 생성', accent: '#3b82f6',
     body: (
-      <div className="relative h-16 overflow-hidden rounded-lg bg-gradient-to-br from-orange-400/70 via-rose-500/50 to-blue-700/70">
-        <div className="absolute inset-0 opacity-40" style={{ backgroundImage: 'radial-gradient(circle at 70% 30%, rgba(255,255,255,0.6), transparent 40%)' }} />
-        <span className="absolute bottom-1 left-1.5 rounded bg-black/50 px-1.5 py-0.5 text-[8px] font-semibold text-white">Flux · Nano Banana</span>
+      <div className="relative h-16 overflow-hidden rounded-lg bg-[#0c0f18]">
+        <img src="/images/showcase/9.webp" alt="reference" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+        <span className="absolute bottom-1 left-1.5 rounded bg-black/55 px-1.5 py-0.5 text-[8px] font-semibold text-white backdrop-blur-sm">Flux · Nano Banana</span>
       </div>
     ),
   },
@@ -74,13 +74,9 @@ const STAGES: Stage[] = [
     key: 'control', icon: SlidersHorizontal, title: 'ControlNet 제어', sub: '캐니·뎁스·포즈로 정밀 제어', accent: '#6366f1',
     body: (
       <div className="grid grid-cols-3 gap-1">
-        {[
-          { l: 'Canny', bg: 'from-slate-100/10 to-white/20' },
-          { l: 'Depth', bg: 'from-blue-500/30 to-slate-900/60' },
-          { l: 'Pose', bg: 'from-emerald-400/30 to-slate-900/60' },
-        ].map((c) => (
-          <div key={c.l} className={cn('relative h-10 rounded bg-gradient-to-br', c.bg)}>
-            <span className="absolute bottom-0.5 left-1 text-[7px] font-bold text-white/90">{c.l}</span>
+        {['Canny', 'Depth', 'Pose'].map((l) => (
+          <div key={l} className="relative h-10 rounded border border-white/10 bg-white/[0.04]">
+            <span className="absolute bottom-0.5 left-1 text-[7px] font-bold text-white/80">{l}</span>
           </div>
         ))}
       </div>
@@ -102,8 +98,9 @@ const STAGES: Stage[] = [
   {
     key: 'output', icon: Film, title: '최종 영상 출력', sub: '4K 고화질 렌더', accent: '#22d3ee',
     body: (
-      <div className="relative flex h-16 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-cyan-700/70 via-slate-900 to-blue-800/70">
-        <span className="grid h-9 w-9 place-items-center rounded-full bg-white/20 backdrop-blur">
+      <div className="relative flex h-16 items-center justify-center overflow-hidden rounded-lg bg-[#0c0f18]">
+        <img src="/images/showcase/8.webp" alt="output" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+        <span className="relative grid h-9 w-9 place-items-center rounded-full bg-black/35 ring-1 ring-white/40 backdrop-blur-sm">
           <Play size={16} className="ml-0.5 text-white" fill="white" />
         </span>
         <span className="absolute bottom-1 right-1.5 rounded bg-emerald-500 px-1.5 py-0.5 text-[8px] font-bold text-white">4K · 완료</span>
@@ -164,21 +161,28 @@ function LivePipeline({ t }: { t: (s: string) => string }) {
   const active = doneUpto + 1 // 현재 처리 중인 스테이지 (== STAGES.length 이면 전체 완료)
 
   return (
-    <div className="mt-14 flex flex-col items-stretch gap-4 lg:flex-row lg:items-stretch">
+    <div className="mt-14 [perspective:2200px]">
+      <div className="flex flex-col items-stretch gap-4 lg:flex-row lg:items-stretch lg:[transform-style:preserve-3d] lg:[transform:rotateX(8deg)_rotateZ(-0.4deg)]">
       {STAGES.map((s, i) => {
         const Icon = s.icon
         const status: 'done' | 'active' | 'pending' = i <= doneUpto ? 'done' : i === active ? 'active' : 'pending'
         return (
-          <div key={s.key} className="flex flex-1 flex-col items-center lg:flex-row">
-            <div className="w-full">
+          <div key={s.key} className="flex flex-1 flex-col items-center lg:flex-row lg:[transform-style:preserve-3d]">
+            <div className="w-full lg:[transform-style:preserve-3d]">
               <div
                 className={cn(
-                  'card relative h-full overflow-hidden p-4 transition-all duration-500',
+                  'relative h-full overflow-hidden rounded-2xl border border-white/12 p-4 transition-all duration-500',
+                  'bg-gradient-to-b from-white/[0.07] to-white/[0.02] backdrop-blur-md',
+                  'shadow-[0_20px_45px_-24px_rgba(0,0,0,0.85)]',
                   status === 'pending' && 'opacity-55',
-                  status === 'active' && 'shadow-[0_0_0_1.5px_var(--sa),0_18px_50px_-20px_var(--sa)]',
+                  status === 'active'
+                    ? 'border-white/20 shadow-[0_0_0_1.5px_var(--sa),0_34px_70px_-26px_var(--sa)] lg:[transform:translateZ(46px)]'
+                    : 'lg:[transform:translateZ(0)]',
                 )}
                 style={{ ['--sa' as string]: s.accent }}
               >
+                {/* 상단 광택(프리미엄 글래스) */}
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
                 {status === 'active' && (
                   <div className="absolute inset-x-0 top-0 h-0.5" style={{ background: s.accent, animation: 'loadbar 1.1s ease-in-out infinite' }} />
                 )}
@@ -225,6 +229,7 @@ function LivePipeline({ t }: { t: (s: string) => string }) {
           </div>
         )
       })}
+      </div>
     </div>
   )
 }

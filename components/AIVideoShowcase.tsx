@@ -98,9 +98,8 @@ export function AIVideoShowcase() {
             </div>
 
             {/* 프리뷰 */}
-            <div className="relative aspect-video overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-400 via-rose-500 to-blue-800" />
-              <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 72% 26%, rgba(255,240,190,0.85), transparent 42%)' }} />
+            <div className="relative aspect-video overflow-hidden bg-[#0c0f18]">
+              <img src="/images/showcase/1.webp" alt="preview" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/55 to-transparent" />
               {/* 재생 버튼 */}
               <span className="absolute left-1/2 top-1/2 grid h-14 w-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/20 backdrop-blur-sm ring-1 ring-white/40">
@@ -129,8 +128,10 @@ export function AIVideoShowcase() {
 
             {/* 프레임 타임라인 */}
             <div className="flex items-center gap-1.5 border-t border-white/8 bg-white/[0.02] p-2.5">
-              {['from-orange-400 to-rose-600', 'from-rose-500 to-purple-700', 'from-purple-600 to-blue-700', 'from-blue-600 to-cyan-600', 'from-cyan-500 to-emerald-600'].map((g, i) => (
-                <div key={i} className={cn('h-8 flex-1 rounded bg-gradient-to-br ring-1', g, i === 0 ? 'ring-blue-400' : 'ring-white/10')} />
+              {['5', '8', '12', '14', '20'].map((n, i) => (
+                <div key={n} className={cn('relative h-8 flex-1 overflow-hidden rounded ring-1', i === 0 ? 'ring-blue-400' : 'ring-white/10')}>
+                  <img src={`/images/showcase/${n}.webp`} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                </div>
               ))}
               <span className="ml-1 flex-shrink-0 grid h-8 w-8 place-items-center rounded bg-blue-500/20 text-blue-300">
                 <Film size={14} />
