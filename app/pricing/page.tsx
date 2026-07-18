@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { planConfig, type PlanConfigData } from '@/lib/auth'
 import {
   Check,
   ArrowRight,
@@ -327,6 +328,8 @@ type Tier = {
   cta: string
   href: string
   highlight: boolean
+  origPrice?: string  // 할인 전 정가(취소선 표시용)
+  discountPct?: number
 }
 
 /* ===== 마케터 전용 플랜 ===== */
@@ -529,10 +532,23 @@ function PlanCard({ p, i, track }: { p: Tier; i: number; track: 'video' | 'marke
         )}
         <h3 className="text-lg font-semibold">{p.name}</h3>
         <p className="mt-1 text-sm text-[var(--text-soft)]">{t(p.desc)}</p>
-        <div className="mt-5 flex items-end gap-1">
-          <span className="text-4xl font-bold tracking-tight">{p.price}</span>
-          <span className="mb-1 text-sm text-[var(--text-dim)]">{t(p.period)}</span>
-        </div>
+        {p.origPrice && p.discountPct ? (
+          <div className="mt-5">
+            <div className="flex items-center gap-2">
+              <span className="rounded-md bg-rose-500/15 px-1.5 py-0.5 text-xs font-bold text-rose-300">{p.discountPct}% 할인</span>
+              <span className="text-sm text-[var(--text-dim)] line-through">{p.origPrice}</span>
+            </div>
+            <div className="mt-1 flex items-end gap-1">
+              <span className="text-4xl font-bold tracking-tight">{p.price}</span>
+              <span className="mb-1 text-sm text-[var(--text-dim)]">{t(p.period)}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-5 flex items-end gap-1">
+            <span className="text-4xl font-bold tracking-tight">{p.price}</span>
+            <span className="mb-1 text-sm text-[var(--text-dim)]">{t(p.period)}</span>
+          </div>
+        )}
         <ul className="mt-6 flex-1 space-y-3">
           {p.features.map((f) => (
             <li key={f} className="flex items-start gap-2.5 text-sm">
@@ -595,8 +611,31 @@ function TrackSection({
   )
 }
 
+const won = (n: number) => '₩' + Math.round(n || 0).toLocaleString('ko-KR')
+/** 관리자 설정(가격·할인·기능)을 하드코딩 기본 티어에 덮어써 실제 표시 티어를 만든다. */
+function applyConfig(base: Tier[], track: 'marketer' | 'video', cfg: PlanConfigData | null): Tier[] {
+  if (!cfg) return base
+  return base.map((tier) => {
+    const c = cfg[track]?.[tier.name]
+    if (!c) return tier
+    const disc = Math.max(0, Math.min(100, Number(c.discount) || 0))
+    const effective = Math.round((Number(c.price) || 0) * (1 - disc / 100))
+    return {
+      ...tier,
+      price: won(effective),
+      origPrice: disc > 0 ? won(c.price) : undefined,
+      discountPct: disc > 0 ? disc : undefined,
+      features: Array.isArray(c.features) && c.features.length ? c.features : tier.features,
+    }
+  })
+}
+
 export default function PricingPage() {
   const t = useT(M)
+  const [cfg, setCfg] = useState<PlanConfigData | null>(null)
+  useEffect(() => { planConfig().then((r) => { if (r.ok && r.config) setCfg(r.config) }) }, [])
+  const videoTiers = applyConfig(VIDEO_TIERS, 'video', cfg)
+  const marketerTiers = applyConfig(MARKETER_TIERS, 'marketer', cfg)
   return (
     <div className="site-dark min-h-screen overflow-x-hidden">
       <Navbar />
@@ -638,7 +677,7 @@ export default function PricingPage() {
             title="노드로 잇는"
             accent="AI 영상 스튜디오"
             desc="NODE STUDIO 노드 에디터에서 블록을 연결하듯 광고·숏폼 영상을 생성합니다. 크레딧 차감 방식이라, 만든 만큼만 비용이 나갑니다."
-            tiers={VIDEO_TIERS}
+            tiers={videoTiers}
             track="video"
           />
         </div>
@@ -653,7 +692,7 @@ export default function PricingPage() {
             title="마케팅, 한 화면에서"
             accent="끝냅니다"
             desc="DB 수집부터 유튜브·블로그·플레이스 분석, 문자·알림톡, CRM, 리포트까지. 흩어진 마케팅 도구를 하나로 합치는 올인원 트랙입니다."
-            tiers={MARKETER_TIERS}
+            tiers={marketerTiers}
             track="marketer"
           />
         </div>

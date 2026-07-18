@@ -1,6 +1,8 @@
 'use client'
 
 import Link from 'next/link'
+import { useState, useEffect } from 'react'
+import { planConfig, type PlanConfigData } from '@/lib/auth'
 import {
   ArrowRight,
   Check,
@@ -778,8 +780,24 @@ const PLANS = [
   },
 ]
 
+const wonH = (n: number) => '₩' + Math.round(n || 0).toLocaleString('ko-KR')
 export default function Home() {
   const t = useT(M)
+  const [planCfg, setPlanCfg] = useState<PlanConfigData | null>(null)
+  useEffect(() => { planConfig().then((r) => { if (r.ok && r.config) setPlanCfg(r.config) }) }, [])
+  const videoPlans = PLANS.map((p) => {
+    const c = planCfg?.video?.[p.name]
+    if (!c) return p as typeof p & { origPrice?: string; discountPct?: number }
+    const disc = Math.max(0, Math.min(100, Number(c.discount) || 0))
+    const effective = Math.round((Number(c.price) || 0) * (1 - disc / 100))
+    return {
+      ...p,
+      price: wonH(effective),
+      origPrice: disc > 0 ? wonH(c.price) : undefined,
+      discountPct: disc > 0 ? disc : undefined,
+      features: Array.isArray(c.features) && c.features.length ? c.features : p.features,
+    }
+  })
   return (
     <div className="site-dark min-h-screen overflow-x-hidden">
       <Navbar />
@@ -1240,7 +1258,7 @@ export default function Home() {
           </Reveal>
 
           <div className="mx-auto mt-16 grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {PLANS.map((p, i) => (
+            {videoPlans.map((p, i) => (
               <Reveal key={p.name} delay={i * 100} className={p.highlight ? 'lg:-mt-4' : ''}>
                 <div
                   className={`relative flex h-full flex-col rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1 ${
@@ -1256,10 +1274,23 @@ export default function Home() {
                   )}
                   <h3 className="text-lg font-semibold">{p.name}</h3>
                   <p className="mt-1 text-sm text-[var(--text-soft)]">{t(p.desc)}</p>
-                  <div className="mt-5 flex items-end gap-1">
-                    <span className="text-4xl font-bold tracking-tight">{t(p.price)}</span>
-                    <span className="mb-1 text-sm text-[var(--text-dim)]">{t(p.period)}</span>
-                  </div>
+                  {p.origPrice && p.discountPct ? (
+                    <div className="mt-5">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-md bg-rose-500/15 px-1.5 py-0.5 text-xs font-bold text-rose-300">{p.discountPct}% 할인</span>
+                        <span className="text-sm text-[var(--text-dim)] line-through">{p.origPrice}</span>
+                      </div>
+                      <div className="mt-1 flex items-end gap-1">
+                        <span className="text-4xl font-bold tracking-tight">{p.price}</span>
+                        <span className="mb-1 text-sm text-[var(--text-dim)]">{t(p.period)}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-5 flex items-end gap-1">
+                      <span className="text-4xl font-bold tracking-tight">{t(p.price)}</span>
+                      <span className="mb-1 text-sm text-[var(--text-dim)]">{t(p.period)}</span>
+                    </div>
+                  )}
                   <ul className="mt-6 flex-1 space-y-3">
                     {p.features.map((f) => (
                       <li key={f} className="flex items-start gap-2.5 text-sm">

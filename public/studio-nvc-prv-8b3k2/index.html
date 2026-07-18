@@ -3270,7 +3270,13 @@ function autosave(){
 }
 function saveViewSoon(){ autosave(); }
 
+var MAX_NODES=0;   // 요금제별 최대 노드 수 (0=무제한). /api/me 에서 설정.
 function addNode(type,x,y,skipSnap){
+  // 사용자 추가 경로에만 제한 적용(내부 시딩·로딩은 skipSnap=true 로 통과)
+  if(!skipSnap && MAX_NODES>0 && state.nodes.length>=MAX_NODES){
+    try{ toast('현재 요금제의 최대 노드 수('+MAX_NODES+'개)에 도달했어요. 상위 요금제로 업그레이드하면 더 많은 노드를 만들 수 있어요.'); }catch(e){}
+    return null;
+  }
   var def=DEFS[type], n={ id:uid(), type:type, x:Math.round(x), y:Math.round(y), w:{},
     collapsed:false, bypass:false, color:'', title:def.title };
   def.widgets.forEach(function(w){ if('def' in w) n.w[w.k]=w.def; else if(w.t==='textarea') n.w[w.k]=''; });
@@ -5269,6 +5275,7 @@ function showPlanGate(){
     .then(function(d){
       if(d && d.__noauth){ void 0; return loadAllForUser(); }  // 비로그인 → 통과(락아웃 방지)
       var u=(d&&d.user)||d;                                    // /api/me 는 {ok,user} 래핑
+      MAX_NODES=Number(d&&d.maxNodes)||0;                      // 요금제별 최대 노드 수
       if(u && u.id){ UID='u'+String(u.id); paintUserChip(u); }
       var isAdmin=u && u.role==='admin';
       if(u && u.id && !isAdmin && Number(u.hasPlan)!==1){ showPlanGate(); }  // 요금제 미활성 → 하드 게이트

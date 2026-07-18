@@ -22,6 +22,7 @@ import {
   Images,
   History,
   Banknote,
+  Tag,
   Menu,
   X,
   ArrowLeft,
@@ -49,6 +50,7 @@ const NAV = [
   { title: 'AI 생성 기록', href: `${ADMIN_BASE}/ai-generations`, icon: Images },
   { title: 'AI 정산', href: `${ADMIN_BASE}/ai-usage`, icon: Wallet },
   { title: 'AI 비용 (원가율)', href: `${ADMIN_BASE}/ai-pricing`, icon: Gauge },
+  { title: '요금제 관리', href: `${ADMIN_BASE}/plans`, icon: Tag },
   { title: '설정', href: '#', icon: Settings },
 ]
 

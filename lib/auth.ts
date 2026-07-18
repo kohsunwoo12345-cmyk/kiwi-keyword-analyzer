@@ -376,6 +376,21 @@ export async function adminSupportCount(): Promise<number> {
     return j?.unread || 0
   } catch { return 0 }
 }
+/* ── 요금제 설정 (관리자 편집 · 공개 조회) ── */
+export interface PlanTierCfg { price: number; discount: number; credits: number; maxNodes: number; features: string[]; effectivePrice?: number }
+export type PlanTrackKey = 'marketer' | 'video'
+export type PlanConfigData = { marketer: Record<string, PlanTierCfg>; video: Record<string, PlanTierCfg> }
+/** 공개: 요금제 페이지·홈·활성화에서 사용 */
+export async function planConfig(): Promise<{ ok: boolean; config?: PlanConfigData }> {
+  try { const r = await fetch('/api/plan-config', { cache: 'no-store' }); return await r.json() } catch { return { ok: false } }
+}
+export async function adminPlanConfig(): Promise<{ ok: boolean; config?: PlanConfigData; error?: string }> {
+  try { const r = await fetch('/api/admin/plan-config', { credentials: 'include', cache: 'no-store' }); return await r.json() } catch { return { ok: false, error: '네트워크 오류' } }
+}
+export async function adminPlanConfigSave(config: PlanConfigData): Promise<{ ok: boolean; config?: PlanConfigData; error?: string }> {
+  return postJson('/api/admin/plan-config', { action: 'save', config })
+}
+
 export interface AdminPendingCounts { ok: boolean; approvals: number; plans: number; credits: number; points: number; senders: number; team: number; contacts: number }
 export async function adminPendingCounts(): Promise<AdminPendingCounts> {
   try {

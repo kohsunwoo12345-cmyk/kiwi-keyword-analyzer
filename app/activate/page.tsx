@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
-import { useAuth, requestPlan, myPlanRequests, type PlanTrack } from '@/lib/auth'
+import { useAuth, requestPlan, myPlanRequests, planConfig, type PlanTrack, type PlanConfigData } from '@/lib/auth'
 
 /* 입금 계좌 정보 (PG 연동 전 · 계좌이체 후 승인 신청) */
 const BANK = {
@@ -49,6 +49,14 @@ export default function ActivatePage() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [copied, setCopied] = useState(false)
   const [reqs, setReqs] = useState<any[]>([])
+  const [planCfg, setPlanCfg] = useState<PlanConfigData | null>(null)
+  useEffect(() => { planConfig().then((r) => { if (r.ok && r.config) setPlanCfg(r.config) }) }, [])
+  // 관리자 설정의 실효가(할인 적용) 우선, 없으면 기본 PRICE
+  const priceOf = (tk: 'marketer' | 'video', pk: PlanKey): number => {
+    const c = planCfg?.[tk]?.[pk]
+    if (c) return Math.round((Number(c.price) || 0) * (1 - Math.max(0, Math.min(100, Number(c.discount) || 0)) / 100))
+    return PRICE[tk][pk]
+  }
 
   const loadReqs = () => myPlanRequests().then((r) => setReqs(r.requests || []))
   useEffect(() => {
@@ -226,7 +234,7 @@ export default function ActivatePage() {
                         className={`rounded-xl border p-3 text-center transition ${on ? 'border-violet-500/60 bg-violet-500/10' : 'border-white/10 bg-white/[0.02] hover:border-white/25'}`}
                       >
                         <div className="text-sm font-bold">{pk}</div>
-                        <div className="mt-0.5 text-xs text-[var(--text-soft)]">{won(PRICE[track][pk])}</div>
+                        <div className="mt-0.5 text-xs text-[var(--text-soft)]">{won(priceOf(track, pk))}</div>
                       </button>
                     )
                   })}
@@ -238,7 +246,7 @@ export default function ActivatePage() {
                     {TRACKS.find((t) => t.key === track)?.label} · {plan}
                   </span>
                   <span className="text-lg font-bold text-violet-200">
-                    {won(PRICE[track][plan])} <span className="text-xs font-medium text-[var(--text-dim)]">/월</span>
+                    {won(priceOf(track, plan))} <span className="text-xs font-medium text-[var(--text-dim)]">/월</span>
                   </span>
                 </div>
 
