@@ -284,6 +284,57 @@ export default function AdminAiUsagePage() {
               </Panel>
             </Reveal>
 
+            {/* 일별 환율·정산 */}
+            <Reveal>
+              <Panel
+                title={
+                  <span className="flex items-center gap-2">
+                    <TrendingUp size={16} className="text-violet-500" /> 일별 환율·정산 (KST)
+                  </span>
+                }
+              >
+                <p className="mb-3 text-xs text-[var(--text-dim)]">
+                  각 날짜에 실제 적용된 환율($1=₩)과 그날의 생성·비용·매출입니다. 환율은 생성 시점의 실시간 환율이 건별로 저장되어 자동 반영됩니다.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-sm">
+                    <thead>
+                      <tr className={THEAD}>
+                        <th className={TH}>날짜</th>
+                        <th className={cn(TH, 'text-right')}>환율 ($1=₩)</th>
+                        <th className={cn(TH, 'text-right')}>생성</th>
+                        <th className={cn(TH, 'text-right')}>크레딧</th>
+                        <th className={cn(TH, 'text-right')}>AI 비용</th>
+                        <th className={cn(TH, 'text-right')}>매출</th>
+                        <th className={cn(TH, 'text-right')}>순이익</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(data.byDay ?? []).map((d) => (
+                        <tr key={d.d} className={TR}>
+                          <td className={cn(TD, 'font-medium tabular-nums')}>{d.d}</td>
+                          <td className={cn(TD, 'text-right tabular-nums font-semibold text-violet-500')}>
+                            ₩{num(d.rate)}
+                            {d.rateMin !== d.rateMax && (
+                              <span className="ml-1 text-[11px] font-normal text-[var(--text-dim)]">({num(d.rateMin)}~{num(d.rateMax)})</span>
+                            )}
+                          </td>
+                          <td className={cn(TD, 'text-right tabular-nums')}>{num(d.count)}</td>
+                          <td className={cn(TD, 'text-right tabular-nums text-[var(--text-soft)]')}>{num(d.credits)}</td>
+                          <td className={cn(TD, 'text-right tabular-nums text-rose-500')}>{krw(d.cost)}</td>
+                          <td className={cn(TD, 'text-right tabular-nums')}>{krw(d.revenue)}</td>
+                          <td className={cn(TD, 'text-right font-semibold tabular-nums text-emerald-600')}>{krw(d.profit)}</td>
+                        </tr>
+                      ))}
+                      {(data.byDay ?? []).length === 0 && (
+                        <tr><td colSpan={7} className={cn(TD, 'py-6 text-center text-[var(--text-dim)]')}>아직 생성 내역이 없습니다.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Panel>
+            </Reveal>
+
             {/* 상세 내역 */}
             <Reveal>
               <Panel

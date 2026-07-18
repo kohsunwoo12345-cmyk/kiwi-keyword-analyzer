@@ -32,8 +32,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     } catch { /* table 없음 */ }
     const gsur = await getSetting(db, 'ref_surcharge_pct')
     const refDefault = gsur != null && gsur !== '' && Number(gsur) >= 0 ? Number(gsur) : REF_SURCHARGE_DEFAULT
-    const pgc = await getSetting(db, 'promptgen_credits')
-    const promptgenCredits = pgc != null && pgc !== '' && Number(pgc) >= 0 ? Number(pgc) : 1
+    const pgm = await getSetting(db, 'promptgen_markup')
+    const promptgenMarkup = pgm != null && pgm !== '' && isFinite(Number(pgm)) ? Math.max(1, Number(pgm)) : 2.5
+    const pgRate = await getUsdKrw(db)
+    const PROMPT_BASE_USD = 0.005
+    const promptgenCredits = Math.round((PROMPT_BASE_USD * pgRate / CREDIT_KRW) * promptgenMarkup * 100) / 100
     return json({
       ok: true,
       users: (rows as any[]).map((u) => ({
@@ -45,6 +48,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       })),
       defaultMarkup: { video: 3.0, image: 2.5 },
       refSurchargeDefault: refDefault,
+      promptgenMarkup,
       promptgenCredits,
     })
   }
@@ -180,14 +184,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     await logAudit(db, admin, 'global_ref_surcharge', '전역', pct + '%/장', 'high', ip)
     return json({ ok: true, pct })
   }
-  // 프롬프트 작성(GPT·Gemini) 크레딧 비용 — 전역
+  // 프롬프트 작성(GPT·Gemini) 배수(원가율) — 전역, 원가 이하(1 미만) 불가
   if (action === 'set_promptgen') {
-    let c = Number(b.credits)
-    if (!isFinite(c) || c < 0) c = 0
-    c = Math.round(c * 100) / 100
-    await setSetting(db, 'promptgen_credits', String(c))
-    await logAudit(db, admin, 'promptgen_credits', '전역', c + ' 크레딧', 'info', ip)
-    return json({ ok: true, credits: c })
+    const mk = clampMk(b.markup)
+    await setSetting(db, 'promptgen_markup', String(mk))
+    await logAudit(db, admin, 'promptgen_markup', '전역', '×' + mk, 'info', ip)
+    return json({ ok: true, markup: mk })
   }
   return json({ ok: false, error: '알 수 없는 작업입니다.' }, 400)
 }

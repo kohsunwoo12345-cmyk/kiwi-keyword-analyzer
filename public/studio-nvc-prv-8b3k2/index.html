@@ -219,9 +219,23 @@ button .ico{ margin-right:5px; }
 #rail .rail-sp{ flex:1; }
 
 /* ── 노드 라이브러리 패널 ── */
-#libPanel{ position:fixed; left:44px; top:40px; bottom:0; width:240px; z-index:54; display:none;
-  background:#1e1e1e; border-right:1px solid #000; flex-direction:column; }
-#libPanel.show{ display:flex; }
+#libPanel{ position:fixed; left:44px; top:40px; bottom:0; width:240px; z-index:54; display:flex;
+  background:#1e1e1e; border-right:1px solid #000; flex-direction:column;
+  transform:translateX(-14px); opacity:0; visibility:hidden; pointer-events:none;
+  transition:transform .26s cubic-bezier(.22,1,.36,1), opacity .22s ease, visibility .26s; }
+#libPanel.show{ transform:translateX(0); opacity:1; visibility:visible; pointer-events:auto; }
+/* 라이브러리 항목이 순차적으로 부드럽게 나타나도록 */
+@keyframes libItemIn{ from{ opacity:0; transform:translateX(-8px); } to{ opacity:1; transform:translateX(0); } }
+#libPanel.show .lib-cat,#libPanel.show .lib-item{ animation:libItemIn .34s cubic-bezier(.22,1,.36,1) both; }
+#libPanel.show .lib-body>*:nth-child(1){ animation-delay:.02s; }
+#libPanel.show .lib-body>*:nth-child(2){ animation-delay:.05s; }
+#libPanel.show .lib-body>*:nth-child(3){ animation-delay:.08s; }
+#libPanel.show .lib-body>*:nth-child(4){ animation-delay:.11s; }
+#libPanel.show .lib-body>*:nth-child(5){ animation-delay:.14s; }
+#libPanel.show .lib-body>*:nth-child(6){ animation-delay:.17s; }
+#libPanel.show .lib-body>*:nth-child(7){ animation-delay:.20s; }
+#libPanel.show .lib-body>*:nth-child(8){ animation-delay:.23s; }
+#libPanel.show .lib-body>*:nth-child(n+9){ animation-delay:.26s; }
 .lib-head{ padding:12px 12px 8px; font-size:11px; font-weight:800; color:#aaa; letter-spacing:.08em; }
 .lib-head input{ display:block; width:100%; margin-top:8px; background:#141414; border:1px solid #333;
   border-radius:7px; color:#eee; font-size:12px; padding:7px 10px; outline:none; }

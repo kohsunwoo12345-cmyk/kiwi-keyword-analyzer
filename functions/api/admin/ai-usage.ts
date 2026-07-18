@@ -20,7 +20,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     return r || {}
   }
 
-  const [totals, byUser, byModel, recent] = await Promise.all([
+  const [totals, byUser, byModel, recent, byDay] = await Promise.all([
     one(
       `SELECT COUNT(*) AS count, COALESCE(SUM(revenue_krw),0) AS revenue,
               COALESCE(SUM(cost_krw),0) AS cost, COALESCE(SUM(credits),0) AS credits
@@ -47,6 +47,15 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     rows(
       `SELECT created_at, name, email, model, provider, kind, credits, cost_krw, revenue_krw, markup, usd_krw
        FROM ai_usage WHERE created_at > ? ORDER BY created_at DESC LIMIT 300`,
+      since,
+    ),
+    // 일별(KST) 집계 + 그날 적용된 환율
+    rows(
+      `SELECT substr(datetime(created_at, '+9 hours'),1,10) AS d, COUNT(*) AS count,
+              COALESCE(SUM(credits),0) AS credits, COALESCE(SUM(revenue_krw),0) AS revenue,
+              COALESCE(SUM(cost_krw),0) AS cost, AVG(usd_krw) AS rate, MAX(usd_krw) AS rateMax, MIN(usd_krw) AS rateMin
+       FROM ai_usage WHERE created_at > ?
+       GROUP BY d ORDER BY d DESC LIMIT 400`,
       since,
     ),
   ])
@@ -102,6 +111,17 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       profit: (Number(r.revenue_krw) || 0) - (Number(r.cost_krw) || 0),
       markup: Number(r.markup) || 0,
       usdKrw: Number(r.usd_krw) || 0,
+    })),
+    byDay: byDay.map((r: any) => ({
+      d: r.d,
+      count: Number(r.count) || 0,
+      credits: Number(r.credits) || 0,
+      revenue: Number(r.revenue) || 0,
+      cost: Number(r.cost) || 0,
+      profit: (Number(r.revenue) || 0) - (Number(r.cost) || 0),
+      rate: Math.round(Number(r.rate) || 0),
+      rateMin: Math.round(Number(r.rateMin) || 0),
+      rateMax: Math.round(Number(r.rateMax) || 0),
     })),
   })
 }

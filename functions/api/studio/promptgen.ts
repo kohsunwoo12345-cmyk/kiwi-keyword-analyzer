@@ -1,9 +1,13 @@
 import { Env, json, resolveDB, ensureSchema, getSessionUser, getSetting, applyBalance } from '../_utils'
+import { getUsdKrw, CREDIT_KRW } from './_pricing'
 
 function pick(env: any, names: string[]): string {
   for (const n of names) { const v = env?.[n]; if (v) return String(v) }
   return ''
 }
+
+// 프롬프트 작성 1회 원가(USD) — LLM 텍스트 생성 대략 원가
+const PROMPT_BASE_USD = 0.005
 
 const SYS = `You are a world-class prompt engineer for AI image and video generation models (Seedance, Veo, Flux, Nano Banana, etc.).
 Given a user's brief, write ONE vivid, concrete, production-ready generation prompt in English.
@@ -12,10 +16,18 @@ Rules:
 - Be specific about subject, composition, lighting, mood, camera, lens, color, and style.
 - For video, include motion/camera movement. Keep it under 120 words.`
 
-// 프롬프트 작성 크레딧 비용 (관리자 ai-pricing 에서 조절, 기본 1)
+// 프롬프트 작성 배수(원가율) — 관리자 ai-pricing 에서 조절, 기본 2.5, 원가 이하(1 미만) 불가
+async function promptMarkup(db: any): Promise<number> {
+  try { const v = await getSetting(db, 'promptgen_markup'); const n = Number(v); if (v != null && v !== '' && isFinite(n)) return Math.max(1, n) } catch {}
+  return 2.5
+}
+// 실제 차감 크레딧 = 원가(USD) × 환율 / 크레딧단가 × 배수
 async function promptCost(db: any): Promise<number> {
-  try { const v = await getSetting(db, 'promptgen_credits'); const n = Number(v); if (v != null && isFinite(n) && n >= 0) return Math.round(n * 100) / 100 } catch {}
-  return 1
+  const markup = await promptMarkup(db)
+  let rate = 1350
+  try { rate = await getUsdKrw(db) } catch {}
+  const credits = (PROMPT_BASE_USD * rate / CREDIT_KRW) * markup
+  return Math.round(credits * 100) / 100
 }
 
 // POST /api/studio/promptgen { provider, model, brief, kind } → { ok, prompt }

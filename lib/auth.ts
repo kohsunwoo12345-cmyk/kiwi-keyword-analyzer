@@ -239,11 +239,16 @@ export interface AiUsageRow {
   created_at: string; name: string; email: string; model: string; provider: string
   kind: string; credits: number; cost: number; revenue: number; profit: number; markup: number; usdKrw?: number
 }
+export interface AiUsageDay {
+  d: string; count: number; credits: number; revenue: number; cost: number; profit: number
+  rate: number; rateMin: number; rateMax: number
+}
 export interface AiUsageStats {
   ok: boolean; error?: string; days?: number; todayRate?: number
   totals?: { count: number; credits: number; revenue: number; cost: number; profit: number }
   byUser?: AiUsageUser[]
   byModel?: AiUsageModel[]
+  byDay?: AiUsageDay[]
   recent?: AiUsageRow[]
 }
 export async function adminAiUsage(days = 30): Promise<AiUsageStats> {
@@ -405,7 +410,7 @@ export interface UserMarkupRow {
   credits: number; overall: number; overrides: number
   refSurcharge: number | null
 }
-export async function adminUserMarkups(q = ''): Promise<{ ok: boolean; error?: string; users?: UserMarkupRow[]; defaultMarkup?: { video: number; image: number }; refSurchargeDefault?: number; promptgenCredits?: number }> {
+export async function adminUserMarkups(q = ''): Promise<{ ok: boolean; error?: string; users?: UserMarkupRow[]; defaultMarkup?: { video: number; image: number }; refSurchargeDefault?: number; promptgenCredits?: number; promptgenMarkup?: number }> {
   try {
     const r = await fetch('/api/admin/model-pricing?list=users' + (q ? `&q=${encodeURIComponent(q)}` : ''), { credentials: 'include', cache: 'no-store' })
     return await r.json()
