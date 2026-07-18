@@ -1,10 +1,11 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB } from '../_utils'
-import { CREDIT_KRW } from '../studio/_pricing'
+
+// 추가 크레딧 판매 단가(원/크레딧). 요금제 정산 기준(50원)과 별개로 65원.
+export const TOPUP_KRW = 65
 
 // 크레딧 수량 → 결제 금액(원) 서버측 산정 (클라이언트 조작 방지).
-// 1크레딧 = CREDIT_KRW(50원) 로 균일 환산.
 function priceFor(credits: number): number {
-  return Math.round(credits * CREDIT_KRW)
+  return Math.round(credits * TOPUP_KRW)
 }
 
 // POST /api/payments/prepare { credits } → Toss 주문 생성(orderId/amount 반환)
