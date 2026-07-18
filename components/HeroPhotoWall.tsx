@@ -22,7 +22,7 @@ export function HeroPhotoWall() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden bg-[#05070e]">
       {/* 움직이는 사진 열 */}
-      <div className="absolute inset-0 flex justify-center gap-2.5 opacity-[0.42] [transform:scale(1.18)] sm:gap-3">
+      <div className="absolute inset-0 flex justify-center gap-2.5 opacity-[0.62] [transform:scale(1.18)] sm:gap-3">
         {COLS.map((col, ci) => (
           <div key={ci} className={cn('relative w-1/3 flex-shrink-0 sm:w-[16.5%]', ci >= 4 && 'hidden sm:block')}>
             <div
@@ -50,10 +50,11 @@ export function HeroPhotoWall() {
       <div className="animate-drift absolute left-[16%] top-[8%] h-[300px] w-[420px] rounded-full bg-cyan-500/12 blur-[120px]" />
       <div className="animate-drift-slow absolute right-[14%] top-[16%] h-[320px] w-[440px] rounded-full bg-indigo-500/14 blur-[130px]" />
 
-      {/* 가독성용 어두운 오버레이 (사진은 은은히 비치고 문구는 선명하게) */}
-      <div className="absolute inset-0 bg-[#05070e]/68" />
-      <div className="absolute inset-0 bg-gradient-to-b from-[#05070e]/85 via-[#05070e]/45 to-[var(--bg)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(78%_60%_at_50%_34%,transparent,rgba(5,7,14,0.82))]" />
+      {/* 가독성용 어두운 오버레이 (사진이 더 선명히 비치도록 완화) */}
+      <div className="absolute inset-0 bg-[#05070e]/42" />
+      <div className="absolute inset-0 bg-gradient-to-b from-[#05070e]/70 via-[#05070e]/20 to-[var(--bg)]" />
+      {/* 문구 뒤만 살짝 어둡게(가독성) */}
+      <div className="absolute inset-0 bg-[radial-gradient(60%_46%_at_50%_36%,rgba(5,7,14,0.62),transparent_75%)]" />
       {/* 미세 그리드 */}
       <div
         className="absolute inset-0 opacity-[0.10]"

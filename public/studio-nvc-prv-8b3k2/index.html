@@ -1123,6 +1123,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
         <button class="pf-navi" data-sec="plan" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/></svg></span>요금제</button>
         <button class="pf-navi" data-sec="settings" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>설정</button>
         <button class="pf-navi" data-sec="lang" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>언어</button>
+        <button class="pf-navi" data-sec="invite" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></span>친구초대</button>
         <button class="pf-navi" data-sec="account" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>계정</button>
         <button class="pf-navi" data-sec="mcp" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6M7 8h10v3a5 5 0 0 1-10 0z"/><path d="M12 16v6"/></svg></span>MCP 연결</button>
       </nav>
@@ -1143,6 +1144,20 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
         </div>
         <h4 class="pf-h4">사용 내역 (크레딧 차감)</h4>
         <div class="pf-uselist" id="pfUseList"><div class="pf-usemsg">불러오는 중…</div></div>
+      </section>
+
+      <section class="pf-pane" data-pane="invite">
+        <h3 class="pf-h3">친구초대</h3>
+        <p style="font-size:12.5px;color:#a9a2bd;line-height:1.6;margin:0 0 12px;">아래 링크로 친구를 초대하세요. 친구가 이 링크로 가입하고 요금제를 결제하면 결제액의 <b style="color:#c3a8ff">1%</b>를 크레딧으로 받습니다.</p>
+        <div class="pf-sec" style="border-top:none;padding-top:0;">
+          <h4 class="pf-h4">내 초대 링크</h4>
+          <div style="display:flex;gap:6px;">
+            <input id="pfInviteLink" readonly style="flex:1;background:#151517;border:1px solid #2f2f37;border-radius:9px;color:#e6e6ea;padding:9px 11px;font-size:12px;font-family:inherit;outline:none;" value="">
+            <button id="pfInviteCopy" class="wbtn" style="width:auto;padding:0 14px;height:auto;">복사</button>
+          </div>
+          <h4 class="pf-h4" style="margin-top:14px;">내 추천 코드</h4>
+          <div id="pfInviteCode" style="font-size:16px;font-weight:800;letter-spacing:2px;color:#c3a8ff;">-</div>
+        </div>
       </section>
 
       <section class="pf-pane" data-pane="billing">
@@ -3350,7 +3365,7 @@ function widgetHTML(n,w){
             : n.w.srcVideoUrl ? '<div class="refcnt" style="color:#8fe6b8">'+ICON.check+' V2V 가능 — 어떤 모델이든 원본 프레임을 이어받아 변환됩니다. (최고정확도는 "V2V 자동" 또는 "Runway Aleph")</div>' : '';
     return grid+
       (cnt?'<div class="refcnt">'+cnt+'</div>':'')+ v2v+
-      '<button class="wbtn" data-upload>'+(w.addref?'＋ 레퍼런스 추가 (이미지·영상)':'내 PC에서 업로드 (이미지·영상, 여러 개)')+'</button>'+
+      (imgs.length?'<button class="wbtn" data-upload style="height:24px;">＋ 추가</button>':'')+
       '<input type="file" accept="image/*,video/*,.mp4,.mov,.webm,.m4v,.avi,.mkv,.gif" multiple data-file style="display:none">';
   }
   if(w.t==='videoout'){
@@ -4851,7 +4866,7 @@ function loadUsage(){
 function openProfile(){
   var back=pfEl('pfBack'); if(!back)return;
   back.classList.add('on');
-  pfShowSec('usage');
+  pfShowSec('invite');   // 프로필 열면 친구초대가 먼저 보이게
   pfSetText('pfPwMsg',''); pfSetText('pfDelMsg','');
   fetch('/api/account/overview',{credentials:'include',cache:'no-store'})
     .then(function(r){ return r.json(); })
@@ -4872,6 +4887,10 @@ function openProfile(){
       var dpw=pfEl('pfDelPw'); if(dpw)dpw.style.display=social?'none':'';
       var dem=pfEl('pfDelEmail'); if(dem)dem.style.display=social?'':'none';
       pfSetText('pfDelDesc','계정을 삭제하면 모든 데이터가 영구히 삭제되며 되돌릴 수 없습니다. 확인을 위해 '+(social?'계정 이메일 주소를':'비밀번호를')+' 입력해 주세요.');
+      // 친구초대 링크·코드
+      var rc=u.referralCode||''; var origin=(location.origin||'');
+      var li=pfEl('pfInviteLink'); if(li)li.value=rc?(origin+'/signup?ref='+encodeURIComponent(rc)):(origin+'/signup');
+      var cc=pfEl('pfInviteCode'); if(cc)cc.textContent=rc||'-';
     })
     .catch(function(){ pfSetText('pfName','불러오기 실패'); });
 }
@@ -4893,6 +4912,13 @@ function wireProfile(){
   var mc=pfEl('pfMcpCopy'); if(mc)mc.addEventListener('click',function(){
     var i=pfEl('pfMcpUrl'); if(!i)return; var v=i.value||((location.origin||'')+'/api/mcp');
     function ok(){ var o=mc.textContent; mc.textContent='복사됨 ✓'; setTimeout(function(){ mc.textContent=o; },1400); }
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(ok).catch(function(){ i.select(); document.execCommand('copy'); ok(); }); }
+    else { i.select(); document.execCommand('copy'); ok(); }
+  });
+  // 친구초대 링크 복사
+  var ic=pfEl('pfInviteCopy'); if(ic)ic.addEventListener('click',function(){
+    var i=pfEl('pfInviteLink'); if(!i)return; var v=i.value||'';
+    function ok(){ var o=ic.textContent; ic.textContent='복사됨 ✓'; setTimeout(function(){ ic.textContent=o; },1400); }
     if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(ok).catch(function(){ i.select(); document.execCommand('copy'); ok(); }); }
     else { i.select(); document.execCommand('copy'); ok(); }
   });
@@ -5283,6 +5309,134 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
 
   renderAnnos();
 })();
+})();
+
+/* ════════════════════════════════════════════════════════════════════════
+   팀워크 채팅 — 우하단 채팅 버튼. 팀 생성 · 아이디(이메일)로 초대 · 팀 채팅.
+   스튜디오 내부 상태에 의존하지 않는 독립 모듈.
+   ════════════════════════════════════════════════════════════════════════ */
+(function(){
+  var meId=null, meName='', teams=[], curTeam=null, lastTs='', pollTimer=null, open=false;
+  var esc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); };
+  function api(method, body){
+    var opt={ method:method, credentials:'include', headers:{'Content-Type':'application/json'} };
+    if(body)opt.body=JSON.stringify(body);
+    return fetch('/api/team'+(method==='GET'&&body?body:''), method==='GET'?{credentials:'include',cache:'no-store'}:opt).then(function(r){return r.json();});
+  }
+  function post(body){ return fetch('/api/team',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json();}); }
+  function get(qs){ return fetch('/api/team'+(qs||''),{credentials:'include',cache:'no-store'}).then(function(r){return r.json();}); }
+
+  // 스타일
+  var css=document.createElement('style'); css.textContent=
+  '#twBtn{position:fixed;right:20px;bottom:20px;z-index:9000;width:54px;height:54px;border-radius:50%;border:none;cursor:pointer;'+
+  'background:linear-gradient(135deg,#7c5cff,#a855f7);color:#fff;box-shadow:0 12px 30px -8px rgba(139,92,246,.6);display:flex;align-items:center;justify-content:center;font-size:24px;transition:transform .15s;}'+
+  '#twBtn:hover{transform:scale(1.06);} #twBtn .twdot{position:absolute;top:-2px;right:-2px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:#ef4455;color:#fff;font-size:10px;font-weight:800;display:none;align-items:center;justify-content:center;}'+
+  '#twPanel{position:fixed;right:20px;bottom:84px;z-index:9001;width:340px;max-width:calc(100vw - 32px);height:498px;max-height:calc(100vh - 120px);display:none;flex-direction:column;'+
+  'background:linear-gradient(180deg,#171226,#111019);border:1px solid rgba(139,92,246,.28);border-radius:18px;box-shadow:0 30px 80px -20px rgba(0,0,0,.8);color:#e9e3f6;font-family:inherit;overflow:hidden;}'+
+  '#twPanel.on{display:flex;} .tw-hd{display:flex;align-items:center;gap:8px;padding:13px 14px;border-bottom:1px solid rgba(255,255,255,.08);font-weight:800;font-size:14px;}'+
+  '.tw-hd .tw-x{margin-left:auto;cursor:pointer;color:#9a93ac;font-size:18px;line-height:1;} .tw-body{flex:1;overflow-y:auto;padding:12px 13px;}'+
+  '.tw-sel{width:100%;background:#0f0d18;border:1px solid #2c2740;border-radius:10px;color:#e9e3f6;padding:8px 10px;font-size:12.5px;font-family:inherit;margin-bottom:8px;}'+
+  '.tw-in{flex:1;background:#0f0d18;border:1px solid #2c2740;border-radius:10px;color:#e9e3f6;padding:8px 10px;font-size:12.5px;font-family:inherit;outline:none;}'+
+  '.tw-in:focus{border-color:#7c5cff;} .tw-btn{background:linear-gradient(135deg,#7c5cff,#a855f7);border:none;color:#fff;border-radius:10px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;}'+
+  '.tw-ghost{background:transparent;border:1px solid #2c2740;color:#c3b9e0;} .tw-row{display:flex;gap:6px;margin-bottom:8px;}'+
+  '.tw-mem{display:inline-flex;align-items:center;gap:5px;background:#1c1830;border:1px solid #2c2740;border-radius:20px;padding:3px 9px;font-size:11px;margin:0 4px 4px 0;}'+
+  '.tw-inv{background:#1c1830;border:1px solid rgba(139,92,246,.3);border-radius:12px;padding:9px 11px;margin-bottom:8px;font-size:12px;}'+
+  '.tw-msgs{flex:1;overflow-y:auto;padding:10px 13px;display:flex;flex-direction:column;gap:8px;} .tw-msg{max-width:80%;padding:7px 10px;border-radius:12px;font-size:12.5px;line-height:1.45;word-break:break-word;}'+
+  '.tw-msg.me{align-self:flex-end;background:linear-gradient(135deg,#7c5cff,#a855f7);color:#fff;border-bottom-right-radius:4px;} .tw-msg.them{align-self:flex-start;background:#211d33;color:#e9e3f6;border-bottom-left-radius:4px;}'+
+  '.tw-msg .tw-nm{display:block;font-size:9.5px;opacity:.7;margin-bottom:2px;} .tw-foot{display:flex;gap:6px;padding:10px 12px;border-top:1px solid rgba(255,255,255,.08);}'+
+  '.tw-err{color:#ef8a9a;font-size:11.5px;margin:4px 0 2px;} .tw-hint{color:#8b84a0;font-size:11.5px;line-height:1.5;} .tw-lbl{font-size:10.5px;font-weight:800;color:#9a8fc0;letter-spacing:.4px;margin:10px 0 5px;}';
+  function mount(){
+    if(document.getElementById('twBtn'))return;
+    document.head.appendChild(css);
+    var btn=document.createElement('button'); btn.id='twBtn'; btn.title='팀워크 채팅'; btn.innerHTML='💬<span class="twdot" id="twDot">0</span>';
+    var panel=document.createElement('div'); panel.id='twPanel';
+    document.body.appendChild(btn); document.body.appendChild(panel);
+    btn.addEventListener('click',toggle);
+  }
+  function toggle(){ open=!open; var p=document.getElementById('twPanel'); p.classList.toggle('on',open); if(open){ curTeam=null; refresh(); } else stopPoll(); }
+  function stopPoll(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
+
+  function refresh(){
+    get('').then(function(d){
+      if(!d||!d.ok){ renderNeedLogin(); return; }
+      meId=d.meId; meName=d.meName||''; teams=d.teams||[];
+      var dot=document.getElementById('twDot'); if(dot){ var n=(d.invites||[]).length; dot.textContent=n; dot.style.display=n>0?'flex':'none'; }
+      if(curTeam) renderChat(); else renderHome(d.invites||[]);
+    }).catch(renderNeedLogin);
+  }
+  function renderNeedLogin(){ var p=document.getElementById('twPanel'); p.innerHTML=
+    '<div class="tw-hd">팀워크<span class="tw-x" data-twx>×</span></div><div class="tw-body"><p class="tw-hint">로그인 후 팀을 만들고 팀원과 채팅할 수 있어요.</p></div>';
+    bindX(); }
+
+  function renderHome(invites){
+    stopPoll();
+    var p=document.getElementById('twPanel');
+    var invHtml=invites.length ? '<div class="tw-lbl">받은 초대</div>'+invites.map(function(iv){
+      return '<div class="tw-inv"><b>'+esc(iv.teamName)+'</b> · '+esc(iv.fromName)+'님<div class="tw-row" style="margin-top:7px;margin-bottom:0;">'+
+        '<button class="tw-btn" data-acc="'+esc(iv.id)+'">수락</button><button class="tw-btn tw-ghost" data-dec="'+esc(iv.id)+'">거절</button></div></div>';
+    }).join('') : '';
+    var teamHtml = teams.length ? '<div class="tw-lbl">내 팀</div>'+teams.map(function(t){
+      return '<div class="tw-inv" style="cursor:pointer;display:flex;align-items:center;gap:8px;" data-team="'+esc(t.id)+'"><span style="font-size:16px;">👥</span><b style="flex:1;">'+esc(t.name)+'</b><span class="tw-hint">'+(t.members?t.members.length:1)+'명</span></div>';
+    }).join('') : '<p class="tw-hint">아직 팀이 없어요. 새 팀을 만들어 팀원을 초대하세요.</p>';
+    p.innerHTML='<div class="tw-hd">👥 팀워크<span class="tw-x" data-twx>×</span></div>'+
+      '<div class="tw-body">'+invHtml+
+      '<div class="tw-lbl">새 팀 만들기</div><div class="tw-row"><input class="tw-in" id="twNewName" placeholder="팀 이름 (예: 마케팅팀)" maxlength="40"><button class="tw-btn" data-newteam>만들기</button></div>'+
+      teamHtml+'</div>';
+    bindX();
+    p.querySelector('[data-newteam]').addEventListener('click',function(){
+      var nm=(p.querySelector('#twNewName').value||'').trim(); if(!nm)return;
+      post({action:'create',name:nm}).then(function(r){ if(r.ok){ refresh(); } else alert(r.error||'실패'); });
+    });
+    Array.prototype.forEach.call(p.querySelectorAll('[data-team]'),function(el){ el.addEventListener('click',function(){ curTeam=teams.filter(function(t){return t.id===el.getAttribute('data-team');})[0]; lastTs=''; renderChat(); }); });
+    Array.prototype.forEach.call(p.querySelectorAll('[data-acc]'),function(el){ el.addEventListener('click',function(){ post({action:'respond',inviteId:el.getAttribute('data-acc'),accept:true}).then(refresh); }); });
+    Array.prototype.forEach.call(p.querySelectorAll('[data-dec]'),function(el){ el.addEventListener('click',function(){ post({action:'respond',inviteId:el.getAttribute('data-dec'),accept:false}).then(refresh); }); });
+  }
+
+  function renderChat(){
+    var t=curTeam; if(!t)return renderHome([]);
+    var p=document.getElementById('twPanel');
+    var mems=(t.members||[]).map(function(m){ return '<span class="tw-mem">'+esc(m.name||m.email)+(m.role==='owner'?' 👑':'')+'</span>'; }).join('');
+    p.innerHTML='<div class="tw-hd"><span class="tw-x" data-twback style="margin-left:0;margin-right:2px;">‹</span>'+esc(t.name)+'<span class="tw-x" data-twx>×</span></div>'+
+      '<div style="padding:9px 13px 4px;border-bottom:1px solid rgba(255,255,255,.06);">'+mems+
+      '<div class="tw-row" style="margin-top:7px;margin-bottom:2px;"><input class="tw-in" id="twInvite" placeholder="초대할 아이디(이메일) 입력"><button class="tw-btn" data-inv>초대</button></div>'+
+      '<div class="tw-err" id="twInvErr" style="display:none;"></div></div>'+
+      '<div class="tw-msgs" id="twMsgs"></div>'+
+      '<div class="tw-foot"><input class="tw-in" id="twMsg" placeholder="메시지 입력…"><button class="tw-btn" data-send>전송</button></div>';
+    bindX();
+    p.querySelector('[data-twback]').addEventListener('click',function(){ curTeam=null; stopPoll(); refresh(); });
+    var invErr=p.querySelector('#twInvErr');
+    p.querySelector('[data-inv]').addEventListener('click',function(){
+      var v=(p.querySelector('#twInvite').value||'').trim(); if(!v)return;
+      invErr.style.display='none';
+      post({action:'invite',teamId:t.id,ident:v}).then(function(r){
+        if(r.ok){ p.querySelector('#twInvite').value=''; invErr.style.color='#8fe6b8'; invErr.textContent=(r.invitedName||v)+'님에게 초대를 보냈어요.'; invErr.style.display='block'; }
+        else { invErr.style.color='#ef8a9a'; invErr.textContent=r.error||'초대 실패'; invErr.style.display='block'; }
+      });
+    });
+    function send(){ var mi=p.querySelector('#twMsg'); var v=(mi.value||'').trim(); if(!v)return; mi.value='';
+      post({action:'send',teamId:t.id,text:v}).then(function(r){ if(r.ok)loadMsgs(); }); }
+    p.querySelector('[data-send]').addEventListener('click',send);
+    p.querySelector('#twMsg').addEventListener('keydown',function(e){ if(e.key==='Enter'&&!e.isComposing){ e.preventDefault(); send(); } });
+    lastTs=''; loadMsgs(true); stopPoll(); pollTimer=setInterval(loadMsgs,3500);
+  }
+  function loadMsgs(scroll){
+    if(!curTeam)return;
+    get('?messages='+encodeURIComponent(curTeam.id)+'&after='+encodeURIComponent(lastTs)).then(function(d){
+      if(!d||!d.ok)return; var box=document.getElementById('twMsgs'); if(!box)return;
+      (d.messages||[]).forEach(function(m){
+        lastTs=m.created_at;
+        var el=document.createElement('div'); el.className='tw-msg '+(m.user_id===meId?'me':'them');
+        el.innerHTML=(m.user_id===meId?'':'<span class="tw-nm">'+esc(m.name||'팀원')+'</span>')+esc(m.text);
+        box.appendChild(el);
+      });
+      if((d.messages||[]).length||scroll) box.scrollTop=box.scrollHeight;
+    });
+  }
+  function bindX(){ var p=document.getElementById('twPanel'); var x=p.querySelector('[data-twx]'); if(x)x.addEventListener('click',function(){ open=false; p.classList.remove('on'); stopPoll(); }); }
+
+  // 로그인 사용자에게만 노출
+  function boot(){ fetch('/api/me',{cache:'no-store'}).then(function(r){return r.status===401?null:r.json();}).then(function(d){ var u=d&&(d.user||d); if(u&&u.id) mount(); }).catch(function(){}); }
+  if(document.body)boot(); else document.addEventListener('DOMContentLoaded',boot);
 })();
 </script>
 </body>

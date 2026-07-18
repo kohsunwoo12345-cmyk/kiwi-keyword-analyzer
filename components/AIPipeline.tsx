@@ -107,8 +107,47 @@ const STAGES: Stage[] = [
   },
 ]
 
-const MODELS_VIDEO = ['Google Veo 3.1', 'Seedance 2.0', 'Seedance 2.0 Fast', 'Runway Gen-4', 'Runway Aleph', 'Luma Ray 2', 'MiniMax Hailuo 02', 'Seedance 1.0 Pro']
-const MODELS_IMAGE = ['Flux 1.1 Pro', 'Nano Banana', 'GPT Image', 'Grok Imagine']
+const MODELS_VIDEO = [
+  'Google Veo 3.1', 'Runway Gen-4', 'Runway Aleph', 'Seedance 2.0', 'Seedance 2.0 Fast', 'Seedance 1.5 Pro', 'Seedance 1.0 Pro',
+  'Kling 2.1 Master', 'Kling 2.0 Master', 'Kling 1.6 Pro', 'MiniMax Hailuo 02', 'Luma Ray 2', 'Luma Ray Flash 2',
+]
+const MODELS_IMAGE = [
+  'Nano Banana', 'GPT Image 2', 'GPT Image 1.5', 'GPT Image', 'Flux Kontext Max', 'Flux Kontext Pro',
+  'Flux 1.1 Pro Ultra', 'Flux 1.1 Pro', 'Flux Pro', 'Flux Dev', 'Grok Imagine',
+]
+
+/** 제공사별 포인트 컬러 */
+function modelAccent(m: string): string {
+  if (/veo|google/i.test(m)) return '#4285f4'
+  if (/runway/i.test(m)) return '#22c55e'
+  if (/seedance/i.test(m)) return '#f97316'
+  if (/kling/i.test(m)) return '#a855f7'
+  if (/minimax|hailuo/i.test(m)) return '#ec4899'
+  if (/luma/i.test(m)) return '#06b6d4'
+  if (/nano banana/i.test(m)) return '#f59e0b'
+  if (/gpt/i.test(m)) return '#10b981'
+  if (/flux/i.test(m)) return '#8b5cf6'
+  if (/grok/i.test(m)) return '#94a3b8'
+  return '#60a5fa'
+}
+
+function ModelCard({ m, t }: { m: string; t: (s: string) => string }) {
+  const a = modelAccent(m)
+  return (
+    <div
+      className="group relative flex items-center gap-2.5 overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20"
+      style={{ ['--ma' as string]: a }}
+    >
+      <span className="absolute inset-y-0 left-0 w-[3px]" style={{ background: a }} />
+      <span className="relative flex h-2 w-2 flex-shrink-0">
+        <span className="absolute inline-flex h-full w-full animate-ping-ring rounded-full opacity-70" style={{ background: a }} />
+        <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: a }} />
+      </span>
+      <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-slate-100">{m}</span>
+      <span className="flex-shrink-0 rounded-md bg-emerald-500/12 px-1.5 py-0.5 text-[9px] font-bold text-emerald-300">{t('작동')}</span>
+    </div>
+  )
+}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -327,25 +366,17 @@ export function AIPipeline() {
               </span>
               {t('지금 연결되어 작동 중인 모델')}
             </p>
-            <div className="mb-2 text-[11px] font-bold uppercase tracking-widest text-[var(--text-dim)]">{t('영상 생성')}</div>
-            <div className="flex flex-wrap gap-2">
-              {MODELS_VIDEO.map((m) => (
-                <span key={m} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.05] px-3 py-1.5 text-xs font-medium text-slate-200">
-                  <Check size={12} className="text-emerald-400" />
-                  {m}
-                  <span className="ml-0.5 rounded-full bg-emerald-500/15 px-1.5 text-[9px] font-bold text-emerald-300">{t('작동')}</span>
-                </span>
-              ))}
+            <div className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-[var(--text-dim)]">
+              {t('영상 생성')} <span className="rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[10px] font-bold text-slate-300">{MODELS_VIDEO.length}</span>
             </div>
-            <div className="mb-2 mt-5 text-[11px] font-bold uppercase tracking-widest text-[var(--text-dim)]">{t('이미지·레퍼런스')}</div>
-            <div className="flex flex-wrap gap-2">
-              {MODELS_IMAGE.map((m) => (
-                <span key={m} className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.05] px-3 py-1.5 text-xs font-medium text-slate-200">
-                  <Check size={12} className="text-emerald-400" />
-                  {m}
-                  <span className="ml-0.5 rounded-full bg-emerald-500/15 px-1.5 text-[9px] font-bold text-emerald-300">{t('작동')}</span>
-                </span>
-              ))}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {MODELS_VIDEO.map((m) => <ModelCard key={m} m={m} t={t} />)}
+            </div>
+            <div className="mb-3 mt-6 flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-[var(--text-dim)]">
+              {t('이미지·레퍼런스')} <span className="rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[10px] font-bold text-slate-300">{MODELS_IMAGE.length}</span>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {MODELS_IMAGE.map((m) => <ModelCard key={m} m={m} t={t} />)}
             </div>
           </div>
         </Reveal>
