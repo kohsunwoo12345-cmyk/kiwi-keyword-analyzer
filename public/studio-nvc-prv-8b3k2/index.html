@@ -72,12 +72,15 @@ button .ico{ margin-right:5px; }
 .user-chip #uProfile:hover .ico{ color:#8fa0ff; }
 .user-chip b{ cursor:pointer; }
 /* ── 프로필 모달 ── */
-.pf-back{ position:fixed; inset:0; z-index:9000; display:none; align-items:center; justify-content:center; padding:16px;
-  background:rgba(8,10,16,.62); backdrop-filter:blur(4px); }
-.pf-back.on{ display:flex; }
+.pf-back{ position:fixed; inset:0; z-index:9000; display:flex; align-items:center; justify-content:center; padding:16px;
+  background:rgba(8,10,16,.62); backdrop-filter:blur(4px);
+  opacity:0; visibility:hidden; pointer-events:none; transition:opacity .22s ease, visibility .22s; }
+.pf-back.on{ opacity:1; visibility:visible; pointer-events:auto; }
 /* 2-pane 클로드식 계정 패널 */
 .pf-shell{ width:100%; max-width:760px; height:min(560px,88vh); display:flex; overflow:hidden; border-radius:18px;
-  background:#14161d; border:1px solid #2c2f3a; box-shadow:0 30px 80px -20px rgba(0,0,0,.8); color:#dfe3ec; font-size:13px; }
+  background:#14161d; border:1px solid #2c2f3a; box-shadow:0 30px 80px -20px rgba(0,0,0,.8); color:#dfe3ec; font-size:13px;
+  transform:translateY(14px) scale(.97); opacity:0; transition:transform .28s cubic-bezier(.22,1,.36,1), opacity .24s ease; }
+.pf-back.on .pf-shell{ transform:translateY(0) scale(1); opacity:1; }
 .pf-side{ width:210px; flex-shrink:0; background:#0f1117; border-right:1px solid #23262f; padding:16px 12px; display:flex; flex-direction:column; }
 .pf-user{ display:flex; align-items:center; gap:10px; padding:6px 6px 14px; }
 .pf-ava{ width:38px; height:38px; flex-shrink:0; display:inline-flex; }
@@ -177,9 +180,11 @@ button .ico{ margin-right:5px; }
 .cost-note{ margin-top:12px; font-size:9.5px; color:#61656f; line-height:1.5; }
 .mb-menu{ position:relative; font-size:12px; color:#bbb; padding:6px 10px; border-radius:6px; cursor:pointer; user-select:none; }
 .mb-menu:hover{ background:#2a2a2a; color:#fff; }
-.mb-drop{ display:none; position:absolute; top:100%; left:0; min-width:190px; background:#232323;
-  border:1px solid #3a3a3a; border-radius:8px; padding:5px; box-shadow:0 12px 30px rgba(0,0,0,.6); z-index:70; }
-.mb-menu.open .mb-drop{ display:block; }
+.mb-drop{ position:absolute; top:100%; left:0; min-width:190px; background:#232323;
+  border:1px solid #3a3a3a; border-radius:8px; padding:5px; box-shadow:0 12px 30px rgba(0,0,0,.6); z-index:70;
+  opacity:0; visibility:hidden; transform:translateY(-8px) scale(.98); transform-origin:top left; pointer-events:none;
+  transition:opacity .18s ease, transform .2s cubic-bezier(.22,1,.36,1), visibility .2s; }
+.mb-menu.open .mb-drop{ opacity:1; visibility:visible; transform:translateY(0) scale(1); pointer-events:auto; }
 .mb-drop button,.mb-drop .mb-a{ display:flex; justify-content:space-between; align-items:center; width:100%; text-align:left;
   background:none; border:none; color:#ccc; font-size:12px; padding:8px 11px; border-radius:5px; cursor:pointer; text-decoration:none; }
 .mb-drop button:hover,.mb-drop .mb-a:hover{ background:#3a3a3a; color:#fff; }
@@ -298,7 +303,7 @@ button .ico{ margin-right:5px; }
 #chSend:hover{ filter:brightness(1.1); } #chSend:disabled{ opacity:.5; cursor:default; }
 #stats{ position:fixed; left:58px; bottom:14px; z-index:45; font-size:10px; color:#666;
   font-family:'Inter',monospace; line-height:1.7; pointer-events:none; white-space:pre; }
-#fabs{ position:fixed; right:12px; bottom:12px; z-index:46; display:flex; flex-direction:column; gap:6px; }
+#fabs{ position:fixed; right:30px; bottom:88px; z-index:47; display:flex; flex-direction:column; gap:8px; }
 #fabs button{ width:34px; height:34px; border-radius:8px; border:1px solid #333; background:rgba(24,24,24,.92);
   color:#aaa; font-size:15px; cursor:pointer; }
 #fabs button:hover{ color:#fff; border-color:#555; }
@@ -4493,9 +4498,31 @@ document.getElementById('mUndo').addEventListener('click',doUndo);
 document.getElementById('mRedo').addEventListener('click',doRedo);
 document.getElementById('mAll').addEventListener('click',function(){ state.nodes.forEach(function(n){sel.add(n.id);}); render(); });
 document.getElementById('mGroup').addEventListener('click',groupSelected);
-document.getElementById('mKeys').addEventListener('click',function(){
-  alert('단축키\n\nCtrl+Enter  큐 실행\n더블클릭  노드 검색\n우클릭  노드 추가/메뉴\nAlt+드래그  줄 끊기 (절단선)\n선 클릭+Del / 선 더블클릭  줄 끊기\nCtrl+드래그  박스 선택\nCtrl+A/C/V  전체선택/복사/붙여넣기\nCtrl+G  그룹 · Ctrl+B  바이패스 · Ctrl+M  접기\nCtrl+Z/Y  실행취소/다시실행\nDel  삭제 · 우하단 모서리  크기조절');
-});
+var SHORTCUTS=[
+  ['Ctrl+Enter','큐 실행'],['더블클릭','노드 검색'],['우클릭','노드 추가 / 메뉴'],
+  ['Alt+드래그','줄 끊기 (절단선)'],['선 클릭+Del','줄 끊기'],['Ctrl+드래그','박스 선택'],
+  ['Ctrl+A / C / V','전체선택 / 복사 / 붙여넣기'],['Ctrl+G','그룹'],['Ctrl+B','바이패스'],['Ctrl+M','접기'],
+  ['Ctrl+Z / Y','실행취소 / 다시실행'],['Del','삭제'],['우하단 모서리','크기 조절']
+];
+function showShortcuts(){
+  var old=document.getElementById('scBack'); if(old){ old.classList.add('on'); return; }
+  var b=document.createElement('div'); b.id='scBack';
+  b.style.cssText='position:fixed;inset:0;z-index:9200;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(8,10,16,.62);backdrop-filter:blur(4px);opacity:0;visibility:hidden;transition:opacity .22s ease,visibility .22s;';
+  var rows=SHORTCUTS.map(function(s){ return '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.06);">'+
+    '<span style="color:#c9cad0;font-size:12.5px;">'+esc(s[1])+'</span>'+
+    '<kbd style="font-family:inherit;font-size:11px;font-weight:700;color:#e9e3f6;background:#221d33;border:1px solid #3a3350;border-radius:6px;padding:3px 9px;white-space:nowrap;">'+esc(s[0])+'</kbd></div>'; }).join('');
+  b.innerHTML='<div class="sc-card" style="width:100%;max-width:440px;max-height:86vh;overflow:auto;background:#14161d;border:1px solid #2c2f3a;border-radius:18px;box-shadow:0 30px 80px -20px rgba(0,0,0,.8);color:#dfe3ec;padding:20px 22px;transform:translateY(14px) scale(.97);opacity:0;transition:transform .28s cubic-bezier(.22,1,.36,1),opacity .24s ease;">'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span style="font-size:16px;">⌨️</span><b style="font-size:15px;">단축키</b><span id="scX" style="margin-left:auto;cursor:pointer;color:#9a93ac;font-size:20px;line-height:1;">×</span></div>'+
+    rows+'</div>';
+  document.body.appendChild(b);
+  function close(){ b.classList.remove('on'); }
+  b.addEventListener('click',function(e){ if(e.target===b)close(); });
+  b.querySelector('#scX').addEventListener('click',close);
+  requestAnimationFrame(function(){ b.classList.add('on'); });
+}
+// 슬라이드-인 클래스
+(function(){ var st=document.createElement('style'); st.textContent='#scBack.on{opacity:1;visibility:visible;} #scBack.on .sc-card{transform:translateY(0) scale(1);opacity:1;}'; document.head.appendChild(st); })();
+document.getElementById('mKeys').addEventListener('click',showShortcuts);
 /* Claude MCP 연결 모달 */
 (function(){
   var m=document.getElementById('mcpModal');
@@ -5345,9 +5372,10 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
   '#twBtn{position:fixed;right:20px;bottom:20px;z-index:9000;width:54px;height:54px;border-radius:50%;border:none;cursor:pointer;'+
   'background:linear-gradient(135deg,#7c5cff,#a855f7);color:#fff;box-shadow:0 12px 30px -8px rgba(139,92,246,.6);display:flex;align-items:center;justify-content:center;font-size:24px;transition:transform .15s;}'+
   '#twBtn:hover{transform:scale(1.06);} #twBtn .twdot{position:absolute;top:-2px;right:-2px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:#ef4455;color:#fff;font-size:10px;font-weight:800;display:none;align-items:center;justify-content:center;}'+
-  '#twPanel{position:fixed;right:20px;bottom:84px;z-index:9001;width:340px;max-width:calc(100vw - 32px);height:498px;max-height:calc(100vh - 120px);display:none;flex-direction:column;'+
-  'background:linear-gradient(180deg,#171226,#111019);border:1px solid rgba(139,92,246,.28);border-radius:18px;box-shadow:0 30px 80px -20px rgba(0,0,0,.8);color:#e9e3f6;font-family:inherit;overflow:hidden;}'+
-  '#twPanel.on{display:flex;} .tw-hd{display:flex;align-items:center;gap:8px;padding:13px 14px;border-bottom:1px solid rgba(255,255,255,.08);font-weight:800;font-size:14px;}'+
+  '#twPanel{position:fixed;right:20px;bottom:84px;z-index:9001;width:340px;max-width:calc(100vw - 32px);height:498px;max-height:calc(100vh - 120px);display:flex;flex-direction:column;'+
+  'background:linear-gradient(180deg,#171226,#111019);border:1px solid rgba(139,92,246,.28);border-radius:18px;box-shadow:0 30px 80px -20px rgba(0,0,0,.8);color:#e9e3f6;font-family:inherit;overflow:hidden;'+
+  'opacity:0;visibility:hidden;pointer-events:none;transform:translateY(16px) scale(.97);transform-origin:bottom right;transition:opacity .2s ease, transform .26s cubic-bezier(.22,1,.36,1), visibility .26s;}'+
+  '#twPanel.on{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0) scale(1);} .tw-hd{display:flex;align-items:center;gap:8px;padding:13px 14px;border-bottom:1px solid rgba(255,255,255,.08);font-weight:800;font-size:14px;}'+
   '.tw-hd .tw-x{margin-left:auto;cursor:pointer;color:#9a93ac;font-size:18px;line-height:1;} .tw-body{flex:1;overflow-y:auto;padding:12px 13px;}'+
   '.tw-sel{width:100%;background:#0f0d18;border:1px solid #2c2740;border-radius:10px;color:#e9e3f6;padding:8px 10px;font-size:12.5px;font-family:inherit;margin-bottom:8px;}'+
   '.tw-in{flex:1;background:#0f0d18;border:1px solid #2c2740;border-radius:10px;color:#e9e3f6;padding:8px 10px;font-size:12.5px;font-family:inherit;outline:none;}'+
@@ -5362,7 +5390,11 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
   function mount(){
     if(document.getElementById('twBtn'))return;
     document.head.appendChild(css);
-    var btn=document.createElement('button'); btn.id='twBtn'; btn.title='팀워크 채팅'; btn.innerHTML='💬<span class="twdot" id="twDot">0</span>';
+    var btn=document.createElement('button'); btn.id='twBtn'; btn.title='팀워크 채팅';
+    btn.innerHTML='<svg width="25" height="25" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+
+      '<path d="M12 3C6.9 3 3 6.36 3 10.5c0 2.31 1.2 4.36 3.1 5.73-.1.86-.5 2.1-1.5 3.27-.2.23-.03.6.28.55 1.7-.28 3.5-.98 4.66-1.77.76.15 1.55.22 2.36.22 5.1 0 9-3.36 9-7.5S17.1 3 12 3z" fill="#fff"/>'+
+      '<circle cx="8.5" cy="10.5" r="1.15" fill="#8b5cf6"/><circle cx="12" cy="10.5" r="1.15" fill="#8b5cf6"/><circle cx="15.5" cy="10.5" r="1.15" fill="#8b5cf6"/></svg>'+
+      '<span class="twdot" id="twDot">0</span>';
     var panel=document.createElement('div'); panel.id='twPanel';
     document.body.appendChild(btn); document.body.appendChild(panel);
     btn.addEventListener('click',toggle);
