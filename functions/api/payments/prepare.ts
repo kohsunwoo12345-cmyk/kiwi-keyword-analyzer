@@ -1,11 +1,14 @@
-import { Env, json, ensureSchema, getSessionUser, resolveDB } from '../_utils'
+import { Env, json, ensureSchema, getSessionUser, resolveDB, getSetting } from '../_utils'
 
-// 추가 크레딧 판매 단가(원/크레딧). 요금제 정산 기준(50원)과 별개로 65원.
+// 추가 크레딧 판매 단가(원/크레딧). 기본값 65원 (요금제 정산 기준 50원과 별개).
 export const TOPUP_KRW = 65
 
-// 크레딧 수량 → 결제 금액(원) 서버측 산정 (클라이언트 조작 방지).
-function priceFor(credits: number): number {
-  return Math.round(credits * TOPUP_KRW)
+// 회원별 지정가 > 전역 설정 > 기본값 순으로 크레딧 단가(원) 결정
+export async function creditPriceFor(db: D1Database, me: any): Promise<number> {
+  if (me && me.credit_price != null && Number(me.credit_price) > 0) return Math.round(Number(me.credit_price))
+  const g = await getSetting(db, 'credit_price_krw')
+  if (g != null && g !== '' && Number(g) > 0) return Math.round(Number(g))
+  return TOPUP_KRW
 }
 
 // POST /api/payments/prepare { credits } → Toss 주문 생성(orderId/amount 반환)
@@ -19,7 +22,8 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
   const body: any = await request.json().catch(() => ({}))
   const credits = Math.floor(Number(body.credits || 0))
   if (!credits || credits <= 0 || credits > 100000) return json({ ok: false, error: '충전할 크레딧 수량이 올바르지 않습니다.' }, 400)
-  const amount = priceFor(credits)
+  const rate = await creditPriceFor(db, me)
+  const amount = Math.round(credits * rate)
 
   const orderId = 'ord_' + crypto.randomUUID().replace(/-/g, '').slice(0, 24)
   await db

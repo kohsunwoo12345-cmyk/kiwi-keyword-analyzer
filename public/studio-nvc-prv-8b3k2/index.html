@@ -4921,7 +4921,8 @@ function pfShowSec(sec){
   if(sec==='topup') pfInitTopup();
 }
 /* ── 크레딧 추가(카드 결제) ── */
-var PF_TOP_PKGS=[{c:10,p:650},{c:50,p:3250,b:'인기'},{c:100,p:6500,b:'추천'},{c:300,p:19500}];
+var PF_TOP_KRW=65;   // 크레딧 단가(원/크레딧) — 관리자 설정(전역/회원별) 반영
+var PF_TOP_PKGS=[{c:10,b:''},{c:50,b:'인기'},{c:100,b:'추천'},{c:300,b:''}];
 var pfTopSel=1;
 function pfTopupPath(){ return (location.origin||'')+location.pathname; }
 function pfInitTopup(){
@@ -4929,6 +4930,9 @@ function pfInitTopup(){
   if(cr){ var c=(PF_ME&&PF_ME.credits!=null)?PF_ME.credits:null; cr.textContent=(c==null?'-':(Math.round(c*10)/10).toLocaleString('ko-KR')); }
   fetch('/api/account/usage',{credentials:'include',cache:'no-store'}).then(function(r){return r.json();}).then(function(d){
     if(d&&d.ok&&cr) cr.textContent=(Math.round((Number(d.credits)||0)*10)/10).toLocaleString('ko-KR');
+  }).catch(function(){});
+  fetch('/api/me',{credentials:'include',cache:'no-store'}).then(function(r){return r.json();}).then(function(d){
+    if(d&&Number(d.creditPriceKrw)>0){ PF_TOP_KRW=Number(d.creditPriceKrw); pfRenderTopPkgs(); }
   }).catch(function(){});
   pfRenderTopPkgs();
 }
@@ -4940,7 +4944,7 @@ function pfRenderTopPkgs(){
       'border:1px solid '+(on?'#7c5cff':'#2f2f37')+';background:'+(on?'rgba(124,92,255,.14)':'#151517')+';color:#e6e6ea;position:relative;transition:.15s;">'+
       (pk.b?'<span style="position:absolute;top:8px;right:9px;font-size:9px;font-weight:800;color:#c3a8ff;">'+pk.b+'</span>':'')+
       '<div style="font-size:16px;font-weight:800;">'+pk.c.toLocaleString('ko-KR')+' <small style="font-size:11px;font-weight:600;color:#9a93ac;">크레딧</small></div>'+
-      '<div style="font-size:12px;color:#a9a2bd;margin-top:2px;">₩'+pk.p.toLocaleString('ko-KR')+'</div></button>';
+      '<div style="font-size:12px;color:#a9a2bd;margin-top:2px;">₩'+(pk.c*PF_TOP_KRW).toLocaleString('ko-KR')+'</div></button>';
   }).join('');
   Array.prototype.forEach.call(box.querySelectorAll('[data-pki]'),function(b){
     b.addEventListener('click',function(){ pfTopSel=Number(b.getAttribute('data-pki')); pfRenderTopPkgs(); });
@@ -4958,7 +4962,7 @@ function pfPayCredits(){
       if(!p||!p.ok){ if(btn)btn.disabled=false; if(lbl)lbl.textContent='카드로 결제'; pfTopMsg('err',(p&&p.error)||'결제 준비에 실패했습니다.'); return; }
       if(!p.clientKey){
         // 카드 결제 미설정 → 승인 충전 신청으로 대체
-        fetch('/api/account/credit-request',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:pk.c,price:pk.p})})
+        fetch('/api/account/credit-request',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:pk.c,price:pk.c*PF_TOP_KRW})})
           .then(function(r){return r.json();}).then(function(r){
             if(btn)btn.disabled=false; if(lbl)lbl.textContent='카드로 결제';
             if(r&&r.ok) pfTopMsg('ok','카드 결제가 아직 설정되지 않아 승인 충전으로 신청했습니다. 승인 후 반영됩니다.');

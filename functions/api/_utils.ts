@@ -474,6 +474,7 @@ export async function ensureSchema(db: D1Database) {
     address_at: 'address_at TEXT',
     provider: "provider TEXT DEFAULT 'email'",
     credit_markup: 'credit_markup REAL', // 회원별 AI 과금 배수(원가=1). NULL/0 = 모델 기본(2.5/3.0)
+    credit_price: 'credit_price REAL', // 회원별 크레딧 구매 단가(원/크레딧). NULL = 전역/기본값 사용
     branch_id: 'branch_id TEXT', // 추천인이 소속된 지사(정산 대상)
     mcp_token: 'mcp_token TEXT', // 회원별 개인 MCP 연결 토큰(본인 계정으로 크레딧 차감)
     ref_surcharge: 'ref_surcharge REAL', // 레퍼런스 이미지 1장 추가당 크레딧 가산율(%). NULL=전역 기본값
@@ -882,6 +883,8 @@ export function publicUser(u: any) {
     points: u.points || 0,
     credits: Math.round((Number(u.credits) || 0) * 100) / 100,
     creditMarkup: Number(u.credit_markup) || 0, // 0 = 모델 기본 배수 사용
+    creditPrice: u.credit_price == null ? null : Number(u.credit_price), // 회원별 크레딧 구매 단가(원). null=전역/기본
+
     referralCode: u.referral_code || '',
     referredBy: u.referred_by || '',
     provider: u.provider || 'email',

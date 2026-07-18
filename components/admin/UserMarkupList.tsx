@@ -18,6 +18,9 @@ export function UserMarkupList() {
   const [refEdits, setRefEdits] = useState<Record<string, string>>({})
   const [refDefault, setRefDefault] = useState<number>(0.5)
   const [gsur, setGsur] = useState('')
+  const [cpEdits, setCpEdits] = useState<Record<string, string>>({})
+  const [cpDefault, setCpDefault] = useState<number>(65)
+  const [gcp, setGcp] = useState('')
   const [toast, setToast] = useState<string | null>(null)
 
   function reload(query = q) {
@@ -25,12 +28,29 @@ export function UserMarkupList() {
     adminUserMarkups(query).then((r) => {
       setUsers(r.users || [])
       if (typeof r.refSurchargeDefault === 'number') { setRefDefault(r.refSurchargeDefault); setGsur(String(r.refSurchargeDefault)) }
+      if (typeof r.creditPriceDefault === 'number') { setCpDefault(r.creditPriceDefault); setGcp(String(r.creditPriceDefault)) }
       const e: Record<string, string> = {}
       const rf: Record<string, string> = {}
-      for (const u of r.users || []) { e[u.id] = u.overall > 0 ? String(u.overall) : ''; rf[u.id] = u.refSurcharge == null ? '' : String(u.refSurcharge) }
-      setEdits(e); setRefEdits(rf)
+      const cp: Record<string, string> = {}
+      for (const u of r.users || []) { e[u.id] = u.overall > 0 ? String(u.overall) : ''; rf[u.id] = u.refSurcharge == null ? '' : String(u.refSurcharge); cp[u.id] = u.creditPrice == null ? '' : String(u.creditPrice) }
+      setEdits(e); setRefEdits(rf); setCpEdits(cp)
       setLoading(false)
     })
+  }
+  async function saveCreditPrice(u: UserMarkupRow) {
+    const raw = (cpEdits[u.id] || '').trim()
+    setBusy(u.id + ':cp')
+    const r = raw === ''
+      ? await adminModelPricingAction('reset_user_creditprice', { userId: u.id })
+      : await adminModelPricingAction('set_user_creditprice', { userId: u.id, price: Number(raw) })
+    setBusy(null)
+    if (r.ok) { setToast(`${u.name || u.email} 크레딧 단가 저장`); reload() } else setToast(r.error || '처리 실패')
+  }
+  async function saveGlobalCreditPrice() {
+    setBusy('global:cp')
+    const r = await adminModelPricingAction('set_global_creditprice', { price: Number(gcp) })
+    setBusy(null)
+    if (r.ok) { setToast(`전역 크레딧 단가 ${gcp}원/크레딧 저장`); reload() } else setToast(r.error || '처리 실패')
   }
   async function saveRef(u: UserMarkupRow) {
     const raw = (refEdits[u.id] || '').trim()
@@ -83,6 +103,20 @@ export function UserMarkupList() {
         <span className="text-xs text-[var(--text-dim)]">회원별로 지정하지 않으면 이 값이 적용됩니다. (기본 0.5%)</span>
       </div>
 
+      {/* 전역 크레딧 구매 단가 */}
+      <div className="mb-4 flex flex-wrap items-end gap-2 rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+        <div>
+          <label className="mb-1 block text-[11px] text-[var(--text-dim)]">전역 크레딧 구매 단가 (원 / 크레딧)</label>
+          <div className="flex items-center gap-1">
+            <span className="text-sm text-[var(--text-soft)]">₩</span>
+            <input value={gcp} onChange={(e) => setGcp(e.target.value.replace(/[^0-9]/g, ''))} className="w-28 rounded-lg border border-[var(--border-soft)] bg-white px-3 py-2 text-right text-sm" />
+            <span className="text-sm text-[var(--text-soft)]">/ 크레딧</span>
+          </div>
+        </div>
+        <Button size="sm" disabled={busy === 'global:cp'} onClick={saveGlobalCreditPrice}><Save size={14} /> 전역 단가 저장</Button>
+        <span className="text-xs text-[var(--text-dim)]">사용자가 크레딧을 구매할 때 적용되는 단가. 회원별로 지정하지 않으면 이 값이 적용됩니다. (기본 65원)</span>
+      </div>
+
       <div className="relative mb-3 max-w-xs">
         <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="이름·이메일 검색" className="w-full rounded-lg border border-[var(--border-soft)] bg-white py-2 pl-8 pr-3 text-sm" />
@@ -96,6 +130,7 @@ export function UserMarkupList() {
               <th className="px-2 py-2 font-medium">플랜</th>
               <th className="px-2 py-2 font-medium">보유 크레딧</th>
               <th className="px-2 py-2 font-medium">전체 배수(원가율)</th>
+              <th className="px-2 py-2 font-medium">크레딧 단가(원/크레딧)</th>
               <th className="px-2 py-2 font-medium">레퍼런스 가산율(%/장)</th>
               <th className="px-2 py-2 font-medium">모델별 개별</th>
               <th className="px-2 py-2 font-medium"></th>
@@ -126,6 +161,18 @@ export function UserMarkupList() {
                   </td>
                   <td className="px-2 py-2">
                     <div className="flex items-center gap-1">
+                      <span className="text-[var(--text-dim)]">₩</span>
+                      <input
+                        value={cpEdits[u.id] ?? ''}
+                        onChange={(e) => setCpEdits((p) => ({ ...p, [u.id]: e.target.value.replace(/[^0-9]/g, '') }))}
+                        placeholder={`기본 ${cpDefault}`}
+                        className="w-20 rounded-lg border border-[var(--border-soft)] bg-white px-2 py-1.5 text-right text-sm"
+                      />
+                      <Button size="sm" variant="outline" disabled={busy === u.id + ':cp'} onClick={() => saveCreditPrice(u)}><Save size={12} /></Button>
+                    </div>
+                  </td>
+                  <td className="px-2 py-2">
+                    <div className="flex items-center gap-1">
                       <input
                         value={refEdits[u.id] ?? ''}
                         onChange={(e) => setRefEdits((p) => ({ ...p, [u.id]: e.target.value.replace(/[^0-9.]/g, '') }))}
@@ -150,7 +197,7 @@ export function UserMarkupList() {
               )
             })}
             {users.length === 0 && (
-              <tr><td colSpan={7} className="py-8 text-center text-[var(--text-dim)]">{loading ? '불러오는 중…' : '회원이 없습니다.'}</td></tr>
+              <tr><td colSpan={8} className="py-8 text-center text-[var(--text-dim)]">{loading ? '불러오는 중…' : '회원이 없습니다.'}</td></tr>
             )}
           </tbody>
         </table>

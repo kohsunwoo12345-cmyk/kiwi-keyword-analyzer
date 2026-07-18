@@ -22,8 +22,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const q = String(url.searchParams.get('q') || '').trim()
     const like = '%' + q + '%'
     const rows = (q
-      ? await db.prepare("SELECT id,name,email,plan,credits,credit_markup,ref_surcharge,created_at FROM users WHERE role != 'admin' AND (name LIKE ? OR email LIKE ?) ORDER BY created_at DESC LIMIT 1000").bind(like, like).all()
-      : await db.prepare("SELECT id,name,email,plan,credits,credit_markup,ref_surcharge,created_at FROM users WHERE role != 'admin' ORDER BY created_at DESC LIMIT 1000").all()
+      ? await db.prepare("SELECT id,name,email,plan,credits,credit_markup,ref_surcharge,credit_price,created_at FROM users WHERE role != 'admin' AND (name LIKE ? OR email LIKE ?) ORDER BY created_at DESC LIMIT 1000").bind(like, like).all()
+      : await db.prepare("SELECT id,name,email,plan,credits,credit_markup,ref_surcharge,credit_price,created_at FROM users WHERE role != 'admin' ORDER BY created_at DESC LIMIT 1000").all()
     ).results || []
     const ovMap: Record<string, number> = {}
     try {
@@ -32,6 +32,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     } catch { /* table 없음 */ }
     const gsur = await getSetting(db, 'ref_surcharge_pct')
     const refDefault = gsur != null && gsur !== '' && Number(gsur) >= 0 ? Number(gsur) : REF_SURCHARGE_DEFAULT
+    const gcp = await getSetting(db, 'credit_price_krw')
+    const creditPriceDefault = gcp != null && gcp !== '' && Number(gcp) > 0 ? Number(gcp) : 65 // 기본 65원/크레딧
     const pgm = await getSetting(db, 'promptgen_markup')
     const promptgenMarkup = pgm != null && pgm !== '' && isFinite(Number(pgm)) ? Math.max(1, Number(pgm)) : 2.5
     const pgRate = await getUsdKrw(db)
@@ -45,9 +47,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         overall: Number(u.credit_markup) || 0, // 0 = 기본 배수 사용
         overrides: ovMap[u.id] || 0,           // 모델별 개별 지정 개수
         refSurcharge: u.ref_surcharge == null ? null : Number(u.ref_surcharge), // null = 전역 기본값 사용
+        creditPrice: u.credit_price == null ? null : Number(u.credit_price), // null = 전역/기본 단가 사용
       })),
       defaultMarkup: { video: 3.0, image: 2.5 },
       refSurchargeDefault: refDefault,
+      creditPriceDefault,
       promptgenMarkup,
       promptgenCredits,
     })
@@ -190,6 +194,30 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     await setSetting(db, 'promptgen_markup', String(mk))
     await logAudit(db, admin, 'promptgen_markup', '전역', '×' + mk, 'info', ip)
     return json({ ok: true, markup: mk })
+  }
+  // 크레딧 구매 단가(원/크레딧) — 회원별 / 전역
+  if (action === 'set_user_creditprice') {
+    const uid = String(b.userId || '')
+    if (!uid) return json({ ok: false, error: 'userId 필요' }, 400)
+    const price = Math.max(1, Math.min(100000, Math.round(Number(b.price) || 0)))
+    if (!price) return json({ ok: false, error: '단가는 1원 이상이어야 합니다.' }, 400)
+    await db.prepare('UPDATE users SET credit_price = ? WHERE id = ?').bind(price, uid).run()
+    await logAudit(db, admin, 'user_credit_price', uid, price + '원/크레딧', 'info', ip)
+    return json({ ok: true, price })
+  }
+  if (action === 'reset_user_creditprice') {
+    const uid = String(b.userId || '')
+    if (!uid) return json({ ok: false, error: 'userId 필요' }, 400)
+    await db.prepare('UPDATE users SET credit_price = NULL WHERE id = ?').bind(uid).run()
+    await logAudit(db, admin, 'user_credit_price_reset', uid, '기본', 'info', ip)
+    return json({ ok: true })
+  }
+  if (action === 'set_global_creditprice') {
+    const price = Math.max(1, Math.min(100000, Math.round(Number(b.price) || 0)))
+    if (!price) return json({ ok: false, error: '단가는 1원 이상이어야 합니다.' }, 400)
+    await setSetting(db, 'credit_price_krw', String(price))
+    await logAudit(db, admin, 'global_credit_price', '전역', price + '원/크레딧', 'high', ip)
+    return json({ ok: true, price })
   }
   return json({ ok: false, error: '알 수 없는 작업입니다.' }, 400)
 }

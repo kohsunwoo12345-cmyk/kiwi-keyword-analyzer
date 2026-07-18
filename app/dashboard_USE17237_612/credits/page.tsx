@@ -87,6 +87,12 @@ export default function CreditsPage() {
   // charge selection: package index or 'custom'
   const [selected, setSelected] = useState<number | 'custom'>(1)
   const [customCredits, setCustomCredits] = useState('')
+  // 이 회원에게 적용되는 크레딧 단가(원/크레딧) — 관리자 설정(전역/회원별) 반영
+  const [rate, setRate] = useState(65)
+  useEffect(() => {
+    fetch('/api/me', { credentials: 'include', cache: 'no-store' })
+      .then((r) => r.json()).then((d) => { if (d && d.creditPriceKrw > 0) setRate(d.creditPriceKrw) }).catch(() => {})
+  }, [])
 
   const [busy, setBusy] = useState(false)
   const [okMsg, setOkMsg] = useState(false)
@@ -177,7 +183,7 @@ export default function CreditsPage() {
       return { credits: c, price: 0 }
     }
     const pkg = CREDIT_PACKAGES[selected]
-    return { credits: pkg.credits, price: pkg.price }
+    return { credits: pkg.credits, price: pkg.credits * rate }
   }
 
   async function submitCharge() {
@@ -348,7 +354,7 @@ export default function CreditsPage() {
                       <span className="ml-1 text-sm font-semibold text-[var(--text-soft)]">크레딧</span>
                     </p>
                     <p className="mt-1 text-sm font-semibold text-[var(--text-soft)]">
-                      {pkg.price.toLocaleString()}원
+                      {(pkg.credits * rate).toLocaleString()}원
                     </p>
                     {active && (
                       <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-600">
