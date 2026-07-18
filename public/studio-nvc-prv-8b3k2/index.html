@@ -795,6 +795,24 @@ html,body{ background:var(--w-bg); color:var(--w-text);
 .widget .wnum{ color:var(--w-text); }
 .widget .dicebtn{ color:#8a8c94; }
 .widget .dicebtn:hover{ color:var(--w-text); }
+/* 파라미터 도움말(ⓘ) — 위젯 바깥에 배치해 overflow 클리핑 회피 */
+.wtiprow{ display:flex; align-items:center; gap:5px; }
+.wtiprow>.widget{ flex:1; min-width:0; }
+.whelp{ position:relative; flex:0 0 auto; width:15px; height:15px; border-radius:50%;
+  background:rgba(140,140,150,.2); color:var(--w-text-3,#9a9ca4); font-size:10px; font-weight:800;
+  font-style:italic; font-family:Georgia,'Times New Roman',serif; display:inline-flex; align-items:center;
+  justify-content:center; cursor:help; transition:background .15s,color .15s; }
+.whelp:hover{ background:var(--w-accent,#7c5cff); color:#fff; }
+.whelp .wtip{ position:absolute; bottom:135%; right:-4px; width:216px; background:var(--w-field,#0f0d18);
+  border:1px solid var(--w-border-2,#3a3550); border-radius:10px; padding:9px 11px; font-size:10.5px;
+  line-height:1.55; color:var(--w-text,#d9d4e8); font-weight:500; font-style:normal; letter-spacing:.1px;
+  text-align:left; white-space:normal; box-shadow:0 16px 38px -12px rgba(0,0,0,.7);
+  opacity:0; visibility:hidden; transform:translateY(5px);
+  transition:opacity .16s, transform .16s, visibility .16s; z-index:70; pointer-events:none; }
+.whelp:hover .wtip{ opacity:1; visibility:visible; transform:translateY(0); }
+.whelp .wtip b{ color:var(--w-accent,#c3a8ff); font-weight:800; }
+.whelp .wtip::after{ content:''; position:absolute; top:100%; right:8px; border:6px solid transparent;
+  border-top-color:var(--w-field,#0f0d18); }
 .widget input[type=range]{ background:#3a3c44; }
 .widget input[type=range]::-webkit-slider-thumb{ background:var(--w-accent); }
 .widget input[type=range]::-moz-range-thumb{ background:var(--w-accent); }
@@ -2728,8 +2746,10 @@ var DEFS = {
                       {k:'seedOpts',t:'seedopts'},
                       {k:'fluxctrl',t:'fluxctrl'},
                       {k:'addref',t:'addrefbtns'},
-                      {k:'cfg',t:'slider',label:'cfg',min:0,max:100,def:70},
-                      {k:'seed',t:'seed',def:156680208700286},
+                      {k:'cfg',t:'slider',label:'cfg',min:0,max:100,def:70,
+                        tip:'<b>CFG (프롬프트 충실도)</b> — 프롬프트를 얼마나 강하게 따를지 정합니다. 낮으면 자유롭고 자연스럽게, 높으면 지시를 강하게 따릅니다(너무 높으면 부자연·과채도). 보통 60~80 권장. 모델마다 반영 정도가 달라 일부 모델은 이 값을 무시합니다.'},
+                      {k:'seed',t:'seed',def:156680208700286,
+                        tip:'<b>Seed (시드)</b> — 결과의 랜덤 시작값입니다. 고정하면 같은 프롬프트로 같은 결과가 재현되고, 주사위를 누르면 매번 새 결과가 나옵니다. 마음에 든 결과의 seed를 두고 프롬프트만 살짝 바꾸면 그 느낌을 유지할 수 있어요. 모델에 따라 고정 시드를 지원하지 않을 수 있습니다.'},
                       {k:'run',t:'button',label:'Execute Node'}] },
  imagegen: { cat:'모델', title:'이미지 생성', hd:'#243a40',
              ins:[['prompt','프롬프트(선택)','TEXT'],['ref','레퍼런스 (최대 12장 · 다중 연결)','IMAGE']],
@@ -3232,14 +3252,16 @@ function widgetHTML(n,w){
       '<span class="wvalue" data-open>'+esc(v)+'</span><span class="arr" data-cyc="1">'+ICON.chevR+'</span></div>';
   }
   if(w.t==='slider'){
-    return '<div class="widget"><span class="wlabel" style="padding-left:10px;">'+esc(w.label)+'</span>'+
+    var slHtml='<div class="widget"><span class="wlabel" style="padding-left:10px;">'+esc(w.label)+'</span>'+
       '<input type="range" min="'+w.min+'" max="'+w.max+'" value="'+v+'" data-w="'+w.k+'">'+
       '<span class="wnum" data-num="'+w.k+'">'+v+'</span></div>';
+    return w.tip?'<div class="wtiprow">'+slHtml+'<span class="whelp">i<span class="wtip">'+w.tip+'</span></span></div>':slHtml;
   }
   if(w.t==='seed'){
-    return '<div class="widget"><span class="wlabel" style="padding-left:10px;">seed</span>'+
+    var sdHtml='<div class="widget"><span class="wlabel" style="padding-left:10px;">seed</span>'+
       '<span class="wvalue" data-seedval style="text-align:right;padding-right:8px;">'+v+'</span>'+
       '<span class="dicebtn" data-dice title="랜덤 시드">'+ICON.dice+'</span></div>';
+    return w.tip?'<div class="wtiprow">'+sdHtml+'<span class="whelp">i<span class="wtip">'+w.tip+'</span></span></div>':sdHtml;
   }
   if(w.t==='seedid'){   // Seedance 모델일 때만 노출되는 커스텀 모델 ID 입력
     if(!/^Seedance/.test(n.w.model||'')) return '';
