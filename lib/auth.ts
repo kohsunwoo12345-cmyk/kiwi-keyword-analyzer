@@ -391,6 +391,25 @@ export async function adminPlanConfigSave(config: PlanConfigData): Promise<{ ok:
   return postJson('/api/admin/plan-config', { action: 'save', config })
 }
 
+/* ── 회원 DB 세그먼트 추출 (관리자) ── */
+export interface DbExportQuery { segment?: string; country?: string; plan?: string; days?: number }
+export interface DbExportPreview { ok: boolean; error?: string; total?: number; headers?: string[]; rows?: (string | number)[][]; countries?: { country: string; count: number }[] }
+function dbExportParams(q: DbExportQuery, format: string): string {
+  const p = new URLSearchParams()
+  p.set('format', format)
+  if (q.segment) p.set('segment', q.segment)
+  if (q.country) p.set('country', q.country)
+  if (q.plan) p.set('plan', q.plan)
+  if (q.days != null) p.set('days', String(q.days))
+  return p.toString()
+}
+export async function adminDbExportPreview(q: DbExportQuery): Promise<DbExportPreview> {
+  try { const r = await fetch('/api/admin/db-export?' + dbExportParams(q, 'json'), { credentials: 'include', cache: 'no-store' }); return await r.json() } catch { return { ok: false, error: '네트워크 오류' } }
+}
+export function adminDbExportUrl(q: DbExportQuery, format: 'csv' | 'xlsx'): string {
+  return '/api/admin/db-export?' + dbExportParams(q, format)
+}
+
 export interface AdminPendingCounts { ok: boolean; approvals: number; plans: number; credits: number; points: number; senders: number; team: number; contacts: number }
 export async function adminPendingCounts(): Promise<AdminPendingCounts> {
   try {
