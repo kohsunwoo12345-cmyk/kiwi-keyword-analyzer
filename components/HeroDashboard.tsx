@@ -64,7 +64,7 @@ export function HeroDashboard() {
             <span className="h-3 w-3 rounded-full bg-[#28c840]" />
           </div>
           <div className="mx-auto hidden items-center gap-2 rounded-md bg-white/[0.05] px-3 py-1 text-[11px] text-slate-400 sm:flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> app.bygency.co / dashboard
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> app.nextbygency.com / dashboard
           </div>
           <div className="ml-auto flex items-center gap-2 text-slate-400 sm:ml-0">
             <Search size={14} />

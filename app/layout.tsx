@@ -8,7 +8,7 @@ import { LanguageProvider } from '@/lib/i18n'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://bygency.co'),
+  metadataBase: new URL('https://nextbygency.com'),
   title: {
     default: 'BYGENCY (바이전시) — 올인원 마케팅 그로스 플랫폼',
     template: '%s · BYGENCY',

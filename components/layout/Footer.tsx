@@ -22,10 +22,10 @@ const M: Dict = {
     ja: 'BYGENCYを作る会社が気になりますか？',
     zh: '想了解 BYGENCY 背后的公司吗？',
   },
-  '마케팅 기술을 만드는 팀, (주)Next Vision Company를 소개합니다.': {
-    en: 'Meet Next Vision Company — the team building marketing technology.',
-    ja: 'マーケティング技術を作るチーム、Next Vision Companyをご紹介します。',
-    zh: '认识打造营销技术的团队 —— Next Vision Company。',
+  '마케팅 기술을 만드는 팀, (주)넥스트 바이전시를 소개합니다.': {
+    en: 'Meet Next Bygency — the team building marketing technology.',
+    ja: 'マーケティング技術を作るチーム、Next Bygencyをご紹介します。',
+    zh: '认识打造营销技术的团队 —— Next Bygency。',
   },
   '회사 바로 보기': { en: 'Visit the company', ja: '会社を見る', zh: '访问公司' },
   'BYGENCY · 올인원 마케팅 그로스 플랫폼': {
@@ -55,14 +55,14 @@ export function Footer() {
             <ul className="mt-5 space-y-2 text-sm">
               <li className="flex items-center gap-2">
                 <span className="text-slate-500">{t('비즈니스 문의')}</span>
-                <a href="mailto:biz@bygency.co" className="font-medium text-blue-300 hover:text-blue-200 hover:underline">
-                  biz@bygency.co
+                <a href="mailto:biz@nextbygency.com" className="font-medium text-blue-300 hover:text-blue-200 hover:underline">
+                  biz@nextbygency.com
                 </a>
               </li>
               <li className="flex items-center gap-2">
                 <span className="text-slate-500">{t('공식 문의 메일')}</span>
-                <a href="mailto:cs@bygency.co" className="font-medium text-blue-300 hover:text-blue-200 hover:underline">
-                  cs@bygency.co
+                <a href="mailto:cs@nextbygency.com" className="font-medium text-blue-300 hover:text-blue-200 hover:underline">
+                  cs@nextbygency.com
                 </a>
               </li>
             </ul>
@@ -104,10 +104,10 @@ export function Footer() {
         <div className="mt-12 flex flex-col items-center justify-between gap-4 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-6 backdrop-blur sm:flex-row">
           <div>
             <p className="text-sm font-semibold text-white">{t('BYGENCY를 만드는 회사가 궁금하신가요?')}</p>
-            <p className="mt-1 text-xs text-slate-400">{t('마케팅 기술을 만드는 팀, (주)Next Vision Company를 소개합니다.')}</p>
+            <p className="mt-1 text-xs text-slate-400">{t('마케팅 기술을 만드는 팀, (주)넥스트 바이전시를 소개합니다.')}</p>
           </div>
           <a
-            href="https://nextvisionccompany.net/"
+            href="https://nextbygency.com/"
             target="_blank"
             rel="noopener noreferrer"
             className="group inline-flex flex-shrink-0 items-center gap-2 rounded-xl brand-gradient px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 transition-all hover:brightness-110"
@@ -137,7 +137,7 @@ export function Footer() {
         </nav>
 
         <div className="mt-6 flex flex-col items-start justify-between gap-2 border-t border-white/10 pt-6 text-xs text-slate-500 sm:flex-row sm:items-center">
-          <p>© 2026 (주)Next Vision Company. All rights reserved.</p>
+          <p>© 2026 (주)넥스트 바이전시. All rights reserved.</p>
           <p>{t('BYGENCY · 올인원 마케팅 그로스 플랫폼')}</p>
         </div>
       </div>

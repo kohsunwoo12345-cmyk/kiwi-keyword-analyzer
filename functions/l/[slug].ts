@@ -76,7 +76,7 @@ button:disabled{opacity:.6}
     <button type="submit" id="b">${esc(page.cta || '신청하기')}</button>
   </form>
 </div>
-<div class="foot">Powered by <b>BYGENCY</b> · (주)Next Vision Company</div>
+<div class="foot">Powered by <b>BYGENCY</b> · (주)넥스트 바이전시</div>
 <script>
 var f=document.getElementById('f'),b=document.getElementById('b'),card=document.querySelector('.card');
 f.addEventListener('submit',async function(e){e.preventDefault();b.disabled=true;b.textContent='전송 중…';

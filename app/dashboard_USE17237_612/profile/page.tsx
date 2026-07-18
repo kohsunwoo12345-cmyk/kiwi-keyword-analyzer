@@ -672,7 +672,7 @@ export default function ProfilePage() {
                           type="button"
                           variant="soft"
                           size="sm"
-                          onClick={() => copyText(`https://bygency.co/signup?ref=${ref.code || ''}`, 'link')}
+                          onClick={() => copyText(`https://nextbygency.com/signup?ref=${ref.code || ''}`, 'link')}
                           disabled={!ref.code}
                         >
                           {copied === 'link' ? <><Check size={14} /> 복사됨</> : <><Link2 size={14} /> 초대 링크 복사</>}

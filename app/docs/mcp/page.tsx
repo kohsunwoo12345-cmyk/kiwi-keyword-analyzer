@@ -34,7 +34,7 @@ function Anchor({ id }: { id: string }) { return <span id={id} className="relati
 
 export default function McpDocsPage() {
   const [url, setUrl] = useState<string>('')          // 회원 개인 URL
-  const [base, setBase] = useState<string>('https://bygency.co/api/mcp')
+  const [base, setBase] = useState<string>('https://nextbygency.com/api/mcp')
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
   const [copied, setCopied] = useState(false)
 

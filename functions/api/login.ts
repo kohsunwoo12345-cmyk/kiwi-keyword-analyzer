@@ -82,7 +82,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       await db
         .prepare(
           `INSERT INTO users (id, name, email, password_hash, company, plan, role, status, created_at, last_active)
-           VALUES ('admin_root', '관리자', ?, ?, '(주)Next Vision Company', 'Business', 'admin', 'active', ?, ?)`,
+           VALUES ('admin_root', '관리자', ?, ?, '(주)넥스트 바이전시', 'Business', 'admin', 'active', ?, ?)`,
         )
         .bind(email, ph, now, now)
         .run()

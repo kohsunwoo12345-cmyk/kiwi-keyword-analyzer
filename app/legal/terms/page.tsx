@@ -10,19 +10,19 @@ export default function TermsPage() {
   return (
     <LegalShell title="이용약관" effective="2026년 9월 1일">
       <p className="lead">
-        본 이용약관은 주식회사 Next Vision Company가 제공하는 BYGENCY 서비스의 이용조건과 회사 및 회원의 권리·의무를 정합니다.
+        본 이용약관은 주식회사 넥스트 바이전시가 제공하는 BYGENCY 서비스의 이용조건과 회사 및 회원의 권리·의무를 정합니다.
       </p>
 
       <h2>제1조 회사 정보</h2>
       <ol>
-        <li><strong>상호:</strong> 주식회사 Next Vision Company</li>
+        <li><strong>상호:</strong> 주식회사 넥스트 바이전시</li>
         <li><strong>대표자:</strong> 고선우</li>
         <li><strong>사업자등록번호:</strong> <span className="ph">[추후 입력]</span></li>
         <li><strong>통신판매업 신고번호:</strong> <span className="ph">[추후 입력]</span></li>
         <li><strong>사업장 주소:</strong> <span className="ph">[추후 입력]</span></li>
-        <li><strong>대표 이메일:</strong> <a href="mailto:ceo@bygency.co">ceo@bygency.co</a></li>
-        <li><strong>고객센터:</strong> <a href="mailto:ceo@bygency.co">ceo@bygency.co</a></li>
-        <li><strong>개인정보 보호책임자 연락처:</strong> <a href="mailto:ceo@bygency.co">ceo@bygency.co</a></li>
+        <li><strong>대표 이메일:</strong> <a href="mailto:ceo@nextbygency.com">ceo@nextbygency.com</a></li>
+        <li><strong>고객센터:</strong> <a href="mailto:ceo@nextbygency.com">ceo@nextbygency.com</a></li>
+        <li><strong>개인정보 보호책임자 연락처:</strong> <a href="mailto:ceo@nextbygency.com">ceo@nextbygency.com</a></li>
         <li><strong>호스팅 제공자:</strong> <span className="ph">[추후 입력]</span></li>
       </ol>
 
@@ -444,7 +444,7 @@ export default function TermsPage() {
         <li>사실에 근거한 신고라는 확인</li>
         <li>필요한 경우 위임장</li>
       </ol>
-      <p><strong>신고처:</strong> <a href="mailto:ceo@bygency.co">ceo@bygency.co</a></p>
+      <p><strong>신고처:</strong> <a href="mailto:ceo@nextbygency.com">ceo@nextbygency.com</a></p>
       <p>회사는 신고를 검토하여 콘텐츠 제한, 자료 요청, 반론 기회 제공 및 계정 조치를 할 수 있습니다.</p>
       <p>악의적이거나 허위인 신고로 발생한 손해는 신고자가 부담할 수 있습니다.</p>
 
@@ -510,7 +510,7 @@ export default function TermsPage() {
       <p>AI 모델이나 가상 인물을 광고에 사용하는 경우 관련 표시광고법과 업종별 광고 규정을 준수해야 합니다.</p>
 
       <h3>5. 이의제기</h3>
-      <p>콘텐츠 또는 계정 제한에 이의가 있는 회원은 <a href="mailto:ceo@bygency.co">ceo@bygency.co</a>으로 소명자료를 제출할 수 있습니다.</p>
+      <p>콘텐츠 또는 계정 제한에 이의가 있는 회원은 <a href="mailto:ceo@nextbygency.com">ceo@nextbygency.com</a>으로 소명자료를 제출할 수 있습니다.</p>
 
       <h2>별지 2. CRM 및 광고 발송 운영정책</h2>
 

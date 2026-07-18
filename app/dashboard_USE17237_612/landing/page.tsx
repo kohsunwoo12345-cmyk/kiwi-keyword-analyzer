@@ -449,7 +449,7 @@ export default function LandingBuilderPage() {
                     </div>
                   </div>
                   <p className="mt-5 text-center text-[11px] text-slate-400">
-                    Powered by <span style={{ color: t.accent }}>BYGENCY</span> · (주)Next Vision Company
+                    Powered by <span style={{ color: t.accent }}>BYGENCY</span> · (주)넥스트 바이전시
                   </p>
                 </div>
               </div>

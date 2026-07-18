@@ -122,7 +122,7 @@ function SidebarFooter() {
         </span>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">관리자</p>
-          <p className="truncate text-xs text-[var(--text-dim)]">admin@bygency.com</p>
+          <p className="truncate text-xs text-[var(--text-dim)]">admin@nextbygency.com</p>
         </div>
       </div>
       <Link

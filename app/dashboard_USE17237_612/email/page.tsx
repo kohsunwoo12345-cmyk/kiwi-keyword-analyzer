@@ -112,7 +112,7 @@ export default function EmailSendPage() {
                   value={recipients}
                   onChange={(e) => setRecipients(e.target.value)}
                   rows={3}
-                  placeholder="user@example.com, hello@bygency.com (쉼표 또는 줄바꿈으로 구분)"
+                  placeholder="user@example.com, hello@nextbygency.com (쉼표 또는 줄바꿈으로 구분)"
                   className={`${inputClass} resize-none`}
                 />
               </div>

@@ -76,8 +76,8 @@ export function LegalShell({
             <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.03] p-3.5 text-xs leading-relaxed text-[var(--text-soft)]">
               문의: 개인정보 보호책임자
               <br />
-              <a href="mailto:ceo@bygency.co" className="font-medium text-blue-300 hover:underline">
-                ceo@bygency.co
+              <a href="mailto:ceo@nextbygency.com" className="font-medium text-blue-300 hover:underline">
+                ceo@nextbygency.com
               </a>
             </div>
           </aside>

@@ -138,10 +138,10 @@ const M: Dict = {
 }
 
 const CONTACT_INFO = [
-  { icon: Mail, label: '비즈니스 문의', value: 'biz@bygency.co', href: 'mailto:biz@bygency.co' },
-  { icon: Mail, label: '공식 문의 메일', value: 'cs@bygency.co', href: 'mailto:cs@bygency.co' },
+  { icon: Mail, label: '비즈니스 문의', value: 'biz@nextbygency.com', href: 'mailto:biz@nextbygency.com' },
+  { icon: Mail, label: '공식 문의 메일', value: 'cs@nextbygency.com', href: 'mailto:cs@nextbygency.com' },
   { icon: Clock, label: '운영 시간', value: '평일 10:00 - 18:00' },
-  { icon: Building2, label: '운영사', value: '(주)Next Vision Company' },
+  { icon: Building2, label: '운영사', value: '(주)넥스트 바이전시' },
 ]
 
 const inputCls =

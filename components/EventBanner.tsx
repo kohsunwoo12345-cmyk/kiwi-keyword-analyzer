@@ -57,7 +57,7 @@ export function EventBanner() {
 
   if (!mounted || !code) return null
 
-  const inviteLink = `https://bygency.co/signup?ref=${code}`
+  const inviteLink = `https://nextbygency.com/signup?ref=${code}`
 
   return (
     <>
