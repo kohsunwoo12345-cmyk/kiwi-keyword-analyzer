@@ -287,6 +287,41 @@ export interface AiGenerationsResp {
   offset?: number
   items?: AiGenerationRow[]
 }
+/* ── 매출 (관리자) ── */
+export interface RevenueResp {
+  ok: boolean; error?: string; days?: number
+  totals?: { revenue: number; cost: number; profit: number; margin: number }
+  breakdown?: {
+    creditCard: { krw: number; count: number }; creditApproval: { krw: number; count: number }
+    plan: { krw: number; count: number }; team: { krw: number; count: number }
+    creditSales: number; planTotal: number
+  }
+  aiInternal?: { revenue: number; cost: number; profit: number; credits: number; count: number }
+  usage?: { creditSpent: number; smsCount: number }
+  byDay?: { d: string; revenue: number; credit: number; plan: number }[]
+  recent?: { type: string; name: string; email: string; amount: number; detail: string; at: string }[]
+}
+export async function adminRevenue(days = 30): Promise<RevenueResp> {
+  try {
+    const r = await fetch(`/api/admin/revenue?days=${days}`, { credentials: 'include' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+
+/* ── 사용자 활동 기록 (관리자) ── */
+export interface UserActivityUser {
+  id: string; name: string; email: string; plan: string; videoPlan: string; teamPlan: number
+  credits: number; points: number; provider: string; status: string; createdAt: string; lastActive: string
+  activityCount: number; genCount: number; sharesSent: number; sharesRecv: number
+}
+export interface ActivityEvent { cat: string; kind: string; title: string; detail: string; amount?: number; unit?: string; at: string }
+export async function adminUserActivity(userId?: string): Promise<{ ok: boolean; error?: string; total?: number; users?: UserActivityUser[]; user?: any; events?: ActivityEvent[] }> {
+  try {
+    const r = await fetch(`/api/admin/user-activity${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`, { credentials: 'include' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+
 export async function adminAiGenerations(opts: { limit?: number; offset?: number; kind?: string; q?: string; days?: number } = {}): Promise<AiGenerationsResp> {
   try {
     const p = new URLSearchParams()
