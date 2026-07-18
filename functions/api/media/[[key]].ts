@@ -1,7 +1,7 @@
 // GET /api/media/:key{.+} — R2 저장 미디어(이미지/영상/오디오) 서빙. Range 지원.
 //  · ?dl=1 이면 다운로드(attachment), 아니면 인라인 미리보기.
 //  · content-type 은 업로드 시 저장한 httpMetadata 를 우선 사용.
-import { resolveBucket } from '../../_utils'
+import { resolveBucket } from '../_utils'
 
 function ctFromKey(key: string): string {
   const ext = (key.split('.').pop() || '').toLowerCase()
