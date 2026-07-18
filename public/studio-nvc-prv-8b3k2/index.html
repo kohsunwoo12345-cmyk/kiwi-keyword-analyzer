@@ -1153,6 +1153,9 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
       <div class="pf-credit" title="보유 크레딧">
         <span class="pf-credit-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.2A2.4 2.4 0 0 1 12 7.4c1.4 0 2.5.9 2.5 2s-1.1 1.5-2.5 1.5-2.5.6-2.5 1.7.9 2 2.5 2a2.4 2.4 0 0 0 2.5-1.8"/></svg></span>
         <div class="pf-credit-t"><span>보유 크레딧</span><b id="pfCreditsSide">-<small>크레딧</small></b></div>
+        <button type="button" id="pfCreditAdd" title="크레딧 추가 결제" style="margin-left:auto;flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;border:none;cursor:pointer;border-radius:9px;padding:6px 10px;font-family:inherit;font-size:11px;font-weight:800;color:#fff;background:linear-gradient(135deg,#7c5cff,#a855f7);box-shadow:0 6px 16px -6px rgba(139,92,246,.7);">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>충전
+        </button>
       </div>
       <nav class="pf-nav2">
         <button class="pf-navi on" data-sec="usage" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6" rx="1"/><rect x="12" y="8" width="3" height="10" rx="1"/><rect x="17" y="4" width="3" height="14" rx="1"/></svg></span>사용량</button>
@@ -5134,6 +5137,7 @@ function wireProfile(){
 }
 wireProfile();
 (function(){ var b=document.getElementById('pfTopPay'); if(b)b.addEventListener('click',pfPayCredits); })();
+(function(){ var a=document.getElementById('pfCreditAdd'); if(a)a.addEventListener('click',function(){ pfShowSec('topup'); }); })();
 pfHandleTossReturn();
 
 /* ── 홈 · 채팅으로 영상 생성 ── */
