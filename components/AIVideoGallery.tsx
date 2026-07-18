@@ -150,12 +150,12 @@ export function AIVideoGallery() {
       <Reveal delay={100} className="mt-14 space-y-4">
         <div className="marquee-mask overflow-hidden">
           <div className="marquee-track gap-4">
-            {[...row1, ...row1].map((c, i) => <div key={i} className="flex-shrink-0"><ShotCard c={c} t={t} eager={i < row1.length} /></div>)}
+            {[...row1, ...row1].map((c, i) => <div key={i} className="flex-shrink-0"><ShotCard c={c} t={t} /></div>)}
           </div>
         </div>
         <div className="marquee-mask overflow-hidden">
           <div className="marquee-track marquee-rev gap-4">
-            {[...row2, ...row2].map((c, i) => <div key={i} className="flex-shrink-0"><ShotCard c={c} t={t} eager={i < row2.length} /></div>)}
+            {[...row2, ...row2].map((c, i) => <div key={i} className="flex-shrink-0"><ShotCard c={c} t={t} /></div>)}
           </div>
         </div>
       </Reveal>

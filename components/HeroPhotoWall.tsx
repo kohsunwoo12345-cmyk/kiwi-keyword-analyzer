@@ -24,7 +24,7 @@ export function HeroPhotoWall() {
       {/* 움직이는 사진 열 */}
       <div className="absolute inset-0 flex justify-center gap-2.5 opacity-[0.62] [transform:scale(1.18)] sm:gap-3">
         {COLS.map((col, ci) => (
-          <div key={ci} className={cn('relative w-1/3 flex-shrink-0 sm:w-[16.5%]', ci >= 4 && 'hidden sm:block')}>
+          <div key={ci} className={cn('relative w-1/2 flex-shrink-0 sm:w-[16.5%]', ci >= 2 && 'hidden sm:block')}>
             <div
               className="absolute inset-x-0 top-0 will-change-transform"
               style={{ animation: `${ci % 2 ? 'heroWallDown' : 'heroWallUp'} ${44 + ci * 8}s linear infinite` }}
@@ -34,7 +34,7 @@ export function HeroPhotoWall() {
                   key={i}
                   src={src}
                   alt=""
-                  loading="eager"
+                  loading="lazy"
                   decoding="async"
                   className="mb-2.5 w-full rounded-2xl object-cover shadow-lg sm:mb-3"
                   style={{ aspectRatio: '3 / 4' }}
