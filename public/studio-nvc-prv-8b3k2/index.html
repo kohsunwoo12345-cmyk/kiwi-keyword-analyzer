@@ -1777,8 +1777,9 @@ function costTotal(){ return costLog.reduce(function(s,e){ return s+(e.usd||0); 
 function fmtUsd(v){ return '$'+(v||0).toFixed(2); }
 function fmtKrw(v){ return '₩'+Math.round((v||0)*USD_KRW).toLocaleString('ko-KR'); }
 function updateCostChip(){ var c=document.getElementById('costChip'); if(c)c.textContent=fmtKrw(costTotal()); }
-/* 실제 생성 1건 기록. (provider, model, seconds, kind, res, audioOn) */
-function recordCost(provider, model, seconds, kind, res, audioOn, refCount){
+/* 실제 생성 1건 기록. (provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl) */
+function mediaForRecord(u){ if(!u||typeof u!=='string')return ''; if(u.indexOf('data:')===0){ return u.length<=600000?u:''; } return u; }
+function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl){
   var m = MODEL_COST[model];
   var isImg = m ? m.u==='img' : (kind==='image');
   var prov = m ? m.prov : provider;
@@ -1797,8 +1798,10 @@ function recordCost(provider, model, seconds, kind, res, audioOn, refCount){
   saveCostLog(); updateCostChip();
   // 사용자별 집계용으로 서버(D1)에도 기록 — 관리자 대시보드에서 조회. (실패는 무시)
   try{
+    var _refs=[]; try{ if(refUrls&&refUrls.length){ _refs=refUrls.map(mediaForRecord).filter(Boolean).slice(0,4); } }catch(e){}
     fetch('/api/usage/record',{ method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
-      body: JSON.stringify({ provider:prov, model:model||prov, kind:isImg?'image':'video', units:units, res:isImg?null:(res||'1080p'), audio:!!audioAdd, usd:usd, refs:Math.max(0,Number(refCount)||0) }) }).catch(function(){});
+      body: JSON.stringify({ provider:prov, model:model||prov, kind:isImg?'image':'video', units:units, res:isImg?null:(res||'1080p'), audio:!!audioAdd, usd:usd, refs:Math.max(0,Number(refCount)||0),
+        prompt:(prompt||'').slice(0,4000), refUrls:_refs, resultUrl:mediaForRecord(resultUrl), resultKind:isImg?'image':'video' }) }).catch(function(){});
   }catch(e){}
 }
 /* 비용 팝업 */
@@ -2518,7 +2521,7 @@ function narrateNode(n){
       }
       n.w.vid=res.url; n.w.kind='video'; n.w.model=label; n.w.poster=res.poster||(srcN&&srcN.w&&srcN.w.poster)||null;
       n.w.sec=(srcN&&srcN.w&&srcN.w.sec)||8; n.w.srcVideoUrl=res.url;   // 후속 노드에서 V2V/재활용 가능
-      recordCost(prov,modelNm, n.w.sec||8, 'video', '1080p', true);
+      recordCost(prov,modelNm, n.w.sec||8, 'video', '1080p', true, 0, text, srcU?[srcU]:[], res.url);
       saveToGallery(res.url,'video',label,n.w.sec,n.w.poster);
       toast(isLip?'인물이 말하는 립싱크 영상이 완성됐습니다.':'나레이션이 적용된 영상이 완성됐습니다.');
       render(); snapshot();
@@ -2587,7 +2590,7 @@ function revoiceNode(n){
         toast((info&&info.title)||('목소리 교체 실패: '+String(msg).slice(0,80))); render(); return; }
       n.w.vid=res.url; n.w.kind='video'; n.w.model='목소리 교체·립싱크'; n.w.poster=(srcN&&srcN.w&&srcN.w.poster)||null;
       n.w.sec=(srcN&&srcN.w&&srcN.w.sec)||8; n.w.srcVideoUrl=res.url;
-      recordCost('lipsync','립싱크 (인물 말하기)', n.w.sec||8, 'video', '1080p', true);
+      recordCost('lipsync','립싱크 (인물 말하기)', n.w.sec||8, 'video', '1080p', true, 0, '목소리 교체·립싱크', srcU?[srcU]:[], res.url);
       saveToGallery(res.url,'video','목소리 교체·립싱크',n.w.sec,n.w.poster);
       toast('목소리 교체 + 립싱크 영상 완성!'); render(); snapshot();
       var e2=document.getElementById('nd-'+n.id); if(e2)e2.classList.add('exec');
@@ -2638,10 +2641,10 @@ function generateImageNode(n){
   var isFlux=/^Flux/.test(n.w.model||'') && !/Kontext/.test(n.w.model||'');
   var cnList=(isFlux && n.w.cnList)?n.w.cnList.slice():[];
   if(cnList.length && !raw.length){ toast('ControlNet은 레퍼런스 이미지가 필요합니다 — ref 포트에 이미지를 연결하세요'); return; }
-  var refCountUsed=0;
+  var refCountUsed=0, refUsedList=[];
   n.w.imgGenerating=true; n.w.imgError=null; render();
   Promise.all(raw.map(function(r){ return shrinkImageSrc(r,1024,0.85); })).then(function(shr){
-   var refs=shr.filter(Boolean); var refImg=refs[0]||null; refCountUsed=refs.length;
+   var refs=shr.filter(Boolean); var refImg=refs[0]||null; refCountUsed=refs.length; refUsedList=refs.slice(0,4);
    if(refs.length>1) toast('레퍼런스 '+refs.length+'장으로 생성 중… (1장당 크레딧 소폭 가산)');
    return generateWithAPI({ model:n.w.model, prompt:prompt, ratio:n.w.ratio||'1:1',
     refImage:refImg, refImages:refs, firstFrame:refImg,
@@ -2653,7 +2656,7 @@ function generateImageNode(n){
         var info=showGenError(n.w.imgError, (res&&res.provider)||providerOf(n.w.model), n.w.model);
         toast((info&&info.title)||('이미지 생성 실패: '+String(n.w.imgError).slice(0,80))); render(); return; }
       n.w.img=res.url; n.w.imgKind=res.kind||'image';
-      if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image', null, false, refCountUsed);   // 레퍼런스 장수만큼 크레딧 가산
+      if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image', null, false, refCountUsed, prompt, refUsedList, res.url);   // 레퍼런스 장수만큼 크레딧 가산
       saveToGallery(res.url, 'image', n.w.model, 0, null);
       toast('이미지 생성 완료'); snapshot(); render();
     })
@@ -4462,7 +4465,7 @@ function runQueue(){
                 render(); step(); return;
               }
               if(res.url && res.type!=='error')   // 실제 결과(URL)가 나온 성공 건은 모두 기록 — 모델 기준 제공사(시댄스 누락 방지)
-                recordCost(res.type||providerOf(chosenModel), chosenModel, vSet?vSet.w.sec:8, res.kind, vSet?vSet.w.res:'1080p', n.w.seedAudio===true);
+                recordCost(res.type||providerOf(chosenModel), chosenModel, vSet?vSet.w.sec:8, res.kind, vSet?vSet.w.res:'1080p', n.w.seedAudio===true, 0, basePrompt, [].concat(refList||[], srcVid?[srcVid]:[]), res.url);
               outs.forEach(function(o){
                 var vs=upstream(o.id,'video');
                 o.w.generating=false; o.w.error=null;
@@ -5186,7 +5189,7 @@ pfHandleTossReturn();
     try{
       var prov=providerOf(model);
       var res=await callProxy({ provider:prov, apiKey:(API_CONFIG[prov]||''), model:model, prompt:prompt, seconds:sec, ratio:ratio, res:'1080p', fps:'30' });
-      try{ recordCost(res.type||prov, model, sec, res.kind, '1080p', false); }catch(e){}
+      try{ recordCost(res.type||prov, model, sec, res.kind, '1080p', false, 0, prompt, [], res.url); }catch(e){}
       try{ saveToGallery(res.url, res.kind||'video', model, sec, res.poster); updateLibChip&&updateLibChip(); }catch(e){}
       loading.remove();
       var w=ensureMsgs(), r=document.createElement('div'); r.className='ch-row ai';

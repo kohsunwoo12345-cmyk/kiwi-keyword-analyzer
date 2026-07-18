@@ -258,6 +258,48 @@ export async function adminAiUsage(days = 30): Promise<AiUsageStats> {
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
 
+/* ── AI 생성 기록 (관리자) — 각 생성물의 프롬프트·레퍼런스·결과·비용 ── */
+export interface AiGenerationRow {
+  id: string
+  createdAt: string
+  userId: string
+  name: string
+  email: string
+  provider: string
+  model: string
+  kind: string
+  credits: number
+  costKrw: number
+  usd: number
+  usdKrw: number
+  markup: number
+  prompt: string
+  refs: string[]
+  resultUrl: string
+  resultKind: string
+}
+export interface AiGenerationsResp {
+  ok: boolean
+  error?: string
+  todayRate?: number
+  total?: number
+  limit?: number
+  offset?: number
+  items?: AiGenerationRow[]
+}
+export async function adminAiGenerations(opts: { limit?: number; offset?: number; kind?: string; q?: string; days?: number } = {}): Promise<AiGenerationsResp> {
+  try {
+    const p = new URLSearchParams()
+    if (opts.limit != null) p.set('limit', String(opts.limit))
+    if (opts.offset != null) p.set('offset', String(opts.offset))
+    if (opts.kind) p.set('kind', opts.kind)
+    if (opts.q) p.set('q', opts.q)
+    if (opts.days != null) p.set('days', String(opts.days))
+    const r = await fetch(`/api/admin/ai-generations?${p.toString()}`, { credentials: 'include' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+
 /* ── 고객센터 채팅 (사용자) ── */
 export interface ChatMsg { sender: 'user' | 'admin' | 'bot'; text: string; at: string; id?: string; readUser?: number; readAdmin?: number }
 export async function chatSend(text: string, convId?: string, name?: string, email?: string): Promise<{ ok: boolean; conv_id?: string; error?: string }> {

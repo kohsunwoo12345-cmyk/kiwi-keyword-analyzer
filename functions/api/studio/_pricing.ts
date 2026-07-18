@@ -225,6 +225,11 @@ export async function ensureAiUsage(db: D1Database): Promise<void> {
     revenue_krw: 'revenue_krw INTEGER DEFAULT 0',
     markup: 'markup REAL DEFAULT 0',
     usd_krw: 'usd_krw REAL DEFAULT 0',
+    // 생성 콘텐츠 아카이브 (관리자 생성 기록 화면)
+    prompt: "prompt TEXT DEFAULT ''",
+    refs: "refs TEXT DEFAULT ''", // 레퍼런스 URL JSON 배열
+    result_url: "result_url TEXT DEFAULT ''", // 결과 이미지/영상 URL(가능하면 R2 durable)
+    result_kind: "result_kind TEXT DEFAULT ''", // image | video
   }
   for (const [name, ddl] of Object.entries(cols)) {
     await db.prepare(`ALTER TABLE ai_usage ADD COLUMN ${ddl}`).run().catch(() => {})

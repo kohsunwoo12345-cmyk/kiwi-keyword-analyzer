@@ -1,5 +1,49 @@
-import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity } from '../_utils'
+import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity, resolveBucket } from '../_utils'
 import { computeCharge, ensureAiUsage, getUsdKrw, resolveMarkup, resolveRefSurcharge } from '../studio/_pricing'
+
+function b64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64)
+  const arr = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
+  return arr
+}
+function ctExt(ct: string): string {
+  const c = (ct || '').toLowerCase()
+  if (c.includes('png')) return '.png'
+  if (c.includes('webp')) return '.webp'
+  if (c.includes('gif')) return '.gif'
+  if (c.includes('jpeg') || c.includes('jpg')) return '.jpg'
+  if (c.includes('svg')) return '.svg'
+  if (c.includes('webm')) return '.webm'
+  if (c.includes('quicktime') || c.includes('mov')) return '.mov'
+  if (c.includes('mp4')) return '.mp4'
+  if (c.includes('audio')) return '.mp3'
+  return ''
+}
+// 생성 미디어를 저장 가능한 URL 로 변환.
+//  · data: URL → R2 업로드(가능 시) → /api/media/<key>. R2 없으면 작은 이미지만 인라인 보관.
+//  · http(s)/상대경로 → 그대로 저장(재업로드로 인한 대용량 전송 회피).
+async function persistMedia(env: any, url: string): Promise<string> {
+  if (!url || typeof url !== 'string') return ''
+  try {
+    if (url.startsWith('data:')) {
+      const m = /^data:([^;,]+)?(;base64)?,([\s\S]*)$/.exec(url)
+      if (!m) return ''
+      const ct = m[1] || 'application/octet-stream'
+      const bytes = m[2] ? b64ToBytes(m[3]) : new TextEncoder().encode(decodeURIComponent(m[3]))
+      const bucket = resolveBucket(env)
+      if (bucket && bytes.length <= 30_000_000) {
+        const key = 'gen/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + ctExt(ct)
+        await bucket.put(key, bytes, { httpMetadata: { contentType: ct } })
+        return '/api/media/' + key
+      }
+      return ct.startsWith('image/') && url.length <= 600_000 ? url : ''
+    }
+    return url // http(s) or /api/...
+  } catch {
+    return url.startsWith('data:') ? '' : url
+  }
+}
 
 // POST /api/usage/record { model, kind, units, res?, audio?, provider? }
 //  → 스튜디오 생성 1건 확정. BYGENCY 세션으로 사용자 식별 → 크레딧 100% 차감 + 정산 기록.
@@ -54,12 +98,31 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   const revenueKrw = charged * 50 // 실제 차감 크레딧 기준 매출
+
+  // 생성 콘텐츠 아카이브 — 프롬프트/레퍼런스/결과. 실패해도 기록/차감은 유지.
+  const prompt = String(b.prompt || '').slice(0, 4000)
+  const resultKind = String(b.resultKind || (c.kind === 'image' ? 'image' : 'video')).slice(0, 12)
+  let refsJson = ''
+  let resultUrl = ''
+  try {
+    const rawRefs: string[] = Array.isArray(b.refUrls) ? b.refUrls.slice(0, 4) : []
+    const persisted: string[] = []
+    for (const r of rawRefs) {
+      const u = await persistMedia(env, String(r || ''))
+      if (u) persisted.push(u)
+    }
+    if (persisted.length) refsJson = JSON.stringify(persisted)
+    resultUrl = await persistMedia(env, String(b.resultUrl || ''))
+  } catch {
+    /* 아카이브 실패 무시 */
+  }
+
   try {
     const id = 'au' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
     await db
       .prepare(
-        `INSERT INTO ai_usage (id,user_id,email,name,provider,model,kind,units,usd,cost_krw,credits,revenue_krw,markup,usd_krw,created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        `INSERT INTO ai_usage (id,user_id,email,name,provider,model,kind,units,usd,cost_krw,credits,revenue_krw,markup,usd_krw,created_at,prompt,refs,result_url,result_kind)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .bind(
         id,
@@ -77,6 +140,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         c.markup,
         c.usdKrw,
         new Date().toISOString(),
+        prompt,
+        refsJson,
+        resultUrl,
+        resultKind,
       )
       .run()
   } catch (e) {
