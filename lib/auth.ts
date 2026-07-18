@@ -777,6 +777,10 @@ export type PlanTrack = 'marketer' | 'video'
 export async function requestPlan(track: PlanTrack, to_plan: string, memo?: string): Promise<{ ok: boolean; error?: string }> {
   return postJson('/api/account/plan-request', { track, to_plan, memo })
 }
+/** 구독 취소 — 해당 트랙 플랜을 '없음'으로 즉시 해지 */
+export async function cancelPlan(track: PlanTrack): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/account/plan-cancel', { track })
+}
 export async function requestPoint(amount: number, memo?: string): Promise<{ ok: boolean; error?: string }> {
   return postJson('/api/account/point-request', { amount, memo })
 }

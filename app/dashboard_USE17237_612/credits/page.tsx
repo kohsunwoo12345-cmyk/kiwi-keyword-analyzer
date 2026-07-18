@@ -306,6 +306,7 @@ export default function CreditsPage() {
         </div>
 
         {/* 2. 충전 패키지 */}
+        <div id="buy" className="scroll-mt-24" />
         <Reveal>
           <Panel
             title={

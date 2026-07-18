@@ -37,6 +37,7 @@ import {
   changePassword,
   markNotificationsRead,
   requestPlan,
+  cancelPlan,
   myPlanRequests,
   type PlanTrack,
   mySenders,
@@ -380,6 +381,31 @@ export default function ProfilePage() {
       setTimeout(() => setToast(''), 5000)
     } else {
       setPlanErr(r.error || '신청에 실패했습니다.')
+    }
+  }
+
+  async function reloadUser() {
+    const d = await accountOverview()
+    if (d.ok) setUser(d.user || null)
+  }
+
+  const [cancelTrack, setCancelTrack] = useState<PlanTrack | null>(null)
+  const [cancelBusy, setCancelBusy] = useState(false)
+  async function confirmCancel() {
+    if (!cancelTrack) return
+    setCancelBusy(true)
+    const r = await cancelPlan(cancelTrack)
+    setCancelBusy(false)
+    if (r.ok) {
+      setToast(`${trackMeta(cancelTrack).label} 구독이 취소되었습니다.`)
+      setCancelTrack(null)
+      reloadUser()
+      loadPlanReqs()
+      setTimeout(() => setToast(''), 5000)
+    } else {
+      setToast(r.error || '구독 취소에 실패했습니다.')
+      setCancelTrack(null)
+      setTimeout(() => setToast(''), 5000)
     }
   }
 
@@ -797,6 +823,15 @@ export default function ProfilePage() {
                             </li>
                           ))}
                         </ul>
+                        {plan !== '없음' && (
+                          <button
+                            type="button"
+                            onClick={() => setCancelTrack(t)}
+                            className="mt-auto self-start pt-1.5 text-[10px] text-[var(--text-dim)] opacity-45 underline decoration-dotted underline-offset-2 transition-opacity hover:opacity-90"
+                          >
+                            구독 취소
+                          </button>
+                        )}
                       </div>
                     )
                   })}
@@ -903,8 +938,17 @@ export default function ProfilePage() {
                   )}
 
                   <Button type="submit" disabled={planBusy || curTier === toPlan} className="w-full">
-                    {planBusy ? '신청 중...' : curTier === toPlan ? '이미 이용 중인 등급입니다' : '신청'}
+                    {planBusy ? '신청 중...' : curTier === toPlan ? '이미 이용 중인 등급입니다' : '승인 신청 (계좌이체)'}
                   </Button>
+                  {curTier !== toPlan && (
+                    <Button
+                      href={`/activate?track=${planTrack}&plan=${toPlan}`}
+                      variant="soft"
+                      className="w-full"
+                    >
+                      <ArrowUpCircle size={16} /> 결제하고 바로 업그레이드
+                    </Button>
+                  )}
                 </form>
 
                 {toast && (
@@ -1408,6 +1452,44 @@ export default function ProfilePage() {
           </>
         )}
       </div>
+
+      {/* 구독 취소 확인 */}
+      {cancelTrack && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 px-4"
+          onClick={() => !cancelBusy && setCancelTrack(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="flex items-center gap-1.5 text-sm font-semibold">
+              <AlertCircle size={15} className="text-amber-500" /> 구독 취소
+            </p>
+            <p className="mt-2 text-xs leading-relaxed text-[var(--text-soft)]">
+              {trackMeta(cancelTrack).label} 구독을 취소하면 해당 플랜 도구를 더 이상 사용할 수 없게 됩니다. 남은 크레딧은 그대로 유지되며, 언제든 다시 시작할 수 있어요.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                disabled={cancelBusy}
+                onClick={() => setCancelTrack(null)}
+                className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2 text-sm font-medium text-[var(--text-soft)] transition-colors hover:bg-slate-50 disabled:opacity-60"
+              >
+                유지하기
+              </button>
+              <button
+                type="button"
+                disabled={cancelBusy}
+                onClick={confirmCancel}
+                className="flex-1 rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700 disabled:opacity-60"
+              >
+                {cancelBusy ? '취소 중...' : '구독 취소'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

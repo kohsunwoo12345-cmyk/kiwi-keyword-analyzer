@@ -22,6 +22,7 @@ import {
   StickyNote,
   Coins,
   Wallet,
+  CreditCard,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -53,6 +54,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
     icon: Coins,
     accent: '#f59e0b',
     items: [
+      { title: '크레딧 추가', href: '/dashboard_USE17237_612/credits#buy', icon: CreditCard },
       { title: '크레딧 충전', href: '/dashboard_USE17237_612/credits', icon: Wallet },
       { title: '이용·충전 내역', href: '/dashboard_USE17237_612/credits#history', icon: Coins },
     ],
