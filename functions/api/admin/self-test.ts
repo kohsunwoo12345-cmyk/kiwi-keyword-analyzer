@@ -81,7 +81,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   async function errText(r: Response): Promise<string> {
     let body = ''
     try { body = (await r.text()).replace(/\s+/g, ' ').slice(0, 140) } catch {}
-    const hint = r.status === 401 ? '키 인증 실패' : r.status === 403 ? '접근 차단(국가/권한/릴레이 필요)' : r.status === 404 ? '엔드포인트 404' : r.status === 429 ? '레이트리밋' : '오류'
+    // 응답 본문으로 원인 구분: 인증 문구가 있으면 국가차단이 아니라 '키 문제'
+    const authish = /not authenticated|invalid[^a-z]*api|invalid[^a-z]*key|unauthor|authentication_error|missing[^a-z]*permission|forbidden.*key/i.test(body)
+    const countryish = /unsupported_country|country.*not supported|region.*not/i.test(body)
+    const hint = authish ? '키 인증 실패 → 키 값·권한 확인'
+      : countryish ? '국가 차단 → 미국 릴레이(OPENAI_RELAY_URL) 필요'
+      : r.status === 401 ? '키 인증 실패 → 키 값 확인'
+      : r.status === 403 ? '접근 거부(키 인증 실패 또는 국가/권한 제한)'
+      : r.status === 404 ? '엔드포인트 404' : r.status === 429 ? '레이트리밋' : '오류'
     return `실패 HTTP ${r.status} · ${hint}${body ? ' · ' + body : ''}`
   }
 
