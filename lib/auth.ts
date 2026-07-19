@@ -550,7 +550,7 @@ export interface ApiProviderBalance {
   id: string; name: string; note: string; url: string
   balance: number | null; unit: string
   source: 'live' | 'manual' | 'none'
-  supportsLive: boolean; keyConfigured: boolean; fetchError: string
+  connected: boolean; verified: boolean; keyConfigured: boolean; fetchError: string
   updatedAt: string
 }
 export async function adminApiBalance(): Promise<{ ok: boolean; error?: string; providers?: ApiProviderBalance[]; fetchedAt?: string }> {

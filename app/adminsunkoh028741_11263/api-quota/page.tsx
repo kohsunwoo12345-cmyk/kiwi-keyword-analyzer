@@ -42,17 +42,19 @@ export default function ApiQuotaPage() {
     if (r.ok) { setEdit(null); load() }
   }
 
+  const connectedCount = rows.filter((r) => r.connected).length
   const liveCount = rows.filter((r) => r.source === 'live').length
 
   return (
     <div>
       <PageHeader icon={Gauge} title="AI API 남은 한도"
-        description="각 AI 제공사의 잔여 한도를 표시합니다. 지원 제공사(Runway·Luma·ElevenLabs)는 API 로 실시간 조회하고, 그 외는 대시보드에서 확인 후 입력합니다." />
+        description="각 AI 제공사의 연동 상태와 잔여 한도를 표시합니다. 키가 설정되면 연동됨으로 확인하고, 잔액 API 를 제공하는 곳(Runway·Luma·ElevenLabs)은 실시간 잔액까지 조회합니다." />
 
       <div className="mb-4 flex items-center justify-between">
         <p className="text-xs text-[var(--text-dim)]">
-          {liveCount > 0 && <span className="mr-2 inline-flex items-center gap-1 text-emerald-600"><Wifi size={12} /> 실시간 {liveCount}곳</span>}
-          {fetchedAt && <>업데이트 {kst(fetchedAt)} · 2분마다 자동 새로고침</>}
+          {rows.length > 0 && <span className="mr-2 inline-flex items-center gap-1 font-semibold text-emerald-600"><Wifi size={12} /> 연동 {connectedCount}/{rows.length}곳</span>}
+          {liveCount > 0 && <span className="mr-2 text-[var(--text-dim)]">· 실시간 잔액 {liveCount}곳</span>}
+          {fetchedAt && <>· 업데이트 {kst(fetchedAt)} · 2분마다 자동 새로고침</>}
         </p>
         <button onClick={load} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-soft)] hover:bg-slate-100">
           <RefreshCw size={14} className={cn(loading && 'animate-spin')} /> 새로고침
@@ -64,15 +66,16 @@ export default function ApiQuotaPage() {
           <Panel key={p.id} className="flex flex-col">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <span className="truncate text-sm font-bold">{p.name}</span>
-                  {p.source === 'live' ? (
-                    <span className="inline-flex items-center gap-0.5 rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700"><Wifi size={9} /> 실시간</span>
-                  ) : p.supportsLive ? (
-                    <span className="inline-flex items-center gap-0.5 rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-700"><WifiOff size={9} /> 조회실패</span>
+                  {p.connected ? (
+                    <span className="inline-flex items-center gap-0.5 rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700"><Wifi size={9} /> 연동됨{p.verified ? '·검증' : ''}</span>
+                  ) : p.keyConfigured ? (
+                    <span className="inline-flex items-center gap-0.5 rounded bg-rose-100 px-1.5 py-0.5 text-[9px] font-bold text-rose-700"><WifiOff size={9} /> 키 오류</span>
                   ) : (
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-500">수동</span>
+                    <span className="inline-flex items-center gap-0.5 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-500"><WifiOff size={9} /> 키 없음</span>
                   )}
+                  {p.source === 'live' && <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-700">잔액 실시간</span>}
                 </div>
                 <div className="mt-0.5 text-[11px] text-[var(--text-dim)]">{p.note}</div>
               </div>
@@ -107,9 +110,11 @@ export default function ApiQuotaPage() {
                   </a>
                 </div>
                 <div className="mt-2 border-t border-[var(--border-soft)] pt-1.5 text-[10px] text-[var(--text-dim)]">
-                  {p.keyConfigured ? 'API 키 연결됨' : 'API 키 미설정'}
-                  {p.fetchError && <span className="text-amber-600"> · 조회 오류: {p.fetchError}</span>}
-                  {!p.supportsLive && !p.fetchError && <span> · 이 제공사는 잔액 API 미지원 (수동 입력)</span>}
+                  {!p.keyConfigured ? <span className="text-rose-600">환경변수에 API 키를 설정하세요</span>
+                    : p.fetchError ? <span className="text-rose-600">키 오류: {p.fetchError} · 키·권한 확인</span>
+                    : p.source === 'live' ? 'API 실시간 잔액 조회됨'
+                    : p.verified ? '연동 검증됨 · 잔액은 각사 API 미제공(수동 입력)'
+                    : '키 연동됨 · 잔액은 각사 API 미제공(수동 입력)'}
                 </div>
               </>
             )}
@@ -121,9 +126,9 @@ export default function ApiQuotaPage() {
       </div>
 
       <p className="mt-4 text-xs leading-relaxed text-[var(--text-dim)]">
-        · <b>실시간</b>: 서버가 환경변수 API 키로 각 제공사 잔액을 직접 조회합니다(Runway=크레딧, Luma=USD, ElevenLabs=문자 잔여).<br />
-        · <b>수동</b>: 공개 잔액 API 가 없는 제공사(Google·fal·OpenAI·Kling 등)는 대시보드에서 확인 후 ✏️ 로 입력하면 표시됩니다.<br />
-        · 조회에 실패하면 API 키·권한을 확인하세요. 충전 버튼을 누르면 각 제공사 결제 페이지로 이동합니다.
+        · <b>연동됨</b>: 환경변수에 API 키가 설정된 제공사. 가능한 경우 실제 API 를 호출해 <b>검증</b>까지 표시합니다(OpenAI·xAI·Google·Runway·Luma·ElevenLabs).<br />
+        · <b>잔액 실시간</b>: 잔액 조회 API 를 제공하는 곳만 자동 표시(Runway=크레딧, Luma=USD, ElevenLabs=문자 잔여). 그 외 제공사는 각사가 잔액 API 를 제공하지 않아 ✏️ 로 수동 입력합니다.<br />
+        · <b>키 오류</b>는 잘못된 키·권한 문제, <b>키 없음</b>은 환경변수 미설정입니다. 충전 버튼은 각사 결제 페이지로 이동합니다.
       </p>
     </div>
   )
