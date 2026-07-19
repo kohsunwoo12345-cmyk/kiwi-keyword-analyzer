@@ -548,9 +548,12 @@ export async function adminModelPricingAction(
 }
 export interface ApiProviderBalance {
   id: string; name: string; note: string; url: string
-  balance: number | null; updatedAt: string
+  balance: number | null; unit: string
+  source: 'live' | 'manual' | 'none'
+  supportsLive: boolean; keyConfigured: boolean; fetchError: string
+  updatedAt: string
 }
-export async function adminApiBalance(): Promise<{ ok: boolean; error?: string; providers?: ApiProviderBalance[] }> {
+export async function adminApiBalance(): Promise<{ ok: boolean; error?: string; providers?: ApiProviderBalance[]; fetchedAt?: string }> {
   try {
     const r = await fetch('/api/admin/api-balance', { credentials: 'include', cache: 'no-store' })
     return await r.json()

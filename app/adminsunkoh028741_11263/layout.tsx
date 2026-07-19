@@ -24,12 +24,12 @@ import {
   Banknote,
   Tag,
   Download,
+  Fuel,
   Menu,
   X,
   ArrowLeft,
 } from 'lucide-react'
 import { Logo } from '@/components/Brand'
-import { ApiQuotaWidget } from '@/components/admin/ApiQuotaWidget'
 import { adminSupportCount, adminPendingCounts } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -54,6 +54,7 @@ const NAV = [
   { title: 'AI 생성 기록', href: `${ADMIN_BASE}/ai-generations`, icon: Images },
   { title: 'AI 정산', href: `${ADMIN_BASE}/ai-usage`, icon: Wallet },
   { title: 'AI 비용 (원가율)', href: `${ADMIN_BASE}/ai-pricing`, icon: Gauge },
+  { title: 'AI API 남은 한도', href: `${ADMIN_BASE}/api-quota`, icon: Fuel },
   { title: '요금제 관리', href: `${ADMIN_BASE}/plans`, icon: Tag },
   { title: '설정', href: '#', icon: Settings },
 ]
@@ -186,7 +187,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <div className="flex-1 overflow-y-auto p-3">
               <AdminNav onNavigate={() => setMobileOpen(false)} />
             </div>
-            <ApiQuotaWidget />
             <SidebarFooter />
           </aside>
         </div>
@@ -205,7 +205,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex-1 overflow-y-auto p-3 no-scrollbar">
           <AdminNav />
         </div>
-        <ApiQuotaWidget />
         <SidebarFooter />
       </aside>
 
