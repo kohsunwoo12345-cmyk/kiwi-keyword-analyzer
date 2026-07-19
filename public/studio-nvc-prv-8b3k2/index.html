@@ -257,9 +257,15 @@ button .ico{ margin-right:5px; }
 #rail #pfFab svg{ width:26px; height:26px; filter:drop-shadow(0 2px 6px rgba(90,90,255,.45)); }
 #rail #pfFab:hover{ background:transparent; transform:translateY(-1px) scale(1.06); }
 /* ── 홈 · 채팅으로 영상 생성 ── */
-#chatHome{ position:fixed; left:44px; top:40px; right:0; bottom:0; z-index:80; display:none; flex-direction:column;
-  background:radial-gradient(1200px 600px at 50% -10%, #1a1e33 0%, #0b0d16 55%, #090a12 100%); color:#e8eaf2; }
-#chatHome.on{ display:flex; }
+#chatHome{ position:fixed; left:44px; top:40px; right:0; bottom:0; z-index:80; display:flex; flex-direction:column;
+  background:radial-gradient(1200px 600px at 50% -10%, #1a1e33 0%, #0b0d16 55%, #090a12 100%); color:#e8eaf2;
+  opacity:0; visibility:hidden; pointer-events:none; transform:translateX(46px);
+  transition:opacity .26s ease, transform .34s cubic-bezier(.22,1,.36,1), visibility .34s; }
+#chatHome.on{ opacity:1; visibility:visible; pointer-events:auto; transform:translateX(0); }
+#smsPane{ position:fixed; left:44px; top:0; right:0; bottom:0; z-index:120; display:flex; flex-direction:column; background:#0b0d16; color:#e8eaf2;
+  opacity:0; visibility:hidden; pointer-events:none; transform:translateX(46px);
+  transition:opacity .26s ease, transform .34s cubic-bezier(.22,1,.36,1), visibility .34s; }
+#smsPane.on{ opacity:1; visibility:visible; pointer-events:auto; transform:translateX(0); }
 .ch-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 18px; border-bottom:1px solid rgba(255,255,255,.07); }
 .ch-title{ display:flex; align-items:center; gap:8px; font-size:14px; font-weight:800; color:#eef0f8; }
 .ch-title svg{ color:#8fa0ff; }
@@ -879,7 +885,7 @@ textarea.wtext.code::placeholder{ color:#5a5c66; }
 .group{ background:rgba(255,255,255,.02); box-shadow:0 8px 30px -12px rgba(0,0,0,.4) inset; }
 .group-title{ color:#d0d1d6; text-shadow:none; }
 
-/* 모달 (API/워크플로/비용/보관함) */
+/* 모달 (API/워크플로우/비용/보관함) */
 .api-card{ background:var(--w-surface); border:1px solid var(--w-border); box-shadow:var(--w-shadow-lg); }
 .api-head{ border-bottom:1px solid var(--w-border); }
 .api-title{ color:var(--w-text); }
@@ -929,7 +935,7 @@ textarea.wtext.code::placeholder{ color:#5a5c66; }
 .ch-model i{ color:#7a7c84; }
 .cost-note{ color:#7a7c84; }
 
-/* 워크플로 모달 */
+/* 워크플로우 모달 */
 .flow-row{ border-bottom:1px solid var(--w-border); }
 .flow-name{ color:var(--w-text); }
 .flow-meta{ color:var(--w-text-3); }
@@ -1099,12 +1105,12 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 <body>
 <div class="top">
   <span class="top-logo"><i></i>NODE STUDIO</span>
-  <div class="mb-menu" data-menu="wf">워크플로
+  <div class="mb-menu" data-menu="wf">워크플로우
     <div class="mb-drop">
       <button id="btnSave">저장</button>
       <button id="btnLoad">불러오기 / 관리</button>
-      <button id="btnDefault">영상 워크플로</button>
-      <button id="btnImgFlow">이미지 워크플로</button>
+      <button id="btnDefault">영상 워크플로우</button>
+      <button id="btnImgFlow">이미지 워크플로우</button>
       <div class="mb-sep"></div>
       <button id="btnClear">전체 삭제</button>
     </div>
@@ -1126,7 +1132,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
     </div>
   </div>
   <div class="mb-tabs" id="mbTabs">
-    <span class="mb-tab plus" id="tabPlus" title="새 워크플로 탭">+</span>
+    <span class="mb-tab plus" id="tabPlus" title="새 워크플로우 탭">+</span>
   </div>
   <div class="top-right">
     <span class="user-chip" id="userChip" title="로그인 계정"></span>
@@ -1324,8 +1330,11 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
     <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg>
   </button>
   <button id="railLib" title="노드 라이브러리">▤</button>
-  <button id="railFlow" title="워크플로 열기"><span data-ico="folder"></span></button>
+  <button id="railFlow" title="워크플로우 열기"><span data-ico="folder"></span></button>
   <button id="railSearch" title="노드 검색"><span data-ico="search"></span></button>
+  <button id="railSms" title="문자 발송">
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>
+  </button>
   <span class="rail-sp"></span>
   <button id="pfFab" title="내 계정" aria-label="내 계정">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -1381,6 +1390,20 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
   </div>
 </div>
 
+<!-- 문자 발송 (SMS) — 기존 발송 도구를 스튜디오 안에서 슬라이드로 열기 -->
+<div id="smsPane">
+  <div class="ch-head">
+    <div class="ch-title">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>
+      문자 발송
+    </div>
+    <div class="ch-head-actions">
+      <button id="smsClose" class="ch-x" title="닫기">✕</button>
+    </div>
+  </div>
+  <iframe id="smsFrame" title="문자 발송" style="flex:1;width:100%;border:0;background:#fff;"></iframe>
+</div>
+
 <div id="stats"></div>
 <div id="fabs">
   <button id="btnFit" title="화면 맞춤"><span data-ico="fit"></span></button>
@@ -1409,15 +1432,15 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
   <div class="api-card">
     <div class="api-head">
       <div>
-        <div class="api-title"><span data-ico="folder"></span> 저장된 워크플로</div>
-        <div class="api-desc">이 브라우저에 저장된 워크플로 목록입니다. 불러오면 현재 작업이 대체됩니다.</div>
+        <div class="api-title"><span data-ico="folder"></span> 저장된 워크플로우</div>
+        <div class="api-desc">이 브라우저에 저장된 워크플로우 목록입니다. 불러오면 현재 작업이 대체됩니다.</div>
       </div>
       <button class="api-x" id="flowClose"><span data-ico="close"></span></button>
     </div>
     <div class="api-body" id="flowBody"></div>
     <div class="api-foot">
       <button class="api-ghost" id="flowImport">파일에서 가져오기</button>
-      <button class="api-ghost" id="flowExport">현재 워크플로 파일로 내보내기</button>
+      <button class="api-ghost" id="flowExport">현재 워크플로우 파일로 내보내기</button>
       <button class="api-save" id="flowNew">＋ 현재 상태 새로 저장</button>
     </div>
   </div>
@@ -2903,7 +2926,7 @@ var I18N = {
     '복사':'Copy','저장':'Save','변경':'Change','삭제':'Delete','전체 삭제':'Delete all','닫기':'Close','불러오기':'Load','불러오기 / 관리':'Load / Manage','불러오는 중…':'Loading…',
     '가져오기':'Import','다운로드':'Download','새로고침':'Refresh','노드 검색':'Search nodes','노드 라이브러리':'Node Library','노드 편집기':'Node Editor',
     '실행 취소':'Undo','다시 실행':'Redo','전체 선택':'Select all','선택 그룹화':'Group selection','단축키 보기':'Shortcuts','미니맵 토글':'Toggle minimap',
-    '새 워크플로 탭':'New workflow tab','영상 워크플로':'Video workflow','이미지 워크플로':'Image workflow','워크플로 열기':'Open workflow','기록 초기화':'Reset history',
+    '새 워크플로우 탭':'New workflow tab','영상 워크플로우':'Video workflow','이미지 워크플로우':'Image workflow','워크플로우 열기':'Open workflow','기록 초기화':'Reset history',
     '보관함 비우기':'Clear library','← 대시보드로':'← Dashboard','내 계정':'My account','내 계정 열기':'Open my account','로그인 계정':'Signed-in account','랜덤 시드':'Random seed','원본으로':'To original',
     '영상·이미지 넣기':'Add video / image','영상·이미지 생성':'Generate video / image','내 컴퓨터에서 이미지·영상을 옴니 레퍼런스로 추가':'Add image/video from your PC as Omni Reference',
     '실행':'Run','생성':'Generate',
@@ -3130,7 +3153,7 @@ var IDB=(function(){
     del:function(s,k){ return run(s,'readwrite',function(o){return o.delete(k);}); }
   };
 })();
-/* 원격/blob 미디어 → data URI 내장 (저장한 워크플로가 자체 완결되도록) */
+/* 원격/blob 미디어 → data URI 내장 (저장한 워크플로우가 자체 완결되도록) */
 function _toDataURI(url){
   return new Promise(function(resolve){
     if(!url || /^data:/.test(url)){ resolve(url); return; }
@@ -3190,8 +3213,8 @@ function saveToGallery(url, kind, model, sec, poster){
 
 function snapshot(){ undoStack.push(JSON.stringify({nodes:state.nodes,links:state.links,groups:state.groups,annos:state.annos,seq:state.seq})); if(undoStack.length>60)undoStack.shift(); redoStack=[]; autosave(); }
 function restore(js){ var d=JSON.parse(js); state.nodes=d.nodes; state.links=d.links||[]; state.groups=d.groups||[]; state.annos=d.annos||[]; state.seq=d.seq||100; sel.clear(); render(); autosave(); }
-/* ══════ 멀티 워크플로 탭 (각 탭 = 독립 워크플로) ══════ */
-var STUDIO_DOCS=[], activeDocId=null;
+/* ══════ 멀티 워크플로우 탭 (각 탭 = 독립 워크플로우) ══════ */
+var STUDIO_DOCS=[], activeDocId=null, _bootedFresh=false;
 function docSnap(){ return {nodes:state.nodes,links:state.links,groups:state.groups,annos:state.annos,seq:state.seq,pan:state.pan,zoom:state.zoom}; }
 function activeDoc(){ for(var i=0;i<STUDIO_DOCS.length;i++) if(STUDIO_DOCS[i].id===activeDocId) return STUDIO_DOCS[i]; return null; }
 function saveActiveIntoDoc(){ var d=activeDoc(); if(d) d.data=docSnap(); }
@@ -3223,10 +3246,10 @@ function switchDoc(id){
 }
 function newDoc(){
   saveActiveIntoDoc();
-  var d={ id:newDocId(), name:'워크플로 '+(STUDIO_DOCS.length+1), data:null };
+  var d={ id:newDocId(), name:'워크플로우 '+(STUDIO_DOCS.length+1), data:null };
   STUDIO_DOCS.push(d); activeDocId=d.id;
   loadDefault(); d.data=docSnap();
-  renderTabs(); autosave(); toast('새 워크플로 탭');
+  renderTabs(); autosave(); toast('새 워크플로우 탭');
 }
 
 /* ── 팀 노드 공유 브릿지 (별도 IIFE 팀 위젯에서 접근) ── */
@@ -3244,12 +3267,12 @@ window.__nvExportGraph=function(){
   });
   return { nodeCount:(g.nodes||[]).length, graph:g };
 };
-// 공유받은 그래프를 새 워크플로 탭으로 저장. keep=true 면 현재 탭 유지(방해 없이 추가).
+// 공유받은 그래프를 새 워크플로우 탭으로 저장. keep=true 면 현재 탭 유지(방해 없이 추가).
 window.__nvImportGraph=function(graph, name, keep){
   if(!graph||!graph.nodes) return false;
   saveActiveIntoDoc();
   var prev=activeDocId;
-  var d={ id:newDocId(), name:name||'공유 워크플로', data:graph };
+  var d={ id:newDocId(), name:name||'공유 워크플로우', data:graph };
   STUDIO_DOCS.push(d);
   if(keep){ activeDocId=prev; renderTabs(); autosave(); }
   else { activeDocId=d.id; loadDocIntoState(d); renderTabs(); autosave(); }
@@ -3257,7 +3280,7 @@ window.__nvImportGraph=function(graph, name, keep){
 };
 window.__nvToast=function(m){ try{ toast(m); }catch(e){} };
 function closeDoc(id){
-  if(STUDIO_DOCS.length<=1){ toast('마지막 워크플로는 닫을 수 없습니다'); return; }
+  if(STUDIO_DOCS.length<=1){ toast('마지막 워크플로우는 닫을 수 없습니다'); return; }
   var idx=-1; for(var i=0;i<STUDIO_DOCS.length;i++) if(STUDIO_DOCS[i].id===id) idx=i;
   if(idx<0)return;
   if(!confirm('"'+STUDIO_DOCS[idx].name+'" 탭을 닫을까요? (저장하지 않은 내용은 사라집니다)'))return;
@@ -3269,11 +3292,12 @@ function closeDoc(id){
 function renameDoc(id){
   var d=null; for(var i=0;i<STUDIO_DOCS.length;i++) if(STUDIO_DOCS[i].id===id) d=STUDIO_DOCS[i];
   if(!d)return;
-  var nm=prompt('워크플로 이름',d.name); if(nm===null)return;
+  var nm=prompt('워크플로우 이름',d.name); if(nm===null)return;
   d.name=(nm||'').trim()||d.name; renderTabs(); autosave();
 }
 
-/* 자동저장: 모든 탭(워크플로) + 활성 탭을 IndexedDB에 저장. 실패 시 localStorage 폴백 */
+/* 자동저장: 모든 탭(워크플로우) + 활성 탭을 IndexedDB에 저장. 실패 시 localStorage 폴백.
+   추가로 로그인 계정에는 서버(D1)에도 자동 저장 → 캐시 삭제·다른 기기에서도 복원. */
 var _autoT=null;
 function autosave(){
   clearTimeout(_autoT);
@@ -3283,9 +3307,61 @@ function autosave(){
       var payload={ v:2, activeId:activeDocId, docs:STUDIO_DOCS.map(function(d){ return {id:d.id,name:d.name,data:d.data}; }) };
       IDB.set('kv',payload,nsKey('docs')).catch(function(){ try{ localStorage.setItem(nsKey('nvNodeStudio'), JSON.stringify(docSnap())); }catch(e){} });
     } else { try{ localStorage.setItem(nsKey('nvNodeStudio'), JSON.stringify(docSnap())); }catch(e){} }
+    serverSaveSoon();
   }, 300);
 }
 function saveViewSoon(){ autosave(); }
+
+/* ── 서버 자동저장 (계정별 워크플로우 보존) ── */
+// 생성 결과·업로드의 대용량 base64(data:) 는 서버 전송에서 제거해 경량화(원격 URL 은 유지).
+function stripGraphMedia(g){
+  try{ g=JSON.parse(JSON.stringify(g)); }catch(e){ return g; }
+  var isData=function(v){ return typeof v==='string' && v.indexOf('data:')===0; };
+  (g&&g.nodes||[]).forEach(function(n){ if(!n||!n.w)return; var w=n.w;
+    ['img','vid','poster','upscaled','srcVideoUrl'].forEach(function(k){ if(isData(w[k]))w[k]=null; });
+    if(Array.isArray(w.imgs)) w.imgs=w.imgs.filter(function(u){ return !isData(u); });
+    w.generating=false; w.upscaling=false; w.extracting=false;
+  });
+  return g;
+}
+function serverPayload(){
+  saveActiveIntoDoc();
+  return { v:2, activeId:activeDocId, docs:STUDIO_DOCS.map(function(d){ return { id:d.id, name:d.name, data:d.data?stripGraphMedia(d.data):null }; }) };
+}
+var _srvT=null, _srvBusy=false;
+function serverSaveSoon(){
+  if(UID==='guest') return;   // 로그인 계정만 서버 저장
+  clearTimeout(_srvT);
+  _srvT=setTimeout(function(){
+    if(_srvBusy)return; _srvBusy=true;
+    try{
+      fetch('/api/studio/workflow',{ method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ data:serverPayload() }) })
+        .then(function(){ _srvBusy=false; }).catch(function(){ _srvBusy=false; });
+    }catch(e){ _srvBusy=false; }
+  }, 4000);
+}
+// 페이지 이탈 시 즉시 플러시 (로컬 + 서버 beacon)
+function flushSave(){
+  try{ saveActiveIntoDoc();
+    if(IDB.ok&&STUDIO_DOCS.length){ IDB.set('kv',{ v:2, activeId:activeDocId, docs:STUDIO_DOCS.map(function(d){ return {id:d.id,name:d.name,data:d.data}; }) },nsKey('docs')); }
+  }catch(e){}
+  try{ if(UID!=='guest' && navigator.sendBeacon){ navigator.sendBeacon('/api/studio/workflow', new Blob([JSON.stringify({ data:serverPayload() })],{type:'application/json'})); } }catch(e){}
+}
+document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='hidden') flushSave(); });
+window.addEventListener('pagehide',flushSave);
+// 로컬에 저장된 워크플로우가 없을 때(새 기기·캐시삭제) 서버에 보관된 워크플로우를 복원
+function reconcileServerWorkflow(){
+  if(UID==='guest') return;
+  fetch('/api/studio/workflow',{ credentials:'include', cache:'no-store' }).then(function(r){ return r.ok?r.json():null; }).then(function(d){
+    if(!d||!d.ok||!d.data||!d.data.docs||!d.data.docs.length) return;
+    if(!_bootedFresh) return;   // 로컬에 이미 작업이 있으면 덮어쓰지 않음
+    STUDIO_DOCS=d.data.docs.map(function(x){ return { id:x.id||newDocId(), name:x.name||'워크플로우', data:x.data }; });
+    activeDocId=d.data.activeId; if(!activeDoc()) activeDocId=STUDIO_DOCS[0].id;
+    _bootedFresh=false;
+    loadDocIntoState(activeDoc()); renderTabs(); autosave();
+    try{ toast('계정에 저장된 워크플로우를 불러왔어요'); }catch(e){}
+  }).catch(function(){});
+}
 
 var MAX_NODES=0;   // 요금제별 최대 노드 수 (0=무제한). /api/me 에서 설정.
 function addNode(type,x,y,skipSnap){
@@ -4242,8 +4318,8 @@ canvas.addEventListener('contextmenu',function(e){
     {label:'노드 추가',sub:catSub},
     {label:'검색으로 추가',kbd:'더블클릭',fn:function(){ openSearch(e.clientX,e.clientY); }},
     '-',
-    {label:'영상 워크플로',fn:loadDefault},
-    {label:'이미지 워크플로',fn:loadImageDefault},
+    {label:'영상 워크플로우',fn:loadDefault},
+    {label:'이미지 워크플로우',fn:loadImageDefault},
     {label:'전체 선택',kbd:'Ctrl+A',fn:function(){ state.nodes.forEach(function(n){sel.add(n.id);}); render(); }},
     {label:'화면 맞춤',fn:fitView}
   ]);
@@ -4605,7 +4681,7 @@ function showShortcuts(){
     '<span style="color:#c9cad0;font-size:12.5px;">'+esc(s[1])+'</span>'+
     '<kbd style="font-family:inherit;font-size:11px;font-weight:700;color:#e9e3f6;background:#221d33;border:1px solid #3a3350;border-radius:6px;padding:3px 9px;white-space:nowrap;">'+esc(s[0])+'</kbd></div>'; }).join('');
   b.innerHTML='<div class="sc-card" style="width:100%;max-width:440px;max-height:86vh;overflow:auto;background:#14161d;border:1px solid #2c2f3a;border-radius:18px;box-shadow:0 30px 80px -20px rgba(0,0,0,.8);color:#dfe3ec;padding:20px 22px;transform:translateY(14px) scale(.97);opacity:0;transition:transform .28s cubic-bezier(.22,1,.36,1),opacity .24s ease;">'+
-    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span style="font-size:16px;">⌨️</span><b style="font-size:15px;">단축키</b><span id="scX" style="margin-left:auto;cursor:pointer;color:#9a93ac;font-size:20px;line-height:1;">×</span></div>'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span style="display:inline-flex;color:#8fa0ff;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h12"/></svg></span><b style="font-size:15px;">단축키</b><span id="scX" style="margin-left:auto;cursor:pointer;color:#9a93ac;font-size:20px;line-height:1;">×</span></div>'+
     rows+'</div>';
   document.body.appendChild(b);
   function close(){ b.classList.remove('on'); }
@@ -4665,6 +4741,16 @@ document.getElementById('mbTabs').addEventListener('dblclick',function(e){
 /* ── 좌측 레일 ── */
 document.getElementById('railFlow').addEventListener('click',openFlowModal);
 document.getElementById('railSearch').addEventListener('click',function(){ openSearch(innerWidth/2-150, 140); });
+/* 문자 발송 — 기존 발송 도구를 스튜디오 안 슬라이드 패널로 (iframe 은 최초 열 때만 로드) */
+(function(){
+  var rs=document.getElementById('railSms'), pane=document.getElementById('smsPane'), fr=document.getElementById('smsFrame'), cl=document.getElementById('smsClose');
+  if(!rs||!pane)return;
+  function openSms(){ if(fr&&!fr.getAttribute('src')) fr.setAttribute('src','/tools/sms?embed=1'); pane.classList.add('on'); }
+  function closeSms(){ pane.classList.remove('on'); }
+  rs.addEventListener('click',openSms);
+  if(cl)cl.addEventListener('click',closeSms);
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&pane.classList.contains('on'))closeSms(); });
+})();
 var libPanel=document.getElementById('libPanel'), libBody=document.getElementById('libBody');
 function buildLib(q){
   q=(q||'').toLowerCase();
@@ -4742,9 +4828,9 @@ document.getElementById('fabMini').addEventListener('click',function(){
 })();
 document.getElementById('btnFit').addEventListener('click',fitView);
 document.getElementById('btnClear').addEventListener('click',function(){ if(confirm('모든 노드를 삭제할까요?')){ state.nodes=[];state.links=[];sel.clear();snapshot();render(); } });
-document.getElementById('btnDefault').addEventListener('click',function(){ if(confirm('영상 워크플로를 불러올까요? 현재 작업은 대체됩니다.')) loadDefault(); });
-document.getElementById('btnImgFlow').addEventListener('click',function(){ if(confirm('이미지 생성 워크플로를 불러올까요? 현재 작업은 대체됩니다.')) loadImageDefault(); });
-/* ════════ 워크플로 저장/불러오기 (IndexedDB — 영상·이미지 포함, 용량 넉넉) ════════ */
+document.getElementById('btnDefault').addEventListener('click',function(){ if(confirm('영상 워크플로우를 불러올까요? 현재 작업은 대체됩니다.')) loadDefault(); });
+document.getElementById('btnImgFlow').addEventListener('click',function(){ if(confirm('이미지 생성 워크플로우를 불러올까요? 현재 작업은 대체됩니다.')) loadImageDefault(); });
+/* ════════ 워크플로우 저장/불러오기 (IndexedDB — 영상·이미지 포함, 용량 넉넉) ════════ */
 var FLOW_KEY='nvSavedFlows';
 /* 구 localStorage 저장분을 IndexedDB로 1회 이전 */
 function migrateFlows(){
@@ -4762,7 +4848,7 @@ function loadFlows(){ return IDB.ok ? IDB.all('flows').then(function(a){
     .sort(function(x,y){ return (y.ts||'').localeCompare(x.ts||''); }); }).catch(function(){ return []; }) : Promise.resolve([]); }
 function newFlowId(){ return 'wf-'+Date.now()+'-'+Math.floor(Math.random()*1e6); }
 function saveCurrentFlow(){
-  var name=prompt('워크플로 이름을 입력하세요','내 워크플로');
+  var name=prompt('워크플로우 이름을 입력하세요','내 워크플로우');
   if(name===null)return;
   name=(name||'').trim()||'제목 없음';
   var d=new Date(), stamp=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
@@ -4786,7 +4872,7 @@ function renderFlows(){
   flowBody.innerHTML='<div class="flow-empty">불러오는 중…</div>';
   loadFlows().then(function(list){
     _flowCache=list||[];
-    if(!_flowCache.length){ flowBody.innerHTML='<div class="flow-empty">저장된 워크플로가 없습니다.<br>아래 "＋ 현재 상태 새로 저장" 으로 저장하세요.</div>'; return; }
+    if(!_flowCache.length){ flowBody.innerHTML='<div class="flow-empty">저장된 워크플로우가 없습니다.<br>아래 "＋ 현재 상태 새로 저장" 으로 저장하세요.</div>'; return; }
     flowBody.innerHTML=_flowCache.map(function(f,i){
       return '<div class="flow-row"><div class="flow-info"><div class="flow-name">'+esc(f.name)+'</div>'+
         '<div class="flow-meta">'+esc(f.ts||'')+' · 노드 '+(f.nodes||0)+'개</div></div>'+
@@ -4818,7 +4904,7 @@ document.getElementById('flowImport').addEventListener('click',function(){ docum
 document.getElementById('loadFile').addEventListener('change',function(e){
   var f=e.target.files&&e.target.files[0]; if(!f)return;
   var rd=new FileReader();
-  rd.onload=function(){ try{ restore(rd.result); snapshot(); flowModal.classList.remove('show'); toast('파일에서 불러옴'); setTimeout(fitView,50); }catch(err){ toast('잘못된 워크플로 파일입니다'); } };
+  rd.onload=function(){ try{ restore(rd.result); snapshot(); flowModal.classList.remove('show'); toast('파일에서 불러옴'); setTimeout(fitView,50); }catch(err){ toast('잘못된 워크플로우 파일입니다'); } };
   rd.readAsText(f); e.target.value='';
 });
 function fitView(){
@@ -4836,7 +4922,7 @@ function fitView(){
   applyView(); drawLinks();
 }
 
-/* ════════ 기본 워크플로 ════════ */
+/* ════════ 기본 워크플로우 ════════ */
 function loadDefault(){
   state.nodes=[];state.links=[];sel.clear();
   var p=addNode('prompt',40,60,true), ng=addNode('negative',40,290,true), rf=addNode('reference',40,500,true);
@@ -4851,7 +4937,7 @@ function loadDefault(){
   ];
   snapshot(); render(); fitView();   // 동기 화면맞춤 — 첫 프레임부터 정위치(깜빡임/끊김 방지)
 }
-/* 이미지 생성 + 레퍼런스 편집 워크플로:
+/* 이미지 생성 + 레퍼런스 편집 워크플로우:
    ① 프롬프트 → 모델(Flux) → 출력  (텍스트→이미지 생성)
    ② 그 출력을 → 모델(Flux Kontext) 레퍼런스로 연결 + 편집 프롬프트 → 출력  (레퍼런스 넣어 재생성)
    두 번째 모델 노드만 지우면 "단순 이미지 생성"으로도 쓸 수 있습니다. */
@@ -4875,12 +4961,12 @@ function loadImageDefault(){
   snapshot(); render(); fitView();
 }
 
-/* ════════ 시작 (멀티 워크플로 탭 복원) ════════ */
+/* ════════ 시작 (멀티 워크플로우 탭 복원) ════════ */
 function boot(){
   var lsSaved=null; try{ lsSaved=JSON.parse(localStorage.getItem(nsKey('nvNodeStudio'))||'null'); }catch(e){}
   function startDocs(payload){   // v2 다중 탭 구조
     if(payload && payload.docs && payload.docs.length){
-      STUDIO_DOCS=payload.docs.map(function(d){ return {id:d.id||newDocId(), name:d.name||'워크플로', data:d.data}; });
+      STUDIO_DOCS=payload.docs.map(function(d){ return {id:d.id||newDocId(), name:d.name||'워크플로우', data:d.data}; });
       activeDocId=payload.activeId;
       if(!activeDoc()) activeDocId=STUDIO_DOCS[0].id;
       loadDocIntoState(activeDoc()); renderTabs(); return true;
@@ -4889,16 +4975,17 @@ function boot(){
   }
   function fromSingle(g){        // 단일 그래프 → 탭 1개로 이전
     if(g && g.nodes && g.nodes.length && g.nodes[0] && g.nodes[0].w){
-      STUDIO_DOCS=[{ id:newDocId(), name:'워크플로 1', data:g }]; activeDocId=STUDIO_DOCS[0].id;
+      STUDIO_DOCS=[{ id:newDocId(), name:'워크플로우 1', data:g }]; activeDocId=STUDIO_DOCS[0].id;
       loadDocIntoState(activeDoc()); renderTabs(); return true;
     }
     return false;
   }
   function fresh(){
-    STUDIO_DOCS=[{ id:newDocId(), name:'워크플로 1', data:null }]; activeDocId=STUDIO_DOCS[0].id;
+    _bootedFresh=true;
+    STUDIO_DOCS=[{ id:newDocId(), name:'워크플로우 1', data:null }]; activeDocId=STUDIO_DOCS[0].id;
     loadDefault(); activeDoc().data=docSnap(); renderTabs();
   }
-  function done(){ nvRelink(); migrateFlows(); autosave(); }
+  function done(){ nvRelink(); migrateFlows(); autosave(); reconcileServerWorkflow(); }
   if(IDB.ok){
     IDB.get('kv',nsKey('docs')).then(function(docsPayload){
       if(startDocs(docsPayload)){ done(); return; }
@@ -4911,8 +4998,8 @@ function boot(){
           done();
         });
       });
-    }).catch(function(){ if(!fromSingle(lsSaved)) fresh(); nvRelink(); });
-  } else { if(!fromSingle(lsSaved)) fresh(); nvRelink(); }
+    }).catch(function(){ if(!fromSingle(lsSaved)) fresh(); nvRelink(); reconcileServerWorkflow(); });
+  } else { if(!fromSingle(lsSaved)) fresh(); nvRelink(); reconcileServerWorkflow(); }
 }
 /* ── 로그인 계정 확정 → 그 계정의 데이터만 로드 (사용자별 완전 분리) ── */
 function paintUserChip(u){
@@ -5199,6 +5286,7 @@ pfHandleTossReturn();
 (function(){
   function chEl(id){ return document.getElementById(id); }
   var CH_EX=['노을 지는 해변을 달리는 골든리트리버, 시네마틱','네온 가득한 밤의 도쿄 거리를 걷는 1인칭 시점','우주에서 지구를 바라보는 우주비행사, 슬로모션','벚꽃 흩날리는 골목, 따뜻한 오후 햇살'];
+  var CH_WARN='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f0b23a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
   var home=chEl('chatHome'), body=chEl('chBody'), msgsWrap=null, busy=false;
   if(!home) return;
 
@@ -5245,7 +5333,7 @@ pfHandleTossReturn();
     ta.value=''; grow(ta); addMe(prompt);
     // 크레딧 사전 확인 (잔액 부족 시 생성 차단)
     var _gC=await creditGate({model:model, units:sec, kind:'video', res:'1080p', audio:false});
-    if(_gC){ addAI('⚠️ '+_gC); return; }
+    if(_gC){ addAI(CH_WARN+' '+esc(_gC)); return; }
     busy=true; chEl('chSend').disabled=true;
     var loading=addAI('<span class="ch-dots"><i></i><i></i><i></i></span> 영상 생성 중… (수십 초~수 분 소요)');
     try{
@@ -5259,7 +5347,7 @@ pfHandleTossReturn();
         +'<div class="ch-vidmeta"><span>'+esc(model)+' · '+sec+'초</span><a href="'+esc(res.url)+'" download target="_blank">다운로드</a><span>보관함 저장됨</span></div></div>';
       w.appendChild(r); down();
     }catch(e){
-      loading.querySelector('.ch-bubble').innerHTML='⚠️ 생성 실패: '+esc(String((e&&e.message)||e).slice(0,180));
+      loading.querySelector('.ch-bubble').innerHTML=CH_WARN+' 생성 실패: '+esc(String((e&&e.message)||e).slice(0,180));
     }
     busy=false; chEl('chSend').disabled=false;
   }
@@ -5281,7 +5369,7 @@ function showPlanGate(){
   var ov=document.createElement('div'); ov.id='planGateOv';
   ov.style.cssText='position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(8,7,12,.92);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);';
   ov.innerHTML='<div style="width:100%;max-width:460px;border-radius:22px;border:1px solid rgba(139,92,246,.34);background:linear-gradient(180deg,#171226,#100f18);box-shadow:0 40px 100px -20px rgba(0,0,0,.85);padding:34px 28px;color:#e9e3f6;text-align:center;font-family:inherit;">'+
-    '<div style="width:66px;height:66px;margin:0 auto 14px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:32px;background:rgba(139,92,246,.16);border:1px solid rgba(139,92,246,.3);">🔒</div>'+
+    '<div style="width:66px;height:66px;margin:0 auto 14px;border-radius:18px;display:flex;align-items:center;justify-content:center;background:rgba(139,92,246,.16);border:1px solid rgba(139,92,246,.3);"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#c3a8ff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/><circle cx="12" cy="15.5" r="1.4" fill="#c3a8ff" stroke="none"/></svg></div>'+
     '<div style="font-size:22px;font-weight:800;letter-spacing:-.01em;">요금제를 활성화해 주세요</div>'+
     '<p style="margin:12px 0 2px;font-size:13.5px;line-height:1.8;color:#a9a2bd;">노드형 AI 영상 제작은 <b style="color:#c3a8ff">요금제 결제 후</b> 이용할 수 있어요.<br>계좌 입금 후 승인 신청을 하면 관리자 승인 즉시<br><b style="color:#c3a8ff">마케팅 대시보드와 영상 제작 둘 다</b> 열립니다.</p>'+
     '<a href="/activate" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:22px;padding:14px;border-radius:13px;background:linear-gradient(135deg,#7c5cff,#a855f7);color:#fff;font-size:14.5px;font-weight:800;text-decoration:none;box-shadow:0 10px 28px -6px rgba(139,92,246,.55);">바로 요금제를 활성화해 주세요 →</a>'+
@@ -5311,7 +5399,7 @@ function showPlanGate(){
     var ov=document.createElement('div'); ov.id='welcomeOv';
     ov.style.cssText='position:fixed;inset:0;z-index:9500;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(8,7,12,.74);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);';
     ov.innerHTML='<div style="width:100%;max-width:440px;border-radius:20px;border:1px solid rgba(139,92,246,.32);background:linear-gradient(180deg,#171226,#111019);box-shadow:0 30px 80px -20px rgba(0,0,0,.8);padding:30px 26px;color:#e9e3f6;text-align:center;font-family:inherit;">'+
-      '<div style="width:64px;height:64px;margin:0 auto 12px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:32px;background:rgba(139,92,246,.16);border:1px solid rgba(139,92,246,.3);">🎬</div>'+
+      '<div style="width:64px;height:64px;margin:0 auto 12px;border-radius:18px;display:flex;align-items:center;justify-content:center;background:rgba(139,92,246,.16);border:1px solid rgba(139,92,246,.3);"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#c3a8ff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2.2"/><path d="M3 10h18M8 6l-2 4M13 6l-2 4M18 6l-2 4"/></svg></div>'+
       '<div style="font-size:21px;font-weight:800;letter-spacing:-.01em;">BYGENCY에 오신 걸 환영합니다!</div>'+
       '<p style="margin:11px 0 2px;font-size:13.5px;line-height:1.75;color:#a9a2bd;">노드형 AI 스튜디오에 바로 입장했어요.<br>영상·이미지를 생성하려면 <b style="color:#c3a8ff">요금제를 활성화</b>해 크레딧을 받으세요.</p>'+
       '<a href="/activate" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:20px;padding:13px;border-radius:12px;background:linear-gradient(135deg,#7c5cff,#a855f7);color:#fff;font-size:14px;font-weight:700;text-decoration:none;box-shadow:0 8px 24px -6px rgba(139,92,246,.5);">요금제 활성화하기 →</a>'+
@@ -5344,6 +5432,11 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
 
   // 주석 레이어 (world 내부 · 팬/줌 따라감). render()가 .node 만 지우므로 유지됨.
   var SVGNS='http://www.w3.org/2000/svg';
+  // 캔버스 스탬프용 고품질 SVG (이모지 대체) — 하트/댓글
+  var EMOJI_SVG={
+    heart:'<svg width="40" height="40" viewBox="0 0 24 24" fill="#ff4d6d" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,.5));"><path d="M12 21s-7.5-4.6-10-9.3C.3 8.3 2 5 5.5 5c2 0 3.4 1.1 4.5 2.5C11.1 6.1 12.5 5 14.5 5 18 5 19.7 8.3 22 11.7 19.5 16.4 12 21 12 21z"/></svg>',
+    comment:'<svg width="40" height="40" viewBox="0 0 24 24" fill="#8b5cf6" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,.5));"><path d="M21 4H3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3v3.4L11 18h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/></svg>'
+  };
   var annoSvg=document.createElementNS(SVGNS,'svg');
   annoSvg.id='annoSvg'; annoSvg.setAttribute('style','position:absolute;top:0;left:0;overflow:visible;width:1px;height:1px;z-index:1;pointer-events:none;');
   var annoHtml=document.createElement('div'); annoHtml.id='annoHtml'; annoHtml.style.pointerEvents='none';
@@ -5394,7 +5487,7 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
         // HTML 주석 (텍스트·스티키·이모지)
         var d=document.createElement('div'); d.className='anno '+(a.t==='text'?'a-text':a.t==='sticky'?'a-sticky':'a-emoji')+(isSel?' asel':'');
         d.style.left=a.x+'px'; d.style.top=a.y+'px'; d.setAttribute('data-anno',a.id);
-        if(a.t==='emoji'){ d.textContent=a.ch||'❤️'; }
+        if(a.t==='emoji'){ var _ek=(a.ch==='💬'||a.ch==='comment')?'comment':'heart'; d.innerHTML=EMOJI_SVG[_ek]; }
         else { d.textContent=a.text||''; }
         var x=document.createElement('span'); x.className='adel'; x.textContent='✕'; x.setAttribute('data-adel',a.id); d.appendChild(x);
         annoHtml.appendChild(d);
@@ -5485,8 +5578,8 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
     if(TOOL==='arrow'||TOOL==='rect'||TOOL==='ellipse'){ startShape(TOOL,w); return; }
     if(TOOL==='text'){ createText(w); setTool('select'); return; }
     if(TOOL==='note'){ createSticky(w); setTool('select'); return; }
-    if(TOOL==='heart'){ createEmoji('❤️',w); setTool('select'); return; }
-    if(TOOL==='comment'){ createEmoji('💬',w); setTool('select'); return; }
+    if(TOOL==='heart'){ createEmoji('heart',w); setTool('select'); return; }
+    if(TOOL==='comment'){ createEmoji('comment',w); setTool('select'); return; }
     if(TOOL==='frame'){ createFrame(w); setTool('select'); return; }
   }, true);
 
@@ -5545,6 +5638,13 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
   var meId=null, meName='', teams=[], curTeam=null, lastTs='', pollTimer=null, open=false;
   var tpActive=false, tpSeatKrw=44000, tpSeats=0;
   var esc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); };
+  // 고품질 인라인 SVG 아이콘 (이모지 대체)
+  var SVG_PEOPLE='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+  var SVG_CROWN='<svg class="tw-crown" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7l4.2 3.6L12 4l4.8 6.6L21 7l-1.8 12H4.8L3 7z"/></svg>';
+  // 화면 전환 슬라이드: dir 'fwd'(진입) | 'back'(뒤로) | 'none'(페이드 없음)
+  function setView(html, dir){ var p=document.getElementById('twPanel'); if(!p)return;
+    var cls=dir==='back'?' twv-back':dir==='none'?'':' twv-fwd';
+    p.innerHTML='<div class="tw-view'+cls+'">'+html+'</div>'; }
   function payApi(body){ return fetch('/api/team/pay',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json();}); }
   function payGet(){ return fetch('/api/team/pay',{credentials:'include',cache:'no-store'}).then(function(r){return r.json();}).catch(function(){return{};}); }
   function api(method, body){
@@ -5574,7 +5674,12 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
   '.tw-msgs{flex:1;overflow-y:auto;padding:10px 13px;display:flex;flex-direction:column;gap:8px;} .tw-msg{max-width:80%;padding:7px 10px;border-radius:12px;font-size:12.5px;line-height:1.45;word-break:break-word;}'+
   '.tw-msg.me{align-self:flex-end;background:linear-gradient(135deg,#7c5cff,#a855f7);color:#fff;border-bottom-right-radius:4px;} .tw-msg.them{align-self:flex-start;background:#211d33;color:#e9e3f6;border-bottom-left-radius:4px;}'+
   '.tw-msg .tw-nm{display:block;font-size:9.5px;opacity:.7;margin-bottom:2px;} .tw-foot{display:flex;gap:6px;padding:10px 12px;border-top:1px solid rgba(255,255,255,.08);}'+
-  '.tw-err{color:#ef8a9a;font-size:11.5px;margin:4px 0 2px;} .tw-hint{color:#8b84a0;font-size:11.5px;line-height:1.5;} .tw-lbl{font-size:10.5px;font-weight:800;color:#9a8fc0;letter-spacing:.4px;margin:10px 0 5px;}';
+  '.tw-err{color:#ef8a9a;font-size:11.5px;margin:4px 0 2px;} .tw-hint{color:#8b84a0;font-size:11.5px;line-height:1.5;} .tw-lbl{font-size:10.5px;font-weight:800;color:#9a8fc0;letter-spacing:.4px;margin:10px 0 5px;}'+
+  '.tw-view{position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(180deg,#171226,#111019);will-change:transform,opacity;}'+
+  '.tw-view.twv-fwd{animation:twSlideFwd .3s cubic-bezier(.22,1,.36,1);} .tw-view.twv-back{animation:twSlideBack .3s cubic-bezier(.22,1,.36,1);}'+
+  '@keyframes twSlideFwd{from{opacity:.25;transform:translateX(34px);}to{opacity:1;transform:translateX(0);}}'+
+  '@keyframes twSlideBack{from{opacity:.25;transform:translateX(-34px);}to{opacity:1;transform:translateX(0);}}'+
+  '.tw-mem svg{vertical-align:-2px;} .tw-crown{color:#ffd25e;vertical-align:-1px;margin-left:2px;}';
   function mount(){
     if(document.getElementById('twBtn'))return;
     document.head.appendChild(css);
@@ -5625,17 +5730,17 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
       if(!d||!d.ok){ renderNeedLogin(); return; }
       meId=d.meId; meName=d.meName||''; teams=d.teams||[];
       var dot=document.getElementById('twDot'); if(dot){ var n=(d.invites||[]).length; dot.textContent=n; dot.style.display=n>0?'flex':'none'; }
-      // 받은 노드 공유 → 내 워크플로에 새 탭으로 자동 저장(현재 탭 유지)
+      // 받은 노드 공유 → 내 워크플로우에 새 탭으로 자동 저장(현재 탭 유지)
       if(d.shares&&d.shares.length&&window.__nvImportGraph){
         var cnt=0; d.shares.forEach(function(sh){ if(window.__nvImportGraph(sh.graph, '공유: '+(sh.fromName||'팀원'), true)){ cnt++; post({action:'share_ack',shareId:sh.id}); } });
-        if(cnt&&window.__nvToast) window.__nvToast('공유받은 워크플로 '+cnt+'개를 새 탭으로 저장했어요');
+        if(cnt&&window.__nvToast) window.__nvToast('공유받은 워크플로우 '+cnt+'개를 새 탭으로 저장했어요');
       }
       payGet().then(function(s){ tpActive=!!(s&&s.active); tpSeatKrw=(s&&s.seatKrw)||44000; tpSeats=(s&&s.seats)||0;
         if(curTeam) renderChat(); else renderHome(d.invites||[]); });
     }).catch(renderNeedLogin);
   }
-  function renderNeedLogin(){ var p=document.getElementById('twPanel'); p.innerHTML=
-    '<div class="tw-hd">팀워크<span class="tw-x" data-twx title="채팅 접기">×</span></div><div class="tw-body"><p class="tw-hint">로그인 후 팀을 만들고 팀원과 채팅할 수 있어요.</p></div>';
+  function renderNeedLogin(){ setView(
+    '<div class="tw-hd">팀워크<span class="tw-x" data-twx title="채팅 접기">×</span></div><div class="tw-body"><p class="tw-hint">로그인 후 팀을 만들고 팀원과 채팅할 수 있어요.</p></div>', 'none');
     bindX(); }
 
   function renderHome(invites){
@@ -5646,7 +5751,7 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
         '<button class="tw-btn" data-acc="'+esc(iv.id)+'">수락</button><button class="tw-btn tw-ghost" data-dec="'+esc(iv.id)+'">거절</button></div></div>';
     }).join('') : '';
     var teamHtml = teams.length ? '<div class="tw-lbl">내 팀</div>'+teams.map(function(t){
-      return '<div class="tw-inv" style="cursor:pointer;display:flex;align-items:center;gap:8px;" data-team="'+esc(t.id)+'"><span style="font-size:16px;">👥</span><b style="flex:1;">'+esc(t.name)+'</b><span class="tw-hint">'+(t.members?t.members.length:1)+'명</span></div>';
+      return '<div class="tw-inv" style="cursor:pointer;display:flex;align-items:center;gap:8px;" data-team="'+esc(t.id)+'"><span style="color:#c3a8ff;display:inline-flex;">'+SVG_PEOPLE+'</span><b style="flex:1;">'+esc(t.name)+'</b><span class="tw-hint">'+(t.members?t.members.length:1)+'명</span></div>';
     }).join('') : '<p class="tw-hint">아직 팀이 없어요. 새 팀을 만들어 팀원을 초대하세요.</p>';
     // 팀 요금제 활성: 새 팀 만들기 / 비활성: 결제 안내
     var makeHtml = tpActive
@@ -5656,8 +5761,8 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
         '<div class="tw-row" style="margin-top:9px;align-items:center;"><span class="tw-hint" style="align-self:center;">좌석</span><input class="tw-in" id="twSeats" type="number" min="1" max="100" value="3" style="max-width:64px;text-align:center;"><span id="twSeatSum" style="align-self:center;font-size:12.5px;font-weight:800;color:#c3a8ff;"></span></div>'+
         '<button class="tw-btn" data-teampay style="width:100%;margin-top:9px;">결제하고 팀 시작</button>'+
         '<div class="tw-err" id="twPayMsg" style="display:none;margin-top:6px;"></div></div>';
-    p.innerHTML='<div class="tw-hd">👥 팀워크<span class="tw-x" data-twx title="채팅 접기">×</span></div>'+
-      '<div class="tw-body">'+invHtml+ makeHtml + teamHtml+'</div>';
+    setView('<div class="tw-hd"><span style="display:inline-flex;color:#c3a8ff;margin-right:2px;">'+SVG_PEOPLE+'</span>팀워크<span class="tw-x" data-twx title="채팅 접기">×</span></div>'+
+      '<div class="tw-body">'+invHtml+ makeHtml + teamHtml+'</div>', 'back');
     bindX();
     var mkBtn=p.querySelector('[data-newteam]');
     if(mkBtn) mkBtn.addEventListener('click',function(){
@@ -5677,17 +5782,17 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
   function renderChat(){
     var t=curTeam; if(!t)return renderHome([]);
     var p=document.getElementById('twPanel');
-    var mems=(t.members||[]).map(function(m){ return '<span class="tw-mem">'+esc(m.name||m.email)+(m.role==='owner'?' 👑':'')+'</span>'; }).join('');
-    p.innerHTML='<div class="tw-hd"><span class="tw-x" data-twback style="margin-left:0;margin-right:2px;">‹</span>'+esc(t.name)+'<span class="tw-x" data-twx title="채팅 접기">×</span></div>'+
+    var mems=(t.members||[]).map(function(m){ return '<span class="tw-mem">'+esc(m.name||m.email)+(m.role==='owner'?SVG_CROWN:'')+'</span>'; }).join('');
+    setView('<div class="tw-hd"><span class="tw-x" data-twback style="margin-left:0;margin-right:2px;">‹</span>'+esc(t.name)+'<span class="tw-x" data-twx title="채팅 접기">×</span></div>'+
       '<div style="padding:9px 13px 4px;border-bottom:1px solid rgba(255,255,255,.06);">'+mems+
       '<div class="tw-row" style="margin-top:7px;margin-bottom:2px;"><input class="tw-in" id="twInvite" placeholder="초대할 아이디(이메일) 입력"><button class="tw-btn" data-inv>초대</button></div>'+
       '<div class="tw-err" id="twInvErr" style="display:none;"></div>'+
       '<button class="tw-btn tw-ghost" data-share style="width:100%;margin-top:2px;display:flex;align-items:center;justify-content:center;gap:6px;">'+
         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>'+
-        '현재 워크플로 팀에 공유</button>'+
+        '현재 워크플로우 팀에 공유</button>'+
       '<div class="tw-err" id="twShareMsg" style="display:none;"></div></div>'+
       '<div class="tw-msgs" id="twMsgs"></div>'+
-      '<div class="tw-foot"><input class="tw-in" id="twMsg" placeholder="메시지 입력…"><button class="tw-btn" data-send>전송</button></div>';
+      '<div class="tw-foot"><input class="tw-in" id="twMsg" placeholder="메시지 입력…"><button class="tw-btn" data-send>전송</button></div>', 'fwd');
     bindX();
     p.querySelector('[data-twback]').addEventListener('click',function(){ curTeam=null; stopPoll(); refresh(); });
     var invErr=p.querySelector('#twInvErr');
@@ -5706,8 +5811,8 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(nvRelink);
       var ex; try{ ex=window.__nvExportGraph(); }catch(e){ ex=null; }
       if(!ex||!ex.nodeCount){ showShare('err','공유할 노드가 없습니다. 캔버스에 노드를 추가하세요.'); return; }
       showShare('','공유 중…');
-      post({action:'share',teamId:t.id,graph:ex.graph,name:(t.name||'팀')+' 워크플로'}).then(function(r){
-        if(r&&r.ok) showShare('ok','팀원 '+r.sent+'명에게 워크플로(노드 '+ex.nodeCount+'개)를 공유했어요.');
+      post({action:'share',teamId:t.id,graph:ex.graph,name:(t.name||'팀')+' 워크플로우'}).then(function(r){
+        if(r&&r.ok) showShare('ok','팀원 '+r.sent+'명에게 워크플로우(노드 '+ex.nodeCount+'개)를 공유했어요.');
         else showShare('err',(r&&r.error)||'공유에 실패했습니다.');
       }).catch(function(){ showShare('err','네트워크 오류'); });
     });
