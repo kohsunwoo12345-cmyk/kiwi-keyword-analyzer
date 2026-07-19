@@ -7,7 +7,18 @@
 //      ?provider=google&file=URI  → Veo 결과 파일 스트리밍(키 서버측 유지)
 // 키는 Cloudflare Pages 환경변수에서만 읽으며 절대 응답에 포함되지 않습니다.
 
+import { getSessionUser, resolveDB } from "./_utils";
+
 const RUNWAY_VER = "2024-11-06";
+
+// 상수 시간 문자열 비교 (토큰 타이밍 사이드채널 방지)
+function ctEqStr(a, b) {
+  a = String(a || ""); b = String(b || "");
+  if (a.length !== b.length) return false;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
 
 function pick(env, names) {
   for (const n of names) if (env[n]) return String(env[n]).trim();   // 붙여넣기 시 끝 공백·줄바꿈 제거(구글 "API key not valid" 방지)
@@ -618,6 +629,32 @@ async function handle(context) {
   const { request, env } = context;
   const k = keys(env);
   const u = new URL(request.url);
+
+  // ── 인증·크레딧 게이트 (익명 호출로 유료 제공사 API 소진하는 denial-of-wallet 차단) ──
+  //  · POST(실제 생성) 및 제공사 호출을 유발하는 GET(submit/media/file/op/task) 은 로그인 필수.
+  //  · 세션 쿠키(스튜디오) 또는 회원 MCP 토큰(Claude MCP) 모두 getSessionUser 로 인증됨.
+  //  · ?health 진단(제공사 설정 여부 불리언)만 예외로 허용.
+  const method = request.method;
+  const gateGet = method === "GET" && ["submit", "media", "file", "op", "task"].some((p) => u.searchParams.has(p));
+  if (method === "POST" || gateGet) {
+    const db = resolveDB(env);
+    let me = db ? await getSessionUser(request, db) : null;
+    if (!me) {
+      // 전역 MCP 토큰(관리자 폴백) 도 허용 — 상수시간 비교
+      const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+      const gtok = env.MCP_AUTH_TOKEN || env.mcp_auth_token || "";
+      if (gtok && bearer && ctEqStr(bearer, String(gtok))) me = { role: "admin", credits: Number.MAX_SAFE_INTEGER };
+    }
+    if (!me) return json({ error: "로그인이 필요합니다.", needLogin: true }, 401);
+    // 실제 생성(POST)은 크레딧 보유자(또는 관리자)만 — dryRun 검증 요청은 통과
+    if (method === "POST") {
+      let dry = false;
+      try { const body = await request.clone().json(); dry = !!(body && body.dryRun); } catch (_e) {}
+      if (!dry && !(me.role === "admin" || Number(me.credits) > 0)) {
+        return json({ error: "크레딧이 부족합니다. 요금제를 활성화해 주세요.", needPlan: true }, 402);
+      }
+    }
+  }
 
   /* ══ GET: 상태 폴링 / 파일 프록시 ══ */
   if (request.method === "GET") {

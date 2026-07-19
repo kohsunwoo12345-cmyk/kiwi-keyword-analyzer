@@ -1,5 +1,6 @@
 // Ported from SUPERPLACE (BYGENCY) — Hono 핸들러를 Cloudflare Pages Functions로 변환.
-// Hono 컨텍스트(c) 호환 shim + 인증 무력화(툴 공개 동작, youtube 이식과 동일 패턴).
+// Hono 컨텍스트(c) 호환 shim. 인증은 실제 세션(getSessionUser)으로 복원되어 계정별로 격리된다.
+import { getSessionUser, resolveDB } from '../_utils'
 function makeC(context: any): any {
   const { request, env, params } = context
   return {
@@ -21,10 +22,6 @@ function makeC(context: any): any {
       new Response(t, { status, headers: { 'content-type': 'text/plain; charset=utf-8' } }),
   }
 }
-// 인증 shim — BYGENCY 대시보드 내 임베드 공개 도구이므로 통과시킴
-const tryGetUserFromHeaders = (_c: any): { ok: true; user: any; userId: number } => ({ ok: true, user: { id: 0 }, userId: 0 })
-const tryGetUserFromSession = async (_c: any): Promise<{ ok: true; user: any; userId: number }> => ({ ok: true, user: { id: 0 }, userId: 0 })
-const getSessionUser = async (_c: any): Promise<any> => null
 const kvRateLimit = async (..._a: any[]): Promise<boolean> => true
 async function triggerDailyRankUpdateIfNeeded(_env?: any, _ctx?: any): Promise<void> {}
 const puppeteer: any = (globalThis as any).puppeteer
@@ -33,10 +30,12 @@ export const onRequestPost: PagesFunction = async (context) => {
   const c: any = makeC(context)
   try {
     const { placeId: inputPlaceId, placeUrl, keyword, location } = await c.req.json()
-    const authUser = tryGetUserFromHeaders(c)
-    if (!authUser.ok) return authUser.response
-    const user = authUser.user
-    
+
+    // 실제 세션 인증 — 로그인한 본인만 순위 조회/저장 가능
+    const authDb = resolveDB(c.env) || c.env.DB || c.env.marketing
+    const me: any = authDb ? await getSessionUser(context.request, authDb) : null
+    if (!me) return c.json({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
+
     // 🎯 키워드 변형 생성 함수 (더 많은 결과 수집)
     function generateKeywordVariations(baseKeyword: string): string[] {
       const variations = [baseKeyword] // 원본 키워드 포함
@@ -1097,7 +1096,7 @@ export const onRequestPost: PagesFunction = async (context) => {
                 rank_number, total_count, place_name, created_at
               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
             `).bind(
-              authUser.userId, placeId, placeUrl || '', keyword, location || '', 
+              me.id, placeId, placeUrl || '', keyword, location || '',
               null, totalCount, placeName
             ).run()
           } catch (dbError) {
@@ -1148,7 +1147,7 @@ export const onRequestPost: PagesFunction = async (context) => {
             rank_number, total_count, place_name, created_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
         `).bind(
-          authUser.userId, placeId, placeUrl || '', keyword, location || '', 
+          me.id, placeId, placeUrl || '', keyword, location || '',
           rank, totalCount, placeName
         ).run()
         console.log('[Rank] Successfully saved to DB:', { rank, placeId, keyword })

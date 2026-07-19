@@ -41,6 +41,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
     '알림톡 발신프로필/템플릿(알리고)': { ok: has('ALIGO_SENDER_KEY'), keys: { ALIGO_SENDER_KEY: has('ALIGO_SENDER_KEY'), ALIGO_TEMPLATE_CODE: has('ALIGO_TEMPLATE_CODE') } },
   }
 
+  // 보안: 관리자 이메일·내부 바인딩 변수명·원시 DB 오류는 공개 응답에서 제외
+  //  (adminEmail/detectedBindings 노출은 난독화 관리자 URL·타깃 공격 정보 누출)
   return json({
     ok: true,
     functions: true,
@@ -49,12 +51,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
     r2Binding: !!bucket,
     userCount,
     adminSeeded,
-    adminEmail: ADMIN_EMAIL,
     envCheck: tools,
-    detectedBindings: bindingKeys(env), // 실제로 잡힌 바인딩 변수명 목록
     hint: db
       ? 'D1 정상 감지. 로그인 사용 가능.'
-      : "D1 바인딩이 감지되지 않았습니다. 이 도메인을 서비스하는 Pages 프로젝트의 Production 환경에 D1 바인딩을 추가하고 재배포하세요. detectedBindings 배열에 D1 변수명이 보이면 코드가 자동으로 잡습니다.",
-    error,
+      : 'D1 바인딩이 감지되지 않았습니다. 이 도메인을 서비스하는 Pages 프로젝트의 Production 환경에 D1 바인딩을 추가하고 재배포하세요.',
+    error: error ? true : undefined, // 원시 오류 문자열 대신 불리언만 노출
   })
 }

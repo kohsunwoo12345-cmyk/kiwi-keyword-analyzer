@@ -565,12 +565,19 @@ export async function spendCredits(db: D1Database, userId: string, amount: numbe
   // 소수 크레딧 지원 (2자리). 예: 0.05 크레딧 차감
   const amt = Math.round(Math.abs(Number(amount) || 0) * 100) / 100
   if (amt <= 0) return { ok: false as const, error: '차감할 크레딧 수량이 올바르지 않습니다.' }
-  const row: any = await db.prepare('SELECT credits FROM users WHERE id = ?').bind(userId).first()
-  if (!row) return { ok: false as const, error: '사용자를 찾을 수 없습니다.' }
-  const balance = Number(row.credits) || 0
-  if (balance < amt) return { ok: false as const, error: '크레딧이 부족합니다.', balance, need: amt }
-  const balanceAfter = Math.round((balance - amt) * 100) / 100
-  await db.prepare('UPDATE users SET credits = ? WHERE id = ?').bind(balanceAfter, userId).run()
+  // 원자적 조건부 차감 — 동시 요청으로 인한 이중 차감/음수 잔액(TOCTOU) 방지.
+  //  잔액이 충분할 때만 감소하고, 실제 바뀐 행 수(changes)로 성공 여부 판정.
+  const upd: any = await db
+    .prepare('UPDATE users SET credits = ROUND(credits - ?, 2) WHERE id = ? AND credits >= ?')
+    .bind(amt, userId, amt)
+    .run()
+  if (!upd || !upd.meta || upd.meta.changes !== 1) {
+    const cur: any = await db.prepare('SELECT credits FROM users WHERE id = ?').bind(userId).first()
+    if (!cur) return { ok: false as const, error: '사용자를 찾을 수 없습니다.' }
+    return { ok: false as const, error: '크레딧이 부족합니다.', balance: Number(cur.credits) || 0, need: amt }
+  }
+  const after2: any = await db.prepare('SELECT credits FROM users WHERE id = ?').bind(userId).first()
+  const balanceAfter = Math.round((Number(after2?.credits) || 0) * 100) / 100
   await db
     .prepare(`INSERT INTO transactions (id, user_id, kind, amount, balance_after, memo, created_at) VALUES (?, ?, 'credit', ?, ?, ?, ?)`)
     .bind('t_' + crypto.randomUUID().slice(0, 16), userId, -amt, balanceAfter, memo || feature, new Date().toISOString())
@@ -636,6 +643,25 @@ export async function rewardReferralFirstPaid(db: D1Database, friendId: string, 
 }
 
 /* ───────── 보안 ───────── */
+// CSRF 방어(심층): SameSite=Lax 쿠키에 더해, 브라우저가 보내는 Origin/Referer 가
+// 요청 호스트와 일치하는지 확인. Origin/Referer 가 아예 없으면(비브라우저·MCP 서버호출) 통과.
+// 교차 출처 브라우저 요청(위조 폼)만 차단한다.
+export function sameOriginOk(request: Request): boolean {
+  const host = request.headers.get('Host') || new URL(request.url).host
+  const origin = request.headers.get('Origin')
+  const referer = request.headers.get('Referer')
+  const src = origin || referer
+  if (!src) return true // 헤더 없음 → 브라우저 CSRF 아님(서버-서버/네이티브). 통과.
+  try {
+    const u = new URL(src)
+    if (u.host === host) return true
+    // 동일 상위도메인 허용 (예: bygency.co ↔ www.nextbygency.com 운영 도메인)
+    const base = (h: string) => h.split(':')[0].split('.').slice(-2).join('.')
+    return base(u.host) === base(host)
+  } catch {
+    return false
+  }
+}
 export function clientIp(request: Request): string {
   return (
     request.headers.get('CF-Connecting-IP') ||

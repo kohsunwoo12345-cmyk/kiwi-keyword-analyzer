@@ -83,19 +83,34 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const cnMult = cnCount > 0 ? 1 + cnPct / 100 : 1
   const wantCredits = Math.round(c.credits * refMult * cnMult * 100) / 100
 
-  // 크레딧 100% 차감 (로그인 사용자만). 소수 크레딧 지원, 잔액 부족 시 있는 만큼만 차감하고 마이너스는 방지.
+  // 크레딧 100% 차감 (로그인 사용자만). 원자적 조건부 차감으로 동시 요청 이중차감·음수(TOCTOU) 방지.
+  //  · 잔액 ≥ 필요분이면 정확히 필요분 차감. 부족하면 남은 잔액만큼만 원자적으로 차감.
   let charged = 0
-  if (me) {
-    const balance = Number(me.credits) || 0
-    charged = Math.round(Math.min(balance, wantCredits) * 100) / 100
+  let afterBal = Number(me?.credits) || 0
+  if (me && wantCredits > 0) {
+    const full: any = await db
+      .prepare('UPDATE users SET credits = ROUND(credits - ?, 2) WHERE id = ? AND credits >= ?')
+      .bind(wantCredits, me.id, wantCredits)
+      .run()
+    if (full?.meta?.changes === 1) {
+      charged = wantCredits
+    } else {
+      // 잔액 부족: 현재 남은 잔액을 읽어 그만큼만 0 으로 (credits <= rem 가드로 그새 증가 시 중복차감 방지)
+      const cur: any = await db.prepare('SELECT credits FROM users WHERE id = ?').bind(me.id).first()
+      const rem = Math.max(0, Math.round((Number(cur?.credits) || 0) * 100) / 100)
+      if (rem > 0) {
+        const part: any = await db.prepare('UPDATE users SET credits = 0 WHERE id = ? AND credits <= ? AND credits > 0').bind(me.id, rem).run()
+        if (part?.meta?.changes === 1) charged = rem
+      }
+    }
     if (charged > 0) {
-      const after = Math.round((balance - charged) * 100) / 100
-      await db.prepare('UPDATE users SET credits = ? WHERE id = ?').bind(after, me.id).run()
+      const row: any = await db.prepare('SELECT credits FROM users WHERE id = ?').bind(me.id).first()
+      afterBal = Math.round((Number(row?.credits) || 0) * 100) / 100
       await db
         .prepare(
           `INSERT INTO transactions (id, user_id, kind, amount, balance_after, memo, created_at) VALUES (?, ?, 'credit', ?, ?, ?, ?)`,
         )
-        .bind('t_' + crypto.randomUUID().slice(0, 16), me.id, -charged, after, `AI 생성 · ${c.model}`, new Date().toISOString())
+        .bind('t_' + crypto.randomUUID().slice(0, 16), me.id, -charged, afterBal, `AI 생성 · ${c.model}`, new Date().toISOString())
         .run()
       await logActivity(db, me.id, 'credit', `-${charged} 크레딧 · AI 생성(${c.model})`)
     }

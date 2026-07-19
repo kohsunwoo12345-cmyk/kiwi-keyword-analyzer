@@ -1,5 +1,6 @@
 // Ported from SUPERPLACE (BYGENCY) — Hono 핸들러를 Cloudflare Pages Functions로 변환.
-// Hono 컨텍스트(c) 호환 shim + 인증 무력화(툴 공개 동작, youtube 이식과 동일 패턴).
+// Hono 컨텍스트(c) 호환 shim. 인증은 실제 세션(getSessionUser)으로 복원되어 계정별로 격리된다.
+import { getSessionUser, resolveDB } from '../../_utils'
 function makeC(context: any): any {
   const { request, env, params } = context
   return {
@@ -21,10 +22,6 @@ function makeC(context: any): any {
       new Response(t, { status, headers: { 'content-type': 'text/plain; charset=utf-8' } }),
   }
 }
-// 인증 shim — BYGENCY 대시보드 내 임베드 공개 도구이므로 통과시킴
-const tryGetUserFromHeaders = (_c: any): { ok: true; user: any; userId: number } => ({ ok: true, user: { id: 0 }, userId: 0 })
-const tryGetUserFromSession = async (_c: any): Promise<{ ok: true; user: any; userId: number }> => ({ ok: true, user: { id: 0 }, userId: 0 })
-const getSessionUser = async (_c: any): Promise<any> => null
 const kvRateLimit = async (..._a: any[]): Promise<boolean> => true
 async function triggerDailyRankUpdateIfNeeded(_env?: any, _ctx?: any): Promise<void> {}
 const puppeteer: any = (globalThis as any).puppeteer
@@ -33,14 +30,19 @@ export const onRequestDelete: PagesFunction = async (context) => {
   const c: any = makeC(context)
   try {
     const id = c.req.param('id')
-    const authUser = tryGetUserFromHeaders(c)
-    if (!authUser.ok) return authUser.response
-    const user = authUser.user
-    
-    await c.env.DB.prepare(`
-      UPDATE naver_place_tracking SET status = 'deleted' WHERE id = ? AND CAST(user_id AS INTEGER) = CAST(? AS INTEGER)
-    `).bind(id, user.id).run()
-    
+    const db = resolveDB(c.env) || c.env.DB || c.env.marketing
+    if (!db) return c.json({ success: false, error: 'DB 바인딩 없음' }, 500)
+
+    // 실제 세션 인증 — 본인 소유 추적만 삭제 가능
+    const me: any = await getSessionUser(context.request, db)
+    if (!me) return c.json({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
+
+    const result = await db.prepare(`
+      UPDATE naver_place_tracking SET status = 'deleted' WHERE id = ? AND user_id = ?
+    `).bind(id, me.id).run()
+
+    if (result.meta.changes === 0) return c.json({ success: false, error: '권한 없음 또는 없는 추적 ID' }, 403)
+
     return c.json({
       success: true,
       message: '키워드 추적이 삭제되었습니다.'

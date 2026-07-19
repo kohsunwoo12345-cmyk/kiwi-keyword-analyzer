@@ -1,9 +1,10 @@
-import { Env, json, ensureSchema, getSessionUser, resolveDB, verifyPassword, hashPassword, logActivity } from '../_utils'
+import { Env, json, ensureSchema, getSessionUser, resolveDB, verifyPassword, hashPassword, logActivity, sameOriginOk } from '../_utils'
 
 // POST /api/account/password  { current, next } → 본인 비밀번호 변경
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env)
   if (!db) return json({ ok: false, error: 'DB 바인딩 없음' }, 500)
+  if (!sameOriginOk(request)) return json({ ok: false, error: '허용되지 않은 출처의 요청입니다.' }, 403)
   await ensureSchema(db)
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)

@@ -1507,6 +1507,9 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
   let igProfile = null;
   let mediaCache = [];
 
+  // ===== HTML 출력 인코딩 (XSS 방지) =====
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+
   function getIgStoredUserData() {
     const keys = ['user', 'adminUser', 'currentUser'];
     const stores = [window.localStorage, window.sessionStorage];
@@ -1739,7 +1742,7 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
       var typeIconHtml = p.media_type === 'VIDEO' ? iconVideo : p.media_type === 'CAROUSEL_ALBUM' ? iconCarousel : iconImage;
       var typeColor    = p.media_type === 'VIDEO' ? '#833ab4' : p.media_type === 'CAROUSEL_ALBUM' ? '#fd1d1d' : '#e1306c';
       var imgHtml = p.media_url
-        ? '<img src="' + p.media_url + '" class="post-thumb" onerror="this.style.display=&quot;none&quot;;if(this.nextSibling)this.nextSibling.style.display=&quot;flex&quot;">'
+        ? '<img src="' + esc(p.media_url) + '" class="post-thumb" onerror="this.style.display=&quot;none&quot;;if(this.nextSibling)this.nextSibling.style.display=&quot;flex&quot;">'
         : '';
       var showPH   = p.media_url ? 'none' : 'flex';
       var plink    = encodeURIComponent(p.permalink || '#');
@@ -1949,7 +1952,7 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
     if (locList && Object.keys(countryMap).length > 0) {
       const sorted = Object.entries(countryMap).sort((a,b) => b[1]-a[1]).slice(0,5);
       const total  = sorted.reduce((s,e) => s+e[1], 0);
-      locList.innerHTML = sorted.map(([k,v]) => '<div class="metric-row"><span style="font-size:13px;font-weight:600;">'+k+'</span><span style="font-weight:800;color:var(--ig2);">'+(total>0?((v/total)*100).toFixed(1):'0')+'%</span></div>').join('');
+      locList.innerHTML = sorted.map(([k,v]) => '<div class="metric-row"><span style="font-size:13px;font-weight:600;">'+esc(k)+'</span><span style="font-weight:800;color:var(--ig2);">'+(total>0?((v/total)*100).toFixed(1):'0')+'%</span></div>').join('');
     }
   }
 
@@ -2032,13 +2035,13 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
           const date    = p.timestamp ? new Date(p.timestamp).toLocaleDateString('ko-KR') : '—';
           const typeColor = p.media_type === 'VIDEO' ? '#833ab4' : p.media_type === 'CAROUSEL_ALBUM' ? '#fd1d1d' : '#e1306c';
           const thumb   = p.media_url
-            ? '<img src="' + p.media_url + '" style="width:40px;height:40px;object-fit:cover;border-radius:8px;flex-shrink:0;" onerror="this.style.display=&quot;none&quot;">'
+            ? '<img src="' + esc(p.media_url) + '" style="width:40px;height:40px;object-fit:cover;border-radius:8px;flex-shrink:0;" onerror="this.style.display=&quot;none&quot;">'
             : '<div style="width:40px;height:40px;border-radius:8px;background:' + typeColor + '18;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="' + typeColor + '" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>';
           const erColor = erNum >= 3 ? 'var(--green)' : erNum >= 1 ? 'var(--amber)' : 'var(--red)';
           const _plink  = encodeURIComponent(p.permalink || '#');
           return '<tr onclick="window.open(decodeURIComponent(this.dataset.url),this.dataset.target)" data-url="' + _plink + '" data-target="_blank">' +
-            '<td><div style="display:flex;align-items:center;gap:10px;">' + thumb + '<span style="font-size:13px;color:var(--text2);">' + (caption||'(캡션 없음)') + '</span></div></td>' +
-            '<td class="center"><span class="tag" style="font-size:11px;">' + typeLabel + '</span></td>' +
+            '<td><div style="display:flex;align-items:center;gap:10px;">' + thumb + '<span style="font-size:13px;color:var(--text2);">' + (esc(caption)||'(캡션 없음)') + '</span></div></td>' +
+            '<td class="center"><span class="tag" style="font-size:11px;">' + esc(typeLabel) + '</span></td>' +
             '<td class="center" style="font-weight:700;color:var(--ig2);">' + (p.like_count||0).toLocaleString() + '</td>' +
             '<td class="center" style="font-weight:700;color:#833ab4;">' + (p.comments_count||0).toLocaleString() + '</td>' +
             '<td class="center" style="color:var(--text3);">—</td>' +
@@ -2058,7 +2061,7 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
       destroyChart('dayOfWeekChart');
       charts.dayOfWeekChart = new Chart(document.getElementById('dayOfWeekChart').getContext('2d'), { type:'bar', data:{labels:dayEng, datasets:[{label:'평균 인게이지먼트', data:dayAvg, backgroundColor:'rgba(225,48,108,.7)', borderRadius:6}]}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, grid:{color:'#f1f5f9'}, ticks:{font:{size:10}}}, x:{grid:{display:false}, ticks:{font:{size:10}}}}} });
     } catch(e) {
-      body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text3);">데이터를 불러올 수 없습니다: ' + e.message + '</td></tr>';
+      body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text3);">데이터를 불러올 수 없습니다: ' + esc(e.message) + '</td></tr>';
     }
   }
 
@@ -2255,7 +2258,7 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
       const data = await res.json();
 
       if (data.success) {
-        succEl.innerHTML = '✅ ' + (data.message || '게시물이 성공적으로 발행되었습니다!') + (data.mediaId ? ' (ID: ' + data.mediaId + ')' : '');
+        succEl.innerHTML = '✅ ' + esc(data.message || '게시물이 성공적으로 발행되었습니다!') + (data.mediaId ? ' (ID: ' + esc(data.mediaId) + ')' : '');
         succEl.style.display = 'block';
         btn.innerHTML = '✅ 발행 완료';
         btn.style.background = '#22c55e';
@@ -2306,16 +2309,16 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
       var badgeText    = r.active ? '활성' : '비활성';
       var toggleStyle  = r.active ? 'border-color:var(--red);color:var(--red);' : 'border-color:var(--green);color:var(--green);';
       var toggleText   = r.active ? '비활성화' : '활성화';
-      var msgPreview   = r.message ? r.message.substring(0,100) + (r.message.length>100?'…':'') : '';
-      var postUrlHtml  = r.postUrl ? '<div style="font-size:11px;color:var(--text3);margin-top:6px;display:flex;align-items:center;gap:4px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>' + r.postUrl + '</div>' : '';
-      var kwHtml       = (r.keywords||[]).map(function(k){ return '<span class="tag" style="font-size:11px;">' + keyIcon + ' ' + k + '</span>'; }).join('');
+      var msgPreview   = r.message ? esc(r.message.substring(0,100)) + (r.message.length>100?'…':'') : '';
+      var postUrlHtml  = r.postUrl ? '<div style="font-size:11px;color:var(--text3);margin-top:6px;display:flex;align-items:center;gap:4px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>' + esc(r.postUrl) + '</div>' : '';
+      var kwHtml       = (r.keywords||[]).map(function(k){ return '<span class="tag" style="font-size:11px;">' + keyIcon + ' ' + esc(k) + '</span>'; }).join('');
       var cooldownText = r.cooldown > 0 ? r.cooldown + '일' : '없음';
       var createdText  = r.createdAt ? new Date(r.createdAt).toLocaleDateString('ko-KR') : '—';
       return '<div class="rule-card ' + activeClass + '">' +
         '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">' +
           '<div style="flex:1;min-width:0;">' +
             '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
-              '<span style="font-size:15px;font-weight:800;color:var(--text1);">' + r.name + '</span>' +
+              '<span style="font-size:15px;font-weight:800;color:var(--text1);">' + esc(r.name) + '</span>' +
               '<span class="status-badge ' + badgeClass + '">' + badgeText + '</span>' +
             '</div>' +
             '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">' + kwHtml + '</div>' +
@@ -2374,7 +2377,7 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
   }
   function renderKeywordTags() {
     document.getElementById('rule-keywords-tags').innerHTML = ruleKeywords.map(function(k,i){
-      return '<span class="tag">' + k + ' <span class="tag-remove" onclick="removeKeyword(' + i + ')">×</span></span>';
+      return '<span class="tag">' + esc(k) + ' <span class="tag-remove" onclick="removeKeyword(' + i + ')">×</span></span>';
     }).join('');
   }
   function removeKeyword(i) { ruleKeywords.splice(i,1); renderKeywordTags(); }
@@ -2552,7 +2555,7 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
         const statusClass = l.status==='sent'?'status-on':'status-off';
         const statusText  = l.status==='sent'?'발송됨':'실패';
         const dateStr     = new Date(l.created_at).toLocaleString('ko-KR');
-        return '<tr><td style="font-weight:600;color:var(--text1);">' + uname + '</td><td><span class="tag" style="font-size:11px;">' + l.trigger_keyword + '</span></td><td style="font-size:13px;color:var(--text2);">' + msg + '</td><td class="center"><span class="status-badge ' + statusClass + '">' + statusText + '</span></td><td class="center" style="font-size:12px;color:var(--text3);">' + dateStr + '</td></tr>';
+        return '<tr><td style="font-weight:600;color:var(--text1);">' + esc(uname) + '</td><td><span class="tag" style="font-size:11px;">' + esc(l.trigger_keyword) + '</span></td><td style="font-size:13px;color:var(--text2);">' + esc(msg) + '</td><td class="center"><span class="status-badge ' + statusClass + '">' + statusText + '</span></td><td class="center" style="font-size:12px;color:var(--text3);">' + dateStr + '</td></tr>';
       }).join('');
     } catch(e) { document.getElementById('dm-logs-body').innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text3);">데이터를 불러올 수 없습니다</td></tr>'; }
   }
@@ -2574,7 +2577,7 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
         var defIcon     = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#e1306c" stroke-width="2" stroke-linecap="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/></svg>';
         const icon = l.event_type==='comment' ? commentIcon : l.event_type==='message' ? msgIcon : defIcon;
         const dateStr = new Date(l.created_at).toLocaleString('ko-KR');
-        return '<div class="wh-log"><span>' + icon + '</span><div style="flex:1;"><div style="font-size:13px;font-weight:600;color:var(--text1);">' + (l.event_type||'webhook') + '</div><div style="font-size:11px;color:var(--text3);">' + dateStr + '</div></div><span class="status-badge status-on">수신됨</span></div>';
+        return '<div class="wh-log"><span>' + icon + '</span><div style="flex:1;"><div style="font-size:13px;font-weight:600;color:var(--text1);">' + esc(l.event_type||'webhook') + '</div><div style="font-size:11px;color:var(--text3);">' + dateStr + '</div></div><span class="status-badge status-on">수신됨</span></div>';
       }).join('');
     } catch(e) {}
   }
@@ -2724,7 +2727,7 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
           const errCode=d.code||'', errMsg=d.error||'알 수 없는 오류';
           if (errCode===190||errMsg.includes('Cannot parse access token')||errMsg.includes('Invalid OAuth')) msgEl.innerHTML='저장된 토큰이 만료되었거나 유효하지 않습니다 (오류 코드: 190). 아래 버튼으로 계정을 재연결해 주세요.';
           else if (errMsg.includes('blocked')||errCode===200) msgEl.innerHTML='Instagram API 권한이 없습니다 (오류 코드: 200). Meta 앱이 <strong>개발 모드</strong>이거나 앱 리뷰가 완료되지 않았습니다.';
-          else msgEl.innerHTML='API 오류: '+errMsg+(errCode?' [코드: '+errCode+']':'')+'. 계정을 재연결해 주세요.';
+          else msgEl.innerHTML='API 오류: '+esc(errMsg)+(errCode?' [코드: '+esc(errCode)+']':'')+'. 계정을 재연결해 주세요.';
         }
       }
     } catch(e) {}

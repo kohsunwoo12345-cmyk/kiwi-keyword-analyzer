@@ -6,11 +6,19 @@ import { resolveBucket } from '../_utils'
 function ctFromKey(key: string): string {
   const ext = (key.split('.').pop() || '').toLowerCase()
   const map: Record<string, string> = {
-    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', svg: 'image/svg+xml',
+    // svg/html 은 의도적으로 제외 — 인라인 SVG/HTML 은 동일 출처 스크립트 실행(XSS) 위험이 있어
+    // application/octet-stream 으로 강제하고 첨부(다운로드)로만 서빙한다.
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif',
     mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', mkv: 'video/x-matroska',
     mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', ogg: 'audio/ogg', aac: 'audio/aac',
   }
   return map[ext] || 'application/octet-stream'
+}
+
+// 활성 콘텐츠(스크립트 실행 가능) 타입인가 — 이런 타입은 절대 인라인으로 서빙하지 않는다.
+function isActiveType(ct: string): boolean {
+  const c = (ct || '').toLowerCase()
+  return c.includes('svg') || c.includes('html') || c.includes('xml') || c.includes('javascript') || c.includes('xhtml')
 }
 
 export const onRequestGet: PagesFunction = async ({ request, env, params }) => {
@@ -30,13 +38,19 @@ export const onRequestGet: PagesFunction = async ({ request, env, params }) => {
     const rangeHeader = request.headers.get('Range')
 
     const put = (object: any, status: number, extra?: Record<string, string>) => {
-      const ct = object.httpMetadata?.contentType || ctFromKey(key)
+      let ct = object.httpMetadata?.contentType || ctFromKey(key)
+      const active = isActiveType(ct)
+      // 활성 콘텐츠(SVG/HTML 등)는 타입을 중화하고 강제 다운로드 + 스크립트 차단 CSP
+      if (active) ct = 'application/octet-stream'
       const headers = new Headers()
       headers.set('Content-Type', ct)
+      headers.set('X-Content-Type-Options', 'nosniff')
       headers.set('Accept-Ranges', 'bytes')
       headers.set('Access-Control-Allow-Origin', '*')
       headers.set('Cache-Control', 'private, max-age=3600')
-      headers.set('Content-Disposition', (dl ? 'attachment' : 'inline') + '; filename="' + fileBaseName + '"')
+      // 활성 콘텐츠는 무조건 attachment, 그 외에는 ?dl=1 일 때만 attachment
+      headers.set('Content-Disposition', (dl || active ? 'attachment' : 'inline') + '; filename="' + fileBaseName + '"')
+      if (active) headers.set('Content-Security-Policy', "default-src 'none'; sandbox")
       if (extra) for (const k in extra) headers.set(k, extra[k])
       return new Response(object.body, { status, headers })
     }

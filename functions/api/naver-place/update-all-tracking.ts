@@ -1,5 +1,7 @@
 // Ported from SUPERPLACE (BYGENCY) — Hono 핸들러를 Cloudflare Pages Functions로 변환.
-// Hono 컨텍스트(c) 호환 shim + 인증 무력화(툴 공개 동작, youtube 이식과 동일 패턴).
+// 시스템/크론 엔드포인트: CRON_TOKEN 게이트 유지. 토큰이 없으면 실제 세션으로 fallback하되
+// 본인 추적만 처리하여 교차 사용자 데이터 노출/수정을 방지한다.
+import { getSessionUser, resolveDB } from '../_utils'
 function makeC(context: any): any {
   const { request, env, params } = context
   return {
@@ -21,10 +23,6 @@ function makeC(context: any): any {
       new Response(t, { status, headers: { 'content-type': 'text/plain; charset=utf-8' } }),
   }
 }
-// 인증 shim — BYGENCY 대시보드 내 임베드 공개 도구이므로 통과시킴
-const tryGetUserFromHeaders = (_c: any): { ok: true; user: any; userId: number } => ({ ok: true, user: { id: 0 }, userId: 0 })
-const tryGetUserFromSession = async (_c: any): Promise<{ ok: true; user: any; userId: number }> => ({ ok: true, user: { id: 0 }, userId: 0 })
-const getSessionUser = async (_c: any): Promise<any> => null
 const kvRateLimit = async (..._a: any[]): Promise<boolean> => true
 async function triggerDailyRankUpdateIfNeeded(_env?: any, _ctx?: any): Promise<void> {}
 const puppeteer: any = (globalThis as any).puppeteer
@@ -32,43 +30,50 @@ const puppeteer: any = (globalThis as any).puppeteer
 export const onRequestPost: PagesFunction = async (context) => {
   const c: any = makeC(context)
   try {
-    // 크론 인증: CRON_TOKEN 일치 OR 로그인된 세션 유저 허용
+    // 크론 인증: CRON_TOKEN 일치(시스템 전체 배치) OR 로그인된 세션(본인 추적만) 허용
     const cronToken = c.req.header('X-Cron-Token')
     const expectedToken = c.env.CRON_TOKEN || ''
     const knownTokens = [expectedToken].filter(Boolean)
     const tokenOk = knownTokens.length > 0 && knownTokens.includes(cronToken || '')
-    
+
+    const db = resolveDB(c.env) || c.env.DB || c.env.marketing
+    if (!db) return c.json({ success: false, error: 'DB 바인딩 없음' }, 500)
+
+    // 크론 토큰이 없으면 실제 세션으로 fallback — 이 경우 본인 추적만 처리(교차 사용자 차단)
+    let sessionUserId: string | null = null
     if (!tokenOk) {
-      // 세션 인증으로 fallback
-      const authUser = await tryGetUserFromSession(c)
-      if (!authUser.ok) {
-        return c.json({ success: false, error: 'Unauthorized' }, 401)
+      const me: any = await getSessionUser(context.request, db)
+      if (!me) {
+        return c.json({ success: false, error: 'Unauthorized', needLogin: true }, 401)
       }
+      sessionUserId = me.id
     }
-    
+
     // 배치 처리 지원: offset/limit 쿼리 파라미터
     const offset = parseInt(c.req.query('offset') || '0', 10)
     const batchSize = parseInt(c.req.query('limit') || '20', 10)
 
-    // 모든 활성 추적 키워드 가져오기
+    // 활성 추적 키워드 가져오기 (세션 fallback이면 본인 것만)
+    const userScope = sessionUserId ? ' AND user_id = ?' : ''
+    const bindArgs: any[] = sessionUserId ? [sessionUserId, batchSize, offset] : [batchSize, offset]
     let trackingList = []
     try {
-      const data = await c.env.DB.prepare(`
-        SELECT * FROM naver_place_tracking 
-        WHERE status = 'active'
+      const data = await db.prepare(`
+        SELECT * FROM naver_place_tracking
+        WHERE status = 'active'${userScope}
         ORDER BY COALESCE(last_check, '1970-01-01') ASC
         LIMIT ? OFFSET ?
-      `).bind(batchSize, offset).all()
+      `).bind(...bindArgs).all()
       trackingList = data.results || []
     } catch (dbError: any) {
       // NULLS FIRST 미지원 SQLite fallback
       try {
-        const data2 = await c.env.DB.prepare(`
-          SELECT * FROM naver_place_tracking 
-          WHERE status = 'active'
+        const data2 = await db.prepare(`
+          SELECT * FROM naver_place_tracking
+          WHERE status = 'active'${userScope}
           ORDER BY last_check ASC
           LIMIT ? OFFSET ?
-        `).bind(batchSize, offset).all()
+        `).bind(...bindArgs).all()
         trackingList = data2.results || []
       } catch (e2) {
         return c.json({ success: false, error: 'DB 조회 실패' }, 500)
@@ -371,7 +376,7 @@ export const onRequestPost: PagesFunction = async (context) => {
         // DB에 순위 저장
         if (rank !== null) {
           try {
-            await c.env.DB.prepare(`
+            await db.prepare(`
               INSERT INTO naver_place_ranks (
                 user_id, place_id, place_url, keyword, location,
                 rank_number, total_count, place_name, created_at
@@ -391,8 +396,8 @@ export const onRequestPost: PagesFunction = async (context) => {
         
         // 마지막 체크 시간 업데이트
         try {
-          await c.env.DB.prepare(`
-            UPDATE naver_place_tracking 
+          await db.prepare(`
+            UPDATE naver_place_tracking
             SET last_check = datetime('now'), last_rank = ?
             WHERE id = ?
           `).bind(rank, tracking.id).run()

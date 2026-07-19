@@ -1,26 +1,28 @@
 // Ported from SUPERPLACE: GET/POST /api/funnel/groups (Hono → CF Pages Functions)
-import { resolveDB } from '../_utils'
+import { resolveDB, getSessionUser } from '../_utils'
 import { ensureFunnelSchema } from './_schema'
 
 const j = (o: any, status = 200) =>
   new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
 
 // 퍼널 그룹 목록
-export const onRequestGet: PagesFunction = async ({ env }) => {
+export const onRequestGet: PagesFunction = async ({ request, env }) => {
   try {
     const db = resolveDB(env)
     if (!db) return j({ success: true, groups: [] })
     await ensureFunnelSchema(db)
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
     let groups: any[] = []
 
     try {
-      // 기본 그룹 목록 가져오기
+      // 기본 그룹 목록 가져오기 (본인 소유만)
       const result = await db.prepare(`
         SELECT id, name, description, color, created_at, updated_at
         FROM funnel_groups
-        WHERE funnel_id IS NULL OR funnel_id = 0
+        WHERE (funnel_id IS NULL OR funnel_id = 0) AND user_id = ?
         ORDER BY created_at DESC
-      `).all()
+      `).bind(me.id).all()
 
       groups = (result.results as any[]) || []
 
@@ -63,8 +65,10 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 500)
     await ensureFunnelSchema(db)
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
     const { name, description, color } = (await request.json()) as any
-    const userId = 0 // 대시보드 임베드 공개 도구 — 인증 무력화
+    const userId = me.id
 
     if (!name) {
       return j({ success: false, error: '그룹 이름을 입력해주세요.' }, 400)

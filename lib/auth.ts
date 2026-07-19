@@ -419,6 +419,28 @@ export async function adminPendingCounts(): Promise<AdminPendingCounts> {
   } catch { return { ok: false, approvals: 0, plans: 0, credits: 0, points: 0, senders: 0, team: 0, contacts: 0 } }
 }
 
+/* ── 보안 · 해킹 위험 대시보드 ── */
+export interface SecurityCheck { key: string; label: string; status: 'pass' | 'warn' | 'fail'; detail: string }
+export interface SecurityRisk {
+  ok: boolean; error?: string
+  posture?: { score: number; level: 'good' | 'fair' | 'risk'; warnCount: number; failCount: number }
+  signals?: {
+    loginFail24h: number; loginFail7d: number; blockedCount: number; autoBlocked: number; sus24h: number; susHigh24h: number
+    topFailIps: { ip: string; c: number; last: string }[]
+    recentBlocked: { ip: string; reason: string; source: string; created_at: string }[]
+    recentThreats: { ts: string; ip: string; method: string; path: string; status: number; severity: string; detail: string; country: string }[]
+    recentAudit: { created_at: string; admin_email: string; action: string; target: string; severity: string; ip: string }[]
+  }
+  checks?: SecurityCheck[]
+  applied?: string[]
+}
+export async function adminSecurityRisk(): Promise<SecurityRisk> {
+  try {
+    const r = await fetch('/api/admin/security-risk', { credentials: 'include', cache: 'no-store' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+
 /* ── 추천/친구 ── */
 export interface RefUser { id: string; name: string; email: string; plan: string; videoPlan: string; paid: boolean; via?: string; since?: string; createdAt: string }
 export interface ReferralInfo { ok: boolean; error?: string; code?: string; referredByName?: string; friends?: RefUser[]; referred?: RefUser[]; friendCount?: number; referredCount?: number }

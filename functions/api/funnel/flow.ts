@@ -1,5 +1,5 @@
 // Ported from SUPERPLACE: POST /api/funnel/flow (Hono → CF Pages Functions)
-import { resolveDB } from '../_utils'
+import { resolveDB, getSessionUser } from '../_utils'
 import { ensureFunnelSchema } from './_schema'
 
 const j = (o: any, status = 200) =>
@@ -11,8 +11,10 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 500)
     await ensureFunnelSchema(db)
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
     const { steps, group_id } = (await request.json()) as any
-    const userId = 0 // 대시보드 임베드 공개 도구 — 인증 무력화
+    const userId = me.id
 
     const result = await db.prepare(`
       INSERT INTO funnel_flows (

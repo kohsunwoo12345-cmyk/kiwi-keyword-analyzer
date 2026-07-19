@@ -134,17 +134,18 @@ const MODEL_INFO = {
 };
 
 /* ── 내부 헬퍼: 기존 /api/generate 핸들러 재사용 ── */
-async function callGeneratePOST(env, origin, body) {
-  const req = new Request(origin + "/api/generate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
+async function callGeneratePOST(env, origin, body, token) {
+  const headers = { "Content-Type": "application/json" };
+  // 내부 호출도 /api/generate 인증 게이트를 통과하도록 인증 토큰(회원 개인 토큰 또는 전역 MCP 토큰) 전달
+  if (token) headers["Authorization"] = "Bearer " + token;
+  const req = new Request(origin + "/api/generate", { method: "POST", headers, body: JSON.stringify(body) });
   const res = await generateApi({ request: req, env });
   return res.json();
 }
-async function callGenerateGET(env, origin, statusUrl) {
-  const req = new Request(origin + statusUrl);
+async function callGenerateGET(env, origin, statusUrl, token) {
+  const headers = {};
+  if (token) headers["Authorization"] = "Bearer " + token;
+  const req = new Request(origin + statusUrl, { headers });
   const res = await generateApi({ request: req, env });
   return res.json();
 }
@@ -174,6 +175,8 @@ async function hostDataUrl(env, origin, dataUrl) {
 async function runTool(name, args, env, origin, ctx) {
   args = args || {};
   const me = ctx && ctx.user, db = ctx && ctx.db;
+  // /api/generate 인증 게이트 통과용 토큰: 회원 개인 MCP 토큰 우선, 없으면 전역 MCP 토큰(관리자 폴백)
+  const genTok = (me && me.mcp_token) ? me.mcp_token : (env.MCP_AUTH_TOKEN || env.mcp_auth_token || "");
 
   if (name === "list_models") return MODEL_INFO;
 
@@ -193,7 +196,7 @@ async function runTool(name, args, env, origin, ctx) {
     const j = await callGeneratePOST(env, origin, {
       provider, prompt: args.prompt, negative: args.negative_prompt || "",
       refImage: ref, refImages: ref ? [ref] : []
-    });
+    }, genTok);
     if (j.error) throw new Error(j.error);
     let url = j.url;
     // 나노바나나는 base64 data URL 을 반환 → MCP 응답 폭증 방지 위해 R2 에 올려 공개 URL 로 교체
@@ -227,7 +230,7 @@ async function runTool(name, args, env, origin, ctx) {
       ratio: args.ratio || "16:9",
       dryRun: !!args.dry_run
     };
-    const j = await callGeneratePOST(env, origin, body);
+    const j = await callGeneratePOST(env, origin, body, genTok);
     if (j.error) throw new Error(j.error);
     if (j.dryRun) return { dry_run: true, provider: j.provider, payload: j.payload, note: j.note };
     // 생성이 시작/완료되면(=과금 발생) 이 시점에 크레딧 차감. check_video_status 는 추가 차감 없음.
@@ -246,7 +249,7 @@ async function runTool(name, args, env, origin, ctx) {
   if (name === "check_video_status") {
     const task = String(args.task || "");
     if (!task.startsWith("/api/generate?")) throw new Error("task 형식이 올바르지 않습니다. generate_video가 반환한 값을 그대로 사용하세요.");
-    const j = await callGenerateGET(env, origin, task);
+    const j = await callGenerateGET(env, origin, task, genTok);
     if (j.status === "failed" || j.error) return { status: "failed", error: j.error || "생성 실패" };
     if (j.url) {
       if (String(j.url).startsWith("data:")) {
@@ -322,8 +325,16 @@ async function resolveMcpAuth(request, env, db, pathToken) {
     if (u) return { user: u };
   }
   const gtok = env.MCP_AUTH_TOKEN || env.mcp_auth_token || null;
-  if (gtok && cand === gtok) return { global: true };
+  if (gtok && ctEq(cand, String(gtok))) return { global: true };
   return null;
+}
+// 상수 시간 문자열 비교 — 토큰 비교 시 타이밍 사이드채널 방지
+function ctEq(a, b) {
+  a = String(a || ""); b = String(b || "");
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 const CORS = {

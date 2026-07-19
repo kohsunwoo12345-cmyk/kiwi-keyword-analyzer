@@ -38,6 +38,9 @@ import { Reveal, Marquee } from '@/components/motion'
 import { LogoMark } from '@/components/Brand'
 import { FEATURES } from '@/lib/features'
 import { useT, type Dict } from '@/lib/i18n'
+import { Faq } from '@/components/Faq'
+import { JsonLd } from '@/components/seo/JsonLd'
+import { softwareLd, breadcrumbLd } from '@/lib/seo'
 
 const M: Dict = {
   // ===== HERO =====
@@ -800,6 +803,7 @@ export default function Home() {
   })
   return (
     <div className="site-dark min-h-screen overflow-x-hidden">
+      <JsonLd data={[softwareLd(), breadcrumbLd([{ name: '홈', path: '/' }])]} />
       <Navbar />
 
       {/* ===== HERO ===== */}
@@ -1351,6 +1355,8 @@ export default function Home() {
           </div>
         </Reveal>
       </section>
+
+      <Faq />
 
       <Footer />
     </div>

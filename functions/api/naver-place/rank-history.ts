@@ -1,5 +1,6 @@
 // Ported from SUPERPLACE (BYGENCY) — Hono 핸들러를 Cloudflare Pages Functions로 변환.
-// Hono 컨텍스트(c) 호환 shim + 인증 무력화(툴 공개 동작, youtube 이식과 동일 패턴).
+// Hono 컨텍스트(c) 호환 shim. 인증은 실제 세션(getSessionUser)으로 복원되어 계정별로 격리된다.
+import { getSessionUser, resolveDB } from '../_utils'
 function makeC(context: any): any {
   const { request, env, params } = context
   return {
@@ -21,10 +22,6 @@ function makeC(context: any): any {
       new Response(t, { status, headers: { 'content-type': 'text/plain; charset=utf-8' } }),
   }
 }
-// 인증 shim — BYGENCY 대시보드 내 임베드 공개 도구이므로 통과시킴
-const tryGetUserFromHeaders = (_c: any): { ok: true; user: any; userId: number } => ({ ok: true, user: { id: 0 }, userId: 0 })
-const tryGetUserFromSession = async (_c: any): Promise<{ ok: true; user: any; userId: number }> => ({ ok: true, user: { id: 0 }, userId: 0 })
-const getSessionUser = async (_c: any): Promise<any> => null
 const kvRateLimit = async (..._a: any[]): Promise<boolean> => true
 async function triggerDailyRankUpdateIfNeeded(_env?: any, _ctx?: any): Promise<void> {}
 const puppeteer: any = (globalThis as any).puppeteer
@@ -35,21 +32,22 @@ export const onRequestGet: PagesFunction = async (context) => {
     const placeId = c.req.query('placeId')
     const keyword = c.req.query('keyword')
     const days = parseInt(c.req.query('days') || '30')
-    const authUser = tryGetUserFromHeaders(c)
-    if (!authUser.ok) return authUser.response
-    const user = authUser.user
 
-    // 🔥 매일 자동 순위 업데이트 트리거 (await로 dedup 기록 완료 보장)
-    await triggerDailyRankUpdateIfNeeded(c.env, c.executionCtx)
-    
     // DB 접근 시도
-    const db = c.env.DB || c.env.marketing
-    
+    const db = resolveDB(c.env) || c.env.DB || c.env.marketing
+
     if (!db) {
       console.error('[Rank History] No DB binding found')
       return c.json({ success: true, history: [] })
     }
-    
+
+    // 실제 세션 인증 — 본인 추적 데이터만 조회
+    const me: any = await getSessionUser(context.request, db)
+    if (!me) return c.json({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
+
+    // 🔥 매일 자동 순위 업데이트 트리거 (await로 dedup 기록 완료 보장)
+    await triggerDailyRankUpdateIfNeeded(c.env, c.executionCtx)
+
     let results = []
     try {
       if (placeId && keyword) {
@@ -60,12 +58,12 @@ export const onRequestGet: PagesFunction = async (context) => {
           FROM naver_place_ranks r
           INNER JOIN naver_place_tracking t ON r.place_id = t.place_id AND r.keyword = t.keyword
           WHERE r.place_id = ? AND r.keyword = ?
-            AND CAST(t.user_id AS INTEGER) = CAST(? AS INTEGER)
+            AND t.user_id = ?
             AND t.status = 'active'
             AND r.created_at >= datetime('now', '-${days} days')
           ORDER BY r.created_at ASC
           LIMIT 200
-        `).bind(placeId, keyword, user.id).all()
+        `).bind(placeId, keyword, me.id).all()
         results = data.results || []
       } else if (placeId) {
         // 특정 place의 전체 키워드 히스토리 (본인 추적 데이터만)
@@ -75,12 +73,12 @@ export const onRequestGet: PagesFunction = async (context) => {
           FROM naver_place_ranks r
           INNER JOIN naver_place_tracking t ON r.place_id = t.place_id AND r.keyword = t.keyword
           WHERE r.place_id = ?
-            AND CAST(t.user_id AS INTEGER) = CAST(? AS INTEGER)
+            AND t.user_id = ?
             AND t.status = 'active'
             AND r.created_at >= datetime('now', '-${days} days')
           ORDER BY r.created_at DESC
           LIMIT 200
-        `).bind(placeId, user.id).all()
+        `).bind(placeId, me.id).all()
         results = data.results || []
       } else {
         // 전체 히스토리 (최근 N일) - 본인 추적 place_id 기준
@@ -89,19 +87,19 @@ export const onRequestGet: PagesFunction = async (context) => {
                  date(r.created_at) as date
           FROM naver_place_ranks r
           INNER JOIN naver_place_tracking t ON r.place_id = t.place_id AND r.keyword = t.keyword
-          WHERE CAST(t.user_id AS INTEGER) = CAST(? AS INTEGER)
+          WHERE t.user_id = ?
             AND t.status = 'active'
             AND r.created_at >= datetime('now', '-${days} days')
           ORDER BY r.created_at DESC
           LIMIT 200
-        `).bind(user.id).all()
+        `).bind(me.id).all()
         results = data.results || []
       }
     } catch(e) {
       console.warn('[Rank History] query error:', e)
     }
     
-    console.log(`[Rank History] Found ${results.length} records for place=${placeId}, keyword=${keyword}, user=${user.id}`)
+    console.log(`[Rank History] Found ${results.length} records for place=${placeId}, keyword=${keyword}, user=${me.id}`)
     
     return c.json({
       success: true,

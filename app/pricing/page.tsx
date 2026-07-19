@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { planConfig, type PlanConfigData } from '@/lib/auth'
+import { JsonLd } from '@/components/seo/JsonLd'
+import { breadcrumbLd } from '@/lib/seo'
 import {
   Check,
   ArrowRight,
@@ -638,6 +640,7 @@ export default function PricingPage() {
   const marketerTiers = applyConfig(MARKETER_TIERS, 'marketer', cfg)
   return (
     <div className="site-dark min-h-screen overflow-x-hidden">
+      <JsonLd data={breadcrumbLd([{ name: '홈', path: '/' }, { name: '요금제', path: '/pricing' }])} />
       <Navbar />
 
       {/* ===== HERO ===== */}

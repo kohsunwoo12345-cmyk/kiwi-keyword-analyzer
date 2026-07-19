@@ -1,5 +1,6 @@
 // Ported from SUPERPLACE (BYGENCY) — Hono 핸들러를 Cloudflare Pages Functions로 변환.
-// Hono 컨텍스트(c) 호환 shim + 인증 무력화(툴 공개 동작, youtube 이식과 동일 패턴).
+// Hono 컨텍스트(c) 호환 shim. 인증은 실제 세션(getSessionUser)으로 복원되어 계정별로 격리된다.
+import { getSessionUser, resolveDB } from '../_utils'
 function makeC(context: any): any {
   const { request, env, params } = context
   return {
@@ -21,10 +22,6 @@ function makeC(context: any): any {
       new Response(t, { status, headers: { 'content-type': 'text/plain; charset=utf-8' } }),
   }
 }
-// 인증 shim — BYGENCY 대시보드 내 임베드 공개 도구이므로 통과시킴
-const tryGetUserFromHeaders = (_c: any): { ok: true; user: any; userId: number } => ({ ok: true, user: { id: 0 }, userId: 0 })
-const tryGetUserFromSession = async (_c: any): Promise<{ ok: true; user: any; userId: number }> => ({ ok: true, user: { id: 0 }, userId: 0 })
-const getSessionUser = async (_c: any): Promise<any> => null
 const kvRateLimit = async (..._a: any[]): Promise<boolean> => true
 async function triggerDailyRankUpdateIfNeeded(_env?: any, _ctx?: any): Promise<void> {}
 const puppeteer: any = (globalThis as any).puppeteer
@@ -33,17 +30,18 @@ export const onRequestGet: PagesFunction = async (context) => {
   const c: any = makeC(context)
   try {
     const placeId = c.req.query('placeId')
-    const authUser = tryGetUserFromHeaders(c)
-    if (!authUser.ok) return authUser.response
-    const user = authUser.user
-    
+
     // DB 접근 시도
-    const db = c.env.DB || c.env.marketing
-    
+    const db = resolveDB(c.env) || c.env.DB || c.env.marketing
+
     if (!db) {
       console.error('[Tracking List] No DB binding found')
       return c.json({ success: true, keywords: [] })
     }
+
+    // 실제 세션 인증 — 로그인한 본인만 접근 가능
+    const me: any = await getSessionUser(context.request, db)
+    if (!me) return c.json({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
 
     // 🔥 매일 자동 순위 업데이트 트리거 (await로 dedup 기록 완료 보장)
     await triggerDailyRankUpdateIfNeeded(c.env, c.executionCtx)
@@ -68,11 +66,11 @@ export const onRequestGet: PagesFunction = async (context) => {
                   WHERE place_id = t.place_id AND keyword = t.keyword 
                   ORDER BY created_at DESC LIMIT 1) as last_checked
           FROM naver_place_tracking t
-          WHERE t.place_id = ? AND CAST(t.user_id AS INTEGER) = CAST(? AS INTEGER) AND t.status = 'active'
+          WHERE t.place_id = ? AND t.user_id = ? AND t.status = 'active'
           ORDER BY t.created_at DESC
-        `).bind(placeId, user.id).all()
+        `).bind(placeId, me.id).all()
         results = data.results || []
-        console.log(`[Tracking List] Found ${results.length} keywords for place ${placeId} (user ${user.id})`)
+        console.log(`[Tracking List] Found ${results.length} keywords for place ${placeId} (user ${me.id})`)
       } else {
         // 모든 추적 목록 (본인 데이터만)
         const data = await db.prepare(`
@@ -90,11 +88,11 @@ export const onRequestGet: PagesFunction = async (context) => {
                   WHERE place_id = t.place_id AND keyword = t.keyword 
                   ORDER BY created_at DESC LIMIT 1) as last_checked
           FROM naver_place_tracking t
-          WHERE CAST(t.user_id AS INTEGER) = CAST(? AS INTEGER) AND t.status = 'active'
+          WHERE t.user_id = ? AND t.status = 'active'
           ORDER BY t.created_at DESC
-        `).bind(user.id).all()
+        `).bind(me.id).all()
         results = data.results || []
-        console.log(`[Tracking List] Found ${results.length} total tracking keywords for user ${user.id}`)
+        console.log(`[Tracking List] Found ${results.length} total tracking keywords for user ${me.id}`)
       }
     } catch (dbError) {
       console.warn('DB query failed', dbError)
@@ -114,30 +112,31 @@ export const onRequestPost: PagesFunction = async (context) => {
   const c: any = makeC(context)
   try {
     const { placeId, placeUrl, keyword, location } = await c.req.json()
-    const authUser = tryGetUserFromHeaders(c)
-    if (!authUser.ok) return authUser.response
-    const user = authUser.user
-    
+
     if (!placeId || !keyword) {
       return c.json({ success: false, error: '필수 정보를 입력해주세요.' }, 400)
     }
-    
+
     // DB 접근 시도 (DB 또는 marketing 바인딩)
-    const db = c.env.DB || c.env.marketing
-    
+    const db = resolveDB(c.env) || c.env.DB || c.env.marketing
+
     if (!db) {
       console.error('[Tracking] No DB binding found')
-      return c.json({ 
-        success: false, 
-        error: 'DB 연결 실패: 바인딩이 설정되지 않았습니다.' 
+      return c.json({
+        success: false,
+        error: 'DB 연결 실패: 바인딩이 설정되지 않았습니다.'
       }, 500)
     }
 
+    // 실제 세션 인증 — 로그인한 본인만 등록 가능
+    const me: any = await getSessionUser(context.request, db)
+    if (!me) return c.json({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
+
     // ✅ place_tracking_limit 한도 체크 (관리자 제외)
     try {
-      const userId = authUser.userId
+      const userId = me.id
       const userRow = await db.prepare(`SELECT academy_id, role FROM users WHERE id = ?`).bind(userId).first() as any
-      const isAdmin = userRow?.role === 'admin' || userRow?.role === 'superadmin' || userId === 1 || userId === 6
+      const isAdmin = userRow?.role === 'admin' || userRow?.role === 'superadmin' || me.email === 'kohsunwoo12345@gmail.com'
 
       if (!isAdmin && userRow) {
         const academyId = userRow.academy_id || userId
@@ -147,7 +146,7 @@ export const onRequestPost: PagesFunction = async (context) => {
         try {
           const countRow = await db.prepare(`
             SELECT COUNT(*) as cnt FROM naver_place_tracking npt
-            JOIN users u ON CAST(u.id AS INTEGER) = CAST(npt.user_id AS INTEGER)
+            JOIN users u ON u.id = npt.user_id
             WHERE (u.academy_id = ? OR u.id = ?) AND npt.status = 'active'
           `).bind(academyId, academyId).first() as any
           currentCount = countRow?.cnt || 0
@@ -179,8 +178,8 @@ export const onRequestPost: PagesFunction = async (context) => {
     try {
       existing = await db.prepare(`
         SELECT id FROM naver_place_tracking
-        WHERE CAST(user_id AS INTEGER) = CAST(? AS INTEGER) AND place_id = ? AND keyword = ? AND status = 'active'
-      `).bind(user.id, placeId, keyword).first()
+        WHERE user_id = ? AND place_id = ? AND keyword = ? AND status = 'active'
+      `).bind(me.id, placeId, keyword).first()
     } catch (e) {
       console.warn('[Tracking] Table check failed:', e)
       // 테이블 없으면 무시
@@ -200,7 +199,7 @@ export const onRequestPost: PagesFunction = async (context) => {
           user_id, place_id, place_url, keyword, location, 
           status, last_check, created_at
         ) VALUES (?, ?, ?, ?, ?, 'active', datetime('now'), datetime('now'))
-      `).bind(authUser.userId, placeId, placeUrl || '', keyword, location || '').run()
+      `).bind(me.id, placeId, placeUrl || '', keyword, location || '').run()
       
       console.log('[Tracking] Successfully added:', { id: result.meta.last_row_id, placeId, keyword })
       

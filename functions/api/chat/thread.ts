@@ -9,7 +9,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   const url = new URL(request.url)
   let convId = String(url.searchParams.get('conv_id') || '').slice(0, 60)
-  if (me) convId = me.id
+  if (me) {
+    // 로그인 사용자는 항상 본인 대화만 (클라이언트 conv_id 무시)
+    convId = me.id
+  } else {
+    // 비로그인(게스트)은 게스트 대화(g_...)만 조회 가능 — 다른 회원의 대화 열람(IDOR) 차단
+    if (!/^g_[A-Za-z0-9]+$/.test(convId)) return json({ ok: true, conv_id: '', messages: [] })
+  }
   if (!convId) return json({ ok: true, conv_id: '', messages: [] })
 
   const rows = (await db
