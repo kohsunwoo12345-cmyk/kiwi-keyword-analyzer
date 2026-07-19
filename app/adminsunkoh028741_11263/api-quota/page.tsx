@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Gauge, RefreshCw, ExternalLink, Pencil, Check, X, CreditCard, Wifi, WifiOff } from 'lucide-react'
+import { Gauge, RefreshCw, ExternalLink, Pencil, Check, X, CreditCard, Wifi, WifiOff, Stethoscope, CheckCircle2, XCircle, MinusCircle, Loader2 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel } from '@/components/ui'
-import { adminApiBalance, adminApiBalanceSet, type ApiProviderBalance } from '@/lib/auth'
+import { adminApiBalance, adminApiBalanceSet, adminSelfTest, type ApiProviderBalance, type SelfTestItem } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 function fmtBalance(p: ApiProviderBalance): string {
@@ -31,8 +31,12 @@ export default function ApiQuotaPage() {
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
 
+  const [test, setTest] = useState<{ ranAt?: string; summary?: { testedOk: number; testedFail: number; total: number }; results?: SelfTestItem[] } | null>(null)
+  const [testing, setTesting] = useState(false)
+
   const load = () => { setLoading(true); adminApiBalance().then((r) => { setRows(r.providers || []); setFetchedAt(r.fetchedAt || ''); setLoading(false) }) }
   useEffect(() => { load(); const iv = setInterval(load, 120000); return () => clearInterval(iv) }, [])
+  const runSelfTest = () => { setTesting(true); adminSelfTest().then((r) => { setTest(r.ok ? r : { results: [] }); setTesting(false) }) }
 
   function startEdit(p: ApiProviderBalance) { setEdit(p.id); setBal(p.balance == null ? '' : String(p.balance)); setUrl(p.url || '') }
   async function saveEdit(id: string) {
@@ -56,10 +60,43 @@ export default function ApiQuotaPage() {
           {liveCount > 0 && <span className="mr-2 text-[var(--text-dim)]">· 실시간 잔액 {liveCount}곳</span>}
           {fetchedAt && <>· 업데이트 {kst(fetchedAt)} · 2분마다 자동 새로고침</>}
         </p>
-        <button onClick={load} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-soft)] hover:bg-slate-100">
-          <RefreshCw size={14} className={cn(loading && 'animate-spin')} /> 새로고침
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={runSelfTest} disabled={testing} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 px-3 py-1.5 text-sm font-bold text-white hover:brightness-110 disabled:opacity-60">
+            {testing ? <Loader2 size={14} className="animate-spin" /> : <Stethoscope size={14} />} 생성 자가진단
+          </button>
+          <button onClick={load} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-soft)] hover:bg-slate-100">
+            <RefreshCw size={14} className={cn(loading && 'animate-spin')} /> 새로고침
+          </button>
+        </div>
       </div>
+
+      {/* 자가진단 결과 — Cloudflare(실제 키·egress)에서 각 제공사에 실제 인증 호출 */}
+      {(testing || test) && (
+        <Panel className="mb-4" title={<span className="flex items-center gap-2"><Stethoscope size={16} className="text-violet-500" /> 생성 자가진단 {test?.summary && <span className="text-xs font-normal text-[var(--text-dim)]">· 성공 {test.summary.testedOk} · 실패 {test.summary.testedFail}</span>}</span>}>
+          {testing && !test ? (
+            <div className="flex items-center gap-2 py-4 text-sm text-[var(--text-dim)]"><Loader2 size={16} className="animate-spin" /> 각 제공사에 실제 호출 중… (수 초 소요)</div>
+          ) : (
+            <div className="grid gap-1.5 sm:grid-cols-2">
+              {(test?.results || []).map((r) => (
+                <div key={r.id} className="flex items-start gap-2.5 rounded-lg border border-[var(--border-soft)] px-3 py-2">
+                  {r.ok === true ? <CheckCircle2 size={17} className="mt-0.5 flex-shrink-0 text-emerald-500" />
+                    : r.ok === false ? <XCircle size={17} className="mt-0.5 flex-shrink-0 text-rose-500" />
+                    : <MinusCircle size={17} className="mt-0.5 flex-shrink-0 text-slate-400" />}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[13px] font-bold">{r.name}</span>
+                      {r.tested && <span className="text-[10px] text-[var(--text-dim)]">{r.latencyMs}ms</span>}
+                    </div>
+                    <div className="text-[11px] text-[var(--text-dim)]">{r.covers}</div>
+                    <div className={cn('mt-0.5 text-[11px]', r.ok === true ? 'text-emerald-600' : r.ok === false ? 'text-rose-600' : 'text-[var(--text-dim)]')}>{r.message}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="mt-2 text-[10px] text-[var(--text-dim)]">실제 배포(Cloudflare)에서 각 제공사에 인증·연결 호출을 보내 확인합니다. 비용이 드는 실제 생성은 하지 않으며, GPT는 실제 이미지 경로와 동일하게 릴레이를 경유해 검증합니다.</p>
+        </Panel>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map((p) => (

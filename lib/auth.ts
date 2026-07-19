@@ -564,6 +564,17 @@ export async function adminApiBalance(): Promise<{ ok: boolean; error?: string; 
 export async function adminApiBalanceSet(id: string, balance: string | number | null, url?: string): Promise<{ ok: boolean; error?: string; balance?: number | null; url?: string }> {
   return postJson('/api/admin/api-balance', { action: 'set', id, balance, ...(url != null ? { url } : {}) })
 }
+export interface SelfTestItem {
+  id: string; name: string; covers: string
+  keyConfigured: boolean; tested: boolean
+  ok: boolean | null; status: number; latencyMs: number; message: string
+}
+export async function adminSelfTest(): Promise<{ ok: boolean; error?: string; ranAt?: string; summary?: { testedOk: number; testedFail: number; total: number }; results?: SelfTestItem[] }> {
+  try {
+    const r = await fetch('/api/admin/self-test', { credentials: 'include', cache: 'no-store' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
 export interface UserMarkupRow {
   id: string; name: string; email: string; plan: string
   credits: number; overall: number; overrides: number
