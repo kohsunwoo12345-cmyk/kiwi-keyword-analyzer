@@ -27,11 +27,15 @@ html,body{ height:100%; overflow:hidden; background:#1a1a1a; font-family:'Inter'
 button{ font-family:inherit; }
 
 /* ── ComfyUI식 메뉴바 ── */
-.top{ position:fixed; top:0; left:0; right:0; height:40px; z-index:60;
-  background:#181818; border-bottom:1px solid #000;
+.top{ position:fixed; top:0; left:0; right:0; height:42px; z-index:60;
+  background:linear-gradient(180deg,#1b1b1f,#161618); border-bottom:1px solid #000;
+  box-shadow:0 1px 0 rgba(255,255,255,.03) inset;
   display:flex; align-items:center; gap:2px; padding:0 10px; }
-.top-logo{ font-size:12px; font-weight:800; color:#ddd; letter-spacing:.06em; display:flex; align-items:center; gap:7px; margin-right:10px; }
-.top-logo i{ width:9px; height:9px; background:#4fb0a5; border-radius:2px; transform:rotate(45deg); }
+.top-logo{ display:flex; align-items:center; gap:8px; margin-right:14px; padding-right:14px; border-right:1px solid #2a2a2e; }
+.top-logo .tl-mark{ flex:0 0 auto; filter:drop-shadow(0 1px 3px rgba(79,123,255,.4)); }
+.top-logo .tl-word{ font-size:14px; font-weight:800; letter-spacing:-.01em;
+  background:linear-gradient(90deg,#eaf0ff,#b9c6ff 60%,#7fe6dc);
+  -webkit-background-clip:text; background-clip:text; color:transparent; }
 .ico{ width:1.05em; height:1.05em; display:inline-block; vertical-align:-0.16em; flex:0 0 auto; }
 button .ico{ margin-right:5px; }
 .top-right button{ display:inline-flex; align-items:center; }
@@ -178,7 +182,7 @@ button .ico{ margin-right:5px; }
 .ch-model{ display:flex; flex-direction:column; gap:1px; }
 .ch-model i{ font-style:normal; font-size:9.5px; color:#6b6f7a; }
 .cost-note{ margin-top:12px; font-size:9.5px; color:#61656f; line-height:1.5; }
-.mb-menu{ position:relative; font-size:12px; color:#bbb; padding:6px 10px; border-radius:6px; cursor:pointer; user-select:none; }
+.mb-menu{ position:relative; font-size:12px; color:#bbb; padding:6px 10px; border-radius:6px; cursor:pointer; user-select:none; white-space:nowrap; flex:0 0 auto; }
 .mb-menu:hover{ background:#2a2a2a; color:#fff; }
 .mb-drop{ position:absolute; top:100%; left:0; min-width:190px; background:#232323;
   border:1px solid #3a3a3a; border-radius:8px; padding:5px; box-shadow:0 12px 30px rgba(0,0,0,.6); z-index:70;
@@ -190,7 +194,8 @@ button .ico{ margin-right:5px; }
 .mb-drop button:hover,.mb-drop .mb-a:hover{ background:#3a3a3a; color:#fff; }
 .mb-drop em{ font-style:normal; font-size:10px; color:#777; }
 .mb-sep{ height:1px; background:#3a3a3a; margin:4px 6px; }
-.mb-tabs{ display:flex; align-items:center; gap:4px; margin-left:14px; }
+.mb-tabs{ display:flex; align-items:center; gap:4px; margin-left:14px; flex:1 1 auto; min-width:0; overflow-x:auto; overflow-y:hidden; scrollbar-width:none; }
+.mb-tabs::-webkit-scrollbar{ display:none; }
 .mb-tab{ font-size:12px; color:#aaa; background:#242424; border:1px solid #333; border-bottom:none;
   padding:7px 14px 8px; border-radius:8px 8px 0 0; display:flex; align-items:center; gap:7px; position:relative; top:5px; }
 .mb-tab[data-doc]{ cursor:pointer; }
@@ -203,7 +208,7 @@ button .ico{ margin-right:5px; }
 .mb-tab-x:hover{ opacity:1; background:#c0392b; color:#fff; }
 .mb-tab.plus{ padding:7px 11px 8px; cursor:pointer; }
 .mb-tab.plus:hover{ color:#fff; }
-.top-right{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+.top-right{ margin-left:auto; display:flex; align-items:center; gap:8px; flex:0 0 auto; }
 .q-batch{ display:flex; align-items:center; gap:3px; font-size:12px; color:#888; }
 .q-batch input{ width:40px; background:#242424; border:1px solid #3a3a3a; border-radius:6px; color:#eee;
   font-size:12px; padding:4px 6px; text-align:center; outline:none; }
@@ -340,6 +345,8 @@ button .ico{ margin-right:5px; }
   background:rgba(129,199,132,.94); color:#0c1a0c; padding:2px 7px; border-radius:5px; letter-spacing:.02em; line-height:1.3;
   box-shadow:0 1px 4px rgba(0,0,0,.4); }
 .refcnt{ font-size:10px; color:#8a8a8a; text-align:center; }
+.refcnt.ref-over{ color:#e6b25a; }
+.refcnt b{ color:#cdd6ff; font-weight:800; }
 /* ── 자체 업스케일러 UI ── */
 .up-row{ display:flex; gap:6px; align-items:center; margin-top:5px; }
 .up-seg{ display:inline-flex; border:1px solid #2f2f37; border-radius:7px; overflow:hidden; flex:0 0 auto; }
@@ -349,27 +356,42 @@ button .ico{ margin-right:5px; }
 .up-prog{ height:6px; border-radius:4px; background:#2a2a2e; overflow:hidden; margin-top:6px; }
 .up-prog i{ display:block; height:100%; width:0; background:linear-gradient(90deg,#4a7dff,#22d3ee); transition:width .2s; }
 .refcnt a{ color:#7aa8ff; }
-/* ── 생성 중 고급 로더 ── */
-.genwrap{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:13px; min-height:118px;
-  background:radial-gradient(circle at 50% 42%, rgba(74,125,255,.10), transparent 62%); }
-.genring{ position:relative; width:48px; height:48px; border-radius:50%;
-  background:conic-gradient(from 0deg, rgba(122,162,255,0) 8%, #4a7dff 62%, #a9c4ff 92%, rgba(122,162,255,0) 100%);
-  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
-          mask:radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
-  animation:genspin .95s cubic-bezier(.55,.15,.4,.85) infinite;
-  filter:drop-shadow(0 0 7px rgba(74,125,255,.6)); }
-.genring::before{ content:""; position:absolute; inset:7px; border-radius:50%;
-  border:1.5px solid rgba(122,162,255,.16); animation:genpulse 1.6s ease-in-out infinite; }
-.genorbit{ position:absolute; top:-1px; left:50%; width:6px; height:6px; margin-left:-3px; border-radius:50%;
-  background:#cfe0ff; box-shadow:0 0 8px 1px rgba(160,196,255,.9); transform-origin:3px 25px;
+/* ── 생성 중 고급 로더 (GPT/Gemini 스타일: 은은한 shimmer + 그라디언트 텍스트) ── */
+.genwrap{ position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; min-height:118px; overflow:hidden;
+  background:linear-gradient(135deg,#14161f 0%,#191c2b 55%,#161826 100%); }
+.genwrap::before{ content:""; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(105deg, transparent 30%, rgba(124,158,255,.13) 46%, rgba(168,132,255,.13) 54%, transparent 70%);
+  background-size:220% 100%; animation:genShimmer 1.8s ease-in-out infinite; }
+.genwrap::after{ content:""; position:absolute; inset:0; pointer-events:none; opacity:.6;
+  background:radial-gradient(120px 70px at 50% 40%, rgba(96,132,255,.16), transparent 70%); }
+@keyframes genShimmer{ 0%{ background-position:135% 0; } 100%{ background-position:-35% 0; } }
+.genring{ position:relative; z-index:1; width:42px; height:42px; border-radius:50%;
+  background:conic-gradient(from 0deg, rgba(140,170,255,0) 10%, #6f8dff 55%, #c3b0ff 88%, rgba(140,170,255,0) 100%);
+  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
+          mask:radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
+  animation:genspin 1s cubic-bezier(.5,.15,.4,.85) infinite;
+  filter:drop-shadow(0 0 8px rgba(111,141,255,.55)); }
+.genring::before{ content:""; position:absolute; inset:6px; border-radius:50%;
+  border:1.5px solid rgba(150,175,255,.14); animation:genpulse 1.6s ease-in-out infinite; }
+.genorbit{ position:absolute; top:-1px; left:50%; width:5.5px; height:5.5px; margin-left:-2.75px; border-radius:50%;
+  background:#e2e9ff; box-shadow:0 0 9px 1px rgba(180,200,255,.95); transform-origin:2.75px 22px;
   animation:genspin 1.9s linear infinite reverse; }
 @keyframes genspin{ to{ transform:rotate(360deg); } }
-@keyframes genpulse{ 0%,100%{ opacity:.35; transform:scale(.9); } 50%{ opacity:.9; transform:scale(1.05); } }
-.gentext{ font-size:11px; color:#a9b8de; letter-spacing:1px; font-weight:600; }
+@keyframes genpulse{ 0%,100%{ opacity:.3; transform:scale(.88); } 50%{ opacity:.85; transform:scale(1.06); } }
+.gentext{ position:relative; z-index:1; font-size:11.5px; font-weight:700; letter-spacing:.4px;
+  background:linear-gradient(90deg,#9db2ff 0%,#e4d7ff 30%,#9db2ff 55%,#e4d7ff 80%,#9db2ff 100%);
+  background-size:220% 100%; -webkit-background-clip:text; background-clip:text; color:transparent;
+  animation:genTextShine 2.4s linear infinite; }
+@keyframes genTextShine{ to{ background-position:-220% 0; } }
 .gentext i{ font-style:normal; animation:gendot 1.3s infinite; }
 .gentext i:nth-of-type(2){ animation-delay:.18s; }
 .gentext i:nth-of-type(3){ animation-delay:.36s; }
 @keyframes gendot{ 0%,65%,100%{ opacity:.2; } 32%{ opacity:1; } }
+.genbar{ position:relative; z-index:1; width:64%; max-width:150px; height:3px; border-radius:3px; overflow:hidden;
+  background:rgba(150,170,230,.14); }
+.genbar i{ position:absolute; top:0; left:0; height:100%; width:40%; border-radius:3px;
+  background:linear-gradient(90deg,transparent,#8fa6ff,#c3b0ff,transparent); animation:genBar 1.5s ease-in-out infinite; }
+@keyframes genBar{ 0%{ left:-42%; } 100%{ left:104%; } }
 #edges path.link.cut-hit{ stroke:#ff5a5a !important; opacity:1; stroke-dasharray:5 4; }
 
 /* ── 노드 (ComfyUI 원본 스타일) ── */
@@ -589,7 +611,7 @@ input.wurl:focus{ border-color:#4fb0a5; }
 .cost-btn:hover{ background:#33301f; border-color:#6a5f30; }
 .cost-btn b{ color:#ffe58a; font-variant-numeric:tabular-nums; }
 .add-media-btn{ display:flex; align-items:center; gap:6px; background:#183226; border:1px solid #2e6b4d; color:#8fe6b8;
-  font-size:12px; font-weight:700; padding:6px 12px; border-radius:8px; cursor:pointer; }
+  font-size:12px; font-weight:700; padding:6px 12px; border-radius:8px; cursor:pointer; white-space:nowrap; flex:0 0 auto; }
 .add-media-btn:hover{ background:#1f4331; border-color:#3f9068; color:#c7f7de; }
 .health-btn{ display:flex; align-items:center; gap:6px; background:#1c2430; border:1px solid #33445c; color:#9bc2e6;
   font-size:12px; font-weight:600; padding:6px 12px; border-radius:8px; cursor:pointer; }
@@ -624,7 +646,7 @@ input.wurl:focus{ border-color:#4fb0a5; }
   font-family:monospace; font-size:11px; line-height:1.55; color:#c7cad2; white-space:pre-wrap; word-break:break-all; max-height:160px; overflow:auto; }
 /* 보관함 버튼 */
 .lib-btn{ display:flex; align-items:center; gap:6px; background:#152a20; border:1px solid #2e6b4d; color:#8fe6b8;
-  font-size:12px; font-weight:600; padding:6px 12px; border-radius:8px; cursor:pointer; }
+  font-size:12px; font-weight:600; padding:6px 12px; border-radius:8px; cursor:pointer; white-space:nowrap; flex:0 0 auto; }
 .lib-btn:hover{ background:#1c3a2b; border-color:#3f9068; }
 .lib-btn b{ color:#c7f7de; font-variant-numeric:tabular-nums; }
 /* 보관함 모달 */
@@ -1104,7 +1126,19 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 </head>
 <body>
 <div class="top">
-  <span class="top-logo"><i></i>NODE STUDIO</span>
+  <span class="top-logo" title="Bygency Studio">
+    <svg class="tl-mark" width="19" height="19" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <linearGradient id="bgmSt" x1="18" y1="26" x2="86" y2="104" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4f7bff"/><stop offset="0.5" stop-color="#6f7bff"/><stop offset="1" stop-color="#25d3e0"/></linearGradient>
+        <linearGradient id="tlmSt" x1="86" y1="30" x2="102" y2="66" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2ee6c8"/><stop offset="1" stop-color="#16b8b0"/></linearGradient>
+      </defs>
+      <path d="M30 30 H66 a20 20 0 0 1 0 40 H50 l10 12 H44 l-14 -17 V30 Z M44 42 V52 H62 a5 5 0 0 0 0 -10 Z" fill="url(#bgmSt)"/>
+      <path d="M20 34 L38 34 L64 86 L64 104 L54 104 L20 40 Z" fill="url(#bgmSt)"/>
+      <path d="M96 62 L74 96 L64 96 L86 58 Z" fill="url(#tlmSt)"/>
+      <rect x="82" y="46" width="7" height="20" rx="1.5" fill="url(#tlmSt)"/><rect x="92" y="38" width="7" height="28" rx="1.5" fill="url(#tlmSt)"/><rect x="102" y="30" width="7" height="36" rx="1.5" fill="url(#tlmSt)"/>
+    </svg>
+    <b class="tl-word">Bygency</b>
+  </span>
   <div class="mb-menu" data-menu="wf">워크플로우
     <div class="mb-drop">
       <button id="btnSave">저장</button>
@@ -2008,6 +2042,13 @@ var MODEL_REF_LIMIT = {
   'Flux 1.1 Pro Ultra':1,'Flux 1.1 Pro':1,'Flux Pro':1,'Flux Dev':1,'Grok Imagine':1
 };
 function modelRefLimit(model){ var v=MODEL_REF_LIMIT[model]; return v==null?1:v; }
+/* 생성 중 고급 로더 마크업 (GPT/Gemini 스타일) — 스피너 + 그라디언트 텍스트 + shimmer 바 */
+function genLoader(label, minH){
+  return '<div class="wpreview genwrap"'+(minH?' style="min-height:'+minH+'px;"':'')+'>'+
+    '<div class="genring"><span class="genorbit"></span></div>'+
+    '<div class="gentext">'+esc(label||'생성 중')+'<i>.</i><i>.</i><i>.</i></div>'+
+    '<div class="genbar"><i></i></div></div>';
+}
 /* 이미지 레퍼런스 포트 연결이 모델 최대치를 넘으면 초과 안내 */
 function refExceedToast(nodeId, port){
   if(port!=='ref') return;
@@ -2020,6 +2061,18 @@ function refExceedToast(nodeId, port){
 /* 모델 로더의 "실효 모델" — 모델선택 노드가 연결돼 있으면 그 모델, 아니면 자체 콤보 */
 function effModel(n){ if(!n||!n.w)return ''; if(n.type!=='model')return n.w.model||'';
   var mp=inputNodeOf(n.id,'modelsel'); return (mp&&mp.w&&mp.w.model)||n.w.model||''; }
+/* 이 레퍼런스 노드가 연결된 다운스트림 모델(들)의 최대 첨부 장수 — 여러 곳이면 가장 큰 값. 미연결이면 0 */
+function refDownstreamLimit(nodeId){
+  var best=0;
+  (state.links||[]).forEach(function(l){ if(l.from!==nodeId)return;
+    var tn=(state.nodes||[]).filter(function(x){return x.id===l.to;})[0]; if(!tn)return;
+    var lim=0;
+    if(tn.type==='model') lim=modelRefLimit(effModel(tn));
+    else if(tn.type==='imagegen'||tn.type==='img3d'||tn.type==='gen3d') lim=modelRefLimit(tn.w.model);
+    if(lim>best) best=lim;
+  });
+  return best;
+}
 /* 대상 노드의 입력 포트가 현재 모델에서 연결 허용되는지 */
 function portAllowed(node, port){
   // 모든 포트에 자유롭게 연결 허용 — '미지원' 표시 없이 첨부되는 것만 첨부된다.
@@ -3504,7 +3557,7 @@ function widgetHTML(n,w){
       '<div class="refcnt">우측 <b>MODEL</b> 포트 → <b>AI 모델 로더</b>의 "모델 선택" 입력에 연결하면 이 모델로 생성됩니다.</div>';
   }
   if(w.t==='imagegenout'){
-    if(n.w.imgGenerating) return '<div class="wpreview genwrap" style="min-height:100px;"><div class="genring"><span class="genorbit"></span></div><div class="gentext">생성 중<i>.</i><i>.</i><i>.</i></div></div>';
+    if(n.w.imgGenerating) return genLoader('생성 중',100);
     if(n.w.imgError) return '<div class="wpreview vperr"><span class="vperr-x">'+ICON.close+'</span><b>생성 실패</b><span class="vperr-msg">'+esc(String(n.w.imgError).slice(0,180))+'</span><span class="vperr-hint">키 미설정이면 그 모델은 생성이 안 됩니다</span></div>';
     if(!n.w.img) return '<div class="wpreview" style="aspect-ratio:1/1;"></div>';
     return '<div class="wpreview"><span class="badge">'+esc(n.w.model||'이미지')+'</span><img src="'+esc(n.w.img)+'" alt="생성 이미지"></div>'+
@@ -3512,14 +3565,14 @@ function widgetHTML(n,w){
       '<div class="refcnt">우측 IMAGE 포트 → 다른 모델의 <b>레퍼런스/첫 프레임</b>에 연결해 재활용</div>';
   }
   if(w.t==='frameout'){
-    if(n.w.extracting) return '<div class="wpreview genwrap" style="min-height:90px;"><div class="genring"><span class="genorbit"></span></div><div class="gentext">추출 중<i>.</i><i>.</i><i>.</i></div></div>';
+    if(n.w.extracting) return genLoader('추출 중',90);
     if(n.w.frameImg) return '<div class="wpreview"><span class="badge">프레임</span><img src="'+esc(n.w.frameImg)+'" alt="추출 프레임"></div>'+
       '<div class="refcnt">우측 IMAGE 포트 → 다음 모델의 "첫 프레임"에 연결 → 이어지는 영상</div>';
     return '<div class="wpreview" style="aspect-ratio:16/9;"><span class="empty">추출된 프레임 없음<br>영상 출력을 연결하고 실행</span></div>';
   }
   if(w.t==='promptgenbtn') return '<button class="wbtn" data-promptgen>'+ICON.sparkle+' '+esc(w.label)+'</button>';
   if(w.t==='promptout'){
-    if(n.w.pgGenerating) return '<div class="wpreview genwrap" style="min-height:64px;"><div class="genring"><span class="genorbit"></span></div><div class="gentext">프롬프트 생성 중<i>.</i><i>.</i><i>.</i></div></div>';
+    if(n.w.pgGenerating) return genLoader('프롬프트 생성 중',64);
     if(n.w.pgError) return '<div class="seedid-hint" style="color:#e6879a;padding:2px 2px 4px;">'+esc(String(n.w.pgError).slice(0,160))+'</div>';
     if(!n.w.text) return '<div class="wpreview"><span class="empty">생성된 프롬프트가 여기 표시됩니다<br>[프롬프트 생성]을 누르세요</span></div>';
     return '<textarea class="wtext" data-w="text" style="min-height:78px;">'+esc(n.w.text)+'</textarea>';
@@ -3546,20 +3599,21 @@ function widgetHTML(n,w){
         }).join('')+'</div>';
     }
     var nVid=vids.filter(Boolean).length;
+    var _lim=refDownstreamLimit(n.id);   // 연결된 모델의 최대 첨부 장수 (0=미연결)
     var cnt = nVid>1 ? ('영상 프레임 '+nVid+'장 · 첫·마지막을 모델의 first/last로 전달')
             : imgs.length>1 ? (imgs.length+'개'+(nVid?' · 영상 '+nVid:'')+' · 첫 번째가 대표')
             : (nVid?'영상 레퍼런스 · 프레임을 모델에 전달':'');
+    var limNote = _lim ? '<div class="refcnt'+(imgs.length>_lim?' ref-over':'')+'">'+ICON.image+' 이 모델 최대 <b>'+_lim+'장</b>'+
+            (imgs.length>_lim?' · 초과 '+(imgs.length-_lim)+'장은 생성 시 제외':'')+'</div>' : '';
     var v2v = n.w.srcVideoUploading ? '<div class="refcnt" style="color:#e6cf7f">'+ICON.spin+' 원본 영상 업로드 중… (V2V 준비)</div>'
             : n.w.srcVideoUrl ? '<div class="refcnt" style="color:#8fe6b8">'+ICON.check+' V2V 가능 — 어떤 모델이든 원본 프레임을 이어받아 변환됩니다. (최고정확도는 "V2V 자동" 또는 "Runway Aleph")</div>' : '';
     return grid+
-      (cnt?'<div class="refcnt">'+cnt+'</div>':'')+ v2v+
+      (cnt?'<div class="refcnt">'+cnt+'</div>':'')+ limNote + v2v+
       (imgs.length?'<button class="wbtn" data-upload style="height:24px;">＋ 추가</button>':'')+
       '<input type="file" accept="image/*,video/*,.mp4,.mov,.webm,.m4v,.avi,.mkv,.gif" multiple data-file style="display:none">';
   }
   if(w.t==='videoout'){
-    if(n.w.generating) return '<div class="wpreview genwrap">'+
-      '<div class="genring"><span class="genorbit"></span></div>'+
-      '<div class="gentext">생성 중<i>.</i><i>.</i><i>.</i></div></div>';
+    if(n.w.generating) return genLoader('생성 중');
     if(n.w.error) return '<div class="wpreview vperr"><span class="vperr-x">'+ICON.close+'</span>'+
       '<b>생성 실패</b><span class="vperr-msg">'+esc(String(n.w.error).slice(0,180))+'</span>'+
       '<span class="vperr-hint">API 키가 설정됐는지 확인하세요 (설정 톱니 → API 연결)</span></div>';
@@ -5324,7 +5378,8 @@ pfHandleTossReturn();
   function addAI(html){ var w=ensureMsgs(); var r=document.createElement('div'); r.className='ch-row ai'; r.innerHTML='<div class="ch-bubble">'+html+'</div>'; w.appendChild(r); down(); return r; }
 
   function open(){ fillModels(); fillExamples(); home.classList.add('on'); setTimeout(function(){ var t=chEl('chText'); if(t)t.focus(); },50); }
-  function close(){ home.classList.remove('on'); }
+  function close(){ home.classList.remove('on'); }        // 'on' 제거 → CSS 트랜지션으로 오른쪽으로 슬라이드 아웃
+  function toggleHome(){ if(home.classList.contains('on')) close(); else open(); }
 
   async function send(){
     var ta=chEl('chText'); var prompt=(ta.value||'').trim();
@@ -5352,7 +5407,8 @@ pfHandleTossReturn();
     busy=false; chEl('chSend').disabled=false;
   }
 
-  var rh=chEl('railHome'); if(rh)rh.addEventListener('click',open);
+  var rh=chEl('railHome'); if(rh)rh.addEventListener('click',toggleHome);
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&home.classList.contains('on'))close(); });
   var cc=chEl('chClose'); if(cc)cc.addEventListener('click',close);
   var tn=chEl('chToNode'); if(tn)tn.addEventListener('click',close);
   var frm=chEl('chForm'); if(frm)frm.addEventListener('submit',function(e){ e.preventDefault(); send(); });
