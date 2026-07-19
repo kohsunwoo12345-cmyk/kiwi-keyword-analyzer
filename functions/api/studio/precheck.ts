@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB } from '../_utils'
-import { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge } from './_pricing'
+import { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from './_pricing'
 
 // POST /api/studio/precheck { model, units?, kind?, res?, audio? }
 //  → 생성 전 크레딧 사전 확인. 부족하면 402 {needPlan:true} 로 응답해 플랜 유도.
@@ -17,7 +17,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const c = computeCharge({ model, units: Number(b.units) || 0, kind: b.kind, res: b.res, audio: !!b.audio }, rate, markup)
   const surPct = await resolveRefSurcharge(db, me.id)
   const refMult = 1 + (surPct / 100) * Math.max(0, Number(b.refs) || 0)
-  const need = Math.round(c.credits * refMult * 100) / 100
+  const cnCount = Math.max(0, Number(b.cn) || 0)
+  const cnPct = cnCount > 0 ? await resolveCnSurcharge(db) : 0
+  const cnMult = cnCount > 0 ? 1 + cnPct / 100 : 1
+  const need = Math.round(c.credits * refMult * cnMult * 100) / 100
   const balance = Number(me.credits) || 0
 
   if (balance < need) {
@@ -33,5 +36,5 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       402,
     )
   }
-  return json({ ok: true, need, balance, model: c.model, refSurchargePct: surPct })
+  return json({ ok: true, need, balance, model: c.model, refSurchargePct: surPct, cnSurchargePct: cnPct })
 }

@@ -21,6 +21,7 @@ export function UserMarkupList() {
   const [cpEdits, setCpEdits] = useState<Record<string, string>>({})
   const [cpDefault, setCpDefault] = useState<number>(65)
   const [gcp, setGcp] = useState('')
+  const [gcn, setGcn] = useState('')
   const [toast, setToast] = useState<string | null>(null)
 
   function reload(query = q) {
@@ -29,6 +30,7 @@ export function UserMarkupList() {
       setUsers(r.users || [])
       if (typeof r.refSurchargeDefault === 'number') { setRefDefault(r.refSurchargeDefault); setGsur(String(r.refSurchargeDefault)) }
       if (typeof r.creditPriceDefault === 'number') { setCpDefault(r.creditPriceDefault); setGcp(String(r.creditPriceDefault)) }
+      if (typeof r.cnSurchargeDefault === 'number') { setGcn(String(r.cnSurchargeDefault)) }
       const e: Record<string, string> = {}
       const rf: Record<string, string> = {}
       const cp: Record<string, string> = {}
@@ -67,6 +69,12 @@ export function UserMarkupList() {
     setBusy(null)
     if (r.ok) { setToast(`전역 레퍼런스 가산율 ${gsur}%/장 저장`); reload() } else setToast(r.error || '처리 실패')
   }
+  async function saveGlobalCn() {
+    setBusy('global:cn')
+    const r = await adminModelPricingAction('set_global_cnsur', { pct: Number(gcn) })
+    setBusy(null)
+    if (r.ok) { setToast(`전역 ControlNet 가산율 ${gcn}% 저장`); reload() } else setToast(r.error || '처리 실패')
+  }
   useEffect(() => { reload('') /* eslint-disable-next-line */ }, [])
   useEffect(() => { const t = setTimeout(() => reload(q), 300); return () => clearTimeout(t) /* eslint-disable-next-line */ }, [q])
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 2600); return () => clearTimeout(t) }, [toast])
@@ -101,6 +109,19 @@ export function UserMarkupList() {
         </div>
         <Button size="sm" disabled={busy === 'global:ref'} onClick={saveGlobalSur}><Save size={14} /> 전역 기본값 저장</Button>
         <span className="text-xs text-[var(--text-dim)]">회원별로 지정하지 않으면 이 값이 적용됩니다. (기본 0.5%)</span>
+      </div>
+
+      {/* 전역 ControlNet 가산율 */}
+      <div className="mb-4 flex flex-wrap items-end gap-2 rounded-xl border border-cyan-200 bg-cyan-50/50 p-3">
+        <div>
+          <label className="mb-1 block text-[11px] text-[var(--text-dim)]">ControlNet 조절 가산율 (%)</label>
+          <div className="flex items-center gap-1">
+            <input value={gcn} onChange={(e) => setGcn(e.target.value.replace(/[^0-9.]/g, ''))} className="w-24 rounded-lg border border-[var(--border-soft)] bg-white px-3 py-2 text-right text-sm" />
+            <span className="text-sm text-[var(--text-soft)]">%</span>
+          </div>
+        </div>
+        <Button size="sm" disabled={busy === 'global:cn'} onClick={saveGlobalCn}><Save size={14} /> 가산율 저장</Button>
+        <span className="text-xs text-[var(--text-dim)]">이미지 생성에서 ControlNet(Canny/Depth/Pose)을 사용하면 소모 크레딧을 이 %만큼 더 차감합니다. (기본 10%)</span>
       </div>
 
       {/* 전역 크레딧 구매 단가 */}

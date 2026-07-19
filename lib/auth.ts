@@ -519,10 +519,23 @@ export async function adminModelPricing(userId = ''): Promise<AdminModelPricing>
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
 export async function adminModelPricingAction(
-  action: 'set_global' | 'reset_global' | 'set_global_all' | 'reset_global_all' | 'set_user' | 'set_user_all' | 'reset_user' | 'set_user_overall' | 'reset_user_overall' | 'set_user_refsur' | 'reset_user_refsur' | 'set_global_refsur' | 'set_promptgen' | 'set_user_creditprice' | 'reset_user_creditprice' | 'set_global_creditprice',
+  action: 'set_global' | 'reset_global' | 'set_global_all' | 'reset_global_all' | 'set_user' | 'set_user_all' | 'reset_user' | 'set_user_overall' | 'reset_user_overall' | 'set_user_refsur' | 'reset_user_refsur' | 'set_global_refsur' | 'set_global_cnsur' | 'set_promptgen' | 'set_user_creditprice' | 'reset_user_creditprice' | 'set_global_creditprice',
   payload: Record<string, unknown> = {},
 ): Promise<{ ok: boolean; error?: string }> {
   return postJson('/api/admin/model-pricing', { action, ...payload })
+}
+export interface ApiProviderBalance {
+  id: string; name: string; note: string; url: string
+  balance: number | null; updatedAt: string
+}
+export async function adminApiBalance(): Promise<{ ok: boolean; error?: string; providers?: ApiProviderBalance[] }> {
+  try {
+    const r = await fetch('/api/admin/api-balance', { credentials: 'include', cache: 'no-store' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+export async function adminApiBalanceSet(id: string, balance: string | number | null, url?: string): Promise<{ ok: boolean; error?: string; balance?: number | null; url?: string }> {
+  return postJson('/api/admin/api-balance', { action: 'set', id, balance, ...(url != null ? { url } : {}) })
 }
 export interface UserMarkupRow {
   id: string; name: string; email: string; plan: string
@@ -530,7 +543,7 @@ export interface UserMarkupRow {
   refSurcharge: number | null
   creditPrice: number | null
 }
-export async function adminUserMarkups(q = ''): Promise<{ ok: boolean; error?: string; users?: UserMarkupRow[]; defaultMarkup?: { video: number; image: number }; refSurchargeDefault?: number; creditPriceDefault?: number; promptgenCredits?: number; promptgenMarkup?: number }> {
+export async function adminUserMarkups(q = ''): Promise<{ ok: boolean; error?: string; users?: UserMarkupRow[]; defaultMarkup?: { video: number; image: number }; refSurchargeDefault?: number; cnSurchargeDefault?: number; creditPriceDefault?: number; promptgenCredits?: number; promptgenMarkup?: number }> {
   try {
     const r = await fetch('/api/admin/model-pricing?list=users' + (q ? `&q=${encodeURIComponent(q)}` : ''), { credentials: 'include', cache: 'no-store' })
     return await r.json()

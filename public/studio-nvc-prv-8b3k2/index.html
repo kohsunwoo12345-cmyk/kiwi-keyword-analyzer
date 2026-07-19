@@ -1782,7 +1782,7 @@ function fmtKrw(v){ return '₩'+Math.round((v||0)*USD_KRW).toLocaleString('ko-K
 function updateCostChip(){ var c=document.getElementById('costChip'); if(c)c.textContent=fmtKrw(costTotal()); }
 /* 실제 생성 1건 기록. (provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl) */
 function mediaForRecord(u){ if(!u||typeof u!=='string')return ''; if(u.indexOf('data:')===0){ return u.length<=600000?u:''; } return u; }
-function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl){
+function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl, cnCount){
   var m = MODEL_COST[model];
   var isImg = m ? m.u==='img' : (kind==='image');
   var prov = m ? m.prov : provider;
@@ -1803,7 +1803,7 @@ function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prom
   try{
     var _refs=[]; try{ if(refUrls&&refUrls.length){ _refs=refUrls.map(mediaForRecord).filter(Boolean).slice(0,4); } }catch(e){}
     fetch('/api/usage/record',{ method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
-      body: JSON.stringify({ provider:prov, model:model||prov, kind:isImg?'image':'video', units:units, res:isImg?null:(res||'1080p'), audio:!!audioAdd, usd:usd, refs:Math.max(0,Number(refCount)||0),
+      body: JSON.stringify({ provider:prov, model:model||prov, kind:isImg?'image':'video', units:units, res:isImg?null:(res||'1080p'), audio:!!audioAdd, usd:usd, refs:Math.max(0,Number(refCount)||0), cn:Math.max(0,Number(cnCount)||0),
         prompt:(prompt||'').slice(0,4000), refUrls:_refs, resultUrl:mediaForRecord(resultUrl), resultKind:isImg?'image':'video' }) }).catch(function(){});
   }catch(e){}
 }
@@ -2389,7 +2389,7 @@ async function generateWithAPI(params){
   try{
     var _pcImg = !!(MODEL_COST[params.model] && MODEL_COST[params.model].u==='img');
     var _pc = await fetch('/api/studio/precheck',{ method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
-      body: JSON.stringify({ model:params.model, units:params.seconds||8, kind:_pcImg?'image':'video', res:params.res||'1080p', audio:!!params.generateAudio, refs:Number(params.refCount)||0 }) });
+      body: JSON.stringify({ model:params.model, units:params.seconds||8, kind:_pcImg?'image':'video', res:params.res||'1080p', audio:!!params.generateAudio, refs:Number(params.refCount)||0, cn:(params.controlnets&&params.controlnets.length)||0 }) });
     if(_pc.status===402){
       var _pj={}; try{ _pj=await _pc.json(); }catch(e){}
       if(typeof window!=='undefined' && window.confirm((_pj.error||'크레딧이 부족합니다.')+'\n\n요금제 페이지로 이동할까요?')){ window.location.href='/pricing'; }
@@ -2676,7 +2676,7 @@ function generateImageNode(n){
         var info=showGenError(n.w.imgError, (res&&res.provider)||providerOf(n.w.model), n.w.model);
         toast((info&&info.title)||('이미지 생성 실패: '+String(n.w.imgError).slice(0,80))); render(); return; }
       n.w.img=res.url; n.w.imgKind=res.kind||'image';
-      if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image', null, false, refCountUsed, prompt, refUsedList, res.url);   // 레퍼런스 장수만큼 크레딧 가산
+      if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image', null, false, refCountUsed, prompt, refUsedList, res.url, cnList.length);   // 레퍼런스 장수 + ControlNet 가산
       saveToGallery(res.url, 'image', n.w.model, 0, null);
       toast('이미지 생성 완료'); snapshot(); render();
     })

@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser, setSetting, getSetting, logAudit, clientIp } from '../_utils'
-import { MODEL_COST, PROV_LABEL, computeCharge, getUsdKrw, getModelMarkups, CREDIT_KRW, REF_SURCHARGE_DEFAULT } from '../studio/_pricing'
+import { MODEL_COST, PROV_LABEL, computeCharge, getUsdKrw, getModelMarkups, CREDIT_KRW, REF_SURCHARGE_DEFAULT, CN_SURCHARGE_DEFAULT } from '../studio/_pricing'
 
 const clampPct = (v: any) => Math.max(0, Math.min(100, Math.round((Number(v) || 0) * 1000) / 1000))
 
@@ -32,6 +32,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     } catch { /* table 없음 */ }
     const gsur = await getSetting(db, 'ref_surcharge_pct')
     const refDefault = gsur != null && gsur !== '' && Number(gsur) >= 0 ? Number(gsur) : REF_SURCHARGE_DEFAULT
+    const gcn = await getSetting(db, 'controlnet_surcharge_pct')
+    const cnSurchargeDefault = gcn != null && gcn !== '' && Number(gcn) >= 0 ? Number(gcn) : CN_SURCHARGE_DEFAULT
     const gcp = await getSetting(db, 'credit_price_krw')
     const creditPriceDefault = gcp != null && gcp !== '' && Number(gcp) > 0 ? Number(gcp) : 65 // 기본 65원/크레딧
     const pgm = await getSetting(db, 'promptgen_markup')
@@ -51,6 +53,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       })),
       defaultMarkup: { video: 3.0, image: 2.5 },
       refSurchargeDefault: refDefault,
+      cnSurchargeDefault,
       creditPriceDefault,
       promptgenMarkup,
       promptgenCredits,
@@ -186,6 +189,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const pct = clampPct(b.pct)
     await setSetting(db, 'ref_surcharge_pct', String(pct))
     await logAudit(db, admin, 'global_ref_surcharge', '전역', pct + '%/장', 'high', ip)
+    return json({ ok: true, pct })
+  }
+  // ControlNet 조절 사용 시 가산율(%) — 전역
+  if (action === 'set_global_cnsur') {
+    const pct = clampPct(b.pct)
+    await setSetting(db, 'controlnet_surcharge_pct', String(pct))
+    await logAudit(db, admin, 'global_cn_surcharge', '전역', pct + '%', 'high', ip)
     return json({ ok: true, pct })
   }
   // 프롬프트 작성(GPT·Gemini) 배수(원가율) — 전역, 원가 이하(1 미만) 불가

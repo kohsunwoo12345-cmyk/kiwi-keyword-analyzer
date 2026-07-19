@@ -45,6 +45,16 @@ export async function resolveRefSurcharge(db: D1Database, userId: string): Promi
   } catch { /* noop */ }
   return REF_SURCHARGE_DEFAULT
 }
+// ControlNet(Canny/Depth/Pose) 사용 시 추가 가산율(%) 기본값. (전처리·추가 추론 비용 반영)
+export const CN_SURCHARGE_DEFAULT = 10
+// 전역 ControlNet 가산율 해석: settings.controlnet_surcharge_pct > 기본(10%)
+export async function resolveCnSurcharge(db: D1Database): Promise<number> {
+  try {
+    const row: any = await db.prepare("SELECT value FROM settings WHERE key = 'controlnet_surcharge_pct'").first()
+    if (row && row.value != null && row.value !== '') { const n = Number(row.value); if (n >= 0) return n }
+  } catch { /* noop */ }
+  return CN_SURCHARGE_DEFAULT
+}
 export async function getModelMarkups(db: D1Database): Promise<Record<string, number>> {
   try {
     const row: any = await db.prepare("SELECT value FROM settings WHERE key = 'model_markups'").first()
@@ -133,12 +143,15 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   'Flux Dev': { u: 'img', usd: 0.025, prov: 'flux' },
   'Flux Kontext Max (레퍼런스 편집)': { u: 'img', usd: 0.08, prov: 'flux' },
   'Flux Kontext Pro (레퍼런스 편집)': { u: 'img', usd: 0.05, prov: 'flux' },
+  // ── 오디오·립싱크 (초당) — 관리자 ai-pricing 에서 모델별 배수 설정 가능 ──
+  '나레이션 (AI 음성 해설)': { u: 'sec', usd: 0.02, prov: 'narrate' },
+  '립싱크 (인물 말하기)': { u: 'sec', usd: 0.1, prov: 'lipsync' },
 }
 
 export const PROV_LABEL: Record<string, string> = {
   google: 'Google Veo', runway: 'Runway', runway_aleph: 'Runway Aleph', v2v_auto: 'V2V 자동', motion: '모션 전이', seedance: 'Seedance',
   hailuo: 'MiniMax Hailuo', luma: 'Luma', xai: 'Grok', flux: 'Flux', falcontrol: 'fal ControlNet',
-  nanobanana: 'Nano Banana', openai: 'GPT Image', kling: 'Kling',
+  nanobanana: 'Nano Banana', openai: 'GPT Image', kling: 'Kling', narrate: '나레이션', lipsync: '립싱크',
 }
 
 export interface ChargeInput {

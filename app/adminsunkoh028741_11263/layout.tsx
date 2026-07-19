@@ -29,6 +29,7 @@ import {
   ArrowLeft,
 } from 'lucide-react'
 import { Logo } from '@/components/Brand'
+import { ApiQuotaWidget } from '@/components/admin/ApiQuotaWidget'
 import { adminSupportCount, adminPendingCounts } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -184,6 +185,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <div className="flex-1 overflow-y-auto p-3">
               <AdminNav onNavigate={() => setMobileOpen(false)} />
             </div>
+            <ApiQuotaWidget />
             <SidebarFooter />
           </aside>
         </div>
@@ -202,6 +204,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex-1 overflow-y-auto p-3 no-scrollbar">
           <AdminNav />
         </div>
+        <ApiQuotaWidget />
         <SidebarFooter />
       </aside>
 

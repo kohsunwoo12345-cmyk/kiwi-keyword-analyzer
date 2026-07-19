@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity, resolveBucket } from '../_utils'
-import { computeCharge, ensureAiUsage, getUsdKrw, resolveMarkup, resolveRefSurcharge } from '../studio/_pricing'
+import { computeCharge, ensureAiUsage, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from '../studio/_pricing'
 
 function b64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64)
@@ -77,7 +77,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const refCount = Math.max(0, Number(b.refs) || 0)
   const surPct = me ? await resolveRefSurcharge(db, me.id) : 0.5
   const refMult = 1 + (surPct / 100) * refCount
-  const wantCredits = Math.round(c.credits * refMult * 100) / 100
+  // ControlNet 조절 사용 시 추가 가산: cn>0 이면 +cnPct% (전역 설정, 기본 10%)
+  const cnCount = Math.max(0, Number(b.cn) || 0)
+  const cnPct = cnCount > 0 ? await resolveCnSurcharge(db) : 0
+  const cnMult = cnCount > 0 ? 1 + cnPct / 100 : 1
+  const wantCredits = Math.round(c.credits * refMult * cnMult * 100) / 100
 
   // 크레딧 100% 차감 (로그인 사용자만). 소수 크레딧 지원, 잔액 부족 시 있는 만큼만 차감하고 마이너스는 방지.
   let charged = 0
@@ -150,7 +154,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: String((e as any)?.message || e).slice(0, 160) }, 500)
   }
 
-  return json({ ok: true, stored: true, charged, credits: wantCredits, refCount, refSurchargePct: surPct })
+  return json({ ok: true, stored: true, charged, credits: wantCredits, refCount, refSurchargePct: surPct, cnCount, cnSurchargePct: cnPct })
 }
 
 export const onRequestOptions: PagesFunction<Env> = async () =>
