@@ -51,7 +51,46 @@ function curlPost(target, bodyStr, cb) {
   c.stdin.write(bodyStr); c.stdin.end()
 }
 
+// ── OpenAI 릴레이 ──
+// Cloudflare egress 가 OpenAI 미지원 지역으로 잡혀 unsupported_country 403 이 나므로,
+// 이 서버(지원 국가 고정 IP)를 경유시킨다. /v1/* 경로를 api.openai.com 으로 그대로 전달.
+// 대상 호스트는 api.openai.com 으로 고정(오픈 프록시 방지). 유효한 OpenAI 키 없이는 무의미.
+function openaiRelay(req, res, bodyBuf) {
+  const target = 'https://api.openai.com' + req.url
+  const args = ['-s', '-w', '\n__CODE__%{http_code}', '-X', req.method, target, '--max-time', '120']
+  const auth = req.headers['authorization']; if (auth) { args.push('-H', 'Authorization: ' + auth) }
+  const ct = req.headers['content-type']; if (ct) { args.push('-H', 'Content-Type: ' + ct) }
+  const org = req.headers['openai-organization']; if (org) { args.push('-H', 'OpenAI-Organization: ' + org) }
+  if (req.method !== 'GET' && req.method !== 'HEAD' && bodyBuf && bodyBuf.length) args.push('--data-binary', '@-')
+  const c = spawn('curl', args)
+  const out = []
+  c.stdout.on('data', (x) => out.push(x))
+  c.on('error', () => reply(res, 502, { relayError: 'curl-spawn (curl 설치 필요)' }))
+  c.on('close', () => {
+    const buf = Buffer.concat(out)
+    const s = buf.toString('utf8')
+    const m = s.lastIndexOf('\n__CODE__')
+    let code = 200, body = buf
+    if (m >= 0) { code = Number(s.slice(m + 9).trim()) || 200; body = Buffer.from(s.slice(0, m), 'utf8') }
+    res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' })
+    res.end(body)
+  })
+  if (req.method !== 'GET' && req.method !== 'HEAD' && bodyBuf && bodyBuf.length) { c.stdin.write(bodyBuf) }
+  c.stdin.end()
+}
+
+const OPENAI_MAX_BODY = 12 * 1024 * 1024 // 이미지 편집 멀티파트 대비 (12MB)
 const server = http.createServer((req, res) => {
+  // ── OpenAI 릴레이: /v1/* 경로는 api.openai.com 으로 패스스루 (GET/POST 모두) ──
+  if (req.url && (req.url.indexOf('/v1/') === 0 || req.url.indexOf('/openai/v1/') === 0)) {
+    if (req.url.indexOf('/openai') === 0) req.url = req.url.slice('/openai'.length) // /openai/v1/.. → /v1/..
+    if (req.method === 'GET' || req.method === 'HEAD') return openaiRelay(req, res, null)
+    const bch = []; let bs = 0
+    req.on('data', (c) => { bs += c.length; if (bs > OPENAI_MAX_BODY) { req.destroy(); return reply(res, 413, { relayError: 'too large' }) } bch.push(c) })
+    req.on('end', () => openaiRelay(req, res, Buffer.concat(bch)))
+    return
+  }
+
   if (req.method === 'GET') return reply(res, 200, { ok: true, service: 'bygency-aligo-relay' })
   if (req.method !== 'POST') return reply(res, 405, { relayError: 'POST only' })
   if (!authed(req)) return reply(res, 401, { relayError: 'unauthorized' })

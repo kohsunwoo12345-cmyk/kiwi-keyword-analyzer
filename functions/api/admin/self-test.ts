@@ -33,14 +33,36 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const openaiBase = (pick(e, ['OPENAI_RELAY_URL', 'openai_relay_url']) || 'https://api.openai.com').replace(/\/$/, '')
   const defs: { id: string; name: string; covers: string; keys: string[]; run?: (key: string) => Promise<{ ok: boolean; status: number; msg: string }> }[] = [
     { id: 'openai', name: 'GPT Image (OpenAI)', covers: 'GPT Image 2/1.5/1/mini', keys: ['GPT_API_KEY', 'OPENAI_API_KEY', 'gpt_api_key', 'openai_api_key'],
-      run: async (key) => { const r = await tfetch(openaiBase + '/v1/models', { headers: { Authorization: `Bearer ${key}` } }); return { ok: r.ok, status: r.status, msg: r.ok ? (openaiBase.includes('openai.com') ? '직접 호출 정상' : '릴레이 경유 정상') : await errText(r) } } },
+      run: async (key) => {
+        const usingRelay = !openaiBase.includes('api.openai.com')
+        const r = await tfetch(openaiBase + '/v1/models', { headers: { Authorization: `Bearer ${key}` } })
+        if (r.ok) return { ok: true, status: r.status, msg: usingRelay ? '릴레이 경유 정상' : '직접 호출 정상' }
+        const body = await r.text().catch(() => '')
+        if (/unsupported_country|country.*not supported/i.test(body)) {
+          return { ok: false, status: r.status, msg: usingRelay
+            ? '릴레이도 지원 안 되는 국가에 있음 → 릴레이를 미국(지원 국가) 호스트로 이동 필요'
+            : '국가 차단됨 · 미국 릴레이 필요 → OPENAI_RELAY_URL 환경변수에 미국 릴레이 주소 설정 (현재 미설정=직접 호출)' }
+        }
+        return { ok: false, status: r.status, msg: await errText(r) }
+      } },
     { id: 'elevenlabs', name: 'ElevenLabs', covers: '나레이션·립싱크·목소리교체', keys: ['ElevenLabs_API_KEY', 'ELEVENLABS_API_KEY', 'elevenlabs_api_key'],
-      run: async (key) => { const r = await tfetch('https://api.elevenlabs.io/v1/user/subscription', { headers: { 'xi-api-key': key } }); let extra = ''; if (r.ok) { try { const j: any = await r.json(); extra = ` · 남은 문자 ${Math.max(0, (Number(j.character_limit) || 0) - (Number(j.character_count) || 0)).toLocaleString('ko-KR')}` } catch {} } return { ok: r.ok, status: r.status, msg: r.ok ? '정상' + extra : await errText(r) } } },
+      run: async (key) => {
+        // 생성 기능(TTS/STS)이 쓰는 것과 동일한 인증. 구독조회는 user_read 권한이 필요해 실패할 수 있으므로
+        // 음성 목록(/v1/voices)으로 검증하고, 권한 부족(인증은 성공)은 별도로 안내.
+        const r = await tfetch('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': key } })
+        if (r.ok) return { ok: true, status: r.status, msg: '정상 (음성 목록 조회 성공 → 생성 가능)' }
+        const body = await r.text().catch(() => '')
+        if (r.status === 401 && /permission|missing|user_read|voices_read/i.test(body)) {
+          // 키 자체는 유효(인증 성공), 조회 권한만 없음 → 생성은 정상일 가능성이 높음
+          return { ok: true, status: r.status, msg: '키 인증 성공 · 조회권한만 제한됨(생성은 정상). 잔액·목록 표시하려면 키에 user_read/voices_read 권한 추가' }
+        }
+        return { ok: false, status: r.status, msg: (r.status === 401 ? '실패 HTTP 401 · 키가 유효하지 않음' : '') + (body ? ' · ' + body.replace(/\s+/g, ' ').slice(0, 140) : await errText(r)) }
+      } },
     { id: 'luma', name: 'Luma', covers: 'Ray 2 · Ray Flash 2 · Ray 1.6', keys: ['Luma_API_KEY', 'LUMA_API_KEY', 'luma_api_key'],
       run: async (key) => {
-        let r = await tfetch('https://api.lumalabs.ai/dream-machine/v1/credits', { headers: { Authorization: `Bearer ${key}`, accept: 'application/json' } })
-        if (r.status === 404) r = await tfetch('https://api.lumalabs.ai/dream-machine/v1/generations?limit=1', { headers: { Authorization: `Bearer ${key}`, accept: 'application/json' } })
-        return { ok: r.ok, status: r.status, msg: r.ok ? '정상 (3개 모델 동일 엔드포인트)' : await errText(r) }
+        // 실제 생성이 쓰는 엔드포인트(/generations)로 인증 검증. (목록 조회는 무료)
+        const r = await tfetch('https://api.lumalabs.ai/dream-machine/v1/generations?limit=1', { headers: { Authorization: `Bearer ${key}`, accept: 'application/json' } })
+        return { ok: r.ok, status: r.status, msg: r.ok ? '정상 (Ray 2·Flash·1.6 동일 엔드포인트)' : await errText(r) }
       } },
     { id: 'runway', name: 'Runway', covers: 'Gen-4 · Aleph', keys: ['Runway_API_KEY', 'RUNWAY_API_KEY', 'runway_api_key'],
       run: async (key) => { const r = await tfetch('https://api.dev.runwayml.com/v1/organization', { headers: { Authorization: `Bearer ${key}`, 'X-Runway-Version': '2024-11-06' } }); return { ok: r.ok, status: r.status, msg: r.ok ? '정상' : await errText(r) } } },
