@@ -25,6 +25,7 @@ import {
   Tag,
   Download,
   Fuel,
+  Bell,
   Menu,
   X,
   ArrowLeft,
@@ -39,6 +40,7 @@ export const ADMIN_BASE = '/adminsunkoh028741_11263'
 const NAV = [
   { title: '관리자 대시보드', href: ADMIN_BASE, icon: LayoutDashboard },
   { title: '회원 관리', href: `${ADMIN_BASE}/users`, icon: Users },
+  { title: '알림', href: `${ADMIN_BASE}/notices`, icon: Bell },
   { title: '실시간 모니터링', href: `${ADMIN_BASE}/users`, icon: Activity, exactHref: `${ADMIN_BASE}/users#live` },
   { title: '보안', href: `${ADMIN_BASE}/security`, icon: ShieldAlert },
   { title: '해킹 위험', href: `${ADMIN_BASE}/security-risk`, icon: Shield },

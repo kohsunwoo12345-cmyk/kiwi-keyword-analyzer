@@ -452,6 +452,30 @@ export async function ensureSchema(db: D1Database) {
       ip TEXT DEFAULT '',
       created_at TEXT NOT NULL
     )`),
+    // 팝업 알림 캠페인(관리자가 발송) — 사진/CTA버튼 포함, X 닫아야 읽음
+    db.prepare(`CREATE TABLE IF NOT EXISTS notice_campaigns (
+      id TEXT PRIMARY KEY,
+      title TEXT,
+      body TEXT,
+      image_url TEXT,
+      cta_label TEXT,
+      cta_url TEXT,
+      target TEXT DEFAULT 'all',
+      audience INTEGER DEFAULT 0,
+      created_by TEXT,
+      created_at TEXT NOT NULL
+    )`),
+    // 캠페인 × 회원별 수신/읽음 영수증 (read_at NULL = 안읽음)
+    db.prepare(`CREATE TABLE IF NOT EXISTS notice_receipts (
+      id TEXT PRIMARY KEY,
+      campaign_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      read_at TEXT,
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_notice_rcpt_user ON notice_receipts(user_id, read_at)`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_notice_rcpt_camp ON notice_receipts(campaign_id)`),
+    db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_notice_rcpt_uniq ON notice_receipts(campaign_id, user_id)`),
   ])
   // 기존 테이블에 신규 컬럼 보강 (누락된 것만 추가)
   await addMissingColumns(db, 'users', {

@@ -1015,3 +1015,66 @@ export async function mySenders(): Promise<{ ok: boolean; senders: MySender[] }>
 export async function registerSender(phone: string, label?: string): Promise<{ ok: boolean; error?: string }> {
   return postJson('/api/account/sender', { phone, label })
 }
+
+/* ───────── 팝업 알림 (Notice) ───────── */
+export interface NoticeItem {
+  id: string
+  title: string
+  body: string
+  imageUrl: string
+  ctaLabel: string
+  ctaUrl: string
+  createdAt: string
+}
+export interface AdminNoticeCampaign extends NoticeItem {
+  target: string
+  audience: number
+  createdBy: string
+  total: number
+  readCount: number
+  unreadCount: number
+}
+export interface NoticeRecipient {
+  userId: string
+  name: string
+  email: string
+  plan: string
+  read: boolean
+  readAt: string | null
+}
+
+// 사용자: 안읽은 팝업 알림 목록
+export async function fetchNotices(): Promise<{ ok: boolean; notices: NoticeItem[] }> {
+  try {
+    const r = await fetch('/api/notices', { credentials: 'include', cache: 'no-store' })
+    const d = await r.json()
+    return { ok: !!d.ok, notices: d.notices || [] }
+  } catch { return { ok: false, notices: [] } }
+}
+// 사용자: X 로 닫음 = 읽음 처리
+export async function markNoticeRead(campaignId: string): Promise<{ ok: boolean }> {
+  return postJson('/api/notices', { campaignId })
+}
+
+// 관리자: 발송한 캠페인 목록 + 읽음/안읽음 집계
+export async function adminNoticeList(): Promise<{ ok: boolean; campaigns: AdminNoticeCampaign[]; error?: string }> {
+  try {
+    const r = await fetch('/api/admin/notices', { credentials: 'include', cache: 'no-store' })
+    const d = await r.json()
+    return { ok: !!d.ok, campaigns: d.campaigns || [], error: d.error }
+  } catch { return { ok: false, campaigns: [], error: '네트워크 오류' } }
+}
+// 관리자: 특정 캠페인의 회원별 읽음/안읽음 상세
+export async function adminNoticeDetail(id: string): Promise<{ ok: boolean; campaign?: AdminNoticeCampaign; recipients?: NoticeRecipient[]; readCount?: number; unreadCount?: number; error?: string }> {
+  try {
+    const r = await fetch('/api/admin/notices?id=' + encodeURIComponent(id), { credentials: 'include', cache: 'no-store' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+// 관리자: 알림 발송
+export async function adminNoticeSend(payload: {
+  title: string; body: string; imageUrl?: string; ctaLabel?: string; ctaUrl?: string
+  target: 'all' | 'plan' | 'user' | 'multi'; plan?: string; userId?: string; userIds?: string[]
+}): Promise<{ ok: boolean; campaignId?: string; audience?: number; error?: string }> {
+  return postJson('/api/admin/notices', payload)
+}

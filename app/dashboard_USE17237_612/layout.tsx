@@ -2,6 +2,7 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { PwaTracker } from '@/components/PwaTracker'
 import { ProfileGate } from '@/components/ProfileGate'
 import { EventBanner } from '@/components/EventBanner'
+import { NoticePopups } from '@/components/NoticePopups'
 import { DashThemeProvider } from '@/components/dash/DashThemeProvider'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -13,6 +14,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <EventBanner />
           <Sidebar />
           <main className="min-w-0 flex-1">{children}</main>
+          <NoticePopups />
         </div>
       </ProfileGate>
     </DashThemeProvider>
