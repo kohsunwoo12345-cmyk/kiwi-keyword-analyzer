@@ -271,58 +271,86 @@ button .ico{ margin-right:5px; }
   opacity:0; visibility:hidden; pointer-events:none; transform:translateX(46px);
   transition:opacity .26s ease, transform .34s cubic-bezier(.22,1,.36,1), visibility .34s; }
 #smsPane.on{ opacity:1; visibility:visible; pointer-events:auto; transform:translateX(0); }
-.ch-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 18px; border-bottom:1px solid rgba(255,255,255,.07); }
+.ch-head{ display:flex; align-items:center; justify-content:space-between; padding:11px 18px; border-bottom:1px solid rgba(255,255,255,.06); flex-shrink:0; }
 .ch-title{ display:flex; align-items:center; gap:8px; font-size:14px; font-weight:800; color:#eef0f8; }
 .ch-title svg{ color:#8fa0ff; }
 .ch-head-actions{ display:flex; align-items:center; gap:8px; }
-.ch-node{ border:1px solid #2c2f3e; background:#171a26; color:#c7ccdb; font-size:12px; font-weight:700; padding:7px 12px; border-radius:9px; cursor:pointer; }
+.ch-node{ border:1px solid #2c2f3e; background:#141622; color:#c7ccdb; font-size:12px; font-weight:700; padding:7px 12px; border-radius:9px; cursor:pointer; }
 .ch-node:hover{ border-color:#5566ff; color:#fff; }
 .ch-x{ border:none; background:transparent; color:#8a8f9c; font-size:16px; cursor:pointer; padding:6px 8px; border-radius:8px; }
 .ch-x:hover{ background:#1c1f2b; color:#ff9b9b; }
-.ch-body{ flex:1; overflow-y:auto; padding:24px 16px 8px; }
-.ch-hero{ max-width:620px; margin:6vh auto 0; text-align:center; }
-.ch-hero-emoji{ display:inline-flex; padding:16px; border-radius:20px; background:rgba(111,123,255,.12); border:1px solid rgba(111,123,255,.25); }
-.ch-hero h2{ margin:16px 0 6px; font-size:22px; font-weight:800; letter-spacing:-.02em; }
-.ch-hero p{ margin:0; font-size:13.5px; color:#9aa0b5; line-height:1.6; }
-.ch-examples{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:18px; }
-.ch-ex{ border:1px solid #2a2d3c; background:#151826; color:#c7ccdb; font-size:12.5px; padding:8px 13px; border-radius:999px; cursor:pointer; transition:.15s; }
-.ch-ex:hover{ border-color:#6f7bff; color:#fff; background:#1a1e2e; }
-.ch-msgs{ max-width:820px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
-.ch-row{ display:flex; }
-.ch-row.me{ justify-content:flex-end; }
-.ch-bubble{ max-width:80%; padding:11px 14px; border-radius:16px; font-size:13.5px; line-height:1.55; white-space:pre-wrap; word-break:break-word; }
-.ch-row.me .ch-bubble{ background:linear-gradient(135deg,#5566ff,#8a5cff); color:#fff; border-bottom-right-radius:5px; }
-.ch-row.ai .ch-bubble{ background:#151826; border:1px solid #262a3a; color:#dfe3ef; border-bottom-left-radius:5px; }
-.ch-vid{ max-width:min(460px,80%); }
-.ch-vid video{ width:100%; border-radius:14px; border:1px solid #262a3a; display:block; background:#000; }
-.ch-vidmeta{ display:flex; align-items:center; gap:10px; margin-top:7px; font-size:11px; color:#8a8f9c; }
-.ch-vidmeta a{ color:#8fa0ff; text-decoration:none; font-weight:700; }
-.ch-vidmeta a:hover{ text-decoration:underline; }
-.ch-dots{ display:inline-flex; gap:4px; align-items:center; }
-.ch-dots i{ width:6px; height:6px; border-radius:50%; background:#8a8f9c; animation:chb 1s infinite; }
-.ch-dots i:nth-child(2){ animation-delay:.15s } .ch-dots i:nth-child(3){ animation-delay:.3s }
-@keyframes chb{ 0%,100%{ opacity:.3; transform:translateY(0) } 50%{ opacity:1; transform:translateY(-3px) } }
-.ch-dock{ border-top:1px solid rgba(255,255,255,.07); padding:10px 16px 14px; background:#000; }
-.ch-controls{ max-width:820px; margin:0 auto 8px; display:flex; flex-wrap:wrap; gap:10px; }
-.ch-controls label{ display:flex; align-items:center; gap:6px; font-size:11.5px; color:#8a8f9c; }
-.ch-controls select{ background:#151826; border:1px solid #2a2d3c; color:#dfe3ef; font-size:12px; padding:6px 9px; border-radius:8px; outline:none; }
-.ch-input{ max-width:820px; margin:0 auto; display:flex; align-items:flex-end; gap:8px; background:#12141f; border:1px solid #2a2d3c; border-radius:16px; padding:8px 8px 8px 14px; }
-.ch-input:focus-within{ border-color:#5566ff; }
-.ch-input textarea{ flex:1; resize:none; max-height:140px; background:transparent; border:none; color:#eef0f8; font-size:14px; line-height:1.5; outline:none; padding:6px 0; font-family:inherit; }
-.ch-input textarea::placeholder{ color:#6b7080; }
-#chSend{ flex-shrink:0; width:38px; height:38px; border:none; border-radius:12px; background:linear-gradient(135deg,#5566ff,#8a5cff); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-#chSend:hover{ filter:brightness(1.1); } #chSend:disabled{ opacity:.5; cursor:default; }
-/* 모드 토글(영상/이미지) */
-.ch-seg{ display:inline-flex; background:#151826; border:1px solid #2a2d3c; border-radius:9px; padding:2px; }
-.ch-seg button{ border:none; background:transparent; color:#9297a6; font-size:12px; font-weight:700; padding:5px 11px; border-radius:7px; cursor:pointer; font-family:inherit; }
-.ch-seg button.on{ background:linear-gradient(135deg,#5566ff,#8a5cff); color:#fff; }
+
+/* ── 2패널: 좌 컴포저 / 우 결과 갤러리 (Kling 스타일) ── */
+.ch-main{ flex:1; display:flex; min-height:0; }
+.ch-composer{ width:360px; flex-shrink:0; display:flex; flex-direction:column; gap:14px; padding:18px; overflow-y:auto;
+  background:#0a0a0c; border-right:1px solid rgba(255,255,255,.06); }
+.ch-field{ display:flex; flex-direction:column; gap:6px; }
+.ch-lbl{ font-size:11.5px; font-weight:700; color:#9298a8; letter-spacing:.01em; }
+.ch-lbl-opt{ color:#5f6474; font-weight:600; }
+.ch-modelsel, .ch-composer select{ background:#131520; border:1px solid #262a38; color:#e6e9f2; font-size:13px; padding:9px 11px; border-radius:10px; outline:none; width:100%; cursor:pointer; }
+.ch-modelsel:focus, .ch-composer select:focus{ border-color:#5566ff; }
+/* 첨부 슬롯 */
+.ch-attach-area{ display:flex; flex-direction:column; gap:7px; }
+.ch-attach-slot{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; height:100px;
+  border:1.5px dashed #2f3346; border-radius:12px; background:#0f1120; color:#7a8092; font-size:12px; font-weight:600; cursor:pointer; transition:.15s; }
+.ch-attach-slot:hover{ border-color:#5566ff; color:#aeb6d8; background:#12152a; }
+.ch-attach-slot svg{ opacity:.75; }
+.ch-attach-area.has .ch-attach-slot{ display:none; }
+/* 프롬프트 */
+.ch-composer textarea#chText{ resize:none; min-height:118px; max-height:240px; background:#131520; border:1px solid #262a38; border-radius:12px;
+  color:#eef0f8; font-size:13.5px; line-height:1.55; outline:none; padding:11px 12px; font-family:inherit; width:100%; }
+.ch-composer textarea#chText:focus{ border-color:#5566ff; }
+.ch-composer textarea#chText::placeholder{ color:#5f6474; }
+/* 하단: 옵션 + 생성 버튼 */
+.ch-composer-foot{ margin-top:auto; display:flex; flex-direction:column; gap:12px; padding-top:6px; }
+.ch-opts{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.ch-opts label{ display:flex; flex-direction:column; gap:4px; font-size:10.5px; font-weight:700; color:#8a8f9c; }
+.ch-opts label select{ font-size:12px; padding:7px 9px; }
 .ch-mode-image .ch-vonly{ display:none; }
-/* 첨부 버튼 + 미리보기 칩 */
-#chAttachBtn{ flex-shrink:0; width:34px; height:34px; border:1px solid #2a2d3c; border-radius:10px; background:#151826; color:#aab0c0; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-#chAttachBtn:hover{ color:#dfe3ef; border-color:#3a3f52; } #chAttachBtn.on{ color:#8a5cff; border-color:#5566ff; }
-.ch-chip{ flex-shrink:0; display:inline-flex; align-items:center; gap:5px; max-width:150px; background:#1c2030; border:1px solid #33384a; border-radius:8px; padding:3px 7px; font-size:11px; color:#c7ccdb; }
-.ch-chip img{ width:20px; height:20px; border-radius:4px; object-fit:cover; }
-.ch-chip b{ cursor:pointer; color:#8a8f9c; } .ch-chip b:hover{ color:#ff8a9a; }
+.ch-generate{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:14px; border:none; border-radius:13px;
+  background:linear-gradient(135deg,#2fe07a,#12b866); color:#04250f; font-size:14.5px; font-weight:800; cursor:pointer;
+  box-shadow:0 10px 26px -8px rgba(47,224,122,.5); transition:.15s; font-family:inherit; }
+.ch-generate:hover{ filter:brightness(1.06); transform:translateY(-1px); }
+.ch-generate:disabled{ opacity:.55; cursor:default; transform:none; box-shadow:none; }
+/* 모드 토글(영상/이미지) */
+.ch-seg{ display:flex; background:#111318; border:1px solid #23262f; border-radius:11px; padding:3px; }
+.ch-seg button{ flex:1; border:none; background:transparent; color:#9297a6; font-size:12.5px; font-weight:700; padding:9px 0; border-radius:8px; cursor:pointer; font-family:inherit; transition:.12s; }
+.ch-seg button.on{ background:linear-gradient(135deg,#5566ff,#8a5cff); color:#fff; }
+/* 우측 결과 갤러리 */
+.ch-output{ flex:1; min-width:0; display:flex; flex-direction:column; background:#000; }
+.ch-output-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 18px; border-bottom:1px solid rgba(255,255,255,.06); flex-shrink:0; }
+.ch-out-tabs{ display:inline-flex; background:#111318; border:1px solid #23262f; border-radius:10px; padding:3px; }
+.ch-out-tabs button{ border:none; background:transparent; color:#8a8f9c; font-size:12.5px; font-weight:700; padding:6px 16px; border-radius:7px; cursor:pointer; font-family:inherit; }
+.ch-out-tabs button.on{ background:#23262f; color:#fff; }
+.ch-output-body{ flex:1; overflow-y:auto; padding:18px; position:relative; }
+.ch-empty{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; text-align:center; pointer-events:none; padding:20px; }
+.ch-empty svg{ color:#2c303e; }
+.ch-empty-t{ font-size:15px; font-weight:800; color:#6b7185; }
+.ch-empty-s{ font-size:12.5px; color:#4d5262; line-height:1.7; }
+.ch-output-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px; }
+.ch-card{ position:relative; border-radius:14px; overflow:hidden; background:#0d0f16; border:1px solid #1d2130; aspect-ratio:1/1; }
+.ch-card img, .ch-card video{ width:100%; height:100%; object-fit:cover; display:block; background:#000; }
+.ch-card .ch-card-bar{ position:absolute; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:space-between; gap:6px;
+  padding:9px 10px; background:linear-gradient(transparent,rgba(0,0,0,.85)); opacity:0; transition:.15s; }
+.ch-card:hover .ch-card-bar{ opacity:1; }
+.ch-card-bar span{ font-size:10.5px; color:#cfd4e2; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ch-card-bar a{ color:#8fe0ff; text-decoration:none; font-size:11px; font-weight:800; flex-shrink:0; }
+.ch-card .ch-badge{ position:absolute; top:8px; left:8px; font-size:9.5px; font-weight:800; padding:2px 7px; border-radius:6px; background:rgba(0,0,0,.6); color:#cfe3ff; letter-spacing:.03em; }
+/* 생성 중 카드 로더 */
+.ch-card.gen{ display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#14161f,#191c2b); border-color:#2a2f45; }
+.ch-genc{ display:flex; flex-direction:column; align-items:center; gap:10px; }
+.ch-dots{ display:inline-flex; gap:5px; align-items:center; }
+.ch-dots i{ width:7px; height:7px; border-radius:50%; background:#7c9eff; animation:chb 1s infinite; }
+.ch-dots i:nth-child(2){ animation-delay:.15s } .ch-dots i:nth-child(3){ animation-delay:.3s }
+.ch-genc span{ font-size:11.5px; color:#9aa4c8; font-weight:700; }
+@keyframes chb{ 0%,100%{ opacity:.3; transform:translateY(0) } 50%{ opacity:1; transform:translateY(-3px) } }
+.ch-fail{ padding:14px; font-size:11.5px; color:#ff9b9b; line-height:1.5; text-align:center; }
+/* 첨부 미리보기 칩 */
+.ch-chip{ display:inline-flex; align-items:center; gap:7px; max-width:100%; background:#141728; border:1px solid #2a2f45; border-radius:10px; padding:7px 9px; font-size:11.5px; color:#c7ccdb; }
+.ch-chip img{ width:28px; height:28px; border-radius:6px; object-fit:cover; }
+.ch-chip b{ cursor:pointer; color:#8a8f9c; margin-left:auto; } .ch-chip b:hover{ color:#ff8a9a; }
+/* 반응형: 좁은 화면 세로 적층 */
+@media (max-width:820px){ .ch-main{ flex-direction:column; } .ch-composer{ width:auto; border-right:none; border-bottom:1px solid rgba(255,255,255,.06); } }
 #stats{ position:fixed; left:58px; bottom:14px; z-index:45; font-size:10px; color:#666;
   font-family:'Inter',monospace; line-height:1.7; pointer-events:none; white-space:pre; }
 #fabs{ position:fixed; right:30px; bottom:88px; z-index:47; display:flex; flex-direction:column; gap:8px; }
@@ -1410,29 +1438,60 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
       <button id="chClose" class="ch-x" title="닫기">✕</button>
     </div>
   </div>
-  <div class="ch-body" id="chBody"></div>
-  <div class="ch-dock">
-    <div class="ch-controls">
+  <div class="ch-main">
+    <!-- 좌측: 컴포저 -->
+    <aside class="ch-composer">
       <div class="ch-seg" id="chMode">
         <button type="button" data-mode="video" class="on">영상 만들기</button>
         <button type="button" data-mode="image">이미지 생성</button>
       </div>
-      <label>모델 <select id="chModel"></select></label>
-      <label class="ch-vonly">길이 <select id="chSec"><option value="5">5초</option><option value="8" selected>8초</option><option value="10">10초</option></select></label>
-      <label>화질 <select id="chRes"><option value="720p">720p</option><option value="1080p" selected>1080p</option><option value="4K">4K</option></select></label>
-      <label>비율 <select id="chRatio"><option value="16:9">가로 16:9</option><option value="9:16">세로 9:16</option><option value="1:1">정사각 1:1</option></select></label>
-    </div>
-    <form class="ch-input" id="chForm">
-      <button type="button" id="chAttachBtn" title="이미지 또는 영상 첨부">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-      </button>
-      <input type="file" id="chAttach" accept="image/*,video/*" style="display:none">
-      <span id="chAttachChip" class="ch-chip" style="display:none"></span>
-      <textarea id="chText" rows="1" placeholder="예) 노을 지는 해변을 달리는 골든리트리버, 시네마틱, 슬로모션" autocomplete="off"></textarea>
-      <button type="submit" id="chSend" title="생성">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4 20-7z"/><path d="M22 2 11 13"/></svg>
-      </button>
-    </form>
+      <div class="ch-field">
+        <label class="ch-lbl">모델</label>
+        <select id="chModel" class="ch-modelsel"></select>
+      </div>
+      <div class="ch-attach-area">
+        <label class="ch-lbl">이미지/영상 첨부 <span class="ch-lbl-opt">(선택)</span></label>
+        <button type="button" id="chAttachBtn" class="ch-attach-slot" title="이미지 또는 영상 첨부">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="m21 15-5-5L5 21"/></svg>
+          클릭하여 첨부
+        </button>
+        <input type="file" id="chAttach" accept="image/*,video/*" style="display:none">
+        <span id="chAttachChip" class="ch-chip" style="display:none"></span>
+      </div>
+      <div class="ch-field">
+        <label class="ch-lbl">프롬프트</label>
+        <textarea id="chText" rows="1" placeholder="예) 노을 지는 해변을 달리는 골든리트리버, 시네마틱, 슬로모션" autocomplete="off"></textarea>
+      </div>
+      <div class="ch-composer-foot">
+        <div class="ch-opts">
+          <label class="ch-vonly">길이 <select id="chSec"><option value="5">5초</option><option value="8" selected>8초</option><option value="10">10초</option></select></label>
+          <label>화질 <select id="chRes"><option value="720p">720p</option><option value="1080p" selected>1080p</option><option value="4K">4K</option></select></label>
+          <label>비율 <select id="chRatio"><option value="16:9">가로 16:9</option><option value="9:16">세로 9:16</option><option value="1:1">정사각 1:1</option></select></label>
+        </div>
+        <button type="button" id="chSend" class="ch-generate" title="생성">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"/></svg>
+          생성하기
+        </button>
+      </div>
+    </aside>
+    <!-- 우측: 결과 갤러리 -->
+    <section class="ch-output">
+      <div class="ch-output-head">
+        <div class="ch-out-tabs" id="chFilter">
+          <button type="button" data-f="all" class="on">전부</button>
+          <button type="button" data-f="image">이미지</button>
+          <button type="button" data-f="video">비디오</button>
+        </div>
+      </div>
+      <div class="ch-output-body">
+        <div class="ch-empty" id="chEmpty">
+          <svg viewBox="0 0 24 24" width="54" height="54" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.09 4.26L19 8.27l-3.5 3.4.83 4.83L12 14.9l-4.33 1.6.83-4.83L5 8.27l4.91-1.01L12 3z"/></svg>
+          <div class="ch-empty-t">창작 잠재력을 발휘하세요</div>
+          <div class="ch-empty-s">왼쪽에서 프롬프트를 입력하고 생성하면<br>결과물이 여기에 표시됩니다.</div>
+        </div>
+        <div class="ch-output-grid" id="chOutput"></div>
+      </div>
+    </section>
   </div>
 </div>
 
@@ -5354,7 +5413,7 @@ pfHandleTossReturn();
   function chEl(id){ return document.getElementById(id); }
   var CH_EX=['노을 지는 해변을 달리는 골든리트리버, 시네마틱','네온 가득한 밤의 도쿄 거리를 걷는 1인칭 시점','우주에서 지구를 바라보는 우주비행사, 슬로모션','벚꽃 흩날리는 골목, 따뜻한 오후 햇살'];
   var CH_WARN='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f0b23a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
-  var home=chEl('chatHome'), body=chEl('chBody'), msgsWrap=null, busy=false;
+  var home=chEl('chatHome'), busy=false, chFilter='all';
   if(!home) return;
   var chMode='video';            // 'video' | 'image'
   var chAttach=null;             // { kind:'image'|'video', dataUrl?, url?, name }
@@ -5388,23 +5447,22 @@ pfHandleTossReturn();
   }
   // 첨부 미리보기 칩 렌더
   function renderAttach(){
-    var chip=chEl('chAttachChip'), btn=chEl('chAttachBtn'); if(!chip) return;
-    if(!chAttach){ chip.style.display='none'; chip.innerHTML=''; if(btn)btn.classList.remove('on'); return; }
-    if(btn)btn.classList.add('on');
-    var thumb = chAttach.kind==='image' && chAttach.dataUrl ? '<img src="'+esc(chAttach.dataUrl)+'" alt="">' : (chAttach.kind==='video'?'🎬':'📎');
-    chip.style.display=''; chip.innerHTML=thumb+'<span style="max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(chAttach.name||chAttach.kind)+'</span><b data-chdel title="제거">✕</b>';
+    var chip=chEl('chAttachChip'), area=document.querySelector('.ch-attach-area'); if(!chip) return;
+    if(!chAttach){ chip.style.display='none'; chip.innerHTML=''; if(area)area.classList.remove('has'); return; }
+    if(area)area.classList.add('has');
+    var thumb = chAttach.kind==='image' && chAttach.dataUrl ? '<img src="'+esc(chAttach.dataUrl)+'" alt="">'
+      : '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#8a5cff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m23 7-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>';
+    chip.style.display=''; chip.innerHTML=thumb+'<span style="max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(chAttach.name||chAttach.kind)+'</span><b data-chdel title="제거">✕</b>';
     var d=chip.querySelector('[data-chdel]'); if(d)d.addEventListener('click',function(){ chAttach=null; renderAttach(); });
   }
   async function onAttachFile(file){
     if(!file) return;
     var isVid=/^video\//.test(file.type);
     if(isVid){
-      addAI('<span class="ch-dots"><i></i><i></i><i></i></span> 첨부 영상 업로드 중…');
+      toast('첨부 영상 업로드 중…');
       try{ var url=await hostMediaBlob(file); if(!url) throw new Error('업로드 실패');
         chAttach={ kind:'video', url:url, name:file.name }; }
       catch(e){ toast('영상 첨부 실패: '+String(e&&e.message||e).slice(0,60)); chAttach=null; }
-      // 방금 만든 로딩 버블 제거
-      var last=msgsWrap&&msgsWrap.lastChild; if(last&&/업로드 중/.test(last.textContent||''))last.remove();
     } else {
       var raw=await new Promise(function(res){ var fr=new FileReader(); fr.onload=function(){res(fr.result);}; fr.onerror=function(){res(null);}; fr.readAsDataURL(file); });
       if(!raw){ toast('이미지 읽기 실패'); return; }
@@ -5413,24 +5471,42 @@ pfHandleTossReturn();
     }
     renderAttach();
   }
-  function fillExamples(){
-    var ex=chEl('chExamples'); if(!ex||ex._filled) return;
-    ex.innerHTML=CH_EX.map(function(t){ return '<button class="ch-ex" type="button">'+t+'</button>'; }).join('');
-    Array.prototype.forEach.call(ex.querySelectorAll('.ch-ex'),function(b){ b.addEventListener('click',function(){ var ta=chEl('chText'); ta.value=b.textContent; ta.focus(); grow(ta); }); });
-    ex._filled=1;
-  }
-  function ensureMsgs(){
-    if(msgsWrap && msgsWrap.isConnected) return msgsWrap;
-    var hero=body.querySelector('.ch-hero'); if(hero) hero.remove();
-    msgsWrap=document.createElement('div'); msgsWrap.className='ch-msgs'; body.appendChild(msgsWrap); return msgsWrap;
-  }
-  function down(){ setTimeout(function(){ body.scrollTop=body.scrollHeight; },30); }
-  function grow(ta){ ta.style.height='auto'; ta.style.height=Math.min(140,ta.scrollHeight)+'px'; }
+  function grow(ta){ ta.style.height='auto'; ta.style.height=Math.min(240,ta.scrollHeight)+'px'; }
   function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-  function addMe(text){ var w=ensureMsgs(); var r=document.createElement('div'); r.className='ch-row me'; r.innerHTML='<div class="ch-bubble"></div>'; r.querySelector('.ch-bubble').textContent=text; w.appendChild(r); down(); }
-  function addAI(html){ var w=ensureMsgs(); var r=document.createElement('div'); r.className='ch-row ai'; r.innerHTML='<div class="ch-bubble">'+html+'</div>'; w.appendChild(r); down(); return r; }
 
-  function open(){ fillModels(); fillExamples(); home.classList.add('on'); setTimeout(function(){ var t=chEl('chText'); if(t)t.focus(); },50); }
+  /* ── 결과 갤러리(우측 패널) ── */
+  function outWrap(){ return chEl('chOutput'); }
+  function applyFilter(){
+    var w=outWrap(); if(!w) return; var shown=0;
+    Array.prototype.forEach.call(w.children,function(c){
+      var k=c.getAttribute('data-kind'), vis=(chFilter==='all'||k===chFilter||c.classList.contains('gen'));
+      c.style.display=vis?'':'none'; if(vis)shown++;
+    });
+    var eb=chEl('chEmpty'); if(eb) eb.style.display=shown?'none':'';
+  }
+  function makeCard(it){
+    var el=document.createElement('div'); el.className='ch-card'; el.setAttribute('data-kind', it.kind==='image'?'image':'video');
+    var media = it.kind==='image'
+      ? '<img src="'+esc(it.url)+'" alt="" loading="lazy">'
+      : '<video src="'+esc(it.url)+'" '+(it.poster?'poster="'+esc(it.poster)+'" ':'')+'muted loop playsinline preload="metadata"></video>';
+    var meta = esc(it.model||'') + (it.kind==='image' ? '' : (it.sec?' · '+it.sec+'초':''));
+    el.innerHTML = media
+      + '<span class="ch-badge">'+(it.kind==='image'?'이미지':'영상')+'</span>'
+      + '<div class="ch-card-bar"><span>'+meta+'</span><a href="'+esc(it.url)+'" download target="_blank">저장</a></div>';
+    var v=el.querySelector('video');
+    if(v){ el.addEventListener('mouseenter',function(){ try{v.play();}catch(e){} }); el.addEventListener('mouseleave',function(){ try{v.pause();}catch(e){} }); }
+    return el;
+  }
+  function renderOutput(){
+    var w=outWrap(); if(!w) return;
+    loadGallery().then(function(list){
+      w.innerHTML='';
+      (list||[]).forEach(function(g){ w.appendChild(makeCard({url:g.url,kind:g.kind,model:g.model,sec:g.sec,poster:g.poster})); });
+      applyFilter();
+    }).catch(function(){ applyFilter(); });
+  }
+
+  function open(){ fillModels(); renderOutput(); home.classList.add('on'); setTimeout(function(){ var t=chEl('chText'); if(t)t.focus(); },50); }
   function close(){ home.classList.remove('on'); }        // 'on' 제거 → CSS 트랜지션으로 오른쪽으로 슬라이드 아웃
   function toggleHome(){ if(home.classList.contains('on')) close(); else open(); }
 
@@ -5439,12 +5515,13 @@ pfHandleTossReturn();
     if((!prompt && !chAttach) || busy) return;
     var model=chEl('chModel').value, sec=Number(chEl('chSec').value)||8, ratio=chEl('chRatio').value||'16:9', res=(chEl('chRes')&&chEl('chRes').value)||'1080p';
     var isImage = chMode==='image' || !!(MODEL_COST[model] && MODEL_COST[model].u==='img');
-    ta.value=''; grow(ta);
     var att=chAttach; chAttach=null; renderAttach();
-    var meLabel = prompt || (att ? ('첨부한 '+(att.kind==='video'?'영상으로 변환':'이미지로 생성')) : '');
-    addMe(meLabel + (att ? '  📎' : ''));
-    busy=true; chEl('chSend').disabled=true;
-    var loading=addAI('<span class="ch-dots"><i></i><i></i><i></i></span> '+(isImage?'이미지':'영상')+' 생성 중…'+(isImage?'':' (수십 초~수 분 소요)'));
+    var sendBtn=chEl('chSend'); busy=true; if(sendBtn)sendBtn.disabled=true;
+    // 생성 중 카드(우측 상단에 삽입)
+    var w=outWrap();
+    var gen=document.createElement('div'); gen.className='ch-card gen'; gen.setAttribute('data-kind', isImage?'image':'video');
+    gen.innerHTML='<div class="ch-genc"><span class="ch-dots"><i></i><i></i><i></i></span><span>'+(isImage?'이미지':'영상')+' 생성 중…</span></div>';
+    if(w){ w.insertBefore(gen, w.firstChild); } applyFilter();
     try{
       var params={ model:model, prompt:prompt, ratio:ratio, res:res, seconds:sec };
       if(att){
@@ -5454,38 +5531,38 @@ pfHandleTossReturn();
       var r=await generateWithAPI(params);   // 이미지/영상 자동 분기 + 사전 크레딧 확인 + 호스팅
       if(!r || r.error || !r.url){
         var em=(r&&r.error)||'생성에 실패했습니다.';
-        loading.querySelector('.ch-bubble').innerHTML=CH_WARN+' 생성 실패: '+esc(String(em).slice(0,180));
-        busy=false; chEl('chSend').disabled=false; return;
+        gen.classList.remove('gen'); gen.innerHTML='<div class="ch-fail">'+CH_WARN+' 생성 실패<br>'+esc(String(em).slice(0,140))+'</div>';
+        busy=false; if(sendBtn)sendBtn.disabled=false; return;
       }
       var outKind = r.kind || (isImage?'image':'video');
       try{ recordCost(r.type||providerOf(model), model, isImage?0:sec, outKind, isImage?null:res, false, att&&att.kind==='image'?1:0, prompt, att?[att.dataUrl||att.url]:[], r.url); }catch(e){}
       try{ saveToGallery(r.url, outKind, model, isImage?0:sec, r.poster); updateLibChip&&updateLibChip(); }catch(e){}
-      loading.remove();
-      var w=ensureMsgs(), row=document.createElement('div'); row.className='ch-row ai';
-      if(outKind==='image'){
-        row.innerHTML='<div class="ch-vid"><img src="'+esc(r.url)+'" alt="" style="width:100%;display:block;border-radius:10px;">'
-          +'<div class="ch-vidmeta"><span>'+esc(model)+'</span><a href="'+esc(r.url)+'" download target="_blank">다운로드</a><span>보관함 저장됨</span></div></div>';
-      } else {
-        row.innerHTML='<div class="ch-vid"><video src="'+esc(r.url)+'" controls playsinline'+(r.poster?' poster="'+esc(r.poster)+'"':'')+'></video>'
-          +'<div class="ch-vidmeta"><span>'+esc(model)+' · '+sec+'초 · '+esc(res)+'</span><a href="'+esc(r.url)+'" download target="_blank">다운로드</a><span>보관함 저장됨</span></div></div>';
-      }
-      w.appendChild(row); down();
+      var card=makeCard({url:r.url, kind:outKind, model:model, sec:sec, poster:r.poster});
+      if(gen.parentNode){ gen.parentNode.replaceChild(card, gen); } else if(w){ w.insertBefore(card, w.firstChild); }
+      applyFilter();
+      if(prompt){ ta.value=''; grow(ta); }
     }catch(e){
-      loading.querySelector('.ch-bubble').innerHTML=CH_WARN+' 생성 실패: '+esc(String((e&&e.message)||e).slice(0,180));
+      gen.classList.remove('gen'); gen.innerHTML='<div class="ch-fail">'+CH_WARN+' 생성 실패<br>'+esc(String((e&&e.message)||e).slice(0,140))+'</div>';
     }
-    busy=false; chEl('chSend').disabled=false;
+    busy=false; if(sendBtn)sendBtn.disabled=false;
   }
 
   var rh=chEl('railHome'); if(rh)rh.addEventListener('click',toggleHome);
   document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&home.classList.contains('on'))close(); });
   var cc=chEl('chClose'); if(cc)cc.addEventListener('click',close);
   var tn=chEl('chToNode'); if(tn)tn.addEventListener('click',close);
-  var frm=chEl('chForm'); if(frm)frm.addEventListener('submit',function(e){ e.preventDefault(); send(); });
+  var sb=chEl('chSend'); if(sb)sb.addEventListener('click',function(e){ e.preventDefault(); send(); });
   var txt=chEl('chText');
   if(txt){ txt.addEventListener('input',function(){ grow(txt); });
     txt.addEventListener('keydown',function(e){ if(e.key==='Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); send(); } }); }
   // 모드 토글(영상/이미지)
   Array.prototype.forEach.call(document.querySelectorAll('#chMode button'),function(b){ b.addEventListener('click',function(){ setMode(b.getAttribute('data-mode')); }); });
+  // 결과 필터 탭(전부/이미지/비디오)
+  Array.prototype.forEach.call(document.querySelectorAll('#chFilter button'),function(b){ b.addEventListener('click',function(){
+    chFilter=b.getAttribute('data-f');
+    Array.prototype.forEach.call(document.querySelectorAll('#chFilter button'),function(x){ x.classList.toggle('on', x===b); });
+    applyFilter();
+  }); });
   // 이미지/영상 첨부
   var ab=chEl('chAttachBtn'), af=chEl('chAttach');
   if(ab&&af){ ab.addEventListener('click',function(){ af.click(); });
