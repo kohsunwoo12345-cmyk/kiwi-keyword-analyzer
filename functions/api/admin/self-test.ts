@@ -37,15 +37,24 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const defs: { id: string; name: string; covers: string; keys: string[]; run?: (key: string) => Promise<{ ok: boolean; status: number; msg: string }> }[] = [
     { id: 'openai', name: 'GPT Image (OpenAI)', covers: 'GPT Image 2/1.5/1/mini', keys: ['GPT_API_KEY', 'OPENAI_API_KEY', 'gpt_api_key', 'openai_api_key'],
       run: async (key) => {
+        // (릴레이 사용 시) 먼저 릴레이 서버 자체에 닿는지 헬스 확인 → 누가 막는지 격리
+        let relayInfo = ''
+        if (openaiRelaySet) {
+          try {
+            const hr = await tfetch(openaiBase + '/', {}, 8000)
+            const ht = (await hr.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 100)
+            relayInfo = /aligo-relay|service/i.test(ht) ? '릴레이서버 도달OK' : `릴레이루트 HTTP${hr.status} "${ht.slice(0, 50)}"`
+          } catch (er: any) { relayInfo = '릴레이서버 연결실패:' + String(er?.name === 'AbortError' ? 'timeout(포트/방화벽/HTTP차단)' : (er?.message || er)).slice(0, 60) }
+        }
         const r = await tfetch(openaiBase + '/v1/models', { headers: { Authorization: `Bearer ${key}` } })
         if (r.ok) return { ok: true, status: r.status, msg: (openaiRelaySet ? '릴레이 경유 정상' : '직접 호출 정상') + ` (경유: ${openaiHost})` }
-        const body = await r.text().catch(() => '')
+        const body = (await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160)
+        const srv = r.headers.get('server') || '없음'
+        const cf = r.headers.get('cf-ray') ? 'cf-ray有' : 'cf-ray無'
         if (/unsupported_country|country.*not supported/i.test(body)) {
-          return { ok: false, status: r.status, msg: openaiRelaySet
-            ? `릴레이(${openaiHost})도 미지원 국가 → 릴레이를 지원국가 호스트로 이동 필요`
-            : `국가 차단됨 · 현재 릴레이 미적용(직접 호출: ${openaiHost}). OPENAI_RELAY_URL 이 배포에 안 잡힘 → ①Production 스코프에 설정 ②재배포 확인` }
+          return { ok: false, status: r.status, msg: `국가 차단 · ${relayInfo} · 릴레이가 지원국가 IP인지 확인 필요` }
         }
-        return { ok: false, status: r.status, msg: await errText(r) }
+        return { ok: false, status: r.status, msg: `HTTP ${r.status} · ${relayInfo || '직접호출'} · server=${srv} · ${cf} · body=${body || '(빈본문)'}` }
       } },
     { id: 'elevenlabs', name: 'ElevenLabs', covers: '나레이션·립싱크·목소리교체', keys: ['ElevenLabs_API_KEY', 'ELEVENLABS_API_KEY', 'elevenlabs_api_key'],
       run: async (key) => {
