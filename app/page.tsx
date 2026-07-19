@@ -24,12 +24,15 @@ import {
 } from 'lucide-react'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
-import { HeroOrbit } from '@/components/HeroOrbit'
-import { HeroPhotoWall } from '@/components/HeroPhotoWall'
-import { HeroDashboard } from '@/components/HeroDashboard'
-import { AIPipeline } from '@/components/AIPipeline'
-import { AIVideoGallery } from '@/components/AIVideoGallery'
-import { AIVideoShowcase } from '@/components/AIVideoShowcase'
+import dynamic from 'next/dynamic'
+// 모바일 첫 로딩 렉 해소: 무거운 시각 컴포넌트는 클라이언트에서 지연 로드(메인스레드 초기 점유 축소).
+// 히어로 텍스트·기능·요금제·FAQ(SEO 핵심)는 그대로 SSR 되어 즉시 표시된다.
+const HeroOrbit = dynamic(() => import('@/components/HeroOrbit').then((m) => m.HeroOrbit), { ssr: false, loading: () => null })
+const HeroPhotoWall = dynamic(() => import('@/components/HeroPhotoWall').then((m) => m.HeroPhotoWall), { ssr: false, loading: () => null })
+const HeroDashboard = dynamic(() => import('@/components/HeroDashboard').then((m) => m.HeroDashboard), { ssr: false, loading: () => <div className="min-h-[480px]" aria-hidden /> })
+const AIPipeline = dynamic(() => import('@/components/AIPipeline').then((m) => m.AIPipeline), { ssr: false, loading: () => <div className="min-h-[560px]" aria-hidden /> })
+const AIVideoGallery = dynamic(() => import('@/components/AIVideoGallery').then((m) => m.AIVideoGallery), { ssr: false, loading: () => <div className="min-h-[460px]" aria-hidden /> })
+const AIVideoShowcase = dynamic(() => import('@/components/AIVideoShowcase').then((m) => m.AIVideoShowcase), { ssr: false, loading: () => <div className="min-h-[460px]" aria-hidden /> })
 import { YouTubeLogo, NaverBlogLogo, KakaoLogo, AdPlatformsCluster } from '@/components/logos/BrandMarks'
 import { ClaudeMark } from '@/components/ClaudeMark'
 import { Button, SectionTag } from '@/components/ui'
