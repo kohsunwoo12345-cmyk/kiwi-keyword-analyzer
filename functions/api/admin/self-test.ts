@@ -30,18 +30,20 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const e: any = env
 
   // 제공사별: 키 후보 · 표시명 · 무엇을 검증하는지 · 실제 검증 호출
-  const openaiBase = (pick(e, ['OPENAI_RELAY_URL', 'openai_relay_url']) || 'https://api.openai.com').replace(/\/$/, '')
+  const relayRaw = pick(e, ['OPENAI_RELAY_URL', 'openai_relay_url'])
+  const openaiBase = (relayRaw || 'https://api.openai.com').replace(/\/$/, '')
+  const openaiHost = (() => { try { return new URL(openaiBase).host } catch { return openaiBase } })()
+  const openaiRelaySet = !!relayRaw && !openaiBase.includes('api.openai.com')
   const defs: { id: string; name: string; covers: string; keys: string[]; run?: (key: string) => Promise<{ ok: boolean; status: number; msg: string }> }[] = [
     { id: 'openai', name: 'GPT Image (OpenAI)', covers: 'GPT Image 2/1.5/1/mini', keys: ['GPT_API_KEY', 'OPENAI_API_KEY', 'gpt_api_key', 'openai_api_key'],
       run: async (key) => {
-        const usingRelay = !openaiBase.includes('api.openai.com')
         const r = await tfetch(openaiBase + '/v1/models', { headers: { Authorization: `Bearer ${key}` } })
-        if (r.ok) return { ok: true, status: r.status, msg: usingRelay ? '릴레이 경유 정상' : '직접 호출 정상' }
+        if (r.ok) return { ok: true, status: r.status, msg: (openaiRelaySet ? '릴레이 경유 정상' : '직접 호출 정상') + ` (경유: ${openaiHost})` }
         const body = await r.text().catch(() => '')
         if (/unsupported_country|country.*not supported/i.test(body)) {
-          return { ok: false, status: r.status, msg: usingRelay
-            ? '릴레이도 지원 안 되는 국가에 있음 → 릴레이를 미국(지원 국가) 호스트로 이동 필요'
-            : '국가 차단됨 · 미국 릴레이 필요 → OPENAI_RELAY_URL 환경변수에 미국 릴레이 주소 설정 (현재 미설정=직접 호출)' }
+          return { ok: false, status: r.status, msg: openaiRelaySet
+            ? `릴레이(${openaiHost})도 미지원 국가 → 릴레이를 지원국가 호스트로 이동 필요`
+            : `국가 차단됨 · 현재 릴레이 미적용(직접 호출: ${openaiHost}). OPENAI_RELAY_URL 이 배포에 안 잡힘 → ①Production 스코프에 설정 ②재배포 확인` }
         }
         return { ok: false, status: r.status, msg: await errText(r) }
       } },
@@ -108,5 +110,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   const testedOk = results.filter((r) => r.tested && r.ok).length
   const testedFail = results.filter((r) => r.tested && r.ok === false).length
-  return json({ ok: true, ranAt: new Date().toISOString(), summary: { testedOk, testedFail, total: results.length }, results })
+  return json({
+    ok: true, ranAt: new Date().toISOString(),
+    summary: { testedOk, testedFail, total: results.length },
+    diag: { openaiRelayConfigured: openaiRelaySet, openaiBaseHost: openaiHost },
+    results,
+  })
 }

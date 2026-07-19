@@ -31,7 +31,7 @@ export default function ApiQuotaPage() {
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const [test, setTest] = useState<{ ranAt?: string; summary?: { testedOk: number; testedFail: number; total: number }; results?: SelfTestItem[] } | null>(null)
+  const [test, setTest] = useState<{ ranAt?: string; summary?: { testedOk: number; testedFail: number; total: number }; diag?: { openaiRelayConfigured: boolean; openaiBaseHost: string }; results?: SelfTestItem[] } | null>(null)
   const [testing, setTesting] = useState(false)
 
   const load = () => { setLoading(true); adminApiBalance().then((r) => { setRows(r.providers || []); setFetchedAt(r.fetchedAt || ''); setLoading(false) }) }
@@ -73,6 +73,13 @@ export default function ApiQuotaPage() {
       {/* 자가진단 결과 — Cloudflare(실제 키·egress)에서 각 제공사에 실제 인증 호출 */}
       {(testing || test) && (
         <Panel className="mb-4" title={<span className="flex items-center gap-2"><Stethoscope size={16} className="text-violet-500" /> 생성 자가진단 {test?.summary && <span className="text-xs font-normal text-[var(--text-dim)]">· 성공 {test.summary.testedOk} · 실패 {test.summary.testedFail}</span>}</span>}>
+          {test?.diag && (
+            <div className={cn('mb-2 rounded-lg px-3 py-2 text-xs font-semibold', test.diag.openaiRelayConfigured ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>
+              OpenAI 릴레이: {test.diag.openaiRelayConfigured
+                ? `✔ 적용됨 (경유: ${test.diag.openaiBaseHost})`
+                : `✘ 미적용 — 현재 직접 호출(${test.diag.openaiBaseHost}). OPENAI_RELAY_URL 이 배포에 안 잡힘 → Production 스코프 설정 + 재배포 필요`}
+            </div>
+          )}
           {testing && !test ? (
             <div className="flex items-center gap-2 py-4 text-sm text-[var(--text-dim)]"><Loader2 size={16} className="animate-spin" /> 각 제공사에 실제 호출 중… (수 초 소요)</div>
           ) : (

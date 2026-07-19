@@ -569,7 +569,7 @@ export interface SelfTestItem {
   keyConfigured: boolean; tested: boolean
   ok: boolean | null; status: number; latencyMs: number; message: string
 }
-export async function adminSelfTest(): Promise<{ ok: boolean; error?: string; ranAt?: string; summary?: { testedOk: number; testedFail: number; total: number }; results?: SelfTestItem[] }> {
+export async function adminSelfTest(): Promise<{ ok: boolean; error?: string; ranAt?: string; summary?: { testedOk: number; testedFail: number; total: number }; diag?: { openaiRelayConfigured: boolean; openaiBaseHost: string }; results?: SelfTestItem[] }> {
   try {
     const r = await fetch('/api/admin/self-test', { credentials: 'include', cache: 'no-store' })
     return await r.json()
