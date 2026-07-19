@@ -70,8 +70,6 @@ export default function ApiQuotaPage() {
                   <span className="truncate text-sm font-bold">{p.name}</span>
                   {p.connected ? (
                     <span className="inline-flex items-center gap-0.5 rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700"><Wifi size={9} /> 연동됨{p.verified ? '·검증' : ''}</span>
-                  ) : p.keyConfigured ? (
-                    <span className="inline-flex items-center gap-0.5 rounded bg-rose-100 px-1.5 py-0.5 text-[9px] font-bold text-rose-700"><WifiOff size={9} /> 키 오류</span>
                   ) : (
                     <span className="inline-flex items-center gap-0.5 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-500"><WifiOff size={9} /> 키 없음</span>
                   )}
@@ -123,9 +121,9 @@ export default function ApiQuotaPage() {
                 </div>
                 <div className="mt-2 border-t border-[var(--border-soft)] pt-1.5 text-[10px] text-[var(--text-dim)]">
                   {!p.keyConfigured ? <span className="text-rose-600">환경변수에 API 키를 설정하세요</span>
-                    : p.fetchError ? <span className="text-rose-600">키 오류: {p.fetchError} · 키·권한 확인</span>
                     : p.source === 'live' ? `API 실시간 잔액 · 최근30일 소비 $${p.spent30Usd.toFixed(2)}`
-                    : `이 앱 소비: 최근30일 $${p.spent30Usd.toFixed(2)} · 누적 $${p.spentUsd.toFixed(2)}${p.remainEstUsd == null ? ' · ✏️로 기준잔액 입력 시 남음 추정' : ''}`}
+                    : <>이 앱 소비: 최근30일 ${p.spent30Usd.toFixed(2)} · 누적 ${p.spentUsd.toFixed(2)}{p.remainEstUsd == null ? ' · ✏️로 기준잔액 입력 시 남음 추정' : ''}
+                        {p.fetchError && <span className="block text-[var(--text-dim)]">· 실시간 잔액/검증은 일시 불가(키는 설정됨 · 릴레이·지역 제한 가능)</span>}</>}
                 </div>
               </>
             )}

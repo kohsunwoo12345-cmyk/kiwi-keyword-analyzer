@@ -139,8 +139,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       if (typeof pr.balance === 'number') { balance = pr.balance; unit = pr.unit || unit; source = 'live' }
     }
 
-    // 연동됨 = 키가 있고, 검증에 실패하지 않음(검증 API 없으면 키만으로 연동 인정)
-    const connected = keyConfigured && fetchError === ''
+    // 연동됨 = env 에 키가 설정됨. (검증 호출 실패는 릴레이·지역제한·엔드포인트 변경 등
+    //  키와 무관한 원인이 많아, 실패해도 '연동 안 됨'으로 강등하지 않는다. verified 로만 구분)
+    const connected = keyConfigured
 
     // 소비량 (이 앱을 통해 각 제공사에서 쓴 추정 금액)
     const sp = spend[p.id] || { usd: 0, krw: 0, n: 0, usd30: 0 }
