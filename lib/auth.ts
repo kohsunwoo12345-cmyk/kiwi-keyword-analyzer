@@ -551,6 +551,8 @@ export interface ApiProviderBalance {
   balance: number | null; unit: string
   source: 'live' | 'manual' | 'none'
   connected: boolean; verified: boolean; keyConfigured: boolean; fetchError: string
+  spentUsd: number; spent30Usd: number; genCount: number
+  spentSinceUsd: number | null; remainEstUsd: number | null
   updatedAt: string
 }
 export async function adminApiBalance(): Promise<{ ok: boolean; error?: string; providers?: ApiProviderBalance[]; fetchedAt?: string }> {

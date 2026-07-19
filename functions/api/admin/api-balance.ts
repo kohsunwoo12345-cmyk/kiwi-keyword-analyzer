@@ -98,6 +98,28 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   const ov = await loadOverrides(db)
 
+  // ── 소비량 집계 (ai_usage) — 잔액 API 없는 제공사의 "얼마나 썼는지" 추정 ──
+  // ai_usage.provider(모델 원가표 prov) → api-quota 제공사 id 매핑
+  const RAW_TO_ID: Record<string, string> = {
+    flux: 'flux', google: 'google', hailuo: 'hailuo', kling: 'kling', luma: 'luma',
+    nanobanana: 'nanobanana', openai: 'openai', runway: 'runway', runway_aleph: 'runway',
+    v2v_auto: 'runway', seedance: 'seedance', xai: 'xai',
+    lipsync: 'fal', motion: 'fal', falcontrol: 'fal', narrate: 'elevenlabs',
+  }
+  const ID_TO_RAWS: Record<string, string[]> = {}
+  for (const [raw, id] of Object.entries(RAW_TO_ID)) (ID_TO_RAWS[id] ||= []).push(raw)
+
+  const rowsOf = async (sql: string, ...b: any[]) => {
+    try { return ((await db.prepare(sql).bind(...b).all()).results || []) as any[] } catch { return [] }
+  }
+  const d30 = new Date(Date.now() - 30 * 864e5).toISOString()
+  const gAll = await rowsOf('SELECT provider, SUM(usd) usd, SUM(cost_krw) krw, COUNT(*) n FROM ai_usage GROUP BY provider')
+  const g30 = await rowsOf('SELECT provider, SUM(usd) usd FROM ai_usage WHERE created_at >= ? GROUP BY provider', d30)
+  const spend: Record<string, { usd: number; krw: number; n: number; usd30: number }> = {}
+  const accum = (id: string | undefined) => { if (!id) return null; return (spend[id] ||= { usd: 0, krw: 0, n: 0, usd30: 0 }) }
+  for (const r of gAll) { const s = accum(RAW_TO_ID[String(r.provider || '').toLowerCase()]); if (s) { s.usd += Number(r.usd) || 0; s.krw += Number(r.krw) || 0; s.n += Number(r.n) || 0 } }
+  for (const r of g30) { const s = accum(RAW_TO_ID[String(r.provider || '').toLowerCase()]); if (s) s.usd30 += Number(r.usd) || 0 }
+
   const providers = await Promise.all(PROVIDERS.map(async (p) => {
     const o = ov[p.id] || {}
     const key = pickKey(env as any, p.keys)
@@ -120,11 +142,29 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     // 연동됨 = 키가 있고, 검증에 실패하지 않음(검증 API 없으면 키만으로 연동 인정)
     const connected = keyConfigured && fetchError === ''
 
+    // 소비량 (이 앱을 통해 각 제공사에서 쓴 추정 금액)
+    const sp = spend[p.id] || { usd: 0, krw: 0, n: 0, usd30: 0 }
+    const spentUsd = Math.round(sp.usd * 100) / 100
+    const spent30Usd = Math.round(sp.usd30 * 100) / 100
+
+    // 수동 기준잔액(o.balance)을 입력해 두면: 기준시점(updatedAt) 이후 소비를 차감해 "남은 잔액 추정"
+    let spentSinceUsd: number | null = null
+    let remainEstUsd: number | null = null
+    if (source !== 'live' && manual != null && o.updatedAt) {
+      const raws = ID_TO_RAWS[p.id] || [p.id]
+      const ph = raws.map(() => '?').join(',')
+      const r: any = await db.prepare(`SELECT SUM(usd) usd FROM ai_usage WHERE provider IN (${ph}) AND created_at >= ?`).bind(...raws, o.updatedAt).first().catch(() => null)
+      spentSinceUsd = Math.round((Number(r?.usd) || 0) * 100) / 100
+      remainEstUsd = Math.round((manual - spentSinceUsd) * 100) / 100
+    }
+
     return {
       id: p.id, name: p.name, note: p.note,
       url: (o.url && String(o.url)) || p.url,
       balance, unit, source,
       connected, verified, keyConfigured, fetchError,
+      spentUsd, spent30Usd, genCount: sp.n,
+      spentSinceUsd, remainEstUsd,
       updatedAt: o.updatedAt || '',
     }
   }))

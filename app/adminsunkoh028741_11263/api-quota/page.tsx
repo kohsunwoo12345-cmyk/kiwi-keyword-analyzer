@@ -101,8 +101,20 @@ export default function ApiQuotaPage() {
             ) : (
               <>
                 <div className="mt-3 flex items-end justify-between">
-                  <div className={cn('text-2xl font-extrabold', p.balance == null ? 'text-[var(--text-dim)]' : p.balance <= 0 ? 'text-rose-500' : p.source === 'live' ? 'text-emerald-600' : 'text-[var(--text)]')}>
-                    {fmtBalance(p)}
+                  <div>
+                    {p.source === 'live' ? (
+                      <div className={cn('text-2xl font-extrabold', p.balance == null ? 'text-[var(--text-dim)]' : p.balance <= 0 ? 'text-rose-500' : 'text-emerald-600')}>{fmtBalance(p)}</div>
+                    ) : p.remainEstUsd != null ? (
+                      <>
+                        <div className={cn('text-2xl font-extrabold', p.remainEstUsd <= 0 ? 'text-rose-500' : 'text-[var(--text)]')}>~${p.remainEstUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                        <div className="text-[10px] text-[var(--text-dim)]">추정 남음 (기준 −소비 ${(p.spentSinceUsd || 0).toFixed(2)})</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-xl font-extrabold text-[var(--text)]">${p.spentUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                        <div className="text-[10px] text-[var(--text-dim)]">누적 소비 · {p.genCount.toLocaleString('ko-KR')}건</div>
+                      </>
+                    )}
                   </div>
                   <a href={p.url} target="_blank" rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 px-2.5 py-1.5 text-xs font-bold text-white hover:brightness-110">
@@ -112,9 +124,8 @@ export default function ApiQuotaPage() {
                 <div className="mt-2 border-t border-[var(--border-soft)] pt-1.5 text-[10px] text-[var(--text-dim)]">
                   {!p.keyConfigured ? <span className="text-rose-600">환경변수에 API 키를 설정하세요</span>
                     : p.fetchError ? <span className="text-rose-600">키 오류: {p.fetchError} · 키·권한 확인</span>
-                    : p.source === 'live' ? 'API 실시간 잔액 조회됨'
-                    : p.verified ? '연동 검증됨 · 잔액은 각사 API 미제공(수동 입력)'
-                    : '키 연동됨 · 잔액은 각사 API 미제공(수동 입력)'}
+                    : p.source === 'live' ? `API 실시간 잔액 · 최근30일 소비 $${p.spent30Usd.toFixed(2)}`
+                    : `이 앱 소비: 최근30일 $${p.spent30Usd.toFixed(2)} · 누적 $${p.spentUsd.toFixed(2)}${p.remainEstUsd == null ? ' · ✏️로 기준잔액 입력 시 남음 추정' : ''}`}
                 </div>
               </>
             )}
