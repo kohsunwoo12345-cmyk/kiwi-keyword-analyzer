@@ -35,7 +35,9 @@ function authed(q){if(!SECRET)return true;const t=q.headers['x-relay-secret']||q
 function hostOk(u){try{const x=new URL(u);return x.protocol==='https:'&&/(^|\.)aligo\.in$/i.test(x.hostname)}catch(e){return false}}
 function enc(o){const p=new URLSearchParams();for(const[k,v]of Object.entries(o))if(v!=null&&v!=='')p.append(k,String(v));return p.toString()}
 function curlPost(target,body,cb){const c=spawn('curl',['-s','-X','POST',target,'-H','Content-Type: application/x-www-form-urlencoded; charset=utf-8','--data-binary','@-','--max-time','25']);const out=[];c.stdout.on('data',x=>out.push(x));c.on('error',()=>cb(502,'{"relayError":"curl-spawn"}'));c.on('close',code=>cb(code===0?200:502,code===0?Buffer.concat(out):'{"relayError":"curl '+code+'"}'));c.stdin.write(body);c.stdin.end()}
+function oair(q,s,buf){const t='https://api.openai.com'+q.url;const a=['-s','-w','\n__CODE__%{http_code}','-X',q.method,t,'--max-time','120'];if(q.headers['authorization'])a.push('-H','Authorization: '+q.headers['authorization']);if(q.headers['content-type'])a.push('-H','Content-Type: '+q.headers['content-type']);if(q.headers['openai-organization'])a.push('-H','OpenAI-Organization: '+q.headers['openai-organization']);const hb=q.method!=='GET'&&q.method!=='HEAD'&&buf&&buf.length;if(hb)a.push('--data-binary','@-');const c=spawn('curl',a);const out=[];c.stdout.on('data',x=>out.push(x));c.on('error',()=>reply(s,502,{relayError:'curl-spawn'}));c.on('close',()=>{const b=Buffer.concat(out),str=b.toString('utf8'),m=str.lastIndexOf('\n__CODE__');let code=200,body=b;if(m>=0){code=Number(str.slice(m+9).trim())||200;body=Buffer.from(str.slice(0,m),'utf8')}s.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Access-Control-Allow-Origin':'*'});s.end(body)});if(hb)c.stdin.write(buf);c.stdin.end()}
 http.createServer((q,s)=>{
+  if(q.url&&(q.url.indexOf('/v1/')===0||q.url.indexOf('/openai/v1/')===0)){if(q.url.indexOf('/openai')===0)q.url=q.url.slice(7);if(q.method==='GET'||q.method==='HEAD')return oair(q,s,null);const bh=[];let bn=0;q.on('data',c=>{bn+=c.length;if(bn>12582912){q.destroy();return reply(s,413,{relayError:'too large'})}bh.push(c)}).on('end',()=>oair(q,s,Buffer.concat(bh)));return}
   if(q.method==='GET')return reply(s,200,{ok:true,service:'bygency-aligo-relay'})
   if(q.method!=='POST')return reply(s,405,{relayError:'POST only'})
   if(!authed(q))return reply(s,401,{relayError:'unauthorized'})
@@ -91,7 +93,10 @@ echo " 설치 완료! 상태: $(systemctl is-active bygency-aligo-proxy 2>/dev/n
 echo " 보안(RELAY_SECRET): $([ -n "$RELAY_SECRET" ] && echo ON || echo OFF)"
 echo " 로컬 확인: $(curl -s http://localhost:8080/ 2>/dev/null || echo '(잠시 후 다시)')"
 echo ""
+echo " OpenAI 릴레이 로컬확인: $(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/v1/models -H 'Authorization: Bearer test' 2>/dev/null || echo '(잠시 후)')  (401=릴레이→OpenAI 정상 도달)"
+echo ""
 echo " ▼ Cloudflare Pages 환경변수 ▼"
-echo "   ALIGO_PROXY_URL = http://141.164.36.76:8080"
+echo "   ALIGO_PROXY_URL  = http://141.164.36.76:8080"
+echo "   OPENAI_RELAY_URL = http://141.164.36.76:8080   (GPT Image 국가차단 우회)"
 [ -n "$RELAY_SECRET" ] && echo "   ALIGO_PROXY_TOKEN = $RELAY_SECRET   (BYGENCY 도 이 값을 넣어야 함)"
 echo "=================================================="
