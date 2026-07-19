@@ -216,7 +216,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
       })
 
     } else if (isElevenLabsVoice) {
-      const elKeyRaw = (env as any).ElevenLabs_API_KEY || (env as any).ELEVENLABS_API_KEY
+      const elKeyRaw = (env as any).ElevenLabs_API_KEY || (env as any).ELEVENLABS_API_KEY || (env as any).elevenlabs_api_key
       const elKey = typeof elKeyRaw === 'string' ? elKeyRaw.trim() : ''
       if (!elKey) {
         return cjson({
