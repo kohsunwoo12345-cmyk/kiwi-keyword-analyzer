@@ -87,7 +87,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { title: '퍼널 빌더', href: `${ADMIN_BASE}/funnel-builder`, icon: Filter },
       { title: '마케팅 자동화', href: `${ADMIN_BASE}/automation`, icon: Zap },
-      { title: '퍼널 분석', href: `${ADMIN_BASE}/funnel-analytics`, icon: LineChart },
+      { title: '퍼널 분석', href: '/tools/funnel-landing-analytics.html', icon: LineChart },
       { title: '쿠폰·할인코드', href: `${ADMIN_BASE}/coupons`, icon: Ticket },
       { title: '발송 설정', href: `${ADMIN_BASE}/messaging`, icon: Send },
     ],

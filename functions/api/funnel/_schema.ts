@@ -81,6 +81,25 @@ export async function ensureFunnelSchema(db: D1Database) {
     const cols = new Set((info.results || []).map((r: any) => r.name))
     if (!cols.has('views')) await db.prepare(`ALTER TABLE funnel_landing_pages ADD COLUMN views INTEGER DEFAULT 0`).run().catch(() => {})
   } catch { /* ignore */ }
+  // SUPERPLACE 퍼널 계층: funnels(부모) — 랜딩 분석/빌더가 funnels→groups→pages 구조를 사용
+  await db.prepare(`CREATE TABLE IF NOT EXISTS funnels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT,
+    name TEXT,
+    description TEXT,
+    status TEXT DEFAULT 'active',
+    created_at TEXT,
+    updated_at TEXT
+  )`).run().catch(() => {})
+  // 그룹에 funnel_id 가 없으면(구버전) 그룹당 funnel 을 만들어 연결 — 분석이 페이지를 인식하도록
+  try {
+    const orphans = (await db.prepare(`SELECT id, user_id, name FROM funnel_groups WHERE funnel_id IS NULL OR funnel_id = 0`).all()).results || []
+    for (const g of orphans as any[]) {
+      const r: any = await db.prepare(`INSERT INTO funnels (user_id, name, created_at) VALUES (?, ?, ?)`).bind(g.user_id || '', g.name || '퍼널', new Date().toISOString()).run()
+      const fid = r?.meta?.last_row_id
+      if (fid) await db.prepare(`UPDATE funnel_groups SET funnel_id = ? WHERE id = ?`).bind(fid, g.id).run()
+    }
+  } catch { /* ignore */ }
   await db.prepare(`CREATE TABLE IF NOT EXISTS crm_campaigns (
     id TEXT PRIMARY KEY,
     admin_id TEXT,

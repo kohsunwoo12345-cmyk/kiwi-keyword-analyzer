@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>퍼널 랜딩 분석 - SUPERPLACE</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    *{box-sizing:border-box}body{margin:0;font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f7fb;color:#172033}.top{background:#0f172a;color:#fff;border-bottom:1px solid rgba(255,255,255,.08)}.top-inner{max-width:1440px;margin:0 auto;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{display:flex;align-items:center;gap:12px}.mark{width:42px;height:42px;border-radius:10px;background:#2563eb;display:flex;align-items:center;justify-content:center;font-weight:900}.brand h1{margin:0;font-size:20px;letter-spacing:0}.brand p{margin:3px 0 0;color:#aab4c8;font-size:12px}.top-actions{display:flex;gap:8px;flex-wrap:wrap}.btn{height:38px;border:0;border-radius:8px;padding:0 13px;font-size:13px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;text-decoration:none;white-space:nowrap}.btn-primary{background:#2563eb;color:#fff}.btn-dark{background:#1f2937;color:#fff}.btn-ghost{background:#fff;color:#1f2937;border:1px solid #d7deea}.btn-warn{background:#f59e0b;color:#111827}.btn:disabled{opacity:.55;cursor:not-allowed}.wrap{max-width:1440px;margin:0 auto;padding:22px 24px 36px}.filters{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px;display:grid;grid-template-columns:1.1fr 1.1fr .8fr .8fr auto;gap:10px;align-items:end;box-shadow:0 1px 3px rgba(15,23,42,.04)}.field label{display:block;font-size:11px;font-weight:900;color:#667085;margin:0 0 6px}.input,.select{width:100%;height:38px;border:1px solid #ccd5e3;border-radius:8px;padding:0 10px;background:#fff;color:#172033;font-size:13px;outline:none}.input:focus,.select:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12)}.grid{display:grid;gap:14px}.summary{grid-template-columns:repeat(5,1fr);margin-top:16px}.card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 1px 3px rgba(15,23,42,.04)}.metric{padding:18px}.metric-label{font-size:12px;font-weight:900;color:#667085;margin-bottom:9px}.metric-value{font-size:28px;line-height:1;font-weight:950;color:#111827}.metric-sub{font-size:12px;color:#667085;margin-top:9px}.metric.blue{border-top:4px solid #2563eb}.metric.green{border-top:4px solid #059669}.metric.amber{border-top:4px solid #d97706}.metric.rose{border-top:4px solid #e11d48}.metric.slate{border-top:4px solid #475569}.main{display:grid;grid-template-columns:1.7fr .9fr;gap:14px;margin-top:14px}.panel-head{padding:15px 16px;border-bottom:1px solid #eef2f7;display:flex;align-items:center;justify-content:space-between;gap:10px}.panel-title{font-size:15px;font-weight:950;color:#172033}.panel-sub{font-size:12px;color:#667085;margin-top:3px}.panel-body{padding:16px}.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse;min-width:980px}.table th{background:#f8fafc;color:#667085;font-size:11px;font-weight:950;text-align:left;padding:10px;border-bottom:1px solid #e2e8f0;white-space:nowrap}.table td{font-size:13px;padding:12px 10px;border-bottom:1px solid #eef2f7;vertical-align:middle}.table tr:hover td{background:#fbfdff}.name{font-weight:900;color:#172033}.muted{color:#667085}.pill{display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:900}.pill-blue{background:#dbeafe;color:#1d4ed8}.pill-green{background:#d1fae5;color:#047857}.pill-amber{background:#fef3c7;color:#92400e}.pill-rose{background:#ffe4e6;color:#be123c}.bar{height:8px;background:#edf2f7;border-radius:999px;overflow:hidden;min-width:84px}.bar span{display:block;height:100%;border-radius:999px;background:#2563eb}.source-list{display:flex;flex-direction:column;gap:10px}.source-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px;border:1px solid #eef2f7;border-radius:8px}.source-main{font-size:13px;font-weight:900}.source-num{font-size:12px;color:#667085;margin-top:3px}.recommend{display:flex;flex-direction:column;gap:10px}.rec{border:1px solid #e5e7eb;border-left:4px solid #2563eb;border-radius:8px;padding:11px;background:#fff}.rec.warn{border-left-color:#f59e0b}.rec.good{border-left-color:#059669}.rec strong{display:block;font-size:13px;margin-bottom:4px}.rec p{margin:0;color:#667085;font-size:12px;line-height:1.55}.report{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}.report-box{padding:16px}.report-title{font-weight:950;margin-bottom:10px}.report-text{font-size:13px;color:#475467;line-height:1.7;white-space:pre-line}.cta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.cta{border:1px solid #e2e8f0;border-radius:8px;padding:12px;background:#fbfdff}.cta small{display:block;color:#667085;font-size:11px;font-weight:800;margin-bottom:6px}.cta b{font-size:19px}.empty{padding:36px;text-align:center;color:#94a3b8;font-size:13px}.toast{position:fixed;right:18px;bottom:18px;background:#111827;color:#fff;border-radius:10px;padding:12px 14px;font-size:13px;font-weight:800;box-shadow:0 12px 32px rgba(0,0,0,.2);z-index:99;display:none}.loading{position:fixed;inset:0;background:rgba(245,247,251,.76);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:80}.loading.open{display:flex}.spinner{width:42px;height:42px;border:4px solid #dbeafe;border-top-color:#2563eb;border-radius:999px;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:1100px){.filters{grid-template-columns:1fr 1fr}.summary{grid-template-columns:repeat(2,1fr)}.main,.report{grid-template-columns:1fr}.cta-grid{grid-template-columns:1fr}}@media(max-width:640px){.top-inner{align-items:flex-start;flex-direction:column}.wrap{padding:16px}.filters,.summary{grid-template-columns:1fr}.metric-value{font-size:24px}}
+  
+    /* funnel-landing-detail-v1 */
+    .landing-detail{margin-top:14px;background:#fff;border:1px solid #dbe3ef;border-radius:10px;box-shadow:0 6px 20px rgba(15,23,42,.06);overflow:hidden}.landing-detail[style*="display:none"]{display:none!important}.detail-head{padding:16px;border-bottom:1px solid #eef2f7;display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.detail-title{font-size:18px;font-weight:950;margin:0 0 5px;color:#111827}.detail-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.detail-body{padding:16px}.detail-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.detail-card{border:1px solid #e2e8f0;border-radius:8px;padding:13px;background:#fbfdff}.detail-card span{display:block;font-size:11px;font-weight:900;color:#667085;margin-bottom:6px}.detail-card b{font-size:20px;color:#111827}.channel-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:14px}.channel-card{border:1px solid #e2e8f0;border-radius:8px;padding:12px;background:#fff;min-height:88px}.channel-card strong{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:#172033}.channel-card em{font-style:normal;font-size:20px;font-weight:950;color:#2563eb;display:block;margin-top:8px}.channel-card small{display:block;margin-top:4px;color:#667085}.traffic-table{width:100%;border-collapse:collapse;min-width:760px}.traffic-table th{background:#f8fafc;color:#667085;font-size:11px;font-weight:950;text-align:left;padding:9px;border-bottom:1px solid #e2e8f0}.traffic-table td{font-size:12px;padding:10px 9px;border-bottom:1px solid #eef2f7;vertical-align:top}.click-row{cursor:pointer}.click-row td:first-child{position:relative}.click-row td:first-child:before{content:'';position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:999px;background:#2563eb;opacity:0}.click-row:hover td:first-child:before{opacity:1}.detail-section-title{font-size:14px;font-weight:950;margin:18px 0 10px;color:#172033}.source-chip{display:inline-flex;align-items:center;border-radius:999px;background:#eef6ff;color:#1d4ed8;font-size:11px;font-weight:900;padding:3px 7px}@media(max-width:980px){.detail-grid{grid-template-columns:repeat(2,1fr)}.channel-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:640px){.detail-head{display:block}.detail-actions{justify-content:flex-start;margin-top:10px}.detail-grid,.channel-grid{grid-template-columns:1fr}}
+
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="top-inner">
+      <div class="brand">
+        <div class="mark">FL</div>
+        <div>
+          <h1>퍼널 랜딩 분석</h1>
+          <p>유입 경로, 조회수 대비 신청자 수, 광고 문자 비용과 CTA까지 한 번에 봅니다.</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="btn btn-ghost" onclick="copyReportText()">분석지 복사</button>
+        <button class="btn btn-primary" id="shareBtn" onclick="shareReport()">공유 링크 만들기</button>
+        <a class="btn btn-dark" href="/adminsunkoh028741_11263">대시보드</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="filters">
+      <div class="field">
+        <label>기간</label>
+        <select id="period" class="select" onchange="loadAnalytics()">
+          <option value="30d">최근 30일</option>
+          <option value="7d">최근 7일</option>
+          <option value="90d">최근 90일</option>
+          <option value="month">이번 달</option>
+          <option value="all">전체</option>
+          <option value="custom">직접 입력</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>퍼널</label>
+        <select id="funnelId" class="select" onchange="loadAnalytics()"><option value="">전체 퍼널</option></select>
+      </div>
+      <div class="field">
+        <label>시작일</label>
+        <input id="startDate" class="input" type="date" onchange="setCustomPeriod()">
+      </div>
+      <div class="field">
+        <label>종료일</label>
+        <input id="endDate" class="input" type="date" onchange="setCustomPeriod()">
+      </div>
+      <button class="btn btn-primary" onclick="loadAnalytics()">새로고침</button>
+    </section>
+
+    <section class="grid summary" id="summaryGrid"></section>
+
+    <section id="landingDetail" class="landing-detail" style="display:none"></section>
+
+    <section class="main">
+      <div class="card">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">랜딩페이지별 성과</div>
+            <div class="panel-sub">조회수, 신청자 수, 전환율, 주요 유입 경로, 실제 문자 발송 비용</div>
+          </div>
+          <button class="btn btn-ghost" onclick="exportCsv()">CSV</button>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>랜딩페이지</th><th>퍼널/그룹</th><th>조회</th><th>신청</th><th>전환율</th><th>주요 유입</th><th>실제 문자</th><th>CTA 제안</th><th>공유</th>
+              </tr>
+            </thead>
+            <tbody id="pageRows"><tr><td colspan="9" class="empty">데이터를 불러오는 중입니다.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <aside class="card">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">유입 경로 분석</div>
+            <div class="panel-sub">UTM, referrer, 신청 출처 기준</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div id="sourceList" class="source-list"></div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="report">
+      <div class="card report-box">
+        <div class="report-title">마케팅 분석지</div>
+        <div id="reportText" class="report-text">분석 데이터를 불러오면 자동으로 생성됩니다.</div>
+      </div>
+      <div class="card report-box">
+        <div class="report-title">광고 문자 발송 CTA</div>
+        <div class="cta-grid" id="ctaGrid"></div>
+        <div class="recommend" id="recommendations" style="margin-top:12px"></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="loading" id="loading"><div class="spinner"></div></div>
+  <div class="toast" id="toast"></div>
+
+<script>
+const state = { data: null, lastUrl: '' };
+function qs(id){ return document.getElementById(id); }
+function num(v){ return (Number(v)||0).toLocaleString('ko-KR'); }
+function money(v){ return '₩' + num(Math.round(Number(v)||0)); }
+function rate(v){ return (Number(v)||0).toFixed(1) + '%'; }
+function toast(msg){ const el=qs('toast'); el.textContent=msg; el.style.display='block'; setTimeout(()=>el.style.display='none',2600); }
+function setLoading(on){ qs('loading').classList.toggle('open', !!on); }
+function setCustomPeriod(){ qs('period').value='custom'; loadAnalytics(); }
+async function apiJson(url, opts){ const res=await fetch(url, opts); const data=await res.json().catch(()=>({})); if(!res.ok || data.success===false) throw new Error(data.error || '요청 처리 실패'); return data; }
+function queryString(){ const p=new URLSearchParams(); p.set('period', qs('period').value); if(qs('funnelId').value) p.set('funnelId', qs('funnelId').value); if(qs('startDate').value) p.set('start', qs('startDate').value); if(qs('endDate').value) p.set('end', qs('endDate').value); return p.toString(); }
+async function loadAnalytics(){
+  setLoading(true);
+  try{
+    const data = await apiJson('/api/admin/funnel-landing-analytics?' + queryString());
+    state.data = data;
+    renderFilters(data);
+    renderSummary(data.summary || {});
+    renderPages(data.pages || []);
+    renderSources(data.sources || []);
+    renderReport(data);
+    renderLandingDetailFromUrl();
+  }catch(e){ toast(e.message || '분석 데이터를 불러오지 못했습니다.'); }
+  setLoading(false);
+}
+function renderFilters(data){
+  const select = qs('funnelId'); const current = select.value;
+  const funnels = data.funnels || [];
+  select.innerHTML = '<option value="">전체 퍼널</option>' + funnels.map(f => '<option value="'+f.id+'">'+escapeHtml(f.name || ('퍼널 #' + f.id))+'</option>').join('');
+  select.value = current;
+}
+function renderSummary(s){
+  const totalCost = Number(s.messageCost) || ((Number(s.smsCost)||0) + (Number(s.lmsCost)||0));
+  const items = [
+    ['총 조회수', num(s.views), '퍼널 생성 랜딩 방문 기준', 'blue'],
+    ['신청자 수', num(s.applicants), 'DB 등록/폼 제출 기준', 'green'],
+    ['조회 대비 신청률', rate(s.conversionRate), '조회수 대비 신청자 수', 'amber'],
+    ['유입 경로', num(s.sourceCount), '감지된 채널 수', 'rose'],
+    ['문자 실제비용', money(totalCost), '실제 발송 SMS 25원 · LMS/LLM 45원', 'slate']
+  ];
+  qs('summaryGrid').innerHTML = items.map(i => '<div class="card metric '+i[3]+'"><div class="metric-label">'+i[0]+'</div><div class="metric-value">'+i[1]+'</div><div class="metric-sub">'+i[2]+'</div></div>').join('');
+}
+function renderPages(pages){
+  const body = qs('pageRows');
+  if(!pages.length){ body.innerHTML='<tr><td colspan="9" class="empty">\ubd84\uc11d\ud560 \ud37c\ub110 \ub79c\ub529\ud398\uc774\uc9c0\uac00 \uc5c6\uc2b5\ub2c8\ub2e4.</td></tr>'; closeLandingDetail(); return; }
+  const sourceHtml = function(sources){
+    const list = Array.isArray(sources) ? sources.slice(0, 4) : [];
+    if(!list.length) return '<div class="muted" style="margin-top:4px">\uc720\uc785 \uacbd\ub85c \ub370\uc774\ud130 \uc5c6\uc74c</div>';
+    return '<div style="display:flex;flex-direction:column;gap:4px;margin-top:6px">' + list.map(function(s){ return '<div class="muted" style="font-size:11px"><b style="color:#334155">'+escapeHtml(s.source||'-')+'</b> · '+num(s.count||0)+'\ud68c · '+rate(s.share||0)+(Number(s.applicants||0)>0?' · DB '+num(s.applicants):'')+'</div>'; }).join('') + '</div>';
+  };
+  body.innerHTML = pages.map(function(p){
+    const conv = Number(p.conversionRate)||0;
+    const tone = conv >= 8 ? 'green' : (conv >= 3 ? 'amber' : 'rose');
+    const pageId = encodeURIComponent(String(p.id || p.slug || ''));
+    return '<tr class="click-row" data-page-id="'+pageId+'" onclick="openLandingDetail(this.dataset.pageId)">'+
+      '<td><div class="name">'+escapeHtml(p.title||'-')+'</div><div class="muted">'+escapeHtml(p.slug||'')+'</div></td>'+
+      '<td><div>'+escapeHtml(p.funnelName||'-')+'</div><div class="muted">'+escapeHtml(p.groupName||'-')+'</div></td>'+
+      '<td><b>'+num(p.views)+'</b></td>'+
+      '<td><b>'+num(p.applicants)+'</b></td>'+
+      '<td><span class="pill pill-'+tone+'">'+rate(conv)+'</span><div class="bar" style="margin-top:7px"><span style="width:'+Math.min(100,conv*5)+'%"></span></div></td>'+
+      '<td><div><b>'+escapeHtml(p.topSource||'\uc9c1\uc811/\uc54c \uc218 \uc5c6\uc74c')+'</b></div>'+sourceHtml(p.sources)+'</td>'+
+      '<td><div>SMS '+num(p.smsSent||0)+'\uac74 / '+money(p.smsCost)+'</div><div class="muted">LMS/LLM '+num(p.lmsSent||0)+'\uac74 / '+money(p.lmsCost)+'</div></td>'+
+      '<td>'+escapeHtml(p.cta || '-')+'</td>'+
+      '<td><button class="btn btn-ghost" data-page-id="'+pageId+'" onclick="event.stopPropagation(); shareLanding(this.dataset.pageId)">\uacf5\uc720</button></td>'+
+    '</tr>';
+  }).join('');
+}
+function renderSources(sources){
+  const box = qs('sourceList');
+  if(!sources.length){ box.innerHTML='<div class="empty">유입 경로 데이터가 없습니다.</div>'; return; }
+  const max = Math.max(...sources.map(s=>Number(s.count)||0),1);
+  box.innerHTML = sources.map(s => {
+    const detail = [s.medium, s.campaign, s.term].filter(Boolean).join(' · ');
+    const ref = s.referrer ? '<div class="source-num">referrer: '+escapeHtml(String(s.referrer).slice(0,80))+'</div>' : '';
+    return '<div class="source-row"><div><div class="source-main">'+escapeHtml(s.source)+'</div>'+(detail?'<div class="source-num">'+escapeHtml(detail)+'</div>':'')+'<div class="source-num">'+num(s.count)+'건 · '+rate(s.share)+'</div>'+ref+'<div class="bar" style="margin-top:8px"><span style="width:'+(Number(s.count)||0)/max*100+'%"></span></div></div><span class="pill pill-blue">'+num(s.applicants||0)+' DB</span></div>';
+  }).join('');
+}
+function renderReport(data){
+  const s = data.summary || {}; const best = (data.sources||[])[0];
+  const totalCost = Number(s.messageCost) || ((Number(s.smsCost)||0) + (Number(s.lmsCost)||0));
+  const weak = (data.pages||[]).filter(p => (p.views||0) >= 20 && (p.conversionRate||0) < 3).slice(0,3);
+  const lines = [];
+  lines.push('기간: ' + (data.periodLabel || '-'));
+  lines.push('총 조회수 ' + num(s.views) + '회, 신청자 ' + num(s.applicants) + '명, 전환율 ' + rate(s.conversionRate) + '입니다.');
+  lines.push('가장 강한 유입 경로는 ' + (best ? best.source + ' (' + num(best.count) + '건)' : '아직 감지되지 않음') + '입니다.');
+  if(weak.length) lines.push('개선 우선 랜딩: ' + weak.map(p => p.title).join(', '));
+  lines.push('실제 문자 발송은 SMS ' + num(s.sentSms||0) + '건, LMS ' + num(s.sentLms||0) + '건이며 총 비용은 ' + money(totalCost) + '입니다.');
+  qs('reportText').textContent = lines.join('\n');
+  qs('ctaGrid').innerHTML = [
+    ['실제 SMS 발송', num(s.sentSms||0) + '건 / ' + money(s.smsCost)],
+    ['실제 LMS 발송', num(s.sentLms||0) + '건 / ' + money(s.lmsCost)],
+    ['총 문자 비용', money(totalCost)]
+  ].map(i => '<div class="cta"><small>'+i[0]+'</small><b>'+i[1]+'</b></div>').join('');
+  const recs = data.recommendations || [];
+  qs('recommendations').innerHTML = recs.map(r => '<div class="rec '+(r.type||'')+'"><strong>'+escapeHtml(r.title)+'</strong><p>'+escapeHtml(r.body)+'</p></div>').join('');
+}
+function exportCsv(){
+  const rows = [['랜딩페이지','퍼널','그룹','조회수','신청자','전환율','주요유입','SMS발송','SMS비용','LMS발송','LMS비용','총문자비용','CTA']];
+  (state.data?.pages||[]).forEach(p => rows.push([p.title,p.funnelName,p.groupName,p.views,p.applicants,rate(p.conversionRate),p.topSource,p.smsSent,p.smsCost,p.lmsSent,p.lmsCost,p.messageCost,p.cta]));
+  const csv = rows.map(r => r.map(v => '"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='funnel-landing-analytics.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+async function copyText(text){ await navigator.clipboard.writeText(text); toast('복사되었습니다.'); }
+function copyReportText(){ copyText(qs('reportText').textContent || ''); }
+async function shareReport(){
+  if(!state.data){ toast('공유할 분석 데이터가 없습니다.'); return; }
+  const btn=qs('shareBtn'); btn.disabled=true;
+  try{
+    const d=await apiJson('/api/admin/funnel-landing-analytics/share',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({report:state.data})});
+    state.lastUrl=d.url; await copyText(d.url);
+    if(navigator.share) navigator.share({title:'퍼널 랜딩 분석지',url:d.url}).catch(()=>{});
+  }catch(e){ toast(e.message || '공유 링크 생성 실패'); }
+  btn.disabled=false;
+}
+async function shareLanding(encodedPageId){
+  if(!state.data){ toast('공유할 분석 데이터가 없습니다.'); return; }
+  const landingPageId = decodeURIComponent(String(encodedPageId || ''));
+  const page = (state.data.pages || []).find(p => String(p.id || '') === landingPageId || String(p.slug || '') === landingPageId);
+  if(!page){ toast('공유할 랜딩페이지를 찾지 못했습니다.'); return; }
+  try{
+    const d = await apiJson('/api/admin/funnel-landing-analytics/share-landing',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({report:state.data, landingPageId})});
+    await copyText(d.url);
+    if(navigator.share) navigator.share({title:(page.title || '랜딩페이지') + ' 성과 분석지',url:d.url}).catch(()=>{});
+  }catch(e){ toast(e.message || '랜딩페이지 공유 링크 생성 실패'); }
+}
+
+function normalizeChannelName(raw){
+  const text = String(raw || '').trim();
+  const lower = text.toLowerCase();
+  if(!lower) return '\uc9c1\uc811/\uc54c \uc218 \uc5c6\uc74c';
+  if(lower.indexOf('naver') >= 0 || lower.indexOf('n_media') >= 0 || lower.indexOf('n_query') >= 0 || text.indexOf('\ub124\uc774\ubc84') >= 0) return '\ub124\uc774\ubc84';
+  if(lower.indexOf('facebook') >= 0 || lower.indexOf('fb.') >= 0 || lower.indexOf('fbclid') >= 0 || lower.indexOf('meta') >= 0 || text.indexOf('\ud398\uc774\uc2a4\ubd81') >= 0) return '\ud398\uc774\uc2a4\ubd81';
+  if(lower.indexOf('daangn') >= 0 || lower.indexOf('danggeun') >= 0 || lower.indexOf('karrot') >= 0 || text.indexOf('\ub2f9\uadfc') >= 0) return '\ub2f9\uadfc';
+  if(lower.indexOf('instagram') >= 0 || lower.indexOf('insta') >= 0 || lower.indexOf('igshid') >= 0 || text.indexOf('\uc778\uc2a4\ud0c0') >= 0) return '\uc778\uc2a4\ud0c0\uadf8\ub7a8';
+  if(lower.indexOf('kakao') >= 0 || lower.indexOf('kakaotalk') >= 0 || lower.indexOf('pf.kakao') >= 0 || lower.indexOf('daum') >= 0 || text.indexOf('\uce74\uce74\uc624') >= 0) return '\uce74\uce74\uc624\ud1a1';
+  if(lower.indexOf('google') >= 0 || lower.indexOf('gclid') >= 0 || text.indexOf('\uad6c\uae00') >= 0) return '\uad6c\uae00';
+  if(lower.indexOf('youtube') >= 0 || lower.indexOf('youtu.be') >= 0 || text.indexOf('\uc720\ud29c') >= 0) return '\uc720\ud29c\ube0c';
+  if(lower.indexOf('sms') >= 0 || lower.indexOf('lms') >= 0 || lower.indexOf('mms') >= 0 || text.indexOf('\ubb38\uc790') >= 0) return '\ubb38\uc790';
+  if(lower.indexOf('direct') >= 0 || text.indexOf('\uc9c1\uc811') >= 0) return '\uc9c1\uc811/\uc54c \uc218 \uc5c6\uc74c';
+  return text || '\uc9c1\uc811/\uc54c \uc218 \uc5c6\uc74c';
+}
+function landingChannelRows(page){
+  const fixed = ['\ub124\uc774\ubc84','\ud398\uc774\uc2a4\ubd81','\ub2f9\uadfc','\uc778\uc2a4\ud0c0\uadf8\ub7a8','\uce74\uce74\uc624\ud1a1'];
+  const map = {};
+  (Array.isArray(page.sources) ? page.sources : []).forEach(function(item){
+    const name = normalizeChannelName(item.source || item.referrer || item.url);
+    if(!map[name]) map[name] = { source:name, count:0, applicants:0, share:0 };
+    map[name].count += Number(item.count) || 0;
+    map[name].applicants += Number(item.applicants) || 0;
+  });
+  fixed.forEach(function(name){ if(!map[name]) map[name] = { source:name, count:0, applicants:0, share:0 }; });
+  const total = Object.keys(map).reduce(function(sum, key){ return sum + (Number(map[key].count) || 0); }, 0) || 1;
+  Object.keys(map).forEach(function(key){ map[key].share = (Number(map[key].count) || 0) / total * 100; });
+  const ordered = fixed.map(function(name){ return map[name]; });
+  const others = Object.keys(map).filter(function(key){ return fixed.indexOf(key) === -1; }).map(function(key){ return map[key]; }).sort(function(a,b){ return (b.count||0) - (a.count||0); });
+  return ordered.concat(others).slice(0, 10);
+}
+function sourceDetailRows(page){
+  const list = Array.isArray(page.sources) ? page.sources.slice() : [];
+  if(!list.length) return '<tr><td colspan="5" class="empty">\uc720\uc785 \uacbd\ub85c \ub370\uc774\ud130\uac00 \uc5c6\uc2b5\ub2c8\ub2e4.</td></tr>';
+  list.sort(function(a,b){ return (Number(b.count)||0) - (Number(a.count)||0); });
+  return list.map(function(item){
+    const channel = normalizeChannelName(item.source || item.referrer || item.url);
+    const detail = [item.medium, item.campaign, item.term].filter(Boolean).join(' · ');
+    const linkText = item.referrer || item.url || '';
+    return '<tr><td><span class="source-chip">'+escapeHtml(channel)+'</span><div style="margin-top:5px;font-weight:900">'+escapeHtml(item.source || '-').slice(0,80)+'</div></td><td><b>'+num(item.count||0)+'</b><div class="muted">'+rate(item.share||0)+'</div></td><td>'+num(item.applicants||0)+'</td><td>'+escapeHtml(detail || '-')+'</td><td>'+escapeHtml(String(linkText || '-')).slice(0,120)+'</td></tr>';
+  }).join('');
+}
+function renderLandingDetail(page){
+  const box = qs('landingDetail');
+  if(!box) return;
+  const channels = landingChannelRows(page);
+  const totalCost = Number(page.messageCost) || ((Number(page.smsCost)||0) + (Number(page.lmsCost)||0));
+  const shareId = encodeURIComponent(String(page.id || page.slug || ''));
+  const publicLink = page.publicUrl ? '<a class="btn btn-ghost" href="'+escapeHtml(page.publicUrl)+'" target="_blank" rel="noopener">\ub79c\ub529 \uc5f4\uae30</a>' : '';
+  box.innerHTML = '<div class="detail-head"><div><h2 class="detail-title">'+escapeHtml(page.title || '\ub79c\ub529\ud398\uc774\uc9c0')+'</h2><div class="muted">'+escapeHtml(page.funnelName || '-')+' · '+escapeHtml(page.groupName || '-')+' · '+escapeHtml(page.slug || '')+'</div></div><div class="detail-actions">'+publicLink+'<button class="btn btn-primary" onclick="shareLanding(\''+shareId+'\')">\uc774 \ub79c\ub529 \uacf5\uc720</button><button class="btn btn-ghost" onclick="closeLandingDetail()">\ub2eb\uae30</button></div></div>'+
+    '<div class="detail-body"><div class="detail-grid">'+
+    '<div class="detail-card"><span>\uc870\ud68c\uc218</span><b>'+num(page.views||0)+'</b></div>'+
+    '<div class="detail-card"><span>\uc2e0\uccad\uc790</span><b>'+num(page.applicants||0)+'</b></div>'+
+    '<div class="detail-card"><span>\uc870\ud68c \ub300\ube44 \uc2e0\uccad\ub960</span><b>'+rate(page.conversionRate||0)+'</b></div>'+
+    '<div class="detail-card"><span>\uc2e4\uc81c \ubb38\uc790 \ube44\uc6a9</span><b>'+money(totalCost)+'</b></div>'+
+    '</div><div class="detail-section-title">\ucc44\ub110\ubcc4 \uc720\uc785 \uacbd\ub85c</div><div class="channel-grid">'+channels.map(function(ch){ return '<div class="channel-card"><strong>'+escapeHtml(ch.source)+'<span>'+rate(ch.share||0)+'</span></strong><em>'+num(ch.count||0)+'\ud68c</em><small>DB '+num(ch.applicants||0)+'\uba85</small></div>'; }).join('')+'</div>'+
+    '<div class="detail-section-title">\uc0c1\uc138 \uc720\uc785 \ub370\uc774\ud130</div><div class="table-wrap"><table class="traffic-table"><thead><tr><th>\ucc44\ub110/\uc18c\uc2a4</th><th>\uc720\uc785</th><th>DB</th><th>UTM</th><th>Referrer/URL</th></tr></thead><tbody>'+sourceDetailRows(page)+'</tbody></table></div></div>';
+  box.style.display = 'block';
+}
+function openLandingDetail(encodedPageId){
+  const id = decodeURIComponent(String(encodedPageId || ''));
+  const pages = state.data && Array.isArray(state.data.pages) ? state.data.pages : [];
+  const page = pages.find(function(p){ return String(p.id || '') === id || String(p.slug || '') === id || encodeURIComponent(String(p.id || p.slug || '')) === String(encodedPageId || ''); });
+  if(!page){ toast('\ub79c\ub529\ud398\uc774\uc9c0 \ub370\uc774\ud130\ub97c \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.'); return; }
+  const url = new URL(window.location.href);
+  url.searchParams.set('landingPageId', page.id || page.slug || id);
+  history.replaceState(null, '', url.toString());
+  renderLandingDetail(page);
+  qs('landingDetail').scrollIntoView({behavior:'smooth', block:'start'});
+}
+function closeLandingDetail(){
+  const box = qs('landingDetail');
+  if(box){ box.style.display='none'; box.innerHTML=''; }
+  const url = new URL(window.location.href);
+  url.searchParams.delete('landingPageId');
+  history.replaceState(null, '', url.toString());
+}
+function renderLandingDetailFromUrl(){
+  const id = new URLSearchParams(window.location.search).get('landingPageId');
+  if(id) openLandingDetail(id);
+}
+function escapeHtml(v){ return String(v??'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+document.addEventListener('DOMContentLoaded', loadAnalytics);
+</script>
+</body>
+</html>
