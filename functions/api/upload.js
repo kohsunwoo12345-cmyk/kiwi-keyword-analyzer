@@ -6,7 +6,7 @@
 
 import { resolveDB, getSessionUser } from "./_utils";
 
-const ALLOWED_CT = /^(image\/(png|jpe?g|gif|webp|avif|svg\+xml)|video\/(mp4|webm|quicktime|x-matroska)|audio\/(mpeg|mp3|wav|x-wav|wave|webm|ogg|mp4|aac|x-m4a|m4a))(;|$)/i;
+const ALLOWED_CT = /^(image\/(png|jpe?g|gif|webp|avif|svg\+xml|heic|heif)|video\/(mp4|webm|quicktime|x-matroska)|audio\/(mpeg|mp3|wav|x-wav|wave|webm|ogg|mp4|aac|x-m4a|m4a))(;|$)/i;
 
 function r2Bucket(env) {
   // ① 흔한 바인딩 이름 우선

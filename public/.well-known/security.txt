@@ -1,0 +1,13 @@
+# BYGENCY (주식회사 넥스트 바이전시) 보안 취약점 신고 정책
+# Standard security contact per RFC 9116 (https://www.rfc-editor.org/rfc/rfc9116)
+
+Contact: https://bygency.co/contact
+Contact: mailto:security@bygency.co
+Expires: 2027-07-19T00:00:00.000Z
+Preferred-Languages: ko, en
+Canonical: https://bygency.co/.well-known/security.txt
+Policy: https://bygency.co/legal/terms
+
+# 보안 연구자님께: 취약점을 발견하시면 위 연락처로 알려주세요.
+# 신고 시 재현 절차·영향 범위를 함께 주시면 빠르게 대응하겠습니다.
+# We appreciate responsible disclosure — please include reproduction steps and impact.

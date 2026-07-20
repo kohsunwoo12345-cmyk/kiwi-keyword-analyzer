@@ -55,13 +55,33 @@ export default function NoticesPage() {
     return users.filter((u) => (u.name + ' ' + u.email + ' ' + (u.phone || '')).toLowerCase().includes(q)).slice(0, 200)
   }, [users, userQuery])
 
+  // 업로드 전 항상 JPEG 로 재인코딩(아이폰 HEIC·큰 사진 대응). 브라우저가 못 여는 경우만 원본 업로드.
+  async function toJpegBlob(file: File): Promise<{ blob: Blob; type: string }> {
+    try {
+      const bmp = await createImageBitmap(file)
+      const max = 1600
+      const scale = Math.min(1, max / Math.max(bmp.width, bmp.height))
+      const w = Math.max(1, Math.round(bmp.width * scale)), h = Math.max(1, Math.round(bmp.height * scale))
+      const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h
+      const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('ctx')
+      ctx.drawImage(bmp, 0, 0, w, h)
+      const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.88))
+      if (!blob) throw new Error('encode')
+      return { blob, type: 'image/jpeg' }
+    } catch {
+      return { blob: file, type: file.type || 'application/octet-stream' }   // 폴백: 원본
+    }
+  }
   async function onUpload(file: File) {
     setUploading(true); setMsg('')
     try {
-      const r = await fetch('/api/upload', { method: 'POST', credentials: 'include', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file })
-      const d = await r.json()
-      if (d.url) setImageUrl(d.url); else setMsg(d.error || '업로드 실패')
-    } catch { setMsg('업로드 실패') }
+      const { blob, type } = await toJpegBlob(file)
+      const r = await fetch('/api/upload', { method: 'POST', credentials: 'include', headers: { 'Content-Type': type }, body: blob })
+      const txt = await r.text()
+      let d: any = {}; try { d = JSON.parse(txt) } catch {}
+      if (r.ok && d.url) setImageUrl(d.url)
+      else setMsg('업로드 실패 (' + r.status + '): ' + (d.error || txt.slice(0, 120)))
+    } catch (e: any) { setMsg('업로드 실패: ' + String(e?.message || e).slice(0, 100)) }
     setUploading(false)
   }
 
