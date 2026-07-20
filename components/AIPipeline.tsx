@@ -204,7 +204,7 @@ function LivePipeline({ t }: { t: (s: string) => string }) {
         const Icon = s.icon
         const status: 'done' | 'active' | 'pending' = i <= doneUpto ? 'done' : i === active ? 'active' : 'pending'
         return (
-          <div key={s.key} className="flex flex-1 flex-col items-center lg:flex-row lg:[transform-style:preserve-3d]">
+          <div key={s.key} className="flex min-w-0 flex-1 flex-col items-center lg:flex-row lg:[transform-style:preserve-3d]">
             <div className="w-full lg:[transform-style:preserve-3d]">
               <div
                 className={cn(
