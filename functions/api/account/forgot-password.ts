@@ -8,8 +8,12 @@ import {
   clientIp,
   geoFrom,
   logSecurity,
+  autoBlockIp,
 } from '../_utils'
 import { resendEmail, emailShell } from '../_external'
+
+// 15분 내 이 횟수 초과로 인증요청을 반복하면 해당 IP 자동 차단(실제 접속 차단)
+const REQUEST_ABUSE_LIMIT = 8
 
 // POST /api/account/forgot-password
 //  { action: 'request', email }              → 이메일로 6자리 인증코드 발송 (Resend, 발신 cs@bygency.co)
@@ -41,10 +45,23 @@ async function handle(request: Request, env: Env): Promise<Response> {
     return json({ ok: false, error: '올바른 이메일을 입력하세요.' }, 200)
 
   const ip = clientIp(request)
+  const geo = geoFrom(request)
   const now = Date.now()
   const nowIso = new Date(now).toISOString()
 
   if (action === 'request') {
+    // ── 반복 시도 방어 ── 모든 인증요청을 로그로 남기고(계정 유무·성공 여부 무관),
+    //   IP별 최근 15분 요청 횟수가 임계치를 넘으면 실제 접속 차단(자동 IP 차단).
+    await logSecurity(db, { ip, method: 'POST', path: '/api/account/forgot-password', status: 0, severity: 'info', detail: `비밀번호 재설정 인증 요청: ${email}`, country: geo.country, city: geo.city }).catch(() => {})
+    const since = new Date(now - 15 * 60_000).toISOString()
+    const cnt: any = await db.prepare("SELECT COUNT(*) AS n FROM security_log WHERE ip = ? AND path = '/api/account/forgot-password' AND ts >= ?").bind(ip, since).first().catch(() => null)
+    const attempts = Number(cnt?.n) || 0
+    if (attempts > REQUEST_ABUSE_LIMIT) {
+      await autoBlockIp(db, ip, `비밀번호 재설정 반복 시도 자동 차단 (15분 내 ${attempts}회)`, geo).catch(() => {})
+      await logSecurity(db, { ip, method: 'POST', path: '/api/account/forgot-password', status: 403, severity: 'high', detail: `비밀번호 재설정 반복 시도 자동 차단 (${attempts}회)`, country: geo.country, city: geo.city }).catch(() => {})
+      return json({ ok: false, error: '비정상적으로 반복된 요청이 감지되어 접근이 차단되었습니다. 문제가 있다면 고객센터로 문의해 주세요.', blocked: true }, 200)
+    }
+
     const user: any = await db.prepare('SELECT id, name, provider, password_set FROM users WHERE email = ?').bind(email).first()
     // 계정 존재 여부를 노출하지 않기 위해 없는 계정은 성공처럼 응답 (이메일 열거 방지)
     if (!user) return json({ ok: true })
@@ -61,7 +78,9 @@ async function handle(request: Request, env: Env): Promise<Response> {
     const existing: any = await db.prepare('SELECT last_sent_at FROM password_resets WHERE email = ?').bind(email).first().catch(() => null)
     if (existing?.last_sent_at && now - +new Date(existing.last_sent_at) < 3 * 60_000) {
       const wait = Math.ceil((3 * 60_000 - (now - +new Date(existing.last_sent_at))) / 1000)
-      return json({ ok: false, error: `인증번호는 3분에 한 번만 보낼 수 있어요. ${wait}초 후 다시 시도해 주세요.`, cooldown: true, wait }, 200)
+      const min = Math.floor(wait / 60), sec = wait % 60
+      const waitText = min > 0 ? `${min}분 ${sec}초` : `${sec}초`
+      return json({ ok: false, error: `재발송은 3분에 한 번만 가능합니다. ${waitText} 후 다시 시도해 주세요.`, cooldown: true, wait }, 200)
     }
 
     // 6자리 코드 생성 (crypto 기반)
@@ -100,7 +119,8 @@ async function handle(request: Request, env: Env): Promise<Response> {
       // 실제 사유를 그대로 노출(도메인 미인증/키 미설정 등 진단 가능하도록)
       return json({ ok: false, error: '인증 메일 발송 실패: ' + (sent.error || '알 수 없는 오류') }, 200)
     }
-    return json({ ok: true })
+    // ttl: 코드 유효시간(초), cooldownSec: 재발송 가능까지 대기(초) — 프런트 카운트다운용
+    return json({ ok: true, ttl: 180, cooldownSec: 180 })
   }
 
   if (action === 'verify') {

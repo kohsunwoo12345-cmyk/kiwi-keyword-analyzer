@@ -83,7 +83,7 @@ export async function login(email: string, password: string): Promise<AuthResult
 }
 
 /** 비밀번호 찾기 — ① 이메일로 인증코드 발송 */
-export async function requestPasswordReset(email: string): Promise<{ ok: boolean; error?: string; cooldown?: boolean }> {
+export async function requestPasswordReset(email: string): Promise<{ ok: boolean; error?: string; cooldown?: boolean; wait?: number; blocked?: boolean; ttl?: number; cooldownSec?: number }> {
   return postJson('/api/account/forgot-password', { action: 'request', email })
 }
 /** 비밀번호 찾기 — ② 코드 검증 후 새 비밀번호 설정 */

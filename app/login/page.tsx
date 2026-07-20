@@ -58,6 +58,9 @@ const DICT: Dict = {
   '코드와 새 비밀번호를 입력하세요.': { en: 'Enter the code and a new password.', ja: 'コードと新しいパスワードを入力してください。', zh: '请输入验证码和新密码。' },
   '닫기': { en: 'Close', ja: '閉じる', zh: '关闭' },
   '이메일 재발송': { en: 'Resend email', ja: 'メール再送', zh: '重新发送' },
+  '후': { en: 'left', ja: '後', zh: '后' },
+  '인증코드 유효시간': { en: 'Code expires in', ja: 'コード有効時間', zh: '验证码有效时间' },
+  '인증코드가 만료되었습니다. 재발송해 주세요.': { en: 'The code has expired. Please resend.', ja: 'コードの有効期限が切れました。再送してください。', zh: '验证码已过期，请重新发送。' },
 }
 
 const inputBase =
@@ -272,8 +275,21 @@ function ForgotPasswordModal({
   const [showPw, setShowPw] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [remain, setRemain] = useState(0) // 인증코드 유효시간(초) 카운트다운
+  const [cooldown, setCooldown] = useState(0) // 재발송 대기(초) 카운트다운
 
   const emailValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())
+  const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+
+  // 코드 단계에서 1초마다 유효시간·재발송 대기 감소
+  useEffect(() => {
+    if (step !== 'code') return
+    const iv = setInterval(() => {
+      setRemain((s) => (s > 0 ? s - 1 : 0))
+      setCooldown((s) => (s > 0 ? s - 1 : 0))
+    }, 1000)
+    return () => clearInterval(iv)
+  }, [step])
 
   async function sendCode() {
     setErr('')
@@ -281,8 +297,20 @@ function ForgotPasswordModal({
     setBusy(true)
     const r = await requestPasswordReset(email.trim().toLowerCase())
     setBusy(false)
-    if (r.ok) setStep('code')
-    else setErr(r.error || t('올바른 이메일을 입력하세요.'))
+    if (r.ok) {
+      setStep('code')
+      setRemain(r.ttl || 180)
+      setCooldown(r.cooldownSec || 180)
+    } else if (r.cooldown) {
+      // 이미 최근에 발송됨 → 코드 단계로 이동하고 남은 대기시간 표시
+      setStep('code')
+      setRemain(r.wait || 0)
+      setCooldown(r.wait || 0)
+      setErr(r.error || '')
+    } else {
+      // blocked 포함 — 서버 메시지 그대로 노출
+      setErr(r.error || t('올바른 이메일을 입력하세요.'))
+    }
   }
 
   async function doReset() {
@@ -350,6 +378,16 @@ function ForgotPasswordModal({
                 className={boxCls + ' text-center tracking-[0.4em] font-semibold'}
                 autoFocus
               />
+              {/* 인증코드 유효시간 카운트다운 (3분) */}
+              <p className="-mt-1 text-center text-xs">
+                {remain > 0 ? (
+                  <span className={cn('font-semibold tabular-nums', remain <= 30 ? 'text-rose-300' : 'text-blue-300')}>
+                    {t('인증코드 유효시간')} {mmss(remain)}
+                  </span>
+                ) : (
+                  <span className="text-rose-300">{t('인증코드가 만료되었습니다. 재발송해 주세요.')}</span>
+                )}
+              </p>
               <div className="relative">
                 <input
                   type={showPw ? 'text' : 'password'}
@@ -383,8 +421,12 @@ function ForgotPasswordModal({
                 {busy ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />}
                 {busy ? t('변경 중…') : t('비밀번호 변경')}
               </Button>
-              <button onClick={sendCode} disabled={busy} className="w-full text-center text-xs text-blue-300 hover:text-blue-200">
-                {t('이메일 재발송')}
+              <button
+                onClick={sendCode}
+                disabled={busy}
+                className="w-full text-center text-xs text-blue-300 hover:text-blue-200 disabled:opacity-60"
+              >
+                {cooldown > 0 ? `${t('이메일 재발송')} (${mmss(cooldown)} ${t('후')})` : t('이메일 재발송')}
               </button>
             </div>
           </>
