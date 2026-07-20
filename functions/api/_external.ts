@@ -20,15 +20,28 @@ export async function naverSearch(
   }
 }
 
-/** Resend 이메일 발송 — RESEND_API_KEY / RESEND_FROM */
+/** 환경변수 조회 — 이름 대소문자를 가리지 않고(Cloudflare 는 대소문자 구분) 찾는다. */
+function envAny(env: any, ...names: string[]): string {
+  if (!env) return ''
+  // 1) 정확히 일치 우선
+  for (const n of names) { const v = env[n]; if (v && String(v).trim()) return String(v).trim() }
+  // 2) 대소문자 무시 매칭 (예: Resend_API_KEY / resend_api_key)
+  const wanted = new Set(names.map((n) => n.toLowerCase()))
+  for (const k of Object.keys(env)) {
+    if (wanted.has(k.toLowerCase())) { const v = env[k]; if (v && String(v).trim()) return String(v).trim() }
+  }
+  return ''
+}
+
+/** Resend 이메일 발송 — RESEND_API_KEY(대소문자 무관) / 발신 기본 cs@bygency.co */
 export async function resendEmail(
   env: any,
   o: { to: string | string[]; subject: string; html: string; from?: string },
 ): Promise<{ ok: boolean; error?: string; id?: string }> {
-  // 환경변수 이름 대소문자 혼용 허용 (RESEND_API_KEY / resend_API_KEY)
-  const key = env?.RESEND_API_KEY || env?.resend_API_KEY || env?.RESEND_KEY
+  // 환경변수 이름 대소문자 무관 (RESEND_API_KEY / Resend_API_KEY / resend_api_key 등 모두 허용)
+  const key = envAny(env, 'RESEND_API_KEY', 'RESEND_KEY', 'RESEND_APIKEY')
   // 발신 주소 우선순위: 명시 인자 > 환경변수 > 기본값(cs@bygency.co)
-  const from = o.from || env?.RESEND_FROM || 'BYGENCY <cs@bygency.co>'
+  const from = o.from || envAny(env, 'RESEND_FROM') || 'BYGENCY <cs@bygency.co>'
   if (!key) return { ok: false, error: 'RESEND_API_KEY 환경변수 미설정' }
   try {
     const res = await fetch('https://api.resend.com/emails', {

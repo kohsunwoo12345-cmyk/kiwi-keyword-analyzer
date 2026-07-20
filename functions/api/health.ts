@@ -29,12 +29,20 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
     return typeof v === 'string' ? v.trim().length > 0 : !!v
   }
   const anyHas = (...ks: string[]) => ks.some(has)
+  // 이름 대소문자를 가리지 않고 존재 확인 (Cloudflare 환경변수는 대소문자 구분)
+  const hasCI = (...ks: string[]) => {
+    const wanted = new Set(ks.map((k) => k.toLowerCase()))
+    for (const k of Object.keys((env as any) || {})) {
+      if (wanted.has(k.toLowerCase())) { const v = (env as any)[k]; if (typeof v === 'string' ? v.trim() : v) return true }
+    }
+    return false
+  }
   const tools = {
     '유튜브 분석': { ok: anyHas('YouTube_Data_API_v3', 'YOUTUBE_DATA_API_V3', 'YOUTUBE_API_KEY'), keys: { YouTube_Data_API_v3: has('YouTube_Data_API_v3') } },
     '블로그·플레이스(네이버)': { ok: has('NAVER_CLIENT_ID') && has('NAVER_CLIENT_SECRET'), keys: { NAVER_CLIENT_ID: has('NAVER_CLIENT_ID'), NAVER_CLIENT_SECRET: has('NAVER_CLIENT_SECRET') } },
     '블로그 키워드(네이버 광고)': { ok: has('NAVER_AD_CUSTOMER_ID') && has('NAVER_API_SECRET_KEY'), keys: { NAVER_AD_CUSTOMER_ID: has('NAVER_AD_CUSTOMER_ID'), NAVER_API_SECRET_KEY: has('NAVER_API_SECRET_KEY'), NAVER_AD_ACCESS_LICENSE: has('NAVER_AD_ACCESS_LICENSE') } },
     '문자·알림톡(알리고)': { ok: has('ALIGO_API_KEY') && (has('ALIGO_ID_KEY') || has('ALIGO_USER_ID')), keys: { ALIGO_API_KEY: has('ALIGO_API_KEY'), ALIGO_ID_KEY: has('ALIGO_ID_KEY') || has('ALIGO_USER_ID'), ALIGO_SENDER_KEY: has('ALIGO_SENDER_KEY'), ALIGO_PROXY_URL: has('ALIGO_PROXY_URL'), ALIGO_SENDER_optional: has('ALIGO_SENDER') } },
-    '이메일(Resend)': { ok: anyHas('RESEND_API_KEY', 'resend_API_KEY', 'RESEND_KEY'), keys: { RESEND_API_KEY: has('RESEND_API_KEY'), resend_API_KEY: has('resend_API_KEY'), RESEND_KEY: has('RESEND_KEY'), RESEND_FROM_optional: has('RESEND_FROM') } },
+    '이메일(Resend)': { ok: hasCI('RESEND_API_KEY', 'RESEND_KEY', 'RESEND_APIKEY'), keys: { 'RESEND_API_KEY(대소문자무관)': hasCI('RESEND_API_KEY', 'RESEND_KEY', 'RESEND_APIKEY'), RESEND_FROM_optional: has('RESEND_FROM') } },
     '결제(Toss)': { ok: anyHas('TOSS_SECRET_KEY', 'TOSS_API_PG_SECRET', 'TOSS_PG_SECRET_KEY') && anyHas('TOSS_CLIENT_KEY', 'TOSS_PG_CLIENT_KEY'), keys: { TOSS_SECRET_KEY: anyHas('TOSS_SECRET_KEY', 'TOSS_API_PG_SECRET', 'TOSS_PG_SECRET_KEY'), TOSS_CLIENT_KEY: anyHas('TOSS_CLIENT_KEY', 'TOSS_PG_CLIENT_KEY') } },
     'AI(OpenAI)': { ok: has('OPENAI_API_KEY'), keys: { OPENAI_API_KEY: has('OPENAI_API_KEY') } },
     'AI 영상(Pexels/TTS)': { ok: anyHas('PEXELS_API_KEY') , keys: { PEXELS_API_KEY: has('PEXELS_API_KEY'), PIXABAY_API_KEY: has('PIXABAY_API_KEY'), ElevenLabs_API_KEY: has('ElevenLabs_API_KEY'), Text_to_Speech: has('Text_to_Speech'), OpenAI_Text_to_speech: has('OpenAI_Text_to_speech'), HF_TOKEN: has('HF_TOKEN') } },
