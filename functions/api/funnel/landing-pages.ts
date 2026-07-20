@@ -5,6 +5,39 @@ import { ensureFunnelSchema } from './_schema'
 const j = (o: any, status = 200) =>
   new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
 
+// 퍼널 랜딩페이지 목록 (?groupId= 로 그룹 필터) — 각 페이지의 신청자 수 포함
+export const onRequestGet: PagesFunction = async ({ request, env }) => {
+  try {
+    const db = resolveDB(env)
+    if (!db) return j({ success: true, pages: [] })
+    await ensureFunnelSchema(db)
+    const url = new URL(request.url)
+    const groupId = url.searchParams.get('groupId')
+    let rows: any[] = []
+    if (groupId) {
+      const r = await db.prepare(
+        `SELECT id, group_id, title, slug, description, status, created_at, updated_at FROM funnel_landing_pages WHERE group_id = ? ORDER BY created_at DESC`,
+      ).bind(groupId).all()
+      rows = (r.results as any[]) || []
+    } else {
+      const r = await db.prepare(
+        `SELECT id, group_id, title, slug, description, status, created_at, updated_at FROM funnel_landing_pages ORDER BY created_at DESC LIMIT 500`,
+      ).all()
+      rows = (r.results as any[]) || []
+    }
+    for (const p of rows) {
+      try {
+        const c: any = await db.prepare(`SELECT COUNT(*) as count FROM funnel_applicants WHERE landing_page_id = ?`).bind(p.id).first()
+        p.applicant_count = c?.count || 0
+        p.url = `/f/${p.slug}`
+      } catch { p.applicant_count = 0 }
+    }
+    return j({ success: true, pages: rows })
+  } catch {
+    return j({ success: true, pages: [] })
+  }
+}
+
 // 퍼널 랜딩페이지 생성
 export const onRequestPost: PagesFunction = async ({ request, env }) => {
   try {

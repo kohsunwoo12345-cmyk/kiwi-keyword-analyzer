@@ -1097,3 +1097,37 @@ export async function adminStudioNodeDetail(userId: string): Promise<{
   try { const r = await fetch('/api/admin/studio-nodes?userId=' + encodeURIComponent(userId), { credentials: 'include', cache: 'no-store' }); return await r.json() }
   catch { return { ok: false, error: '네트워크 오류' } }
 }
+
+/* ───────── 퍼널 빌더 / 마케팅 자동화 (SUPERPLACE 포팅 백엔드 사용) ───────── */
+export interface FunnelGroup { id: number; name: string; description: string; color: string; landing_page_count: number; applicant_count: number; created_at: string }
+export interface FunnelPage { id: number; group_id: number; title: string; slug: string; description: string; status: string; url: string; applicant_count: number; created_at: string }
+export interface AutoResponseRule { id: number; type: string; subject: string; content: string; timing: string; trigger: string; status: string; sender_number: string | null; group_name?: string; page_title?: string; created_at: string }
+
+export async function funnelGroups(): Promise<{ ok: boolean; groups: FunnelGroup[] }> {
+  try { const r = await fetch('/api/funnel/groups', { credentials: 'include', cache: 'no-store' }); const d = await r.json(); return { ok: !!d.success, groups: d.groups || [] } }
+  catch { return { ok: false, groups: [] } }
+}
+export async function createFunnelGroup(name: string, description?: string, color?: string): Promise<{ ok: boolean; id?: number; error?: string }> {
+  try { const r = await fetch('/api/funnel/groups', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify({ name, description, color }) }); const d = await r.json(); return { ok: !!d.success, id: d.id, error: d.error } }
+  catch { return { ok: false, error: '네트워크 오류' } }
+}
+export async function deleteFunnelGroup(id: number): Promise<{ ok: boolean }> {
+  try { const r = await fetch('/api/funnel/groups/' + id, { method: 'DELETE', credentials: 'include' }); const d = await r.json(); return { ok: !!d.success } }
+  catch { return { ok: false } }
+}
+export async function funnelPages(groupId: number): Promise<{ ok: boolean; pages: FunnelPage[] }> {
+  try { const r = await fetch('/api/funnel/landing-pages?groupId=' + groupId, { credentials: 'include', cache: 'no-store' }); const d = await r.json(); return { ok: !!d.success, pages: d.pages || [] } }
+  catch { return { ok: false, pages: [] } }
+}
+export async function createFunnelPage(groupId: number, title: string, description?: string): Promise<{ ok: boolean; id?: number; slug?: string; url?: string; error?: string }> {
+  try { const r = await fetch('/api/funnel/landing-pages', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify({ groupId, title, description }) }); const d = await r.json(); return { ok: !!d.success, id: d.id, slug: d.slug, url: d.url, error: d.error } }
+  catch { return { ok: false, error: '네트워크 오류' } }
+}
+export async function autoResponses(): Promise<{ ok: boolean; rules: AutoResponseRule[] }> {
+  try { const r = await fetch('/api/funnel/auto-responses', { credentials: 'include', cache: 'no-store' }); const d = await r.json(); return { ok: !!d.success, rules: d.rules || d.responses || [] } }
+  catch { return { ok: false, rules: [] } }
+}
+export async function createAutoResponse(p: { type: string; trigger: string; timing: string; subject?: string; content: string; group_id?: number | null; sender_number?: string }): Promise<{ ok: boolean; id?: number; error?: string }> {
+  try { const r = await fetch('/api/funnel/auto-responses', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify(p) }); const d = await r.json(); return { ok: !!d.success, id: d.id, error: d.error } }
+  catch { return { ok: false, error: '네트워크 오류' } }
+}
