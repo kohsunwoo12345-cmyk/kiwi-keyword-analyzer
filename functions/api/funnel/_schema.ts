@@ -1,6 +1,17 @@
 // 퍼널(랜딩페이지 제작) 전용 스키마 자동 부트스트랩 (_ 프리픽스 = 라우팅 제외, import 전용)
 // SUPERPLACE 원본 핸들러가 사용하는 funnel_* 테이블을 CF Pages 환경에서 자동 생성한다.
 
+// 테이블에 없는 컬럼만 ALTER 로 추가 (idempotent). PRAGMA 로 현재 컬럼을 조회 후 부족한 것만 실행.
+async function addFunnelCols(db: D1Database, table: string, defs: Record<string, string>) {
+  try {
+    const info = await db.prepare(`PRAGMA table_info(${table})`).all()
+    const cols = new Set(((info.results as any[]) || []).map((r: any) => r.name))
+    for (const [name, sql] of Object.entries(defs)) {
+      if (!cols.has(name)) await db.prepare(sql).run().catch(() => {})
+    }
+  } catch { /* ignore */ }
+}
+
 export async function ensureFunnelSchema(db: D1Database) {
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS funnel_groups (
@@ -87,9 +98,62 @@ export async function ensureFunnelSchema(db: D1Database) {
     user_id TEXT,
     name TEXT,
     description TEXT,
+    category TEXT DEFAULT 'general',
     status TEXT DEFAULT 'active',
+    nodes_json TEXT,
+    edges_json TEXT,
+    db_dedup_mode TEXT DEFAULT 'none',
+    header_scripts TEXT,
     created_at TEXT,
     updated_at TEXT
+  )`).run().catch(() => {})
+  // 퍼널 빌더 캔버스/설정 컬럼 보강 (구버전 funnels 테이블 대응)
+  await addFunnelCols(db, 'funnels', {
+    category: `ALTER TABLE funnels ADD COLUMN category TEXT DEFAULT 'general'`,
+    nodes_json: `ALTER TABLE funnels ADD COLUMN nodes_json TEXT`,
+    edges_json: `ALTER TABLE funnels ADD COLUMN edges_json TEXT`,
+    db_dedup_mode: `ALTER TABLE funnels ADD COLUMN db_dedup_mode TEXT DEFAULT 'none'`,
+    header_scripts: `ALTER TABLE funnels ADD COLUMN header_scripts TEXT`,
+  })
+  // 그룹: 빌더 캔버스 좌표/유형/정렬 컬럼 보강
+  await addFunnelCols(db, 'funnel_groups', {
+    group_type: `ALTER TABLE funnel_groups ADD COLUMN group_type TEXT DEFAULT 'entry'`,
+    sort_order: `ALTER TABLE funnel_groups ADD COLUMN sort_order INTEGER DEFAULT 0`,
+    pos_x: `ALTER TABLE funnel_groups ADD COLUMN pos_x INTEGER DEFAULT 0`,
+    pos_y: `ALTER TABLE funnel_groups ADD COLUMN pos_y INTEGER DEFAULT 0`,
+  })
+  // 신청자: SUPERPLACE 빌더가 읽는 정규 컬럼(name/phone/email/additional_data) 보강 (기존 data_json 병행)
+  await addFunnelCols(db, 'funnel_applicants', {
+    name: `ALTER TABLE funnel_applicants ADD COLUMN name TEXT`,
+    phone: `ALTER TABLE funnel_applicants ADD COLUMN phone TEXT`,
+    email: `ALTER TABLE funnel_applicants ADD COLUMN email TEXT`,
+    additional_data: `ALTER TABLE funnel_applicants ADD COLUMN additional_data TEXT`,
+    ip_address: `ALTER TABLE funnel_applicants ADD COLUMN ip_address TEXT`,
+    user_agent: `ALTER TABLE funnel_applicants ADD COLUMN user_agent TEXT`,
+  })
+  // 일반 랜딩(비퍼널) 폼 제출 저장소 (SUPERPLACE form_submissions 호환)
+  await db.prepare(`CREATE TABLE IF NOT EXISTS form_submissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    form_id INTEGER DEFAULT 0,
+    landing_page_id INTEGER,
+    name TEXT,
+    phone TEXT,
+    email TEXT,
+    additional_data TEXT,
+    landing_slug TEXT,
+    landing_title TEXT,
+    form_fields TEXT,
+    created_at TEXT
+  )`).run().catch(() => {})
+  // 그룹 연결(퍼널 빌더 캔버스의 그룹→그룹 연결선)
+  await db.prepare(`CREATE TABLE IF NOT EXISTS funnel_group_connections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    funnel_id INTEGER,
+    from_group_id INTEGER,
+    to_group_id INTEGER,
+    condition_type TEXT DEFAULT 'always',
+    label TEXT,
+    created_at TEXT
   )`).run().catch(() => {})
   // 그룹에 funnel_id 가 없으면(구버전) 그룹당 funnel 을 만들어 연결 — 분석이 페이지를 인식하도록
   try {

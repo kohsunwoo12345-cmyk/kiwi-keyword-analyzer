@@ -137,3 +137,25 @@ export const onRequestPut: PagesFunction = async ({ request, env, params }) => {
     return j({ success: false, error: '페이지 수정 실패' }, 500)
   }
 }
+
+// 랜딩페이지 삭제
+export const onRequestDelete: PagesFunction = async ({ env, params }) => {
+  try {
+    const db = resolveDB(env)
+    if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 500)
+    await ensureFunnelSchema(db)
+    const pageId = params.id as string
+    const page: any = await db.prepare(`
+      SELECT flp.id FROM funnel_landing_pages flp
+      INNER JOIN funnel_groups fg ON flp.group_id = fg.id
+      WHERE flp.id = ?
+    `).bind(pageId).first()
+    if (!page) return j({ success: false, error: '권한이 없습니다.' }, 403)
+    await db.prepare(`DELETE FROM funnel_applicants WHERE landing_page_id = ?`).bind(pageId).run().catch(() => {})
+    await db.prepare(`DELETE FROM funnel_landing_pages WHERE id = ?`).bind(pageId).run()
+    return j({ success: true, message: '랜딩페이지가 삭제되었습니다.' })
+  } catch (error) {
+    console.error('Error deleting landing page:', error)
+    return j({ success: false, error: '페이지 삭제 실패' }, 500)
+  }
+}
