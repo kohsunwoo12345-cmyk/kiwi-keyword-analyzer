@@ -1,4 +1,5 @@
-import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity } from '../_utils'
+import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity, planPriceKrw } from '../_utils'
+import { getPlanConfig, planPriceEffective } from '../_plans'
 
 const PLANS = ['Plus', 'Pro', 'Max']
 const TRACKS = ['marketer', 'video']
@@ -25,10 +26,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (dup) return json({ ok: false, error: '이미 승인 대기 중인 신청이 있습니다.' }, 409)
 
   const months = Math.max(0, Math.min(12, Math.round(Number(body.months) || 0)))
+  // 신청 시점에 실결제액 확정(관리자 설정 실효가 × 개월). 이후 요금이 바뀌어도 이 금액으로 매출 집계.
+  const cfg = await getPlanConfig(db).catch(() => null)
+  const monthly = (cfg ? planPriceEffective(cfg, track, to) : 0) || planPriceKrw(track, to)
+  const amount = Math.round(monthly * Math.max(1, months))
   const now = new Date().toISOString()
   await db
-    .prepare(`INSERT INTO plan_requests (id, user_id, track, from_plan, to_plan, status, memo, months, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)`)
-    .bind('pr_' + crypto.randomUUID().slice(0, 14), me.id, track, current, to, String(body.memo || ''), months, now)
+    .prepare(`INSERT INTO plan_requests (id, user_id, track, from_plan, to_plan, status, memo, months, amount, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`)
+    .bind('pr_' + crypto.randomUUID().slice(0, 14), me.id, track, current, to, String(body.memo || ''), months, amount, now)
     .run()
   const label = track === 'video' ? 'AI 영상' : '마케터'
   await logActivity(db, me.id, 'plan', `${label} 플랜 신청: ${current} → ${to}${months ? ` (${months}개월)` : ''}`)

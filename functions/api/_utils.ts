@@ -564,6 +564,7 @@ export async function ensureSchema(db: D1Database) {
   await addMissingColumns(db, 'plan_requests', {
     track: "track TEXT DEFAULT 'marketer'",
     months: 'months INTEGER DEFAULT 0', // 신청 이용 기간(개월, 0=무기한). 승인 시 plan_until 계산에 사용
+    amount: 'amount INTEGER DEFAULT 0', // 신청 시점에 확정된 실결제액(원). 매출 집계의 기준(할인·개월 반영)
   })
   await addMissingColumns(db, 'branches', {
     owner_id: 'owner_id TEXT', // 지사 대표 계정

@@ -27,7 +27,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const creditApproval = await rows(
     `SELECT c.price AS amount, c.amount AS credits, c.created_at, u.name, u.email FROM credit_requests c LEFT JOIN users u ON u.id=c.user_id WHERE c.status='approved' AND c.created_at > ?`, since)
   const planRows = await rows(
-    `SELECT p.track, p.to_plan, p.created_at, u.name, u.email FROM plan_requests p LEFT JOIN users u ON u.id=p.user_id WHERE p.status='approved' AND p.created_at > ?`, since)
+    `SELECT p.track, p.to_plan, p.months, p.amount, p.created_at, u.name, u.email FROM plan_requests p LEFT JOIN users u ON u.id=p.user_id WHERE p.status='approved' AND p.created_at > ?`, since)
+  // 플랜 실결제액: 신청 시점에 확정된 amount(할인·개월 반영) 우선, 없으면 월정가 × 개월(구버전 폴백)
+  const planAmount = (r: any): number => {
+    const a = Number(r.amount) || 0
+    if (a > 0) return a
+    const m = Math.max(1, Number(r.months) || 1)
+    return planPriceKrw(String(r.track || 'marketer'), String(r.to_plan || '')) * m
+  }
   const teamRows = await rows(
     `SELECT o.amount, o.seats, o.months, o.created_at, u.name, u.email FROM team_orders o LEFT JOIN users u ON u.id=o.user_id WHERE o.status='paid' AND o.created_at > ?`, since)
 
@@ -43,7 +50,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const sum = (arr: any[], f: (r: any) => number) => arr.reduce((s, r) => s + (f(r) || 0), 0)
   const creditCardKrw = sum(creditCard, (r) => Number(r.amount))
   const creditApprovalKrw = sum(creditApproval, (r) => Number(r.amount))
-  const planKrw = sum(planRows, (r) => planPriceKrw(String(r.track || 'marketer'), String(r.to_plan || '')))
+  const planKrw = sum(planRows, planAmount)
   const teamKrw = sum(teamRows, (r) => Number(r.amount))
 
   const creditSalesKrw = creditCardKrw + creditApprovalKrw
@@ -61,7 +68,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   }
   creditCard.forEach((r) => bump(r.created_at, Number(r.amount) || 0, 'credit'))
   creditApproval.forEach((r) => bump(r.created_at, Number(r.amount) || 0, 'credit'))
-  planRows.forEach((r) => bump(r.created_at, planPriceKrw(String(r.track || 'marketer'), String(r.to_plan || '')), 'plan'))
+  planRows.forEach((r) => bump(r.created_at, planAmount(r), 'plan'))
   teamRows.forEach((r) => bump(r.created_at, Number(r.amount) || 0, 'plan'))
   const byDay = Object.keys(dayMap).sort().reverse().map((d) => ({ d, ...dayMap[d] }))
 
@@ -69,7 +76,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const recent = [
     ...creditCard.map((r: any) => ({ type: '크레딧(카드)', name: r.name || '', email: r.email || '', amount: Number(r.amount) || 0, detail: `${r.credits}크레딧`, at: r.created_at })),
     ...creditApproval.map((r: any) => ({ type: '크레딧(승인)', name: r.name || '', email: r.email || '', amount: Number(r.amount) || 0, detail: `${r.credits}크레딧`, at: r.created_at })),
-    ...planRows.map((r: any) => ({ type: '플랜', name: r.name || '', email: r.email || '', amount: planPriceKrw(String(r.track || 'marketer'), String(r.to_plan || '')), detail: `${r.track === 'video' ? '영상' : '마케터'} ${r.to_plan}`, at: r.created_at })),
+    ...planRows.map((r: any) => ({ type: '플랜', name: r.name || '', email: r.email || '', amount: planAmount(r), detail: `${r.track === 'video' ? '영상' : '마케터'} ${r.to_plan}${(Number(r.months) || 1) > 1 ? ` ${r.months}개월` : ''}`, at: r.created_at })),
     ...teamRows.map((r: any) => ({ type: '팀 요금제', name: r.name || '', email: r.email || '', amount: Number(r.amount) || 0, detail: `${r.seats}좌석·${r.months}개월`, at: r.created_at })),
   ].sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 200)
 
