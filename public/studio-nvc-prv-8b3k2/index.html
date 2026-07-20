@@ -5547,9 +5547,22 @@ pfHandleTossReturn();
     }).catch(function(){ applyFilter(); });
   }
 
-  function open(){ fillModels(); renderOutput(); home.classList.add('on'); document.body.classList.add('chat-open'); setTimeout(function(){ var t=chEl('chText'); if(t)t.focus(); },50); }
-  function close(){ home.classList.remove('on'); document.body.classList.remove('chat-open'); }  // 'on' 제거 → CSS 트랜지션으로 오른쪽으로 슬라이드 아웃
+  // ── URL 분리: 홈(채팅) = #chat, 노드 스튜디오 = 기본 URL ──
+  //   /studio-nvc-prv-8b3k2/        → 노드 스튜디오
+  //   /studio-nvc-prv-8b3k2/#chat   → 홈(AI 채팅 생성)
+  function hashIsChat(){ return (location.hash||'').toLowerCase()==='#chat'; }
+  function applyOpen(){
+    if(home.classList.contains('on')) return;
+    fillModels(); renderOutput(); home.classList.add('on'); document.body.classList.add('chat-open');
+    setTimeout(function(){ var t=chEl('chText'); if(t)t.focus(); },50);
+  }
+  function applyClose(){ home.classList.remove('on'); document.body.classList.remove('chat-open'); }
+  function open(){ if(!hashIsChat()){ location.hash='chat'; } applyOpen(); }   // URL 을 #chat 으로
+  function close(){ if(hashIsChat()){ history.replaceState(null,'',location.pathname+location.search); } applyClose(); }  // URL 을 기본으로
   function toggleHome(){ if(home.classList.contains('on')) close(); else open(); }
+  // 뒤로가기/앞으로가기·직접 URL 접근 시 뷰 동기화
+  window.addEventListener('hashchange', function(){ if(hashIsChat()) applyOpen(); else applyClose(); });
+  if(hashIsChat()) setTimeout(applyOpen, 0);   // #chat 로 직접 들어온 경우 홈 자동 열기
 
   async function send(){
     var ta=chEl('chText'); var prompt=(ta.value||'').trim();
