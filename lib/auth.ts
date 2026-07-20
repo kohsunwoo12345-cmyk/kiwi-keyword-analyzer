@@ -1163,3 +1163,16 @@ export async function funnelAnalytics(days = 14): Promise<FunnelAnalytics> {
   try { const r = await fetch('/api/admin/funnel-analytics?days=' + days, { credentials: 'include', cache: 'no-store' }); return await r.json() }
   catch { return { ok: false, error: '네트워크 오류' } }
 }
+
+/* ───────── 관리자: 발신번호 직접 등록·관리 ───────── */
+export interface AdminSender { id: string; phone: string; label: string; status: string; ownerName: string; ownerEmail: string; createdAt: string; decidedAt: string | null }
+export async function adminSenders(): Promise<{ ok: boolean; senders: AdminSender[]; count?: { pending: number; approved: number; rejected: number }; envSender?: string | null }> {
+  try { const r = await fetch('/api/admin/senders', { credentials: 'include', cache: 'no-store' }); const d = await r.json(); return { ok: !!d.ok, senders: d.senders || [], count: d.count, envSender: d.envSender } }
+  catch { return { ok: false, senders: [] } }
+}
+export async function adminSenderAdd(phone: string, label?: string): Promise<{ ok: boolean; message?: string; error?: string }> {
+  return postJson('/api/admin/senders', { action: 'add', phone, label })
+}
+export async function adminSenderAction(action: 'approve' | 'reject' | 'delete', id: string): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/admin/senders', { action, id })
+}
