@@ -215,6 +215,13 @@ const M: Dict = {
   '문의하기': { en: 'Contact us', ja: 'お問い合わせ', zh: '联系我们' },
   '사업자 정보': { en: 'Business information', ja: '事業者情報', zh: '企业信息' },
 
+  // ===== HEADQUARTERS =====
+  '본사': { en: 'Headquarters', ja: '本社', zh: '总部' },
+  '우리가': { en: 'Where we', ja: '私たちが', zh: '我们' },
+  '일하는 공간': { en: 'get to work', ja: '働く場所', zh: '工作的地方' },
+  '서울 강남 본사': { en: 'Gangnam, Seoul — HQ', ja: 'ソウル・江南 本社', zh: '首尔江南 · 总部' },
+  '넥스트 바이전시 본사': { en: 'Next Bygency headquarters', ja: 'Next Bygency 本社', zh: 'Next Bygency 总部' },
+
   // ===== CTA =====
   '더 나은 도구를 찾는 일은 오늘로 끝내세요': {
     en: 'Make today the last day you go looking for a better tool',
@@ -449,6 +456,36 @@ export default function AboutPage() {
               </Reveal>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ===== HEADQUARTERS ===== */}
+      <section className="py-20">
+        <div className="mx-auto max-w-6xl px-5">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <SectionTag>{t('본사')}</SectionTag>
+            <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+              {t('우리가')} <span className="brand-text">{t('일하는 공간')}</span>
+            </h2>
+          </Reveal>
+          <Reveal variant="scale" delay={100} className="mt-12">
+            <div className="group relative overflow-hidden rounded-3xl border border-white/10 shadow-2xl shadow-blue-900/30">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/company/headquarters.webp"
+                alt={t('넥스트 바이전시 본사')}
+                loading="lazy"
+                className="w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-[1.03]"
+              />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent p-6 sm:p-8">
+                <div className="flex items-center gap-2 text-white/90">
+                  <MapPin size={16} />
+                  <span className="text-sm font-semibold">{t('서울 강남 본사')}</span>
+                </div>
+                <p className="mt-1 text-xl font-bold text-white sm:text-2xl">Next Bygency</p>
+              </div>
+            </div>
+          </Reveal>
         </div>
       </section>
 
