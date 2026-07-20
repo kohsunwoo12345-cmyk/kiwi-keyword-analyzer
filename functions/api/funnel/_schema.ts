@@ -70,4 +70,25 @@ export async function ensureFunnelSchema(db: D1Database) {
       updated_at TEXT
     )`),
   ])
+  // 신규 컬럼 보강: 알림톡 템플릿 코드(자동응답), CRM 캠페인 로그 테이블
+  try {
+    const info = await db.prepare(`PRAGMA table_info(funnel_auto_responses)`).all()
+    const cols = new Set((info.results || []).map((r: any) => r.name))
+    if (!cols.has('tpl_code')) await db.prepare(`ALTER TABLE funnel_auto_responses ADD COLUMN tpl_code TEXT`).run().catch(() => {})
+  } catch { /* ignore */ }
+  await db.prepare(`CREATE TABLE IF NOT EXISTS crm_campaigns (
+    id TEXT PRIMARY KEY,
+    admin_id TEXT,
+    segment TEXT,
+    plan TEXT,
+    channel TEXT,
+    content TEXT,
+    sender TEXT,
+    schedule_at TEXT,
+    total INTEGER DEFAULT 0,
+    sent INTEGER DEFAULT 0,
+    reserved INTEGER DEFAULT 0,
+    status TEXT,
+    created_at TEXT NOT NULL
+  )`).run().catch(() => {})
 }

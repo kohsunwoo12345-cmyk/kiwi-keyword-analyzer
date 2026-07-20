@@ -20,6 +20,36 @@ function onlyDigits(s: any): string {
   return String(s || '').replace(/[^0-9]/g, '')
 }
 
+// ───────── 한국시간(KST) 예약 발송 시각 계산 ─────────
+// Cloudflare 는 UTC 로 동작하므로 KST(UTC+9) 벽시계 값을 직접 만들어 알리고에 넘긴다.
+// 알리고 서버는 KST 기준이라 rdate/rtime(SMS)·senddate(알림톡)에 KST 값을 그대로 넣으면 그 시각에 발송된다.
+const _pad = (n: number) => String(n).padStart(2, '0')
+/** 지금부터 offsetMinutes 후의 KST 예약 시각 → SMS 용 {rdate:YYYYMMDD, rtime:HHMM} */
+export function kstReserve(offsetMinutes: number): { rdate: string; rtime: string } {
+  const t = new Date(Date.now() + offsetMinutes * 60_000 + 9 * 3600_000)
+  return { rdate: `${t.getUTCFullYear()}${_pad(t.getUTCMonth() + 1)}${_pad(t.getUTCDate())}`, rtime: `${_pad(t.getUTCHours())}${_pad(t.getUTCMinutes())}` }
+}
+/** 지금부터 offsetMinutes 후의 KST 예약 시각 → 알림톡용 senddate(YYYYMMDDHHMMSS) */
+export function kstSenddate(offsetMinutes: number): string {
+  const t = new Date(Date.now() + offsetMinutes * 60_000 + 9 * 3600_000)
+  return `${t.getUTCFullYear()}${_pad(t.getUTCMonth() + 1)}${_pad(t.getUTCDate())}${_pad(t.getUTCHours())}${_pad(t.getUTCMinutes())}${_pad(t.getUTCSeconds())}`
+}
+/** 관리자가 고른 KST 벽시계 문자열("YYYY-MM-DDTHH:MM") → 예약 값. 이미 KST 라 시차 계산 없이 분해만. */
+export function kstStringToReserve(s: string): { rdate: string; rtime: string; senddate: string } | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(s || ''))
+  if (!m) return null
+  return { rdate: m[1] + m[2] + m[3], rtime: m[4] + m[5], senddate: m[1] + m[2] + m[3] + m[4] + m[5] + '00' }
+}
+/** timing 키워드 → 분 오프셋 (즉시/N분/N시간/N일) */
+export function timingToMinutes(timing: string): number {
+  switch (String(timing || '').toLowerCase()) {
+    case '5min': return 5
+    case '1hour': return 60
+    case '1day': return 1440
+    case 'immediate': default: return 0
+  }
+}
+
 // 알리고 로그인 아이디(user_id). 환경변수명은 ALIGO_ID_KEY 우선, ALIGO_USER_ID 도 허용.
 function aligoUserId(env: any): string {
   return String(env?.ALIGO_ID_KEY || env?.ALIGO_USER_ID || '').trim()
@@ -88,8 +118,8 @@ export async function sendSms(
   env: any,
   to: string | string[],
   text: string,
-  opts: { from?: string; title?: string; msgType?: 'SMS' | 'LMS' | 'MMS' } = {},
-): Promise<{ sent: boolean; reason?: string; status?: number; successCnt?: number; errorCnt?: number }> {
+  opts: { from?: string; title?: string; msgType?: 'SMS' | 'LMS' | 'MMS'; rdate?: string; rtime?: string } = {},
+): Promise<{ sent: boolean; reason?: string; status?: number; successCnt?: number; errorCnt?: number; reserved?: boolean }> {
   const key = aligoApiKey(env)
   const userId = aligoUserId(env)
   const sender = onlyDigits(opts.from || env?.ALIGO_SENDER)
@@ -106,12 +136,15 @@ export async function sendSms(
     key, user_id: userId, sender, receiver, msg: text, msg_type: msgType,
   }
   if (msgType !== 'SMS' && opts.title) params.title = opts.title.slice(0, 44)
+  // 예약 발송(KST) — rdate(YYYYMMDD)+rtime(HHMM) 지정 시 그 시각에 발송
+  const reserved = !!(opts.rdate && opts.rtime)
+  if (reserved) { params.rdate = opts.rdate; params.rtime = opts.rtime }
 
   const r = await aligoCall(env, SMS_URL, params)
   if (r.error) return { sent: false, reason: r.error, status: r.status }
   const code = Number(r.data?.result_code)
   if (code > 0) {
-    return { sent: true, status: r.status, successCnt: Number(r.data?.success_cnt) || recipients.length, errorCnt: Number(r.data?.error_cnt) || 0 }
+    return { sent: true, reserved, status: r.status, successCnt: Number(r.data?.success_cnt) || recipients.length, errorCnt: Number(r.data?.error_cnt) || 0 }
   }
   return { sent: false, status: r.status, reason: r.data?.message || `알리고 응답코드 ${r.data?.result_code ?? r.status}` }
 }
@@ -139,6 +172,7 @@ export async function aligoAlimtalk(
     senderKey?: string
     from?: string
     failover?: boolean
+    senddate?: string   // KST 예약(YYYYMMDDHHMMSS)
   },
 ): Promise<{ ok: boolean; sent?: number; error?: string; data?: any }> {
   const key = aligoApiKey(env)
@@ -160,6 +194,7 @@ export async function aligoAlimtalk(
     apikey: key, userid: userId, token: tok.token, senderkey: senderKey,
     tpl_code: o.tplCode, sender,
   }
+  if (o.senddate) params.senddate = o.senddate   // KST 예약 발송
   items.forEach((it, idx) => {
     const n = idx + 1
     params[`receiver_${n}`] = onlyDigits(it.to)
