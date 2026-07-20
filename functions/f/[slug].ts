@@ -23,6 +23,9 @@ export const onRequestGet: PagesFunction<any> = async ({ params, env }) => {
     )
   }
 
+  // 조회수 증가 (분석용, best-effort)
+  await db.prepare('UPDATE funnel_landing_pages SET views = COALESCE(views,0) + 1 WHERE id = ?').bind(page.id).run().catch(() => {})
+
   let fields: any[] = []
   try { fields = JSON.parse(page.form_fields_json || '[]') } catch { fields = [] }
   const names: string[] = fields.length ? fields.map((f: any) => (typeof f === 'string' ? f : f.name)).filter(Boolean) : ['name', 'phone', 'email']

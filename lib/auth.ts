@@ -1146,3 +1146,20 @@ export async function crmSend(p: {
   try { const r = await fetch('/api/admin/crm-campaign', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify(p) }); return await r.json() }
   catch { return { ok: false, error: '네트워크 오류' } }
 }
+
+/* ───────── 퍼널 랜딩페이지 분석 ───────── */
+export interface FunnelAnalyticsPage { id: number; title: string; slug: string; url: string; groupName: string; views: number; applicants: number; conv: number; createdAt: string }
+export interface FunnelAnalytics {
+  ok: boolean
+  totals?: { pages: number; views: number; applicants: number; conv: number }
+  pages?: FunnelAnalyticsPage[]
+  byGroup?: { name: string; pages: number; views: number; applicants: number; conv: number }[]
+  daily?: { date: string; count: number }[]
+  recent?: { pageTitle: string; name: string; phone: string; email: string; createdAt: string }[]
+  days?: number
+  error?: string
+}
+export async function funnelAnalytics(days = 14): Promise<FunnelAnalytics> {
+  try { const r = await fetch('/api/admin/funnel-analytics?days=' + days, { credentials: 'include', cache: 'no-store' }); return await r.json() }
+  catch { return { ok: false, error: '네트워크 오류' } }
+}
