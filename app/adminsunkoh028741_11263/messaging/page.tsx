@@ -91,7 +91,7 @@ function KakaoSection() {
   const catName = (c: any) => c.name || c.category_name || c.categoryName || c.label || catCode(c)
 
   async function reqAuth() {
-    if (!plusid.trim() || phone.replace(/\D/g, '').length < 10) { setMsg('채널 검색용 아이디(@제외)와 관리자 휴대폰번호를 입력하세요.'); return }
+    if (!plusid.trim() || phone.replace(/\D/g, '').length < 10) { setMsg('채널 검색용 아이디와 관리자 휴대폰번호를 입력하세요.'); return }
     setBusy(true); setMsg('')
     const r = await kakaoChannelAuth(plusid.trim().replace(/^@/, ''), phone.replace(/\D/g, ''))
     setBusy(false)
@@ -99,15 +99,21 @@ function KakaoSection() {
   }
   async function complete() {
     if (!authnum.trim()) { setMsg('인증번호를 입력하세요.'); return }
+    if (!cat) { setMsg('카카오 채널 카테고리를 선택하세요. (발신프로필 등록 필수)'); return }
     setBusy(true); setMsg('')
-    const r = await kakaoChannelAdd({ plusid: plusid.trim().replace(/^@/, ''), phone: phone.replace(/\D/g, ''), authnum: authnum.trim(), categorycode: cat || undefined })
+    const r = await kakaoChannelAdd({ plusid: plusid.trim().replace(/^@/, ''), phone: phone.replace(/\D/g, ''), authnum: authnum.trim(), categorycode: cat })
     setBusy(false)
-    if (r.ok) { setMsg('✅ 채널 등록 완료! 이제 알림톡 템플릿을 만들 수 있어요.'); setStep(1); setPlusid(''); setPhone(''); setAuthnum(''); load() } else setMsg('❌ ' + (r.error || '채널 등록 실패'))
+    if (r.ok) { setMsg('✅ 채널 등록 완료! 이제 알림톡 템플릿을 만들 수 있어요.'); setStep(1); setPlusid(''); setPhone(''); setAuthnum(''); setCat(''); load() } else setMsg('❌ ' + (r.error || '채널 등록 실패'))
   }
 
   return (
     <Panel title={<span className="inline-flex items-center gap-2"><MessageCircle size={16} /> 카카오 알림톡 채널</span>} action={<button onClick={load} className="text-[var(--text-dim)] hover:text-[var(--text)]"><RefreshCw size={14} className={cn(loading && 'animate-spin')} /></button>}>
-      <p className="mb-3 text-xs text-[var(--text-dim)]">카카오 채널을 등록하면 <b>발신프로필(senderKey)</b>이 발급되어 알림톡을 보낼 수 있습니다. 채널 관리자 카카오톡으로 인증번호가 발송됩니다.</p>
+      <p className="mb-2 text-xs text-[var(--text-dim)]">카카오 채널을 등록하면 <b>발신프로필(senderKey)</b>이 발급되어 알림톡을 보낼 수 있습니다. 채널 관리자 카카오톡으로 인증번호가 발송됩니다.</p>
+      <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-700">
+        <b>등록 전 확인</b> — ① 카카오톡 채널 관리자센터에서 채널을 개설하고 <b>검색용 아이디</b>를 설정하세요.
+        ② 채널 관리자센터 → 채널 설정 → <b>관리자 알림</b>에 아래 <b>휴대폰번호를 관리자 알림 수신번호로 등록</b>해야 인증번호가 도착합니다.
+        (미등록 시 &quot;존재하지 않는 카카오톡 채널&quot; 오류)
+      </div>
 
       {channels.length > 0 && (
         <div className="mb-3 space-y-1.5">
@@ -130,7 +136,7 @@ function KakaoSection() {
         </div>
         {step === 1 ? (
           <div className="space-y-2">
-            <input value={plusid} onChange={(e) => setPlusid(e.target.value)} placeholder="채널 검색용 아이디 (@ 제외, 예: bygency)" className="input w-full" />
+            <input value={plusid} onChange={(e) => setPlusid(e.target.value)} placeholder="채널 검색용 아이디 (예: @bygency)" className="input w-full" />
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="채널 관리자 휴대폰번호" className="input w-full" />
             <button onClick={reqAuth} disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60">{busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} 인증번호 요청</button>
           </div>
@@ -138,9 +144,10 @@ function KakaoSection() {
           <div className="space-y-2">
             <input value={authnum} onChange={(e) => setAuthnum(e.target.value)} placeholder="카카오톡으로 받은 인증번호" className="input w-full" />
             <select value={cat} onChange={(e) => setCat(e.target.value)} className="input w-full">
-              <option value="">카테고리 선택(선택)</option>
+              <option value="">카테고리 선택 (필수)</option>
               {cats.map((c, i) => <option key={i} value={catCode(c)}>{catName(c)}</option>)}
             </select>
+            {cats.length === 0 && <p className="text-[11px] text-rose-500">카테고리를 불러오지 못했습니다. 알리고 환경변수(ALIGO_API_KEY/ALIGO_ID_KEY)를 확인하세요.</p>}
             <div className="flex gap-2">
               <button onClick={() => { setStep(1); setMsg('') }} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--text-soft)] hover:bg-white">← 이전</button>
               <button onClick={complete} disabled={busy} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60">{busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} 채널 등록 완료</button>

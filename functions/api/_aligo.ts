@@ -261,13 +261,20 @@ const CATEGORY_URL = 'https://kakaoapi.aligo.in/akv10/category/'
 const TEMPLATE_ADD_URL = 'https://kakaoapi.aligo.in/akv10/template/add/'
 const TEMPLATE_REQUEST_URL = 'https://kakaoapi.aligo.in/akv10/template/request/'
 
+// 알리고 규격: plusid 는 반드시 "@아이디" 형태(예: @테스트). @ 를 빼면
+// "존재하지 않는 카카오톡 채널입니다" 오류가 난다. 앞의 @ 를 하나로 정규화.
+function normalizePlusId(s: any): string {
+  const id = String(s || '').trim().replace(/^@+/, '')
+  return id ? '@' + id : ''
+}
+
 /** 1) 채널 인증번호 요청 — 카카오톡 관리자에게 인증번호 발송 */
 export async function aligoProfileAuth(env: any, o: { plusid: string; phonenumber: string }): Promise<{ ok: boolean; error?: string; data?: any }> {
   const key = aligoApiKey(env), userId = aligoUserId(env)
   if (!key || !userId) return { ok: false, error: '알리고 계정 미설정' }
-  const plusid = String(o.plusid || '').trim().replace(/^@/, '')
+  const plusid = normalizePlusId(o.plusid)          // @포함 필수
   const phonenumber = onlyDigits(o.phonenumber)
-  if (!plusid || phonenumber.length < 10) return { ok: false, error: '채널 검색용 아이디(@제외)와 관리자 휴대폰번호가 필요합니다.' }
+  if (!plusid || phonenumber.length < 10) return { ok: false, error: '채널 검색용 아이디와 관리자 휴대폰번호가 필요합니다.' }
   const tok = await createAlimtalkToken(env)
   if (!tok.ok) return { ok: false, error: tok.error }
   const r = await aligoCall(env, PROFILE_AUTH_URL, { apikey: key, userid: userId, token: tok.token, plusid, phonenumber })
@@ -280,14 +287,15 @@ export async function aligoProfileAuth(env: any, o: { plusid: string; phonenumbe
 export async function aligoProfileAdd(env: any, o: { plusid: string; phonenumber: string; authnum: string; categorycode?: string }): Promise<{ ok: boolean; senderKey?: string; error?: string; data?: any }> {
   const key = aligoApiKey(env), userId = aligoUserId(env)
   if (!key || !userId) return { ok: false, error: '알리고 계정 미설정' }
-  const plusid = String(o.plusid || '').trim().replace(/^@/, '')
+  const plusid = normalizePlusId(o.plusid)          // @포함 필수
   const phonenumber = onlyDigits(o.phonenumber)
   const authnum = String(o.authnum || '').trim()
+  const categorycode = String(o.categorycode || '').trim()
   if (!plusid || !phonenumber || !authnum) return { ok: false, error: '채널 아이디·휴대폰·인증번호가 모두 필요합니다.' }
+  if (!categorycode) return { ok: false, error: '카카오 채널 카테고리를 선택해 주세요. (알리고 발신프로필 등록 필수 항목)' }
   const tok = await createAlimtalkToken(env)
   if (!tok.ok) return { ok: false, error: tok.error }
-  const params: Record<string, any> = { apikey: key, userid: userId, token: tok.token, plusid, phonenumber, authnum }
-  if (o.categorycode) params.categorycode = o.categorycode
+  const params: Record<string, any> = { apikey: key, userid: userId, token: tok.token, plusid, phonenumber, authnum, categorycode }
   const r = await aligoCall(env, PROFILE_ADD_URL, params)
   if (r.error) return { ok: false, error: r.error }
   const sk = r.data?.senderKey || r.data?.senderkey || r.data?.data?.senderKey
@@ -295,16 +303,36 @@ export async function aligoProfileAdd(env: any, o: { plusid: string; phonenumber
   return { ok: false, error: r.data?.message || `채널 등록 실패 (${r.data?.code ?? r.status})`, data: r.data }
 }
 
-/** 카카오 채널 카테고리 목록 (등록 시 필요) */
-export async function aligoCategories(env: any): Promise<{ ok: boolean; categories?: any[]; error?: string }> {
+/** 카카오 채널 카테고리 목록 (등록 시 필요) — 알리고는 대>중>소 3단계 계층으로 내려주므로
+ *  최종 리프(코드가 있는 말단) 만 골라 "대 > 중 > 소" 이름과 코드로 평탄화한다. */
+export async function aligoCategories(env: any): Promise<{ ok: boolean; categories?: { code: string; name: string }[]; error?: string }> {
   const key = aligoApiKey(env), userId = aligoUserId(env)
   if (!key || !userId) return { ok: false, error: '알리고 계정 미설정' }
   const tok = await createAlimtalkToken(env)
   if (!tok.ok) return { ok: false, error: tok.error }
   const r = await aligoCall(env, CATEGORY_URL, { apikey: key, userid: userId, token: tok.token })
   if (r.error) return { ok: false, error: r.error }
-  if (Number(r.data?.code) === 0) return { ok: true, categories: r.data?.data || r.data?.list || [] }
-  return { ok: false, error: r.data?.message || `카테고리 조회 실패 (${r.data?.code ?? r.status})` }
+  if (Number(r.data?.code) !== 0) return { ok: false, error: r.data?.message || `카테고리 조회 실패 (${r.data?.code ?? r.status})` }
+
+  const codeOf = (n: any) => String(n?.code ?? n?.categorycode ?? n?.value ?? n?.id ?? '').trim()
+  const nameOf = (n: any) => String(n?.name ?? n?.category_name ?? n?.categoryName ?? n?.label ?? n?.title ?? codeOf(n)).trim()
+  const kidsOf = (n: any) => (Array.isArray(n?.sub) ? n.sub : Array.isArray(n?.children) ? n.children : Array.isArray(n?.list) ? n.list : Array.isArray(n?.categories) ? n.categories : Array.isArray(n?.items) ? n.items : [])
+  const out: { code: string; name: string }[] = []
+  const seen = new Set<string>()
+  const walk = (node: any, path: string[]) => {
+    const nm = nameOf(node)
+    const kids = kidsOf(node)
+    const nextPath = nm ? [...path, nm] : path
+    if (kids.length) { for (const k of kids) walk(k, nextPath); return }
+    // 리프: 코드가 있으면 채택
+    const code = codeOf(node)
+    if (code && !seen.has(code)) { seen.add(code); out.push({ code, name: nextPath.join(' > ') || code }) }
+  }
+  // 응답 루트 후보: data(객체/배열) 또는 list
+  const root = r.data?.data ?? r.data?.list ?? []
+  const roots = Array.isArray(root) ? root : kidsOf(root).length ? kidsOf(root) : Object.values(root || {}).flat()
+  for (const node of roots as any[]) walk(node, [])
+  return { ok: true, categories: out }
 }
 
 /** 3) 템플릿 등록 — 알리고에 템플릿 추가 → tpl_code 발급 */

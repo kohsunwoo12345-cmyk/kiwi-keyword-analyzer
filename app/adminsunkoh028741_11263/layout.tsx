@@ -34,6 +34,7 @@ import {
   Menu,
   X,
   ArrowLeft,
+  Clapperboard,
 } from 'lucide-react'
 import { Logo } from '@/components/Brand'
 import { adminSupportCount, adminPendingCounts } from '@/lib/auth'
@@ -42,33 +43,56 @@ import { cn } from '@/lib/utils'
 // 보안을 위한 난독화된 관리자 경로 (추측 불가)
 export const ADMIN_BASE = '/adminsunkoh028741_11263'
 
-const NAV = [
-  { title: '관리자 대시보드', href: ADMIN_BASE, icon: LayoutDashboard },
-  { title: '회원 관리', href: `${ADMIN_BASE}/users`, icon: Users },
-  { title: '알림', href: `${ADMIN_BASE}/notices`, icon: Bell },
-  { title: '실시간 모니터링', href: `${ADMIN_BASE}/users`, icon: Activity, exactHref: `${ADMIN_BASE}/users#live` },
-  { title: '보안', href: `${ADMIN_BASE}/security`, icon: ShieldAlert },
-  { title: '해킹 위험', href: `${ADMIN_BASE}/security-risk`, icon: Shield },
-  { title: '승인 관리', href: `${ADMIN_BASE}/approvals`, icon: BadgeCheck, badge: 'approvals' as const },
-  { title: '로그 기록', href: `${ADMIN_BASE}/logs`, icon: ScrollText },
-  { title: '접속 통계', href: `${ADMIN_BASE}/stats`, icon: BarChart3 },
-  { title: '고객센터', href: `${ADMIN_BASE}/support`, icon: MessageCircle, badge: 'support' as const },
-  { title: '회원가입정보', href: `${ADMIN_BASE}/referrals`, icon: IdCard },
-  { title: '회원 DB 다운로드', href: `${ADMIN_BASE}/db-download`, icon: Download },
-  { title: '사용자 활동 기록', href: `${ADMIN_BASE}/user-activity`, icon: History },
-  { title: '매출', href: `${ADMIN_BASE}/revenue`, icon: Banknote },
-  { title: '지사 정산', href: `${ADMIN_BASE}/settlement`, icon: Landmark },
+type NavItem = { title: string; href: string; icon: typeof LayoutDashboard; exactHref?: string; badge?: 'approvals' | 'support' }
+type NavGroup = { label: string; items: NavItem[] }
+
+// 영상 관련 관리 페이지 — 영상 대시보드(/video)에 카드로도 모아 보여준다.
+export const VIDEO_NAV: NavItem[] = [
   { title: '노드 관리', href: `${ADMIN_BASE}/studio-nodes`, icon: Boxes },
-  { title: '퍼널 빌더', href: `${ADMIN_BASE}/funnel-builder`, icon: Filter },
-  { title: '마케팅 자동화', href: `${ADMIN_BASE}/automation`, icon: Zap },
-  { title: '퍼널 분석', href: `${ADMIN_BASE}/funnel-analytics`, icon: LineChart },
-  { title: '발송 설정', href: `${ADMIN_BASE}/messaging`, icon: Send },
   { title: 'AI 생성 기록', href: `${ADMIN_BASE}/ai-generations`, icon: Images },
   { title: 'AI 정산', href: `${ADMIN_BASE}/ai-usage`, icon: Wallet },
   { title: 'AI 비용 (원가율)', href: `${ADMIN_BASE}/ai-pricing`, icon: Gauge },
   { title: 'AI API 남은 한도', href: `${ADMIN_BASE}/api-quota`, icon: Fuel },
-  { title: '요금제 관리', href: `${ADMIN_BASE}/plans`, icon: Tag },
-  { title: '설정', href: '#', icon: Settings },
+]
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: '관리',
+    items: [
+      { title: '관리자 대시보드', href: ADMIN_BASE, icon: LayoutDashboard },
+      { title: '회원 관리', href: `${ADMIN_BASE}/users`, icon: Users },
+      { title: '알림', href: `${ADMIN_BASE}/notices`, icon: Bell },
+      { title: '실시간 모니터링', href: `${ADMIN_BASE}/users`, icon: Activity, exactHref: `${ADMIN_BASE}/users#live` },
+      { title: '보안', href: `${ADMIN_BASE}/security`, icon: ShieldAlert },
+      { title: '해킹 위험', href: `${ADMIN_BASE}/security-risk`, icon: Shield },
+      { title: '승인 관리', href: `${ADMIN_BASE}/approvals`, icon: BadgeCheck, badge: 'approvals' },
+      { title: '로그 기록', href: `${ADMIN_BASE}/logs`, icon: ScrollText },
+      { title: '접속 통계', href: `${ADMIN_BASE}/stats`, icon: BarChart3 },
+      { title: '고객센터', href: `${ADMIN_BASE}/support`, icon: MessageCircle, badge: 'support' },
+      { title: '회원가입정보', href: `${ADMIN_BASE}/referrals`, icon: IdCard },
+      { title: '회원 DB 다운로드', href: `${ADMIN_BASE}/db-download`, icon: Download },
+      { title: '사용자 활동 기록', href: `${ADMIN_BASE}/user-activity`, icon: History },
+      { title: '매출', href: `${ADMIN_BASE}/revenue`, icon: Banknote },
+      { title: '지사 정산', href: `${ADMIN_BASE}/settlement`, icon: Landmark },
+      { title: '요금제 관리', href: `${ADMIN_BASE}/plans`, icon: Tag },
+    ],
+  },
+  {
+    label: '마케팅',
+    items: [
+      { title: '퍼널 빌더', href: `${ADMIN_BASE}/funnel-builder`, icon: Filter },
+      { title: '마케팅 자동화', href: `${ADMIN_BASE}/automation`, icon: Zap },
+      { title: '퍼널 분석', href: `${ADMIN_BASE}/funnel-analytics`, icon: LineChart },
+      { title: '발송 설정', href: `${ADMIN_BASE}/messaging`, icon: Send },
+    ],
+  },
+  {
+    label: '영상 관리',
+    items: [
+      { title: '영상 대시보드', href: `${ADMIN_BASE}/video`, icon: Clapperboard },
+      ...VIDEO_NAV,
+    ],
+  },
 ]
 
 function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
@@ -85,49 +109,55 @@ function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
     const iv = setInterval(load, 20000)
     return () => { alive = false; clearInterval(iv) }
   }, [])
+  const renderItem = (it: NavItem) => {
+    const Icon = it.icon
+    const bt = it.badge
+    const badgeCount = bt === 'support' ? supportUnread : bt === 'approvals' ? pendingApprovals : 0
+    const active =
+      it.href !== '#' &&
+      (pathname === it.href || (it.href !== ADMIN_BASE && pathname.startsWith(it.href)))
+    return (
+      <Link
+        key={it.title + it.href}
+        href={it.exactHref || it.href}
+        onClick={onNavigate}
+        className={cn(
+          'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
+          active
+            ? 'bg-gradient-to-r from-violet-50 to-transparent text-violet-700'
+            : 'text-[var(--text-soft)] hover:bg-slate-100 hover:text-[var(--text)]',
+        )}
+      >
+        <span
+          className={cn(
+            'grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg transition-colors',
+            active
+              ? 'bg-gradient-to-br from-violet-600 to-indigo-600 text-white'
+              : 'bg-slate-100 text-[var(--text-dim)] group-hover:text-violet-600',
+          )}
+        >
+          <Icon size={15} />
+        </span>
+        <span className="flex-1 truncate">{it.title}</span>
+        {badgeCount > 0 && (
+          <span className="grid h-5 min-w-5 flex-shrink-0 place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">
+            {badgeCount > 99 ? '99+' : badgeCount}
+          </span>
+        )}
+      </Link>
+    )
+  }
   return (
-    <nav className="space-y-1">
-      <p className="px-3 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-widest text-[var(--text-dim)]">
-        관리 메뉴
-      </p>
-      {NAV.map((it) => {
-        const Icon = it.icon
-        const bt = (it as any).badge
-        const badgeCount = bt === 'support' ? supportUnread : bt === 'approvals' ? pendingApprovals : 0
-        const active =
-          it.href !== '#' &&
-          (pathname === it.href || (it.href !== ADMIN_BASE && pathname.startsWith(it.href)))
-        return (
-          <Link
-            key={it.title}
-            href={it.exactHref || it.href}
-            onClick={onNavigate}
-            className={cn(
-              'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
-              active
-                ? 'bg-gradient-to-r from-violet-50 to-transparent text-violet-700'
-                : 'text-[var(--text-soft)] hover:bg-slate-100 hover:text-[var(--text)]',
-            )}
-          >
-            <span
-              className={cn(
-                'grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg transition-colors',
-                active
-                  ? 'bg-gradient-to-br from-violet-600 to-indigo-600 text-white'
-                  : 'bg-slate-100 text-[var(--text-dim)] group-hover:text-violet-600',
-              )}
-            >
-              <Icon size={15} />
-            </span>
-            <span className="flex-1 truncate">{it.title}</span>
-            {badgeCount > 0 && (
-              <span className="grid h-5 min-w-5 flex-shrink-0 place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">
-                {badgeCount > 99 ? '99+' : badgeCount}
-              </span>
-            )}
-          </Link>
-        )
-      })}
+    <nav className="space-y-4">
+      {NAV_GROUPS.map((group) => (
+        <div key={group.label} className="space-y-1">
+          <p className="px-3 pb-1 pt-1 text-[11px] font-bold uppercase tracking-widest text-[var(--text-dim)]">
+            {group.label}
+          </p>
+          {group.items.map(renderItem)}
+        </div>
+      ))}
+      {renderItem({ title: '설정', href: '#', icon: Settings })}
     </nav>
   )
 }
