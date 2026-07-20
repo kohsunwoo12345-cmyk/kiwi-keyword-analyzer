@@ -38,6 +38,17 @@ const M: Dict = {
   '잠자던 DB를 매출로 깨우다': { en: 'Wake dormant data into revenue', ja: '眠っていたDBを売上へ目覚めさせる', zh: '唤醒沉睡的数据带来销售' },
   '광고비 한 푼도 새지 않게': { en: 'So not a cent of ad spend leaks', ja: '広告費を1円も無駄にしない', zh: '让每一分广告费都不浪费' },
   '텍스트 한 줄이 영상이 되는 순간': { en: 'The moment one line of text becomes video', ja: '一行のテキストが動画になる瞬間', zh: '一行文字变成视频的瞬间' },
+  '실제 노드 워크스페이스': { en: 'The real node workspace', ja: '実際のノードワークスペース', zh: '真实节点工作区' },
+  '노드로 그리는 AI 영상 파이프라인': { en: 'An AI video pipeline you draw with nodes', ja: 'ノードで描くAI動画パイプライン', zh: '用节点绘制的 AI 视频流水线' },
+  '프롬프트 → 모델 → ControlNet → 출력. 흩어진 도구 대신 한 화면에서 연결하고, 각 단계를 실시간으로 확인합니다.': {
+    en: 'Prompt → Model → ControlNet → Output. Connect it all on one canvas instead of scattered tools, and preview every stage in real time.',
+    ja: 'プロンプト → モデル → ControlNet → 出力。バラバラのツールの代わりに一画面で繋ぎ、各工程をリアルタイムで確認します。',
+    zh: '提示词 → 模型 → ControlNet → 输出。在同一画布上连接一切，实时预览每个环节。',
+  },
+  '텍스트→영상 · 이미지→영상 · V2V': { en: 'Text→Video · Image→Video · V2V', ja: 'テキスト→動画・画像→動画・V2V', zh: '文本→视频 · 图像→视频 · V2V' },
+  'ControlNet 정밀 제어 (Canny·Depth·Pose)': { en: 'ControlNet precision (Canny · Depth · Pose)', ja: 'ControlNet精密制御 (Canny・Depth・Pose)', zh: 'ControlNet 精准控制 (Canny·Depth·Pose)' },
+  'Veo·Kling·Runway·Seedance 등 최상위 모델': { en: 'Top models — Veo, Kling, Runway, Seedance & more', ja: 'Veo・Kling・Runway・Seedanceなど最上位モデル', zh: 'Veo·Kling·Runway·Seedance 等顶级模型' },
+  '노드마다 실시간 미리보기': { en: 'Live preview on every node', ja: 'ノードごとにリアルタイムプレビュー', zh: '每个节点实时预览' },
   '모션 하나하나까지 제어하는 노드형 AI 영상': { en: 'Node-based AI video, controlled motion by motion', ja: 'モーションの一つひとつまで制御するノード型AI動画', zh: '连每个动作都可控的节点式 AI 视频' },
   '지원 AI 모델': { en: 'Supported AI models', ja: '対応AIモデル', zh: '支持的 AI 模型' },
   'ControlNet 제어': { en: 'ControlNet controls', ja: 'ControlNet制御', zh: 'ControlNet 控制' },
@@ -488,6 +499,9 @@ export function FeatureDetail({ slug }: { slug: string }) {
         </div>
       </section>
 
+      {/* ===== NODE WORKFLOW SHOWCASE (video only) ===== */}
+      {slug === 'video' && <VideoWorkflowShowcase feature={feature} />}
+
       {/* ===== CAPABILITIES ===== */}
       <section className="relative py-20">
         <div className="mx-auto max-w-6xl px-5">
@@ -647,6 +661,49 @@ function FeatureDemo({ slug, feature }: { slug: string; feature: Feature }) {
     default:
       return <p className="text-sm text-[var(--text-soft)]">{t('준비 중인 데모입니다.')}</p>
   }
+}
+
+/* ── 노드 워크플로우 실물 쇼케이스 (video) ── */
+function VideoWorkflowShowcase({ feature }: { feature: Feature }) {
+  const t = useT(M)
+  const callouts = ['텍스트→영상 · 이미지→영상 · V2V', 'ControlNet 정밀 제어 (Canny·Depth·Pose)', 'Veo·Kling·Runway·Seedance 등 최상위 모델', '노드마다 실시간 미리보기']
+  return (
+    <section className="relative overflow-hidden py-20">
+      <div className="pointer-events-none absolute left-1/2 top-10 h-[420px] w-[900px] -translate-x-1/2 rounded-full blur-[140px]" style={{ background: `${feature.accent}22` }} />
+      <div className="relative mx-auto max-w-6xl px-5">
+        <Reveal className="mx-auto max-w-2xl text-center">
+          <SectionTag>{t('실제 노드 워크스페이스')}</SectionTag>
+          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('노드로 그리는 AI 영상 파이프라인')}</h2>
+          <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">{t('프롬프트 → 모델 → ControlNet → 출력. 흩어진 도구 대신 한 화면에서 연결하고, 각 단계를 실시간으로 확인합니다.')}</p>
+        </Reveal>
+
+        <Reveal variant="scale" className="mt-12">
+          <div className="group relative">
+            <div className="absolute -inset-[1.5px] rounded-3xl opacity-70 blur-[2px] transition-opacity duration-500 group-hover:opacity-100" style={{ background: `linear-gradient(120deg, ${feature.accent}, #0ea5e9, transparent)` }} />
+            <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#0b0d16] shadow-[0_50px_120px_-30px_rgba(0,0,0,0.85)]">
+              <div className="flex items-center gap-2 border-b border-white/[0.08] bg-white/[0.02] px-4 py-2.5">
+                <span className="h-3 w-3 rounded-full bg-[#ff5f57]" /><span className="h-3 w-3 rounded-full bg-[#febc2e]" /><span className="h-3 w-3 rounded-full bg-[#28c840]" />
+                <span className="ml-3 truncate rounded-md bg-white/[0.05] px-3 py-1 text-[11px] font-medium text-[var(--text-dim)]">bygency.co / studio — node workspace</span>
+              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/features/node-workflow.png" alt={t('노드로 그리는 AI 영상 파이프라인')} loading="lazy" className="w-full transition-transform duration-[1400ms] ease-out group-hover:scale-[1.015]" />
+            </div>
+          </div>
+        </Reveal>
+
+        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {callouts.map((c, i) => (
+            <Reveal key={c} delay={i * 80}>
+              <div className="card-2 flex h-full items-center gap-2.5 px-4 py-3.5">
+                <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ background: feature.accent, boxShadow: `0 0 12px ${feature.accent}` }} />
+                <span className="text-[13px] font-medium leading-snug text-[var(--text-soft)]">{t(c)}</span>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
 }
 
 /* small helpers */
