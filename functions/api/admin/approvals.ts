@@ -124,8 +124,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const label = track === 'video' ? 'AI 영상 제작' : '마케터'
     if (decision === 'approve') {
       const col = track === 'video' ? 'video_plan' : 'plan'
-      await db.prepare(`UPDATE users SET ${col} = ? WHERE id = ?`).bind(req.to_plan, req.user_id).run()
-      await logActivity(db, req.user_id, 'plan', `${label} 플랜 승인: ${req.from_plan} → ${req.to_plan}`)
+      const untilCol = track === 'video' ? 'video_plan_until' : 'plan_until'
+      // 신청 시 선택한 개월수(0=무기한) → 만료일
+      const months = Math.max(0, Math.min(12, Math.round(Number(req.months) || 0)))
+      let until: string | null = null
+      if (months > 0) { const d = new Date(); d.setMonth(d.getMonth() + months); until = d.toISOString() }
+      await db.prepare(`UPDATE users SET ${col} = ?, ${untilCol} = ? WHERE id = ?`).bind(req.to_plan, until, req.user_id).run()
+      await logActivity(db, req.user_id, 'plan', `${label} 플랜 승인: ${req.from_plan} → ${req.to_plan}${months ? ` (${months}개월)` : ''}`)
       await addNotification(db, req.user_id, `${label} 플랜이 승인되었습니다`, `${label} ${req.to_plan} 플랜으로 업그레이드되었습니다. 감사합니다!`)
       // 요금제 설정의 지급 크레딧 적립
       try {

@@ -179,6 +179,8 @@ export async function adminAction(
   extra?: {
     plan?: string
     track?: 'marketer' | 'video'
+    months?: number          // 플랜 적용 기간(개월, 0=무기한)
+    expireMonths?: number     // 크레딧·포인트 사용기한(개월, 0=무기한)
     password?: string
     amount?: number
     memo?: string
@@ -186,9 +188,15 @@ export async function adminAction(
     body?: string
     sms?: boolean
     phone?: string
+    channel?: 'none' | 'sms' | 'alimtalk'   // 알림 발송 채널
+    sender?: string           // 발신번호
+    tplCode?: string          // 알림톡 템플릿 코드
+    imageUrl?: string
+    ctaLabel?: string
+    ctaUrl?: string
     markup?: number
   },
-): Promise<{ ok: boolean; error?: string; sms?: { sent: boolean; reason?: string } }> {
+): Promise<{ ok: boolean; error?: string; popup?: boolean; sms?: { sent: boolean; reason?: string }; alimtalk?: { ok: boolean; error?: string } }> {
   return postJson('/api/admin/users', { action, id, ...extra })
 }
 
@@ -946,8 +954,8 @@ export async function adminApprovalAction(
 
 /* ───────── 신청 (사용자 본인) ───────── */
 export type PlanTrack = 'marketer' | 'video'
-export async function requestPlan(track: PlanTrack, to_plan: string, memo?: string): Promise<{ ok: boolean; error?: string }> {
-  return postJson('/api/account/plan-request', { track, to_plan, memo })
+export async function requestPlan(track: PlanTrack, to_plan: string, memo?: string, months?: number): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/account/plan-request', { track, to_plan, memo, months })
 }
 /** 구독 취소 — 해당 트랙 플랜을 '없음'으로 즉시 해지 */
 export async function cancelPlan(track: PlanTrack): Promise<{ ok: boolean; error?: string }> {

@@ -40,6 +40,7 @@ import {
   adminUsers,
   adminAction,
   adminUserDetail,
+  adminSenders,
   notifyBroadcast,
   type User,
   type Tx,
@@ -149,6 +150,9 @@ export default function AdminUsersPage() {
   }
   useEffect(() => {
     reload()
+    adminSenders().then((r) => {
+      if (r.ok) setSenders(r.senders.filter((s) => s.status === 'approved').map((s) => ({ id: s.id, phone: s.phone, label: s.label })))
+    })
   }, [])
 
   // ---- 드로어 상세 (실데이터) ----
@@ -164,10 +168,15 @@ export default function AdminUsersPage() {
   const [planSel, setPlanSel] = useState<User['plan']>('없음')
   const [videoPlanSel, setVideoPlanSel] = useState<User['plan']>('없음')
   const [newPw, setNewPw] = useState('')
+  const [planMonths, setPlanMonths] = useState(0) // 플랜 적용 기간(개월, 0=무기한)
+  const [expireMonths, setExpireMonths] = useState(0) // 크레딧·포인트 사용기한(개월, 0=무기한)
   const [notifyTitle, setNotifyTitle] = useState('')
   const [notifyBody, setNotifyBody] = useState('')
-  const [notifySms, setNotifySms] = useState(false)
   const [notifyPhone, setNotifyPhone] = useState('')
+  const [notifyChannel, setNotifyChannel] = useState<'none' | 'sms' | 'alimtalk'>('none')
+  const [notifySender, setNotifySender] = useState('')
+  const [notifyTpl, setNotifyTpl] = useState('')
+  const [senders, setSenders] = useState<{ id: string; phone: string; label: string }[]>([])
 
   // 알림 발송 (일괄) 폼 상태
   type BcTarget = 'user' | 'plan' | 'multi' | 'all'
@@ -224,7 +233,11 @@ export default function AdminUsersPage() {
     setNewPw('')
     setNotifyTitle('')
     setNotifyBody('')
-    setNotifySms(false)
+    setNotifyChannel('none')
+    setNotifySender('')
+    setNotifyTpl('')
+    setPlanMonths(0)
+    setExpireMonths(0)
     setPlanSel(cur?.plan ?? '없음')
     setVideoPlanSel(cur?.videoPlan ?? '없음')
     setNotifyPhone(cur?.phone ?? '')
@@ -259,8 +272,8 @@ export default function AdminUsersPage() {
     }
     const unit = kind === 'points' ? '포인트' : '크레딧'
     runAction(
-      () => adminAction(kind, drawerId, { amount: amt, memo: memo.trim() || undefined }),
-      `${fmtNum(Math.abs(amt))}${kind === 'points' ? 'P' : '개'} ${unit} ${amt > 0 ? '지급' : '차감'} 완료`,
+      () => adminAction(kind, drawerId, { amount: amt, memo: memo.trim() || undefined, expireMonths: expireMonths || undefined }),
+      `${fmtNum(Math.abs(amt))}${kind === 'points' ? 'P' : '개'} ${unit} ${amt > 0 ? '지급' : '차감'} 완료${expireMonths ? ` · 사용기한 ${expireMonths}개월` : ''}`,
       () => {
         setAmount('')
         setMemo('')
@@ -272,8 +285,8 @@ export default function AdminUsersPage() {
     const sel = track === 'marketer' ? planSel : videoPlanSel
     const trackLabel = track === 'marketer' ? '마케터' : 'AI 영상'
     runAction(
-      () => adminAction('plan', drawerId, { plan: sel, track }),
-      `${trackLabel} 플랜이 ${planLabel(sel)}(으)로 변경되었습니다`,
+      () => adminAction('plan', drawerId, { plan: sel, track, months: planMonths || undefined }),
+      `${trackLabel} 플랜이 ${planLabel(sel)}(으)로 변경되었습니다${sel !== '없음' && planMonths ? ` · ${planMonths}개월` : ''}`,
     )
   }
   function submitPassword() {
@@ -292,26 +305,37 @@ export default function AdminUsersPage() {
       showToast('발송할 내용을 입력하세요.', 'err')
       return
     }
-    if (notifySms && !notifyPhone.trim()) {
-      showToast('문자 발송할 전화번호를 입력하세요.', 'err')
+    if (notifyChannel !== 'none' && !notifyPhone.trim()) {
+      showToast('문자·알림톡 발송할 전화번호를 입력하세요.', 'err')
+      return
+    }
+    if (notifyChannel === 'alimtalk' && !notifyTpl.trim()) {
+      showToast('알림톡 승인 템플릿 코드를 입력하세요.', 'err')
       return
     }
     setBusy(true)
     adminAction('notify', drawerId, {
       title: notifyTitle.trim() || undefined,
       body: notifyBody.trim(),
-      sms: notifySms,
+      channel: notifyChannel,
+      sms: notifyChannel === 'sms',
       phone: notifyPhone.trim() || undefined,
+      sender: notifySender.trim() || undefined,
+      tplCode: notifyChannel === 'alimtalk' ? notifyTpl.trim() || undefined : undefined,
     }).then((r) => {
       setBusy(false)
       if (r.ok) {
-        let msg = '대시보드 알림이 저장되었습니다.'
-        if (notifySms) {
+        let msg = '팝업 알림이 발송되었습니다.'
+        if (notifyChannel === 'sms') {
           msg += r.sms?.sent ? ' 문자 발송됨.' : ` 문자 미발송${r.sms?.reason ? ': ' + r.sms.reason : ''}.`
+        } else if (notifyChannel === 'alimtalk') {
+          msg += r.alimtalk?.ok ? ' 알림톡 발송됨.' : ` 알림톡 미발송${r.alimtalk?.error ? ': ' + r.alimtalk.error : ''}.`
         }
         showToast(msg, 'ok')
         setNotifyTitle('')
         setNotifyBody('')
+        setNotifyChannel('none')
+        setNotifyTpl('')
         reloadDetail()
         reload()
       } else {
@@ -963,6 +987,19 @@ export default function AdminUsersPage() {
                           placeholder="메모 (선택)"
                           className={INPUT_CLS}
                         />
+                        <label className="flex items-center justify-between gap-2 text-xs text-[var(--text-soft)]">
+                          <span className="flex items-center gap-1.5"><Clock size={13} /> 사용기한</span>
+                          <select
+                            value={expireMonths}
+                            onChange={(e) => setExpireMonths(Number(e.target.value))}
+                            className="rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1.5 text-xs outline-none focus:border-violet-500"
+                          >
+                            <option value={0}>무기한</option>
+                            {[1, 2, 3, 6, 12, 24].map((m) => (
+                              <option key={m} value={m}>{m}개월</option>
+                            ))}
+                          </select>
+                        </label>
                         <div className="flex gap-2">
                           <Button variant="soft" size="sm" className="flex-1" disabled={busy} onClick={() => submitTx('points')}>
                             <Coins size={15} /> 포인트 지급
@@ -978,6 +1015,19 @@ export default function AdminUsersPage() {
                     <div>
                       <SectionLabel icon={Server}>플랜 변경</SectionLabel>
                       <div className="space-y-2.5">
+                        <label className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2 text-xs text-[var(--text-soft)]">
+                          <span className="flex items-center gap-1.5"><Clock size={13} /> 적용 기간</span>
+                          <select
+                            value={planMonths}
+                            onChange={(e) => setPlanMonths(Number(e.target.value))}
+                            className="rounded-lg border border-[var(--border)] bg-white px-2 py-1.5 text-xs outline-none focus:border-violet-500"
+                          >
+                            <option value={0}>무기한</option>
+                            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                              <option key={m} value={m}>{m}개월</option>
+                            ))}
+                          </select>
+                        </label>
                         <div>
                           <p className="mb-1 text-[11px] font-semibold text-[var(--text-soft)]">마케터 플랜</p>
                           <div className="flex gap-2">
@@ -1062,25 +1112,67 @@ export default function AdminUsersPage() {
                           rows={3}
                           className={cn(INPUT_CLS, 'resize-none')}
                         />
-                        <label className="flex items-center gap-2 text-sm text-[var(--text-soft)]">
-                          <input
-                            type="checkbox"
-                            checked={notifySms}
-                            onChange={(e) => setNotifySms(e.target.checked)}
-                            className="h-4 w-4 rounded border-[var(--border)] accent-violet-600"
-                          />
-                          문자도 발송 (알리고)
-                        </label>
-                        {notifySms && (
-                          <input
-                            value={notifyPhone}
-                            onChange={(e) => setNotifyPhone(e.target.value)}
-                            placeholder="수신 전화번호"
-                            className={INPUT_CLS}
-                          />
+                        {/* 발송 채널 */}
+                        <div>
+                          <p className="mb-1.5 text-[11px] font-semibold text-[var(--text-soft)]">발송 채널</p>
+                          <div className="flex gap-1.5">
+                            {([
+                              { key: 'none', label: '팝업만' },
+                              { key: 'sms', label: '+ 문자' },
+                              { key: 'alimtalk', label: '+ 알림톡' },
+                            ] as { key: 'none' | 'sms' | 'alimtalk'; label: string }[]).map((c) => (
+                              <button
+                                key={c.key}
+                                onClick={() => setNotifyChannel(c.key)}
+                                className={cn(
+                                  'flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors',
+                                  notifyChannel === c.key
+                                    ? 'border-violet-300 bg-violet-50 text-violet-700'
+                                    : 'border-[var(--border)] bg-white text-[var(--text-soft)] hover:bg-slate-50',
+                                )}
+                              >
+                                {c.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {notifyChannel !== 'none' && (
+                          <>
+                            <input
+                              value={notifyPhone}
+                              onChange={(e) => setNotifyPhone(e.target.value)}
+                              placeholder="수신 전화번호"
+                              className={INPUT_CLS}
+                            />
+                            <select
+                              value={notifySender}
+                              onChange={(e) => setNotifySender(e.target.value)}
+                              className={INPUT_CLS}
+                            >
+                              <option value="">발신번호 (기본 발신번호 사용)</option>
+                              {senders.map((s) => (
+                                <option key={s.id} value={s.phone}>
+                                  {s.phone}{s.label ? ` · ${s.label}` : ''}
+                                </option>
+                              ))}
+                            </select>
+                            {notifyChannel === 'alimtalk' && (
+                              <input
+                                value={notifyTpl}
+                                onChange={(e) => setNotifyTpl(e.target.value)}
+                                placeholder="승인된 알림톡 템플릿 코드 (예: TP_1234)"
+                                className={INPUT_CLS}
+                              />
+                            )}
+                            <p className="text-[11px] text-[var(--text-dim)]">
+                              {notifyChannel === 'alimtalk'
+                                ? '※ 카카오 승인 완료된 템플릿 코드가 필요합니다. 실패 시 문자로 대체 발송됩니다.'
+                                : '※ 승인된 발신번호 · 알리고(ALIGO) 설정이 필요합니다.'}
+                            </p>
+                          </>
                         )}
                         <Button variant="primary" size="sm" className="w-full" disabled={busy} onClick={submitNotify}>
-                          <Send size={15} /> 발송
+                          <Send size={15} /> {notifyChannel === 'none' ? '팝업 발송' : notifyChannel === 'sms' ? '팝업 + 문자 발송' : '팝업 + 알림톡 발송'}
                         </Button>
                       </div>
                     </div>

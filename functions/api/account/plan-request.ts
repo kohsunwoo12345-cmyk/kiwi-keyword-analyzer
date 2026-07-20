@@ -24,13 +24,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     .first()
   if (dup) return json({ ok: false, error: '이미 승인 대기 중인 신청이 있습니다.' }, 409)
 
+  const months = Math.max(0, Math.min(12, Math.round(Number(body.months) || 0)))
   const now = new Date().toISOString()
   await db
-    .prepare(`INSERT INTO plan_requests (id, user_id, track, from_plan, to_plan, status, memo, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`)
-    .bind('pr_' + crypto.randomUUID().slice(0, 14), me.id, track, current, to, String(body.memo || ''), now)
+    .prepare(`INSERT INTO plan_requests (id, user_id, track, from_plan, to_plan, status, memo, months, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)`)
+    .bind('pr_' + crypto.randomUUID().slice(0, 14), me.id, track, current, to, String(body.memo || ''), months, now)
     .run()
   const label = track === 'video' ? 'AI 영상' : '마케터'
-  await logActivity(db, me.id, 'plan', `${label} 플랜 신청: ${current} → ${to}`)
+  await logActivity(db, me.id, 'plan', `${label} 플랜 신청: ${current} → ${to}${months ? ` (${months}개월)` : ''}`)
   return json({ ok: true })
 }
 
@@ -41,6 +42,6 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   await ensureSchema(db)
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
-  const requests = (await db.prepare('SELECT track, from_plan, to_plan, status, created_at, decided_at FROM plan_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 20').bind(me.id).all()).results || []
+  const requests = (await db.prepare('SELECT track, from_plan, to_plan, status, months, created_at, decided_at FROM plan_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 20').bind(me.id).all()).results || []
   return json({ ok: true, requests })
 }

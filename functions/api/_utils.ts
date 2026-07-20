@@ -520,9 +520,14 @@ export async function ensureSchema(db: D1Database) {
     team_plan: 'team_plan INTEGER DEFAULT 0', // 팀 워크플로우 요금제 보유(1=오너/구매자)
     team_seats: 'team_seats INTEGER DEFAULT 0', // 구매한 좌석 수(오너 본인 포함)
     team_until: "team_until TEXT DEFAULT ''",   // 팀 요금제 만료일(ISO). 이 날짜 이후 비활성
+    plan_until: 'plan_until TEXT',              // 마케터 플랜 만료일(ISO). NULL/빈값 = 무기한
+    video_plan_until: 'video_plan_until TEXT',  // AI 영상 플랜 만료일(ISO). NULL/빈값 = 무기한
+    credit_until: 'credit_until TEXT',          // 크레딧 사용기한(ISO, 안내용)
+    point_until: 'point_until TEXT',            // 포인트 사용기한(ISO, 안내용)
   })
   await addMissingColumns(db, 'plan_requests', {
     track: "track TEXT DEFAULT 'marketer'",
+    months: 'months INTEGER DEFAULT 0', // 신청 이용 기간(개월, 0=무기한). 승인 시 plan_until 계산에 사용
   })
   await addMissingColumns(db, 'branches', {
     owner_id: 'owner_id TEXT', // 지사 대표 계정
@@ -967,8 +972,15 @@ export function publicUser(u: any) {
     // 온보딩 선택 (팀/개인 · 사용할 제품)
     accountType: u.account_type || '',              // team | individual
     products: u.products || (isAdmin ? 'both' : ''), // video | marketing | both
-    // 유료 플랜 보유 여부(승인된 플랜). 없으면 마케팅·영상 모두 사용 불가
-    hasPlan: isAdmin || (u.plan && u.plan !== '없음') || (u.video_plan && u.video_plan !== '없음') ? 1 : 0,
+    // 유료 플랜 보유 여부(승인된 플랜, 만료일 이전). 없으면 마케팅·영상 모두 사용 불가
+    hasPlan: isAdmin
+      || ((u.plan && u.plan !== '없음') && (!u.plan_until || u.plan_until > new Date().toISOString()))
+      || ((u.video_plan && u.video_plan !== '없음') && (!u.video_plan_until || u.video_plan_until > new Date().toISOString()))
+      ? 1 : 0,
+    planUntil: u.plan_until || '',
+    videoPlanUntil: u.video_plan_until || '',
+    creditUntil: u.credit_until || '',
+    pointUntil: u.point_until || '',
     // 팀 요금제(좌석당) — 만료일 이전이면 활성. 관리자는 항상 활성.
     teamPlan: isAdmin || (Number(u.team_plan) === 1 && u.team_until && u.team_until > new Date().toISOString()) ? 1 : 0,
     teamSeats: isAdmin ? 99 : Number(u.team_seats) || 0,

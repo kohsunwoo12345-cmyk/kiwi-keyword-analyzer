@@ -44,6 +44,7 @@ export default function ActivatePage() {
   const { user, ready } = useAuth()
   const [track, setTrack] = useState<PlanTrack>('marketer')
   const [plan, setPlan] = useState<PlanKey>('Pro')
+  const [months, setMonths] = useState(1) // 이용 기간(개월, 1~12)
   const [memo, setMemo] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -90,7 +91,7 @@ export default function ActivatePage() {
   const submit = async () => {
     setBusy(true)
     setMsg(null)
-    const r = await requestPlan(track, plan, memo.trim() || undefined)
+    const r = await requestPlan(track, plan, memo.trim() || undefined, months)
     setBusy(false)
     if (r.ok) {
       setMsg({ ok: true, text: '승인 신청이 접수되었습니다. 입금이 확인되면 관리자 승인 후 이용이 시작됩니다.' })
@@ -240,14 +241,43 @@ export default function ActivatePage() {
                   })}
                 </div>
 
+                {/* 이용 기간 (개월) */}
+                <div className="mt-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[var(--text-dim)]">이용 기간</span>
+                    <span className="text-xs font-medium text-violet-200">{months}개월</span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-6 gap-2">
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+                      const on = months === m
+                      return (
+                        <button
+                          key={m}
+                          onClick={() => setMonths(m)}
+                          className={`rounded-lg border py-1.5 text-xs font-semibold transition ${on ? 'border-violet-500/60 bg-violet-500/15 text-violet-200' : 'border-white/10 bg-white/[0.02] text-[var(--text-soft)] hover:border-white/25'}`}
+                        >
+                          {m}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-[var(--text-dim)]">최대 12개월까지 선택할 수 있어요. 승인 즉시 선택한 기간만큼 이용 기간이 부여됩니다.</p>
+                </div>
+
                 {/* 요약 */}
-                <div className="mt-4 flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm">
-                  <span className="text-[var(--text-soft)]">
-                    {TRACKS.find((t) => t.key === track)?.label} · {plan}
-                  </span>
-                  <span className="text-lg font-bold text-violet-200">
-                    {won(priceOf(track, plan))} <span className="text-xs font-medium text-[var(--text-dim)]">/월</span>
-                  </span>
+                <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[var(--text-soft)]">
+                      {TRACKS.find((t) => t.key === track)?.label} · {plan}
+                    </span>
+                    <span className="text-[var(--text-dim)]">
+                      {won(priceOf(track, plan))} <span className="text-xs">/월</span> × {months}개월
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-2">
+                    <span className="font-semibold text-[var(--text-soft)]">총 결제 금액</span>
+                    <span className="text-lg font-bold text-violet-200">{won(priceOf(track, plan) * months)}</span>
+                  </div>
                 </div>
 
                 <input
