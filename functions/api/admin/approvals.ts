@@ -12,8 +12,10 @@ import {
   clientIp,
   publicUser,
   rewardReferralFirstPaid,
+  planPriceKrw,
 } from '../_utils'
-import { getPlanConfig } from '../_plans'
+import { getPlanConfig, planPriceEffective } from '../_plans'
+import { recordPayment } from '../_billing'
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env)
@@ -143,6 +145,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       } catch { /* 크레딧 지급 실패는 승인 자체를 막지 않음 */ }
       // 추천인 리워드: 피추천인이 유료 요금제에 처음 가입하면 추천인에게 결제액의 1% 크레딧 지급
       await rewardReferralFirstPaid(db, req.user_id, track, req.to_plan)
+      // 결제 원장 적재 (세금계산서·환불·정산의 단일 소스). 확정 금액(할인·개월 반영) 우선.
+      let payAmount = Number(req.amount) || 0
+      if (!payAmount) { try { const cfg = await getPlanConfig(db); payAmount = (planPriceEffective(cfg, track, req.to_plan) || planPriceKrw(track, req.to_plan)) * Math.max(1, months) } catch { payAmount = planPriceKrw(track, req.to_plan) * Math.max(1, months) } }
+      await recordPayment(db, { userId: req.user_id, source: 'plan', refId: req.id, description: `${label} ${req.to_plan}${months ? ` ${months}개월` : ''}${req.coupon_code ? ` · 쿠폰 ${req.coupon_code}` : ''}`, amount: payAmount, method: 'bank', paidAt: now })
     } else {
       await addNotification(db, req.user_id, `${label} 플랜이 반려되었습니다`, `${label} ${req.to_plan} 플랜 신청이 반려되었습니다. 자세한 내용은 문의해 주세요.`)
     }
@@ -175,6 +181,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (decision === 'approve') {
       await applyBalance(db, req.user_id, 'credit', req.amount, `크레딧 충전 승인${req.memo ? ' · ' + req.memo : ''}`)
       await addNotification(db, req.user_id, '크레딧이 충전되었습니다', `크레딧 ${req.amount.toLocaleString()}개가 충전되었습니다. 감사합니다!`)
+      // 결제 원장 적재 (크레딧 충전 결제금액 = price)
+      if (Number(req.price) > 0) await recordPayment(db, { userId: req.user_id, source: 'credit', refId: req.id, description: `크레딧 ${Number(req.amount).toLocaleString()}개 충전`, amount: Number(req.price), method: 'bank', paidAt: now })
     } else {
       await addNotification(db, req.user_id, '크레딧 충전이 반려되었습니다', `크레딧 ${req.amount.toLocaleString()}개 충전 신청이 반려되었습니다.`)
     }
@@ -190,6 +198,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       await db.prepare("UPDATE team_orders SET status = 'paid', paid_at = ? WHERE order_id = ?").bind(now, id).run()
       await db.prepare('UPDATE users SET team_plan = 1, team_seats = ?, team_until = ? WHERE id = ?').bind(Number(req.seats) || 1, until, req.user_id).run()
       await addNotification(db, req.user_id, '팀 요금제가 활성화되었습니다 👥', `${req.seats}좌석 팀 요금제가 활성화되었습니다. 스튜디오 팀워크에서 팀을 만들어보세요!`)
+      // 결제 원장 적재
+      if (Number(req.amount) > 0) await recordPayment(db, { userId: req.user_id, source: 'team', refId: String(req.order_id), description: `팀 요금제 ${req.seats}좌석·${req.months}개월`, amount: Number(req.amount), method: 'bank', paidAt: now })
     } else {
       await db.prepare("UPDATE team_orders SET status = 'failed' WHERE order_id = ?").bind(id).run()
       await addNotification(db, req.user_id, '팀 요금제 신청이 반려되었습니다', `팀 요금제(${req.seats}좌석) 신청이 반려되었습니다.`)

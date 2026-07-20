@@ -53,9 +53,15 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const planKrw = sum(planRows, planAmount)
   const teamKrw = sum(teamRows, (r) => Number(r.amount))
 
+  // 환불(처리 완료) — 기간 내 환불액은 매출에서 차감
+  const refundRow: any = (await db.prepare(
+    `SELECT COALESCE(SUM(amount),0) AS krw, COUNT(*) AS cnt FROM refunds WHERE status='done' AND decided_at > ?`).bind(since).first().catch(() => ({}))) || {}
+  const refundKrw = Number(refundRow.krw) || 0
+
   const creditSalesKrw = creditCardKrw + creditApprovalKrw
   const planTotalKrw = planKrw + teamKrw
-  const revenue = creditSalesKrw + planTotalKrw
+  const grossRevenue = creditSalesKrw + planTotalKrw
+  const revenue = grossRevenue - refundKrw   // 순매출(환불 차감)
   const aiCost = Number(ai.cost) || 0
   const profit = revenue - aiCost
 
@@ -89,6 +95,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       plan: { krw: planKrw, count: planRows.length },
       team: { krw: teamKrw, count: teamRows.length },
       creditSales: creditSalesKrw, planTotal: planTotalKrw,
+      refund: { krw: refundKrw, count: Number(refundRow.cnt) || 0 }, gross: grossRevenue,
     },
     aiInternal: { revenue: Number(ai.rev) || 0, cost: aiCost, profit: (Number(ai.rev) || 0) - aiCost, credits: Number(ai.credits) || 0, count: Number(ai.cnt) || 0 },
     usage: { creditSpent: Number(spendRow.spent) || 0, smsCount: Number(smsRow.cnt) || 0 },

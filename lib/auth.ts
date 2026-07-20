@@ -1253,6 +1253,26 @@ export async function adminCouponAction(action: 'toggle' | 'delete', id: string)
   return postJson('/api/admin/coupons', { action, id })
 }
 
+/* ───────── 결제·정산 (세금계산서·현금영수증·환불·정기결제) ───────── */
+export interface PaymentRow { id: string; user_id: string; uname?: string; uemail?: string; source: string; ref_id: string; description: string; amount: number; supply_amount: number; vat: number; method: string; status: string; refunded_amount: number; created_at: string; paid_at: string }
+export interface TaxInvoiceRow { id: string; payment_id: string; user_id: string; biz_number: string; company: string; ceo: string; address: string; email: string; amount: number; supply_amount: number; vat: number; status: string; nts_key: string; requested_at: string; issued_at: string | null }
+export interface CashReceiptRow { id: string; payment_id: string; user_id: string; purpose: string; identifier: string; amount: number; supply_amount: number; vat: number; status: string; approval_no: string; requested_at: string; issued_at: string | null }
+export interface RefundRow { id: string; payment_id: string; user_id: string; uname?: string; uemail?: string; amount: number; reason: string; status: string; requested_at: string; decided_at: string | null }
+export interface SubscriptionRow { id: string; user_id: string; uname?: string; uemail?: string; track: string; plan: string; months: number; amount: number; status: string; started_at: string; next_billing_at: string; cancelled_at: string | null }
+export interface BillingBundle {
+  ok: boolean; error?: string
+  payments: PaymentRow[]; taxInvoices: TaxInvoiceRow[]; cashReceipts: CashReceiptRow[]; refunds: RefundRow[]; subscriptions: SubscriptionRow[]
+  stats: { payments: number; paidTotal: number; refundedTotal: number; net: number; taxPending: number; receiptPending: number; refundPending: number; activeSubs: number }
+}
+export async function adminBilling(): Promise<BillingBundle> {
+  const empty: BillingBundle = { ok: false, payments: [], taxInvoices: [], cashReceipts: [], refunds: [], subscriptions: [], stats: { payments: 0, paidTotal: 0, refundedTotal: 0, net: 0, taxPending: 0, receiptPending: 0, refundPending: 0, activeSubs: 0 } }
+  try { const r = await fetch('/api/admin/billing', { credentials: 'include', cache: 'no-store' }); const d = await r.json(); return { ...empty, ...d, ok: !!d.ok } }
+  catch { return { ...empty, error: '네트워크 오류' } }
+}
+export async function adminBillingAction(action: string, payload: Record<string, any>): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/admin/billing', { action, ...payload })
+}
+
 /* ───────── 퍼널 랜딩페이지 분석 ───────── */
 export interface FunnelAnalyticsPage { id: number; title: string; slug: string; url: string; groupName: string; views: number; applicants: number; conv: number; createdAt: string }
 export interface FunnelAnalytics {
