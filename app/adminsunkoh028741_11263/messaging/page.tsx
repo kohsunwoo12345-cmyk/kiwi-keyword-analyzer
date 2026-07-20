@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Send, Phone, Plus, RefreshCw, Check, X, Trash2, Loader2, MessageCircle, ShieldCheck, KeyRound } from 'lucide-react'
+import { Send, Phone, Plus, RefreshCw, Check, X, Trash2, Loader2, MessageCircle, ShieldCheck, KeyRound, Mail } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel } from '@/components/ui'
-import { adminSenders, adminSenderAdd, adminSenderAction, kakaoChannels, kakaoChannelAuth, kakaoChannelAdd, kakaoCategories, type AdminSender, type KakaoChannel } from '@/lib/auth'
+import { adminSenders, adminSenderAdd, adminSenderAction, kakaoChannels, kakaoChannelAuth, kakaoChannelAdd, kakaoCategories, adminSendEmail, type AdminSender, type KakaoChannel } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 const kst = (iso?: string | null) => { if (!iso) return '-'; try { return new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) } catch { return iso || '-' } }
@@ -13,10 +13,13 @@ const fmtPhone = (p: string) => (p || '').replace(/(\d{2,3})(\d{3,4})(\d{4})/, '
 export default function MessagingPage() {
   return (
     <div>
-      <PageHeader icon={Send} eyebrow="MESSAGING" title="발송 설정" desc="문자 발신번호와 카카오 알림톡 채널을 관리자가 직접 등록·승인합니다. 등록된 발신번호·채널은 마케팅 자동화·CRM 발송에서 바로 사용됩니다." />
+      <PageHeader icon={Send} eyebrow="MESSAGING" title="발송 설정" desc="문자 발신번호·카카오 알림톡 채널·이메일(Resend)을 관리자가 직접 등록·발송합니다. 등록된 발신번호·채널은 마케팅 자동화·CRM 발송에서 바로 사용됩니다." />
       <div className="grid gap-4 lg:grid-cols-2">
         <SenderSection />
         <KakaoSection />
+      </div>
+      <div className="mt-4">
+        <EmailSection />
       </div>
     </div>
   )
@@ -156,6 +159,63 @@ function KakaoSection() {
         )}
       </div>
       {msg && <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-[var(--text-soft)]">{msg}</div>}
+    </Panel>
+  )
+}
+
+// ── 이메일 발송 (Resend) — 직접 수신자 또는 마케팅 수신동의 세그먼트 ──
+function EmailSection() {
+  const [mode, setMode] = useState<'direct' | 'segment'>('direct')
+  const [to, setTo] = useState('')
+  const [seg, setSeg] = useState<'all' | 'plan' | 'active'>('all')
+  const [plan, setPlan] = useState('Plus')
+  const [subject, setSubject] = useState('')
+  const [content, setContent] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  async function send() {
+    if (!subject.trim()) { setMsg('이메일 제목을 입력하세요.'); return }
+    if (!content.trim()) { setMsg('이메일 내용을 입력하세요.'); return }
+    if (mode === 'direct' && !to.trim()) { setMsg('수신 이메일을 입력하세요.'); return }
+    if (mode === 'segment' && !confirm(`${seg === 'all' ? '전체' : seg === 'active' ? '최근 활동' : plan} 수신동의 회원에게 이메일을 발송할까요?`)) return
+    setBusy(true); setMsg('')
+    const r = await adminSendEmail({
+      to: mode === 'direct' ? to.trim() : undefined,
+      segment: mode === 'segment' ? seg : undefined,
+      plan: mode === 'segment' && seg === 'plan' ? plan : undefined,
+      subject: subject.trim(),
+      content: content.trim(),
+    })
+    setBusy(false)
+    if (r.ok) { setMsg(`✅ 발송 완료 · 성공 ${r.sent || 0}건${r.failed ? ` · 실패 ${r.failed}건` : ''} (대상 ${r.total || 0}명)`); setContent('') }
+    else setMsg('❌ ' + (r.error || '발송 실패'))
+  }
+
+  return (
+    <Panel title={<span className="inline-flex items-center gap-2"><Mail size={16} /> 이메일 발송 (Resend)</span>}>
+      <p className="mb-3 text-xs text-[var(--text-dim)]">Resend로 실제 이메일을 발송합니다. 상단에 로고가 포함되고, 세그먼트 발송 시 광고 표기·수신거부 안내가 자동 부착됩니다. 발송 이력은 <b>이메일 발송 기록</b>에서 확인할 수 있어요.</p>
+      <div className="mb-3 flex gap-1.5">
+        {([['direct', '직접 수신자'], ['segment', '회원 세그먼트']] as ['direct' | 'segment', string][]).map(([v, l]) => (
+          <button key={v} onClick={() => setMode(v)} className={cn('inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-semibold', mode === v ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-slate-50')}>{l}</button>
+        ))}
+      </div>
+      {mode === 'direct' ? (
+        <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="수신 이메일 (여러 명은 쉼표로 구분)" className="input mb-2 w-full" />
+      ) : (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {([['all', '전체 회원'], ['active', '최근 30일 활동'], ['plan', '요금제별']] as ['all' | 'active' | 'plan', string][]).map(([v, l]) => (
+            <button key={v} onClick={() => setSeg(v)} className={cn('rounded-lg border px-3 py-1.5 text-sm font-semibold', seg === v ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-slate-50')}>{l}</button>
+          ))}
+          {seg === 'plan' && <select value={plan} onChange={(e) => setPlan(e.target.value)} className="input">{['없음', 'Plus', 'Pro', 'Max'].map((p) => <option key={p} value={p}>{p}</option>)}</select>}
+        </div>
+      )}
+      <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="이메일 제목" className="input mb-2 w-full" />
+      <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={5} placeholder="이메일 내용. {이름} 은 회원 이름으로 치환됩니다." className="input w-full resize-none" />
+      {msg && <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-[var(--text-soft)]">{msg}</div>}
+      <div className="mt-3 flex justify-end">
+        <button onClick={send} disabled={busy} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60">{busy ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} 이메일 발송</button>
+      </div>
     </Panel>
   )
 }

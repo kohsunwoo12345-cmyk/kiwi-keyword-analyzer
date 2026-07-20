@@ -57,7 +57,7 @@ export function emailShell(innerHtml: string): string {
  *  log.db 를 넘기면 email_log 테이블에 발송 이력(수신/발신/제목/내용/상태/시각)을 기록한다. */
 export async function resendEmail(
   env: any,
-  o: { to: string | string[]; subject: string; html: string; from?: string },
+  o: { to: string | string[]; subject: string; html: string; from?: string; scheduledAt?: string },
   log?: { db?: any; kind?: string; userId?: string },
 ): Promise<{ ok: boolean; error?: string; id?: string }> {
   // 환경변수 이름 대소문자 무관 (RESEND_API_KEY / Resend_API_KEY / resend_api_key 등 모두 허용)
@@ -83,19 +83,64 @@ export async function resendEmail(
 
   if (!key) { await record('failed', '', 'RESEND_API_KEY 환경변수 미설정'); return { ok: false, error: 'RESEND_API_KEY 환경변수 미설정' } }
   try {
+    const payload: any = { from, to: o.to, subject: o.subject, html: o.html }
+    if (o.scheduledAt) payload.scheduled_at = o.scheduledAt // Resend 예약 발송(ISO8601)
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ from, to: o.to, subject: o.subject, html: o.html }),
+      body: JSON.stringify(payload),
     })
     const data: any = await res.json().catch(() => ({}))
     if (!res.ok) { const err = data?.message || `Resend 오류 (${res.status})`; await record('failed', '', err); return { ok: false, error: err } }
-    await record('sent', data?.id || '', '')
+    await record(o.scheduledAt ? 'scheduled' : 'sent', data?.id || '', '')
     return { ok: true, id: data?.id }
   } catch (e: any) {
     const err = String(e?.message || e).slice(0, 120)
     await record('failed', '', err)
     return { ok: false, error: err }
+  }
+}
+
+/** Resend 배치 발송 (최대 100건/호출) — 대량 마케팅 이메일용. 각 건을 email_log 에 기록. */
+export async function resendBatch(
+  env: any,
+  items: { to: string; subject: string; html: string; from?: string }[],
+  log?: { db?: any; kind?: string },
+): Promise<{ ok: boolean; sent: number; failed: number; error?: string }> {
+  const key = envAny(env, 'RESEND_API_KEY', 'RESEND_KEY', 'RESEND_APIKEY')
+  const defFrom = envAny(env, 'RESEND_FROM') || 'BYGENCY <cs@bygency.co>'
+  const list = (items || []).filter((i) => i && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(i.to || '')))
+  if (!list.length) return { ok: false, sent: 0, failed: 0, error: '유효한 수신 이메일이 없습니다.' }
+  if (!key) return { ok: false, sent: 0, failed: list.length, error: 'RESEND_API_KEY 환경변수 미설정' }
+
+  const recordMany = async (status: string, err: string) => {
+    if (!log?.db) return
+    for (const it of list) {
+      try {
+        await log.db.prepare(
+          `INSERT INTO email_log (id, to_email, from_email, subject, kind, status, resend_id, error, body, user_id, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind('em_' + crypto.randomUUID().replace(/-/g, '').slice(0, 18), it.to, it.from || defFrom,
+          String(it.subject || '').slice(0, 300), String(log.kind || 'campaign'), status, '', err.slice(0, 400),
+          String(it.html || '').slice(0, 20000), '', new Date().toISOString()).run()
+      } catch { /* ignore */ }
+    }
+  }
+
+  try {
+    const res = await fetch('https://api.resend.com/emails/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify(list.map((i) => ({ from: i.from || defFrom, to: i.to, subject: i.subject, html: i.html }))),
+    })
+    const data: any = await res.json().catch(() => ({}))
+    if (!res.ok) { const err = data?.message || `Resend 배치 오류 (${res.status})`; await recordMany('failed', err); return { ok: false, sent: 0, failed: list.length, error: err } }
+    await recordMany('sent', '')
+    return { ok: true, sent: list.length, failed: 0 }
+  } catch (e: any) {
+    const err = String(e?.message || e).slice(0, 120)
+    await recordMany('failed', err)
+    return { ok: false, sent: 0, failed: list.length, error: err }
   }
 }
 

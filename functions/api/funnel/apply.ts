@@ -5,6 +5,7 @@
 import { resolveDB, ensureSchema } from '../_utils'
 import { ensureFunnelSchema } from './_schema'
 import { sendSms, aligoAlimtalk, kstReserve, kstSenddate, timingToMinutes } from '../_aligo'
+import { resendEmail, emailShell } from '../_external'
 
 const j = (o: any, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' } })
 const digits = (s: any) => String(s || '').replace(/[^0-9]/g, '')
@@ -38,6 +39,8 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
        AND (group_id = ? OR group_id IS NULL)`,
   ).bind(page.id, page.group_id).all().catch(() => ({ results: [] }))).results || []
 
+  const email = String(b.email || '').trim().toLowerCase()
+  const emailValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)
   const fired: any[] = []
   for (const r of rules as any[]) {
     const content = String(r.content || '').replace(/\{이름\}|\{name\}/g, name || '고객').replace(/\{페이지\}/g, page.title || '')
@@ -48,7 +51,12 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
         const ar = await aligoAlimtalk(env, { tplCode: r.tpl_code, items: [{ to: phone, message: content, subject: r.subject || '알림톡' }], from: r.sender_number, failover: true, senddate: off > 0 ? kstSenddate(off) : undefined })
         fired.push({ id: r.id, type: 'alimtalk', sent: ar.ok, reserved: off > 0, reason: ar.error })
       } else if (r.type === 'email') {
-        fired.push({ id: r.id, type: 'email', sent: false, reason: '이메일 채널 미구성(문자/알림톡 사용)' })
+        // 이메일 자동응답 — 신청자 이메일로 Resend 발송(로고 포함), 지연 시 예약(scheduled_at)
+        if (!emailValid) { fired.push({ id: r.id, type: 'email', sent: false, reason: '수신 이메일 없음' }); continue }
+        const html = emailShell(`<div style="font-size:14px;line-height:1.7;color:#0f172a;white-space:pre-wrap">${content.replace(/</g, '&lt;')}</div>`)
+        const scheduledAt = off > 0 ? new Date(Date.now() + off * 60_000).toISOString() : undefined
+        const er = await resendEmail(env, { to: email, subject: r.subject || `[${page.title || 'BYGENCY'}] 신청이 접수되었습니다`, html, scheduledAt }, { db, kind: 'funnel' })
+        fired.push({ id: r.id, type: 'email', sent: er.ok, reserved: off > 0, reason: er.error })
       } else {
         // sms (또는 tpl_code 없는 alimtalk → 문자로 확실히 발송)
         const opts: any = { from: r.sender_number }

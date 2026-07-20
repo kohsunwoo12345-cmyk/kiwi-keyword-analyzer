@@ -1203,17 +1203,25 @@ export async function createAutoResponse(p: { type: string; trigger: string; tim
 }
 
 /* ───────── CRM 타깃 캠페인 (실제 회원 문자/알림톡 발송) ───────── */
-export interface CrmPreview { all: number; active: number; byPlan: { plan: string; n: number }[] }
+export interface CrmPreview { all: number; active: number; byPlan: { plan: string; n: number }[]; emailAll?: number; emailActive?: number }
 export interface CrmCampaignRow { id: string; segment: string; plan: string | null; channel: string; content: string; sender: string | null; schedule_at: string | null; total: number; sent: number; reserved: number; status: string; created_at: string }
 export async function crmPreview(): Promise<{ ok: boolean; preview?: CrmPreview; campaigns: CrmCampaignRow[] }> {
   try { const r = await fetch('/api/admin/crm-campaign', { credentials: 'include', cache: 'no-store' }); const d = await r.json(); return { ok: !!d.ok, preview: d.preview, campaigns: d.campaigns || [] } }
   catch { return { ok: false, campaigns: [] } }
 }
 export async function crmSend(p: {
-  segment: 'all' | 'plan' | 'active'; plan?: string; channel: 'sms' | 'alimtalk'; content: string; sender?: string
-  scheduleAt?: string; tplCode?: string; test?: boolean; testPhone?: string
+  segment: 'all' | 'plan' | 'active'; plan?: string; channel: 'sms' | 'alimtalk' | 'email'; content: string; sender?: string
+  subject?: string; scheduleAt?: string; tplCode?: string; test?: boolean; testPhone?: string; testEmail?: string
 }): Promise<{ ok: boolean; total?: number; sent?: number; reserved?: number; errors?: number; status?: string; error?: string; reservedAtKst?: string | null }> {
   try { const r = await fetch('/api/admin/crm-campaign', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify(p) }); return await r.json() }
+  catch { return { ok: false, error: '네트워크 오류' } }
+}
+
+/** 관리자 직접 이메일 발송(Resend) — 직접 수신자(to) 또는 세그먼트 */
+export async function adminSendEmail(p: {
+  to?: string; segment?: 'all' | 'plan' | 'active'; plan?: string; subject: string; content: string
+}): Promise<{ ok: boolean; total?: number; sent?: number; failed?: number; error?: string }> {
+  try { const r = await fetch('/api/admin/send-email', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify(p) }); return await r.json() }
   catch { return { ok: false, error: '네트워크 오류' } }
 }
 

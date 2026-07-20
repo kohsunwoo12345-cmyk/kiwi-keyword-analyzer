@@ -163,27 +163,34 @@ function CrmCampaign() {
   const [camps, setCamps] = useState<CrmCampaignRow[]>([])
   const [seg, setSeg] = useState<'all' | 'plan' | 'active'>('all')
   const [plan, setPlan] = useState('Plus')
-  const [channel, setChannel] = useState<'sms' | 'alimtalk'>('sms')
+  const [channel, setChannel] = useState<'sms' | 'alimtalk' | 'email'>('sms')
   const [content, setContent] = useState('')
+  const [subject, setSubject] = useState('')
   const [sender, setSender] = useState('')
   const [tplCode, setTplCode] = useState('')
   const [scheduleAt, setScheduleAt] = useState('')
   const [testPhone, setTestPhone] = useState('')
+  const [testEmail, setTestEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
 
   const load = () => { crmPreview().then((d) => { setPv(d.preview || null); setCamps(d.campaigns) }) }
   useEffect(() => { load() }, [])
 
-  const target = seg === 'all' ? (pv?.all || 0) : seg === 'active' ? (pv?.active || 0) : ((pv?.byPlan || []).find((p) => p.plan === plan)?.n || 0)
+  const isEmailCh = channel === 'email'
+  const target = isEmailCh
+    ? (seg === 'active' ? (pv?.emailActive || 0) : (pv?.emailAll || 0))
+    : (seg === 'all' ? (pv?.all || 0) : seg === 'active' ? (pv?.active || 0) : ((pv?.byPlan || []).find((p) => p.plan === plan)?.n || 0))
 
   async function send(test: boolean) {
     if (!content.trim()) { setMsg('발송 내용을 입력하세요.'); return }
-    if (channel !== 'alimtalk' && !sender.trim()) { setMsg('발신번호가 필요합니다.'); return }
-    if (test && testPhone.trim().replace(/\D/g, '').length < 10) { setMsg('테스트 번호를 정확히 입력하세요.'); return }
-    if (!test && !confirm(`${seg === 'all' ? '전체' : seg === 'active' ? '최근 활동' : plan} 수신동의 회원 ${target}명에게 ${scheduleAt ? 'KST 예약' : '즉시'} 발송할까요?`)) return
+    if (isEmailCh && !subject.trim()) { setMsg('이메일 제목을 입력하세요.'); return }
+    if (channel === 'sms' && !sender.trim()) { setMsg('발신번호가 필요합니다.'); return }
+    if (test && isEmailCh && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(testEmail.trim())) { setMsg('테스트 이메일을 정확히 입력하세요.'); return }
+    if (test && !isEmailCh && testPhone.trim().replace(/\D/g, '').length < 10) { setMsg('테스트 번호를 정확히 입력하세요.'); return }
+    if (!test && !confirm(`${seg === 'all' ? '전체' : seg === 'active' ? '최근 활동' : plan} 수신동의 회원 ${target}명에게 ${isEmailCh ? '이메일' : ''} ${scheduleAt ? 'KST 예약' : '즉시'} 발송할까요?`)) return
     setBusy(true); setMsg('')
-    const r = await crmSend({ segment: seg, plan: seg === 'plan' ? plan : undefined, channel, content: content.trim(), sender: sender.trim(), scheduleAt: scheduleAt || undefined, tplCode: tplCode.trim() || undefined, test, testPhone: testPhone.trim() })
+    const r = await crmSend({ segment: seg, plan: seg === 'plan' ? plan : undefined, channel, content: content.trim(), subject: subject.trim() || undefined, sender: sender.trim(), scheduleAt: scheduleAt || undefined, tplCode: tplCode.trim() || undefined, test, testPhone: testPhone.trim(), testEmail: testEmail.trim() })
     setBusy(false)
     if (r.ok) { setMsg(test ? `✅ 테스트 발송 완료 (${r.sent || 0}건)` : `✅ ${r.reserved ? `예약 ${r.reserved}건 (${r.reservedAtKst} KST)` : `발송 ${r.sent}건`} · 실패 ${r.errors || 0}`); if (!test) load() }
     else setMsg('❌ ' + (r.error || '발송 실패'))
@@ -191,7 +198,7 @@ function CrmCampaign() {
 
   return (
     <Panel title={<span className="inline-flex items-center gap-2"><Target size={16} /> CRM 타깃 발송 · 실제 회원 대상</span>} className="mb-4">
-      <p className="mb-3 text-xs text-[var(--text-dim)]">마케팅 <b>수신동의</b> 회원만 대상으로, 세그먼트별로 문자·알림톡을 즉시 또는 한국시간 예약 발송합니다. 광고성 메시지는 <b>(광고)·무료수신거부</b>가 자동 부착됩니다(법적 필수).</p>
+      <p className="mb-3 text-xs text-[var(--text-dim)]">마케팅 <b>수신동의</b> 회원만 대상으로, 세그먼트별로 문자·알림톡·<b>이메일(Resend)</b>을 즉시 또는 한국시간 예약 발송합니다. 광고성 메시지는 <b>(광고)·수신거부 안내</b>가 자동 부착됩니다(법적 필수).</p>
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-3">
           <div>
@@ -209,15 +216,20 @@ function CrmCampaign() {
             <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700"><Users size={12} /> 대상 {target.toLocaleString('ko-KR')}명 (수신동의)</div>
           </div>
           <div className="flex gap-1.5">
-            {([['sms', '문자(SMS/LMS)'], ['alimtalk', '알림톡']] as ['sms' | 'alimtalk', string][]).map(([v, l]) => (
-              <button key={v} onClick={() => setChannel(v)} className={cn('inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-semibold', channel === v ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-slate-50')}>{v === 'sms' ? <MessageSquare size={13} /> : <Send size={13} />} {l}</button>
+            {([['sms', '문자(SMS/LMS)'], ['alimtalk', '알림톡'], ['email', '이메일']] as ['sms' | 'alimtalk' | 'email', string][]).map(([v, l]) => (
+              <button key={v} onClick={() => setChannel(v)} className={cn('inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-semibold', channel === v ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-slate-50')}>{v === 'sms' ? <MessageSquare size={13} /> : v === 'email' ? <Mail size={13} /> : <Send size={13} />} {l}</button>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <input value={sender} onChange={(e) => setSender(e.target.value)} placeholder="발신번호 (예: 025771000)" className="input w-full" />
-            {channel === 'alimtalk' && <input value={tplCode} onChange={(e) => setTplCode(e.target.value)} placeholder="알림톡 템플릿 코드" className="input w-full" />}
-          </div>
+          {isEmailCh ? (
+            <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="이메일 제목 (예: {이름}님께 드리는 특별 혜택)" className="input w-full" />
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <input value={sender} onChange={(e) => setSender(e.target.value)} placeholder="발신번호 (예: 025771000)" className="input w-full" />
+              {channel === 'alimtalk' && <input value={tplCode} onChange={(e) => setTplCode(e.target.value)} placeholder="알림톡 템플릿 코드" className="input w-full" />}
+            </div>
+          )}
           <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={4} placeholder="발송 내용. {이름} 은 회원 이름으로 치환됩니다. (예: {이름}님, 이번 주 20% 할인 이벤트!)" className="input w-full resize-none" />
+          {isEmailCh && <p className="-mt-1 text-[11px] text-[var(--text-dim)]">이메일은 Resend로 발송되며 상단에 로고가 포함되고, 광고성 제목(광고)·수신거부 안내가 자동 부착됩니다.</p>}
           <div>
             <label className="mb-1 block text-xs font-bold text-[var(--text-dim)]"><Calendar size={12} className="mr-1 inline" /> 예약 발송 (한국시간, 비우면 즉시)</label>
             <input type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} className="input w-full" />
@@ -225,7 +237,9 @@ function CrmCampaign() {
           {msg && <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-[var(--text-soft)]">{msg}</div>}
           <div className="flex gap-2">
             <div className="flex flex-1 gap-2">
-              <input value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="테스트 수신번호" className="input flex-1" />
+              {isEmailCh
+                ? <input value={testEmail} onChange={(e) => setTestEmail(e.target.value)} placeholder="테스트 수신 이메일" className="input flex-1" />
+                : <input value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="테스트 수신번호" className="input flex-1" />}
               <button onClick={() => send(true)} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-bold text-[var(--text-soft)] hover:bg-slate-50 disabled:opacity-60"><FlaskConical size={14} /> 테스트</button>
             </div>
             <button onClick={() => send(false)} disabled={busy} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60">{busy ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} {scheduleAt ? '예약 발송' : '지금 발송'}</button>
@@ -240,7 +254,7 @@ function CrmCampaign() {
                 <div key={c.id} className="rounded-xl border border-[var(--border)] p-2.5 text-xs">
                   <div className="flex items-center gap-2">
                     <span className="rounded bg-indigo-50 px-1.5 py-0.5 font-semibold text-indigo-700">{c.segment}{c.plan ? `·${c.plan}` : ''}</span>
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-600">{c.channel === 'sms' ? '문자' : '알림톡'}</span>
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-600">{c.channel === 'sms' ? '문자' : c.channel === 'email' ? '이메일' : '알림톡'}</span>
                     <span className={cn('ml-auto rounded px-1.5 py-0.5 font-bold', c.status === 'sent' ? 'bg-emerald-50 text-emerald-700' : c.status === 'reserved' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500')}>{c.status === 'reserved' ? '예약' : c.status === 'sent' ? '발송완료' : c.status}</span>
                   </div>
                   <p className="mt-1 line-clamp-2 text-[var(--text-soft)]">{c.content}</p>
