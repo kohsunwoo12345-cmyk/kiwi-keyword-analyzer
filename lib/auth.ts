@@ -841,6 +841,27 @@ export async function trackPwa(input: { endpoint?: string; platform?: string; al
   await postJson('/api/pwa/track', input)
 }
 
+/* ───────── 이메일(Resend) 발송 이력 (관리자) ───────── */
+export interface EmailLogRow {
+  id: string; to_email: string; from_email: string; subject: string; kind: string
+  status: string; resend_id: string; error: string; body: string; user_id: string; created_at: string
+}
+export interface EmailLogBundle {
+  ok: boolean; error?: string
+  emails: EmailLogRow[]
+  stats: { total: number; sent: number; failed: number; today: number }
+}
+export async function adminEmailLog(): Promise<EmailLogBundle> {
+  const empty: EmailLogBundle = { ok: false, emails: [], stats: { total: 0, sent: 0, failed: 0, today: 0 } }
+  try {
+    const r = await fetch('/api/admin/emails', { credentials: 'include', cache: 'no-store' })
+    const d = await r.json()
+    return { ...empty, ...d, ok: !!d.ok, emails: d.emails || [], stats: d.stats || empty.stats }
+  } catch {
+    return { ...empty, error: '네트워크 오류' }
+  }
+}
+
 /* ───────── 공개 폼 (비로그인 사용 가능) ───────── */
 /** 문의하기 접수 */
 export async function sendContact(input: {

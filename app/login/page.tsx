@@ -10,6 +10,7 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { GoogleAuthButton, OrDivider } from '@/components/GoogleAuthButton'
 import { login, requestPasswordReset, resetPassword } from '@/lib/auth'
 import { useT, type Dict } from '@/lib/i18n'
+import { cn } from '@/lib/utils'
 
 const OAUTH_ERRORS: Record<string, string> = {
   google_not_configured: '구글 로그인이 아직 설정되지 않았습니다. 잠시 후 다시 시도해 주세요.',
@@ -48,6 +49,8 @@ const DICT: Dict = {
   '인증코드를 이메일로 보냈습니다. 코드와 새 비밀번호를 입력하세요.': { en: 'We sent a code to your email. Enter the code and a new password.', ja: '認証コードを送りました。コードと新しいパスワードを入力してください。', zh: '验证码已发送到邮箱。请输入验证码和新密码。' },
   '인증코드 (6자리)': { en: 'Verification code (6 digits)', ja: '認証コード（6桁）', zh: '验证码（6位）' },
   '새 비밀번호 (8자 이상)': { en: 'New password (min. 8 chars)', ja: '新しいパスワード（8文字以上）', zh: '新密码（至少 8 位）' },
+  '새 비밀번호 확인': { en: 'Confirm new password', ja: '新しいパスワード（確認）', zh: '确认新密码' },
+  '비밀번호가 일치하지 않습니다.': { en: 'Passwords do not match.', ja: 'パスワードが一致しません。', zh: '两次密码不一致。' },
   '비밀번호 변경': { en: 'Change password', ja: 'パスワードを変更', zh: '修改密码' },
   '변경 중…': { en: 'Changing…', ja: '変更中…', zh: '修改中…' },
   '비밀번호가 변경되었습니다. 새 비밀번호로 로그인하세요.': { en: 'Your password has been changed. Sign in with your new password.', ja: 'パスワードを変更しました。新しいパスワードでログインしてください。', zh: '密码已修改。请使用新密码登录。' },
@@ -265,6 +268,7 @@ function ForgotPasswordModal({
   const [email, setEmail] = useState(initialEmail)
   const [code, setCode] = useState('')
   const [next, setNext] = useState('')
+  const [next2, setNext2] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -284,6 +288,7 @@ function ForgotPasswordModal({
   async function doReset() {
     setErr('')
     if (code.trim().length < 4 || next.length < 8) return setErr(t('코드와 새 비밀번호를 입력하세요.'))
+    if (next !== next2) return setErr(t('비밀번호가 일치하지 않습니다.'))
     setBusy(true)
     const r = await resetPassword(email.trim().toLowerCase(), code.trim(), next)
     setBusy(false)
@@ -363,6 +368,16 @@ function ForgotPasswordModal({
                   {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              <input
+                type={showPw ? 'text' : 'password'}
+                value={next2}
+                onChange={(e) => setNext2(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && doReset()}
+                placeholder={t('새 비밀번호 확인')}
+                className={cn(boxCls, next2 && next !== next2 && 'border-rose-400/60')}
+                autoComplete="new-password"
+              />
+              {next2 && next !== next2 && <p className="text-xs text-rose-300">{t('비밀번호가 일치하지 않습니다.')}</p>}
               {err && <p className="text-xs text-rose-300">{err}</p>}
               <Button size="lg" className="w-full" disabled={busy} onClick={doReset}>
                 {busy ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />}

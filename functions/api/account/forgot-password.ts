@@ -9,7 +9,7 @@ import {
   geoFrom,
   logSecurity,
 } from '../_utils'
-import { resendEmail } from '../_external'
+import { resendEmail, emailShell } from '../_external'
 
 // POST /api/account/forgot-password
 //  { action: 'request', email }              → 이메일로 6자리 인증코드 발송 (Resend, 발신 cs@bygency.co)
@@ -45,21 +45,30 @@ async function handle(request: Request, env: Env): Promise<Response> {
   const nowIso = new Date(now).toISOString()
 
   if (action === 'request') {
-    const user: any = await db.prepare('SELECT id, name FROM users WHERE email = ?').bind(email).first()
-    // 계정 존재 여부를 노출하지 않기 위해 항상 성공처럼 응답 (이메일 열거 방지)
+    const user: any = await db.prepare('SELECT id, name, provider, password_set FROM users WHERE email = ?').bind(email).first()
+    // 계정 존재 여부를 노출하지 않기 위해 없는 계정은 성공처럼 응답 (이메일 열거 방지)
     if (!user) return json({ ok: true })
 
-    // 재발송 쿨다운 (60초) — 남용 방지
+    // 구글(소셜) 로그인 계정은 인증번호 발송 차단 — "구글로만" 로그인. 본인이 직접
+    //   비밀번호를 설정한 경우(password_set=1)에만 재설정 허용.
+    const isSocial = user.provider && user.provider !== 'email'
+    const hasOwnPassword = Number(user.password_set) === 1
+    if (isSocial && !hasOwnPassword) {
+      return json({ ok: false, error: '구글 계정으로 가입한 이메일입니다. "구글로 로그인"을 이용해 주세요.', social: String(user.provider) }, 200)
+    }
+
+    // 재발송 쿨다운 (3분) — 남용 방지
     const existing: any = await db.prepare('SELECT last_sent_at FROM password_resets WHERE email = ?').bind(email).first().catch(() => null)
-    if (existing?.last_sent_at && now - +new Date(existing.last_sent_at) < 60_000) {
-      return json({ ok: true, cooldown: true })
+    if (existing?.last_sent_at && now - +new Date(existing.last_sent_at) < 3 * 60_000) {
+      const wait = Math.ceil((3 * 60_000 - (now - +new Date(existing.last_sent_at))) / 1000)
+      return json({ ok: false, error: `인증번호는 3분에 한 번만 보낼 수 있어요. ${wait}초 후 다시 시도해 주세요.`, cooldown: true, wait }, 200)
     }
 
     // 6자리 코드 생성 (crypto 기반)
     const rnd = crypto.getRandomValues(new Uint32Array(1))[0]
     const code = String(100000 + (rnd % 900000))
     const codeHash = await hashPassword(code)
-    const expires = new Date(now + 10 * 60_000).toISOString() // 10분 유효
+    const expires = new Date(now + 3 * 60_000).toISOString() // 3분 유효
     await db
       .prepare(`INSERT INTO password_resets (email, code_hash, expires_at, attempts, last_sent_at, created_at)
                 VALUES (?, ?, ?, 0, ?, ?)
@@ -67,30 +76,25 @@ async function handle(request: Request, env: Env): Promise<Response> {
       .bind(email, codeHash, expires, nowIso, nowIso)
       .run()
 
-    const html = `
-      <div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#0f172a">
-        <div style="font-size:20px;font-weight:800;letter-spacing:-0.02em;color:#6d28d9">BYGENCY</div>
-        <h1 style="font-size:20px;margin:24px 0 8px">비밀번호 재설정 인증코드</h1>
-        <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 20px">
+    const html = emailShell(`
+        <h1 style="font-size:19px;margin:16px 0 8px">비밀번호 재설정 인증코드</h1>
+        <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 18px">
           안녕하세요${user.name ? ` ${user.name}님` : ''}. 아래 6자리 인증코드를 입력해 비밀번호를 재설정하세요.
-          이 코드는 <b>10분간</b> 유효합니다.
+          이 코드는 <b>3분간</b> 유효합니다.
         </p>
-        <div style="font-size:34px;font-weight:800;letter-spacing:0.35em;background:#f5f3ff;color:#6d28d9;text-align:center;padding:18px 0;border-radius:14px;border:1px solid #ede9fe">
+        <div style="font-size:34px;font-weight:800;letter-spacing:0.35em;background:#eff6ff;color:#1d4ed8;text-align:center;padding:18px 0;border-radius:14px;border:1px solid #dbeafe">
           ${code}
         </div>
-        <p style="color:#94a3b8;font-size:12px;line-height:1.6;margin:20px 0 0">
+        <p style="color:#94a3b8;font-size:12px;line-height:1.6;margin:18px 0 0">
           본인이 요청하지 않았다면 이 메일을 무시하세요. 계정은 안전하며 비밀번호는 변경되지 않습니다.
-        </p>
-        <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0" />
-        <p style="color:#94a3b8;font-size:12px;margin:0">© BYGENCY · cs@bygency.co</p>
-      </div>`
+        </p>`)
 
     const sent = await resendEmail(env, {
       to: email,
       subject: '[BYGENCY] 비밀번호 재설정 인증코드',
       html,
       from: 'BYGENCY <cs@bygency.co>',
-    })
+    }, { db, kind: 'reset', userId: user.id })
     if (!sent.ok) {
       await logSecurity(db, { ip, method: 'POST', path: '/api/account/forgot-password', status: 502, severity: 'warn', detail: `비밀번호 재설정 메일 발송 실패: ${sent.error || ''}`.slice(0, 160) }).catch(() => {})
       // 실제 사유를 그대로 노출(도메인 미인증/키 미설정 등 진단 가능하도록)

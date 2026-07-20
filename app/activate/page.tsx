@@ -11,7 +11,6 @@ import {
   ShieldCheck,
   Clock,
   ArrowRight,
-  Sparkles,
   Loader2,
 } from 'lucide-react'
 import { Navbar } from '@/components/layout/Navbar'
@@ -102,44 +101,43 @@ export default function ActivatePage() {
     }
   }
 
+  // 공통 카드 스타일 (밝고 심플)
+  const cardCls = 'rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]'
+
   return (
-    <div className="site-dark min-h-screen overflow-x-hidden">
+    <div className="min-h-screen bg-slate-50 text-slate-900">
       <Navbar />
 
-      <section className="relative overflow-hidden pt-32 pb-16">
-        <div className="absolute inset-0 grid-bg opacity-25" />
-        <div className="animate-drift pointer-events-none absolute -top-32 left-1/2 h-[380px] w-[720px] -translate-x-1/2 rounded-full bg-violet-700/25 blur-[130px]" />
-        <div className="relative mx-auto max-w-3xl px-5 text-center">
-          <div className="flex justify-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.06] px-4 py-1.5 text-sm font-semibold text-violet-200 backdrop-blur">
-              <Sparkles size={15} /> 요금제 활성화
-            </span>
-          </div>
+      {/* 히어로 — 밝은 단색 블루 밴드(네비 가독성 확보 + 산뜻한 느낌) */}
+      <section className="bg-gradient-to-b from-blue-600 to-indigo-600 pt-28 pb-16 text-white">
+        <div className="mx-auto max-w-3xl px-5 text-center">
+          <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-sm font-semibold backdrop-blur">
+            <ShieldCheck size={15} /> 요금제 활성화
+          </span>
           <h1 className="mt-5 text-balance text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
-            계좌 입금 후 <span className="brand-text">승인 신청</span> 한 번으로 시작하세요
+            계좌 입금 후 승인 신청 한 번으로 시작하세요
           </h1>
-          <p className="mx-auto mt-4 max-w-xl text-balance text-[var(--text-soft)]">
-            현재는 계좌이체로 결제합니다. 아래 계좌로 입금하신 뒤 플랜을 신청하면, 관리자 승인 즉시{' '}
-            <b className="text-[var(--text)]">마케팅 대시보드와 노드형 AI 영상 제작 모두</b> 열립니다.
+          <p className="mx-auto mt-4 max-w-xl text-balance text-blue-50/90">
+            아래 계좌로 입금하신 뒤 플랜을 신청하면, 관리자 승인 즉시 마케팅 대시보드와 노드형 AI 영상 제작을 모두 이용할 수 있어요.
           </p>
         </div>
       </section>
 
-      <section className="pb-24">
+      <section className="pb-24 pt-10">
         <div className="mx-auto max-w-5xl px-5">
           {/* 이미 활성화된 경우 */}
           {ready && hasPlan && (
-            <div className="mx-auto mb-8 max-w-3xl rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.07] p-6 text-center">
-              <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl bg-emerald-500/15 text-emerald-300">
+            <div className="mx-auto mb-8 max-w-3xl rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
+              <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl bg-emerald-100 text-emerald-600">
                 <ShieldCheck size={24} />
               </div>
               <h3 className="text-lg font-bold">이미 요금제가 활성화되어 있습니다</h3>
-              <p className="mt-2 text-sm text-[var(--text-soft)]">마케팅 대시보드와 영상 제작을 모두 이용할 수 있어요.</p>
+              <p className="mt-2 text-sm text-slate-600">마케팅 대시보드와 영상 제작을 모두 이용할 수 있어요.</p>
               <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-                <Link href="/dashboard_USE17237_612" className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 px-5 py-2.5 text-sm font-bold text-white transition hover:brightness-110">
+                <Link href="/dashboard_USE17237_612" className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700">
                   마케팅 대시보드 <ArrowRight size={15} />
                 </Link>
-                <a href="/studio-nvc-prv-8b3k2/" className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-5 py-2.5 text-sm font-semibold text-[var(--text-soft)] transition hover:bg-white/5">
+                <a href="/studio-nvc-prv-8b3k2/" className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                   <Clapperboard size={15} /> 노드형 영상 스튜디오
                 </a>
               </div>
@@ -148,10 +146,10 @@ export default function ActivatePage() {
 
           {/* 미로그인 안내 */}
           {ready && !user && (
-            <div className="mx-auto mb-8 max-w-3xl rounded-2xl border border-amber-500/25 bg-amber-500/[0.07] p-6 text-center">
-              <p className="text-sm text-[var(--text-soft)]">
+            <div className="mx-auto mb-8 max-w-3xl rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center">
+              <p className="text-sm text-amber-800">
                 요금제 신청은 로그인 후 이용할 수 있습니다.{' '}
-                <Link href="/login" className="font-semibold text-violet-300 hover:underline">로그인하기</Link>
+                <Link href="/login" className="font-semibold text-blue-600 hover:underline">로그인하기</Link>
               </p>
             </div>
           )}
@@ -159,40 +157,40 @@ export default function ActivatePage() {
           <div className="grid gap-6 lg:grid-cols-5">
             {/* 좌 : 입금 계좌 */}
             <div className="lg:col-span-2">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+              <div className={`${cardCls} p-6`}>
                 <div className="flex items-center gap-2.5">
-                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-violet-500/15 text-violet-300">
+                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-600">
                     <Landmark size={20} />
                   </span>
                   <h3 className="text-base font-bold">입금 계좌</h3>
                 </div>
                 <dl className="mt-5 space-y-3 text-sm">
                   <div className="flex items-center justify-between">
-                    <dt className="text-[var(--text-dim)]">은행</dt>
+                    <dt className="text-slate-500">은행</dt>
                     <dd className="font-semibold">{BANK.bank}</dd>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <dt className="text-[var(--text-dim)]">계좌번호</dt>
+                    <dt className="text-slate-500">계좌번호</dt>
                     <dd className="flex items-center gap-2">
                       <span className="font-semibold tracking-wide">{BANK.account}</span>
-                      <button onClick={copyAccount} className="grid h-7 w-7 place-items-center rounded-lg border border-white/15 text-[var(--text-soft)] transition hover:bg-white/5" title="계좌번호 복사">
-                        {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                      <button onClick={copyAccount} className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50" title="계좌번호 복사">
+                        {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
                       </button>
                     </dd>
                   </div>
                   <div className="flex items-center justify-between">
-                    <dt className="text-[var(--text-dim)]">예금주</dt>
+                    <dt className="text-slate-500">예금주</dt>
                     <dd className="font-semibold">{BANK.holder}</dd>
                   </div>
                 </dl>
-                <div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-4 text-xs leading-relaxed text-[var(--text-soft)]">
+                <div className="mt-5 rounded-xl border border-slate-100 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
                   <p className="flex items-start gap-2">
-                    <Clock size={14} className="mt-0.5 flex-shrink-0 text-violet-300" />
-                    입금자명은 <b className="text-[var(--text)]">가입하신 이름</b>으로 보내주세요. 확인이 빠릅니다.
+                    <Clock size={14} className="mt-0.5 flex-shrink-0 text-blue-500" />
+                    입금자명은 <b className="text-slate-900">가입하신 이름</b>으로 보내주세요. 확인이 빠릅니다.
                   </p>
                   <p className="mt-2 flex items-start gap-2">
-                    <ShieldCheck size={14} className="mt-0.5 flex-shrink-0 text-violet-300" />
-                    입금 확인 후 <b className="text-[var(--text)]">관리자 승인 즉시</b> 두 제품 모두 열립니다.
+                    <ShieldCheck size={14} className="mt-0.5 flex-shrink-0 text-blue-500" />
+                    입금 확인 후 <b className="text-slate-900">관리자 승인 즉시</b> 두 제품 모두 열립니다.
                   </p>
                 </div>
               </div>
@@ -200,7 +198,7 @@ export default function ActivatePage() {
 
             {/* 우 : 신청 폼 */}
             <div className="lg:col-span-3">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+              <div className={`${cardCls} p-6`}>
                 <h3 className="text-base font-bold">플랜 선택 후 승인 신청</h3>
 
                 {/* 트랙 */}
@@ -212,13 +210,13 @@ export default function ActivatePage() {
                       <button
                         key={tk.key}
                         onClick={() => setTrack(tk.key)}
-                        className={`rounded-xl border p-3.5 text-left transition ${on ? 'border-violet-500/60 bg-violet-500/10' : 'border-white/10 bg-white/[0.02] hover:border-white/25'}`}
+                        className={`rounded-xl border p-3.5 text-left transition ${on ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
                       >
                         <div className="flex items-center gap-2">
-                          <Icon size={16} className={on ? 'text-violet-300' : 'text-[var(--text-dim)]'} />
+                          <Icon size={16} className={on ? 'text-blue-600' : 'text-slate-400'} />
                           <span className="text-sm font-semibold">{tk.label}</span>
                         </div>
-                        <p className="mt-1 text-[11px] leading-snug text-[var(--text-dim)]">{tk.desc}</p>
+                        <p className="mt-1 text-[11px] leading-snug text-slate-500">{tk.desc}</p>
                       </button>
                     )
                   })}
@@ -232,51 +230,46 @@ export default function ActivatePage() {
                       <button
                         key={pk}
                         onClick={() => setPlan(pk)}
-                        className={`rounded-xl border p-3 text-center transition ${on ? 'border-violet-500/60 bg-violet-500/10' : 'border-white/10 bg-white/[0.02] hover:border-white/25'}`}
+                        className={`rounded-xl border p-3 text-center transition ${on ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
                       >
-                        <div className="text-sm font-bold">{pk}</div>
-                        <div className="mt-0.5 text-xs text-[var(--text-soft)]">{won(priceOf(track, pk))}</div>
+                        <div className={`text-sm font-bold ${on ? 'text-blue-700' : 'text-slate-900'}`}>{pk}</div>
+                        <div className="mt-0.5 text-xs text-slate-500">{won(priceOf(track, pk))}</div>
                       </button>
                     )
                   })}
                 </div>
 
-                {/* 이용 기간 (개월) */}
+                {/* 이용 기간 — 드롭다운(펼침) */}
                 <div className="mt-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-[var(--text-dim)]">이용 기간</span>
-                    <span className="text-xs font-medium text-violet-200">{months}개월</span>
+                  <label htmlFor="months" className="mb-1.5 block text-xs font-semibold text-slate-500">이용 기간</label>
+                  <div className="relative">
+                    <select
+                      id="months"
+                      value={months}
+                      onChange={(e) => setMonths(Number(e.target.value))}
+                      className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3 pr-10 text-sm font-medium outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    >
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                        <option key={m} value={m}>{m}개월{m === 12 ? ' (최대)' : ''}</option>
+                      ))}
+                    </select>
+                    <svg className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
                   </div>
-                  <div className="mt-2 grid grid-cols-6 gap-2">
-                    {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
-                      const on = months === m
-                      return (
-                        <button
-                          key={m}
-                          onClick={() => setMonths(m)}
-                          className={`rounded-lg border py-1.5 text-xs font-semibold transition ${on ? 'border-violet-500/60 bg-violet-500/15 text-violet-200' : 'border-white/10 bg-white/[0.02] text-[var(--text-soft)] hover:border-white/25'}`}
-                        >
-                          {m}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <p className="mt-1.5 text-[11px] text-[var(--text-dim)]">최대 12개월까지 선택할 수 있어요. 승인 즉시 선택한 기간만큼 이용 기간이 부여됩니다.</p>
                 </div>
 
                 {/* 요약 */}
-                <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm">
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-[var(--text-soft)]">
+                    <span className="text-slate-600">
                       {TRACKS.find((t) => t.key === track)?.label} · {plan}
                     </span>
-                    <span className="text-[var(--text-dim)]">
+                    <span className="text-slate-500">
                       {won(priceOf(track, plan))} <span className="text-xs">/월</span> × {months}개월
                     </span>
                   </div>
-                  <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-2">
-                    <span className="font-semibold text-[var(--text-soft)]">총 결제 금액</span>
-                    <span className="text-lg font-bold text-violet-200">{won(priceOf(track, plan) * months)}</span>
+                  <div className="mt-2 flex items-center justify-between border-t border-slate-200 pt-2">
+                    <span className="font-semibold text-slate-700">총 결제 금액</span>
+                    <span className="text-lg font-bold text-blue-700">{won(priceOf(track, plan) * months)}</span>
                   </div>
                 </div>
 
@@ -284,39 +277,39 @@ export default function ActivatePage() {
                   value={memo}
                   onChange={(e) => setMemo(e.target.value)}
                   placeholder="입금자명이 가입명과 다르면 여기에 적어주세요 (선택)"
-                  className="mt-3 w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm outline-none transition placeholder:text-[var(--text-dim)] focus:border-violet-500/50"
+                  className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
 
                 <button
                   onClick={submit}
                   disabled={busy || !user || !!pending}
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 px-5 py-3.5 text-sm font-bold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3.5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {busy ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                   {pending ? '이미 승인 대기 중입니다' : '입금했어요 · 승인 신청하기'}
                 </button>
 
                 {msg && (
-                  <p className={`mt-3 text-center text-xs ${msg.ok ? 'text-emerald-300' : 'text-rose-300'}`}>{msg.text}</p>
+                  <p className={`mt-3 text-center text-xs ${msg.ok ? 'text-emerald-600' : 'text-rose-600'}`}>{msg.text}</p>
                 )}
 
                 {/* 신청 내역 */}
                 {reqs.length > 0 && (
-                  <div className="mt-6 border-t border-white/10 pt-4">
-                    <h4 className="mb-2 text-xs font-semibold text-[var(--text-dim)]">내 신청 내역</h4>
+                  <div className="mt-6 border-t border-slate-100 pt-4">
+                    <h4 className="mb-2 text-xs font-semibold text-slate-500">내 신청 내역</h4>
                     <ul className="space-y-1.5">
                       {reqs.slice(0, 5).map((r, i) => (
                         <li key={i} className="flex items-center justify-between text-xs">
-                          <span className="text-[var(--text-soft)]">
+                          <span className="text-slate-600">
                             {r.track === 'video' ? 'AI 영상' : '마케터'} · {r.to_plan}
                           </span>
                           <span
                             className={
                               r.status === 'approved'
-                                ? 'font-semibold text-emerald-300'
+                                ? 'font-semibold text-emerald-600'
                                 : r.status === 'rejected'
-                                  ? 'font-semibold text-rose-300'
-                                  : 'font-semibold text-amber-300'
+                                  ? 'font-semibold text-rose-600'
+                                  : 'font-semibold text-amber-600'
                             }
                           >
                             {r.status === 'approved' ? '승인됨' : r.status === 'rejected' ? '반려됨' : '승인 대기'}
@@ -328,8 +321,8 @@ export default function ActivatePage() {
                 )}
               </div>
 
-              <p className="mt-3 text-center text-xs text-[var(--text-dim)]">
-                플랜 상세 비교는 <Link href="/pricing" className="text-violet-300 hover:underline">요금제 안내</Link>에서 확인하세요.
+              <p className="mt-3 text-center text-xs text-slate-500">
+                플랜 상세 비교는 <Link href="/pricing" className="text-blue-600 hover:underline">요금제 안내</Link>에서 확인하세요.
               </p>
             </div>
           </div>

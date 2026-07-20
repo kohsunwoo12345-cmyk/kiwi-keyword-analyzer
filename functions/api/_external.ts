@@ -33,16 +33,55 @@ function envAny(env: any, ...names: string[]): string {
   return ''
 }
 
-/** Resend 이메일 발송 — RESEND_API_KEY(대소문자 무관) / 발신 기본 cs@bygency.co */
+// 이메일에 들어갈 로고(호스팅 PNG — 이메일 클라이언트 호환성 위해 인라인 SVG 대신 이미지 사용)
+const EMAIL_LOGO_URL = 'https://bygency.co/brand/app-icon.png'
+
+/** 브랜드 이메일 공통 셸 — 상단 로고 + 본문 + 푸터. innerHtml 만 넣으면 로고가 포함된 메일이 완성된다. */
+export function emailShell(innerHtml: string): string {
+  return `
+  <div style="background:#f6f7fb;padding:32px 0;font-family:system-ui,-apple-system,'Segoe UI','Malgun Gothic',sans-serif">
+    <div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #eef0f4;border-radius:18px;overflow:hidden">
+      <div style="padding:24px 28px 8px;text-align:center">
+        <img src="${EMAIL_LOGO_URL}" alt="BYGENCY" width="44" height="44" style="display:inline-block;border-radius:11px;vertical-align:middle" />
+        <span style="display:inline-block;margin-left:10px;font-size:20px;font-weight:800;letter-spacing:-0.02em;color:#1d4ed8;vertical-align:middle">BYGENCY</span>
+      </div>
+      <div style="padding:8px 28px 28px;color:#0f172a">${innerHtml}</div>
+      <div style="padding:16px 28px;background:#fafbfd;border-top:1px solid #eef0f4;text-align:center">
+        <p style="margin:0;color:#94a3b8;font-size:12px">© BYGENCY · <a href="mailto:cs@bygency.co" style="color:#94a3b8">cs@bygency.co</a></p>
+      </div>
+    </div>
+  </div>`
+}
+
+/** Resend 이메일 발송 — RESEND_API_KEY(대소문자 무관) / 발신 기본 cs@bygency.co.
+ *  log.db 를 넘기면 email_log 테이블에 발송 이력(수신/발신/제목/내용/상태/시각)을 기록한다. */
 export async function resendEmail(
   env: any,
   o: { to: string | string[]; subject: string; html: string; from?: string },
+  log?: { db?: any; kind?: string; userId?: string },
 ): Promise<{ ok: boolean; error?: string; id?: string }> {
   // 환경변수 이름 대소문자 무관 (RESEND_API_KEY / Resend_API_KEY / resend_api_key 등 모두 허용)
   const key = envAny(env, 'RESEND_API_KEY', 'RESEND_KEY', 'RESEND_APIKEY')
   // 발신 주소 우선순위: 명시 인자 > 환경변수 > 기본값(cs@bygency.co)
   const from = o.from || envAny(env, 'RESEND_FROM') || 'BYGENCY <cs@bygency.co>'
-  if (!key) return { ok: false, error: 'RESEND_API_KEY 환경변수 미설정' }
+  const toStr = Array.isArray(o.to) ? o.to.join(', ') : String(o.to || '')
+
+  const record = async (status: string, resendId: string, error: string) => {
+    if (!log?.db) return
+    try {
+      await log.db.prepare(
+        `INSERT INTO email_log (id, to_email, from_email, subject, kind, status, resend_id, error, body, user_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        'em_' + crypto.randomUUID().replace(/-/g, '').slice(0, 18),
+        toStr, from, String(o.subject || '').slice(0, 300), String(log.kind || 'general'),
+        status, resendId || '', error.slice(0, 400), String(o.html || '').slice(0, 20000),
+        log.userId || '', new Date().toISOString(),
+      ).run()
+    } catch { /* 로그 실패는 발송에 영향 없음 */ }
+  }
+
+  if (!key) { await record('failed', '', 'RESEND_API_KEY 환경변수 미설정'); return { ok: false, error: 'RESEND_API_KEY 환경변수 미설정' } }
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -50,10 +89,13 @@ export async function resendEmail(
       body: JSON.stringify({ from, to: o.to, subject: o.subject, html: o.html }),
     })
     const data: any = await res.json().catch(() => ({}))
-    if (!res.ok) return { ok: false, error: data?.message || `Resend 오류 (${res.status})` }
+    if (!res.ok) { const err = data?.message || `Resend 오류 (${res.status})`; await record('failed', '', err); return { ok: false, error: err } }
+    await record('sent', data?.id || '', '')
     return { ok: true, id: data?.id }
   } catch (e: any) {
-    return { ok: false, error: String(e?.message || e).slice(0, 120) }
+    const err = String(e?.message || e).slice(0, 120)
+    await record('failed', '', err)
+    return { ok: false, error: err }
   }
 }
 

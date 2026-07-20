@@ -288,6 +288,21 @@ export async function ensureSchema(db: D1Database) {
       last_sent_at TEXT,
       created_at TEXT NOT NULL
     )`),
+    // 이메일(Resend) 발송 이력 — 관리자 대시보드에서 수신/발신/내용/시각 확인
+    db.prepare(`CREATE TABLE IF NOT EXISTS email_log (
+      id TEXT PRIMARY KEY,
+      to_email TEXT,
+      from_email TEXT,
+      subject TEXT,
+      kind TEXT,               -- reset | welcome | general ...
+      status TEXT,             -- sent | failed
+      resend_id TEXT,
+      error TEXT,
+      body TEXT,
+      user_id TEXT,
+      created_at TEXT NOT NULL  -- ISO(UTC). 표시 시 KST 변환
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_email_log_ts ON email_log(created_at)`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_loginfail_email ON login_failures(email, created_at)`),
     // 보안: 관리자 감사 로그 (Audit Trail)
     db.prepare(`CREATE TABLE IF NOT EXISTS audit_log (

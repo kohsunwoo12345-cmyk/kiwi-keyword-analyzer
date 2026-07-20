@@ -15,6 +15,7 @@ import {
   geoFrom,
   ensureReferralCode,
 } from './_utils'
+import { resendEmail, emailShell } from './_external'
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env)
@@ -72,6 +73,21 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
   // 가입 축하 포인트·크레딧 지급 없음 (요금제 결제로만 사용 가능)
   await addNotification(db, id, 'BYGENCY에 오신 것을 환영합니다 🎉', '가입이 완료되었어요. 요금제를 활성화하면 마케팅 대시보드와 노드형 AI 영상 제작을 모두 사용할 수 있어요. 친구가 요금제에 가입하면 결제액의 1%를 크레딧으로 받을 수 있어요!')
+
+  // 가입 환영 메일 발송 (로고 포함) — 실패해도 가입은 완료. 발송 이력은 email_log 에 기록.
+  try {
+    const html = emailShell(`
+        <h1 style="font-size:19px;margin:16px 0 8px">가입을 환영합니다 🎉</h1>
+        <p style="color:#475569;font-size:14px;line-height:1.7;margin:0 0 16px">
+          안녕하세요 ${name}님, BYGENCY 가입이 완료되었어요.<br/>
+          요금제를 활성화하면 <b>마케팅 대시보드</b>와 <b>노드형 AI 영상 제작</b>을 모두 사용할 수 있습니다.
+        </p>
+        <a href="https://bygency.co/activate" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:12px">요금제 활성화하기</a>
+        <p style="color:#94a3b8;font-size:12px;line-height:1.6;margin:18px 0 0">
+          친구가 요금제에 가입하면 결제액의 1%를 크레딧으로 받을 수 있어요.
+        </p>`)
+    await resendEmail(env, { to: email, subject: '[BYGENCY] 가입을 환영합니다 🎉', html, from: 'BYGENCY <cs@bygency.co>' }, { db, kind: 'welcome', userId: id })
+  } catch { /* 환영 메일 실패는 가입에 영향 없음 */ }
 
   const geo = geoFrom(request)
   const token = await createSession(db, id, { ip: clientIp(request), ua: request.headers.get('User-Agent') || '', country: geo.country })
