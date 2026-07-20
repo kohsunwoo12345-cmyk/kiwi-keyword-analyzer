@@ -267,10 +267,6 @@ button .ico{ margin-right:5px; }
   opacity:0; visibility:hidden; pointer-events:none; transform:translateX(46px);
   transition:opacity .26s ease, transform .34s cubic-bezier(.22,1,.36,1), visibility .34s; }
 #chatHome.on{ opacity:1; visibility:visible; pointer-events:auto; transform:translateX(0); }
-#smsPane{ position:fixed; left:44px; top:0; right:0; bottom:0; z-index:120; display:flex; flex-direction:column; background:#0b0d16; color:#e8eaf2;
-  opacity:0; visibility:hidden; pointer-events:none; transform:translateX(46px);
-  transition:opacity .26s ease, transform .34s cubic-bezier(.22,1,.36,1), visibility .34s; }
-#smsPane.on{ opacity:1; visibility:visible; pointer-events:auto; transform:translateX(0); }
 .ch-head{ display:flex; align-items:center; justify-content:space-between; padding:11px 18px; border-bottom:1px solid rgba(255,255,255,.06); flex-shrink:0; }
 .ch-title{ display:flex; align-items:center; gap:8px; font-size:14px; font-weight:800; color:#eef0f8; }
 .ch-title svg{ color:#8fa0ff; }
@@ -1474,9 +1470,6 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
   <button id="railLib" title="노드 라이브러리">▤</button>
   <button id="railFlow" title="워크플로우 열기"><span data-ico="folder"></span></button>
   <button id="railSearch" title="노드 검색"><span data-ico="search"></span></button>
-  <button id="railSms" title="문자 발송">
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>
-  </button>
   <span class="rail-sp"></span>
   <button id="pfFab" title="내 계정" aria-label="내 계정">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -1611,20 +1604,6 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
       </div>
     </div>
   </div>
-</div>
-
-<!-- 문자 발송 (SMS) — 기존 발송 도구를 스튜디오 안에서 슬라이드로 열기 -->
-<div id="smsPane">
-  <div class="ch-head">
-    <div class="ch-title">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>
-      문자 발송
-    </div>
-    <div class="ch-head-actions">
-      <button id="smsClose" class="ch-x" title="닫기">✕</button>
-    </div>
-  </div>
-  <iframe id="smsFrame" title="문자 발송" style="flex:1;width:100%;border:0;background:#fff;"></iframe>
 </div>
 
 <div id="stats"></div>
@@ -3149,6 +3128,37 @@ var DEFS = {
    render() 로 노드가 새로 그려질 때마다 world 를 다시 번역해 동적 UI 도 적용된다. */
 var I18N = {
   en: {
+    // ── 상단 메뉴 · 탭 · 홈/채팅/제작 (신규) ──
+    '워크플로우':'Workflow','편집':'Edit','도움말':'Help',
+    '워크플로우 1':'Workflow 1','워크플로우 2':'Workflow 2','워크플로우 3':'Workflow 3','워크플로우 4':'Workflow 4','워크플로우 5':'Workflow 5','워크플로우 6':'Workflow 6','워크플로우 7':'Workflow 7','워크플로우 8':'Workflow 8',
+    '새 워크플로우':'New workflow','계정에서 불러오기(서버)':'Load from account (server)','Claude MCP 연결':'Connect Claude MCP','단축키 보기':'Shortcuts',
+    // 레일 툴팁
+    '홈 · 채팅으로 영상 생성':'Home · Chat to create','제작 · 프롬프트로 바로 만들기':'Create · Quick generate','새 워크플로우 탭':'New workflow tab',
+    // 채팅(#chat) 화면
+    'AI 채팅 생성 · 영상/이미지':'AI Chat · Video / Image','영상 만들기':'Create Video','길이':'Length','화질':'Quality','비율':'Ratio',
+    '이미지/영상 첨부':'Attach image / video','(선택)':'(optional)','클릭하여 첨부':'Click to attach','생성하기':'Generate','생성하다':'Generate',
+    '전부':'All','비디오':'Video','창작 잠재력을 발휘하세요':'Unleash your creativity',
+    '왼쪽에서 프롬프트를 입력하고 생성하면':'Enter a prompt on the left and generate —','결과물이 여기에 표시됩니다.':'your results appear here.',
+    '5초':'5s','8초':'8s','10초':'10s','가로 16:9':'Landscape 16:9','세로 9:16':'Portrait 9:16','정사각 1:1':'Square 1:1',
+    '이미지 생성 중…':'Generating image…','영상 생성 중…':'Generating video…',
+    '예) 노을 지는 해변을 달리는 골든리트리버, 시네마틱, 슬로모션':'e.g. A golden retriever running on a sunset beach, cinematic, slow motion',
+    '예) 미니멀한 배경 위 향수 제품 컷, 스튜디오 조명, 고급스러운':'e.g. A perfume product shot on a minimal background, studio lighting, luxurious',
+    // 제작(#create) 화면
+    '제작 · 바로 만들기':'Create · Quick Studio','지금 바로 제작을 시작하세요':'Start creating right now','프롬프트 한 줄이면 충분합니다':'One line of prompt is all it takes',
+    '장면·인물·분위기 또는 스타일을 묘사해 보세요. 최상위 AI 모델로 이미지·영상이 만들어집니다.':'Describe a scene, character, mood or style — top-tier AI models turn it into images and video.',
+    '당신이 상상하는 장면을 묘사해 보세요.':'Describe the scene you imagine.','만들고 싶은 이미지를 묘사해 보세요.':'Describe the image you want.','장수':'Count',
+    '프롬프트·설정을 불러왔습니다':'Prompt & settings loaded','계정에 저장된 워크플로우를 불러왔어요':'Loaded the workflow saved to your account','계정에 저장된 워크플로우가 없습니다':'No workflow saved to your account',
+    // ── 노드 내부 위젯·힌트 (신규) ──
+    '영상 레퍼런스':'Video Reference','＋ 영상 레퍼런스':'＋ Video reference','＋ 이미지 레퍼런스':'＋ Image reference',
+    '출력 없음':'No output','프롬프트 실행 시 결과가 표시됩니다':'Results appear when you run the prompt',
+    'Seedance 옵션':'Seedance options','오디오 생성':'Generate audio','워터마크 넣기':'Add watermark',
+    '영상에 음향/음악 자동 생성 (검열에 걸리면 실패할 수 있음 · 기본 꺼짐)':'Auto-generate sound/music for the video (may fail on moderation · off by default)',
+    '끄면 워터마크 없이 출력 (기본 꺼짐)':'Off = output without watermark (off by default)',
+    '오디오 레퍼런스 URL (선택)':'Audio reference URL (optional)','모델 ID 직접 입력 (선택)':'Enter model ID (optional)',
+    'BytePlus 콘솔의 최신 모델 ID를 붙여넣으면 그 모델로 호출됩니다':'Paste the latest model ID from the BytePlus console to call that model',
+    '이 모델(1.0 계열)은 오디오 생성을 지원하지 않습니다. 비율·길이는 영상 설정 노드에서 조절됩니다.':'This model (1.0 series) does not support audio generation. Ratio & length are set in the Video Settings node.',
+    '＋ 레퍼런스 추가 (이미지·영상)':'＋ Add reference (image / video)','＋ 이미지·영상 추가':'＋ Add image / video',
+    '모델 ID 입력 (선택)':'Enter model ID (optional)',
     // 노드 제목
     '프롬프트 (Positive)':'Prompt (Positive)','네거티브 프롬프트':'Negative Prompt','옴니 레퍼런스 (이미지·영상)':'Omni Reference (Image / Video)',
     '모델 선택':'Select Model','AI 모델 로더':'AI Model Loader','이미지 생성':'Image Generation','영상 설정':'Video Settings',
@@ -3502,6 +3512,7 @@ function renderTabs(){
     t.innerHTML='<i></i><span class="mb-tab-name">'+esc(d.name)+'</span><b class="mb-tab-x" data-docclose="'+d.id+'" title="닫기">'+ICON.close+'</b>';
     wrap.insertBefore(t,plus);
   });
+  try{ if(I18N_LANG!=='ko') applyI18n(wrap); }catch(e){}   // 탭 이름 등 선택 언어로 번역
 }
 function switchDoc(id){
   if(id===activeDocId)return;
@@ -5044,16 +5055,7 @@ document.getElementById('mbTabs').addEventListener('dblclick',function(e){
 /* ── 좌측 레일 ── */
 document.getElementById('railFlow').addEventListener('click',openFlowModal);
 document.getElementById('railSearch').addEventListener('click',function(){ openSearch(innerWidth/2-150, 140); });
-/* 문자 발송 — 기존 발송 도구를 스튜디오 안 슬라이드 패널로 (iframe 은 최초 열 때만 로드) */
-(function(){
-  var rs=document.getElementById('railSms'), pane=document.getElementById('smsPane'), fr=document.getElementById('smsFrame'), cl=document.getElementById('smsClose');
-  if(!rs||!pane)return;
-  function openSms(){ if(fr&&!fr.getAttribute('src')) fr.setAttribute('src','/tools/sms?embed=1'); pane.classList.add('on'); }
-  function closeSms(){ pane.classList.remove('on'); }
-  rs.addEventListener('click',openSms);
-  if(cl)cl.addEventListener('click',closeSms);
-  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&pane.classList.contains('on'))closeSms(); });
-})();
+/* (문자 발송 패널 제거됨 — 관리자 대시보드의 "발송 설정"에서 발송 관리) */
 var libPanel=document.getElementById('libPanel'), libBody=document.getElementById('libBody');
 function buildLib(q){
   q=(q||'').toLowerCase();
@@ -5728,6 +5730,7 @@ pfHandleTossReturn();
   function applyOpen(){
     if(home.classList.contains('on')) return;
     fillModels(); renderOutput(); home.classList.add('on'); document.body.classList.add('chat-open');
+    try{ if(typeof I18N_LANG!=='undefined' && I18N_LANG!=='ko') applyI18n(home); }catch(e){}
     setTimeout(function(){ var t=chEl('chText'); if(t)t.focus(); },50);
   }
   function applyClose(){ home.classList.remove('on'); document.body.classList.remove('chat-open'); }
@@ -5884,7 +5887,7 @@ pfHandleTossReturn();
 
   // 라우팅: #create (노드 스튜디오와 별도 URL)
   function isCreate(){ return (location.hash||'').toLowerCase()==='#create'; }
-  function applyOpen(){ if(home.classList.contains('on'))return; fillModels(); renderGrid(); home.classList.add('on'); document.body.classList.add('create-open'); setTimeout(function(){var t=el('crText'); if(t)t.focus();},50); }
+  function applyOpen(){ if(home.classList.contains('on'))return; fillModels(); renderGrid(); home.classList.add('on'); document.body.classList.add('create-open'); try{ if(typeof I18N_LANG!=='undefined' && I18N_LANG!=='ko') applyI18n(home); }catch(e){} setTimeout(function(){var t=el('crText'); if(t)t.focus();},50); }
   function applyClose(){ home.classList.remove('on'); document.body.classList.remove('create-open'); }
   function open(){ if(!isCreate())location.hash='create'; applyOpen(); }
   function close(){ if(isCreate())history.replaceState(null,'',location.pathname+location.search); applyClose(); }
