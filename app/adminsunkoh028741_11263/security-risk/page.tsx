@@ -1,11 +1,30 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ShieldAlert, ShieldCheck, RefreshCw, Ban, LogIn, AlertTriangle, CheckCircle2, XCircle, Activity, Lock } from 'lucide-react'
+import { ShieldAlert, ShieldCheck, RefreshCw, Ban, LogIn, AlertTriangle, CheckCircle2, XCircle, Activity, Lock, UserCheck, UserX } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel } from '@/components/ui'
-import { adminSecurityRisk, type SecurityRisk } from '@/lib/auth'
+import { adminSecurityRisk, type SecurityRisk, type RiskMember } from '@/lib/auth'
 import { cn } from '@/lib/utils'
+
+/** 회원/비회원 태그 (위협·차단·실패 IP가 우리 회원인지 식별) */
+function MemberTag({ member }: { member?: RiskMember | null }) {
+  if (!member) {
+    return (
+      <span className="inline-flex items-center gap-0.5 rounded border border-slate-200 bg-slate-50 px-1 py-0.5 text-[10px] font-medium text-slate-500">
+        <UserX size={10} /> 비회원
+      </span>
+    )
+  }
+  return (
+    <span
+      title={`${member.name || ''} · ${member.email || ''}${member.role === 'admin' ? ' · 관리자' : ''}`}
+      className={cn('inline-flex max-w-[130px] items-center gap-0.5 truncate rounded border px-1 py-0.5 text-[10px] font-semibold', member.role === 'admin' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700')}
+    >
+      <UserCheck size={10} /> {member.name || member.email}
+    </span>
+  )
+}
 
 const kst = (iso: string) => {
   if (!iso) return '-'
@@ -99,17 +118,19 @@ export default function SecurityRiskPage() {
             <table className="w-full text-xs">
               <thead><tr className="border-b border-[var(--border)] text-left text-[var(--text-dim)]">
                 <th className="px-2 py-1.5 font-medium">시각(KST)</th><th className="px-2 py-1.5 font-medium">IP</th>
+                <th className="px-2 py-1.5 font-medium">회원</th>
                 <th className="px-2 py-1.5 font-medium">경로</th><th className="px-2 py-1.5 font-medium">등급</th></tr></thead>
               <tbody>
                 {(s?.recentThreats || []).map((t, i) => (
                   <tr key={i} className="border-b border-[var(--border-soft)] last:border-0">
                     <td className="whitespace-nowrap px-2 py-1.5 text-[var(--text-dim)]">{kst(t.ts)}</td>
                     <td className="px-2 py-1.5 font-mono">{t.ip}{t.country ? ` · ${t.country}` : ''}</td>
+                    <td className="px-2 py-1.5"><MemberTag member={t.member} /></td>
                     <td className="max-w-[160px] truncate px-2 py-1.5" title={t.path}>{t.method} {t.path}</td>
                     <td className="px-2 py-1.5"><span className={cn('rounded px-1.5 py-0.5 text-[10px] font-bold', t.severity === 'high' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700')}>{t.severity}</span></td>
                   </tr>
                 ))}
-                {!s?.recentThreats?.length && <tr><td colSpan={4} className="py-6 text-center text-[var(--text-dim)]">위협 신호 없음 (양호)</td></tr>}
+                {!s?.recentThreats?.length && <tr><td colSpan={5} className="py-6 text-center text-[var(--text-dim)]">위협 신호 없음 (양호)</td></tr>}
               </tbody>
             </table>
           </div>
@@ -120,9 +141,9 @@ export default function SecurityRiskPage() {
           <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[var(--text-dim)]">로그인 실패 상위 IP (7일)</div>
           <div className="mb-3 max-h-32 overflow-y-auto">
             {(s?.topFailIps || []).map((t, i) => (
-              <div key={i} className="flex items-center justify-between border-b border-[var(--border-soft)] py-1 text-xs last:border-0">
-                <span className="font-mono">{t.ip}</span>
-                <span className="text-[var(--text-dim)]">{num(t.c)}회 · {kst(t.last)}</span>
+              <div key={i} className="flex items-center justify-between gap-2 border-b border-[var(--border-soft)] py-1 text-xs last:border-0">
+                <span className="flex items-center gap-1.5 truncate"><span className="font-mono">{t.ip}</span><MemberTag member={t.member} /></span>
+                <span className="whitespace-nowrap text-[var(--text-dim)]">{num(t.c)}회 · {kst(t.last)}</span>
               </div>
             ))}
             {!s?.topFailIps?.length && <p className="py-3 text-center text-xs text-[var(--text-dim)]">기록 없음</p>}
@@ -130,9 +151,9 @@ export default function SecurityRiskPage() {
           <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[var(--text-dim)]">최근 차단 IP</div>
           <div className="max-h-32 overflow-y-auto">
             {(s?.recentBlocked || []).map((b, i) => (
-              <div key={i} className="flex items-center justify-between border-b border-[var(--border-soft)] py-1 text-xs last:border-0">
-                <span className="font-mono">{b.ip}</span>
-                <span className="text-[var(--text-dim)]">{b.source === 'auto' ? '자동' : '수동'} · {kst(b.created_at)}</span>
+              <div key={i} className="flex items-center justify-between gap-2 border-b border-[var(--border-soft)] py-1 text-xs last:border-0">
+                <span className="flex items-center gap-1.5 truncate"><span className="font-mono">{b.ip}</span><MemberTag member={b.member} /></span>
+                <span className="whitespace-nowrap text-[var(--text-dim)]">{b.source === 'auto' ? '자동' : '수동'} · {kst(b.created_at)}</span>
               </div>
             ))}
             {!s?.recentBlocked?.length && <p className="py-3 text-center text-xs text-[var(--text-dim)]">차단된 IP 없음</p>}

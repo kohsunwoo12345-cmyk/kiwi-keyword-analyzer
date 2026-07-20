@@ -1,4 +1,4 @@
-import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser, getSetting } from '../_utils'
+import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser, getSetting, getIpMembers } from '../_utils'
 
 // GET /api/admin/security-risk — "해킹 위험" 대시보드용 보안 상태 집계
 //  · 실시간 공격 신호(로그인 실패·차단 IP·의심 요청)
@@ -37,6 +37,20 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const recentAudit = await rows(
     "SELECT created_at, admin_email, action, target, severity, ip FROM audit_log WHERE severity = 'high' ORDER BY created_at DESC LIMIT 10")
 
+  // ── IP↔회원 식별 (위협/차단/실패 IP가 회원인지 비회원인지) ──
+  const ipMembers = await getIpMembers(db, [
+    ...recentThreats.map((r: any) => r.ip),
+    ...recentBlocked.map((r: any) => r.ip),
+    ...topFailIps.map((r: any) => r.ip),
+  ])
+  const withMember = (arr: any[]) => arr.map((r) => {
+    const m = ipMembers[r.ip]
+    return { ...r, member: m && m.length ? { name: m[0].name, email: m[0].email, role: m[0].role, count: m.length } : null }
+  })
+  const recentThreatsM = withMember(recentThreats)
+  const recentBlockedM = withMember(recentBlocked)
+  const topFailIpsM = withMember(topFailIps)
+
   // ── 런타임 보안 점검 (설정 기반 · 값 비노출) ──
   const envHas = (names: string[]) => names.some((k) => !!(env as any)[k] && String((env as any)[k]).trim())
   const wlMode = (await getSetting(db, 'ip_whitelist_mode')) === '1' || (await getSetting(db, 'security_whitelist_mode')) === '1'
@@ -61,10 +75,15 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     { key: 'sql', label: 'SQL 인젝션 방어', status: 'pass', detail: '전 쿼리 파라미터 바인딩(.bind) · 동적 식별자 화이트리스트' },
     { key: 'credit_atomic', label: '크레딧 원자적 차감', status: 'pass', detail: '조건부 UPDATE 로 동시요청 이중차감·음수 방지' },
     { key: 'csrf', label: 'CSRF 방어', status: 'pass', detail: 'SameSite=Lax 쿠키 + 민감요청 Origin 검증' },
+    { key: 'scanner', label: '공격 도구·스캐너 자동 차단', status: 'pass', detail: 'sqlmap·nikto·nuclei 등 침투도구 최초 요청에 즉시 IP 차단' },
+    { key: 'scrape', label: '무단 복제·API 남용 자동 차단', status: 'pass', detail: '10분 내 의심요청 24회 초과 IP 자동 차단(스크래핑/봇)' },
   ]
 
   const applied = [
     'AI 생성 프록시(/api/generate) 로그인·크레딧 인증 게이트',
+    '공격 도구(sqlmap·nikto·nuclei 등) 최초 요청 시 IP 즉시 자동 차단',
+    '무단 복제·스크래핑·API 남용 IP 자동 차단(10분 내 의심요청 임계 초과)',
+    'IP↔회원 영구 매핑으로 위협/의심 요청의 회원·비회원 식별',
     '업로드 SVG/HTML 인라인 서빙 차단(강제 다운로드 + CSP sandbox)',
     '이식 도구(플레이스·퍼널) 익명 접근 차단 및 회원별 데이터 격리',
     '고객센터 채팅 IDOR 차단(비로그인은 게스트 대화만)',
@@ -88,7 +107,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     ok: true,
     posture: { score, level, warnCount, failCount },
     signals: { loginFail24h, loginFail7d, blockedCount, autoBlocked, sus24h, susHigh24h,
-      topFailIps, recentBlocked, recentThreats, recentAudit },
+      topFailIps: topFailIpsM, recentBlocked: recentBlockedM, recentThreats: recentThreatsM, recentAudit },
     checks,
     applied,
   })

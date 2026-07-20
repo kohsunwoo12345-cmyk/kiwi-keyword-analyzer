@@ -1,11 +1,15 @@
-import { resolveDB, clientIp, geoFrom, isBlocked, isWhitelistMode, isWhitelisted, logSecurity, json } from './api/_utils'
+import { resolveDB, clientIp, geoFrom, isBlocked, isWhitelistMode, isWhitelisted, logSecurity, json, countRecentSuspicious, autoBlockIp } from './api/_utils'
 
 // 정적 자산은 건너뜀(성능). 문서/‑API 요청만 보안 검사.
 const ASSET_RE = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|webp|ico|woff2?|ttf|map|txt|xml|json)$/i
 // 의심 경로/페이로드 (SQL 인젝션 · 경로 탐색 · 알려진 스캐너 경로)
 const SUSPICIOUS_RE = /(\.env|\.git|wp-admin|wp-login|phpmyadmin|xmlrpc|\/\.\.|%2e%2e|sqlmap|union\s+select|select.+from|information_schema|eval\(|base64_|\/etc\/passwd|<script|onerror=|\bor\b\s+1=1)/i
-// 의심 User-Agent (자동 스캐너/공격 도구)
+// 의심 User-Agent (자동 스캐너/공격 도구 · 스크래퍼)
 const BAD_UA_RE = /(sqlmap|nikto|nmap|masscan|acunetix|nessus|dirbuster|gobuster|wpscan|hydra|zgrab|semrush|python-requests\/|curl\/|libwww|httpclient)/i
+// 명백한 공격/침투 도구 — 최초 1회 요청에도 즉시 자동 차단(오탐 위험 낮음)
+const ATTACK_UA_RE = /(sqlmap|nikto|nmap|masscan|acunetix|nessus|dirbuster|gobuster|wpscan|hydra|zgrab|nuclei|feroxbuster|dirsearch)/i
+// 우리 프로그램 무단 복제/스크래핑·API 남용 임계값: 10분 내 의심요청 이 횟수 초과 시 자동 차단
+const ABUSE_THRESHOLD = 24
 
 // 화이트리스트 모드에서도 항상 허용해야 관리자가 복구 가능
 const WHITELIST_ALLOW_RE = /^\/(login|api\/(login|me|logout|admin\/)|adminsunkoh028741_11263)/
@@ -38,21 +42,40 @@ export const onRequest: PagesFunction<any> = async (context) => {
     } catch {
       /* 테이블 미생성 등 무시 */
     }
-    // 3) 이상 행동 감지 (경로/페이로드 + UA)
-    const suspiciousPath = SUSPICIOUS_RE.test(decodeURIComponent(path + url.search))
+    // 3) 이상 행동 감지 (경로/페이로드 + UA) — 스캐닝/스크래핑/공격도구 자동 차단
+    let decoded = path + url.search
+    try { decoded = decodeURIComponent(decoded) } catch { /* 잘못된 인코딩 자체가 의심 신호 */ }
+    const suspiciousPath = SUSPICIOUS_RE.test(decoded)
+    const attackTool = ATTACK_UA_RE.test(ua)
     const badUa = BAD_UA_RE.test(ua)
     if (suspiciousPath || badUa) {
+      const sev = suspiciousPath || attackTool ? 'high' : 'warn'
       await logSecurity(db, {
         ip,
         method: request.method,
         path,
         status: 0,
-        severity: 'warn',
+        severity: sev,
         detail: suspiciousPath ? '의심 경로/페이로드 감지' : `의심 User-Agent: ${ua.slice(0, 60)}`,
         country: geo.country,
         city: geo.city,
         ua,
       }).catch(() => {})
+
+      // 3-a) 명백한 침투/스캐너 도구 → 즉시 자동 차단 후 접속 차단
+      if (attackTool) {
+        const blocked = await autoBlockIp(db, ip, `공격 도구 자동 차단: ${ua.slice(0, 80)}`, geo).catch(() => false)
+        if (blocked) return blockedResponse(path)
+      }
+      // 3-b) 반복 스캐닝/스크래핑·API 남용 → 임계값 초과 시 자동 차단
+      const recent = await countRecentSuspicious(db, ip, 10).catch(() => 0)
+      if (recent > ABUSE_THRESHOLD) {
+        const blocked = await autoBlockIp(db, ip, `반복 의심요청 자동 차단 (10분 내 ${recent}회 · 스크래핑/API 남용 의심)`, geo).catch(() => false)
+        if (blocked) {
+          await logSecurity(db, { ip, method: request.method, path, status: 403, severity: 'high', detail: `자동 차단(남용 임계 초과 ${recent}회)`, country: geo.country, city: geo.city, ua }).catch(() => {})
+          return blockedResponse(path)
+        }
+      }
     }
   }
 

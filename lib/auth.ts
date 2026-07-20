@@ -82,6 +82,15 @@ export async function login(email: string, password: string): Promise<AuthResult
   return postJson('/api/login', { email, password })
 }
 
+/** 비밀번호 찾기 — ① 이메일로 인증코드 발송 */
+export async function requestPasswordReset(email: string): Promise<{ ok: boolean; error?: string; cooldown?: boolean }> {
+  return postJson('/api/account/forgot-password', { action: 'request', email })
+}
+/** 비밀번호 찾기 — ② 코드 검증 후 새 비밀번호 설정 */
+export async function resetPassword(email: string, code: string, next: string): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/account/forgot-password', { action: 'verify', email, code, next })
+}
+
 export async function signup(input: {
   name: string
   email: string
@@ -428,15 +437,16 @@ export async function adminPendingCounts(): Promise<AdminPendingCounts> {
 }
 
 /* ── 보안 · 해킹 위험 대시보드 ── */
+export interface RiskMember { name: string; email: string; role: string; count: number }
 export interface SecurityCheck { key: string; label: string; status: 'pass' | 'warn' | 'fail'; detail: string }
 export interface SecurityRisk {
   ok: boolean; error?: string
   posture?: { score: number; level: 'good' | 'fair' | 'risk'; warnCount: number; failCount: number }
   signals?: {
     loginFail24h: number; loginFail7d: number; blockedCount: number; autoBlocked: number; sus24h: number; susHigh24h: number
-    topFailIps: { ip: string; c: number; last: string }[]
-    recentBlocked: { ip: string; reason: string; source: string; created_at: string }[]
-    recentThreats: { ts: string; ip: string; method: string; path: string; status: number; severity: string; detail: string; country: string }[]
+    topFailIps: { ip: string; c: number; last: string; member?: RiskMember | null }[]
+    recentBlocked: { ip: string; reason: string; source: string; created_at: string; member?: RiskMember | null }[]
+    recentThreats: { ts: string; ip: string; method: string; path: string; status: number; severity: string; detail: string; country: string; member?: RiskMember | null }[]
     recentAudit: { created_at: string; admin_email: string; action: string; target: string; severity: string; ip: string }[]
   }
   checks?: SecurityCheck[]
@@ -746,12 +756,17 @@ export interface InstallRow { id: string; user_email: string | null; endpoint: s
 
 export interface AdminDevice { id: string; label: string; device: string; ip: string; created_at: string }
 
+/** IP↔회원 매핑 (한 IP를 사용한 회원 목록) */
+export interface IpMember { user_id: string; email: string; name: string; role: string; last_seen: string }
+export type IpMemberMap = Record<string, IpMember[]>
+
 export interface SecurityBundle {
   ok: boolean; error?: string
   settings: { whitelistMode: boolean; adminLock?: boolean }
   adminDevices?: AdminDevice[]
   currentIp?: string
   currentDevice?: string
+  ipMembers?: IpMemberMap
   blocked: BlockedIp[]; whitelist: WhitelistIp[]; logs: SecLog[]; loginFailures: LoginFail[]
   sessions: SessionRow[]; audit: AuditRow[]; exports: ExportRow[]; reports: ReportRow[]; installs: InstallRow[]
   stats: {
@@ -793,6 +808,32 @@ export async function adminSecurityAction(
   },
 ): Promise<{ ok: boolean; error?: string; sent?: number }> {
   return postJson('/api/admin/security', { action, ...extra })
+}
+
+/** IP 전체 정보 조회 (DB 전체 기준 · 회원/비회원·지오·구글맵·차단상태·최근 이벤트) */
+export interface IpLookupResult {
+  ok: boolean; error?: string
+  ip: string
+  geo: { country: string; city: string; isp: string; mapsUrl: string }
+  isMember: boolean
+  members: { user_id: string; name: string; email: string; role: string; last_seen?: string }[]
+  failEmails: { email: string; c: number; last: string }[]
+  counts: { events: number; threats: number; fails: number; activeSessions: number; installs: number }
+  blocked: { ip: string; reason: string | null; source: string | null; created_at: string } | null
+  whitelisted: boolean
+  recentEvents: { ts: string; method: string; path: string; status: number; severity: string; detail: string }[]
+  recentFails: { email: string; ua: string; created_at: string }[]
+}
+export async function securityLookup(ip: string): Promise<IpLookupResult> {
+  try {
+    const r = await fetch('/api/admin/security', {
+      method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'lookup', ip }),
+    })
+    return await r.json()
+  } catch {
+    return { ok: false, error: '네트워크 오류', ip, geo: { country: '', city: '', isp: '', mapsUrl: '' }, isMember: false, members: [], failEmails: [], counts: { events: 0, threats: 0, fails: 0, activeSessions: 0, installs: 0 }, blocked: null, whitelisted: false, recentEvents: [], recentFails: [] }
+  }
 }
 
 /** PWA 설치 / 푸시 허용 현황 기록 (공개) */

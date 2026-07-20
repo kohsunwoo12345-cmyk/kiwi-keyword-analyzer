@@ -27,6 +27,10 @@ import {
   XCircle,
   MapPin,
   Monitor,
+  UserCheck,
+  UserX,
+  ExternalLink,
+  Loader2,
   type LucideIcon,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
@@ -35,6 +39,9 @@ import { Reveal, Counter } from '@/components/motion'
 import {
   adminSecurity,
   adminSecurityAction,
+  securityLookup,
+  type IpLookupResult,
+  type IpMember,
   type SecurityBundle,
   type BlockedIp,
   type WhitelistIp,
@@ -140,6 +147,35 @@ function deviceOf(ua: string) {
 function loc(country?: string, city?: string) {
   const parts = [country, city].filter(Boolean)
   return parts.length ? parts.join(' · ') : ''
+}
+
+/** IP↔회원 매핑에서 대표 회원 1명 반환(없으면 null = 비회원) */
+function memberOf(map: Record<string, IpMember[]> | undefined, ip: string): IpMember | null {
+  const arr = map?.[ip]
+  return arr && arr.length ? arr[0] : null
+}
+
+/** 회원/비회원 뱃지 */
+function MemberBadge({ m }: { m: IpMember | null }) {
+  if (!m) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+        <UserX size={11} /> 비회원
+      </span>
+    )
+  }
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold',
+        m.role === 'admin' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700',
+      )}
+      title={`${m.name || ''} · ${m.email || ''}${m.role === 'admin' ? ' · 관리자' : ''}`}
+    >
+      <UserCheck size={11} /> {m.name || m.email || m.user_id}
+      {m.role === 'admin' && <span className="ml-0.5">(관리자)</span>}
+    </span>
+  )
 }
 
 /** CSV 다운로드 + 내보내기 감사 기록 */
@@ -349,37 +385,20 @@ export default function AdminSecurityPage() {
     })
   }, [sortedLogs, sevFilter, logSearch])
 
-  /* ── IP 조회 tab ── */
+  /* ── IP 조회 tab (서버 전체 조회) ── */
   const [lookup, setLookup] = useState('')
-  const [lookupQ, setLookupQ] = useState('')
-  const lookupResult = useMemo(() => {
-    const q = lookupQ.trim()
-    if (!q) return null
-    const logs = data.logs.filter((l) => l.ip === q)
-    const sessions = data.sessions.filter((s) => s.ip === q)
-    const blocked = data.blocked.filter((b) => b.ip === q)
-    const loginFailures = data.loginFailures.filter((f) => f.ip === q)
-    const installs = data.installs.filter((i) => i.ip === q)
-    const meta = { country: '', city: '' }
-    for (const src of [...logs, ...blocked, ...installs] as { country?: string; city?: string }[]) {
-      if (!meta.country && src.country) meta.country = src.country
-      if (!meta.city && src.city) meta.city = src.city
-    }
-    const members = new Set<string>()
-    for (const s of sessions) if (s.email) members.add(s.email)
-    for (const i of installs) if (i.user_email) members.add(i.user_email)
-    return {
-      q,
-      logs,
-      sessions,
-      blocked,
-      loginFailures,
-      installs,
-      meta,
-      members: [...members],
-      events: logs.length,
-    }
-  }, [lookupQ, data])
+  const [lookupData, setLookupData] = useState<IpLookupResult | null>(null)
+  const [lookupBusy, setLookupBusy] = useState(false)
+  async function runLookup(ipArg?: string) {
+    const q = (ipArg ?? lookup).trim()
+    if (!q) return showToast('조회할 IP를 입력하세요.', 'err')
+    setLookup(q)
+    setLookupBusy(true)
+    const r = await securityLookup(q)
+    setLookupBusy(false)
+    if (r.ok) setLookupData(r)
+    else showToast(r.error || 'IP 조회에 실패했습니다.', 'err')
+  }
 
   /* ── 앱·푸시 tab ── */
   const [pushTitle, setPushTitle] = useState('')
@@ -891,6 +910,7 @@ export default function AdminSecurityPage() {
                     <tr className={THEAD_CLS}>
                       <th className={TH_CLS}>시각</th>
                       <th className={TH_CLS}>IP</th>
+                      <th className={TH_CLS}>회원</th>
                       <th className={TH_CLS}>국가/도시</th>
                       <th className={TH_CLS}>메서드</th>
                       <th className={TH_CLS}>경로</th>
@@ -906,6 +926,7 @@ export default function AdminSecurityPage() {
                           <span title={timeAgo(l.ts)}>{fmtDateTime(l.ts)}</span>
                         </td>
                         <td className="py-2.5 font-mono text-xs">{l.ip}</td>
+                        <td className="py-2.5"><MemberBadge m={memberOf(data.ipMembers, l.ip)} /></td>
                         <td className="whitespace-nowrap py-2.5 text-xs text-[var(--text-soft)]">{loc(l.country, l.city) || '-'}</td>
                         <td className="py-2.5">
                           <span className="rounded-md border border-[var(--border)] bg-[var(--panel-2)] px-1.5 py-0.5 font-mono text-xs font-medium">
@@ -925,7 +946,7 @@ export default function AdminSecurityPage() {
                       </tr>
                     ))}
                     {filteredLogs.length === 0 && (
-                      <EmptyRow colSpan={8} loading={loading} label="해당 조건의 로그가 없습니다." />
+                      <EmptyRow colSpan={9} loading={loading} label="해당 조건의 로그가 없습니다." />
                     )}
                   </tbody>
                 </table>
@@ -1102,69 +1123,101 @@ export default function AdminSecurityPage() {
         {/* ══════════ IP 조회 ══════════ */}
         {tab === 'lookup' && (
           <Reveal>
-            <Panel title="IP 조회">
+            <Panel title="IP 조회 (전체 정보)">
               <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
                 <div className="relative flex-1">
                   <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" />
                   <input
                     value={lookup}
                     onChange={(e) => setLookup(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && setLookupQ(lookup.trim())}
+                    onKeyDown={(e) => e.key === 'Enter' && runLookup()}
                     placeholder="조회할 IP (예: 203.0.113.5)"
                     className={cn(INPUT_CLS, 'pl-9')}
                   />
                 </div>
-                <Button variant="primary" size="md" className="sm:flex-shrink-0" onClick={() => setLookupQ(lookup.trim())}>
-                  <Search size={15} /> 조회
+                <Button variant="primary" size="md" className="sm:flex-shrink-0" disabled={lookupBusy} onClick={() => runLookup()}>
+                  {lookupBusy ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />} 조회
                 </Button>
               </div>
 
-              {!lookupResult && (
+              {!lookupData && !lookupBusy && (
                 <p className="mt-6 text-center text-sm text-[var(--text-dim)]">
-                  IP를 입력해 접속 이력 · 세션 · 차단 · 로그인 실패 · 앱 설치를 확인하세요.
+                  IP를 입력하면 <b>회원/비회원 · 국가·도시·통신사 · 구글맵 위치 · 접속 회원 · 보안 이벤트 · 로그인 실패 · 차단 상태</b>를 모두 조회합니다.
                 </p>
               )}
+              {lookupBusy && !lookupData && (
+                <p className="mt-8 flex items-center justify-center gap-2 text-sm text-[var(--text-dim)]"><Loader2 size={16} className="animate-spin" /> 조회 중…</p>
+              )}
 
-              {lookupResult && (
+              {lookupData && (
                 <div className="mt-5 space-y-5">
                   {/* summary */}
                   <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel-2)] p-4">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Globe size={16} className="text-[var(--text-dim)]" />
-                      <span className="font-mono font-semibold">{lookupResult.q}</span>
-                      {lookupResult.blocked.length > 0 && (
-                        <Badge className="border-rose-200 bg-rose-50 text-rose-700">
-                          <Ban size={12} /> 차단됨
-                        </Badge>
+                      <span className="font-mono font-semibold">{lookupData.ip}</span>
+                      <MemberBadge m={lookupData.isMember ? { user_id: lookupData.members[0]?.user_id || '', email: lookupData.members[0]?.email || '', name: lookupData.members[0]?.name || '', role: lookupData.members[0]?.role || 'user', last_seen: '' } : null} />
+                      {lookupData.blocked && (
+                        <Badge className="border-rose-200 bg-rose-50 text-rose-700"><Ban size={12} /> 차단됨</Badge>
+                      )}
+                      {lookupData.whitelisted && (
+                        <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700"><ShieldCheck size={12} /> 화이트리스트</Badge>
                       )}
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                       <div>
-                        <p className="text-xs text-[var(--text-dim)]">국가/도시</p>
-                        <p className="font-medium">{loc(lookupResult.meta.country, lookupResult.meta.city) || '-'}</p>
+                        <p className="text-xs text-[var(--text-dim)]">국가 · 도시</p>
+                        <p className="font-medium">{loc(lookupData.geo.country, lookupData.geo.city) || '-'}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-[var(--text-dim)]">보안 이벤트</p>
-                        <p className="font-medium">{lookupResult.events}건</p>
+                        <p className="text-xs text-[var(--text-dim)]">인터넷(통신사/UA)</p>
+                        <p className="truncate font-medium" title={lookupData.geo.isp}>{lookupData.geo.isp || '-'}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-[var(--text-dim)]">접속 회원</p>
-                        <p className="truncate font-medium" title={lookupResult.members.join(', ')}>
-                          {lookupResult.members.length ? lookupResult.members.join(', ') : '-'}
-                        </p>
+                        <p className="text-xs text-[var(--text-dim)]">위치</p>
+                        {lookupData.geo.mapsUrl ? (
+                          <a href={lookupData.geo.mapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-violet-600 hover:underline">
+                            <MapPin size={13} /> 구글맵으로 보기 <ExternalLink size={11} />
+                          </a>
+                        ) : (
+                          <p className="font-medium">-</p>
+                        )}
                       </div>
                       <div>
-                        <p className="text-xs text-[var(--text-dim)]">세션 · 실패 · 설치</p>
-                        <p className="font-medium">
-                          {lookupResult.sessions.length} · {lookupResult.loginFailures.length} · {lookupResult.installs.length}
-                        </p>
+                        <p className="text-xs text-[var(--text-dim)]">이벤트 · 위협 · 실패</p>
+                        <p className="font-medium">{lookupData.counts.events} · {lookupData.counts.threats} · {lookupData.counts.fails}</p>
                       </div>
                     </div>
                   </div>
 
+                  {/* 이 IP를 사용한 회원 */}
+                  <div>
+                    <p className="mb-2 text-sm font-semibold">이 IP를 사용한 회원 ({lookupData.members.length})</p>
+                    {lookupData.members.length ? (
+                      <div className="flex flex-wrap gap-2">
+                        {lookupData.members.map((m) => (
+                          <span key={m.user_id} className={cn('inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs', m.role === 'admin' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700')}>
+                            <UserCheck size={13} /> <b>{m.name || '(이름 없음)'}</b> · {m.email}
+                            <span className="font-mono text-[10px] text-[var(--text-dim)]">{m.user_id}</span>
+                            {m.role === 'admin' && <span className="rounded bg-rose-100 px-1 text-[10px]">관리자</span>}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                        <UserX size={12} className="mr-1 inline" /> 이 IP로 로그인한 회원 기록이 없습니다 (비회원 · 익명 접속).
+                      </p>
+                    )}
+                    {lookupData.failEmails.length > 0 && (
+                      <p className="mt-2 text-xs text-amber-600">
+                        로그인 실패에 사용된 이메일: {lookupData.failEmails.slice(0, 6).map((f) => `${f.email}(${f.c})`).join(', ')}
+                      </p>
+                    )}
+                  </div>
+
                   {/* logs for this IP */}
                   <div className="overflow-x-auto">
-                    <p className="mb-2 text-sm font-semibold">보안 이벤트 ({lookupResult.logs.length})</p>
+                    <p className="mb-2 text-sm font-semibold">보안 이벤트 ({lookupData.recentEvents.length})</p>
                     <table className="w-full min-w-[720px] text-sm">
                       <thead>
                         <tr className={THEAD_CLS}>
@@ -1176,45 +1229,51 @@ export default function AdminSecurityPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {lookupResult.logs
-                          .slice()
-                          .sort((a, b) => +new Date(b.ts) - +new Date(a.ts))
-                          .slice(0, 50)
-                          .map((l, i) => (
-                            <tr key={i} className={TR_CLS}>
-                              <td className="whitespace-nowrap py-2.5 text-[var(--text-soft)]">{fmtDateTime(l.ts)}</td>
-                              <td className="py-2.5 font-mono text-xs">{l.method}</td>
-                              <td className="max-w-[240px] truncate py-2.5 font-mono text-xs text-[var(--text-soft)]" title={l.path}>
-                                {l.path}
-                              </td>
-                              <td className={cn('py-2.5 font-mono text-xs font-semibold', statusClass(l.status))}>{l.status}</td>
-                              <td className="py-2.5">
-                                <Badge className={severityBadgeClass(l.severity)}>{severityLabel(l.severity)}</Badge>
-                              </td>
-                            </tr>
-                          ))}
-                        {lookupResult.logs.length === 0 && (
-                          <tr>
-                            <td colSpan={5} className="py-8 text-center text-[var(--text-dim)]">
-                              이 IP의 보안 이벤트가 없습니다.
-                            </td>
+                        {lookupData.recentEvents.map((l, i) => (
+                          <tr key={i} className={TR_CLS}>
+                            <td className="whitespace-nowrap py-2.5 text-[var(--text-soft)]">{fmtDateTime(l.ts)}</td>
+                            <td className="py-2.5 font-mono text-xs">{l.method}</td>
+                            <td className="max-w-[240px] truncate py-2.5 font-mono text-xs text-[var(--text-soft)]" title={l.path}>{l.path}</td>
+                            <td className={cn('py-2.5 font-mono text-xs font-semibold', statusClass(l.status))}>{l.status}</td>
+                            <td className="py-2.5"><Badge className={severityBadgeClass(l.severity)}>{severityLabel(l.severity)}</Badge></td>
                           </tr>
+                        ))}
+                        {lookupData.recentEvents.length === 0 && (
+                          <tr><td colSpan={5} className="py-8 text-center text-[var(--text-dim)]">이 IP의 보안 이벤트가 없습니다.</td></tr>
                         )}
                       </tbody>
                     </table>
                   </div>
 
-                  {lookupResult.blocked.length === 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="!border-rose-200 !text-rose-600 hover:!bg-rose-50"
-                      disabled={busy}
-                      onClick={() => run(() => adminSecurityAction('block', { ip: lookupResult.q }), `${lookupResult.q} 차단 완료`)}
-                    >
-                      <Ban size={15} /> 이 IP 차단
-                    </Button>
-                  )}
+                  {/* 차단 / 해제 */}
+                  <div className="flex flex-wrap gap-2">
+                    {lookupData.blocked ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="!border-emerald-200 !text-emerald-600 hover:!bg-emerald-50"
+                        disabled={busy}
+                        onClick={() => run(() => adminSecurityAction('unblock', { ip: lookupData.ip }), `${lookupData.ip} 차단 해제 완료`).then((r) => r.ok && runLookup(lookupData.ip))}
+                      >
+                        <ShieldCheck size={15} /> 차단 해제
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="!border-rose-200 !text-rose-600 hover:!bg-rose-50"
+                        disabled={busy}
+                        onClick={() => run(() => adminSecurityAction('block', { ip: lookupData.ip, reason: '관리자 IP 조회 후 차단' }), `${lookupData.ip} 차단 완료 (실제 접속 차단)`).then((r) => r.ok && runLookup(lookupData.ip))}
+                      >
+                        <Ban size={15} /> 이 IP 차단 (실제 접속 차단)
+                      </Button>
+                    )}
+                    {lookupData.geo.mapsUrl && (
+                      <a href={lookupData.geo.mapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-[var(--text-soft)] hover:bg-slate-50">
+                        <MapPin size={15} /> 구글맵 위치 <ExternalLink size={12} />
+                      </a>
+                    )}
+                  </div>
                 </div>
               )}
             </Panel>

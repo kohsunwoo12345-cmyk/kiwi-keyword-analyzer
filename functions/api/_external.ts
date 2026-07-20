@@ -25,9 +25,11 @@ export async function resendEmail(
   env: any,
   o: { to: string | string[]; subject: string; html: string; from?: string },
 ): Promise<{ ok: boolean; error?: string; id?: string }> {
-  const key = env?.RESEND_API_KEY
-  const from = o.from || env?.RESEND_FROM
-  if (!key || !from) return { ok: false, error: 'RESEND_API_KEY/RESEND_FROM 환경변수 미설정' }
+  // 환경변수 이름 대소문자 혼용 허용 (RESEND_API_KEY / resend_API_KEY)
+  const key = env?.RESEND_API_KEY || env?.resend_API_KEY || env?.RESEND_KEY
+  // 발신 주소 우선순위: 명시 인자 > 환경변수 > 기본값(cs@bygency.co)
+  const from = o.from || env?.RESEND_FROM || 'BYGENCY <cs@bygency.co>'
+  if (!key) return { ok: false, error: 'RESEND_API_KEY 환경변수 미설정' }
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',

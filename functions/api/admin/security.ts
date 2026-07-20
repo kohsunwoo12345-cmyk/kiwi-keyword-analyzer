@@ -13,6 +13,7 @@ import {
   clientIp,
   addNotification,
   deviceSig,
+  getIpMembers,
 } from '../_utils'
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
@@ -74,12 +75,23 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const currentIp = clientIp(request)
   const currentDevice = deviceSig(request.headers.get('User-Agent') || '')
 
+  // IP↔회원 매핑 — 화면에 뜬 모든 IP(로그·차단·세션·실패·설치)에 대해 회원/비회원 식별
+  const allIps = [
+    ...(logs.results || []).map((r: any) => r.ip),
+    ...(blocked.results || []).map((r: any) => r.ip),
+    ...(loginFailures.results || []).map((r: any) => r.ip),
+    ...(installs.results || []).map((r: any) => r.ip),
+    ...sessRows.map((r: any) => r.ip),
+  ]
+  const ipMembers = await getIpMembers(db, allIps)
+
   return json({
     ok: true,
     settings: { whitelistMode, adminLock },
     adminDevices,
     currentIp,
     currentDevice,
+    ipMembers,
     blocked: blocked.results || [],
     whitelist: whitelist.results || [],
     logs: logs.results || [],
@@ -241,6 +253,65 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       }
       await logAudit(db, admin, 'push_send', `${sent}명`, title, 'info', adminIp)
       return json({ ok: true, sent })
+    }
+    case 'lookup': {
+      // IP 전체 정보 조회 — 클라이언트 캐시가 아닌 DB 전체에서 조회
+      const target = String(body.ip || '').trim()
+      if (!target) return json({ ok: false, error: '조회할 IP를 입력하세요.' }, 400)
+      const one = async (sql: string, ...b: any[]) => { try { return await db.prepare(sql).bind(...b).first() } catch { return null } }
+      const many = async (sql: string, ...b: any[]) => { try { return ((await db.prepare(sql).bind(...b).all()).results || []) as any[] } catch { return [] } }
+
+      // 1) 이 IP를 쓴 회원 (영구 매핑 + 현·과거 세션)
+      const identities = await many('SELECT user_id, email, name, role, first_seen, last_seen FROM ip_identities WHERE ip = ? ORDER BY last_seen DESC', target)
+      const sessionUsers = await many(
+        `SELECT DISTINCT u.id user_id, u.name, u.email, u.role FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.ip = ? LIMIT 50`, target)
+      // 로그인 실패에 쓰인 이메일(=계정 탈취 시도 대상)
+      const failEmails = await many('SELECT email, COUNT(*) c, MAX(created_at) last FROM login_failures WHERE ip = ? GROUP BY email ORDER BY c DESC LIMIT 20', target)
+
+      // 2) 지오/위치 — 가장 최근 기록에서 국가/도시 확보
+      const geoRow: any =
+        (await one("SELECT country, city FROM security_log WHERE ip = ? AND (country != '' OR city != '') ORDER BY ts DESC LIMIT 1", target)) ||
+        (await one("SELECT country, city FROM blocked_ips WHERE ip = ? AND (country != '' OR city != '')", target)) ||
+        (await one("SELECT country, city FROM app_installs WHERE ip = ? AND (country != '' OR city != '') ORDER BY created_at DESC LIMIT 1", target)) ||
+        {}
+      const country = geoRow?.country || ''
+      const city = geoRow?.city || ''
+      const isp = (await one('SELECT ua FROM security_log WHERE ip = ? ORDER BY ts DESC LIMIT 1', target) as any)?.ua || ''
+
+      // 3) 카운트/차단 상태/최근 이벤트
+      const cnt = async (sql: string) => Number(((await one(sql, target)) as any)?.n || 0)
+      const [events, threats, fails, activeSess, installsN] = await Promise.all([
+        cnt('SELECT COUNT(*) n FROM security_log WHERE ip = ?'),
+        cnt("SELECT COUNT(*) n FROM security_log WHERE ip = ? AND severity IN ('warn','high')"),
+        cnt('SELECT COUNT(*) n FROM login_failures WHERE ip = ?'),
+        cnt('SELECT COUNT(*) n FROM sessions WHERE ip = ?'),
+        cnt('SELECT COUNT(*) n FROM app_installs WHERE ip = ?'),
+      ])
+      const blockedRow = await one('SELECT ip, reason, source, created_at FROM blocked_ips WHERE ip = ?', target)
+      const whitelisted = !!(await one('SELECT ip FROM ip_whitelist WHERE ip = ?', target))
+      const recentEvents = await many(
+        'SELECT ts, method, path, status, severity, detail FROM security_log WHERE ip = ? ORDER BY ts DESC LIMIT 50', target)
+      const recentFails = await many(
+        'SELECT email, ua, created_at FROM login_failures WHERE ip = ? ORDER BY created_at DESC LIMIT 30', target)
+
+      // 회원 요약 (중복 제거)
+      const memberMap = new Map<string, any>()
+      for (const r of [...identities, ...sessionUsers]) if (r.user_id) memberMap.set(r.user_id, { user_id: r.user_id, name: r.name, email: r.email, role: r.role, last_seen: r.last_seen })
+      const members = [...memberMap.values()]
+
+      return json({
+        ok: true,
+        ip: target,
+        geo: { country, city, isp, mapsUrl: (country || city) ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([city, country].filter(Boolean).join(', '))}` : '' },
+        isMember: members.length > 0,
+        members,
+        failEmails,
+        counts: { events, threats, fails, activeSessions: activeSess, installs: installsN },
+        blocked: blockedRow || null,
+        whitelisted,
+        recentEvents,
+        recentFails,
+      })
     }
     case 'export-log': {
       await logExport(db, admin, {

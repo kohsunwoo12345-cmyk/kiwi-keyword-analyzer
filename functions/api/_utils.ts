@@ -267,6 +267,27 @@ export async function ensureSchema(db: D1Database) {
       created_at TEXT NOT NULL
     )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_loginfail ON login_failures(ip, created_at)`),
+    // 보안: IP↔회원 영구 매핑 (세션이 삭제돼도 IP가 어느 회원인지 추적)
+    db.prepare(`CREATE TABLE IF NOT EXISTS ip_identities (
+      ip TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      email TEXT,
+      name TEXT,
+      role TEXT,
+      first_seen TEXT,
+      last_seen TEXT,
+      PRIMARY KEY (ip, user_id)
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_ipident_ip ON ip_identities(ip, last_seen)`),
+    // 인증: 비밀번호 재설정 코드(이메일 인증)
+    db.prepare(`CREATE TABLE IF NOT EXISTS password_resets (
+      email TEXT PRIMARY KEY,
+      code_hash TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      attempts INTEGER DEFAULT 0,
+      last_sent_at TEXT,
+      created_at TEXT NOT NULL
+    )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_loginfail_email ON login_failures(email, created_at)`),
     // 보안: 관리자 감사 로그 (Audit Trail)
     db.prepare(`CREATE TABLE IF NOT EXISTS audit_log (
@@ -718,6 +739,33 @@ export async function isBlocked(db: D1Database, ip: string): Promise<boolean> {
   return !!row
 }
 
+/** 최근 N분 내 해당 IP의 의심(warn/high) 보안 이벤트 수 — 스캐닝/스크래핑 자동차단 판정용 */
+export async function countRecentSuspicious(db: D1Database, ip: string, minutes = 10): Promise<number> {
+  if (!ip || ip === 'unknown') return 0
+  const since = new Date(Date.now() - minutes * 60_000).toISOString()
+  try {
+    const r: any = await db
+      .prepare("SELECT COUNT(*) AS n FROM security_log WHERE ip = ? AND ts >= ? AND severity IN ('warn','high')")
+      .bind(ip, since)
+      .first()
+    return Number(r?.n) || 0
+  } catch { return 0 }
+}
+
+/** IP 자동 차단(중복 안전). 화이트리스트 IP는 제외. */
+export async function autoBlockIp(db: D1Database, ip: string, reason: string, geo?: { country?: string; city?: string }): Promise<boolean> {
+  if (!ip || ip === 'unknown') return false
+  try {
+    const wl = await db.prepare('SELECT ip FROM ip_whitelist WHERE ip = ?').bind(ip).first()
+    if (wl) return false
+    await db
+      .prepare('INSERT OR REPLACE INTO blocked_ips (ip, reason, source, created_at, country, city) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(ip, reason.slice(0, 200), 'auto', new Date().toISOString(), geo?.country || '', geo?.city || '')
+      .run()
+    return true
+  } catch { return false }
+}
+
 export async function logSecurity(
   db: D1Database,
   o: { ip: string; method?: string; path?: string; status?: number; severity?: string; detail?: string; country?: string; city?: string; ua?: string },
@@ -750,7 +798,7 @@ export async function logSecurity(
 }
 
 /** Cloudflare 지오 정보 (country/city/isp/asn) 추출 */
-export function geoFrom(request: Request): { country: string; city: string; region: string; isp: string; asn: string } {
+export function geoFrom(request: Request): { country: string; city: string; region: string; isp: string; asn: string; lat: string; lon: string; timezone: string; postal: string } {
   const cf: any = (request as any).cf || {}
   return {
     country: cf.country || request.headers.get('CF-IPCountry') || '',
@@ -758,7 +806,34 @@ export function geoFrom(request: Request): { country: string; city: string; regi
     region: cf.region || cf.regionCode || '', // 시/도 (예: Seoul)
     isp: cf.asOrganization || '',
     asn: cf.asn ? String(cf.asn) : '',
+    lat: cf.latitude ? String(cf.latitude) : '',
+    lon: cf.longitude ? String(cf.longitude) : '',
+    timezone: cf.timezone || '',
+    postal: cf.postalCode || '',
   }
+}
+
+/** IP 목록 → 각 IP에 매핑된 회원(영구 매핑 테이블). 위협/조회 화면에서 회원/비회원 식별에 사용. */
+export async function getIpMembers(db: D1Database, ips: string[]): Promise<Record<string, { user_id: string; email: string; name: string; role: string; last_seen: string }[]>> {
+  const uniq = [...new Set(ips.filter((x) => x && x !== 'unknown'))]
+  const out: Record<string, any[]> = {}
+  if (!uniq.length) return out
+  try {
+    // 파라미터 바인딩(IN 절)으로 안전하게 조회
+    const CHUNK = 80
+    for (let i = 0; i < uniq.length; i += CHUNK) {
+      const part = uniq.slice(i, i + CHUNK)
+      const ph = part.map(() => '?').join(',')
+      const rows = (await db
+        .prepare(`SELECT ip, user_id, email, name, role, last_seen FROM ip_identities WHERE ip IN (${ph}) ORDER BY last_seen DESC`)
+        .bind(...part)
+        .all()).results || []
+      for (const r of rows as any[]) {
+        ;(out[r.ip] = out[r.ip] || []).push({ user_id: r.user_id, email: r.email, name: r.name, role: r.role, last_seen: r.last_seen })
+      }
+    }
+  } catch { /* 테이블 미생성 등 무시 */ }
+  return out
 }
 
 /** User-Agent → 안정적인 기기 서명(OS · 브라우저). 관리자 로그인 기기 제한 매칭용. */
@@ -1075,5 +1150,16 @@ export async function createSession(
     .prepare(`INSERT INTO sessions (token, user_id, created_at, expires_at, ip, ua, country) VALUES (?, ?, ?, ?, ?, ?, ?)`)
     .bind(token, userId, nowIso, exp, meta?.ip || '', meta?.ua || '', meta?.country || '')
     .run()
+  // IP↔회원 영구 매핑 갱신 — 세션이 만료·삭제돼도 어느 회원이 그 IP를 썼는지 추적 가능
+  const ip = meta?.ip || ''
+  if (ip && ip !== 'unknown') {
+    await db
+      .prepare(`INSERT INTO ip_identities (ip, user_id, email, name, role, first_seen, last_seen)
+                SELECT ?, id, email, name, role, ?, ? FROM users WHERE id = ?
+                ON CONFLICT(ip, user_id) DO UPDATE SET last_seen = excluded.last_seen, email = excluded.email, name = excluded.name, role = excluded.role`)
+      .bind(ip, nowIso, nowIso, userId)
+      .run()
+      .catch(() => {})
+  }
   return token
 }
