@@ -14,28 +14,43 @@ import { resendEmail } from '../_external'
 // POST /api/account/forgot-password
 //  { action: 'request', email }              → 이메일로 6자리 인증코드 발송 (Resend, 발신 cs@bygency.co)
 //  { action: 'verify',  email, code, next }  → 코드 검증 후 새 비밀번호 설정 + 기존 세션 무효화
-export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+//
+// 어떤 경우에도 예외를 밖으로 던지지 않고 JSON 을 반환한다(던지면 Cloudflare 가 본문 없는 502 를
+// 내려 프런트가 "네트워크 오류"로만 보게 됨). 실패 사유는 항상 JSON error 로 노출한다.
+export const onRequestPost: PagesFunction<Env> = async (ctx) => {
+  try {
+    return await handle(ctx.request, ctx.env)
+  } catch (e: any) {
+    return json({ ok: false, error: '비밀번호 재설정 처리 중 오류: ' + String(e?.message || e).slice(0, 160) }, 200)
+  }
+}
+
+async function handle(request: Request, env: Env): Promise<Response> {
   const db = resolveDB(env)
-  if (!db) return json({ ok: false, error: 'DB 바인딩 없음' }, 500)
-  await ensureSchema(db)
+  if (!db) return json({ ok: false, error: 'DB 바인딩 없음' }, 200)
+  await ensureSchema(db).catch(() => {})
+  // 배포본 스키마가 아직 갱신되지 않았을 수 있으므로 사용 직전 테이블 보장(방어적)
+  await db.prepare(
+    `CREATE TABLE IF NOT EXISTS password_resets (email TEXT PRIMARY KEY, code_hash TEXT NOT NULL, expires_at TEXT NOT NULL, attempts INTEGER DEFAULT 0, last_sent_at TEXT, created_at TEXT NOT NULL)`,
+  ).run().catch(() => {})
 
   const body: any = await request.json().catch(() => ({}))
   const action = String(body.action || 'request')
   const email = String(body.email || '').trim().toLowerCase()
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
-    return json({ ok: false, error: '올바른 이메일을 입력하세요.' }, 400)
+    return json({ ok: false, error: '올바른 이메일을 입력하세요.' }, 200)
 
   const ip = clientIp(request)
   const now = Date.now()
   const nowIso = new Date(now).toISOString()
 
   if (action === 'request') {
-    const user: any = await db.prepare('SELECT id, name, provider FROM users WHERE email = ?').bind(email).first()
+    const user: any = await db.prepare('SELECT id, name FROM users WHERE email = ?').bind(email).first()
     // 계정 존재 여부를 노출하지 않기 위해 항상 성공처럼 응답 (이메일 열거 방지)
     if (!user) return json({ ok: true })
 
     // 재발송 쿨다운 (60초) — 남용 방지
-    const existing: any = await db.prepare('SELECT last_sent_at FROM password_resets WHERE email = ?').bind(email).first()
+    const existing: any = await db.prepare('SELECT last_sent_at FROM password_resets WHERE email = ?').bind(email).first().catch(() => null)
     if (existing?.last_sent_at && now - +new Date(existing.last_sent_at) < 60_000) {
       return json({ ok: true, cooldown: true })
     }
@@ -77,8 +92,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       from: 'BYGENCY <cs@bygency.co>',
     })
     if (!sent.ok) {
-      await logSecurity(db, { ip, method: 'POST', path: '/api/account/forgot-password', status: 502, severity: 'warn', detail: `비밀번호 재설정 메일 발송 실패: ${sent.error || ''}`.slice(0, 120) })
-      return json({ ok: false, error: '인증 메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요.' }, 502)
+      await logSecurity(db, { ip, method: 'POST', path: '/api/account/forgot-password', status: 502, severity: 'warn', detail: `비밀번호 재설정 메일 발송 실패: ${sent.error || ''}`.slice(0, 160) }).catch(() => {})
+      // 실제 사유를 그대로 노출(도메인 미인증/키 미설정 등 진단 가능하도록)
+      return json({ ok: false, error: '인증 메일 발송 실패: ' + (sent.error || '알 수 없는 오류') }, 200)
     }
     return json({ ok: true })
   }
@@ -86,35 +102,36 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (action === 'verify') {
     const code = String(body.code || '').trim()
     const next = String(body.next || '')
-    if (!code) return json({ ok: false, error: '인증코드를 입력하세요.' }, 400)
-    if (next.length < 8) return json({ ok: false, error: '새 비밀번호는 8자 이상이어야 합니다.' }, 400)
+    if (!code) return json({ ok: false, error: '인증코드를 입력하세요.' }, 200)
+    if (next.length < 8) return json({ ok: false, error: '새 비밀번호는 8자 이상이어야 합니다.' }, 200)
 
     const row: any = await db.prepare('SELECT code_hash, expires_at, attempts FROM password_resets WHERE email = ?').bind(email).first()
-    if (!row) return json({ ok: false, error: '인증코드를 먼저 요청하세요.' }, 400)
+    if (!row) return json({ ok: false, error: '인증코드를 먼저 요청하세요.' }, 200)
     if (+new Date(row.expires_at) < now) {
-      await db.prepare('DELETE FROM password_resets WHERE email = ?').bind(email).run()
-      return json({ ok: false, error: '인증코드가 만료되었습니다. 다시 요청하세요.' }, 400)
+      await db.prepare('DELETE FROM password_resets WHERE email = ?').bind(email).run().catch(() => {})
+      return json({ ok: false, error: '인증코드가 만료되었습니다. 다시 요청하세요.' }, 200)
     }
     if (Number(row.attempts) >= 5) {
-      await db.prepare('DELETE FROM password_resets WHERE email = ?').bind(email).run()
-      return json({ ok: false, error: '시도 횟수를 초과했습니다. 코드를 다시 요청하세요.' }, 429)
+      await db.prepare('DELETE FROM password_resets WHERE email = ?').bind(email).run().catch(() => {})
+      return json({ ok: false, error: '시도 횟수를 초과했습니다. 코드를 다시 요청하세요.' }, 200)
     }
     const okCode = await verifyPassword(code, row.code_hash)
     if (!okCode) {
-      await db.prepare('UPDATE password_resets SET attempts = attempts + 1 WHERE email = ?').bind(email).run()
-      return json({ ok: false, error: '인증코드가 올바르지 않습니다.' }, 400)
+      await db.prepare('UPDATE password_resets SET attempts = attempts + 1 WHERE email = ?').bind(email).run().catch(() => {})
+      return json({ ok: false, error: '인증코드가 올바르지 않습니다.' }, 200)
     }
 
     const user: any = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first()
-    if (!user) return json({ ok: false, error: '계정을 찾을 수 없습니다.' }, 404)
+    if (!user) return json({ ok: false, error: '계정을 찾을 수 없습니다.' }, 200)
     const ph = await hashPassword(next)
+    // 재설정으로 비밀번호를 직접 설정하면 password_set=1 → 이후 비밀번호 로그인 허용
     await db.prepare('UPDATE users SET password_hash = ?, password_set = 1 WHERE id = ?').bind(ph, user.id).run()
-    await db.prepare('DELETE FROM password_resets WHERE email = ?').bind(email).run()
-    await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id).run() // 보안상 전체 세션 무효화
+    await db.prepare('DELETE FROM password_resets WHERE email = ?').bind(email).run().catch(() => {})
+    await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id).run().catch(() => {}) // 보안상 전체 세션 무효화
     const geo = geoFrom(request)
-    await logSecurity(db, { ip, method: 'POST', path: '/api/account/forgot-password', status: 200, severity: 'warn', detail: `비밀번호 재설정 완료: ${email}`, country: geo.country, city: geo.city })
+    await logSecurity(db, { ip, method: 'POST', path: '/api/account/forgot-password', status: 200, severity: 'warn', detail: `비밀번호 재설정 완료: ${email}`, country: geo.country, city: geo.city }).catch(() => {})
     return json({ ok: true })
   }
 
-  return json({ ok: false, error: '알 수 없는 작업입니다.' }, 400)
+  return json({ ok: false, error: '알 수 없는 작업입니다.' }, 200)
 }

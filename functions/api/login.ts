@@ -96,6 +96,17 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // ── 일반 회원 ──
   const row: any = await db.prepare('SELECT * FROM users WHERE email = ?').bind(email).first()
   if (!row) return failLogin('이메일 또는 비밀번호가 올바르지 않습니다.')
+
+  // 소셜(구글) 가입 계정은 비밀번호 로그인 차단 — "구글로만" 로그인 가능.
+  //   (구글 가입 시 password_hash 는 랜덤값, password_set=0. 본인이 직접 비밀번호를
+  //    설정한 경우(password_set=1)에만 예외적으로 비밀번호 로그인 허용.)
+  const isSocial = row.provider && row.provider !== 'email'
+  const hasOwnPassword = Number(row.password_set) === 1
+  if (isSocial && !hasOwnPassword) {
+    await logSecurity(db, { ip, method: 'POST', path: '/api/login', status: 403, severity: 'info', detail: `소셜(${row.provider}) 계정 비밀번호 로그인 차단: ${email}`, country: geo.country, city: geo.city, ua })
+    return json({ ok: false, error: '구글 계정으로 가입한 이메일입니다. "구글로 로그인"을 이용해 주세요.', social: String(row.provider) }, 403)
+  }
+
   const valid = await verifyPassword(password, row.password_hash)
   if (!valid) return failLogin('이메일 또는 비밀번호가 올바르지 않습니다.')
   if (row.status === 'suspended') return json({ ok: false, error: '정지된 계정입니다. 관리자에게 문의하세요.' }, 403)
