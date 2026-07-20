@@ -1247,6 +1247,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
     <div class="mb-drop">
       <button id="btnSave">저장</button>
       <button id="btnLoad">불러오기 / 관리</button>
+      <button id="btnRestoreServer">계정에서 불러오기(서버)</button>
       <button id="btnDefault">영상 워크플로우</button>
       <button id="btnImgFlow">이미지 워크플로우</button>
       <div class="mb-sep"></div>
@@ -2051,7 +2052,25 @@ function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prom
       body: JSON.stringify({ provider:prov, model:model||prov, kind:isImg?'image':'video', units:units, res:isImg?null:(res||'1080p'), audio:!!audioAdd, usd:usd, refs:Math.max(0,Number(refCount)||0), cn:Math.max(0,Number(cnCount)||0),
         prompt:(prompt||'').slice(0,4000), refUrls:_refs, resultUrl:mediaForRecord(resultUrl), resultKind:isImg?'image':'video' }) }).catch(function(){});
   }catch(e){}
+  // 상세 활동 로그(관리자 감사): "어떤 모델로 무엇을 생성" (정확 크레딧은 ai_usage 에 별도 집계)
+  try{ nvLogAct('generate', prov, (isImg?'이미지':'영상')+' 생성 · '+(model||prov), 0, model||prov); }catch(e){}
 }
+
+/* ── 노드 상세 활동 로깅(관리자 감사) — 배치 전송 ── */
+var _actQ=[], _actT=null;
+function nvLogAct(action, nodeType, detail, credits, model){
+  try{
+    if(typeof UID!=='undefined' && UID==='guest') return;               // 비로그인 제외
+    if(typeof ADMIN_LOAD_UID!=='undefined' && ADMIN_LOAD_UID) return;   // 관리자가 남의 워크플로우 볼 때는 로깅 안함
+    _actQ.push({ action:action, nodeType:String(nodeType||'').slice(0,48), detail:String(detail||'').slice(0,280), credits:Number(credits)||0, model:String(model||'').slice(0,80), ts:new Date().toISOString() });
+    if(_actQ.length>=20){ flushAct(); return; }
+    clearTimeout(_actT); _actT=setTimeout(flushAct, 5000);
+  }catch(e){}
+}
+function flushAct(){ if(!_actQ.length)return; var ev=_actQ.slice(0,100); _actQ=_actQ.slice(100);
+  try{ fetch('/api/studio/activity',{ method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({events:ev}) }).catch(function(){}); }catch(e){}
+}
+window.addEventListener('pagehide',function(){ try{ if(_actQ.length && navigator.sendBeacon){ navigator.sendBeacon('/api/studio/activity', new Blob([JSON.stringify({events:_actQ.slice(0,100)})],{type:'application/json'})); _actQ=[]; } }catch(e){} });
 /* 비용 팝업 */
 (function(){
   var modal=document.getElementById('costModal'), body=document.getElementById('costBody');
@@ -3546,6 +3565,7 @@ function renameDoc(id){
    추가로 로그인 계정에는 서버(D1)에도 자동 저장 → 캐시 삭제·다른 기기에서도 복원. */
 var _autoT=null;
 function autosave(){
+  if(ADMIN_LOAD_UID) return;   // 관리자가 남의 워크플로우 열람 중엔 내 계정에 저장하지 않음
   clearTimeout(_autoT);
   _autoT=setTimeout(function(){
     saveActiveIntoDoc();
@@ -3574,9 +3594,42 @@ function serverPayload(){
   saveActiveIntoDoc();
   return { v:2, activeId:activeDocId, docs:STUDIO_DOCS.map(function(d){ return { id:d.id, name:d.name, data:d.data?stripGraphMedia(d.data):null }; }) };
 }
+/* 관리자가 다른 사용자의 워크플로우를 불러온 상태 — 이때는 자동저장/서버동기화를 끄고,
+   명시적 "이 사용자로 저장" 버튼으로만 그 사용자 계정에 저장한다(관리자 본인 데이터 보호). */
+var ADMIN_LOAD_UID=null;
+function adminLoadWorkflow(){
+  if(!ADMIN_LOAD_UID) return;
+  fetch('/api/admin/studio-nodes?userId='+encodeURIComponent(ADMIN_LOAD_UID)+'&raw=1',{ credentials:'include', cache:'no-store' })
+    .then(function(r){ return r.ok?r.json():null; })
+    .then(function(d){
+      if(!d||!d.ok){ toast('권한이 없거나 불러올 수 없습니다'); return; }
+      var pd=d.data||{};
+      var docs=(pd.docs&&pd.docs.length)? pd.docs : (pd.nodes? [{id:newDocId(),name:'워크플로우',data:pd}] : []);
+      if(!docs.length){ toast('이 사용자의 저장된 워크플로우가 없습니다'); return; }
+      STUDIO_DOCS=docs.map(function(x){ return { id:x.id||newDocId(), name:'[관리자] '+(x.name||'워크플로우'), data:x.data }; });
+      activeDocId=STUDIO_DOCS[0].id; if(!activeDoc())activeDocId=STUDIO_DOCS[0].id;
+      loadDocIntoState(activeDoc()); renderTabs();
+      showAdminBanner(ADMIN_LOAD_UID);
+      try{ toast('관리자 모드: 사용자 워크플로우를 불러왔어요'); }catch(e){}
+    }).catch(function(){ toast('불러오기 실패'); });
+}
+function showAdminBanner(uid){
+  if(document.getElementById('admWfBanner'))return;
+  var bar=document.createElement('div'); bar.id='admWfBanner';
+  bar.style.cssText='position:fixed;left:50%;top:48px;transform:translateX(-50%);z-index:300;display:flex;align-items:center;gap:10px;background:#4f46e5;color:#fff;padding:8px 8px 8px 14px;border-radius:12px;font:600 12.5px/1.2 Inter,system-ui;box-shadow:0 12px 32px -10px rgba(0,0,0,.7);';
+  bar.innerHTML='관리자 모드 · 사용자 워크플로우 편집 중&nbsp;<button id="admWfSave" style="border:none;border-radius:8px;background:#fff;color:#4f46e5;font-weight:800;padding:7px 12px;cursor:pointer;">이 사용자로 저장</button><button id="admWfClose" style="border:none;background:transparent;color:#dfe0ff;font-size:16px;cursor:pointer;padding:0 6px;">✕</button>';
+  document.body.appendChild(bar);
+  document.getElementById('admWfSave').addEventListener('click',function(){
+    try{ saveActiveIntoDoc(); }catch(e){}
+    var data=serverPayload();
+    fetch('/api/admin/studio-nodes',{ method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({ userId:ADMIN_LOAD_UID, data:data }) })
+      .then(function(r){ return r.json(); }).then(function(d){ toast(d&&d.ok?'✅ 사용자 워크플로우로 저장 완료':'저장 실패: '+((d&&d.error)||'')); }).catch(function(){ toast('저장 실패'); });
+  });
+  document.getElementById('admWfClose').addEventListener('click',function(){ try{ location.href=location.pathname; }catch(e){} });
+}
 var _srvT=null, _srvBusy=false;
 function serverSaveSoon(){
-  if(UID==='guest') return;   // 로그인 계정만 서버 저장
+  if(UID==='guest'||ADMIN_LOAD_UID) return;   // 로그인 계정만, 관리자 열람 중엔 저장 안함
   clearTimeout(_srvT);
   _srvT=setTimeout(function(){
     if(_srvBusy)return; _srvBusy=true;
@@ -3588,6 +3641,7 @@ function serverSaveSoon(){
 }
 // 페이지 이탈 시 즉시 플러시 (로컬 + 서버 beacon)
 function flushSave(){
+  if(ADMIN_LOAD_UID) return;   // 관리자 열람 중엔 내 계정으로 저장 안함
   try{ saveActiveIntoDoc();
     if(IDB.ok&&STUDIO_DOCS.length){ IDB.set('kv',{ v:2, activeId:activeDocId, docs:STUDIO_DOCS.map(function(d){ return {id:d.id,name:d.name,data:d.data}; }) },nsKey('docs')); }
   }catch(e){}
@@ -3597,7 +3651,7 @@ document.addEventListener('visibilitychange',function(){ if(document.visibilityS
 window.addEventListener('pagehide',flushSave);
 // 로컬에 저장된 워크플로우가 없을 때(새 기기·캐시삭제) 서버에 보관된 워크플로우를 복원
 function reconcileServerWorkflow(){
-  if(UID==='guest') return;
+  if(UID==='guest'||ADMIN_LOAD_UID) return;
   fetch('/api/studio/workflow',{ credentials:'include', cache:'no-store' }).then(function(r){ return r.ok?r.json():null; }).then(function(d){
     if(!d||!d.ok||!d.data||!d.data.docs||!d.data.docs.length) return;
     if(!_bootedFresh) return;   // 로컬에 이미 작업이 있으면 덮어쓰지 않음
@@ -3622,7 +3676,7 @@ function addNode(type,x,y,skipSnap){
   if(type==='output'){ n.w.vid=null; n.w.model=null; n.w.sec=null; }
   if(type==='reference'||type==='imageref'||type==='videoref'){ n.w.imgs=[]; n.w.vids=[]; }
   state.nodes.push(n);
-  if(!skipSnap){ snapshot(); render(); }
+  if(!skipSnap){ snapshot(); render(); try{ nvLogAct('node_add', type, (def.title||type)+' 블럭 추가'); }catch(e){} }
   return n;
 }
 
@@ -5133,6 +5187,15 @@ function renderFlows(){
 function openFlowModal(){ renderFlows(); flowModal.classList.add('show'); }
 document.getElementById('btnSave').addEventListener('click',saveCurrentFlow);
 document.getElementById('btnLoad').addEventListener('click',openFlowModal);
+(function(){ var b=document.getElementById('btnRestoreServer'); if(!b)return; b.addEventListener('click',function(){
+  fetch('/api/studio/workflow',{ credentials:'include', cache:'no-store' }).then(function(r){ return r.ok?r.json():null; }).then(function(d){
+    if(!d||!d.ok||!d.data||!d.data.docs||!d.data.docs.length){ toast('계정에 저장된 워크플로우가 없습니다'); return; }
+    if(!confirm('계정에 저장된 워크플로우를 불러올까요? 현재 화면 작업은 대체됩니다.')) return;
+    STUDIO_DOCS=d.data.docs.map(function(x){ return { id:x.id||newDocId(), name:x.name||'워크플로우', data:x.data }; });
+    activeDocId=d.data.activeId; if(!activeDoc())activeDocId=STUDIO_DOCS[0].id;
+    loadDocIntoState(activeDoc()); renderTabs(); autosave(); toast('계정에 저장된 워크플로우를 불러왔어요');
+  }).catch(function(){ toast('불러오기 실패'); });
+}); })();
 document.getElementById('flowClose').addEventListener('click',function(){ flowModal.classList.remove('show'); });
 flowModal.addEventListener('mousedown',function(e){ if(e.target===flowModal) flowModal.classList.remove('show'); });
 document.getElementById('flowNew').addEventListener('click',function(){ saveCurrentFlow(); });
@@ -5212,6 +5275,12 @@ function loadImageDefault(){
 
 /* ════════ 시작 (멀티 워크플로우 탭 복원) ════════ */
 function boot(){
+  // 관리자: ?loadWorkflow=<userId> 로 진입하면 그 사용자의 워크플로우를 불러온다(내 계정 자동저장은 끔)
+  try{ var _lw=new URLSearchParams(location.search).get('loadWorkflow');
+    if(_lw){ ADMIN_LOAD_UID=_lw;
+      STUDIO_DOCS=[{ id:newDocId(), name:'불러오는 중…', data:{nodes:[],links:[],groups:[],annos:[],seq:100} }]; activeDocId=STUDIO_DOCS[0].id;
+      loadDocIntoState(activeDoc()); renderTabs(); nvRelink(); adminLoadWorkflow(); return; }
+  }catch(e){}
   var lsSaved=null; try{ lsSaved=JSON.parse(localStorage.getItem(nsKey('nvNodeStudio'))||'null'); }catch(e){}
   function startDocs(payload){   // v2 다중 탭 구조
     if(payload && payload.docs && payload.docs.length){

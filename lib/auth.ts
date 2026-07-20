@@ -1078,3 +1078,22 @@ export async function adminNoticeSend(payload: {
 }): Promise<{ ok: boolean; campaignId?: string; audience?: number; error?: string }> {
   return postJson('/api/admin/notices', payload)
 }
+
+/* ───────── 관리자: 노드 스튜디오 감사 ───────── */
+export interface StudioUserRow { userId: string; name: string; email: string; plan: string; nodeCount: number; docCount: number; updatedAt: string | null; creditsUsed: number; genCount: number }
+export interface StudioNodeSummary { id: string; type: string; title: string; prompt?: string; negative?: string; model?: string; sec?: number; ratio?: string; res?: string; imgs?: number; vids?: number; bypass: boolean }
+export interface StudioDocSummary { id: string; name: string; nodes: StudioNodeSummary[]; links: number }
+export interface StudioActivityRow { action: string; node_type: string; detail: string; credits: number; model: string; created_at: string }
+export interface StudioUsageRow { model: string; kind: string; credits: number; prompt: string; result_kind?: string; created_at: string }
+export async function adminStudioNodes(): Promise<{ ok: boolean; users: StudioUserRow[]; error?: string }> {
+  try { const r = await fetch('/api/admin/studio-nodes', { credentials: 'include', cache: 'no-store' }); const d = await r.json(); return { ok: !!d.ok, users: d.users || [], error: d.error } }
+  catch { return { ok: false, users: [], error: '네트워크 오류' } }
+}
+export async function adminStudioNodeDetail(userId: string): Promise<{
+  ok: boolean; user?: { id: string; name?: string; email?: string; plan?: string; credits?: number }
+  docs?: StudioDocSummary[]; activity?: StudioActivityRow[]; usage?: StudioUsageRow[]
+  creditSum?: number; genCount?: number; nodeCount?: number; docCount?: number; updatedAt?: string | null; error?: string
+}> {
+  try { const r = await fetch('/api/admin/studio-nodes?userId=' + encodeURIComponent(userId), { credentials: 'include', cache: 'no-store' }); return await r.json() }
+  catch { return { ok: false, error: '네트워크 오류' } }
+}

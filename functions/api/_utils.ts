@@ -476,6 +476,19 @@ export async function ensureSchema(db: D1Database) {
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_notice_rcpt_user ON notice_receipts(user_id, read_at)`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_notice_rcpt_camp ON notice_receipts(campaign_id)`),
     db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_notice_rcpt_uniq ON notice_receipts(campaign_id, user_id)`),
+    // 노드 스튜디오 상세 활동 기록 (누가·언제·어떤 노드에서 무엇을·크레딧 얼마) — 관리자 감사용
+    db.prepare(`CREATE TABLE IF NOT EXISTS studio_activity (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      action TEXT,
+      node_type TEXT,
+      detail TEXT,
+      credits REAL DEFAULT 0,
+      model TEXT,
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_studio_act_user ON studio_activity(user_id, created_at)`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_studio_act_time ON studio_activity(created_at)`),
   ])
   // 기존 테이블에 신규 컬럼 보강 (누락된 것만 추가)
   await addMissingColumns(db, 'users', {
