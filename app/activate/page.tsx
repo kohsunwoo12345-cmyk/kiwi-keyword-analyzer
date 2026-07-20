@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
-import { useAuth, requestPlan, myPlanRequests, planConfig, type PlanTrack, type PlanConfigData } from '@/lib/auth'
+import { useAuth, requestPlan, myPlanRequests, planConfig, validateCouponCode, type PlanTrack, type PlanConfigData } from '@/lib/auth'
 
 /* 입금 계좌 정보 (PG 연동 전 · 계좌이체 후 승인 신청) */
 const BANK = {
@@ -45,6 +45,10 @@ export default function ActivatePage() {
   const [plan, setPlan] = useState<PlanKey>('Pro')
   const [months, setMonths] = useState(1) // 이용 기간(개월, 1~12)
   const [memo, setMemo] = useState('')
+  const [coupon, setCoupon] = useState('')
+  const [couponInfo, setCouponInfo] = useState<{ discount: number; final: number; label: string } | null>(null)
+  const [couponErr, setCouponErr] = useState('')
+  const [couponBusy, setCouponBusy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [copied, setCopied] = useState(false)
@@ -87,10 +91,25 @@ export default function ActivatePage() {
     )
   }
 
+  // 트랙·플랜·개월이 바뀌면 이전 쿠폰 적용은 무효(재적용 필요)
+  useEffect(() => { setCouponInfo(null); setCouponErr('') }, [track, plan, months])
+
+  const applyCoupon = async () => {
+    if (!coupon.trim()) { setCouponErr('쿠폰 코드를 입력하세요.'); return }
+    setCouponBusy(true); setCouponErr('')
+    const r = await validateCouponCode({ code: coupon.trim(), track, plan, months })
+    setCouponBusy(false)
+    if (r.ok) { setCouponInfo({ discount: r.discount || 0, final: r.final ?? 0, label: r.label || '' }); setCouponErr('') }
+    else { setCouponInfo(null); setCouponErr(r.error || '사용할 수 없는 쿠폰입니다.') }
+  }
+
+  const baseTotal = priceOf(track, plan) * months
+  const finalTotal = couponInfo ? couponInfo.final : baseTotal
+
   const submit = async () => {
     setBusy(true)
     setMsg(null)
-    const r = await requestPlan(track, plan, memo.trim() || undefined, months)
+    const r = await requestPlan(track, plan, memo.trim() || undefined, months, couponInfo ? coupon.trim() : undefined)
     setBusy(false)
     if (r.ok) {
       setMsg({ ok: true, text: '승인 신청이 접수되었습니다. 입금이 확인되면 관리자 승인 후 이용이 시작됩니다.' })
@@ -257,6 +276,29 @@ export default function ActivatePage() {
                   </div>
                 </div>
 
+                {/* 쿠폰 · 할인코드 */}
+                <div className="mt-4">
+                  <label className="mb-1.5 block text-xs font-semibold text-slate-500">쿠폰 · 할인코드 (선택)</label>
+                  <div className="flex gap-2">
+                    <input
+                      value={coupon}
+                      onChange={(e) => { setCoupon(e.target.value.toUpperCase()); setCouponInfo(null); setCouponErr('') }}
+                      onKeyDown={(e) => e.key === 'Enter' && applyCoupon()}
+                      placeholder="할인코드 입력"
+                      className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm uppercase tracking-wider outline-none transition placeholder:normal-case placeholder:tracking-normal placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+                    <button
+                      onClick={applyCoupon}
+                      disabled={couponBusy || !coupon.trim()}
+                      className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      {couponBusy ? '확인 중…' : '적용'}
+                    </button>
+                  </div>
+                  {couponInfo && <p className="mt-1.5 text-xs font-semibold text-emerald-600">✓ {couponInfo.label} 적용됨 (−{won(couponInfo.discount)})</p>}
+                  {couponErr && <p className="mt-1.5 text-xs text-rose-500">{couponErr}</p>}
+                </div>
+
                 {/* 요약 */}
                 <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
                   <div className="flex items-center justify-between">
@@ -267,9 +309,21 @@ export default function ActivatePage() {
                       {won(priceOf(track, plan))} <span className="text-xs">/월</span> × {months}개월
                     </span>
                   </div>
+                  {couponInfo && (
+                    <div className="mt-1.5 flex items-center justify-between text-xs">
+                      <span className="text-slate-500">정가</span>
+                      <span className="text-slate-400 line-through">{won(baseTotal)}</span>
+                    </div>
+                  )}
+                  {couponInfo && (
+                    <div className="mt-1 flex items-center justify-between text-xs">
+                      <span className="font-medium text-pink-600">쿠폰 할인 ({couponInfo.label})</span>
+                      <span className="font-semibold text-pink-600">−{won(couponInfo.discount)}</span>
+                    </div>
+                  )}
                   <div className="mt-2 flex items-center justify-between border-t border-slate-200 pt-2">
                     <span className="font-semibold text-slate-700">총 결제 금액</span>
-                    <span className="text-lg font-bold text-blue-700">{won(priceOf(track, plan) * months)}</span>
+                    <span className="text-lg font-bold text-blue-700">{won(finalTotal)}</span>
                   </div>
                 </div>
 

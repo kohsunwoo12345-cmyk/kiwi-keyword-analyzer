@@ -1016,8 +1016,13 @@ export async function adminApprovalAction(
 
 /* ───────── 신청 (사용자 본인) ───────── */
 export type PlanTrack = 'marketer' | 'video'
-export async function requestPlan(track: PlanTrack, to_plan: string, memo?: string, months?: number): Promise<{ ok: boolean; error?: string }> {
-  return postJson('/api/account/plan-request', { track, to_plan, memo, months })
+export async function requestPlan(track: PlanTrack, to_plan: string, memo?: string, months?: number, coupon?: string): Promise<{ ok: boolean; error?: string; amount?: number; coupon?: string }> {
+  return postJson('/api/account/plan-request', { track, to_plan, memo, months, coupon })
+}
+
+/** 쿠폰/할인코드 미리보기 (로그인 회원) */
+export async function validateCouponCode(p: { code: string; track: PlanTrack; plan: string; months: number }): Promise<{ ok: boolean; error?: string; original?: number; discount?: number; final?: number; label?: string }> {
+  return postJson('/api/coupon/validate', p)
 }
 /** 구독 취소 — 해당 트랙 플랜을 '없음'으로 즉시 해지 */
 export async function cancelPlan(track: PlanTrack): Promise<{ ok: boolean; error?: string }> {
@@ -1223,6 +1228,29 @@ export async function adminSendEmail(p: {
 }): Promise<{ ok: boolean; total?: number; sent?: number; failed?: number; error?: string }> {
   try { const r = await fetch('/api/admin/send-email', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify(p) }); return await r.json() }
   catch { return { ok: false, error: '네트워크 오류' } }
+}
+
+/* ───────── 쿠폰 · 할인코드 (관리자) ───────── */
+export interface Coupon {
+  id: string; code: string; description: string; discount_type: 'percent' | 'fixed'; discount_value: number
+  scope_track: string; scope_plan: string; min_months: number; max_uses: number; used_count: number
+  per_user_limit: number; starts_at: string | null; expires_at: string | null; active: number; created_at: string
+}
+export interface CouponRedemption { code: string; user_id: string; name?: string; email?: string; original_krw: number; discount_krw: number; final_krw: number; track: string; plan: string; months: number; created_at: string }
+export interface CouponBundle { ok: boolean; error?: string; coupons: Coupon[]; redemptions: CouponRedemption[]; stats: { total: number; active: number; totalUses: number; totalDiscount: number } }
+export async function adminCoupons(): Promise<CouponBundle> {
+  const empty: CouponBundle = { ok: false, coupons: [], redemptions: [], stats: { total: 0, active: 0, totalUses: 0, totalDiscount: 0 } }
+  try { const r = await fetch('/api/admin/coupons', { credentials: 'include', cache: 'no-store' }); const d = await r.json(); return { ...empty, ...d, ok: !!d.ok } }
+  catch { return { ...empty, error: '네트워크 오류' } }
+}
+export async function adminCouponCreate(p: {
+  code: string; description?: string; discountType: 'percent' | 'fixed'; discountValue: number
+  scopeTrack?: string; scopePlan?: string; minMonths?: number; maxUses?: number; perUserLimit?: number; startsAt?: string; expiresAt?: string
+}): Promise<{ ok: boolean; code?: string; error?: string }> {
+  return postJson('/api/admin/coupons', { action: 'create', ...p })
+}
+export async function adminCouponAction(action: 'toggle' | 'delete', id: string): Promise<{ ok: boolean; active?: number; error?: string }> {
+  return postJson('/api/admin/coupons', { action, id })
 }
 
 /* ───────── 퍼널 랜딩페이지 분석 ───────── */

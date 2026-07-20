@@ -1,5 +1,6 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity, planPriceKrw } from '../_utils'
 import { getPlanConfig, planPriceEffective } from '../_plans'
+import { validateCoupon, redeemCoupon } from '../_coupons'
 
 const PLANS = ['Plus', 'Pro', 'Max']
 const TRACKS = ['marketer', 'video']
@@ -29,15 +30,30 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // 신청 시점에 실결제액 확정(관리자 설정 실효가 × 개월). 이후 요금이 바뀌어도 이 금액으로 매출 집계.
   const cfg = await getPlanConfig(db).catch(() => null)
   const monthly = (cfg ? planPriceEffective(cfg, track, to) : 0) || planPriceKrw(track, to)
-  const amount = Math.round(monthly * Math.max(1, months))
+  let amount = Math.round(monthly * Math.max(1, months))
+
+  // 쿠폰/할인코드 — 유효하면 실결제액에 할인 적용
+  const couponInput = String(body.coupon || '').trim()
+  let couponCalc: any = null
+  let couponCode: string | null = null
+  if (couponInput) {
+    couponCalc = await validateCoupon(db, { code: couponInput, track, plan: to, months: Math.max(1, months), userId: me.id, monthlyPrice: monthly })
+    if (!couponCalc.ok) return json({ ok: false, error: couponCalc.error || '쿠폰을 사용할 수 없습니다.' }, 400)
+    amount = couponCalc.final
+    couponCode = couponCalc.coupon?.code || null
+  }
+
+  const prId = 'pr_' + crypto.randomUUID().slice(0, 14)
   const now = new Date().toISOString()
   await db
-    .prepare(`INSERT INTO plan_requests (id, user_id, track, from_plan, to_plan, status, memo, months, amount, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`)
-    .bind('pr_' + crypto.randomUUID().slice(0, 14), me.id, track, current, to, String(body.memo || ''), months, amount, now)
+    .prepare(`INSERT INTO plan_requests (id, user_id, track, from_plan, to_plan, status, memo, months, amount, coupon_code, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`)
+    .bind(prId, me.id, track, current, to, String(body.memo || ''), months, amount, couponCode, now)
     .run()
+  // 쿠폰 사용 확정(사용횟수 +1, 기록)
+  if (couponCalc?.ok) await redeemCoupon(db, couponCalc, { userId: me.id, planRequestId: prId, track, plan: to, months: Math.max(1, months) })
   const label = track === 'video' ? 'AI 영상' : '마케터'
-  await logActivity(db, me.id, 'plan', `${label} 플랜 신청: ${current} → ${to}${months ? ` (${months}개월)` : ''}`)
-  return json({ ok: true })
+  await logActivity(db, me.id, 'plan', `${label} 플랜 신청: ${current} → ${to}${months ? ` (${months}개월)` : ''}${couponCode ? ` · 쿠폰 ${couponCode}` : ''}`)
+  return json({ ok: true, amount, coupon: couponCode })
 }
 
 // GET → 본인 플랜 신청 내역

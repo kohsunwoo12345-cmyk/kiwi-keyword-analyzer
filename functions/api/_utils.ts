@@ -288,6 +288,41 @@ export async function ensureSchema(db: D1Database) {
       last_sent_at TEXT,
       created_at TEXT NOT NULL
     )`),
+    // 마케팅: 쿠폰/할인코드
+    db.prepare(`CREATE TABLE IF NOT EXISTS coupons (
+      id TEXT PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      description TEXT,
+      discount_type TEXT DEFAULT 'percent',   -- percent | fixed
+      discount_value INTEGER DEFAULT 0,        -- percent(1~100) 또는 정액(원)
+      scope_track TEXT DEFAULT '',             -- '' 전체 | marketer | video
+      scope_plan TEXT DEFAULT '',              -- '' 전체 | Plus | Pro | Max
+      min_months INTEGER DEFAULT 1,
+      max_uses INTEGER DEFAULT 0,              -- 0 = 무제한
+      used_count INTEGER DEFAULT 0,
+      per_user_limit INTEGER DEFAULT 1,        -- 0 = 무제한
+      starts_at TEXT,
+      expires_at TEXT,
+      active INTEGER DEFAULT 1,
+      created_by TEXT,
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_coupon_code ON coupons(code)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS coupon_redemptions (
+      id TEXT PRIMARY KEY,
+      coupon_id TEXT,
+      code TEXT,
+      user_id TEXT,
+      plan_request_id TEXT,
+      track TEXT,
+      plan TEXT,
+      months INTEGER,
+      original_krw INTEGER,
+      discount_krw INTEGER,
+      final_krw INTEGER,
+      created_at TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_coupon_redeem ON coupon_redemptions(coupon_id, user_id)`),
     // 이메일(Resend) 발송 이력 — 관리자 대시보드에서 수신/발신/내용/시각 확인
     db.prepare(`CREATE TABLE IF NOT EXISTS email_log (
       id TEXT PRIMARY KEY,
@@ -565,6 +600,7 @@ export async function ensureSchema(db: D1Database) {
     track: "track TEXT DEFAULT 'marketer'",
     months: 'months INTEGER DEFAULT 0', // 신청 이용 기간(개월, 0=무기한). 승인 시 plan_until 계산에 사용
     amount: 'amount INTEGER DEFAULT 0', // 신청 시점에 확정된 실결제액(원). 매출 집계의 기준(할인·개월 반영)
+    coupon_code: 'coupon_code TEXT',    // 적용된 쿠폰 코드(있으면)
   })
   await addMissingColumns(db, 'branches', {
     owner_id: 'owner_id TEXT', // 지사 대표 계정
