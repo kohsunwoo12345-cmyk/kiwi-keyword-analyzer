@@ -275,6 +275,36 @@ export async function adminAiUsage(days = 30): Promise<AiUsageStats> {
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
 
+/* ── 회원 API 키 발급/호출 현황 (관리자) ── */
+export interface ApiKeyRow {
+  id: string; userId: string; userName: string; userEmail: string
+  name: string; masked: string; status: string
+  callCount: number; lastUsedAt: string; createdAt: string; revokedAt: string
+}
+export interface ApiKeyUserRow {
+  userId: string; userName: string; userEmail: string
+  calls: number; okCalls: number; failCalls: number; credits: number
+}
+export interface ApiCallRow {
+  createdAt: string; userId: string; userName: string; userEmail: string
+  endpoint: string; provider: string; model: string; kind: string
+  credits: number; status: string; error: string
+}
+export interface ApiKeysStats {
+  ok: boolean; error?: string; days?: number
+  totals?: { activeKeys: number; totalKeys: number; users: number; calls: number; credits: number }
+  keys?: ApiKeyRow[]
+  byUser?: ApiKeyUserRow[]
+  calls?: ApiCallRow[]
+  byDay?: { d: string; calls: number; credits: number }[]
+}
+export async function adminApiKeys(days = 90): Promise<ApiKeysStats> {
+  try {
+    const r = await fetch(`/api/admin/api-keys?days=${days}`, { credentials: 'include', cache: 'no-store' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+
 /* ── AI 생성 기록 (관리자) — 각 생성물의 프롬프트·레퍼런스·결과·비용 ── */
 export interface AiGenerationRow {
   id: string

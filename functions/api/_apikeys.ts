@@ -99,11 +99,18 @@ export async function logApiCall(
   } catch { /* ignore */ }
 }
 
-/** 회원이 노드형 AI 영상 플랜(=영상 도구) 보유자인지 — API 접근 자격 */
+/** 회원이 노드형 AI 영상 플랜(=영상 도구) 보유자인지 — API 접근 자격.
+ *  users 원본 행(snake_case)과 매핑된 객체(camelCase) 모두 지원. */
 export function hasVideoApiAccess(user: any): boolean {
   if (!user) return false
-  if (user.role === 'admin') return true
+  if (user.role === 'admin' || user.isAdmin) return true
+  const now = new Date().toISOString()
+  // 원본 행: video_plan / video_plan_until, 매핑 객체: videoPlan / videoPlanUntil
+  const vplan = user.video_plan != null ? user.video_plan : user.videoPlan
+  const vuntil = user.video_plan_until != null ? user.video_plan_until : user.videoPlanUntil
+  if (vplan && vplan !== '없음' && (!vuntil || String(vuntil) > now)) return true
+  // 매핑 객체가 hasPlan 을 직접 제공하고 video 제품을 쓰는 경우도 허용
   const products = String(user.products || '')
-  const hasPlan = user.hasPlan === 1 || user.hasPlan === '1' || (user.plan && user.plan !== '없음')
-  return hasPlan && (products === 'both' || products === 'video' || !products)
+  if ((user.hasPlan === 1 || user.hasPlan === true) && (products === 'both' || products === 'video')) return true
+  return false
 }

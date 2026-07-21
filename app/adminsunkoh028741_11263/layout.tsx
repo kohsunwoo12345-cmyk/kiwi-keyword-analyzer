@@ -39,6 +39,7 @@ import {
   ArrowLeft,
   Clapperboard,
   PartyPopper,
+  KeyRound,
 } from 'lucide-react'
 import { Logo } from '@/components/Brand'
 import { adminSupportCount, adminPendingCounts } from '@/lib/auth'
@@ -57,6 +58,7 @@ export const VIDEO_NAV: NavItem[] = [
   { title: 'AI 정산', href: `${ADMIN_BASE}/ai-usage`, icon: Wallet },
   { title: 'AI 비용 (원가율)', href: `${ADMIN_BASE}/ai-pricing`, icon: Gauge },
   { title: 'AI API 남은 한도', href: `${ADMIN_BASE}/api-quota`, icon: Fuel },
+  { title: '회원 API 키·호출', href: `${ADMIN_BASE}/api-keys`, icon: KeyRound },
 ]
 
 const NAV_GROUPS: NavGroup[] = [

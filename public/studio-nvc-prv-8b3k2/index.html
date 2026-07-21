@@ -1308,6 +1308,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
         <button class="pf-navi" data-sec="invite" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></span>친구초대</button>
         <button class="pf-navi" data-sec="account" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>계정</button>
         <button class="pf-navi" data-sec="mcp" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6M7 8h10v3a5 5 0 0 1-10 0z"/><path d="M12 16v6"/></svg></span>MCP 연결</button>
+        <button class="pf-navi" data-sec="api" type="button"><span class="pfn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></span>API 연결</button>
       </nav>
       <button class="pf-logout" id="pfLogout">로그아웃</button>
     </aside>
@@ -1448,6 +1449,47 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
         </div>
         <div class="pf-sec" style="border-top:none;padding-top:2px;">
           <div class="mcp-steps">연결 확인: 브라우저로 <a id="pfMcpOpen" href="#" target="_blank" rel="noopener" style="color:#a78bfa;">서버 주소</a>를 열었을 때 <code>status: ok</code> JSON이 보이면 정상입니다.</div>
+        </div>
+      </section>
+
+      <section class="pf-pane" data-pane="api">
+        <h3 class="pf-h3">API 연결 · 코드로 바로 생성</h3>
+        <p class="pf-hint" style="margin-top:-6px;margin-bottom:12px;">API 키 하나로 <b>이미지·영상 모든 모델</b>을 코드에서 직접 호출합니다. 생성 1건마다 <b style="color:#7dd3fc">내 계정 크레딧에서 차감</b>됩니다. <b>노드형 AI 영상 플랜</b> 회원 전용입니다.</p>
+
+        <a class="pf-btn" id="pfApiDocs" href="/docs/api" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;margin-bottom:16px;">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          개발자 문서 열기 · 호출 코드·모델 목록 자세히 보기 ↗
+        </a>
+
+        <div class="pf-sec" style="border-top:none;padding-top:0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+            <h4 class="pf-h4" style="margin:0;">내 API 키 <span id="pfApiCount" style="color:#94a3b8;font-weight:600;font-size:12px;"></span></h4>
+            <button class="pf-btn" id="pfApiNew" style="width:auto;padding:8px 14px;white-space:nowrap;">+ 새 키 발급</button>
+          </div>
+          <div class="mcp-steps" style="margin-bottom:10px;">키는 <b>생성 시 한 번만</b> 전체가 표시됩니다. 이후에는 다시 볼 수 없으니 안전한 곳에 보관하세요. 회원당 <b>최대 20개</b>.</div>
+          <div id="pfApiNewBox" style="display:none;margin-bottom:14px;">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+              <input class="pf-inp" id="pfApiName" placeholder="키 이름 (예: 서버 배포용)" maxlength="60" style="margin-bottom:0;">
+              <button class="pf-btn" id="pfApiCreate" style="width:auto;padding:9px 16px;white-space:nowrap;">발급</button>
+              <button class="pf-btn" id="pfApiCancel" style="width:auto;padding:9px 14px;white-space:nowrap;background:transparent;border:1px solid #33415560;color:#94a3b8;">취소</button>
+            </div>
+          </div>
+          <div id="pfApiReveal" style="display:none;margin-bottom:14px;padding:12px 14px;border:1px solid #0ea5e955;border-radius:10px;background:#0ea5e910;">
+            <div style="font-size:12px;font-weight:700;color:#7dd3fc;margin-bottom:6px;">✓ 새 키가 발급됐습니다 — 지금만 표시됩니다. 복사해서 보관하세요.</div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input class="pf-inp" id="pfApiPlain" readonly value="" style="font-family:ui-monospace,monospace;margin-bottom:0;">
+              <button class="pf-btn" id="pfApiCopy" style="width:auto;padding:9px 16px;white-space:nowrap;">복사</button>
+            </div>
+          </div>
+          <div id="pfApiList"><div class="pf-usemsg">불러오는 중…</div></div>
+        </div>
+
+        <div class="pf-sec"><h4 class="pf-h4">빠른 호출 예시</h4>
+          <pre class="mcp-code" id="pfApiCurl" style="white-space:pre-wrap;">curl -X POST "<span id="pfApiBase">https://bygency.co/api/v1/generate</span>" \
+  -H "Authorization: Bearer &lt;API 키&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{"provider":"nanobanana","model":"Nano Banana","prompt":"노을 지는 해변"}'</pre>
+          <div class="mcp-steps">이미지는 즉시 URL, 영상은 <code>statusUrl</code>을 반환합니다. 자세한 필드·모델은 <a href="/docs/api" target="_blank" rel="noopener" style="color:#7dd3fc;">개발자 문서</a>를 참고하세요.</div>
         </div>
       </section>
     </div>
@@ -5355,7 +5397,62 @@ function pfShowSec(sec){
   if(sec==='usage') loadUsage();
   if(sec==='billing') loadPayments();
   if(sec==='mcp') pfFillMcp();
+  if(sec==='api') pfLoadApiKeys();
   if(sec==='topup') pfInitTopup();
+}
+/* ── API 키 관리 ── */
+function pfApiWhen(iso){ try{ var d=new Date(iso); var p=function(n){return(n<10?'0':'')+n;}; return (d.getFullYear())+'.'+(d.getMonth()+1)+'.'+p(d.getDate()); }catch(e){ return '-'; } }
+function pfLoadApiKeys(){
+  var base=((location&&location.origin)||'')+'/api/v1/generate';
+  var bs=pfEl('pfApiBase'); if(bs)bs.textContent=base;
+  var list=pfEl('pfApiList'); if(list)list.innerHTML='<div class="pf-usemsg">불러오는 중…</div>';
+  fetch('/api/account/api-keys',{credentials:'include',cache:'no-store'}).then(function(r){return r.json();}).then(function(d){
+    var cnt=pfEl('pfApiCount'); var nb=pfEl('pfApiNew');
+    if(!d||!d.ok){ if(list)list.innerHTML='<div class="pf-usemsg">불러오기 실패 — 로그인이 필요할 수 있습니다.</div>'; return; }
+    var keys=d.keys||[]; var max=d.max||20;
+    if(cnt)cnt.textContent='('+keys.length+' / '+max+')';
+    if(d.canUse===false){
+      if(nb){ nb.disabled=true; nb.style.opacity='.5'; nb.style.cursor='not-allowed'; }
+      if(list)list.innerHTML='<div class="pf-usemsg">API 키는 <b>노드형 AI 영상 플랜</b> 회원만 발급할 수 있습니다.</div>';
+      return;
+    }
+    if(nb){ nb.disabled=(keys.length>=max); nb.style.opacity=(keys.length>=max)?'.5':''; nb.style.cursor=(keys.length>=max)?'not-allowed':''; }
+    if(!keys.length){ if(list)list.innerHTML='<div class="pf-usemsg">아직 발급한 API 키가 없습니다. 위 <b>새 키 발급</b>으로 만들어 보세요.</div>'; return; }
+    if(list){ list.innerHTML=keys.map(function(k){
+      var used=k.last_used_at?('마지막 사용 '+pfApiWhen(k.last_used_at)):'미사용';
+      return '<div class="pf-useitem"><div class="m"><b>'+pfEsc(k.name||'API 키')+'</b>'
+        +'<span style="font-family:ui-monospace,monospace;">'+pfEsc(k.key_masked||'')+' · '+used+' · '+(k.call_count||0)+'회 호출</span></div>'
+        +'<button class="pf-apidel" data-id="'+pfEsc(k.id)+'" style="background:transparent;border:1px solid #7f1d1d;color:#f87171;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;">폐기</button></div>';
+    }).join('');
+      Array.prototype.forEach.call(list.querySelectorAll('.pf-apidel'),function(btn){
+        btn.addEventListener('click',function(){ pfRevokeApiKey(btn.getAttribute('data-id')); });
+      });
+    }
+  }).catch(function(){ if(list)list.innerHTML='<div class="pf-usemsg">불러오기 실패</div>'; });
+}
+function pfEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function pfCreateApiKey(){
+  var nameEl=pfEl('pfApiName'); var name=(nameEl&&nameEl.value||'').trim();
+  var btn=pfEl('pfApiCreate'); if(btn){ btn.disabled=true; btn.textContent='발급 중…'; }
+  fetch('/api/account/api-keys',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name})})
+    .then(function(r){return r.json();}).then(function(d){
+      if(btn){ btn.disabled=false; btn.textContent='발급'; }
+      if(!d||!d.ok){ toast((d&&d.error)||'키 발급 실패'); return; }
+      var box=pfEl('pfApiNewBox'); if(box)box.style.display='none';
+      if(nameEl)nameEl.value='';
+      var rev=pfEl('pfApiReveal'); var plain=pfEl('pfApiPlain');
+      if(plain)plain.value=d.key||''; if(rev)rev.style.display='block';
+      pfLoadApiKeys();
+    }).catch(function(){ if(btn){ btn.disabled=false; btn.textContent='발급'; } toast('키 발급 실패'); });
+}
+function pfRevokeApiKey(id){
+  if(!id)return;
+  if(!confirm('이 API 키를 폐기하면 이 키로의 모든 호출이 즉시 중단됩니다. 계속할까요?'))return;
+  fetch('/api/account/api-keys/'+encodeURIComponent(id),{method:'DELETE',credentials:'include'})
+    .then(function(r){return r.json();}).then(function(d){
+      if(d&&d.ok){ toast('API 키를 폐기했습니다.'); pfLoadApiKeys(); }
+      else toast((d&&d.error)||'폐기 실패');
+    }).catch(function(){ toast('폐기 실패'); });
 }
 /* ── 크레딧 추가(카드 결제) ── */
 var PF_TOP_KRW=65;   // 크레딧 단가(원/크레딧) — 관리자 설정(전역/회원별) 반영
@@ -5545,6 +5642,21 @@ function wireProfile(){
   var mc=pfEl('pfMcpCopy'); if(mc)mc.addEventListener('click',function(){
     var i=pfEl('pfMcpUrl'); if(!i)return; var v=i.value||((location.origin||'')+'/api/mcp');
     function ok(){ var o=mc.textContent; mc.textContent='복사됨 ✓'; setTimeout(function(){ mc.textContent=o; },1400); }
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(ok).catch(function(){ i.select(); document.execCommand('copy'); ok(); }); }
+    else { i.select(); document.execCommand('copy'); ok(); }
+  });
+  // API 키 — 새 키 입력창 토글
+  var an=pfEl('pfApiNew'); if(an)an.addEventListener('click',function(){
+    var box=pfEl('pfApiNewBox'); if(box){ box.style.display=(box.style.display==='none'?'block':'none'); if(box.style.display!=='none'){ var ni=pfEl('pfApiName'); if(ni)ni.focus(); } }
+    var rev=pfEl('pfApiReveal'); if(rev)rev.style.display='none';
+  });
+  var ac=pfEl('pfApiCancel'); if(ac)ac.addEventListener('click',function(){ var box=pfEl('pfApiNewBox'); if(box)box.style.display='none'; });
+  var acr=pfEl('pfApiCreate'); if(acr)acr.addEventListener('click',pfCreateApiKey);
+  var ani=pfEl('pfApiName'); if(ani)ani.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); pfCreateApiKey(); } });
+  // API 평문 키 복사
+  var apc=pfEl('pfApiCopy'); if(apc)apc.addEventListener('click',function(){
+    var i=pfEl('pfApiPlain'); if(!i)return; var v=i.value||'';
+    function ok(){ var o=apc.textContent; apc.textContent='복사됨 ✓'; setTimeout(function(){ apc.textContent=o; },1400); }
     if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(ok).catch(function(){ i.select(); document.execCommand('copy'); ok(); }); }
     else { i.select(); document.execCommand('copy'); ok(); }
   });
