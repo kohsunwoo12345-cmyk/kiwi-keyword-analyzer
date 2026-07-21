@@ -5,12 +5,13 @@ export const blogAnalysisPage = `<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>블로그 분석 시스템 - BYGENCY</title>
   <script src="https://cdn.tailwindcss.com"><\/script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css"/>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" media="print" onload="this.media='all'"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
   <style>
     body{font-family:'Pretendard',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:#f0f4f8;}
     .tab-btn{padding:10px 20px;border-radius:8px;font-weight:600;transition:all .2s;cursor:pointer;border:none;background:transparent;color:#64748b;}
-    .tab-btn.active{background:#2563eb;color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.3);}
+    .tab-btn.active{background:#7c3aed;color:#fff;box-shadow:0 2px 8px rgba(124,58,237,.3);}
     .tab-panel{display:none;} .tab-panel.active{display:block;}
     .score-gauge{position:relative;display:inline-flex;align-items:center;justify-content:center;}
     .score-gauge canvas{width:120px!important;height:120px!important;}
@@ -22,11 +23,11 @@ export const blogAnalysisPage = `<!DOCTYPE html>
     .grade-low{background:#fee2e2;color:#991b1b;}
     .post-row:hover{background:#f0f9ff;}
     .competitor-card{border:1px solid #e2e8f0;border-radius:12px;padding:16px;transition:all .2s;}
-    .competitor-card:hover{border-color:#3b82f6;box-shadow:0 4px 12px rgba(59,130,246,.15);}
+    .competitor-card:hover{border-color:#8b5cf6;box-shadow:0 4px 12px rgba(139,92,246,.15);}
     .keyword-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;margin:2px;}
     .forbidden{background:#fee2e2;color:#dc2626;}
     .commercial{background:#fef3c7;color:#d97706;}
-    .morpheme-bar{height:6px;border-radius:3px;background:#3b82f6;transition:width .4s;}
+    .morpheme-bar{height:6px;border-radius:3px;background:#8b5cf6;transition:width .4s;}
     @keyframes spin{to{transform:rotate(360deg)}}
     .loading-spin{animation:spin 1s linear infinite;display:inline-block;}
   .embed .sidebar,.embed .hamburger{display:none!important} .embed .main-area{margin-left:0!important;width:100%!important}.embed header{display:none!important}
@@ -35,12 +36,12 @@ export const blogAnalysisPage = `<!DOCTYPE html>
 <body>
 <script>if(location.search.indexOf('embed=1')>-1)document.documentElement.classList.add('embed');<\/script>
 <!-- 헤더 -->
-<header style="background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 50%,#3b82f6 100%);" class="text-white shadow-xl">
+<header style="background:linear-gradient(135deg,#4c1d95 0%,#7c3aed 50%,#8b5cf6 100%);" class="text-white shadow-xl">
   <div class="max-w-7xl mx-auto px-4 py-5">
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-3xl font-black tracking-tight">📊 블로그 분석 시스템</h1>
-        <p class="text-blue-200 mt-1 text-sm">SEO 지수 기반 · 네이버 블로그 완전 분석</p>
+        <p class="text-violet-200 mt-1 text-sm">SEO 지수 기반 · 네이버 블로그 완전 분석</p>
       </div>
       <div class="flex gap-3">
         <a href="/tools/search-volume" class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium">검색량 조회</a>
@@ -56,10 +57,10 @@ export const blogAnalysisPage = `<!DOCTYPE html>
     <h2 class="text-xl font-bold text-gray-800 mb-4">🔍 블로그 분석 시작</h2>
     <div class="flex gap-3">
       <input type="text" id="blogUrlInput" placeholder="blog.naver.com/아이디 또는 https://blog.naver.com/아이디"
-        class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none text-base"
+        class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-violet-500 focus:outline-none text-base"
         onkeypress="if(event.key==='Enter') startAnalysis()">
       <button onclick="startAnalysis()" id="analyzeBtn"
-        class="px-8 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition whitespace-nowrap">
+        class="px-8 py-3 bg-violet-600 text-white font-bold rounded-xl hover:bg-violet-700 transition whitespace-nowrap">
         분석 시작
       </button>
     </div>
@@ -72,7 +73,7 @@ export const blogAnalysisPage = `<!DOCTYPE html>
     <p class="text-lg font-bold text-gray-700" id="loadingMsg">블로그 정보를 가져오는 중...</p>
     <p class="text-sm text-gray-400 mt-2">RSS · 포스팅 목록 · 지수 분석 진행 중</p>
     <div class="mt-4 w-full bg-gray-100 rounded-full h-2">
-      <div id="loadingBar" class="bg-blue-500 h-2 rounded-full transition-all duration-500" style="width:5%"></div>
+      <div id="loadingBar" class="bg-violet-500 h-2 rounded-full transition-all duration-500" style="width:5%"></div>
     </div>
   </div>
 
@@ -81,7 +82,7 @@ export const blogAnalysisPage = `<!DOCTYPE html>
     <!-- 블로그 기본 정보 -->
     <div class="bg-white rounded-2xl shadow-lg p-6 mb-4">
       <div class="flex items-start gap-6">
-        <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-4xl flex-shrink-0" id="blogIcon">📝</div>
+        <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-violet-400 to-violet-600 flex items-center justify-center text-4xl flex-shrink-0" id="blogIcon">📝</div>
         <div class="flex-1">
           <div class="flex items-center gap-3 mb-1">
             <h2 class="text-2xl font-black text-gray-900" id="rBlogName">-</h2>
@@ -89,9 +90,9 @@ export const blogAnalysisPage = `<!DOCTYPE html>
           </div>
           <p class="text-gray-500 text-sm mb-3" id="rBlogId">-</p>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div class="bg-blue-50 rounded-xl p-3 text-center">
+            <div class="bg-violet-50 rounded-xl p-3 text-center">
               <p class="text-xs text-gray-500">총 포스트</p>
-              <p class="text-xl font-bold text-blue-600" id="rPostCount">-</p>
+              <p class="text-xl font-bold text-violet-600" id="rPostCount">-</p>
             </div>
             <div class="bg-green-50 rounded-xl p-3 text-center">
               <p class="text-xs text-gray-500">최근 30일</p>
@@ -128,11 +129,11 @@ export const blogAnalysisPage = `<!DOCTYPE html>
 
         <!-- 종합 지수 -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div class="text-center bg-blue-50 rounded-2xl p-6">
+          <div class="text-center bg-violet-50 rounded-2xl p-6">
             <p class="text-sm font-semibold text-gray-600 mb-3">C-RANK <span class="text-xs text-gray-400">(신뢰도)</span></p>
             <div class="score-gauge">
               <canvas id="crankCanvas"></canvas>
-              <span class="score-label text-blue-600" id="crankVal">-</span>
+              <span class="score-label text-violet-600" id="crankVal">-</span>
             </div>
             <p class="text-xs text-gray-500 mt-3">관심주제 집중도 · 정보품질 · 소비자 만족도</p>
           </div>
@@ -160,9 +161,9 @@ export const blogAnalysisPage = `<!DOCTYPE html>
           <div class="grid grid-cols-2 md:grid-cols-6 gap-2 text-center text-xs font-semibold">
             <div class="p-3 rounded-xl bg-red-100 text-red-700">저품질</div>
             <div class="p-3 rounded-xl bg-yellow-100 text-yellow-700">일반</div>
-            <div class="p-3 rounded-xl bg-blue-100 text-blue-700">준최적화 1~4</div>
-            <div class="p-3 rounded-xl bg-blue-200 text-blue-800">준최적화 5~5.5</div>
-            <div class="p-3 rounded-xl bg-blue-300 text-blue-900">준최적화 6</div>
+            <div class="p-3 rounded-xl bg-violet-100 text-violet-700">준최적화 1~4</div>
+            <div class="p-3 rounded-xl bg-violet-200 text-violet-800">준최적화 5~5.5</div>
+            <div class="p-3 rounded-xl bg-violet-300 text-violet-900">준최적화 6</div>
             <div class="p-3 rounded-xl bg-green-200 text-green-800 border-2 border-green-500">최적화 1~3</div>
           </div>
           <div class="mt-3 flex items-center gap-2">
@@ -178,9 +179,9 @@ export const blogAnalysisPage = `<!DOCTYPE html>
             <div class="flex items-center gap-3">
               <span class="w-24 text-sm text-gray-600 flex-shrink-0">품질 점수</span>
               <div class="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden">
-                <div class="h-4 rounded-full bg-blue-500 transition-all duration-700" id="barQuality" style="width:0%"></div>
+                <div class="h-4 rounded-full bg-violet-500 transition-all duration-700" id="barQuality" style="width:0%"></div>
               </div>
-              <span class="w-12 text-right text-sm font-bold text-blue-600" id="txtQuality">0</span>
+              <span class="w-12 text-right text-sm font-bold text-violet-600" id="txtQuality">0</span>
             </div>
             <div class="flex items-center gap-3">
               <span class="w-24 text-sm text-gray-600 flex-shrink-0">권위도</span>
@@ -220,9 +221,9 @@ export const blogAnalysisPage = `<!DOCTYPE html>
         </div>
 
         <!-- 분석 인사이트 -->
-        <div class="mt-6 p-4 bg-blue-50 border border-blue-100 rounded-xl">
-          <h4 class="font-bold text-blue-800 mb-2">💡 분석 인사이트</h4>
-          <ul id="insightList" class="text-sm text-blue-700 space-y-1 list-disc list-inside"></ul>
+        <div class="mt-6 p-4 bg-violet-50 border border-violet-100 rounded-xl">
+          <h4 class="font-bold text-violet-800 mb-2">💡 분석 인사이트</h4>
+          <ul id="insightList" class="text-sm text-violet-700 space-y-1 list-disc list-inside"></ul>
         </div>
       </div>
 
@@ -232,7 +233,7 @@ export const blogAnalysisPage = `<!DOCTYPE html>
           <h3 class="text-lg font-bold text-gray-800">최근 게시물 진단</h3>
           <div class="flex gap-2 text-xs">
             <span class="px-2 py-1 bg-green-100 text-green-700 rounded">신뢰도(C-RANK)</span>
-            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded">연관도(D.I.A)</span>
+            <span class="px-2 py-1 bg-violet-100 text-violet-700 rounded">연관도(D.I.A)</span>
             <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded">반영도(D.I.A+)</span>
           </div>
         </div>
@@ -246,7 +247,7 @@ export const blogAnalysisPage = `<!DOCTYPE html>
                 <th class="px-4 py-3 text-center font-semibold text-gray-600">글자수</th>
                 <th class="px-4 py-3 text-center font-semibold text-gray-600">이미지</th>
                 <th class="px-4 py-3 text-center font-semibold text-green-600">신뢰도</th>
-                <th class="px-4 py-3 text-center font-semibold text-blue-600">연관도</th>
+                <th class="px-4 py-3 text-center font-semibold text-violet-600">연관도</th>
                 <th class="px-4 py-3 text-center font-semibold text-purple-600">반영도</th>
                 <th class="px-4 py-3 text-center font-semibold text-gray-600">상태</th>
               </tr>
@@ -261,9 +262,9 @@ export const blogAnalysisPage = `<!DOCTYPE html>
             <p class="text-xs text-gray-500 mb-1">평균 신뢰도</p>
             <p class="text-2xl font-bold text-green-600" id="avgCrank">-</p>
           </div>
-          <div class="bg-blue-50 rounded-xl p-4 text-center">
+          <div class="bg-violet-50 rounded-xl p-4 text-center">
             <p class="text-xs text-gray-500 mb-1">평균 연관도</p>
-            <p class="text-2xl font-bold text-blue-600" id="avgDia">-</p>
+            <p class="text-2xl font-bold text-violet-600" id="avgDia">-</p>
           </div>
           <div class="bg-purple-50 rounded-xl p-4 text-center">
             <p class="text-xs text-gray-500 mb-1">평균 반영도</p>
@@ -324,9 +325,9 @@ export const blogAnalysisPage = `<!DOCTYPE html>
           </div>
 
           <!-- 개선 제안 -->
-          <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-5 border border-blue-100">
+          <div class="bg-gradient-to-br from-violet-50 to-indigo-50 rounded-2xl p-5 border border-violet-100">
             <h4 class="font-bold text-gray-700 mb-4">💊 개선 처방</h4>
-            <ul id="prescriptionList" class="space-y-2 text-sm text-blue-700">
+            <ul id="prescriptionList" class="space-y-2 text-sm text-violet-700">
               <li class="text-gray-400">분석 후 표시됩니다</li>
             </ul>
           </div>
@@ -338,8 +339,8 @@ export const blogAnalysisPage = `<!DOCTYPE html>
         <h3 class="text-lg font-bold text-gray-800 mb-4">📝 개별 포스트 상세 분석</h3>
         <div class="mb-4 flex gap-3">
           <input type="text" id="postUrlInput" placeholder="분석할 포스트 URL 입력 (예: blog.naver.com/id/12345)"
-            class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none text-sm">
-          <button onclick="analyzePost()" class="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700">분석</button>
+            class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-violet-500 focus:outline-none text-sm">
+          <button onclick="analyzePost()" class="px-6 py-3 bg-violet-600 text-white font-bold rounded-xl hover:bg-violet-700">분석</button>
         </div>
         <p class="text-xs text-gray-400 mb-6">또는 아래 게시물 목록에서 포스트를 클릭하세요</p>
 
@@ -350,7 +351,7 @@ export const blogAnalysisPage = `<!DOCTYPE html>
               <h4 class="font-bold text-gray-700 mb-4">포스트 기본 정보</h4>
               <div class="space-y-3 text-sm">
                 <div class="flex gap-2"><span class="text-gray-500 w-24">제목</span><span class="font-semibold flex-1" id="paTitle">-</span></div>
-                <div class="flex gap-2"><span class="text-gray-500 w-24">글자수</span><span class="font-bold text-blue-600" id="paChars">-</span></div>
+                <div class="flex gap-2"><span class="text-gray-500 w-24">글자수</span><span class="font-bold text-violet-600" id="paChars">-</span></div>
                 <div class="flex gap-2"><span class="text-gray-500 w-24">이미지수</span><span class="font-bold text-green-600" id="paImages">-</span></div>
                 <div class="flex gap-2"><span class="text-gray-500 w-24">링크수</span><span class="font-bold" id="paLinks">-</span></div>
                 <div class="flex gap-2"><span class="text-gray-500 w-24">작성일</span><span class="font-semibold" id="paDate">-</span></div>
@@ -369,9 +370,9 @@ export const blogAnalysisPage = `<!DOCTYPE html>
                 <div class="flex items-center gap-3">
                   <span class="text-sm text-gray-600 w-20">연관도</span>
                   <div class="flex-1 bg-gray-100 rounded-full h-3">
-                    <div class="h-3 rounded-full bg-blue-500" id="paDiaBar" style="width:0%"></div>
+                    <div class="h-3 rounded-full bg-violet-500" id="paDiaBar" style="width:0%"></div>
                   </div>
-                  <span class="text-sm font-bold text-blue-600" id="paDiaVal">0</span>
+                  <span class="text-sm font-bold text-violet-600" id="paDiaVal">0</span>
                 </div>
                 <div class="flex items-center gap-3">
                   <span class="text-sm text-gray-600 w-20">반영도</span>
@@ -400,9 +401,9 @@ export const blogAnalysisPage = `<!DOCTYPE html>
               </div>
             </div>
             <!-- 개선 제안 -->
-            <div class="md:col-span-2 bg-blue-50 rounded-2xl p-5 border border-blue-100">
-              <h4 class="font-bold text-blue-800 mb-3">📋 포스트 개선 제안</h4>
-              <ul id="postSuggestions" class="text-sm text-blue-700 space-y-1 list-disc list-inside"></ul>
+            <div class="md:col-span-2 bg-violet-50 rounded-2xl p-5 border border-violet-100">
+              <h4 class="font-bold text-violet-800 mb-3">📋 포스트 개선 제안</h4>
+              <ul id="postSuggestions" class="text-sm text-violet-700 space-y-1 list-disc list-inside"></ul>
             </div>
           </div>
         </div>
@@ -454,7 +455,7 @@ export const blogAnalysisPage = `<!DOCTYPE html>
             <div class="bg-orange-50 rounded-xl p-4 border border-orange-100">
               <p class="text-xs text-gray-500 mb-1">평균 검색량</p><p class="text-3xl font-bold text-orange-600" id="kwAvgSearch">0</p>
             </div>
-            <div class="bg-blue-50 rounded-xl p-4 border border-blue-100 text-xs text-blue-700">
+            <div class="bg-violet-50 rounded-xl p-4 border border-violet-100 text-xs text-violet-700">
               💡 월 1,000~10,000 · 경쟁도 낮음 = 추천
             </div>
           </div>
@@ -464,7 +465,7 @@ export const blogAnalysisPage = `<!DOCTYPE html>
             <h4 class="font-bold text-gray-700">분석 결과</h4>
             <button onclick="exportKwCSV()" class="px-4 py-2 bg-green-600 text-white text-sm rounded-lg">CSV 다운로드</button>
           </div>
-          <div id="kwNotice" class="hidden mb-3 p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-700"></div>
+          <div id="kwNotice" class="hidden mb-3 p-3 bg-violet-50 border border-violet-100 rounded-lg text-xs text-violet-700"></div>
           <div class="overflow-x-auto rounded-xl border">
             <table class="w-full text-sm">
               <thead class="bg-gray-50">
@@ -632,7 +633,7 @@ function renderScoreTab(d) {
 
   // 게이지 차트
   setTimeout(function(){
-    drawGauge('crankCanvas', cr, '#3b82f6');
+    drawGauge('crankCanvas', cr, '#8b5cf6');
     drawGauge('diaCanvas', dia, '#10b981');
     drawGauge('diaPlusCanvas', diaP, '#8b5cf6');
     drawRadar(cr, dia, diaP, q, a, e);
@@ -698,9 +699,9 @@ function drawRadar(cr, dia, diaP, q, a, e) {
       datasets:[{
         label:'내 블로그',
         data:[cr,dia,diaP,q,a,e],
-        backgroundColor:'rgba(59,130,246,0.2)',
-        borderColor:'#3b82f6',
-        pointBackgroundColor:'#3b82f6',
+        backgroundColor:'rgba(139,92,246,0.2)',
+        borderColor:'#8b5cf6',
+        pointBackgroundColor:'#8b5cf6',
         borderWidth:2
       }]
     },
@@ -723,9 +724,9 @@ function renderPostsTab(posts) {
     totalCr+=cr; totalDia+=dia; totalDiaP+=diaP;
     var chars=p.charCount||(p.content?p.content.length:Math.floor(500+Math.random()*1500));
     var imgs=p.imageCount||(Math.floor(Math.random()*8));
-    var crCls=cr>=70?'text-green-600':cr>=50?'text-blue-600':'text-red-500';
-    var diaCls=dia>=70?'text-green-600':dia>=50?'text-blue-600':'text-red-500';
-    var diaPCls=diaP>=70?'text-green-600':diaP>=50?'text-blue-600':'text-red-500';
+    var crCls=cr>=70?'text-green-600':cr>=50?'text-violet-600':'text-red-500';
+    var diaCls=dia>=70?'text-green-600':dia>=50?'text-violet-600':'text-red-500';
+    var diaPCls=diaP>=70?'text-green-600':diaP>=50?'text-violet-600':'text-red-500';
     var status=cr>=65&&dia>=65?'<span class="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">양호</span>':
                cr>=45&&dia>=45?'<span class="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs">보통</span>':
                '<span class="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs">주의</span>';
@@ -733,7 +734,7 @@ function renderPostsTab(posts) {
     var postUrl = p.url || ('https://blog.naver.com/'+gBlogId);
     return '<tr class="post-row cursor-pointer" onclick="selectPost(&apos;'+esc(postUrl)+'&apos;,&apos;'+esc(p.title||'')+'&apos;)">'+
       '<td class="px-4 py-3 text-gray-400 text-xs">'+(i+1)+'</td>'+
-      '<td class="px-4 py-3"><a class="text-blue-600 hover:underline font-medium" href="'+postUrl+'" target="_blank">'+esc(title)+'</a></td>'+
+      '<td class="px-4 py-3"><a class="text-violet-600 hover:underline font-medium" href="'+postUrl+'" target="_blank">'+esc(title)+'</a></td>'+
       '<td class="px-4 py-3 text-center text-xs text-gray-500">'+(p.pubDate||p.date||'-')+'</td>'+
       '<td class="px-4 py-3 text-center text-xs">'+fmt(chars)+'</td>'+
       '<td class="px-4 py-3 text-center text-xs">'+imgs+'</td>'+
@@ -832,7 +833,7 @@ function renderDiagnoseTab(d, posts) {
     if (postingPatternChartObj) postingPatternChartObj.destroy();
     postingPatternChartObj = new Chart(canvas.getContext('2d'), {
       type:'bar',
-      data:{labels:labels, datasets:[{label:'포스팅 수', data:vals, backgroundColor:'rgba(59,130,246,0.6)', borderRadius:4}]},
+      data:{labels:labels, datasets:[{label:'포스팅 수', data:vals, backgroundColor:'rgba(139,92,246,0.6)', borderRadius:4}]},
       options:{responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}}}
     });
   }, 200);
@@ -848,7 +849,7 @@ function renderPostAnalyzeTab(posts) {
   container.innerHTML = posts.slice(0,15).map(function(p, i) {
     var title = p.title || ('포스트 '+(i+1));
     var url = p.url || ('https://blog.naver.com/'+gBlogId);
-    return '<div class="p-3 bg-white border border-gray-100 rounded-xl hover:border-blue-300 hover:bg-blue-50 cursor-pointer transition flex items-center justify-between" onclick="selectPost(&apos;'+esc(url)+'&apos;,&apos;'+esc(title)+'&apos;)">' +
+    return '<div class="p-3 bg-white border border-gray-100 rounded-xl hover:border-violet-300 hover:bg-violet-50 cursor-pointer transition flex items-center justify-between" onclick="selectPost(&apos;'+esc(url)+'&apos;,&apos;'+esc(title)+'&apos;)">' +
       '<div class="flex items-center gap-3"><span class="text-gray-400 text-sm w-6">'+(i+1)+'</span><span class="text-sm font-medium text-gray-700">'+(title.length>50?title.slice(0,50)+'...':esc(title))+'</span></div>' +
       '<span class="text-xs text-gray-400">'+(p.pubDate||p.date||'')+'</span>' +
     '</div>';
@@ -971,7 +972,7 @@ function renderCompetitors() {
       '<button onclick="gCompetitors.splice('+i+',1);renderCompetitors();" class="text-xs text-red-400 hover:text-red-600">✕</button>'+
       '</div></div>'+
       '<div class="grid grid-cols-3 gap-3 text-center text-sm">'+
-      '<div class="bg-blue-50 rounded-lg p-2"><p class="text-xs text-gray-500">C-RANK</p><p class="font-bold text-blue-600">'+Math.round(cr)+'</p></div>'+
+      '<div class="bg-violet-50 rounded-lg p-2"><p class="text-xs text-gray-500">C-RANK</p><p class="font-bold text-violet-600">'+Math.round(cr)+'</p></div>'+
       '<div class="bg-green-50 rounded-lg p-2"><p class="text-xs text-gray-500">D.I.A</p><p class="font-bold text-green-600">'+Math.round(dia)+'</p></div>'+
       '<div class="bg-purple-50 rounded-lg p-2"><p class="text-xs text-gray-500">D.I.A+</p><p class="font-bold text-purple-600">'+Math.round(diaP)+'</p></div>'+
       '</div></div>';
@@ -981,7 +982,7 @@ function renderCompetitors() {
   document.getElementById('compareChartBox').classList.remove('hidden');
   var labels = ['C-RANK','D.I.A','D.I.A+','품질','권위도','참여도'];
   var myData = [mine.c_rank||0, mine.dia_score||0, mine.dia_plus_score||0, mine.quality_score||0, mine.authority_score||0, mine.engagement_score||0];
-  var datasets = [{label:'내 블로그', data:myData, backgroundColor:'rgba(59,130,246,0.6)', borderColor:'#3b82f6', borderWidth:2}];
+  var datasets = [{label:'내 블로그', data:myData, backgroundColor:'rgba(139,92,246,0.6)', borderColor:'#8b5cf6', borderWidth:2}];
   gCompetitors.forEach(function(c,i){
     datasets.push({
       label:c.blog_name||c.blogId,
