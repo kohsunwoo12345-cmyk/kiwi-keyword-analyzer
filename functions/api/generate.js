@@ -8,6 +8,7 @@
 // 키는 Cloudflare Pages 환경변수에서만 읽으며 절대 응답에 포함되지 않습니다.
 
 import { getSessionUser, resolveDB } from "./_utils";
+import { getUserByApiKey } from "./_apikeys";
 
 const RUNWAY_VER = "2024-11-06";
 
@@ -639,6 +640,11 @@ async function handle(context) {
   if (method === "POST" || gateGet) {
     const db = resolveDB(env);
     let me = db ? await getSessionUser(request, db) : null;
+    if (!me && db) {
+      // 회원 API 키(bg_live_) 인증 — 노드형 AI 영상 플랜 사용자의 직접 API 호출
+      const ak = await getUserByApiKey(db, request.headers.get("Authorization"));
+      if (ak) me = ak.user;
+    }
     if (!me) {
       // 전역 MCP 토큰(관리자 폴백) 도 허용 — 상수시간 비교
       const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
