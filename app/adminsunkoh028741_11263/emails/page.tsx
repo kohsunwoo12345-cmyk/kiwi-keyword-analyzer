@@ -36,6 +36,7 @@ export default function AdminEmailsPage() {
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<'all' | 'sent' | 'failed'>('all')
+  const [kindFilter, setKindFilter] = useState<string>('all')
   const [preview, setPreview] = useState<EmailLogRow | null>(null)
 
   const load = () => {
@@ -47,15 +48,23 @@ export default function AdminEmailsPage() {
     })
   }
   useEffect(() => { load() }, [])
+  // URL ?kind=welcome 등으로 진입 시 해당 유형으로 프리셋 (사이드바 "환영인사 메일" 메뉴에서 진입)
+  useEffect(() => {
+    try {
+      const k = new URLSearchParams(window.location.search).get('kind')
+      if (k) setKindFilter(k)
+    } catch { /* ignore */ }
+  }, [])
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase()
     return emails.filter((e) => {
       if (filter !== 'all' && e.status !== filter) return false
+      if (kindFilter !== 'all' && (e.kind || 'general') !== kindFilter) return false
       if (s && !(`${e.to_email} ${e.from_email} ${e.subject}`.toLowerCase().includes(s))) return false
       return true
     })
-  }, [emails, q, filter])
+  }, [emails, q, filter, kindFilter])
 
   return (
     <div className="animate-fade-in">
@@ -112,6 +121,29 @@ export default function AdminEmailsPage() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* 유형별 정리 — 환영인사 메일 등 */}
+            <div className="mb-4 flex flex-wrap gap-1.5">
+              {([
+                { k: 'all', label: '전체' },
+                { k: 'welcome', label: '환영인사 메일' },
+                { k: 'reset', label: '비밀번호 재설정' },
+                { k: 'funnel', label: '퍼널' },
+                { k: 'marketing', label: '마케팅' },
+                { k: 'general', label: '일반' },
+              ]).map((f) => (
+                <button
+                  key={f.k}
+                  onClick={() => setKindFilter(f.k)}
+                  className={cn(
+                    'rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors',
+                    kindFilter === f.k ? 'border-violet-300 bg-violet-50 text-violet-700' : 'border-[var(--border)] bg-white text-[var(--text-soft)] hover:bg-slate-50',
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
             </div>
 
             <div className="overflow-x-auto">

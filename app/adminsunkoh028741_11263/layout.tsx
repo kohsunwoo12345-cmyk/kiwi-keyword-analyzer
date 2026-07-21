@@ -38,6 +38,7 @@ import {
   X,
   ArrowLeft,
   Clapperboard,
+  PartyPopper,
 } from 'lucide-react'
 import { Logo } from '@/components/Brand'
 import { adminSupportCount, adminPendingCounts } from '@/lib/auth'
@@ -73,6 +74,7 @@ const NAV_GROUPS: NavGroup[] = [
       { title: '접속 통계', href: `${ADMIN_BASE}/stats`, icon: BarChart3 },
       { title: '고객센터', href: `${ADMIN_BASE}/support`, icon: MessageCircle, badge: 'support' },
       { title: '이메일 발송 기록', href: `${ADMIN_BASE}/emails`, icon: Mail },
+      { title: '환영인사 메일', href: `${ADMIN_BASE}/emails?kind=welcome`, icon: PartyPopper },
       { title: '회원가입정보', href: `${ADMIN_BASE}/referrals`, icon: IdCard },
       { title: '회원 DB 다운로드', href: `${ADMIN_BASE}/db-download`, icon: Download },
       { title: '사용자 활동 기록', href: `${ADMIN_BASE}/user-activity`, icon: History },

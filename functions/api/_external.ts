@@ -35,6 +35,7 @@ function envAny(env: any, ...names: string[]): string {
 
 // 이메일에 들어갈 로고(호스팅 PNG — 이메일 클라이언트 호환성 위해 인라인 SVG 대신 이미지 사용)
 const EMAIL_LOGO_URL = 'https://bygency.co/brand/app-icon.png'
+const KAKAO_CHANNEL_URL = 'http://pf.kakao.com/_cxdNfX'
 
 /** 브랜드 이메일 공통 셸 — 상단 로고 + 본문 + 푸터. innerHtml 만 넣으면 로고가 포함된 메일이 완성된다. */
 export function emailShell(innerHtml: string): string {
@@ -46,8 +47,12 @@ export function emailShell(innerHtml: string): string {
         <span style="display:inline-block;margin-left:10px;font-size:20px;font-weight:800;letter-spacing:-0.02em;color:#1d4ed8;vertical-align:middle">BYGENCY</span>
       </div>
       <div style="padding:8px 28px 28px;color:#0f172a">${innerHtml}</div>
-      <div style="padding:16px 28px;background:#fafbfd;border-top:1px solid #eef0f4;text-align:center">
-        <p style="margin:0;color:#94a3b8;font-size:12px">© BYGENCY · <a href="mailto:cs@bygency.co" style="color:#94a3b8">cs@bygency.co</a></p>
+      <div style="padding:20px 28px;background:#fafbfd;border-top:1px solid #eef0f4;text-align:center">
+        <p style="margin:0 0 12px;color:#475569;font-size:13px;font-weight:600">궁금한 점이 있으신가요?</p>
+        <p style="margin:0 0 14px;color:#94a3b8;font-size:12px;line-height:1.6">카카오톡 채널로 편하게 문의하시거나, 이메일로 문의해 주세요.</p>
+        <a href="${KAKAO_CHANNEL_URL}" target="_blank" style="display:inline-block;background:#FEE500;color:#191600;font-size:13px;font-weight:700;text-decoration:none;padding:10px 18px;border-radius:10px">💬 카카오톡 채널 문의</a>
+        <a href="mailto:cs@bygency.co" style="display:inline-block;margin-left:8px;background:#ffffff;color:#334155;font-size:13px;font-weight:700;text-decoration:none;padding:10px 18px;border-radius:10px;border:1px solid #e2e8f0">✉️ 이메일 문의</a>
+        <p style="margin:16px 0 0;color:#94a3b8;font-size:12px">© BYGENCY · <a href="mailto:cs@bygency.co" style="color:#94a3b8">cs@bygency.co</a> · <a href="${KAKAO_CHANNEL_URL}" style="color:#94a3b8">카카오톡 채널</a></p>
       </div>
     </div>
   </div>`

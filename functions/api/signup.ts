@@ -82,7 +82,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
           안녕하세요 ${name}님, BYGENCY 가입이 완료되었어요.<br/>
           요금제를 활성화하면 <b>마케팅 대시보드</b>와 <b>노드형 AI 영상 제작</b>을 모두 사용할 수 있습니다.
         </p>
-        <a href="https://bygency.co/activate" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:12px">요금제 활성화하기</a>
+        <a href="https://bygency.co/activate" style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:12px">요금제 활성화하기</a>
         <p style="color:#94a3b8;font-size:12px;line-height:1.6;margin:18px 0 0">
           친구가 요금제에 가입하면 결제액의 1%를 크레딧으로 받을 수 있어요.
         </p>`)
