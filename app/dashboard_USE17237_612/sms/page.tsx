@@ -6,7 +6,7 @@ export default function SmsSendPage() {
     <iframe
       src="/tools/sms?embed=1"
       title="문자 발송"
-      className="block h-[calc(100vh-56px)] min-h-[720px] w-full border-0 lg:h-screen"
+      className="block h-[calc(100vh-56px)] min-h-[720px] w-full border-0 lg:h-[calc(100vh-56px)]"
     />
   )
 }

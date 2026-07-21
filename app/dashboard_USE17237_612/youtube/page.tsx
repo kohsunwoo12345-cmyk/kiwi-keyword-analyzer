@@ -6,7 +6,7 @@ export default function YoutubeToolPage() {
     <iframe
       src="/tools/youtube?embed=1"
       title="유튜브 분석"
-      className="block h-[calc(100vh-56px)] min-h-[720px] w-full border-0 lg:h-screen"
+      className="block h-[calc(100vh-56px)] min-h-[720px] w-full border-0 lg:h-[calc(100vh-56px)]"
     />
   )
 }
