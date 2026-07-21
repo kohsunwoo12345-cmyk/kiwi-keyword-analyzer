@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <!-- PWA 설정 -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#6366f1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="슈퍼플레이스">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="/icon-152.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>신청자 관리 - SUPERPLACE</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- BYGENCY: 세션 쿠키 기반 인증. /api/me 로 사용자 정보를 localStorage 에 채움(표시용) -->
+  <script>
+  (function(){ try{ var x=new XMLHttpRequest(); x.open('GET','/api/me',false); x.withCredentials=true; x.send();
+    if(x.status===200){ var d=JSON.parse(x.responseText||'{}'); var u=(d&&d.user)||d; if(u&&u.id){ u.user_type='admin'; u.role='admin'; localStorage.setItem('user',JSON.stringify(u)); localStorage.setItem('adminUser',JSON.stringify(u)); } }
+  }catch(e){} })();
+  </script>
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    * { font-family: 'Pretendard', -apple-system, sans-serif; }
+    #toast {
+      position:fixed; bottom:32px; left:50%; transform:translateX(-50%);
+      background:#1e293b; color:#fff; padding:10px 24px; border-radius:50px;
+      font-size:14px; z-index:9999; opacity:0; pointer-events:none; transition:opacity .3s;
+    }
+    #toast.show { opacity:1; }
+    .sub-row { transition: background .15s; }
+    .sub-row:hover { background: #f8faff; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<div id="toast"></div>
+
+<!-- HEADER -->
+<header class="bg-white border-b shadow-sm sticky top-0 z-40">
+  <div class="max-w-screen-xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <a id="backBtn" href="/tools/landing-builder.html" class="text-gray-400 hover:text-indigo-600 transition">
+        <i class="fas fa-arrow-left text-lg"></i>
+      </a>
+      <div class="w-px h-6 bg-gray-200"></div>
+      <h1 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+        <i class="fas fa-inbox text-emerald-600"></i>
+        신청자 관리
+      </h1>
+      <span id="headerSlugBadge" class="hidden text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-semibold"></span>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="exportCSV()" class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition flex items-center gap-2">
+        <i class="fas fa-file-excel"></i>엑셀 다운로드
+      </button>
+      <button onclick="loadSubmissions()" class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-semibold hover:bg-gray-200 transition">
+        <i class="fas fa-sync-alt mr-1"></i>새로고침
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="max-w-screen-xl mx-auto px-6 py-8">
+
+  <!-- 통계 카드 -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+    <div class="bg-white rounded-xl p-5 border shadow-sm">
+      <div class="text-xs text-gray-500 mb-1">총 신청자</div>
+      <div id="statTotal" class="text-3xl font-bold text-indigo-600">-</div>
+    </div>
+    <div class="bg-white rounded-xl p-5 border shadow-sm">
+      <div class="text-xs text-gray-500 mb-1">오늘 신청</div>
+      <div id="statToday" class="text-3xl font-bold text-emerald-600">-</div>
+    </div>
+    <div class="bg-white rounded-xl p-5 border shadow-sm">
+      <div class="text-xs text-gray-500 mb-1">이번 주</div>
+      <div id="statWeek" class="text-3xl font-bold text-blue-600">-</div>
+    </div>
+    <div class="bg-white rounded-xl p-5 border shadow-sm">
+      <div class="text-xs text-gray-500 mb-1">이번 달</div>
+      <div id="statMonth" class="text-3xl font-bold text-orange-500">-</div>
+    </div>
+  </div>
+
+  <!-- 페이지 선택 + 검색 -->
+  <div class="bg-white rounded-2xl border shadow-sm p-5 mb-6">
+    <div class="flex flex-wrap items-center gap-4">
+      <!-- 랜딩페이지 선택 -->
+      <div class="flex-1 min-w-[200px]">
+        <label class="text-xs font-semibold text-gray-600 block mb-1">랜딩페이지 선택</label>
+        <select id="pageSelect" onchange="onPageChange()" class="w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-300 outline-none text-sm bg-white">
+          <option value="">-- 전체 신청자 --</option>
+        </select>
+      </div>
+      <!-- 검색 -->
+      <div class="flex-1 min-w-[200px]">
+        <label class="text-xs font-semibold text-gray-600 block mb-1">검색</label>
+        <div class="relative">
+          <input id="searchInput" type="text" placeholder="이름, 연락처, 이메일 검색..."
+            class="w-full px-4 py-2.5 pl-10 border rounded-xl focus:ring-2 focus:ring-indigo-300 outline-none text-sm"
+            oninput="filterTable()">
+          <i class="fas fa-search absolute left-3 top-3 text-gray-400 text-sm"></i>
+        </div>
+      </div>
+      <!-- 기간 필터 -->
+      <div>
+        <label class="text-xs font-semibold text-gray-600 block mb-1">기간</label>
+        <select id="periodFilter" onchange="filterTable()" class="px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-300 outline-none text-sm bg-white">
+          <option value="all">전체 기간</option>
+          <option value="today">오늘</option>
+          <option value="week">이번 주</option>
+          <option value="month">이번 달</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- 신청자 테이블 -->
+  <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <h2 class="text-lg font-bold text-gray-800">신청자 목록</h2>
+        <span id="countBadge" class="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded-full font-semibold">-</span>
+      </div>
+      <!-- 선택 삭제 -->
+      <div class="flex items-center gap-3">
+        <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+          <input type="checkbox" id="checkAll" class="accent-indigo-600 w-4 h-4" onchange="toggleAll(this)">
+          전체 선택
+        </label>
+        <button onclick="deleteSelected()" class="px-3 py-1.5 bg-red-50 text-red-500 text-sm rounded-lg hover:bg-red-100 transition border border-red-200 font-semibold">
+          <i class="fas fa-trash mr-1"></i>선택 삭제
+        </button>
+      </div>
+    </div>
+
+    <!-- 테이블 -->
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+          <tr>
+            <th class="px-4 py-3 text-center w-10"><input type="checkbox" class="hidden"></th>
+            <th class="px-4 py-3 text-left cursor-pointer hover:text-gray-800" onclick="sortBy('name')">
+              이름 <i class="fas fa-sort text-gray-300 ml-1"></i>
+            </th>
+            <th class="px-4 py-3 text-left">연락처</th>
+            <th class="px-4 py-3 text-left">이메일</th>
+            <th class="px-4 py-3 text-left">학년</th>
+            <th class="px-4 py-3 text-left">문의 내용</th>
+            <th class="px-4 py-3 text-left">추가 정보</th>
+            <th class="px-4 py-3 text-left cursor-pointer hover:text-gray-800" onclick="sortBy('created_at')">
+              신청 일시 <i class="fas fa-sort text-gray-300 ml-1" id="sortIcon"></i>
+            </th>
+            <th class="px-4 py-3 text-left">페이지</th>
+            <th class="px-4 py-3 text-center w-16">삭제</th>
+          </tr>
+        </thead>
+        <tbody id="submissionsTable">
+          <tr>
+            <td colspan="10" class="text-center py-16 text-gray-400">
+              <i class="fas fa-spinner fa-spin text-3xl mb-3 block"></i>불러오는 중...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 페이지네이션 -->
+    <div id="pagination" class="px-6 py-4 border-t flex items-center justify-between text-sm text-gray-500"></div>
+  </div>
+</div>
+
+<!-- 신청자 상세 모달 -->
+<div id="detailModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-lg font-bold text-gray-900">신청자 상세</h3>
+      <button onclick="closeDetailModal()" class="text-gray-400 hover:text-gray-600 text-xl"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="detailContent" class="space-y-3"></div>
+    <div class="flex gap-3 mt-6">
+      <a id="detailCallLink" href="#" class="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold text-center hover:bg-emerald-700 transition text-sm">
+        <i class="fas fa-phone mr-1"></i>전화하기
+      </a>
+      <button onclick="closeDetailModal()" class="px-4 py-2.5 text-gray-500 border rounded-xl text-sm hover:bg-gray-50">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// userId: user → adminUser 순으로 확인 (관리자는 adminUser에 저장됨)
+const _rawUser  = localStorage.getItem('user')
+const _rawAdmin = localStorage.getItem('adminUser')
+const currentUser = JSON.parse(_rawUser || _rawAdmin || '{}')
+const userId = currentUser.id || currentUser.userId || 1
+
+// ── 날짜 파싱 헬퍼 (D1 UTC → KST 정확 표시) ──
+// D1 CURRENT_TIMESTAMP = 'YYYY-MM-DD HH:MM:SS' (UTC, Z 없음)
+// 브라우저가 로컬로 잘못 파싱 → 9시간 오차 방지
+function parseDbDate(str) {
+  if (!str) return null;
+  var s = str.indexOf('T') >= 0 ? str : str.replace(' ', 'T');
+  var iso = (s.slice(-1) === 'Z' || s.indexOf('+') >= 0) ? s : s + 'Z';
+  var d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d;
+}
+function fmtSubmitDate(str) {
+  var d = parseDbDate(str);
+  if (!d) return '-';
+  return d.toLocaleString('ko-KR', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false,timeZone:'Asia/Seoul'});
+}
+function fmtSubmitDateShort(str) {
+  var d = parseDbDate(str);
+  if (!d) return '-';
+  return d.toLocaleString('ko-KR', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Seoul'});
+}
+
+let allSubmissions = []  // 전체 데이터 (필터링용)
+let filteredSubmissions = []
+let currentPage = 1
+const PAGE_SIZE = 20
+let sortField = 'created_at'
+let sortDir = 'desc'
+
+// ──────────────────────────────────────────────────────────────────────
+// slug → fieldDefs 글로벌 캐시
+// 우선순위: ① 행 자체의 form_fields(제출 시 스냅샷) → ② 같은 slug의 다른 행
+//           → ③ my-pages API 응답(landing_pages.form_fields)
+// ──────────────────────────────────────────────────────────────────────
+let _fieldDefsCache = {}  // { [slug]: [{id, label, type, ...}] }
+
+// 캐시에 slug→defs 를 병합 (더 많은 필드 정의를 가진 쪽 우선)
+function _mergeToCache(slug, defs) {
+  if (!slug || !Array.isArray(defs) || defs.length === 0) return
+  if (!_fieldDefsCache[slug] || defs.length > _fieldDefsCache[slug].length) {
+    _fieldDefsCache[slug] = defs
+  }
+}
+
+// allSubmissions 로드 후 캐시 재빌드
+function rebuildFieldDefsCache() {
+  // my-pages 캐시(로드 순서상 이미 채워져 있을 수 있음)는 보존하고 merge만
+  allSubmissions.forEach(s => {
+    const slug = s.page_slug || s.landing_slug || ''
+    if (!slug || !s.form_fields) return
+    try {
+      const defs = JSON.parse(s.form_fields)
+      _mergeToCache(slug, defs)
+    } catch(e) {}
+  })
+}
+
+// submission s에 대한 fieldDefs 반환
+// ① s.form_fields(스냅샷) → ② slug 캐시(my-pages 또는 다른 행) → ③ []
+function getFieldDefs(s) {
+  if (s.form_fields) {
+    try {
+      const defs = JSON.parse(s.form_fields)
+      if (Array.isArray(defs) && defs.length > 0) return defs
+    } catch(e) {}
+  }
+  const slug = s.page_slug || s.landing_slug || ''
+  return (slug && _fieldDefsCache[slug]) ? _fieldDefsCache[slug] : []
+}
+
+// fieldDefs → {id: label} 맵
+function fieldDefsToMap(defs) {
+  const map = {}
+  if (Array.isArray(defs)) defs.forEach(f => { if (f.id && f.label) map[f.id] = f.label })
+  return map
+}
+
+// 전체 캐시를 합쳐서 만든 id→label 통합 맵 (exportCSV fallback용)
+function buildMergedFieldMap() {
+  const map = {}
+  Object.values(_fieldDefsCache).forEach(defs => {
+    defs.forEach(f => { if (f.id && f.label) map[f.id] = f.label })
+  })
+  return map
+}
+
+// URL 파라미터에서 slug / from 가져오기
+const urlParams = new URLSearchParams(location.search)
+let currentSlug = urlParams.get('slug') || ''
+const fromParam = urlParams.get('from') || ''
+
+// 뒤로가기 버튼 href는 DOMContentLoaded 후 설정 (DOM 준비 전엔 null)
+
+// ──────────────────────────────────────────────
+// 초기화
+// ──────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  // 뒤로가기 버튼 href 결정 (DOM 준비 후)
+  var backBtn = document.getElementById('backBtn')
+  if (backBtn) {
+    backBtn.href = (fromParam === 'html-landing') ? '/tools/html-landing' : '/tools/landing-builder.html'
+  }
+
+  // 로그인 체크: 일반 user 또는 adminUser 확인
+  var rawUser = localStorage.getItem('user')
+  var rawAdmin = localStorage.getItem('adminUser')
+  if (!rawUser && !rawAdmin) {
+    // 아무 세션도 없을 때만 로그인 페이지로
+    location.href = '/login'
+    return
+  }
+
+  await loadPageList()
+  if (currentSlug) {
+    document.getElementById('pageSelect').value = currentSlug
+    document.getElementById('headerSlugBadge').textContent = currentSlug
+    document.getElementById('headerSlugBadge').classList.remove('hidden')
+  }
+  await loadSubmissions()
+})
+
+// ──────────────────────────────────────────────
+// 랜딩페이지 목록 로드 (셀렉트 박스)
+// ──────────────────────────────────────────────
+async function loadPageList() {
+  try {
+    const res = await fetch(`/api/landing/my-pages?userId=${userId}`)
+    const data = await res.json()
+    const pages = data.pages || []
+    const sel = document.getElementById('pageSelect')
+    sel.innerHTML = '<option value="">-- 전체 신청자 --</option>' +
+      pages.map(p => `<option value="${escHtml(p.slug)}" ${p.slug === currentSlug ? 'selected' : ''}>${escHtml(p.title || p.slug)}</option>`).join('')
+
+    // ★ my-pages 응답의 form_fields로 캐시 선행 보완
+    //    → allSubmissions 로드 전에도 slug→fieldDefs 맵이 채워짐
+    //    → 기존 제출 데이터(form_fields=null)도 캐시에서 라벨을 얻음
+    pages.forEach(p => {
+      if (!p.slug || !p.form_fields) return
+      try {
+        const defs = JSON.parse(p.form_fields)
+        _mergeToCache(p.slug, defs)
+      } catch(e) {}
+    })
+  } catch(e) {}
+}
+
+function onPageChange() {
+  currentSlug = document.getElementById('pageSelect').value
+  const badge = document.getElementById('headerSlugBadge')
+  if (currentSlug) {
+    badge.textContent = currentSlug
+    badge.classList.remove('hidden')
+  } else {
+    badge.classList.add('hidden')
+  }
+  // URL 업데이트
+  const newUrl = new URL(location.href)
+  if (currentSlug) newUrl.searchParams.set('slug', currentSlug)
+  else newUrl.searchParams.delete('slug')
+  history.pushState({}, '', newUrl)
+  loadSubmissions()
+}
+
+// ──────────────────────────────────────────────
+// 신청자 로드
+// ──────────────────────────────────────────────
+async function loadSubmissions() {
+  document.getElementById('submissionsTable').innerHTML = `
+    <tr><td colspan="10" class="text-center py-16 text-gray-400">
+      <i class="fas fa-spinner fa-spin text-3xl mb-3 block"></i>불러오는 중...
+    </td></tr>`
+  try {
+    const url = currentSlug
+      ? `/api/landing/form-submissions?slug=${currentSlug}&userId=${userId}&limit=500`
+      : `/api/landing/all-submissions?userId=${userId}&limit=500`
+    const res = await fetch(url, { credentials: 'include' })
+    let data = {}
+    try { data = await res.json() } catch(_je) { data = {} }
+    if (!data.success && data.error === '로그인이 필요합니다.') {
+      document.getElementById('submissionsTable').innerHTML = `
+        <tr><td colspan="10" class="text-center py-12 text-yellow-600">
+          <i class="fas fa-lock text-2xl mb-2 block"></i>로그인이 필요합니다.
+        </td></tr>`
+      return
+    }
+    allSubmissions = data.submissions || []
+    rebuildFieldDefsCache()
+    updateStats()
+    filterTable()
+  } catch(e) {
+    document.getElementById('submissionsTable').innerHTML = `
+      <tr><td colspan="10" class="text-center py-12 text-red-500">
+        <i class="fas fa-exclamation-circle text-2xl mb-2 block"></i>불러오기 실패: ${e.message}
+      </td></tr>`
+  }
+}
+
+// ──────────────────────────────────────────────
+// 통계
+// ──────────────────────────────────────────────
+function updateStats() {
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay())
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+
+  document.getElementById('statTotal').textContent = allSubmissions.length
+  document.getElementById('statToday').textContent = allSubmissions.filter(s => (parseDbDate(s.created_at)||new Date(0)) >= todayStart).length
+  document.getElementById('statWeek').textContent = allSubmissions.filter(s => (parseDbDate(s.created_at)||new Date(0)) >= weekStart).length
+  document.getElementById('statMonth').textContent = allSubmissions.filter(s => (parseDbDate(s.created_at)||new Date(0)) >= monthStart).length
+}
+
+// ──────────────────────────────────────────────
+// 필터 & 검색
+// ──────────────────────────────────────────────
+function filterTable() {
+  const q = document.getElementById('searchInput').value.toLowerCase()
+  const period = document.getElementById('periodFilter').value
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay())
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+
+  filteredSubmissions = allSubmissions.filter(s => {
+    // 검색 필터
+    if (q) {
+      let extraVals = []
+      try { extraVals = Object.values(JSON.parse(s.additional_data || '{}')).filter(v => v !== null && v !== undefined).map(v => String(v)) } catch(e) {}
+      const searchStr = [s.name, s.phone, s.email, s.grade, s.message, ...extraVals].join(' ').toLowerCase()
+      if (!searchStr.includes(q)) return false
+    }
+    // 기간 필터
+    if (period !== 'all') {
+      const created = parseDbDate(s.created_at) || new Date(0)
+      if (period === 'today' && created < todayStart) return false
+      if (period === 'week' && created < weekStart) return false
+      if (period === 'month' && created < monthStart) return false
+    }
+    return true
+  })
+
+  // 정렬
+  filteredSubmissions.sort((a, b) => {
+    let va = a[sortField] || '', vb = b[sortField] || ''
+    if (sortField === 'created_at') { va = parseDbDate(va)||new Date(0); vb = parseDbDate(vb)||new Date(0) }
+    if (va < vb) return sortDir === 'asc' ? -1 : 1
+    if (va > vb) return sortDir === 'asc' ? 1 : -1
+    return 0
+  })
+
+  currentPage = 1
+  renderTable()
+}
+
+function sortBy(field) {
+  if (sortField === field) sortDir = sortDir === 'asc' ? 'desc' : 'asc'
+  else { sortField = field; sortDir = 'desc' }
+  document.getElementById('sortIcon').className = 'fas fa-sort-' + (sortDir === 'asc' ? 'up' : 'down') + ' text-indigo-500 ml-1'
+  filterTable()
+}
+
+// ──────────────────────────────────────────────
+// 테이블 렌더링
+// ──────────────────────────────────────────────
+function renderTable() {
+  const start = (currentPage - 1) * PAGE_SIZE
+  const pageData = filteredSubmissions.slice(start, start + PAGE_SIZE)
+  document.getElementById('countBadge').textContent = `${filteredSubmissions.length}명`
+
+  if (filteredSubmissions.length === 0) {
+    document.getElementById('submissionsTable').innerHTML = `
+      <tr><td colspan="10" class="text-center py-20 text-gray-400">
+        <i class="fas fa-inbox text-5xl mb-4 block opacity-20"></i>
+        <p class="text-base">신청자가 없습니다.</p>
+      </td></tr>`
+    document.getElementById('pagination').innerHTML = ''
+    return
+  }
+
+  document.getElementById('submissionsTable').innerHTML = pageData.map(s => {
+    // 추가 데이터 파싱
+    // ① 신규: additional_data key가 이미 라벨 (예: {"가입 여부":"예!"})
+    // ② 구형: additional_data key가 custom_ID → fieldMap으로 라벨 변환 시도
+    let extra = {}
+    try { extra = JSON.parse(s.additional_data || '{}') } catch(e) {}
+    const defs = getFieldDefs(s)
+    const fieldMap = fieldDefsToMap(defs)
+    // grade/message/agree/landing_slug 등 기본 키 제외 목록
+    const BASE_EXTRA_KEYS = new Set(['grade','message','agree','landing_slug','landing_title'])
+    const customParts = Object.keys(extra)
+      .filter(k => !BASE_EXTRA_KEYS.has(k) && extra[k] !== null && extra[k] !== '' && extra[k] !== undefined)
+      .map(k => {
+        // custom_ID 형식이면 fieldMap으로 라벨 변환 시도, 아니면 key 그대로 사용
+        const label = k.startsWith('custom_') ? (fieldMap[k] || (defs.find(f => f.id === k) || {}).label || k) : k
+        return `${label}: ${extra[k]}`
+      })
+    const extraText = customParts.join(' / ')
+
+    const dateStr = fmtSubmitDateShort(s.created_at)
+
+    return `
+      <tr class="sub-row border-b border-gray-50 cursor-pointer" onclick="showDetail(${s.id})">
+        <td class="px-4 py-3 text-center" onclick="event.stopPropagation()">
+          <input type="checkbox" class="row-check accent-indigo-600 w-4 h-4" data-id="${s.id}" onclick="event.stopPropagation()">
+        </td>
+        <td class="px-4 py-3">
+          <span class="font-semibold text-gray-800">${escHtml(s.name || '-')}</span>
+        </td>
+        <td class="px-4 py-3">
+          <a href="tel:${escHtml(s.phone || '')}" class="text-indigo-600 hover:underline font-medium" onclick="event.stopPropagation()">
+            ${escHtml(s.phone || '-')}
+          </a>
+        </td>
+        <td class="px-4 py-3 text-gray-500 text-xs">${escHtml(s.email || '-')}</td>
+        <td class="px-4 py-3 text-gray-500 text-xs">${escHtml(s.grade || extra.grade || '-')}</td>
+        <td class="px-4 py-3 text-gray-500 text-xs max-w-[160px] truncate">${escHtml(s.message || extra.message || '-')}</td>
+        <td class="px-4 py-3 text-gray-500 text-xs max-w-[200px]">
+          ${extraText ? `<div class="space-y-0.5">${customParts.map(p => `<div class="truncate" title="${escHtml(p)}">${escHtml(p)}</div>`).join('')}</div>` : '-'}
+        </td>
+        <td class="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">${dateStr}</td>
+        <td class="px-4 py-3">
+          ${s.page_title || s.landing_title ? `<div class="flex flex-col gap-0.5"><span class="text-xs font-medium text-indigo-700">${escHtml(s.page_title || s.landing_title || '')}</span><span class="text-xs bg-indigo-50 text-indigo-500 px-1.5 py-0.5 rounded-full w-fit">${escHtml(s.page_slug || s.landing_slug || '')}</span></div>` : (s.page_slug ? `<span class="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-medium">${escHtml(s.page_slug)}</span>` : '-')}
+        </td>
+        <td class="px-4 py-3 text-center" onclick="event.stopPropagation()">
+          <button onclick="deleteOne(${s.id})" class="text-red-400 hover:text-red-600 text-sm p-1.5 rounded hover:bg-red-50 transition">
+            <i class="fas fa-trash"></i>
+          </button>
+        </td>
+      </tr>`
+  }).join('')
+
+  renderPagination()
+}
+
+function renderPagination() {
+  const totalPages = Math.ceil(filteredSubmissions.length / PAGE_SIZE)
+  if (totalPages <= 1) { document.getElementById('pagination').innerHTML = ''; return }
+
+  let html = `<span class="text-gray-400">${(currentPage-1)*PAGE_SIZE+1}–${Math.min(currentPage*PAGE_SIZE, filteredSubmissions.length)} / ${filteredSubmissions.length}명</span>`
+  html += '<div class="flex items-center gap-1">'
+  if (currentPage > 1) html += `<button onclick="goPage(${currentPage-1})" class="px-3 py-1.5 border rounded-lg hover:bg-gray-50 text-sm">이전</button>`
+  for (let i = Math.max(1, currentPage-2); i <= Math.min(totalPages, currentPage+2); i++) {
+    html += `<button onclick="goPage(${i})" class="px-3 py-1.5 border rounded-lg text-sm ${i===currentPage ? 'bg-indigo-600 text-white border-indigo-600' : 'hover:bg-gray-50'}">${i}</button>`
+  }
+  if (currentPage < totalPages) html += `<button onclick="goPage(${currentPage+1})" class="px-3 py-1.5 border rounded-lg hover:bg-gray-50 text-sm">다음</button>`
+  html += '</div>'
+  document.getElementById('pagination').innerHTML = html
+}
+
+function goPage(p) { currentPage = p; renderTable(); window.scrollTo(0, 0) }
+
+// ──────────────────────────────────────────────
+// 체크박스
+// ──────────────────────────────────────────────
+function toggleAll(masterCb) {
+  document.querySelectorAll('.row-check').forEach(cb => cb.checked = masterCb.checked)
+}
+
+function getSelectedIds() {
+  return Array.from(document.querySelectorAll('.row-check:checked')).map(cb => parseInt(cb.dataset.id))
+}
+
+// ──────────────────────────────────────────────
+// 삭제
+// ──────────────────────────────────────────────
+async function deleteOne(id) {
+  if (!confirm('이 신청자를 삭제하시겠습니까?')) return
+  await doDelete([id])
+}
+
+async function deleteSelected() {
+  const ids = getSelectedIds()
+  if (ids.length === 0) { toast('삭제할 항목을 선택해주세요.'); return }
+  if (!confirm(`선택한 ${ids.length}명의 신청자를 삭제하시겠습니까?`)) return
+  await doDelete(ids)
+}
+
+async function doDelete(ids) {
+  try {
+    const res = await fetch('/api/landing/form-submissions/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-User-Data-Base64': (function(){var _bx1b=new TextEncoder().encode(JSON.stringify(currentUser || {id:1}));var _bx1s="";_bx1b.forEach(function(c){_bx1s+=String.fromCharCode(c);});return btoa(_bx1s);})() },
+      body: JSON.stringify({ ids })
+    })
+    const data = await res.json()
+    if (data.success) {
+      allSubmissions = allSubmissions.filter(s => !ids.includes(s.id))
+      toast(`✅ ${ids.length}명 삭제 완료`)
+      updateStats()
+      filterTable()
+    } else {
+      toast('❌ 삭제 실패: ' + (data.error || ''))
+    }
+  } catch(e) { toast('❌ 오류: ' + e.message) }
+}
+
+// ──────────────────────────────────────────────
+// 상세 보기
+// ──────────────────────────────────────────────
+// (구형 parseFieldMap은 fieldDefsToMap으로 대체됨 — 하위호환 alias)
+function parseFieldMap(formFieldsJson) {
+  if (!formFieldsJson) return {}
+  try {
+    const fields = JSON.parse(formFieldsJson)
+    return fieldDefsToMap(fields)
+  } catch(e) { return {} }
+}
+
+function showDetail(id) {
+  const s = allSubmissions.find(s => s.id === id)
+  if (!s) return
+  let extra = {}
+  try { extra = JSON.parse(s.additional_data || '{}') } catch(e) {}
+
+  // getFieldDefs: 자신의 form_fields → slug캐시 순으로 fieldDefs 획득
+  const fieldDefs = getFieldDefs(s)
+  const fieldMap  = fieldDefsToMap(fieldDefs)
+
+  const rows = [
+    ['이름', s.name],
+    ['연락처', s.phone],
+    ['이메일', s.email || extra.email],
+  ]
+
+  if (fieldDefs.length > 0) {
+    // form_fields 정의 순서대로 라벨명으로 표시
+    fieldDefs.forEach(f => {
+      // 기본 필드(name/phone/email/grade/message)는 이미 위에서 처리하므로 skip
+      if (['name','phone','email','grade','message','__btn'].includes(f.id)) return
+      const val = extra[f.id]
+      if (val !== null && val !== undefined && val !== '') {
+        rows.push([f.label, val])
+      }
+    })
+    // grade / message는 fieldDefs에 포함돼 있을 수 있으나 별도 행으로 추가
+    if (s.grade || extra.grade) rows.push(['학년', s.grade || extra.grade])
+    if (s.message || extra.message) rows.push(['문의 내용', s.message || extra.message])
+  } else {
+    // fieldDefs 없는 경우 — grade/message + 나머지 추가 필드 표시
+    if (s.grade || extra.grade) rows.push(['학년', s.grade || extra.grade])
+    if (s.message || extra.message) rows.push(['문의 내용', s.message || extra.message])
+    const BASE_EXTRA_KEYS2 = new Set(['grade','message','agree','landing_slug','landing_title'])
+    Object.keys(extra)
+      .filter(k => !BASE_EXTRA_KEYS2.has(k) && extra[k] !== null && extra[k] !== '')
+      .forEach(k => {
+        // custom_ID 형식이면 fieldMap 변환 시도, 아닌 경우(이미 라벨) 그대로
+        const label = k.startsWith('custom_') ? (fieldMap[k] || k) : k
+        rows.push([label, extra[k]])
+      })
+  }
+
+  rows.push(
+    ['신청 일시', fmtSubmitDate(s.created_at)],
+    ['랜딩페이지', (s.page_title || s.landing_title || s.page_slug || s.landing_slug)]
+  )
+
+  document.getElementById('detailContent').innerHTML = rows
+    .filter(([, v]) => v)
+    .map(([k, v]) => `
+      <div class="flex gap-3 items-start py-2 border-b border-gray-50 last:border-0">
+        <span class="text-xs font-semibold text-gray-500 w-24 flex-shrink-0 pt-0.5">${escHtml(k)}</span>
+        <span class="text-sm text-gray-800 flex-1 break-all">${escHtml(String(v || '-'))}</span>
+      </div>`).join('')
+
+  document.getElementById('detailCallLink').href = `tel:${s.phone || ''}`
+  document.getElementById('detailModal').classList.remove('hidden')
+  document.getElementById('detailModal').classList.add('flex')
+}
+
+function closeDetailModal() {
+  document.getElementById('detailModal').classList.add('hidden')
+  document.getElementById('detailModal').classList.remove('flex')
+}
+
+// ──────────────────────────────────────────────
+// 엑셀 다운로드
+// ──────────────────────────────────────────────
+function exportCSV() {
+  if (filteredSubmissions.length === 0) { toast('내보낼 데이터가 없습니다.'); return }
+
+  // 고정 기본 필드 제외 키 목록
+  const BASE_FIXED = new Set(['name','phone','email','grade','message','agree','landing_slug','landing_title'])
+
+  // ── Step 1: 통합 mergedFieldMap 빌드 ──────────────────────────────────
+  // _fieldDefsCache(캐시) + allSubmissions 전체 순회로 완전히 보완
+  // → form_fields 스냅샷이 있는 레코드라면 캐시 누락 여부 관계없이 id→label 수집
+  const mergedFieldMap = buildMergedFieldMap()
+  allSubmissions.forEach(s => {
+    if (!s.form_fields) return
+    try {
+      JSON.parse(s.form_fields).forEach(f => {
+        if (f.id && f.label) mergedFieldMap[f.id] = f.label
+      })
+    } catch(e) {}
+  })
+
+  // ── Step 2: 커스텀 컬럼 수집 ─────────────────────────────────────────
+  // keyOrder: [{id, label, ids}]
+  //   id     = 이 컬럼을 대표하는 actual extra key (값 조회 기준)
+  //   label  = 헤더 표시명
+  //   ids    = 동일 라벨로 매핑되는 모든 actual key 집합 (신구 호환 조회용)
+  //
+  // 핵심 전략:
+  //  ① 각 extra key에 대해 "정규 라벨(resolvedLabel)" 을 먼저 결정한다.
+  //     · k가 custom_ID 형식 → mergedFieldMap[k] 또는 per-record fieldMap[k] → 변환
+  //     · k가 이미 라벨 문자열 → k 자체
+  //  ② labelToInfo 맵으로 같은 resolvedLabel을 가진 key들을 ids에 모두 등록한다.
+  //     (서로 다른 slug에서 동일 라벨 필드라도 누락 없이 처리)
+  //  ③ keyOrder = labelToInfo의 삽입 순서 기준
+  const labelToInfo = {}  // resolvedLabel → {id(대표), label, ids(Set)}
+
+  filteredSubmissions.forEach(s => {
+    const defs = getFieldDefs(s)
+    const fieldMap = fieldDefsToMap(defs)
+    let extra = {}
+    try { extra = JSON.parse(s.additional_data || '{}') } catch(e) {}
+
+    Object.keys(extra).forEach(k => {
+      if (BASE_FIXED.has(k)) return
+
+      // 라벨 결정: custom_ID → 변환 시도, 실패 시 k 자체
+      const resolvedLabel = k.startsWith('custom_')
+        ? (fieldMap[k] || mergedFieldMap[k] || k)
+        : k
+
+      if (!labelToInfo[resolvedLabel]) {
+        labelToInfo[resolvedLabel] = { id: k, label: resolvedLabel, ids: new Set([k]) }
+      } else {
+        // 이미 등록된 라벨: ids에 현재 key도 추가 (신구 key 모두 커버)
+        labelToInfo[resolvedLabel].ids.add(k)
+      }
+    })
+  })
+
+  const keyOrder = Object.values(labelToInfo)  // 삽입 순서 유지
+
+  // ── Step 3: grade/message 컬럼 포함 여부 ─────────────────────────────
+  const hasGrade   = filteredSubmissions.some(s => { let e={}; try{e=JSON.parse(s.additional_data||'{}')}catch(ex){} return s.grade || e.grade })
+  const hasMessage = filteredSubmissions.some(s => { let e={}; try{e=JSON.parse(s.additional_data||'{}')}catch(ex){} return s.message || e.message })
+
+  // ── Step 4: 헤더 구성 ────────────────────────────────────────────────
+  const headers = [
+    '번호', '이름', '연락처', '이메일',
+    ...(hasGrade   ? ['학년'] : []),
+    ...(hasMessage ? ['문의내용'] : []),
+    ...keyOrder.map(f => f.label),
+    '랜딩페이지 제목', '신청일시'
+  ]
+
+  // ── Step 5: 데이터 행 구성 ───────────────────────────────────────────
+  const wsData = [headers]
+  filteredSubmissions.forEach((s, i) => {
+    let extra = {}
+    try { extra = JSON.parse(s.additional_data || '{}') } catch(e) {}
+    const defs = getFieldDefs(s)
+    const fieldMap = fieldDefsToMap(defs)
+
+    const customValues = keyOrder.map(f => {
+      // ids에 등록된 모든 key로 순차 조회 (신구 데이터 호환)
+      for (const k of f.ids) {
+        const v = extra[k]
+        if (v !== null && v !== undefined && v !== '') return String(v)
+      }
+      // ids에 없는 경우를 대비한 추가 fallback:
+      // custom_ID 계열이면 다른 레코드가 이미 라벨 키로 저장했을 수 있음
+      if (f.id.startsWith('custom_')) {
+        const resolvedLabel = fieldMap[f.id] || mergedFieldMap[f.id]
+        if (resolvedLabel) {
+          const v = extra[resolvedLabel]
+          if (v !== null && v !== undefined && v !== '') return String(v)
+        }
+      }
+      return ''
+    })
+
+    const cleanPhone = s.phone ? String(s.phone).replace(/-/g, '') : ''
+
+    wsData.push([
+      i + 1,
+      s.name || '',
+      cleanPhone,
+      s.email || extra.email || '',
+      ...(hasGrade   ? [s.grade   || extra.grade   || ''] : []),
+      ...(hasMessage ? [s.message || extra.message || ''] : []),
+      ...customValues,
+      s.page_title || s.landing_title || s.page_slug || s.landing_slug || '',
+      fmtSubmitDate(s.created_at)
+    ])
+  })
+
+  // ── Step 6: SheetJS xlsx 생성 ─────────────────────────────────────────
+  const wb = XLSX.utils.book_new()
+  const ws = XLSX.utils.aoa_to_sheet(wsData)
+
+  // 전화번호 컬럼(C=index 2) string 타입 강제 → 엑셀이 앞자리 0 제거 못하게
+  wsData.forEach((row, rIdx) => {
+    if (rIdx === 0) return
+    const cellAddr = XLSX.utils.encode_cell({ r: rIdx, c: 2 })
+    if (ws[cellAddr]) {
+      ws[cellAddr].t = 's'
+      ws[cellAddr].v = String(row[2])
+      delete ws[cellAddr].z
+    }
+  })
+
+  XLSX.utils.book_append_sheet(wb, ws, '신청자목록')
+  const fileName = `신청자목록_${currentSlug || '전체'}_${new Date().toLocaleDateString('ko-KR').replace(/\./g,'').replace(/ /g,'')}.xlsx`
+  XLSX.writeFile(wb, fileName)
+  toast('✅ 엑셀 다운로드 완료!')
+}
+
+// ──────────────────────────────────────────────
+// 유틸
+// ──────────────────────────────────────────────
+function escHtml(str) {
+  const d = document.createElement('div'); d.textContent = String(str || ''); return d.innerHTML
+}
+
+let toastTimer
+function toast(msg, duration = 2800) {
+  const el = document.getElementById('toast')
+  el.textContent = msg
+  el.classList.add('show')
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => el.classList.remove('show'), duration)
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeDetailModal()
+})
+</script>
+<script src="/pwa-install.js" defer></script>
+</body>
+</html>

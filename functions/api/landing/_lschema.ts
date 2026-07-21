@@ -52,7 +52,18 @@ export async function ensureLandingSchema(db: D1Database) {
     user_id TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )`).run().catch(() => {})
+  await db.prepare(`ALTER TABLE landing_folders ADD COLUMN updated_at TEXT`).run().catch(() => {})
+  // 유입 경로 공유 링크
+  await db.prepare(`CREATE TABLE IF NOT EXISTS landing_traffic_shares (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token TEXT NOT NULL UNIQUE,
+    slug TEXT NOT NULL,
+    title TEXT, subtitle TEXT, thumbnail_url TEXT, og_title TEXT, og_description TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
   )`).run().catch(() => {})
   await db.prepare(`CREATE TABLE IF NOT EXISTS landing_templates (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
