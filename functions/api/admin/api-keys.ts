@@ -1,5 +1,6 @@
 import { Env, json, ensureSchema, resolveDB, requireAdminUser } from '../_utils'
-import { ensureApiKeysSchema } from '../_apikeys'
+import { ensureApiKeysSchema, API_RATE } from '../_apikeys'
+import { MODEL_COST, PROV_LABEL } from '../studio/_pricing'
 
 // GET /api/admin/api-keys?days=90 → 회원 API 키 발급/호출/크레딧 사용 현황 (관리자)
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
@@ -66,9 +67,24 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     ),
   ])
 
+  // API로 호출 가능한 모델 카탈로그 (제공사별 그룹)
+  const catalogMap: Record<string, { provider: string; label: string; kind: string; models: string[] }> = {}
+  for (const [model, info] of Object.entries(MODEL_COST)) {
+    const prov = (info as any).prov as string
+    const kind = (info as any).u === 'img' ? 'image' : 'video'
+    const key = prov
+    if (!catalogMap[key]) catalogMap[key] = { provider: prov, label: PROV_LABEL[prov] || prov, kind, models: [] }
+    catalogMap[key].models.push(model)
+  }
+  const catalog = Object.values(catalogMap).sort((a, b) => (a.kind === b.kind ? a.label.localeCompare(b.label) : a.kind === 'video' ? -1 : 1))
+  const catalogCount = Object.keys(MODEL_COST).length
+
   return json({
     ok: true,
     days,
+    rate: API_RATE,
+    catalog,
+    catalogCount,
     totals: {
       activeKeys: Number((totals as any).active_keys) || 0,
       totalKeys: Number((totals as any).total_keys) || 0,

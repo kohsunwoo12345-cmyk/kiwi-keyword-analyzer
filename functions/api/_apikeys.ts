@@ -61,6 +61,76 @@ export async function ensureApiKeysSchema(db: D1Database) {
   )`).run().catch(() => {})
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_api_calls_user ON api_calls(user_id)`).run().catch(() => {})
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_api_calls_created ON api_calls(created_at)`).run().catch(() => {})
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_api_calls_status ON api_calls(user_id, status)`).run().catch(() => {})
+  // 남용 방지용 레이트리밋 히트 로그 (요청 1건당 1행, 슬라이딩 윈도우 집계)
+  await db.prepare(`CREATE TABLE IF NOT EXISTS api_rate (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    kind TEXT,
+    ts TEXT NOT NULL
+  )`).run().catch(() => {})
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_api_rate_user ON api_rate(user_id, kind, ts)`).run().catch(() => {})
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_api_rate_ts ON api_rate(ts)`).run().catch(() => {})
+}
+
+/** 남용 방지 한도 — 생성(POST) / 상태조회(GET) / 동시 진행 */
+export const API_RATE = { postMin: 20, postHour: 300, postDay: 2000, getMin: 120, getHour: 3000, concurrent: 3 }
+
+/** 슬라이딩 윈도우 레이트리밋. 요청마다 히트를 기록하고 초과 시 { ok:false } 반환.
+ *  관리자는 면제. kind: 'post'(생성) | 'get'(상태조회) */
+export async function enforceRateLimit(
+  db: D1Database, userId: string, kind: 'post' | 'get', isAdmin?: boolean,
+): Promise<{ ok: boolean; retryAfter?: number; reason?: string }> {
+  if (isAdmin) return { ok: true }
+  const now = Date.now()
+  const iso = (ms: number) => new Date(now - ms).toISOString()
+  try {
+    await db.prepare(`INSERT INTO api_rate (id, user_id, kind, ts) VALUES (?, ?, ?, ?)`)
+      .bind('rl_' + crypto.randomUUID().replace(/-/g, '').slice(0, 18), userId, kind, new Date(now).toISOString()).run()
+  } catch { /* 기록 실패해도 계속 (락아웃 방지) */ }
+  // 오래된 히트 정리 (가끔)
+  try { if (Math.random() < 0.04) await db.prepare(`DELETE FROM api_rate WHERE ts < ?`).bind(iso(25 * 3600000)).run() } catch {}
+  const cnt = async (ms: number, k: string): Promise<number> => {
+    try { const r: any = await db.prepare(`SELECT COUNT(*) AS n FROM api_rate WHERE user_id=? AND kind=? AND ts>?`).bind(userId, k, iso(ms)).first(); return Number(r?.n || 0) } catch { return 0 }
+  }
+  if (kind === 'post') {
+    if (await cnt(60000, 'post') > API_RATE.postMin) return { ok: false, retryAfter: 60, reason: `분당 생성 요청 한도(${API_RATE.postMin})를 초과했습니다. 잠시 후 다시 시도하세요.` }
+    if (await cnt(3600000, 'post') > API_RATE.postHour) return { ok: false, retryAfter: 600, reason: `시간당 생성 요청 한도(${API_RATE.postHour})를 초과했습니다.` }
+    if (await cnt(86400000, 'post') > API_RATE.postDay) return { ok: false, retryAfter: 3600, reason: `일일 생성 요청 한도(${API_RATE.postDay})를 초과했습니다.` }
+    // 동시 진행 중(pending) 생성 제한
+    try {
+      const p: any = await db.prepare(`SELECT COUNT(*) AS n FROM api_calls WHERE user_id=? AND status='pending' AND created_at>?`).bind(userId, iso(300000)).first()
+      if (Number(p?.n || 0) >= API_RATE.concurrent) return { ok: false, retryAfter: 15, reason: `동시에 진행 중인 생성이 너무 많습니다(최대 ${API_RATE.concurrent}). 완료 후 다시 시도하세요.` }
+    } catch {}
+  } else {
+    if (await cnt(60000, 'get') > API_RATE.getMin) return { ok: false, retryAfter: 30, reason: `분당 상태 조회 한도를 초과했습니다.` }
+    if (await cnt(3600000, 'get') > API_RATE.getHour) return { ok: false, retryAfter: 600, reason: `시간당 상태 조회 한도를 초과했습니다.` }
+  }
+  return { ok: true }
+}
+
+/** 생성 시작 시 pending 호출 기록 (동시성 카운트·감사 로그). 반환: callId */
+export async function beginApiCall(
+  db: D1Database, o: { keyId?: string; userId?: string; endpoint?: string; provider?: string; model?: string; kind?: string },
+): Promise<string> {
+  const id = 'ac_' + crypto.randomUUID().replace(/-/g, '').slice(0, 18)
+  try {
+    await db.prepare(`INSERT INTO api_calls (id, key_id, user_id, endpoint, provider, model, kind, credits, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'pending', ?)`)
+      .bind(id, o.keyId || '', o.userId || '', o.endpoint || '', o.provider || '', o.model || '', o.kind || '', new Date().toISOString()).run()
+  } catch { /* ignore */ }
+  return id
+}
+
+/** 생성 종료 시 pending 호출을 확정 (ok/failed + 차감 크레딧) */
+export async function finishApiCall(
+  db: D1Database, id: string, o: { status?: string; credits?: number; error?: string },
+) {
+  if (!id) return
+  try {
+    await db.prepare(`UPDATE api_calls SET status=?, credits=?, error=? WHERE id=?`)
+      .bind(o.status || 'ok', Number(o.credits || 0), String(o.error || '').slice(0, 300), id).run()
+  } catch { /* ignore */ }
 }
 
 /** Authorization: Bearer bg_live_... 로 회원 조회. 유효하면 사용 시각/카운트 갱신.

@@ -49,7 +49,107 @@ export default function ApiDocsPage() {
   const nav = [
     ['overview', '개요'], ['key', 'API 키 발급'], ['auth', '인증'],
     ['image', '이미지 생성'], ['video', '영상 생성'], ['poll', '상태 확인'],
-    ['models', '모델 목록'], ['sdk', '언어별 예시'], ['credits', '크레딧·과금'], ['errors', '오류'],
+    ['models', '모델 목록'], ['bymodel', '모델별 호출 예시'], ['sdk', '언어별 예시'],
+    ['limits', '요청 한도'], ['credits', '크레딧·과금'], ['errors', '오류'],
+  ]
+
+  // provider·model·설명·요청 바디(JSON) — 모델별 실제 호출 예시
+  const modelExamples: { group: string; items: { name: string; provider: string; body: string; note: string }[] }[] = [
+    {
+      group: '영상 모델',
+      items: [
+        { name: 'Google Veo 3.1', provider: 'google', note: '오디오 포함 지원. seconds 5~8.',
+          body: `{
+  "kind": "video",
+  "provider": "google",
+  "model": "Google Veo 3.1",
+  "prompt": "빗속을 달리는 오토바이, 네온 반사, 시네마틱",
+  "seconds": 8,
+  "ratio": "16:9",
+  "audio": true
+}` },
+        { name: 'Runway Gen-4', provider: 'runway', note: '첫 프레임 이미지(firstFrame) 필수.',
+          body: `{
+  "kind": "video",
+  "provider": "runway",
+  "model": "Runway Gen-4",
+  "prompt": "카메라가 천천히 전진하는 미래 도시",
+  "firstFrame": "https://example.com/first.jpg",
+  "seconds": 10,
+  "ratio": "16:9"
+}` },
+        { name: 'Seedance 2.0', provider: 'seedance', note: '텍스트→영상. firstFrame 넣으면 이미지→영상.',
+          body: `{
+  "kind": "video",
+  "provider": "seedance",
+  "model": "Seedance 2.0",
+  "prompt": "파도가 부서지는 해안 절벽, 드론 샷",
+  "seconds": 5,
+  "ratio": "16:9"
+}` },
+        { name: 'Kling 2.1 Master', provider: 'kling', note: '텍스트→영상 / 이미지→영상 모델명 구분.',
+          body: `{
+  "kind": "video",
+  "provider": "kling",
+  "model": "Kling 2.1 Master (텍스트→영상)",
+  "prompt": "벚꽃이 흩날리는 골목을 걷는 사람",
+  "seconds": 5,
+  "ratio": "9:16"
+}` },
+        { name: 'MiniMax Hailuo 02', provider: 'hailuo', note: 'firstFrame 지원(이미지→영상).',
+          body: `{
+  "kind": "video",
+  "provider": "hailuo",
+  "model": "MiniMax Hailuo 02",
+  "prompt": "질주하는 치타를 따라가는 트래킹 샷",
+  "seconds": 6,
+  "ratio": "16:9"
+}` },
+        { name: 'Luma Ray 2', provider: 'luma', note: 'firstFrame/last frame 지원.',
+          body: `{
+  "kind": "video",
+  "provider": "luma",
+  "model": "Luma Ray 2",
+  "prompt": "구름 위를 나는 고래, 몽환적",
+  "seconds": 5,
+  "ratio": "16:9"
+}` },
+      ],
+    },
+    {
+      group: '이미지 모델',
+      items: [
+        { name: 'Nano Banana', provider: 'nanobanana', note: '레퍼런스 최대 12장(refImages) 지원.',
+          body: `{
+  "kind": "image",
+  "provider": "nanobanana",
+  "model": "Nano Banana",
+  "prompt": "미니멀한 제품 광고컷, 파스텔 배경",
+  "refImage": "https://example.com/ref.jpg"
+}` },
+        { name: 'GPT Image 2', provider: 'openai', note: '고품질 텍스트 렌더링. 1.5 / Image / Mini 도 동일 provider.',
+          body: `{
+  "kind": "image",
+  "provider": "openai",
+  "model": "GPT Image 2",
+  "prompt": "\\"OPEN\\" 네온 간판이 있는 카페 외관, 저녁"
+}` },
+        { name: 'Grok Imagine', provider: 'xai', note: '단일 이미지 생성.',
+          body: `{
+  "kind": "image",
+  "provider": "xai",
+  "model": "Grok Imagine",
+  "prompt": "우주를 배경으로 한 사이버펑크 도시"
+}` },
+        { name: 'Flux 1.1 Pro Ultra', provider: 'flux', note: 'Kontext(레퍼런스 편집) 모델은 refImage 사용.',
+          body: `{
+  "kind": "image",
+  "provider": "flux",
+  "model": "Flux 1.1 Pro Ultra",
+  "prompt": "초현실적인 숲속 유리 오두막, 황금빛 조명"
+}` },
+      ],
+    },
   ]
 
   const videoModels: [string, string][] = [
@@ -310,10 +410,41 @@ export default function ApiDocsPage() {
             <p className="mt-3 text-[12.5px] text-[var(--text-dim)]"><code className="font-mono">model</code> 값은 스튜디오에 표시되는 모델 이름과 동일합니다. 최신 목록·단가는 스튜디오 생성 화면에서 확인하세요.</p>
           </section>
 
+          {/* 모델별 호출 예시 */}
+          <section>
+            <Anchor id="bymodel" />
+            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><Code2 size={20} className="text-blue-400" /> 7. 모델별 호출 예시</h2>
+            <p className="mb-4 text-[13.5px] text-[var(--text-soft)]">각 모델의 <code className="font-mono text-[12px]">provider</code>·<code className="font-mono text-[12px]">model</code> 값과 자주 쓰는 필드입니다. 모두 <code className="font-mono text-[12px] text-blue-300">POST {base}</code> 에 아래 JSON 바디로 보냅니다.</p>
+            {modelExamples.map((grp) => (
+              <div key={grp.group} className="mb-6">
+                <h3 className="mb-2 flex items-center gap-2 text-[15px] font-bold text-slate-100">
+                  {grp.group === '영상 모델' ? <Video size={16} className="text-blue-400" /> : <ImageIcon size={16} className="text-blue-400" />}
+                  {grp.group}
+                </h3>
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {grp.items.map((m) => (
+                    <div key={m.name} className="rounded-xl border border-[var(--border-soft)] bg-white/[.02] p-3">
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <span className="font-mono text-[13px] font-bold text-blue-300">{m.name}</span>
+                        <span className="rounded bg-white/5 px-2 py-0.5 font-mono text-[11px] text-[var(--text-dim)]">{m.provider}</span>
+                      </div>
+                      <p className="mb-1 text-[12px] text-[var(--text-soft)]">{m.note}</p>
+                      <Code>{m.body}</Code>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <div className="flex items-start gap-2.5 rounded-xl border border-[var(--border-soft)] bg-white/[.02] p-4 text-[13px] text-[var(--text-soft)]">
+              <ListChecks size={16} className="mt-0.5 flex-shrink-0 text-blue-400" />
+              <div>영상 모델 응답은 <code className="font-mono text-[12px]">statusUrl</code>(상태 확인 주소)을 반환합니다. 위 <a href="#poll" className="text-blue-300 underline">상태 확인</a>에서 폴링해 최종 <code className="font-mono text-[12px]">url</code> 을 받으세요. 이미지 모델은 응답에 <code className="font-mono text-[12px]">url</code> 이 바로 담깁니다.</div>
+            </div>
+          </section>
+
           {/* 언어별 예시 */}
           <section>
             <Anchor id="sdk" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><Code2 size={20} className="text-blue-400" /> 7. 언어별 예시</h2>
+            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><Code2 size={20} className="text-blue-400" /> 8. 언어별 예시</h2>
 
             <h3 className="mb-1 mt-4 flex items-center gap-2 text-[15px] font-bold text-slate-100"><Code2 size={16} className="text-blue-400" /> JavaScript (fetch)</h3>
             <Code label="node / browser">{`const KEY = process.env.BYGENCY_API_KEY;
@@ -368,10 +499,42 @@ while True:
         print(r.get("url")); break`}</Code>
           </section>
 
+          {/* 요청 한도 */}
+          <section>
+            <Anchor id="limits" />
+            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><ShieldCheck size={20} className="text-blue-400" /> 9. 요청 한도 (남용 방지)</h2>
+            <p className="mb-3 text-[13.5px] text-[var(--text-soft)]">서비스 보호를 위해 계정 단위로 요청 한도가 적용됩니다. 초과 시 <b className="text-slate-200">HTTP 429</b> 와 <code className="font-mono text-[12px]">Retry-After</code>(초) 헤더를 반환합니다. 여러 키를 만들어도 한도는 <b className="text-slate-200">계정 합산</b>으로 계산되어 우회할 수 없습니다.</p>
+            <div className="overflow-hidden rounded-xl border border-[var(--border-soft)]">
+              <table className="w-full text-left text-[13px]">
+                <thead className="bg-white/[.03] text-[var(--text-dim)]">
+                  <tr><th className="px-4 py-2.5 font-semibold">구분</th><th className="px-4 py-2.5 font-semibold">한도</th></tr>
+                </thead>
+                <tbody className="text-[var(--text-soft)]">
+                  {[
+                    ['생성(POST) · 분당', '20회'],
+                    ['생성(POST) · 시간당', '300회'],
+                    ['생성(POST) · 일일', '2,000회'],
+                    ['동시 진행 중 생성', '3건'],
+                    ['상태 조회(GET) · 분당', '120회'],
+                  ].map(([a, b]) => (
+                    <tr key={a} className="border-t border-[var(--border-soft)]">
+                      <td className="px-4 py-2.5">{a}</td><td className="px-4 py-2.5 font-mono text-[12px] text-blue-300">{b}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ul className="mt-4 space-y-2 text-[13.5px] leading-relaxed text-[var(--text-soft)]">
+              <li className="flex gap-2.5"><Check size={16} className="mt-0.5 flex-shrink-0 text-blue-400" /> 429를 받으면 <code className="font-mono text-[12px]">Retry-After</code> 초만큼 기다린 뒤 재시도하세요(지수 백오프 권장).</li>
+              <li className="flex gap-2.5"><Check size={16} className="mt-0.5 flex-shrink-0 text-blue-400" /> 폐기(revoke)된 키는 즉시 <b>401</b>로 거부되고, 잔액이 부족하면 생성 전에 <b>402</b>로 막힙니다(크레딧 마이너스 불가).</li>
+              <li className="flex gap-2.5"><Check size={16} className="mt-0.5 flex-shrink-0 text-blue-400" /> 상태 조회(GET)는 15~30초 간격을 권장합니다. 과도한 폴링은 429를 유발합니다.</li>
+            </ul>
+          </section>
+
           {/* 크레딧 */}
           <section>
             <Anchor id="credits" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><Coins size={20} className="text-blue-400" /> 8. 크레딧·과금</h2>
+            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><Coins size={20} className="text-blue-400" /> 10. 크레딧·과금</h2>
             <ul className="space-y-2.5 text-[14px] leading-relaxed text-[var(--text-soft)]">
               <li className="flex gap-2.5"><Check size={17} className="mt-0.5 flex-shrink-0 text-blue-400" /> 생성 1건마다 <b className="text-slate-200">키 소유자 본인 계정</b>에서 크레딧이 차감됩니다(스튜디오와 동일 단가·배수).</li>
               <li className="flex gap-2.5"><Check size={17} className="mt-0.5 flex-shrink-0 text-blue-400" /> 생성 <b className="text-slate-200">전에 잔액을 확인</b>해 부족하면 <b>402</b>로 거부합니다(크레딧 마이너스 없음).</li>
@@ -385,7 +548,7 @@ while True:
           {/* 오류 */}
           <section>
             <Anchor id="errors" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><ShieldCheck size={20} className="text-blue-400" /> 9. 오류 코드</h2>
+            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><ShieldCheck size={20} className="text-blue-400" /> 11. 오류 코드</h2>
             <div className="overflow-hidden rounded-xl border border-[var(--border-soft)]">
               <table className="w-full text-left text-[13px]">
                 <thead className="bg-white/[.03] text-[var(--text-dim)]">
@@ -396,6 +559,7 @@ while True:
                     ['401', 'API 키 없음/오류 — "유효한 API 키가 필요합니다"'],
                     ['403', '노드형 AI 영상 플랜이 아님'],
                     ['402', '크레딧 부족 — need·have 함께 반환'],
+                    ['429', '요청 한도 초과 — Retry-After(초) 헤더 참고'],
                     ['400', 'model/provider 누락 등 잘못된 요청'],
                     ['500', '제공사 미설정/서버 오류'],
                   ].map(([a, b]) => (

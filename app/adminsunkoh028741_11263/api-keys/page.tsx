@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   KeyRound, RefreshCw, Download, Coins, Users, Activity, ShieldCheck, User,
+  Cpu, Video, Image as ImageIcon, Gauge,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { StatCard, Panel, Button } from '@/components/ui'
@@ -81,6 +82,8 @@ export default function AdminApiKeysPage() {
   const keys = data.keys ?? []
   const byUser = data.byUser ?? []
   const calls = data.calls ?? []
+  const catalog = data.catalog ?? []
+  const rate = data.rate
   const hasData = !!t && (keys.length > 0 || (t.calls ?? 0) > 0)
 
   const activeKeys = useMemo(() => keys.filter((k) => k.status === 'active'), [keys])
@@ -143,6 +146,45 @@ export default function AdminApiKeysPage() {
             <StatCard label={`호출 (${days}일)`} value={num(t?.calls ?? 0)} icon={Activity} accent="#8b5cf6" />
             <StatCard label={`사용 크레딧 (${days}일)`} value={cr(t?.credits ?? 0)} icon={Coins} accent="#22c55e" />
           </div>
+        </Reveal>
+
+        {/* 제공 API·모델 카탈로그 — 이 API로 호출 가능한 모델 */}
+        <Reveal>
+          <Panel
+            title={<span className="flex items-center gap-2"><Cpu size={16} className="text-blue-500" /> 제공 API · 모델 <span className="text-xs font-normal text-[var(--text-dim)]">(API 키 1개로 호출 가능 · 총 {data.catalogCount ?? 0}종)</span></span>}
+          >
+            {catalog.length === 0 ? (
+              <p className="py-4 text-sm text-[var(--text-dim)]">모델 목록을 불러오는 중…</p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {catalog.map((g) => (
+                  <div key={g.provider} className="rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] p-3.5">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5 text-sm font-bold">
+                        {g.kind === 'image' ? <ImageIcon size={14} className="text-blue-500" /> : <Video size={14} className="text-blue-500" />}
+                        {g.label}
+                      </span>
+                      <span className="rounded-md bg-blue-50 px-2 py-0.5 font-mono text-[11px] text-blue-600">{g.provider}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {g.models.map((m) => (
+                        <span key={m} className="rounded-md border border-[var(--border-soft)] bg-white px-2 py-1 text-[11px] text-[var(--text-soft)]">{m}</span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {rate && (
+              <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-4 py-3 text-xs text-[var(--text-soft)]">
+                <span className="flex items-center gap-1.5 font-semibold text-[var(--text)]"><Gauge size={14} className="text-blue-500" /> 남용 방지 한도</span>
+                <span>생성 <b className="text-[var(--text)]">{rate.postMin}</b>/분 · <b className="text-[var(--text)]">{rate.postHour}</b>/시간 · <b className="text-[var(--text)]">{rate.postDay}</b>/일</span>
+                <span>동시 진행 <b className="text-[var(--text)]">{rate.concurrent}</b>건</span>
+                <span>상태조회 <b className="text-[var(--text)]">{rate.getMin}</b>/분</span>
+                <span className="text-[var(--text-dim)]">초과 시 HTTP 429 (계정 합산 · 다중 키 우회 불가)</span>
+              </div>
+            )}
+          </Panel>
         </Reveal>
 
         {loading && !hasData ? (

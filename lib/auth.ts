@@ -290,9 +290,13 @@ export interface ApiCallRow {
   endpoint: string; provider: string; model: string; kind: string
   credits: number; status: string; error: string
 }
+export interface ApiCatalogGroup { provider: string; label: string; kind: string; models: string[] }
 export interface ApiKeysStats {
   ok: boolean; error?: string; days?: number
   totals?: { activeKeys: number; totalKeys: number; users: number; calls: number; credits: number }
+  rate?: { postMin: number; postHour: number; postDay: number; getMin: number; getHour: number; concurrent: number }
+  catalog?: ApiCatalogGroup[]
+  catalogCount?: number
   keys?: ApiKeyRow[]
   byUser?: ApiKeyUserRow[]
   calls?: ApiCallRow[]
