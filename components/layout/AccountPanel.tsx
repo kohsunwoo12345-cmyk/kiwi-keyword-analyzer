@@ -18,8 +18,8 @@ export function AvatarSvg({ size = 30 }: { size?: number }) {
       <path d="M5.6 19.2c.8-3.2 3.3-4.9 6.4-4.9s5.6 1.7 6.4 4.9A11 11 0 0112 21a11 11 0 01-6.4-1.8z" fill="#fff" />
       <defs>
         <linearGradient id="bg_pfg" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#6f7bff" />
-          <stop offset="1" stopColor="#9a5cff" />
+          <stop stopColor="#3b82f6" />
+          <stop offset="1" stopColor="#1d4ed8" />
         </linearGradient>
       </defs>
     </svg>
@@ -77,7 +77,7 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
           <div className="min-w-0">
             <p className="truncate text-[15px] font-bold text-[var(--text)]">{name}님</p>
             <p className="truncate text-xs text-[var(--text-dim)]">{user?.email || sub}</p>
-            <span className="mt-1 inline-block rounded-md bg-violet-500/12 px-2 py-0.5 text-[11px] font-bold text-violet-600">{sub}</span>
+            <span className="mt-1 inline-block rounded-md bg-blue-500/12 px-2 py-0.5 text-[11px] font-bold text-blue-600">{sub}</span>
           </div>
         </div>
 
@@ -125,7 +125,7 @@ export function AccountTrigger() {
       <button
         onClick={() => setOpen(true)}
         aria-label="내 계정"
-        className="flex w-full items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-2.5 text-left transition-all hover:border-violet-300"
+        className="flex w-full items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-2.5 text-left transition-all hover:border-blue-300"
       >
         <AvatarSvg size={36} />
         <div className="min-w-0 flex-1">

@@ -53,7 +53,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
     id: 'leads',
     title: 'DB 수집',
     icon: Database,
-    accent: '#7c3aed',
+    accent: '#2563eb',
     badge: 'HOT',
     items: [
       { title: 'DB 수집 랜딩', href: '/dashboard_USE17237_612/leads', icon: Database },
@@ -75,7 +75,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
     id: 'sms',
     title: '문자 (SMS)',
     icon: MessageSquare,
-    accent: '#6366f1',
+    accent: '#2563eb',
     items: [
       { title: '문자 발송', href: '/dashboard_USE17237_612/sms', icon: Send },
       { title: '문자 작성', href: '/dashboard_USE17237_612/sms/compose', icon: PenSquare },
@@ -104,7 +104,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
     id: 'landing',
     title: '랜딩페이지 제작',
     icon: Palette,
-    accent: '#7c3aed',
+    accent: '#2563eb',
     badge: 'HOT',
     items: [
       { title: '랜딩페이지 제작', href: '/dashboard_USE17237_612/landing', icon: Palette },
@@ -115,7 +115,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
     id: 'video',
     title: '영상 제작',
     icon: Clapperboard,
-    accent: '#a855f7',
+    accent: '#3b82f6',
     items: [
       { title: 'AI 영상 제작', href: '/dashboard_USE17237_612/video', icon: Clapperboard },
       { title: '내 영상 관리', href: '/dashboard_USE17237_612/video/library', icon: Film },

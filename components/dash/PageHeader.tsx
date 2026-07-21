@@ -6,7 +6,7 @@ export function PageHeader({
   eyebrow,
   title,
   desc,
-  accent = '#7c3aed',
+  accent = '#2563eb',
   action,
 }: {
   icon: LucideIcon

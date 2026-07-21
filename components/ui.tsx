@@ -14,9 +14,9 @@ const btnBase =
   'inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap'
 const btnVariants: Record<BtnVariant, string> = {
   primary:
-    'brand-gradient text-white shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:brightness-[1.05]',
-  soft: 'bg-violet-50 text-violet-700 border border-violet-100 hover:bg-violet-100',
-  outline: 'border border-[var(--border)] bg-[var(--panel)] text-[var(--text)] hover:border-violet-400/60 hover:bg-[var(--panel-2)]',
+    'brand-gradient text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:brightness-[1.05]',
+  soft: 'bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100',
+  outline: 'border border-[var(--border)] bg-[var(--panel)] text-[var(--text)] hover:border-blue-400/60 hover:bg-[var(--panel-2)]',
   ghost: 'text-[var(--text-soft)] hover:text-[var(--text)] hover:bg-[var(--panel-2)]',
 }
 const btnSizes: Record<BtnSize, string> = {
@@ -96,7 +96,7 @@ export function StatCard({
   value,
   delta,
   icon: Icon,
-  accent = '#7c3aed',
+  accent = '#2563eb',
 }: {
   label: string
   value: string

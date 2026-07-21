@@ -82,7 +82,7 @@ export default function DashboardHome() {
             </div>
             <Link
               href="/activate"
-              className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-violet-700"
+              className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700"
             >
               요금제 활성화 <ArrowRight size={15} />
             </Link>
@@ -93,10 +93,10 @@ export default function DashboardHome() {
         {hasPlan && (user?.products === 'both' || user?.products === 'video' || user?.role === 'admin') && (
           <a
             href="/studio-nvc-prv-8b3k2/"
-            className="card group flex items-center justify-between gap-4 p-5 transition hover:border-violet-300 hover:shadow-md"
+            className="card group flex items-center justify-between gap-4 p-5 transition hover:border-blue-300 hover:shadow-md"
           >
             <div className="flex items-center gap-4">
-              <span className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-sm">
+              <span className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-sm">
                 <Clapperboard size={22} />
               </span>
               <div>
@@ -104,7 +104,7 @@ export default function DashboardHome() {
                 <p className="mt-0.5 text-xs text-[var(--text-soft)]">블록을 연결하듯 광고·숏폼 영상을 생성하세요.</p>
               </div>
             </div>
-            <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white transition group-hover:bg-violet-700">
+            <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition group-hover:bg-blue-700">
               영상 스튜디오 열기 <ArrowRight size={15} />
             </span>
           </a>
@@ -113,7 +113,7 @@ export default function DashboardHome() {
         {/* 실데이터 스탯 */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard label="보유 크레딧" value={(<Counter to={user?.credits ?? 0} />) as unknown as string} icon={Wallet} accent="#f59e0b" />
-          <StatCard label="보유 포인트" value={(<Counter to={user?.points ?? 0} />) as unknown as string} icon={Coins} accent="#7c3aed" />
+          <StatCard label="보유 포인트" value={(<Counter to={user?.points ?? 0} />) as unknown as string} icon={Coins} accent="#2563eb" />
           <StatCard label="총 사용 크레딧" value={(<Counter to={usedCredit} />) as unknown as string} icon={TrendingDown} accent="#ef4444" />
           <StatCard label="현재 플랜" value={!user?.plan || user.plan === '없음' ? '미가입' : user.plan} icon={Sparkles} accent="#0ea5e9" />
         </div>
