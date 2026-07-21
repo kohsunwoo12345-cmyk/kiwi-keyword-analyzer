@@ -1223,7 +1223,7 @@ export async function adminNoticeDetail(id: string): Promise<{ ok: boolean; camp
 // 관리자: 알림 발송
 export async function adminNoticeSend(payload: {
   title: string; body: string; imageUrl?: string; videoUrl?: string; ctaLabel?: string; ctaUrl?: string
-  target: 'all' | 'plan' | 'user' | 'multi' | 'visitors'; plan?: string; userId?: string; userIds?: string[]
+  target: 'all' | 'plan' | 'user' | 'multi' | 'visitors'; plan?: string; track?: 'video' | 'marketer'; userId?: string; userIds?: string[]
   scopePath?: string; startAt?: string; endAt?: string; days?: number
 }): Promise<{ ok: boolean; campaignId?: string; audience?: number; error?: string }> {
   return postJson('/api/admin/notices', payload)

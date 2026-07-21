@@ -63,7 +63,19 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       recipients = (await db.prepare(`SELECT id FROM users WHERE id IN (${q})`).bind(...ids).all()).results || []
     }
   } else if (target === 'plan') {
-    recipients = (await db.prepare('SELECT id FROM users WHERE plan = ?').bind(String(b.plan || '')).all()).results || []
+    // 요금제 세분화: 트랙(영상 video_plan / 마케팅 plan) × 등급(Plus/Pro/Max/없음/유료전체)
+    const track = b.track === 'video' ? 'video' : 'marketer'
+    const col = track === 'video' ? 'video_plan' : 'plan'
+    const plan = String(b.plan || '')
+    if (plan === '__paid__') {
+      // 해당 트랙 유료 플랜 전체 (없음/빈값 제외)
+      recipients = (await db.prepare(`SELECT id FROM users WHERE ${col} IS NOT NULL AND ${col} != '' AND ${col} != '없음' AND status != 'deleted'`).all()).results || []
+    } else if (plan === '없음') {
+      // 해당 트랙 미가입(무료) 회원
+      recipients = (await db.prepare(`SELECT id FROM users WHERE (${col} IS NULL OR ${col} = '' OR ${col} = '없음') AND status != 'deleted'`).all()).results || []
+    } else {
+      recipients = (await db.prepare(`SELECT id FROM users WHERE ${col} = ? AND status != 'deleted'`).bind(plan).all()).results || []
+    }
   } else {
     recipients = (await db.prepare("SELECT id FROM users WHERE status != 'deleted'").all()).results || []
   }

@@ -65,6 +65,7 @@ export function NoticePopups() {
             ].join(' ')}
             style={{ boxShadow: '0 20px 50px -12px rgba(0,0,0,.35)' }}
           >
+            <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-blue-500 to-sky-400" />
             <NoticeMedia imageUrl={n.imageUrl} videoUrl={n.videoUrl} />
             <div className="p-4">
               <div className="flex items-start justify-between gap-3">

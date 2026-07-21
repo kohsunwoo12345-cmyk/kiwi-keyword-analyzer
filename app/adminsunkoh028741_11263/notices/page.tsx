@@ -29,7 +29,8 @@ export default function NoticesPage() {
   const [ctaLabel, setCtaLabel] = useState('')
   const [ctaUrl, setCtaUrl] = useState('')
   const [target, setTarget] = useState<Target>('all')
-  const [plan, setPlan] = useState('Plus')
+  const [track, setTrack] = useState<'video' | 'marketer'>('video')
+  const [plan, setPlan] = useState('__paid__')
   const [scopePath, setScopePath] = useState('')
   const [picked, setPicked] = useState<Record<string, boolean>>({})
   const [uploading, setUploading] = useState(false)
@@ -108,7 +109,9 @@ export default function NoticesPage() {
     if (!title.trim() || !body.trim()) { setMsg('제목과 내용을 입력하세요.'); return }
     if (target === 'multi' && pickedIds.length === 0) { setMsg('발송할 회원을 선택하세요.'); return }
     if (ctaLabel.trim() && !ctaUrl.trim()) { setMsg('CTA 버튼 텍스트가 있으면 이동 URL도 입력하세요.'); return }
-    const label = target === 'all' ? '전체 회원' : target === 'plan' ? `${plan} 요금제`
+    const planLabel = plan === '__paid__' ? '유료 전체' : plan === '없음' ? '미가입(무료)' : plan
+    const label = target === 'all' ? '전체 회원'
+      : target === 'plan' ? `${track === 'video' ? '영상' : '마케팅'} · ${planLabel} 회원`
       : target === 'visitors' ? (scopePath.trim() ? `접속 전체 · ${scopePath.trim()} 방문자` : '접속 전체(비회원 포함)') : `선택 ${pickedIds.length}명`
     if (!confirm(`${label}에게 알림을 발송할까요?\n발송 후에는 즉시 팝업으로 표시됩니다.`)) return
     setSending(true); setMsg('')
@@ -116,7 +119,8 @@ export default function NoticesPage() {
       title: title.trim(), body: body.trim(),
       imageUrl: imageUrl.trim() || undefined, videoUrl: videoUrl.trim() || undefined,
       ctaLabel: ctaLabel.trim() || undefined, ctaUrl: ctaUrl.trim() || undefined,
-      target, plan: target === 'plan' ? plan : undefined, userIds: target === 'multi' ? pickedIds : undefined,
+      target, plan: target === 'plan' ? plan : undefined, track: target === 'plan' ? track : undefined,
+      userIds: target === 'multi' ? pickedIds : undefined,
       scopePath: target === 'visitors' ? (scopePath.trim() || undefined) : undefined,
       days: target === 'visitors' && Number(days) > 0 ? Number(days) : undefined,
     })
@@ -238,9 +242,31 @@ export default function NoticesPage() {
                   </div>
                 )}
                 {target === 'plan' && (
-                  <select value={plan} onChange={(e) => setPlan(e.target.value)} className="input mt-2 w-full">
-                    {['없음', 'Plus', 'Pro', 'Max'].map((p) => <option key={p} value={p}>{p} 요금제</option>)}
-                  </select>
+                  <div className="mt-2 space-y-2 rounded-lg border border-[var(--border)] p-2.5">
+                    {/* 1) 트랙: 영상 / 마케팅 */}
+                    <div>
+                      <div className="mb-1 text-[11px] font-semibold text-[var(--text-dim)]">플랜 종류</div>
+                      <div className="flex gap-1.5">
+                        {([['video', '🎬 영상 플랜'], ['marketer', '📣 마케팅 플랜']] as ['video' | 'marketer', string][]).map(([tk, l]) => (
+                          <button key={tk} onClick={() => setTrack(tk)}
+                            className={cn('flex-1 rounded-lg border px-3 py-1.5 text-sm font-semibold', track === tk ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-slate-50')}>{l}</button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* 2) 등급 세분화 */}
+                    <div>
+                      <div className="mb-1 text-[11px] font-semibold text-[var(--text-dim)]">대상 등급</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {([['__paid__', '유료 전체'], ['Plus', 'Plus'], ['Pro', 'Pro'], ['Max', 'Max'], ['없음', '미가입(무료)']] as [string, string][]).map(([p, l]) => (
+                          <button key={p} onClick={() => setPlan(p)}
+                            className={cn('rounded-lg border px-3 py-1.5 text-sm font-semibold', plan === p ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-slate-50')}>{l}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-blue-600">
+                      대상: <b>{track === 'video' ? '영상' : '마케팅'} · {plan === '__paid__' ? '유료 전체' : plan === '없음' ? '미가입(무료)' : plan} 회원</b>
+                    </p>
+                  </div>
                 )}
                 {target === 'multi' && (
                   <div className="mt-2 rounded-lg border border-[var(--border)] p-2">
@@ -272,6 +298,7 @@ export default function NoticesPage() {
           {/* 미리보기 */}
           <Panel title="미리보기 (사용자 화면)">
             <div className="mx-auto max-w-xs overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-lg">
+              <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-blue-500 to-sky-400" />
               {videoUrl
                 ? <video src={videoUrl} className="max-h-40 w-full bg-black" controls muted playsInline />
                 : imageUrl && (/* eslint-disable-next-line @next/next/no-img-element */ <img src={imageUrl} alt="" className="max-h-36 w-full object-cover" />)}
