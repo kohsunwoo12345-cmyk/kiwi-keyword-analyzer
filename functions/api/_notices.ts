@@ -5,8 +5,11 @@
 import { clientIp, getSessionUser } from './_utils'
 
 export async function ensureVisitorNoticeSchema(db: D1Database) {
-  // notice_campaigns 에 랜딩 경로 스코프 컬럼 보강 (없으면 추가)
+  // notice_campaigns 에 컬럼 보강 (없으면 추가): 랜딩 경로 스코프 · 동영상 · 노출 기간
   await db.prepare(`ALTER TABLE notice_campaigns ADD COLUMN scope_path TEXT`).run().catch(() => {})
+  await db.prepare(`ALTER TABLE notice_campaigns ADD COLUMN video_url TEXT`).run().catch(() => {})
+  await db.prepare(`ALTER TABLE notice_campaigns ADD COLUMN start_at TEXT`).run().catch(() => {})
+  await db.prepare(`ALTER TABLE notice_campaigns ADD COLUMN end_at TEXT`).run().catch(() => {})
   await db.prepare(`CREATE TABLE IF NOT EXISTS notice_visitor_events (
     id TEXT PRIMARY KEY,
     campaign_id TEXT NOT NULL,
@@ -22,6 +25,26 @@ export async function ensureVisitorNoticeSchema(db: D1Database) {
   await db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_nve_uniq ON notice_visitor_events(campaign_id, visitor, kind)`).run().catch(() => {})
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_nve_camp ON notice_visitor_events(campaign_id, kind)`).run().catch(() => {})
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_nve_ip ON notice_visitor_events(ip)`).run().catch(() => {})
+  // "N일 동안 보지 않기" 스누즈 (방문자·캠페인당 1건, until 까지 숨김)
+  await db.prepare(`CREATE TABLE IF NOT EXISTS notice_snoozes (
+    campaign_id TEXT NOT NULL,
+    visitor TEXT NOT NULL,
+    until TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (campaign_id, visitor)
+  )`).run().catch(() => {})
+}
+
+/** "N일 동안 보지 않기" — 스누즈 upsert (기존 있으면 갱신) */
+export async function recordSnooze(db: D1Database, campaignId: string, visitor: string, days = 3) {
+  if (!campaignId || !visitor) return
+  const until = new Date(Date.now() + Math.max(1, Math.min(30, days)) * 86400000).toISOString()
+  try {
+    await db.prepare(
+      `INSERT INTO notice_snoozes (campaign_id, visitor, until, created_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT(campaign_id, visitor) DO UPDATE SET until = excluded.until`,
+    ).bind(campaignId, visitor, until, new Date().toISOString()).run()
+  } catch { /* ignore */ }
 }
 
 export interface VisitorInfo { userId: string; isMember: 0 | 1 | 2; memberEmail: string; ip: string }
@@ -62,32 +85,54 @@ export async function recordVisitorEvent(
   } catch { /* ignore */ }
 }
 
-/** 이 방문자에게 보여줄 활성 방문자 캠페인 (최근 N일, scope_path 매칭, 아직 읽지 않은 것) */
+/** 이 방문자에게 보여줄 활성 방문자 캠페인.
+ *  · 노출 기간(start_at~end_at) 안이면 계속 노출. 기간 미설정이면 생성 후 30일.
+ *  · "N일 보지 않기" 스누즈 중이면 숨김(만료 후 기간 유지 중이면 재노출).
+ *  · 기간이 설정된 캠페인은 X(읽음)으로 영구 숨기지 않음(기간 내 계속 노출). 기간 미설정은 읽으면 숨김. */
 export async function getActiveVisitorCampaigns(
   db: D1Database, path: string, visitor: string, days = 30,
 ): Promise<any[]> {
+  const now = new Date().toISOString()
   const since = new Date(Date.now() - days * 86400000).toISOString()
   const rows = (await db.prepare(
-    `SELECT id, title, body, image_url, cta_label, cta_url, scope_path, created_at
+    `SELECT id, title, body, image_url, video_url, cta_label, cta_url, scope_path, start_at, end_at, created_at
      FROM notice_campaigns
-     WHERE target = 'visitors' AND created_at > ?
-     ORDER BY created_at DESC LIMIT 30`,
-  ).bind(since).all()).results as any[] || []
+     WHERE target = 'visitors'
+     ORDER BY created_at DESC LIMIT 60`,
+  ).all()).results as any[] || []
   const p = String(path || '/')
   const matchPath = (sc: any) => {
     const s = String(sc || '').trim()
     if (!s) return true
     return p === s || p.startsWith(s)
   }
-  // 이 방문자가 이미 읽은(read) 캠페인 제외
+  const isActive = (c: any) => {
+    const start = String(c.start_at || '')
+    const end = String(c.end_at || '')
+    if (start && now < start) return false
+    if (end) return now <= end                 // 종료일 있으면 그때까지 활성
+    return String(c.created_at || '') > since   // 종료일 없으면 생성 후 30일
+  }
+  // 스누즈 중(until > now)인 캠페인 제외
+  let snoozeSet = new Set<string>()
   let readSet = new Set<string>()
   if (visitor) {
+    try {
+      const sn = (await db.prepare(`SELECT campaign_id FROM notice_snoozes WHERE visitor = ? AND until > ?`).bind(visitor, now).all()).results as any[] || []
+      snoozeSet = new Set(sn.map((r) => r.campaign_id))
+    } catch { /* ignore */ }
     try {
       const rd = (await db.prepare(`SELECT campaign_id FROM notice_visitor_events WHERE visitor = ? AND kind = 'read'`).bind(visitor).all()).results as any[] || []
       readSet = new Set(rd.map((r) => r.campaign_id))
     } catch { /* ignore */ }
   }
-  return rows.filter((c) => matchPath(c.scope_path) && !readSet.has(c.id))
+  return rows.filter((c) => {
+    if (!matchPath(c.scope_path) || !isActive(c)) return false
+    if (snoozeSet.has(c.id)) return false
+    // 기간(종료일)이 설정된 캠페인은 읽어도 계속 노출, 기간 미설정은 읽으면 숨김
+    if (!c.end_at && readSet.has(c.id)) return false
+    return true
+  })
 }
 
 /** 캠페인의 방문자 통계 (노출/읽음/전환 · 회원/비회원) */
@@ -102,9 +147,15 @@ export async function getVisitorStats(db: D1Database, campaignId: string) {
   const byKind: Record<string, { total: number; members: number; guests: number }> = {}
   for (const a of agg) byKind[a.kind] = { total: Number(a.total) || 0, members: Number(a.members) || 0, guests: Number(a.guests) || 0 }
   const z = { total: 0, members: 0, guests: 0 }
+  let snoozes = 0
+  try {
+    const s: any = await db.prepare(`SELECT COUNT(*) AS n FROM notice_snoozes WHERE campaign_id = ?`).bind(campaignId).first()
+    snoozes = Number(s?.n || 0)
+  } catch { /* ignore */ }
   return {
     views: byKind.view || z,
     reads: byKind.read || z,
     conversions: byKind.convert || z,
+    snoozes,
   }
 }

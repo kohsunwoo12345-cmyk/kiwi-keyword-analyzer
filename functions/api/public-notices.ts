@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, resolveDB, sameOriginOk } from './_utils'
-import { ensureVisitorNoticeSchema, classifyVisitor, recordVisitorEvent, getActiveVisitorCampaigns } from './_notices'
+import { ensureVisitorNoticeSchema, classifyVisitor, recordVisitorEvent, getActiveVisitorCampaigns, recordSnooze } from './_notices'
 
 // 공개 방문자 팝업 알림 (비회원 포함)
 //  GET  /api/public-notices?path=/&visitor=<id>  → 이 방문자에게 보여줄 활성 캠페인 + 노출(view) 기록
@@ -26,7 +26,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       ok: true,
       notices: camps.map((c) => ({
         id: c.id, title: c.title, body: c.body,
-        imageUrl: c.image_url || '', ctaLabel: c.cta_label || '', ctaUrl: c.cta_url || '',
+        imageUrl: c.image_url || '', videoUrl: c.video_url || '',
+        ctaLabel: c.cta_label || '', ctaUrl: c.cta_url || '',
         createdAt: c.created_at,
       })),
     })
@@ -46,8 +47,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const campaignId = String(b.campaignId || '').trim()
     const visitor = String(b.visitor || '').slice(0, 64)
     const path = String(b.path || '/').slice(0, 200)
-    const kind = b.kind === 'convert' ? 'convert' : 'read'
     if (!campaignId) return json({ ok: false, error: 'campaignId 필요' }, 400)
+    // "N일 보지 않기" 스누즈
+    if (b.kind === 'snooze') {
+      const days = Math.max(1, Math.min(30, Number(b.days) || 3))
+      await recordSnooze(db, campaignId, visitor, days)
+      return json({ ok: true, snoozedDays: days })
+    }
+    const kind = b.kind === 'convert' ? 'convert' : 'read'
     const info = await classifyVisitor(db, request)
     await recordVisitorEvent(db, { campaignId, visitor, info, kind, path })
     return json({ ok: true })

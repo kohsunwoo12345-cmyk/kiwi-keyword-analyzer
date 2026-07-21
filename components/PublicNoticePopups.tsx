@@ -3,10 +3,19 @@
 import { useEffect, useState, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
 import { X } from 'lucide-react'
+import { NoticeMedia } from '@/components/NoticeMedia'
 
 interface PubNotice {
   id: string; title: string; body: string
-  imageUrl: string; ctaLabel: string; ctaUrl: string; createdAt: string
+  imageUrl: string; videoUrl?: string; ctaLabel: string; ctaUrl: string; createdAt: string
+}
+
+// 같은 세션에서 닫은 알림은 새로고침 전까지 다시 뜨지 않게 (기간형은 새 방문 때 다시 노출)
+function sessionDismissed(): Set<string> {
+  try { return new Set(JSON.parse(sessionStorage.getItem('bg_notice_dismissed') || '[]')) } catch { return new Set() }
+}
+function addSessionDismissed(id: string) {
+  try { const s = sessionDismissed(); s.add(id); sessionStorage.setItem('bg_notice_dismissed', JSON.stringify([...s])) } catch { /* noop */ }
 }
 
 function getVisitorId(): string {
@@ -35,9 +44,10 @@ export function PublicNoticePopups() {
       .then((r) => r.json())
       .then((d) => {
         if (d && d.ok && Array.isArray(d.notices)) {
+          const dismissed = sessionDismissed()
           setItems((prev) => {
             const map = new Map(prev.map((n) => [n.id, n]))
-            d.notices.forEach((n: PubNotice) => { if (!map.has(n.id)) map.set(n.id, n) })
+            d.notices.forEach((n: PubNotice) => { if (!map.has(n.id) && !dismissed.has(n.id)) map.set(n.id, n) })
             return Array.from(map.values())
           })
         }
@@ -53,23 +63,27 @@ export function PublicNoticePopups() {
     return () => { clearInterval(iv); clearTimeout(t) }
   }, [poll, skip])
 
-  const post = (campaignId: string, kind: 'read' | 'convert') => {
+  const post = (campaignId: string, kind: 'read' | 'convert' | 'snooze', days?: number) => {
     try {
       fetch('/api/public-notices', {
         method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ campaignId, visitor: getVisitorId(), kind, path: pathname }),
+        body: JSON.stringify({ campaignId, visitor: getVisitorId(), kind, days, path: pathname }),
       }).catch(() => {})
     } catch { /* noop */ }
   }
 
-  const dismiss = (id: string) => {
+  const animateOut = (id: string) => {
     setClosing((c) => ({ ...c, [id]: true }))
-    post(id, 'read')
+    addSessionDismissed(id)
     setTimeout(() => {
       setItems((prev) => prev.filter((n) => n.id !== id))
       setClosing((c) => { const n = { ...c }; delete n[id]; return n })
     }, 320)
   }
+  // X = 읽음(닫기). 기간형이면 새 방문 때 다시 뜸(스누즈 아님)
+  const dismiss = (id: string) => { post(id, 'read'); animateOut(id) }
+  // "3일 동안 보지 않기" = 3일간 숨김(서버 스누즈). 이후 기간 유지 중이면 재노출
+  const snooze3 = (id: string) => { post(id, 'snooze', 3); animateOut(id) }
 
   const go = (n: PubNotice) => {
     post(n.id, 'convert')
@@ -77,7 +91,7 @@ export function PublicNoticePopups() {
       if (/^https?:\/\//i.test(n.ctaUrl)) window.open(n.ctaUrl, '_blank', 'noopener,noreferrer')
       else window.location.href = n.ctaUrl
     }
-    dismiss(n.id)
+    animateOut(n.id)
   }
 
   if (skip || items.length === 0) return null
@@ -96,10 +110,7 @@ export function PublicNoticePopups() {
             ].join(' ')}
             style={{ boxShadow: '0 20px 50px -12px rgba(0,0,0,.35)' }}
           >
-            {n.imageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={n.imageUrl} alt="" className="max-h-44 w-full object-cover" />
-            )}
+            <NoticeMedia imageUrl={n.imageUrl} videoUrl={n.videoUrl} />
             <div className="p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="text-sm font-extrabold leading-snug text-slate-900">{n.title}</div>
@@ -120,6 +131,12 @@ export function PublicNoticePopups() {
                   {n.ctaLabel}
                 </button>
               )}
+              <button
+                onClick={() => snooze3(n.id)}
+                className="mt-2 w-full rounded-lg py-1.5 text-[12px] font-semibold text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
+              >
+                3일 동안 보지 않기
+              </button>
             </div>
           </div>
         )

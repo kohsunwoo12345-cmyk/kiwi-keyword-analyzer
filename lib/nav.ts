@@ -24,6 +24,7 @@ import {
   Wallet,
   CreditCard,
   Database,
+  Bell,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -177,5 +178,12 @@ export const NAV_CATEGORIES: NavCategory[] = [
     icon: BarChart3,
     accent: '#8b5cf6',
     items: [{ title: '통합 리포트', href: '/dashboard_USE17237_612/report', icon: BarChart3 }],
+  },
+  {
+    id: 'notifications',
+    title: '알림',
+    icon: Bell,
+    accent: '#2563eb',
+    items: [{ title: '받은 알림 내역', href: '/dashboard_USE17237_612/notifications', icon: Bell }],
   },
 ]

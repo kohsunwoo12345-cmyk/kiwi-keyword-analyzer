@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bell, Send, ImagePlus, Link2, RefreshCw, X, CheckCircle2, Circle, Users, Loader2, Eye, ChevronRight } from 'lucide-react'
+import { Bell, Send, ImagePlus, Link2, RefreshCw, X, CheckCircle2, Circle, Users, Loader2, Eye, ChevronRight, Film, Clock, MoonStar } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel } from '@/components/ui'
 import {
@@ -24,6 +24,8 @@ export default function NoticesPage() {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [imageUrl, setImageUrl] = useState('')
+  const [videoUrl, setVideoUrl] = useState('')
+  const [days, setDays] = useState('')
   const [ctaLabel, setCtaLabel] = useState('')
   const [ctaUrl, setCtaUrl] = useState('')
   const [target, setTarget] = useState<Target>('all')
@@ -31,9 +33,11 @@ export default function NoticesPage() {
   const [scopePath, setScopePath] = useState('')
   const [picked, setPicked] = useState<Record<string, boolean>>({})
   const [uploading, setUploading] = useState(false)
+  const [uploadingV, setUploadingV] = useState(false)
   const [sending, setSending] = useState(false)
   const [msg, setMsg] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+  const videoRef = useRef<HTMLInputElement>(null)
 
   // 목록/상세
   const [campaigns, setCampaigns] = useState<AdminNoticeCampaign[]>([])
@@ -87,6 +91,18 @@ export default function NoticesPage() {
     } catch (e: any) { setMsg('업로드 실패: ' + String(e?.message || e).slice(0, 100)) }
     setUploading(false)
   }
+  async function onUploadVideo(file: File) {
+    if (file.size > 60 * 1024 * 1024) { setMsg('동영상은 60MB 이하만 업로드할 수 있어요. 큰 파일은 URL로 붙여넣어 주세요.'); return }
+    setUploadingV(true); setMsg('')
+    try {
+      const r = await fetch('/api/upload', { method: 'POST', credentials: 'include', headers: { 'Content-Type': file.type || 'video/mp4' }, body: file })
+      const txt = await r.text()
+      let d: any = {}; try { d = JSON.parse(txt) } catch {}
+      if (r.ok && d.url) setVideoUrl(d.url)
+      else setMsg('동영상 업로드 실패 (' + r.status + '): ' + (d.error || txt.slice(0, 120)))
+    } catch (e: any) { setMsg('동영상 업로드 실패: ' + String(e?.message || e).slice(0, 100)) }
+    setUploadingV(false)
+  }
 
   async function onSend() {
     if (!title.trim() || !body.trim()) { setMsg('제목과 내용을 입력하세요.'); return }
@@ -98,14 +114,16 @@ export default function NoticesPage() {
     setSending(true); setMsg('')
     const res = await adminNoticeSend({
       title: title.trim(), body: body.trim(),
-      imageUrl: imageUrl.trim() || undefined, ctaLabel: ctaLabel.trim() || undefined, ctaUrl: ctaUrl.trim() || undefined,
+      imageUrl: imageUrl.trim() || undefined, videoUrl: videoUrl.trim() || undefined,
+      ctaLabel: ctaLabel.trim() || undefined, ctaUrl: ctaUrl.trim() || undefined,
       target, plan: target === 'plan' ? plan : undefined, userIds: target === 'multi' ? pickedIds : undefined,
       scopePath: target === 'visitors' ? (scopePath.trim() || undefined) : undefined,
+      days: target === 'visitors' && Number(days) > 0 ? Number(days) : undefined,
     })
     setSending(false)
     if (res.ok) {
-      setMsg(target === 'visitors' ? '✅ 접속 전체(비회원 포함) 발송 완료 — 방문 즉시 팝업으로 표시됩니다.' : `✅ ${num(res.audience || 0)}명에게 발송 완료`)
-      setTitle(''); setBody(''); setImageUrl(''); setCtaLabel(''); setCtaUrl(''); setPicked({}); setScopePath('')
+      setMsg(target === 'visitors' ? `✅ 접속 전체(비회원 포함) 발송 완료 — ${Number(days) > 0 ? `${days}일 동안 ` : ''}방문 즉시 팝업으로 표시됩니다.` : `✅ ${num(res.audience || 0)}명에게 발송 완료`)
+      setTitle(''); setBody(''); setImageUrl(''); setVideoUrl(''); setDays(''); setCtaLabel(''); setCtaUrl(''); setPicked({}); setScopePath('')
       load()
     } else setMsg(res.error || '발송 실패')
   }
@@ -166,6 +184,28 @@ export default function NoticesPage() {
                   onChange={(e) => { const f = e.target.files?.[0]; e.currentTarget.value = ''; if (f) onUpload(f) }} />
               </div>
 
+              {/* 동영상 (선택) — 크기 맞춤형 자동재생 + 소리 ON */}
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-[var(--text-dim)]">동영상 (선택 · 자동재생/소리 ON)</label>
+                {videoUrl ? (
+                  <div className="relative overflow-hidden rounded-lg border border-[var(--border)] bg-black">
+                    <video src={videoUrl} className="max-h-40 w-full" controls muted playsInline />
+                    <button onClick={() => setVideoUrl('')} className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"><X size={14} /></button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button onClick={() => videoRef.current?.click()} disabled={uploadingV}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[var(--border)] px-3 py-2 text-sm text-[var(--text-soft)] hover:bg-slate-50">
+                      {uploadingV ? <Loader2 size={14} className="animate-spin" /> : <Film size={14} />} 동영상 업로드
+                    </button>
+                    <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="또는 동영상 URL (mp4 등)" className="input flex-1 text-xs" />
+                  </div>
+                )}
+                <input ref={videoRef} type="file" accept="video/*" className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; e.currentTarget.value = ''; if (f) onUploadVideo(f) }} />
+                <p className="mt-1 text-[11px] text-[var(--text-dim)]">동영상이 있으면 사진 대신 동영상이 크기에 맞춰 재생됩니다. (브라우저 정책으로 소리가 막히면 방문자에게 “소리 켜기” 버튼이 표시됩니다.)</p>
+              </div>
+
               {/* CTA 버튼 */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -191,7 +231,10 @@ export default function NoticesPage() {
                   <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50/50 p-2.5">
                     <p className="text-[11px] leading-relaxed text-blue-700">홈페이지·랜딩에 <b>접속한 모든 사람(비회원 포함)</b>에게 접속 즉시 하단→상단 슬라이드 팝업으로 표시됩니다. X를 누르면 읽음 처리돼요.</p>
                     <label className="mb-1 mt-2 block text-[11px] font-semibold text-[var(--text-dim)]">특정 랜딩 경로만 (선택 · 비우면 전체 페이지)</label>
-                    <input value={scopePath} onChange={(e) => setScopePath(e.target.value)} placeholder="예) /l/summer-sale (우리 빌더로 만든 랜딩 경로)" className="input w-full text-xs" />
+                    <input value={scopePath} onChange={(e) => setScopePath(e.target.value)} placeholder="예) /f/f-abc123 (우리 빌더로 만든 랜딩 경로)" className="input w-full text-xs" />
+                    <label className="mb-1 mt-2 flex items-center gap-1 text-[11px] font-semibold text-[var(--text-dim)]"><Clock size={12} /> 노출 기간 (일 · 비우면 30일)</label>
+                    <input value={days} onChange={(e) => setDays(e.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" placeholder="예) 7 → 7일 동안 접속자 모두에게 계속 노출" className="input w-full text-xs" />
+                    <p className="mt-1 text-[11px] text-blue-600">설정한 기간 동안 접속한 모든 사람에게 계속 표시됩니다. 방문자가 “3일 동안 보지 않기”를 누르면 그 사람에게만 3일간 숨겨지고, 이후 기간이 유지 중이면 다시 표시됩니다.</p>
                   </div>
                 )}
                 {target === 'plan' && (
@@ -229,7 +272,9 @@ export default function NoticesPage() {
           {/* 미리보기 */}
           <Panel title="미리보기 (사용자 화면)">
             <div className="mx-auto max-w-xs overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-lg">
-              {imageUrl && (/* eslint-disable-next-line @next/next/no-img-element */ <img src={imageUrl} alt="" className="max-h-36 w-full object-cover" />)}
+              {videoUrl
+                ? <video src={videoUrl} className="max-h-40 w-full bg-black" controls muted playsInline />
+                : imageUrl && (/* eslint-disable-next-line @next/next/no-img-element */ <img src={imageUrl} alt="" className="max-h-36 w-full object-cover" />)}
               <div className="p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-sm font-extrabold">{title || '알림 제목'}</div>
@@ -263,7 +308,9 @@ export default function NoticesPage() {
                           <div className="flex items-center gap-2">
                             <span className="truncate text-sm font-bold">{c.title}</span>
                             {c.target === 'visitors' && <span className="flex-shrink-0 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-600">접속 전체</span>}
-                            {c.imageUrl && <ImagePlus size={12} className="flex-shrink-0 text-slate-400" />}
+                            {c.endAt && <span className="flex-shrink-0 inline-flex items-center gap-0.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-600"><Clock size={9} /> 기간</span>}
+                            {c.videoUrl && <Film size={12} className="flex-shrink-0 text-slate-400" />}
+                            {c.imageUrl && !c.videoUrl && <ImagePlus size={12} className="flex-shrink-0 text-slate-400" />}
                             {c.ctaUrl && <Link2 size={12} className="flex-shrink-0 text-slate-400" />}
                           </div>
                           <div className="mt-0.5 truncate text-xs text-[var(--text-dim)]">{c.body}</div>
@@ -326,7 +373,7 @@ export default function NoticesPage() {
               ) : (detail?.campaign?.target === 'visitors' || detail?.visitorStats) ? (
                 <div className="p-5">
                   {/* 방문자(비회원 포함) 성과: 노출 → 읽음 → 전환 */}
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     {([['노출', detail?.visitorStats?.views, 'text-slate-700'], ['읽음(X)', detail?.visitorStats?.reads, 'text-emerald-600'], ['전환(CTA)', detail?.visitorStats?.conversions, 'text-blue-600']] as [string, VisitorStat | undefined, string][]).map(([l, s, c]) => (
                       <div key={l} className="rounded-xl border border-[var(--border)] p-3 text-center">
                         <div className="text-[11px] font-semibold text-[var(--text-dim)]">{l}</div>
@@ -334,8 +381,16 @@ export default function NoticesPage() {
                         <div className="mt-0.5 text-[10px] text-[var(--text-dim)]">회원 {num(s?.members || 0)} · 비회원 {num(s?.guests || 0)}</div>
                       </div>
                     ))}
+                    <div className="rounded-xl border border-[var(--border)] p-3 text-center">
+                      <div className="flex items-center justify-center gap-1 text-[11px] font-semibold text-[var(--text-dim)]"><MoonStar size={11} /> 3일 숨김</div>
+                      <div className="mt-0.5 text-2xl font-bold tabular-nums text-amber-600">{num(detail?.visitorStats?.snoozes || 0)}</div>
+                      <div className="mt-0.5 text-[10px] text-[var(--text-dim)]">보지 않기 누름</div>
+                    </div>
                   </div>
-                  {detail?.campaign?.scopePath && <div className="mt-3 text-[11px] text-[var(--text-dim)]">랜딩 경로: <b className="text-blue-600">{detail.campaign.scopePath}</b></div>}
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[var(--text-dim)]">
+                    {detail?.campaign?.scopePath && <span>랜딩 경로: <b className="text-blue-600">{detail.campaign.scopePath}</b></span>}
+                    <span className="inline-flex items-center gap-1"><Clock size={11} /> 노출 기간: {detail?.campaign?.endAt ? <b className="text-blue-600">{kst(detail.campaign.startAt || detail.campaign.createdAt)} ~ {kst(detail.campaign.endAt)}</b> : <b>생성 후 30일(기간 미설정)</b>}</span>
+                  </div>
                   <div className="mt-4 text-xs font-semibold text-[var(--text-dim)]">접속 IP · 회원/비회원 (최근)</div>
                   <div className="mt-1.5 overflow-hidden rounded-xl border border-[var(--border)]">
                     <table className="w-full text-sm">

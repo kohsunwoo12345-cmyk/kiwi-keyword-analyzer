@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { X } from 'lucide-react'
 import { fetchNotices, markNoticeRead, type NoticeItem } from '@/lib/auth'
+import { NoticeMedia } from '@/components/NoticeMedia'
 
 // 관리자가 발송한 팝업 알림 — 하단에서 상단으로 슬라이드로 올라온다.
 // X 버튼을 눌러야만 사라지고(= 읽음 처리), 사진/CTA 버튼(이동 URL)을 담을 수 있다.
@@ -64,10 +65,7 @@ export function NoticePopups() {
             ].join(' ')}
             style={{ boxShadow: '0 20px 50px -12px rgba(0,0,0,.35)' }}
           >
-            {n.imageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={n.imageUrl} alt="" className="max-h-44 w-full object-cover" />
-            )}
+            <NoticeMedia imageUrl={n.imageUrl} videoUrl={n.videoUrl} />
             <div className="p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="text-sm font-extrabold leading-snug text-slate-900">{n.title}</div>
