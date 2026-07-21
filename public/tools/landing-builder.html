@@ -1,0 +1,2521 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <!-- PWA 설정 -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#6366f1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="슈퍼플레이스">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="/icon-152.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>랜딩페이지 빌더 - SUPERPLACE</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+  /* BYGENCY 이식: 세션 쿠키 기반 인증. /api/me 로 사용자 정보를 localStorage 에 채워 빌더 호환. */
+  (function(){ try{ var x=new XMLHttpRequest(); x.open('GET','/api/me',false); x.withCredentials=true; x.send();
+    if(x.status===200){ var d=JSON.parse(x.responseText||'{}'); var u=(d&&d.user)||d; if(u&&u.id){ u.user_type='admin'; u.role='admin'; localStorage.setItem('user',JSON.stringify(u)); localStorage.setItem('adminUser',JSON.stringify(u)); } }
+  }catch(e){} })();
+  </script>
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    * { font-family: 'Pretendard', -apple-system, sans-serif; }
+    .tab-btn { transition: all .2s; }
+    .tab-btn.active { background:#6366f1; color:#fff; }
+    #htmlEditor { font-family:'Fira Code','Consolas',monospace; font-size:13px; line-height:1.6; tab-size:2; resize:none; }
+    .block-btn { cursor:grab; transition:all .15s; }
+    .block-btn:hover { transform:scale(1.03); box-shadow:0 4px 12px rgba(99,102,241,.25); }
+    #previewFrame { transition:width .3s,height .3s; border:none; }
+    /* 프리뷰 편집 가능 커서 */
+    /* 이미지/링크 플로팅 툴바 */
+    #spFloatBar { display:none; position:fixed; z-index:99999; background:#1e293b; border-radius:10px; padding:6px 10px; box-shadow:0 4px 20px rgba(0,0,0,0.3); gap:6px; align-items:center; }
+    #spFloatBar.show { display:flex; }
+    #spFloatBar input { background:#334155; color:#fff; border:1px solid #475569; border-radius:6px; padding:4px 8px; font-size:12px; outline:none; width:220px; }
+    #spFloatBar input:focus { border-color:#6366f1; }
+    #spFloatBar button { background:#6366f1; color:#fff; border:none; border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; white-space:nowrap; }
+    #spFloatBar button.cancel { background:#475569; }
+    .page-card { transition:all .2s; }
+    .page-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(99,102,241,.2); }
+    .lp-tframe { position:absolute; top:0; left:0; width:1280px; border:0; transform-origin:top left; pointer-events:none; background:#fff; }
+    #toast {
+      position:fixed; bottom:32px; left:50%; transform:translateX(-50%);
+      background:#1e293b; color:#fff; padding:10px 24px; border-radius:50px;
+      font-size:14px; z-index:9999; opacity:0; pointer-events:none; transition:opacity .3s;
+    }
+    #toast.show { opacity:1; }
+    /* 폼 필드 드래그 */
+    .field-row { cursor:grab; }
+    .field-row:active { cursor:grabbing; }
+    .field-row.drag-over { border-top:2px solid #6366f1; }
+    /* 배포 버튼 */
+    .btn-deploy { background:linear-gradient(135deg,#6366f1,#8b5cf6); }
+    .btn-deploy:hover { background:linear-gradient(135deg,#4f46e5,#7c3aed); }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<div id="toast"></div>
+
+<!-- ===== 약관 팝업 모달 ===== -->
+<div id="privacyModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;width:92%;max-width:540px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;">
+    <div style="padding:20px 24px 16px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+      <h2 style="font-size:17px;font-weight:700;color:#1e293b;margin:0;">개인정보 수집 및 이용 동의</h2>
+      <button onclick="closePrivacyModal()" style="background:none;border:none;cursor:pointer;padding:4px;color:#64748b;font-size:20px;line-height:1;">&times;</button>
+    </div>
+    <div id="privacyModalBody" style="padding:20px 24px;overflow-y:auto;font-size:14px;line-height:1.8;color:#374151;"></div>
+    <div style="padding:12px 24px 16px;border-top:1px solid #e5e7eb;text-align:center;flex-shrink:0;">
+      <button onclick="closePrivacyModal()" style="padding:10px 32px;background:#6366f1;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== HEADER ===== -->
+<header class="bg-white border-b shadow-sm sticky top-0 z-40">
+  <div class="max-w-screen-2xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <a href="/sunmin1wsna12ssad2/marketing" class="text-gray-400 hover:text-indigo-600 transition">
+        <i class="fas fa-arrow-left text-lg"></i>
+      </a>
+      <div class="w-px h-6 bg-gray-200"></div>
+      <h1 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+        <i class="fas fa-palette text-indigo-600"></i>
+        랜딩페이지 빌더
+      </h1>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="/sunmin1wsna12ssad2/landing-submissions" class="px-4 py-2 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-100 transition">
+        <i class="fas fa-inbox mr-1.5"></i>신청자 관리
+      </a>
+      <button onclick="showView('list')" id="navList" class="px-4 py-2 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-100 transition">
+        <i class="fas fa-list mr-1.5"></i>내 페이지
+      </button>
+      <button onclick="openTemplateModal()" class="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition flex items-center gap-2">
+        <i class="fas fa-plus"></i>새 페이지
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ===== VIEW: LIST ===== -->
+<div id="viewList" class="max-w-screen-2xl mx-auto px-6 py-8">
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+    <div class="bg-white rounded-xl p-5 border shadow-sm">
+      <div class="text-xs text-gray-500 mb-1">총 페이지</div>
+      <div id="statTotal" class="text-3xl font-bold text-indigo-600">-</div>
+    </div>
+    <div class="bg-white rounded-xl p-5 border shadow-sm">
+      <div class="text-xs text-gray-500 mb-1">총 조회수</div>
+      <div id="statViews" class="text-3xl font-bold text-emerald-600">-</div>
+    </div>
+    <div class="bg-white rounded-xl p-5 border shadow-sm">
+      <div class="text-xs text-gray-500 mb-1">배포된 페이지</div>
+      <div id="statPublished" class="text-3xl font-bold text-blue-600">-</div>
+    </div>
+    <div class="bg-white rounded-xl p-5 border shadow-sm">
+      <div class="text-xs text-gray-500 mb-1">총 신청자</div>
+      <div id="statSubs" class="text-3xl font-bold text-orange-500">-</div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow border p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold text-gray-800">내 랜딩페이지</h2>
+      <button onclick="loadMyPages()" class="text-sm text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+        <i class="fas fa-sync-alt"></i> 새로고침
+      </button>
+    </div>
+    <!-- 검색창 -->
+    <div class="mb-4 relative">
+      <div class="flex items-center gap-2">
+        <div class="relative flex-1">
+          <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+          <input id="pageSearchInput" type="text" placeholder="페이지 제목으로 검색..."
+            class="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            oninput="filterPageList(this.value)" />
+          <button id="pageSearchClearBtn" onclick="clearPageSearch()" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden">
+            <i class="fas fa-times text-sm"></i>
+          </button>
+        </div>
+      </div>
+      <div id="pageSearchEmpty" class="hidden mt-3 text-center py-8 text-gray-400">
+        <i class="fas fa-search text-2xl mb-2 block opacity-40"></i>
+        <p class="text-sm">검색 결과가 없습니다</p>
+      </div>
+    </div>
+    <div id="pageList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div class="col-span-3 text-center py-16 text-gray-400">
+        <i class="fas fa-spinner fa-spin text-3xl mb-3 block"></i>불러오는 중...
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== VIEW: EDITOR ===== -->
+<div id="viewEditor" class="hidden h-[calc(100vh-60px)] flex flex-col">
+
+  <!-- 에디터 상단 툴바 -->
+  <div class="bg-white border-b px-4 py-2 flex items-center gap-3 flex-wrap">
+    <div class="flex rounded-lg border overflow-hidden text-sm">
+      <button class="tab-btn active px-4 py-1.5 font-semibold" onclick="switchEditorTab('html')" id="tabHtml">HTML</button>
+      <button class="tab-btn px-4 py-1.5 font-semibold" onclick="switchEditorTab('blocks')" id="tabBlocks">블록</button>
+      <button class="tab-btn px-4 py-1.5 font-semibold" onclick="switchEditorTab('form')" id="tabForm">폼 설정</button>
+      <button class="tab-btn px-4 py-1.5 font-semibold" onclick="switchEditorTab('share')" id="tabShare">공유 설정</button>
+    </div>
+    <div class="flex items-center gap-1 ml-auto text-sm">
+      <button onclick="setPreviewMode('desktop')" id="btnDesktop" class="p-2 rounded text-indigo-600 bg-indigo-50" title="데스크탑">
+        <i class="fas fa-desktop"></i>
+      </button>
+      <button onclick="setPreviewMode('mobile')" id="btnMobile" class="p-2 rounded text-gray-500 hover:bg-gray-100" title="모바일">
+        <i class="fas fa-mobile-alt"></i>
+      </button>
+    </div>
+    <!-- 저장 & 배포 (통합) -->
+    <button onclick="saveAndDeploy()" id="btnSaveDeploy"
+      class="btn-deploy px-5 py-1.5 text-white text-sm rounded-lg font-semibold transition flex items-center gap-2">
+      <i class="fas fa-rocket"></i>저장 &amp; 배포
+    </button>
+    <button onclick="showView('list')" class="px-3 py-1.5 text-gray-500 hover:text-gray-700 text-sm rounded-lg border hover:bg-gray-50 transition">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+
+  <!-- 에디터 본문 (3패널) -->
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- 왼쪽: 편집 패널 -->
+    <div class="w-[440px] min-w-[320px] max-w-[500px] border-r bg-white flex flex-col overflow-hidden">
+
+      <!-- 페이지 기본 정보 -->
+      <div class="p-4 border-b space-y-2">
+        <input id="edTitle" type="text" placeholder="페이지 제목 *" maxlength="80"
+          class="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-300 outline-none font-semibold">
+        <input id="edSubtitle" type="text" placeholder="부제목 (선택)"
+          class="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-300 outline-none">
+        <div id="edStatusBar" class="text-xs text-gray-400 flex items-center gap-2 hidden">
+          <span id="edStatusBadge" class="px-2 py-0.5 rounded-full text-xs font-bold"></span>
+          <span id="edShareUrl" class="truncate text-indigo-600 cursor-pointer hover:underline" onclick="copyShareUrlDirect()"></span>
+        </div>
+      </div>
+
+      <!-- 탭 패널 -->
+      <div class="flex-1 overflow-y-auto">
+
+        <!-- HTML 탭 -->
+        <div id="panelHtml" class="p-3 h-full flex flex-col">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-gray-600 uppercase tracking-wider">HTML 코드</span>
+            <button onclick="formatHtml()" class="text-xs text-indigo-600 hover:text-indigo-800">정렬</button>
+          </div>
+          <textarea id="htmlEditor"
+            class="flex-1 w-full border rounded-lg p-3 bg-gray-900 text-green-300 text-xs leading-relaxed outline-none focus:ring-2 focus:ring-indigo-300 min-h-[500px]"
+            oninput="schedulePreview()" spellcheck="false"
+            placeholder="여기에 HTML 코드를 입력하세요..."></textarea>
+        </div>
+
+        <!-- 블록 탭 -->
+        <div id="panelBlocks" class="hidden p-4">
+          <p class="text-xs text-gray-500 mb-4">블록을 클릭하면 HTML 에디터에 삽입됩니다.</p>
+          <div class="grid grid-cols-2 gap-3">
+            <button onclick="insertBlock('header')" class="block-btn bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-left">
+              <i class="fas fa-heading text-indigo-600 text-xl mb-2 block"></i>
+              <div class="text-sm font-bold text-gray-800">헤더</div>
+              <div class="text-xs text-gray-500">제목 + 배경</div>
+            </button>
+            <button onclick="insertBlock('text')" class="block-btn bg-blue-50 border border-blue-200 rounded-xl p-4 text-left">
+              <i class="fas fa-font text-blue-600 text-xl mb-2 block"></i>
+              <div class="text-sm font-bold text-gray-800">텍스트</div>
+              <div class="text-xs text-gray-500">본문 / 설명</div>
+            </button>
+            <button onclick="insertBlock('image')" class="block-btn bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-left">
+              <i class="fas fa-image text-emerald-600 text-xl mb-2 block"></i>
+              <div class="text-sm font-bold text-gray-800">이미지</div>
+              <div class="text-xs text-gray-500">사진 삽입</div>
+            </button>
+            <button onclick="insertBlock('cta')" class="block-btn bg-orange-50 border border-orange-200 rounded-xl p-4 text-left">
+              <i class="fas fa-hand-pointer text-orange-600 text-xl mb-2 block"></i>
+              <div class="text-sm font-bold text-gray-800">CTA 버튼</div>
+              <div class="text-xs text-gray-500">행동 유도</div>
+            </button>
+            <button onclick="insertBlock('countdown')" class="block-btn bg-red-50 border border-red-200 rounded-xl p-4 text-left">
+              <i class="fas fa-clock text-red-600 text-xl mb-2 block"></i>
+              <div class="text-sm font-bold text-gray-800">카운트다운</div>
+              <div class="text-xs text-gray-500">마감 타이머</div>
+            </button>
+            <button onclick="insertBlock('features')" class="block-btn bg-purple-50 border border-purple-200 rounded-xl p-4 text-left">
+              <i class="fas fa-list-check text-purple-600 text-xl mb-2 block"></i>
+              <div class="text-sm font-bold text-gray-800">특징 카드</div>
+              <div class="text-xs text-gray-500">장점 나열</div>
+            </button>
+            <button onclick="insertBlock('divider')" class="block-btn bg-gray-50 border border-gray-200 rounded-xl p-4 text-left">
+              <i class="fas fa-minus text-gray-500 text-xl mb-2 block"></i>
+              <div class="text-sm font-bold text-gray-800">구분선</div>
+              <div class="text-xs text-gray-500">섹션 구분</div>
+            </button>
+            <button onclick="insertBlock('testimonial')" class="block-btn bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-left">
+              <i class="fas fa-quote-right text-yellow-600 text-xl mb-2 block"></i>
+              <div class="text-sm font-bold text-gray-800">후기</div>
+              <div class="text-xs text-gray-500">학부모 후기</div>
+            </button>
+            <button onclick="triggerImageUpload()" class="block-btn bg-pink-50 border border-pink-200 rounded-xl p-4 text-left col-span-2">
+              <i class="fas fa-cloud-upload-alt text-pink-600 text-xl mb-2 block"></i>
+              <div class="text-sm font-bold text-gray-800">이미지 업로드</div>
+              <div class="text-xs text-gray-500">사진을 업로드하고 태그 삽입</div>
+            </button>
+            <input type="file" id="imageUploadInput" class="hidden" accept="image/*" onchange="uploadImageFile(this)">
+          </div>
+        </div>
+
+        <!-- 폼 탭 -->
+        <div id="panelForm" class="hidden p-4 space-y-4">
+
+
+          <!-- ★ 개인정보 수집동의 약관 설정 (모든 폼에 자동 포함) -->
+          <div class="border-2 border-indigo-200 rounded-xl overflow-hidden">
+            <div class="bg-indigo-50 px-4 py-3 flex items-center gap-2 border-b border-indigo-200">
+              <i class="fas fa-shield-alt text-indigo-600 text-sm"></i>
+              <h3 class="text-sm font-bold text-indigo-700">개인정보 수집동의 약관 설정</h3>
+              <span class="text-xs text-indigo-500">(모든 폼에 자동 포함)</span>
+            </div>
+            <div class="p-4 space-y-3">
+              <!-- 학원 이름: hidden input만 유지 -->
+              <input id="ssOwnerName" type="hidden">
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="text-xs font-semibold text-gray-700">수집 동의 문구 <span class="text-gray-400">(변수: <code class="bg-gray-100 px-1 rounded">{{학원명}}</code>)</span></label>
+                  <button onclick="resetConsentText()" class="text-xs text-indigo-600 hover:underline">기본값으로</button>
+                </div>
+                <textarea id="ssConsentText" rows="5"
+                  class="w-full px-3 py-2 text-xs border rounded-lg focus:ring-2 focus:ring-indigo-300 outline-none font-mono resize-y"
+                  placeholder="개인정보 수집 및 이용 동의 문구를 입력하세요."
+                  oninput="renderExternalFormHtml(); renderFormPreview()"></textarea>
+              </div>
+              <!-- agreement URL (hidden, popup used instead) -->
+              <input id="ssAgreementUrl" type="hidden">
+            </div>
+            <div class="bg-blue-50 px-4 py-2 text-xs text-blue-600 border-t border-blue-100">
+              💡 저장 후 복사 → 신청자 현황에 자동 저장
+            </div>
+          </div>
+
+          <!-- 폼 필드 설정 -->
+          <div class="border rounded-xl overflow-hidden">
+            <div class="bg-gray-50 px-4 py-3 flex items-center justify-between border-b">
+              <h3 class="text-sm font-bold text-gray-700 flex items-center gap-2">
+                <i class="fas fa-list-ul text-indigo-500"></i>폼 필드 설정
+              </h3>
+              <button onclick="addCustomField()" class="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition">
+                <i class="fas fa-plus mr-1"></i>필드 추가
+              </button>
+            </div>
+
+            <!-- 기본 필드 목록 (체크박스) -->
+            <div class="p-3 space-y-2" id="defaultFieldsList">
+              <!-- 기본 필드들 -->
+              <div class="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-gray-50 border border-transparent" data-default-field="name">
+                <label class="flex items-center gap-2 text-sm cursor-pointer flex-1">
+                  <input type="checkbox" id="fieldName" checked class="accent-indigo-600 w-4 h-4" onchange="renderFormPreview()">
+                  <span class="font-medium">이름</span>
+                  <span class="text-xs text-gray-400">text</span>
+                </label>
+                <span class="text-xs text-indigo-500 font-medium">기본</span>
+              </div>
+              <div class="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-gray-50 border border-transparent" data-default-field="phone">
+                <label class="flex items-center gap-2 text-sm cursor-pointer flex-1">
+                  <input type="checkbox" id="fieldPhone" checked class="accent-indigo-600 w-4 h-4" onchange="renderFormPreview()">
+                  <span class="font-medium">연락처</span>
+                  <span class="text-xs text-gray-400">tel</span>
+                </label>
+                <span class="text-xs text-indigo-500 font-medium">기본</span>
+              </div>
+              <div class="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-gray-50 border border-transparent" data-default-field="email">
+                <label class="flex items-center gap-2 text-sm cursor-pointer flex-1">
+                  <input type="checkbox" id="fieldEmail" class="accent-indigo-600 w-4 h-4" onchange="renderFormPreview()">
+                  <span class="font-medium">이메일</span>
+                  <span class="text-xs text-gray-400">email</span>
+                </label>
+                <span class="text-xs text-indigo-500 font-medium">기본</span>
+              </div>
+              <div class="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-gray-50 border border-transparent" data-default-field="grade">
+                <label class="flex items-center gap-2 text-sm cursor-pointer flex-1">
+                  <input type="checkbox" id="fieldGrade" class="accent-indigo-600 w-4 h-4" onchange="renderFormPreview()">
+                  <span class="font-medium">자녀 학년</span>
+                  <span class="text-xs text-gray-400">select</span>
+                </label>
+                <span class="text-xs text-indigo-500 font-medium">기본</span>
+              </div>
+              <div class="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-gray-50 border border-transparent" data-default-field="message">
+                <label class="flex items-center gap-2 text-sm cursor-pointer flex-1">
+                  <input type="checkbox" id="fieldMessage" class="accent-indigo-600 w-4 h-4" onchange="renderFormPreview()">
+                  <span class="font-medium">문의 내용</span>
+                  <span class="text-xs text-gray-400">textarea</span>
+                </label>
+                <span class="text-xs text-indigo-500 font-medium">기본</span>
+              </div>
+            </div>
+
+            <!-- 커스텀 필드 목록 -->
+            <div id="customFieldsList" class="px-3 pb-3 space-y-2"></div>
+
+            <!-- 버튼 텍스트 -->
+            <div class="px-3 pb-3">
+              <div class="border-t pt-3">
+                <label class="text-xs text-gray-600 block mb-1 font-medium">버튼 텍스트</label>
+                <input id="formBtnText" type="text" value="무료 상담 신청" 
+                  class="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-300 outline-none"
+                  oninput="renderFormPreview()">
+              </div>
+            </div>
+          </div>
+
+          <!-- 폼 액션 버튼 -->
+          <div class="flex gap-2">
+            <button onclick="insertFormBlock()" class="flex-1 px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition font-semibold">
+              <i class="fas fa-plus mr-1"></i>HTML에 폼 삽입
+            </button>
+            <button onclick="removeFormFromHtml()" class="px-4 py-2 bg-red-50 text-red-500 text-sm rounded-lg hover:bg-red-100 transition border border-red-200 font-semibold" title="HTML에서 폼 제거">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+
+          <!-- 생성된 폼 HTML 미리보기 -->
+          <div class="border rounded-xl overflow-hidden">
+            <div class="bg-gray-50 px-4 py-2.5 flex items-center justify-between border-b">
+              <h3 class="text-sm font-bold text-gray-700">생성된 폼 HTML <span id="formTypeLabel" class="text-xs font-normal text-gray-400">(랜딩페이지 삽입용)</span></h3>
+              <button onclick="copyFormHtml()" class="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                <i class="fas fa-copy"></i>복사
+              </button>
+            </div>
+            <pre id="formHtmlPreview" class="text-xs bg-gray-900 text-green-300 p-3 overflow-x-auto whitespace-pre-wrap max-h-36"></pre>
+          </div>
+
+          <!-- 외부 임베드 폼 HTML -->
+          <div id="externalFormPanel" class="border-2 border-blue-200 rounded-xl overflow-hidden">
+            <div class="bg-blue-50 px-4 py-2.5 flex items-center justify-between border-b border-blue-200">
+              <div>
+                <h3 class="text-sm font-bold text-blue-800">🌐 외부 임베드 폼 HTML</h3>
+                <p class="text-xs text-blue-600 mt-0.5">외부 사이트·블로그·카페에 붙여넣으면 신청이 저장됨</p>
+              </div>
+              <button onclick="copyExternalFormHtml()" class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 flex items-center gap-1 font-semibold">
+                <i class="fas fa-copy"></i>복사
+              </button>
+            </div>
+            <pre id="externalFormHtmlPreview" class="text-xs bg-gray-900 text-blue-200 p-3 overflow-x-auto whitespace-pre-wrap max-h-48"></pre>
+            <!-- 구글 스프레드시트 연동 설정 (접기/펼치기) -->
+            <div class="border-t border-blue-200">
+              <button onclick="toggleSpreadsheetSettings()" class="w-full flex items-center justify-between px-4 py-2.5 bg-blue-50 hover:bg-blue-100 transition text-left">
+                <span class="text-xs font-semibold text-blue-800 flex items-center gap-2">
+                  <i class="fas fa-table-cells text-green-600"></i>📊 구글 스프레드시트 연동 설정 <span class="text-gray-400 font-normal">(선택)</span>
+                </span>
+                <i id="spreadsheetSettingsArrow" class="fas fa-chevron-down text-blue-400 text-xs transition-transform"></i>
+              </button>
+              <div id="spreadsheetSettingsPanel" class="hidden px-4 pb-4 pt-2 space-y-3 bg-white border-t border-blue-100">
+                <!-- 모드 설명 -->
+                <div class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 space-y-1">
+                  <p class="font-semibold">📌 외부 임베드 폼 두 가지 모드</p>
+                  <p>• <strong>폼 전송 URL 비어있음</strong> → SUPERPLACE에 저장 (기본, fetch 방식)</p>
+                  <p>• <strong>폼 전송 URL 입력</strong> → 해당 URL로 <code class="bg-amber-100 px-1 rounded">&lt;form action&gt;</code> 직접 POST<br>
+                    &nbsp;&nbsp;(구글 Apps Script 등 직접 연동, JS fetch 없이 순수 form 태그)</p>
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-gray-700 block mb-1">폼 전송 URL <span class="text-gray-400">(입력 시 직접 POST 모드 활성화)</span></label>
+                  <input id="ssActionUrl" type="text" placeholder="예: https://script.google.com/macros/s/...">
+                    class="w-full px-3 py-2 text-xs border rounded-lg focus:ring-2 focus:ring-green-300 outline-none"
+                    oninput="renderExternalFormHtml()">
+                  <p class="text-xs text-gray-400 mt-1">구글 Apps Script 웹앱 URL 입력</p>
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-gray-700 block mb-1">hidden 파라미터 <span class="text-gray-400">(선택, name=value 형식, 줄바꿈으로 구분)</span></label>
+                  <textarea id="ssHiddenParams" rows="3" placeholder="예:&#10;code=TkRneU56RXNNVGMyTlRJNA==&#10;channel=outform"
+                    class="w-full px-3 py-2 text-xs border rounded-lg focus:ring-2 focus:ring-green-300 outline-none resize-none"
+                    oninput="renderExternalFormHtml()"></textarea>
+                </div>
+
+              </div>
+            </div>
+            <div class="bg-blue-50 border-t border-blue-200 px-4 py-2 text-xs text-blue-700">
+              💡 저장 후 코드 복사 → <strong>기본 모드</strong>: 신청자 현황에 자동 저장 | <strong>직접 POST 모드</strong>: 구글 시트에 바로 전송
+            </div>
+          </div>
+
+          <!-- 신청자 현황 (미니) -->
+          <div class="border rounded-xl overflow-hidden">
+            <div class="bg-gray-50 px-4 py-2.5 flex items-center justify-between border-b">
+              <h3 class="text-sm font-bold text-gray-700 flex items-center gap-1.5">
+                <i class="fas fa-users text-emerald-500"></i>최근 신청자
+              </h3>
+              <div class="flex items-center gap-2">
+                <button onclick="loadFormSubmissions()" class="text-xs text-indigo-600 hover:text-indigo-800">
+                  <i class="fas fa-sync-alt"></i>
+                </button>
+                <a id="linkToSubs" href="#" target="_blank" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium hidden">
+                  전체 보기 →
+                </a>
+              </div>
+            </div>
+            <div id="formSubmissions" class="p-3 text-xs text-gray-500 text-center py-6">
+              <i class="fas fa-spinner fa-spin"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- 공유 설정 탭 -->
+        <div id="panelShare" class="hidden p-4 space-y-4">
+          <p class="text-xs text-gray-500">카카오톡, 문자 등 공유 시 표시될 정보를 설정하세요.</p>
+          <div class="space-y-3 border rounded-xl p-4">
+            <h3 class="text-sm font-bold text-gray-700">공유 미리보기 설정</h3>
+            <div>
+              <label class="text-xs text-gray-600 block mb-1">공유 제목 (OG Title)</label>
+              <input id="ogTitle" type="text" placeholder="공유 시 표시될 제목"
+                class="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-300 outline-none">
+            </div>
+            <div>
+              <label class="text-xs text-gray-600 block mb-1">공유 설명 (OG Description)</label>
+              <textarea id="ogDesc" rows="2" placeholder="공유 시 표시될 설명"
+                class="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-300 outline-none resize-none"></textarea>
+            </div>
+            <div>
+              <label class="text-xs text-gray-600 block mb-1">썸네일 이미지</label>
+              <div class="flex gap-2">
+                <input id="ogImageUrl" type="text" placeholder="이미지 URL 입력 또는 업로드"
+                  class="flex-1 px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-300 outline-none">
+                <button onclick="triggerThumbUpload()" class="px-3 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200 border transition">
+                  <i class="fas fa-upload"></i>
+                </button>
+                <input type="file" id="thumbUploadInput" class="hidden" accept="image/*" onchange="uploadThumbFile(this)">
+              </div>
+              <div id="ogThumbPreview" class="mt-2 hidden">
+                <img id="ogThumbImg" src="" alt="썸네일" class="w-full h-32 object-cover rounded-lg border">
+              </div>
+            </div>
+          </div>
+
+          <!-- 헤더 스크립트 -->
+          <div class="border rounded-xl p-4 space-y-2">
+            <h3 class="text-sm font-bold text-gray-700">헤더 스크립트</h3>
+            <textarea id="headerScript" rows="5"
+              placeholder="<script>...</script> 또는 <meta> 태그를 입력하세요"
+              class="w-full px-3 py-2 text-xs font-mono border rounded-lg focus:ring-2 focus:ring-indigo-300 outline-none resize-y bg-gray-900 text-green-300 leading-relaxed"></textarea>
+          </div>
+
+          <div class="border rounded-xl p-4 space-y-2">
+            <h3 class="text-sm font-bold text-gray-700">공유 링크</h3>
+            <div class="flex gap-2">
+              <input id="shareUrl" type="text" readonly
+                class="flex-1 px-3 py-2 text-sm bg-gray-50 border rounded-lg text-gray-700 cursor-pointer"
+                onclick="this.select()" placeholder="저장 후 생성됩니다">
+              <button onclick="copyShareUrlDirect()" class="px-3 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition" title="링크 복사">
+                <i class="fas fa-copy"></i>
+              </button>
+              <button onclick="downloadQR()" id="btnQR" class="px-3 py-2 bg-gray-700 text-white text-sm rounded-lg hover:bg-gray-900 transition" title="QR 코드 다운로드">
+                <i class="fas fa-qrcode"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 오른쪽: 프리뷰 -->
+    <div class="flex-1 bg-gray-100 flex flex-col overflow-hidden relative">
+      <div class="bg-white border-b px-4 py-2 flex items-center gap-3 text-sm text-gray-500">
+        <i class="fas fa-eye text-indigo-600"></i>
+        <span class="font-medium text-gray-700">미리보기</span>
+        <span class="text-xs px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full font-medium">✏️ 프리뷰에서 텍스트를 클릭하면 바로 수정됩니다</span>
+        <span id="previewLabel" class="text-xs text-gray-400 ml-auto">데스크탑</span>
+      </div>
+      <div class="flex-1 flex items-center justify-center p-4 overflow-auto">
+        <div id="previewWrapper" class="w-full max-w-full shadow-2xl rounded-xl overflow-hidden border-4 border-gray-300 bg-white transition-all duration-300">
+          <iframe id="previewFrame" class="w-full" style="height:calc(100vh - 160px); border:none;"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 이미지/링크 플로팅 툴바 ===== -->
+<div id="spFloatBar">
+  <span id="spFloatIcon" style="color:#94a3b8;font-size:13px;"></span>
+  <input id="spFloatInput" type="text" placeholder="URL 입력...">
+  <button onclick="spFloatApply()" title="적용 (Enter)">적용</button>
+  <button class="cancel" onclick="spFloatClose()" title="닫기 (Esc)">✕</button>
+</div>
+
+<!-- ===== MODAL: 커스텀 필드 추가 ===== -->
+<div id="modalAddField" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-900">필드 추가</h3>
+      <button onclick="closeAddFieldModal()" class="text-gray-400 hover:text-gray-600 text-xl"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="text-sm font-semibold text-gray-700 block mb-1">필드 라벨 <span class="text-red-500">*</span></label>
+        <input id="newFieldLabel" type="text" placeholder="예: 희망 수업 시간, 거주 지역" 
+          class="w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-300 outline-none text-sm">
+      </div>
+      <div>
+        <label class="text-sm font-semibold text-gray-700 block mb-1">필드 타입</label>
+        <select id="newFieldType" class="w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-300 outline-none text-sm bg-white" onchange="onFieldTypeChange()">
+          <option value="text">텍스트 입력 (text)</option>
+          <option value="tel">전화번호 (tel)</option>
+          <option value="email">이메일 (email)</option>
+          <option value="number">숫자 (number)</option>
+          <option value="textarea">긴 텍스트 (textarea)</option>
+          <option value="select">드롭다운 선택 (select)</option>
+          <option value="radio">라디오 버튼 (radio)</option>
+          <option value="checkbox_field">체크박스 (checkbox)</option>
+        </select>
+      </div>
+      <div id="fieldOptionsArea" class="hidden">
+        <label class="text-sm font-semibold text-gray-700 block mb-1">선택 옵션 <span class="text-xs text-gray-400">(한 줄에 하나씩)</span></label>
+        <textarea id="newFieldOptions" rows="4" placeholder="예시:\n오전 9-11시\n오후 2-4시\n저녁 7-9시"
+          class="w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-300 outline-none text-sm resize-none"></textarea>
+      </div>
+      <div>
+        <label class="text-sm font-semibold text-gray-700 block mb-1">플레이스홀더 (선택)</label>
+        <input id="newFieldPlaceholder" type="text" placeholder="입력 힌트 텍스트"
+          class="w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-300 outline-none text-sm">
+      </div>
+      <label class="flex items-center gap-2 text-sm cursor-pointer">
+        <input type="checkbox" id="newFieldRequired" checked class="accent-indigo-600 w-4 h-4">
+        <span class="font-medium">필수 입력 필드</span>
+      </label>
+    </div>
+    <div class="flex gap-3 mt-6">
+      <button onclick="confirmAddField()" class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition text-sm">
+        <i class="fas fa-plus mr-1"></i>필드 추가
+      </button>
+      <button onclick="closeAddFieldModal()" class="px-4 py-2.5 text-gray-500 border rounded-xl text-sm hover:bg-gray-50">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: 필드 수정 ===== -->
+<div id="modalEditField" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-900">필드 수정</h3>
+      <button onclick="closeEditFieldModal()" class="text-gray-400 hover:text-gray-600 text-xl"><i class="fas fa-times"></i></button>
+    </div>
+    <input type="hidden" id="editFieldId">
+    <div class="space-y-4">
+      <div>
+        <label class="text-sm font-semibold text-gray-700 block mb-1">필드 라벨 <span class="text-red-500">*</span></label>
+        <input id="editFieldLabel" type="text" placeholder="예: 희망 수업 시간, 거주 지역"
+          class="w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-300 outline-none text-sm">
+      </div>
+      <div>
+        <label class="text-sm font-semibold text-gray-700 block mb-1">필드 타입</label>
+        <select id="editFieldType" class="w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-300 outline-none text-sm bg-white" onchange="onEditFieldTypeChange()">
+          <option value="text">텍스트 입력 (text)</option>
+          <option value="tel">전화번호 (tel)</option>
+          <option value="email">이메일 (email)</option>
+          <option value="number">숫자 (number)</option>
+          <option value="textarea">긴 텍스트 (textarea)</option>
+          <option value="select">드롭다운 선택 (select)</option>
+          <option value="radio">라디오 버튼 (radio)</option>
+          <option value="checkbox_field">체크박스 (checkbox)</option>
+        </select>
+      </div>
+      <div id="editFieldOptionsArea" class="hidden">
+        <label class="text-sm font-semibold text-gray-700 block mb-1">선택 옵션 <span class="text-xs text-gray-400">(한 줄에 하나씩)</span></label>
+        <textarea id="editFieldOptions" rows="4" placeholder="예시:\n오전 9-11시\n오후 2-4시\n저녁 7-9시"
+          class="w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-300 outline-none text-sm resize-none"></textarea>
+      </div>
+      <div>
+        <label class="text-sm font-semibold text-gray-700 block mb-1">플레이스홀더 (선택)</label>
+        <input id="editFieldPlaceholder" type="text" placeholder="입력 힌트 텍스트"
+          class="w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-300 outline-none text-sm">
+      </div>
+      <label class="flex items-center gap-2 text-sm cursor-pointer">
+        <input type="checkbox" id="editFieldRequired" checked class="accent-indigo-600 w-4 h-4">
+        <span class="font-medium">필수 입력 필드</span>
+      </label>
+    </div>
+    <div class="flex gap-3 mt-6">
+      <button onclick="confirmEditField()" class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition text-sm">
+        <i class="fas fa-check mr-1"></i>수정 완료
+      </button>
+      <button onclick="closeEditFieldModal()" class="px-4 py-2.5 text-gray-500 border rounded-xl text-sm hover:bg-gray-50">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: 템플릿 선택 ===== -->
+<div id="modalTemplate" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+    <div class="flex items-center justify-between p-5 border-b flex-shrink-0">
+      <div>
+        <h3 class="text-lg font-bold text-gray-900">📄 새 페이지 만들기</h3>
+        <p class="text-xs text-gray-500 mt-0.5">템플릿을 선택하거나 직접 HTML을 작성하세요</p>
+      </div>
+      <button onclick="closeTemplateModal()" class="text-gray-400 hover:text-gray-600 text-xl p-1 rounded-lg hover:bg-gray-100"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="overflow-y-auto flex-1 p-5">
+      <!-- 빈 페이지 -->
+      <div class="mb-5">
+        <button onclick="newPage()" class="w-full flex items-center gap-4 p-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-indigo-400 hover:bg-indigo-50 transition text-left group">
+          <div class="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-100">
+            <i class="fas fa-file-alt text-gray-400 text-xl group-hover:text-indigo-500"></i>
+          </div>
+          <div>
+            <div class="font-bold text-gray-800 group-hover:text-indigo-700">빈 페이지로 시작</div>
+            <div class="text-xs text-gray-500 mt-0.5">기본 HTML 템플릿으로 처음부터 작성</div>
+          </div>
+        </button>
+      </div>
+      <!-- 저장된 템플릿 목록 -->
+      <div>
+        <div class="flex items-center gap-2 mb-3">
+          <h4 class="text-sm font-bold text-gray-700">저장된 템플릿 불러오기</h4>
+          <span class="text-xs text-gray-400">(admin/landing-templates에서 편집 가능)</span>
+        </div>
+        <div id="tplSelectGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div class="col-span-3 text-center py-8 text-gray-400 text-sm">
+            <i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="p-4 border-t flex-shrink-0 bg-gray-50 rounded-b-2xl flex items-center justify-between">
+      <a href="/sunmin1wsna12ssad2/landing-templates" target="_blank" class="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+        <i class="fas fa-external-link-alt"></i>템플릿 HTML 편집하기
+      </a>
+      <button onclick="closeTemplateModal()" class="px-4 py-2 text-sm text-gray-500 border rounded-lg hover:bg-gray-100">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: 이미지 업로드 결과 ===== -->
+<div id="imageResultModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4">
+    <h3 class="text-lg font-bold mb-3">이미지 업로드 완료</h3>
+    <img id="uploadedImgPreview" src="" alt="" class="w-full h-40 object-cover rounded-lg mb-3 border">
+    <input id="uploadedImgUrl" type="text" readonly class="w-full px-3 py-2 text-sm border rounded-lg bg-gray-50 mb-3 cursor-pointer" onclick="this.select()">
+    <div class="flex gap-2">
+      <button onclick="insertUploadedImage()" class="flex-1 px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 font-semibold">
+        <i class="fas fa-code mr-1"></i>HTML에 삽입
+      </button>
+      <button onclick="closeImageModal()" class="px-4 py-2 text-gray-500 border rounded-lg text-sm hover:bg-gray-50">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ──────────────────────────────────────────────
+// 랜딩페이지 폼 제출 스크립트 (생성된 HTML에 삽입용)
+// </sc + ript> 분리로 HTML 파서가 오해하지 않도록 처리
+// ──────────────────────────────────────────────
+const SUBMIT_SCRIPT_TAG = '<scr'+'ipt>'+
+'function submitLandingForm(e,pageSlug){\n'+
+'  e.preventDefault();\n'+
+'  var agreeChk=e.target.querySelector("[name=agree]");\n'+
+'  if(agreeChk&&!agreeChk.checked){alert("\uAC1C\uC778\uC815\uBCF4 \uC218\uC9D1\uC5D0 \uB3D9\uC758\uD574\uC8FC\uC138\uC694.");return;}\n'+
+'  var fd=new FormData(e.target);\n'+
+'  var body={landing_slug:pageSlug};\n'+
+'  fd.forEach(function(v,k){\n'+
+'    if(k.endsWith("[]")){var rk=k.slice(0,-2);body[rk]=(body[rk]?body[rk]+",":"")+v;}\n'+
+'    else{body[k]=v;}\n'+
+'  });\n'+
+'  var btn=e.target.querySelector("button[type=submit]");\n'+
+'  if(btn){btn.disabled=true;btn.textContent="\uC81C\uCD9C \uC911...";}\n'+
+'  fetch("/api/landing/form-submit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})\n'+
+'  .then(function(r){return r.json();})\n'+
+'  .then(function(d){\n'+
+'    if(d.success){e.target.innerHTML="<div style=\\"text-align:center;padding:32px;\\"><div style=\\"font-size:48px;margin-bottom:16px;\\">&#127881;</div><h3 style=\\"font-size:20px;font-weight:700;color:#1e293b;margin:0 0 8px;\\">\uC2E0\uCCAD\uC774 \uC644\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4!</h3><p style=\\"color:#64748b;\\">\uBE60\uB978 \uC2DC\uAC04 \uB0B4 \uC5F0\uB77D\uB4DC\uB9AC\uACA0\uC2B5\uB2C8\uB2E4.</p></div>";}\n'+
+'    else{alert("\uC81C\uCD9C \uC2E4\uD328: "+(d.error||"\uC624\uB958"));if(btn){btn.disabled=false;btn.textContent="\uBB34\uB8CC \uC0C1\uB2F4 \uC2E0\uCCAD \u2192";}}\n'+
+'  })\n'+
+'  .catch(function(){alert("\uB124\uD2B8\uC6CC\uD06C \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.");if(btn){btn.disabled=false;btn.textContent="\uBB34\uB8CC \uC0C1\uB2F4 \uC2E0\uCCAD \u2192";}});\n'+
+'}\n'+
+'function spCloseModal(ovId){\n'+
+'  var ov=document.getElementById(ovId);\n'+
+'  if(ov)ov.style.display="none";\n'+
+'}\n'+
+'document.addEventListener("DOMContentLoaded",function(){\n'+
+'  document.querySelectorAll("a[data-terms-btn]").forEach(function(link){\n'+
+'    link.addEventListener("click",function(e){\n'+
+'      e.preventDefault();\n'+
+'      var sid=link.getAttribute("data-sid");\n'+
+'      var ovId=link.getAttribute("data-ov");\n'+
+'      var bdId=link.getAttribute("data-bd");\n'+
+'      var el=document.getElementById(sid);\n'+
+'      var ov=document.getElementById(ovId);\n'+
+'      var bd=document.getElementById(bdId);\n'+
+'      if(!el||!ov||!bd)return;\n'+
+'      try{\n'+
+'        var _ab=Uint8Array.from(atob(el.textContent.trim()),function(c){return c.charCodeAt(0);});\n'+
+'        var h=new TextDecoder().decode(_ab);\n'+
+'        var parser=new DOMParser();\n'+
+'        var doc=parser.parseFromString(h,"text/html");\n'+
+'        bd.innerHTML=doc.body?doc.body.innerHTML:h;\n'+
+'      }catch(ex){bd.textContent="\uC57D\uAD00 \uB0B4\uC6A9\uC744 \uBD88\uB7EC\uC62C \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.";}\n'+
+'      ov.style.display="flex";\n'+
+'    });\n'+
+'  });\n'+
+'  document.querySelectorAll("[data-close-modal]").forEach(function(btn){\n'+
+'    btn.addEventListener("click",function(){\n'+
+'      var ovId=btn.getAttribute("data-close-modal");\n'+
+'      spCloseModal(ovId);\n'+
+'    });\n'+
+'  });\n'+
+'  document.querySelectorAll("[data-modal-overlay]").forEach(function(ov){\n'+
+'    ov.addEventListener("click",function(e){\n'+
+'      if(e.target===ov)spCloseModal(ov.id);\n'+
+'    });\n'+
+'  });\n'+
+'});\n'+
+'</'+'script>'
+
+// ──────────────────────────────────────────────
+// 상태
+// ──────────────────────────────────────────────
+// 관리자 사용자 정보 로드 (adminUser 우선, 없으면 user 사용)
+// auth-check.js 가 저장한 adminUser를 우선 사용
+const _adminUser = JSON.parse(localStorage.getItem('adminUser') || 'null')
+const _regularUser = JSON.parse(localStorage.getItem('user') || '{}')
+const currentUser = _adminUser || _regularUser
+// admin 역할 강제 설정 (관리자 페이지이므로)
+if (currentUser && !currentUser.user_type) currentUser.user_type = 'admin'
+
+// HTTP 헤더에 한글 포함 시 TypeError 방지 - Base64 인코딩 헬퍼
+function userDataB64(user) {
+  try {
+    var _str = JSON.stringify(user || currentUser)
+    var _bytes = new TextEncoder().encode(_str)
+    var _bin = ''; _bytes.forEach(function(b){ _bin += String.fromCharCode(b) })
+    return btoa(_bin)
+  } catch(e) {
+    try {
+      var _fb = JSON.stringify({ id: (user || currentUser || {}).id || 1 })
+      var _fb2 = new TextEncoder().encode(_fb)
+      var _bin2 = ''; _fb2.forEach(function(b){ _bin2 += String.fromCharCode(b) })
+      return btoa(_bin2)
+    } catch(_){ return '' }
+  }
+}
+if (currentUser && !currentUser.role) currentUser.role = 'admin'
+const userId = currentUser.id || 1
+let editingSlug = null
+let previewTimer = null
+let previewMode = 'desktop'
+let spFloatTarget = null     // 현재 편집 중인 이미지/링크 DOM 요소 (iframe 내)
+let spFloatType = null       // 'img' | 'a'
+// 커스텀 필드 목록
+let customFields = []  // [{id, label, type, options:[], placeholder, required}]
+
+// 스프레드시트 설정 패널 토글
+function toggleSpreadsheetSettings() {
+  const panel = document.getElementById('spreadsheetSettingsPanel')
+  const arrow = document.getElementById('spreadsheetSettingsArrow')
+  if (!panel) return
+  const isHidden = panel.classList.toggle('hidden')
+  if (arrow) arrow.style.transform = isHidden ? '' : 'rotate(180deg)'
+  if (!isHidden) renderExternalFormHtml()
+}
+
+// ──────────────────────────────────────────────
+// 뷰 전환
+// ──────────────────────────────────────────────
+function showView(name) {
+  document.getElementById('viewList').classList.toggle('hidden', name !== 'list')
+  document.getElementById('viewEditor').classList.toggle('hidden', name !== 'editor')
+  if (name === 'list') { editingSlug = null; loadMyPages() }
+}
+
+// ──────────────────────────────────────────────
+// 목록 로드
+// ──────────────────────────────────────────────
+function spFitFrames(){
+  document.querySelectorAll('.lp-tframe').forEach(function(f){
+    var cell=f.parentElement; if(!cell) return;
+    var cw=cell.clientWidth||300, ch=cell.clientHeight||144, scale=cw/1280;
+    f.style.transform='scale('+scale+')';
+    f.style.height=Math.ceil(ch/scale)+'px';
+  });
+}
+if(!window._spFitBound){ window._spFitBound=1; window.addEventListener('resize', spFitFrames); }
+window.spThumbFallback = function(img){
+  var slug=img.getAttribute('data-slug')||'', live=img.getAttribute('data-live')==='1';
+  var cell=img.parentElement; if(!cell) return;
+  if(live && slug){
+    var f=document.createElement('iframe'); f.className='lp-tframe'; f.src='/landing/'+slug+'?preview=1';
+    f.setAttribute('loading','lazy'); f.setAttribute('scrolling','no'); f.tabIndex=-1; f.setAttribute('sandbox','allow-scripts allow-same-origin');
+    cell.insertBefore(f, cell.firstChild); img.remove(); spFitFrames();
+  } else {
+    img.outerHTML='<div class="w-full h-full flex items-center justify-center"><i class="fas fa-file-alt text-indigo-300 text-4xl"></i></div>';
+  }
+};
+async function loadMyPages() {
+  const list = document.getElementById('pageList')
+  list.innerHTML = '<div class="col-span-3 text-center py-12 text-gray-400"><i class="fas fa-spinner fa-spin text-3xl mb-3 block"></i></div>'
+  try {
+    const [pagesRes, subsRes] = await Promise.all([
+      fetch(`/api/landing/my-pages?userId=${userId}`, { credentials: 'include' }),
+      fetch(`/api/landing/total-submissions?userId=${userId}`, { credentials: 'include' }).catch(() => ({ json: () => ({ total: 0 }) }))
+    ])
+    const pData = await pagesRes.json()
+    const sData = await subsRes.json().catch(() => ({ total: 0 }))
+    const pages = pData.pages || []
+
+    document.getElementById('statTotal').textContent = pages.length
+    document.getElementById('statViews').textContent = pages.reduce((s, p) => s + (p.view_count || 0), 0).toLocaleString()
+    document.getElementById('statPublished').textContent = pages.filter(p => p.status === 'active' || p.status === 'published').length
+    document.getElementById('statSubs').textContent = sData.total || 0
+
+    if (pages.length === 0) {
+      list.innerHTML = `
+        <div class="col-span-3 text-center py-20 text-gray-400">
+          <i class="fas fa-file-alt text-5xl mb-4 block opacity-30"></i>
+          <p class="text-lg font-medium mb-2">아직 만든 페이지가 없습니다</p>
+          <p class="text-sm mb-6">새 페이지 버튼을 눌러 첫 랜딩페이지를 만들어보세요!</p>
+          <button onclick="newPage()" class="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition">
+            <i class="fas fa-plus mr-2"></i>새 페이지 만들기
+          </button>
+        </div>`
+      return
+    }
+
+    list.innerHTML = pages.map(p => {
+      const isLive = p.status === 'active' || p.status === 'published'
+      const statusBadge = isLive
+        ? '<span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded-full font-bold flex items-center gap-1"><i class="fas fa-circle text-emerald-500" style="font-size:6px"></i>배포중</span>'
+        : '<span class="bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full">임시저장</span>'
+      const shareUrl = `${location.origin}/landing/${p.slug}`
+      const dateStr = p.created_at ? new Date(p.created_at).toLocaleDateString('ko-KR') : '-'
+      return `
+        <div class="page-card bg-white rounded-xl border shadow-sm overflow-hidden">
+          <div class="bg-gradient-to-br from-indigo-50 to-purple-50 h-36 border-b relative overflow-hidden">
+            ${p.thumbnail_url
+              ? `<img src="${escHtml(p.thumbnail_url)}" alt="썸네일" data-slug="${escHtml(p.slug)}" data-live="${isLive ? '1' : '0'}" class="w-full h-full object-cover" loading="lazy" onerror="spThumbFallback(this)">`
+              : (isLive
+                  ? `<iframe class="lp-tframe" src="/landing/${escHtml(p.slug)}?preview=1" loading="lazy" scrolling="no" tabindex="-1" sandbox="allow-scripts allow-same-origin"></iframe>`
+                  : `<div class="w-full h-full flex items-center justify-center"><i class="fas fa-file-alt text-indigo-300 text-4xl"></i></div>`)}
+            <div class="absolute top-2 right-2">${statusBadge}</div>
+          </div>
+          <div class="p-4">
+            <h3 class="font-bold text-gray-900 text-sm leading-snug line-clamp-2 mb-2">${escHtml(p.title || '제목 없음')}</h3>
+            <div class="flex items-center gap-3 text-xs text-gray-400 mb-3">
+              <span><i class="fas fa-eye mr-1"></i>${(p.view_count||0).toLocaleString()}</span>
+              <span><i class="fas fa-calendar mr-1"></i>${dateStr}</span>
+            </div>
+            <div class="flex gap-2 flex-wrap">
+              <button onclick="editPage('${p.slug}')" class="flex-1 px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition font-semibold">
+                <i class="fas fa-edit mr-1"></i>수정
+              </button>
+              <a href="/sunmin1wsna12ssad2/landing-submissions?slug=${p.slug}" class="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs rounded-lg hover:bg-emerald-100 transition border border-emerald-200 font-semibold" title="신청자 보기">
+                <i class="fas fa-users"></i>
+              </a>
+              <a href="${shareUrl}" target="_blank" class="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded-lg hover:bg-gray-200 transition border" title="페이지 열기">
+                <i class="fas fa-external-link-alt"></i>
+              </a>
+              <button onclick="copyText('${shareUrl}')" class="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded-lg hover:bg-gray-200 transition border" title="링크 복사">
+                <i class="fas fa-link"></i>
+              </button>
+              <button onclick="downloadCardQR('${p.slug}', '${shareUrl}', this)" class="px-3 py-1.5 bg-violet-50 text-violet-600 text-xs rounded-lg hover:bg-violet-100 transition border border-violet-200" title="QR 코드 다운로드">
+                <i class="fas fa-qrcode"></i>
+              </button>
+              <button onclick="deletePage(${p.id}, '${p.slug}')" class="px-3 py-1.5 bg-red-50 text-red-500 text-xs rounded-lg hover:bg-red-100 transition border border-red-200" title="삭제">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </div>
+        </div>`
+    }).join('')
+    spFitFrames()
+  } catch (e) {
+    list.innerHTML = `<div class="col-span-3 text-center py-12 text-red-500"><i class="fas fa-exclamation-circle text-2xl mb-2 block"></i>불러오기 실패: ${e.message}</div>`
+  }
+  // 검색어가 있으면 로드 후 필터 적용
+  const searchInput = document.getElementById('pageSearchInput')
+  if (searchInput && searchInput.value.trim()) {
+    filterPageList(searchInput.value)
+  }
+}
+
+// ──────────────────────────────────────────────
+// 페이지 목록 검색 필터
+// ──────────────────────────────────────────────
+function filterPageList(query) {
+  const q = (query || '').trim().toLowerCase()
+  const clearBtn = document.getElementById('pageSearchClearBtn')
+  const emptyEl = document.getElementById('pageSearchEmpty')
+  const pageList = document.getElementById('pageList')
+  if (clearBtn) clearBtn.classList.toggle('hidden', !q)
+  const cards = pageList ? pageList.querySelectorAll('.page-card') : []
+  let visibleCount = 0
+  cards.forEach(card => {
+    const titleEl = card.querySelector('h3')
+    const title = titleEl ? titleEl.textContent.toLowerCase() : ''
+    const match = !q || title.includes(q)
+    card.style.display = match ? '' : 'none'
+    if (match) visibleCount++
+  })
+  if (emptyEl) emptyEl.classList.toggle('hidden', !q || visibleCount > 0)
+}
+
+function clearPageSearch() {
+  const input = document.getElementById('pageSearchInput')
+  if (input) { input.value = ''; filterPageList('') }
+}
+
+// ──────────────────────────────────────────────
+// 템플릿 선택 모달
+// ──────────────────────────────────────────────
+const TEMPLATE_LIST = [
+  { type: 'academy-intro',   icon: '🏫', name: '학원 소개 페이지' },
+  { type: 'program-promo',   icon: '📚', name: '프로그램 홍보' },
+  { type: 'event-promo',     icon: '🎉', name: '이벤트 프로모션' },
+  { type: 'parent-letter',   icon: '📧', name: '가정통신문' },
+  { type: 'student-report',  icon: '📊', name: '학생 성과 리포트' },
+  { type: 'admission-info',  icon: '🎓', name: '입학 설명회' },
+  { type: 'academy-stats',   icon: '📈', name: '학원 성과 통계' },
+  { type: 'teacher-intro',   icon: '👨‍🏫', name: '선생님 소개' },
+  { type: 'vacation-course',    icon: '🌟', name: '방학 특강 안내' },
+  { type: 'academy-comparison', icon: '📊', name: '차별점 비교' },
+  { type: 'ai-personalized',    icon: '🤖', name: 'AI 초개인화 시스템' },
+]
+
+async function openTemplateModal() {
+  const modal = document.getElementById('modalTemplate')
+  modal.classList.remove('hidden')
+  modal.classList.add('flex')
+  // 템플릿 목록 로드
+  const grid = document.getElementById('tplSelectGrid')
+  grid.innerHTML = '<div class="col-span-3 text-center py-8 text-gray-400 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</div>'
+  try {
+    const r = await fetch('/api/admin/landing-templates')
+    const d = await r.json()
+    const savedMap = {}
+    if (d.ok && d.templates) d.templates.forEach(t => { savedMap[t.template_type] = t.hasCustom })
+    grid.innerHTML = TEMPLATE_LIST.filter(t => !['academy-comparison','ai-personalized'].includes(t.type)).map(t => `
+      <button onclick="loadTemplateIntoEditor('${t.type}')"
+        class="flex flex-col items-center gap-2 p-4 border-2 rounded-xl hover:border-indigo-400 hover:bg-indigo-50 transition text-center group ${savedMap[t.type] ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-white'}">
+        <span class="text-3xl">${t.icon}</span>
+        <div class="text-xs font-bold text-gray-800 group-hover:text-indigo-700 leading-tight">${t.name}</div>
+        ${savedMap[t.type] ? '<span class="text-xs text-emerald-600 font-medium">커스텀 저장됨</span>' : '<span class="text-xs text-gray-400">기본 템플릿</span>'}
+      </button>`).join('')
+  } catch(e) {
+    grid.innerHTML = '<div class="col-span-3 text-center py-6 text-red-500 text-sm">불러오기 실패: ' + e.message + '</div>'
+  }
+}
+
+function closeTemplateModal() {
+  const modal = document.getElementById('modalTemplate')
+  modal.classList.add('hidden')
+  modal.classList.remove('flex')
+}
+
+function spNormalizeAllowedCdnHtml(html) {
+  return String(html || '')
+    .replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/gsap\/3\.12\.2\/gsap\.min\.js/g, 'https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js')
+    .replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/gsap\/3\.12\.2\/ScrollTrigger\.min\.js/g, 'https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/ScrollTrigger.min.js')
+}
+
+async function loadTemplateIntoEditor(type) {
+  // sp-hidden-template-guard: builder
+  if (['academy-comparison','ai-personalized'].includes(type)) { toast('사용 중지된 템플릿입니다.'); return }
+  closeTemplateModal()
+  toast('⏳ 템플릿 불러오는 중...')
+  try {
+    const r = await fetch('/api/admin/landing-templates/' + type)
+    const d = await r.json()
+    if (!d.ok) { toast('❌ 템플릿 로드 실패: ' + (d.error || '')); return }
+    // 에디터 초기화 후 템플릿 HTML 삽입
+    editingSlug = null
+    customFields = []
+    document.getElementById('edTitle').value = ''
+    document.getElementById('edSubtitle').value = ''
+    document.getElementById('ogTitle').value = ''
+    document.getElementById('ogDesc').value = ''
+    document.getElementById('ogImageUrl').value = ''
+    document.getElementById('shareUrl').value = ''
+    document.getElementById('htmlEditor').value = spNormalizeAllowedCdnHtml(d.html || defaultHtml())
+    document.getElementById('ogThumbPreview').classList.add('hidden')
+    document.getElementById('edStatusBar').classList.add('hidden')
+    resetDefaultFields()
+    renderCustomFieldsList()
+    switchEditorTab('html')
+    showView('editor')
+    schedulePreview()
+    try { renderFormPreview() } catch(_rf) { console.warn('[loadTemplate] renderFormPreview 오류:', _rf) }
+    toast('✅ 템플릿이 에디터에 로드되었습니다!')
+  } catch(e) {
+    console.error('[loadTemplate] 오류:', e.name, e.message)
+    toast('템플릿 로드 실패: ' + (e.message || String(e)))
+  }
+}
+
+// ──────────────────────────────────────────────
+// 새 페이지 초기화 (빈 페이지)
+// ──────────────────────────────────────────────
+function newPage() {
+  closeTemplateModal()
+  editingSlug = null
+  customFields = []
+  document.getElementById('edTitle').value = ''
+  document.getElementById('edSubtitle').value = ''
+  document.getElementById('ogTitle').value = ''
+  document.getElementById('ogDesc').value = ''
+  document.getElementById('ogImageUrl').value = ''
+  document.getElementById('shareUrl').value = ''
+  document.getElementById('htmlEditor').value = defaultHtml()
+  document.getElementById('ogThumbPreview').classList.add('hidden')
+  document.getElementById('edStatusBar').classList.add('hidden')
+  resetDefaultFields()
+  renderCustomFieldsList()
+  switchEditorTab('html')
+  showView('editor')
+  schedulePreview()
+  try { renderFormPreview() } catch(_) {}
+}
+
+function resetDefaultFields() {
+  document.getElementById('fieldName').checked = true
+  document.getElementById('fieldPhone').checked = true
+  document.getElementById('fieldEmail').checked = false
+  document.getElementById('fieldGrade').checked = false
+  document.getElementById('fieldMessage').checked = false
+  document.getElementById('formBtnText').value = '무료 상담 신청'
+}
+
+// ──────────────────────────────────────────────
+// 기존 페이지 편집
+// ──────────────────────────────────────────────
+async function editPage(slug) {
+  editingSlug = slug
+  customFields = []
+  try {
+    const res = await fetch(`/api/landing/${slug}`)
+    const data = await res.json()
+    if (!data.success || !data.page) { toast('페이지를 불러오지 못했습니다.'); return }
+    const p = data.page
+    document.getElementById('edTitle').value = p.title || ''
+    document.getElementById('edSubtitle').value = p.subtitle || ''
+    document.getElementById('ogTitle').value = p.og_title || ''
+    document.getElementById('ogDesc').value = p.og_description || ''
+    document.getElementById('ogImageUrl').value = p.thumbnail_url || ''
+    document.getElementById('shareUrl').value = `${location.origin}/landing/${slug}`
+    document.getElementById('headerScript').value = p.header_script || ''
+    document.getElementById('htmlEditor').value = spNormalizeAllowedCdnHtml(p.html_content || '')
+    if (p.thumbnail_url) {
+      document.getElementById('ogThumbImg').src = p.thumbnail_url
+      document.getElementById('ogThumbPreview').classList.remove('hidden')
+    }
+    // 상태바 업데이트
+    updateStatusBar(p)
+    // 커스텀 필드 로드 (DB에 저장된 경우)
+    if (p.form_fields) {
+      try { customFields = JSON.parse(p.form_fields) } catch(e) {}
+    }
+    // form_fields에서 기본 필드 상태 복원 (저장된 값 있으면 그대로, 없으면 기본값)
+    if (p.form_fields) {
+      try {
+        const savedFields = JSON.parse(p.form_fields)
+        const defaultFieldNames = ['name','phone','email','grade','message']
+        defaultFieldNames.forEach(name => {
+          const el = document.getElementById('field' + name.charAt(0).toUpperCase() + name.slice(1))
+          if (el) {
+            const found = savedFields.find(f => f.name === name || f.id === name)
+            // 기본값: name, phone=checked / email,grade,message=unchecked
+            const defaultChecked = (name === 'name' || name === 'phone')
+            el.checked = found ? (found.enabled !== false) : defaultChecked
+          }
+        })
+        const btnTextEl = document.getElementById('formBtnText')
+        const btnField = savedFields.find(f => f.id === '__btn')
+        if (btnTextEl && btnField && btnField.label) btnTextEl.value = btnField.label
+        else if (btnTextEl) btnTextEl.value = '무료 상담 신청'
+      } catch(e) { resetDefaultFields() }
+    } else {
+      resetDefaultFields()
+    }
+    renderCustomFieldsList()
+    switchEditorTab('html')
+    showView('editor')
+    schedulePreview()
+    renderFormPreview()
+    loadFormSubmissions()
+  } catch(e) { toast('오류: ' + e.message) }
+}
+
+function updateStatusBar(p) {
+  const bar = document.getElementById('edStatusBar')
+  const badge = document.getElementById('edStatusBadge')
+  const urlEl = document.getElementById('edShareUrl')
+  const isLive = p.status === 'active' || p.status === 'published'
+  bar.classList.remove('hidden')
+  badge.className = isLive
+    ? 'px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700'
+    : 'px-2 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-600'
+  badge.textContent = isLive ? '배포중' : '임시저장'
+  const url = `${location.origin}/landing/${editingSlug}`
+  urlEl.textContent = url
+}
+
+// ──────────────────────────────────────────────
+// 저장 & 즉시 배포 (통합)
+// ──────────────────────────────────────────────
+async function saveAndDeploy() {
+  const btn = document.getElementById('btnSaveDeploy')
+  btn.disabled = true
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>저장 중...'
+
+  const title = document.getElementById('edTitle').value.trim()
+  if (!title) {
+    toast('⚠️ 제목을 입력해주세요!')
+    btn.disabled = false
+    btn.innerHTML = '<i class="fas fa-rocket"></i>저장 &amp; 배포'
+    return
+  }
+
+  // 저장 전 항상 iframe DOM에서 최신 HTML 추출 (프리뷰에서 직접 편집한 내용 반영)
+  spSyncIframeToEditor()
+
+  let html_content = spNormalizeAllowedCdnHtml(document.getElementById('htmlEditor').value)
+  const og_title = document.getElementById('ogTitle').value.trim()
+  const og_description = document.getElementById('ogDesc').value.trim()
+  const thumbnail_url = document.getElementById('ogImageUrl').value.trim()
+  const header_script = document.getElementById('headerScript').value.trim()
+  const form_fields = JSON.stringify(customFields)
+
+  try {
+    if (editingSlug) {
+      // SLUG_HERE를 실제 slug로 치환 (저장 전 삽입된 폼 대비)
+      html_content = html_content.replace(/SLUG_HERE/g, editingSlug)
+      // 수정 + 배포
+      const res = await fetch(`/api/landing/${editingSlug}/edit`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-User-Data-Base64': userDataB64(currentUser) },
+        body: JSON.stringify({ title, subtitle: document.getElementById('edSubtitle').value.trim(), html_content, og_title, og_description, thumbnail_url, form_fields, header_script, status: 'published' })
+      })
+      let data
+      try { data = await res.json() } catch(je) { data = { success: false, error: '응답 파싱 오류 (HTTP ' + res.status + ')' } }
+      if (data.success) {
+        toast('🚀 저장 & 배포 완료!')
+        updateStatusBar({ status: 'published' })
+        document.getElementById('shareUrl').value = `${location.origin}/landing/${editingSlug}`
+        // 썸네일 미리보기 갱신
+        if (thumbnail_url) {
+          const img = document.getElementById('ogThumbImg')
+          if (img) { img.src = thumbnail_url; document.getElementById('ogThumbPreview').classList.remove('hidden') }
+        }
+        // 외부 폼 HTML 갱신
+        try { renderExternalFormHtml() } catch(_re) {}
+      } else {
+        toast('❌ 저장 오류: ' + (data.error || 'HTTP ' + res.status))
+        console.error('[Save]', data)
+      }
+    } else {
+      // 신규 생성 + 자동 배포
+      const userB64 = userDataB64(currentUser)
+      const res = await fetch('/api/landing/create', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', 'X-User-Data-Base64': userB64 },
+        body: JSON.stringify({
+          title,
+          subtitle: document.getElementById('edSubtitle').value.trim(),
+          template_type: 'custom',
+          input_data: { html: html_content },
+          thumbnail_url: thumbnail_url || null,
+          og_title: og_title || title,
+          og_description: og_description || '',
+          form_fields,
+          header_script: header_script || ''
+        })
+      })
+      let data
+      try { data = await res.json() } catch(je) { data = { success: false, error: '응답 파싱 오류 (HTTP ' + res.status + ')' } }
+      if (data.success) {
+        editingSlug = data.slug
+        document.getElementById('shareUrl').value = `${location.origin}/landing/${data.slug}`
+        updateStatusBar({ status: 'published' })
+        toast('🚀 페이지 생성 & 배포 완료!')
+        // 에디터 HTML에도 SLUG_HERE → 실제 slug 치환
+        const editor = document.getElementById('htmlEditor')
+        if (editor.value.includes('SLUG_HERE')) {
+          editor.value = editor.value.replace(/SLUG_HERE/g, data.slug)
+          schedulePreview()
+        }
+        // 폼 HTML에 slug 반영
+        try { renderFormPreview() } catch(_rf) {}
+      } else {
+        toast('❌ 실패: ' + (data.error || '알 수 없는 오류'))
+      }
+    }
+  } catch(e) {
+    console.error('[saveAndDeploy] 오류:', e.name, e.message, e.stack)
+    // DOMException(btoa) 등 기술적 오류 → 사용자 친화적 메시지로 변환
+    var _em = e.message || String(e)
+    if (_em.indexOf('did not match') !== -1 || _em.indexOf('btoa') !== -1 || e.name === 'InvalidCharacterError') {
+      toast('저장 실패: 인코딩 오류가 발생했습니다. 페이지를 새로고침 후 다시 시도해주세요.')
+    } else if (_em.indexOf('Failed to fetch') !== -1 || _em.indexOf('NetworkError') !== -1) {
+      toast('저장 실패: 네트워크 오류입니다. 인터넷 연결을 확인해주세요.')
+    } else {
+      toast('저장 실패: ' + _em)
+    }
+  }
+
+  btn.disabled = false
+  btn.innerHTML = '<i class="fas fa-rocket"></i>저장 &amp; 배포'
+}
+
+// ──────────────────────────────────────────────
+// 삭제
+// ──────────────────────────────────────────────
+async function deletePage(id, slug) {
+  if (!confirm(`"${slug}" 랜딩페이지를 삭제하시겠습니까?\n이 작업은 취소할 수 없습니다.`)) return
+  try {
+    const res = await fetch(`/api/landing/${id}`, {
+      method: 'DELETE',
+      headers: { 'X-User-Data-Base64': userDataB64(currentUser) }
+    })
+    const data = await res.json()
+    if (data.success) { toast('✅ 삭제되었습니다.'); loadMyPages() }
+    else toast('삭제 실패: ' + data.error)
+  } catch(e) { toast('오류: ' + e.message) }
+}
+
+// ──────────────────────────────────────────────
+// 에디터 탭 전환
+// ──────────────────────────────────────────────
+function switchEditorTab(tab) {
+  ['Html','Blocks','Form','Share'].forEach(t => {
+    document.getElementById('tab' + t).classList.toggle('active', t.toLowerCase() === tab)
+    document.getElementById('panel' + t).classList.toggle('hidden', t.toLowerCase() !== tab)
+  })
+  if (tab === 'form') { try { renderFormPreview() } catch(_) {} try { loadFormSubmissions() } catch(_) {} }
+}
+
+// ──────────────────────────────────────────────
+// 프리뷰 (항상 designMode ON — 바로 편집 가능)
+// ──────────────────────────────────────────────
+function schedulePreview() {
+  if (_spDirty) return  // 프리뷰에서 직접 편집 중 — htmlEditor 입력으로 iframe 재로드 금지
+  clearTimeout(previewTimer)
+  previewTimer = setTimeout(updatePreview, 400)
+}
+
+function updatePreview() {
+  var html = spNormalizeAllowedCdnHtml(document.getElementById('htmlEditor').value)
+  var frame = document.getElementById('previewFrame')
+
+  // 현재 편집 중인 내용이 있으면 먼저 동기화 후 재로드
+  if (_spDirty) { spSyncIframeToEditor(); _spDirty = false }
+
+  frame.srcdoc = html
+  frame.onload = _spActivateIframe
+}
+
+// iframe 로드 완료 시 항상 designMode ON + 이벤트 주입
+function _spActivateIframe() {
+  var frame = document.getElementById('previewFrame')
+  try {
+    var idoc = frame.contentDocument || frame.contentWindow.document
+
+    // ── 전체 문서 편집 활성화 ──
+    idoc.designMode = 'on'
+
+    // ── 타이핑/붙여넣기 등 입력 → 800ms 디바운스로 htmlEditor 동기화 ──
+    idoc.addEventListener('input', function() {
+      _spDirty = true
+      _spSyncDebounced()
+    })
+
+    // ── 이미지 클릭 → 플로팅 툴바(src 교체), 링크 클릭 → href 교체 ──
+    idoc.addEventListener('click', function(e) {
+      var img = e.target.closest('img')
+      var a   = (!img) && e.target.closest('a[href]')
+      if (img) { e.preventDefault(); spFloatOpen(img, 'img', img.src); return }
+      if (a)   { e.preventDefault(); spFloatOpen(a,   'a',  a.getAttribute('href') || ''); return }
+      spFloatClose()
+    }, true)
+
+    // ── form submit / 링크 이동 차단 ──
+    idoc.addEventListener('submit',  function(e){ e.preventDefault() }, true)
+    idoc.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' && e.target.tagName === 'A') e.preventDefault()
+    }, true)
+
+    // ── 편집 힌트 CSS 주입 ──
+    var style = idoc.createElement('style')
+    style.id = '_sp_edit_style'
+    style.textContent = [
+      'body { cursor: text !important; }',
+      'img { cursor: pointer !important; }',
+      'img:hover { outline: 3px solid #6366f1 !important; }',
+      'a[href]:hover { outline: 2px dashed #f59e0b !important; cursor: pointer !important; }',
+    ].join('\n')
+    if (idoc.head) idoc.head.appendChild(style)
+
+  } catch(err) {
+    console.warn('[_spActivateIframe]', err)
+  }
+}
+
+// ─────────────────────────────────────────────
+// iframe DOM → htmlEditor 동기화
+// ─────────────────────────────────────────────
+var _spDirty = false
+var _spSyncTimer = null
+function _spSyncDebounced() {
+  clearTimeout(_spSyncTimer)
+  _spSyncTimer = setTimeout(spSyncIframeToEditor, 800)
+}
+
+function spSyncIframeToEditor() {
+  try {
+    var frame = document.getElementById('previewFrame')
+    var idoc  = frame.contentDocument || frame.contentWindow.document
+    // designMode 편집 결과물 추출: 주입한 편집 스타일 태그 제거 후 전체 HTML
+    var styleEl = idoc.getElementById('_sp_edit_style')
+    if (styleEl) styleEl.remove()
+
+    var extractedHtml = '<!DOCTYPE html>\n' + idoc.documentElement.outerHTML
+
+    // 다시 스타일 태그 복원 (편집 계속 가능하도록)
+    try {
+      var style = idoc.createElement('style')
+      style.id = '_sp_edit_style'
+      style.textContent = [
+        'body { cursor: text !important; }',
+        'img:hover { outline: 3px solid #6366f1 !important; cursor: pointer !important; }',
+        'a:hover   { outline: 3px dashed #f59e0b !important; cursor: pointer !important; }',
+        '[contenteditable]:focus { outline: 2px solid #6366f1 !important; }'
+      ].join('\n')
+      if (idoc.head) idoc.head.appendChild(style)
+    } catch(e) {}
+
+    document.getElementById('htmlEditor').value = spNormalizeAllowedCdnHtml(extractedHtml)
+    _spDirty = false
+  } catch(err) {
+    console.warn('[spSyncIframeToEditor]', err)
+  }
+}
+
+// ─────────────────────────────────────────────
+// 플로팅 툴바: 이미지 src / 링크 href 교체
+// ─────────────────────────────────────────────
+function spFloatOpen(el, type, currentVal) {
+  spFloatTarget = el
+  spFloatType   = type
+
+  var bar   = document.getElementById('spFloatBar')
+  var inp   = document.getElementById('spFloatInput')
+  var icon  = document.getElementById('spFloatIcon')
+  if (!bar || !inp) return
+
+  icon.textContent = type === 'img' ? '🖼️ 이미지 URL' : '🔗 링크 URL'
+  inp.value = currentVal || ''
+  inp.placeholder = type === 'img' ? 'https://... 이미지 주소' : 'https:// 또는 #앵커'
+
+  // 위치: 마우스 포지션 기준 iframe 위에 표시
+  var frame = document.getElementById('previewFrame')
+  var fRect = frame.getBoundingClientRect()
+  var elRect = el.getBoundingClientRect()  // iframe 내부 좌표
+  // iframe 내부 좌표 → 페이지 좌표로 변환
+  var top  = fRect.top  + elRect.bottom + 8
+  var left = fRect.left + elRect.left
+  if (top + 60 > window.innerHeight) top = fRect.top + elRect.top - 58
+  if (left + 380 > window.innerWidth) left = window.innerWidth - 390
+
+  bar.style.top  = Math.max(4, top)  + 'px'
+  bar.style.left = Math.max(4, left) + 'px'
+  bar.classList.add('show')
+  setTimeout(function(){ inp.focus(); inp.select() }, 60)
+}
+
+function spFloatClose() {
+  var bar = document.getElementById('spFloatBar')
+  if (bar) bar.classList.remove('show')
+  spFloatTarget = null
+  spFloatType   = null
+}
+
+function spFloatApply() {
+  if (!spFloatTarget || !spFloatType) return
+  var inp = document.getElementById('spFloatInput')
+  var val = (inp ? inp.value : '').trim()
+  if (!val) { spFloatClose(); return }
+
+  if (spFloatType === 'img') {
+    spFloatTarget.src = val
+  } else if (spFloatType === 'a') {
+    spFloatTarget.setAttribute('href', val)
+  }
+
+  _spDirty = true
+  spSyncIframeToEditor()
+  spFloatClose()
+  toast('✅ 변경이 저장됩니다')
+}
+
+// 플로팅 툴바 Enter/Esc 키 처리
+document.addEventListener('keydown', function(e) {
+  var bar = document.getElementById('spFloatBar')
+  if (!bar || !bar.classList.contains('show')) return
+  if (e.key === 'Enter') { e.preventDefault(); spFloatApply() }
+  if (e.key === 'Escape') { e.preventDefault(); spFloatClose() }
+})
+
+function setPreviewMode(mode) {
+  previewMode = mode
+  const wrapper = document.getElementById('previewWrapper')
+  const label = document.getElementById('previewLabel')
+  if (mode === 'mobile') {
+    wrapper.style.maxWidth = '390px'
+    label.textContent = '모바일 (390px)'
+    document.getElementById('btnMobile').className = 'p-2 rounded text-indigo-600 bg-indigo-50'
+    document.getElementById('btnDesktop').className = 'p-2 rounded text-gray-500 hover:bg-gray-100'
+  } else {
+    wrapper.style.maxWidth = '100%'
+    label.textContent = '데스크탑'
+    document.getElementById('btnDesktop').className = 'p-2 rounded text-indigo-600 bg-indigo-50'
+    document.getElementById('btnMobile').className = 'p-2 rounded text-gray-500 hover:bg-gray-100'
+  }
+}
+
+// ──────────────────────────────────────────────
+// 블록 삽입
+// ──────────────────────────────────────────────
+const BLOCKS = {
+  header: `\n<!-- 헤더 섹션 -->\n<section style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-align:center;padding:80px 20px;font-family:sans-serif;">\n  <h1 style="font-size:48px;font-weight:900;margin:0 0 16px;">🎓 학원 제목을 입력하세요</h1>\n  <p style="font-size:20px;opacity:.9;margin:0 0 32px;">한 줄 설명을 입력하세요</p>\n  <a href="#form" style="display:inline-block;background:#fff;color:#6366f1;padding:16px 40px;border-radius:50px;font-size:18px;font-weight:bold;text-decoration:none;">지금 신청하기 →</a>\n</section>\n`,
+  text: `\n<!-- 텍스트 섹션 -->\n<section style="max-width:800px;margin:60px auto;padding:0 20px;font-family:sans-serif;text-align:center;">\n  <h2 style="font-size:32px;font-weight:800;color:#1e293b;margin:0 0 16px;">소제목을 입력하세요</h2>\n  <p style="font-size:16px;color:#64748b;line-height:1.8;margin:0;">여기에 본문 내용을 입력하세요.</p>\n</section>\n`,
+  image: `\n<!-- 이미지 섹션 -->\n<section style="max-width:900px;margin:40px auto;padding:0 20px;">\n  <img src="https://via.placeholder.com/900x400?text=이미지를+교체하세요" alt="이미지" style="width:100%;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.12);">\n</section>\n`,
+  cta: `\n<!-- CTA 버튼 섹션 -->\n<section style="text-align:center;padding:60px 20px;background:#f8fafc;font-family:sans-serif;">\n  <h2 style="font-size:28px;font-weight:800;color:#1e293b;margin:0 0 12px;">지금 바로 시작하세요!</h2>\n  <p style="color:#64748b;margin:0 0 28px;">놓치면 후회할 기회입니다.</p>\n  <a href="#form" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:18px 48px;border-radius:50px;font-size:18px;font-weight:bold;text-decoration:none;box-shadow:0 8px 24px rgba(99,102,241,.4);">무료 상담 신청 →</a>\n</section>\n`,
+  countdown: `\n<!-- 카운트다운 타이머 -->\n<section style="background:#1e293b;color:#fff;text-align:center;padding:40px 20px;font-family:sans-serif;">\n  <p style="font-size:14px;opacity:.7;margin:0 0 12px;">⏰ 마감까지 남은 시간</p>\n  <div id="countdown" style="display:flex;justify-content:center;gap:16px;font-size:36px;font-weight:900;"></div>\n  <script>(function(){const end=new Date();end.setDate(end.getDate()+3);function upd(){const d=end-new Date(),h=Math.floor(d/3600000),m=Math.floor(d%3600000/60000),s=Math.floor(d%60000/1000);document.getElementById('countdown').innerHTML='<div>'+String(h).padStart(2,'0')+'<br><span style="font-size:12px;opacity:.6">시간</span></div><div>'+String(m).padStart(2,'0')+'<br><span style="font-size:12px;opacity:.6">분</span></div><div>'+String(s).padStart(2,'0')+'<br><span style="font-size:12px;opacity:.6">초</span></div>';}upd();setInterval(upd,1000);})();<\\/script>\n</section>\n`,
+  features: `\n<!-- 특징 카드 섹션 -->\n<section style="max-width:900px;margin:60px auto;padding:0 20px;font-family:sans-serif;">\n  <h2 style="text-align:center;font-size:32px;font-weight:800;color:#1e293b;margin:0 0 40px;">왜 선택해야 할까요?</h2>\n  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px;">\n    <div style="background:#f0f9ff;border-radius:16px;padding:28px;text-align:center;"><div style="font-size:40px;margin-bottom:12px;">🏆</div><h3 style="font-size:18px;font-weight:700;margin:0 0 8px;color:#1e293b;">특징 1</h3><p style="font-size:14px;color:#64748b;margin:0;line-height:1.6;">설명을 입력하세요</p></div>\n    <div style="background:#f0fdf4;border-radius:16px;padding:28px;text-align:center;"><div style="font-size:40px;margin-bottom:12px;">⭐</div><h3 style="font-size:18px;font-weight:700;margin:0 0 8px;color:#1e293b;">특징 2</h3><p style="font-size:14px;color:#64748b;margin:0;line-height:1.6;">설명을 입력하세요</p></div>\n    <div style="background:#fdf4ff;border-radius:16px;padding:28px;text-align:center;"><div style="font-size:40px;margin-bottom:12px;">💡</div><h3 style="font-size:18px;font-weight:700;margin:0 0 8px;color:#1e293b;">특징 3</h3><p style="font-size:14px;color:#64748b;margin:0;line-height:1.6;">설명을 입력하세요</p></div>\n  </div>\n</section>\n`,
+  divider: `\n<!-- 구분선 -->\n<div style="max-width:900px;margin:40px auto;padding:0 20px;"><hr style="border:none;border-top:2px solid #e5e7eb;"></div>\n`,
+  testimonial: `\n<!-- 후기 섹션 -->\n<section style="background:#f8fafc;padding:60px 20px;font-family:sans-serif;">\n  <div style="max-width:900px;margin:0 auto;">\n    <h2 style="text-align:center;font-size:28px;font-weight:800;color:#1e293b;margin:0 0 40px;">학부모 후기</h2>\n    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;">\n      <div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,0.06);"><p style="font-size:15px;color:#374151;line-height:1.7;margin:0 0 16px;">"후기 내용을 입력하세요. 아이가 많이 좋아졌어요!"</p><div style="font-size:14px;font-weight:700;color:#6366f1;">학부모 이름 · 학년</div></div>\n      <div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,0.06);"><p style="font-size:15px;color:#374151;line-height:1.7;margin:0 0 16px;">"두 번째 후기를 입력하세요. 선생님이 친절해요!"</p><div style="font-size:14px;font-weight:700;color:#6366f1;">학부모 이름 · 학년</div></div>\n    </div>\n  </div>\n</section>\n`
+}
+
+function insertBlock(type) {
+  const editor = document.getElementById('htmlEditor')
+  const code = BLOCKS[type] || ''
+  const pos = editor.selectionStart || editor.value.length
+  editor.value = editor.value.slice(0, pos) + code + editor.value.slice(pos)
+  editor.focus()
+  schedulePreview()
+  switchEditorTab('html')
+  toast('블록이 삽입되었습니다!')
+}
+
+// ──────────────────────────────────────────────
+// 이미지 업로드
+// ──────────────────────────────────────────────
+function triggerImageUpload() { document.getElementById('imageUploadInput').click() }
+function triggerThumbUpload() { document.getElementById('thumbUploadInput').click() }
+
+async function uploadImageFile(input) {
+  const file = input.files[0]; if (!file) return
+  if (file.size > 10 * 1024 * 1024) {
+    toast('❌ 파일 크기는 10MB 이하여야 합니다.')
+    input.value = ''; return
+  }
+  if (!file.type.startsWith('image/')) {
+    toast('❌ 이미지 파일만 업로드 가능합니다.')
+    input.value = ''; return
+  }
+  const formData = new FormData()
+  formData.append('file', file)
+  toast('⬆️ 업로드 중...')
+  try {
+    const userData = currentUser && currentUser.id ? currentUser : { id: userId || 1 }
+    const res = await fetch('/api/upload/landing-image', {
+      method: 'POST',
+      headers: { 'X-User-Data-Base64': userDataB64(userData) },
+      body: formData
+    })
+    let data
+    try { data = await res.json() } catch(je) {
+      toast('❌ 서버 응답 오류 (HTTP ' + res.status + ')')
+      input.value = ''; return
+    }
+    if (data.success && data.url) {
+      document.getElementById('uploadedImgUrl').value = data.url
+      document.getElementById('uploadedImgPreview').src = data.url
+      document.getElementById('imageResultModal').classList.remove('hidden')
+      document.getElementById('imageResultModal').classList.add('flex')
+      toast('✅ 업로드 완료!')
+    } else {
+      toast('❌ 업로드 실패: ' + (data.error || 'HTTP ' + res.status))
+    }
+  } catch(e) {
+    toast('❌ 네트워크 오류: ' + e.message)
+  }
+  input.value = ''
+}
+
+async function uploadThumbFile(input) {
+  const file = input.files[0]; if (!file) return
+  // 파일 크기 체크 (10MB)
+  if (file.size > 10 * 1024 * 1024) {
+    toast('❌ 파일 크기는 10MB 이하여야 합니다.')
+    input.value = ''; return
+  }
+  // 이미지 타입 체크
+  if (!file.type.startsWith('image/')) {
+    toast('❌ 이미지 파일만 업로드 가능합니다.')
+    input.value = ''; return
+  }
+  const formData = new FormData()
+  formData.append('file', file)
+  toast('⬆️ 썸네일 업로드 중...')
+  try {
+    const userData = currentUser && currentUser.id ? currentUser : { id: userId || 1 }
+    const res = await fetch('/api/upload/landing-image', {
+      method: 'POST',
+      headers: { 'X-User-Data-Base64': userDataB64(userData) },
+      body: formData
+    })
+    let data
+    try { data = await res.json() } catch(je) {
+      toast('❌ 서버 응답 오류 (HTTP ' + res.status + ')')
+      input.value = ''; return
+    }
+    if (data.success && data.url) {
+      document.getElementById('ogImageUrl').value = data.url
+      document.getElementById('ogThumbImg').src = data.url
+      document.getElementById('ogThumbPreview').classList.remove('hidden')
+      toast('✅ 썸네일 업로드 완료!')
+    } else {
+      toast('❌ 업로드 실패: ' + (data.error || 'HTTP ' + res.status))
+    }
+  } catch(e) {
+    toast('❌ 네트워크 오류: ' + e.message)
+  }
+  input.value = ''
+}
+
+function insertUploadedImage() {
+  const url = document.getElementById('uploadedImgUrl').value
+  const tag = `\n<img src="${url}" alt="이미지" style="max-width:100%;border-radius:12px;display:block;margin:0 auto;">\n`
+  const editor = document.getElementById('htmlEditor')
+  editor.value += tag
+  closeImageModal()
+  schedulePreview()
+  switchEditorTab('html')
+  toast('이미지가 삽입되었습니다!')
+}
+
+function closeImageModal() {
+  document.getElementById('imageResultModal').classList.add('hidden')
+  document.getElementById('imageResultModal').classList.remove('flex')
+}
+
+// ──────────────────────────────────────────────
+// 커스텀 폼 필드 관리
+// ──────────────────────────────────────────────
+function addCustomField() {
+  document.getElementById('newFieldLabel').value = ''
+  document.getElementById('newFieldType').value = 'text'
+  document.getElementById('newFieldOptions').value = ''
+  document.getElementById('newFieldPlaceholder').value = ''
+  document.getElementById('newFieldRequired').checked = true
+  document.getElementById('fieldOptionsArea').classList.add('hidden')
+  document.getElementById('modalAddField').classList.remove('hidden')
+  document.getElementById('modalAddField').classList.add('flex')
+  document.getElementById('newFieldLabel').focus()
+}
+
+function closeAddFieldModal() {
+  document.getElementById('modalAddField').classList.add('hidden')
+  document.getElementById('modalAddField').classList.remove('flex')
+}
+
+function onFieldTypeChange() {
+  const t = document.getElementById('newFieldType').value
+  const needsOpts = t === 'select' || t === 'radio' || t === 'checkbox_field'
+  document.getElementById('fieldOptionsArea').classList.toggle('hidden', !needsOpts)
+}
+
+function confirmAddField() {
+  const label = document.getElementById('newFieldLabel').value.trim()
+  if (!label) { document.getElementById('newFieldLabel').focus(); return }
+  const type = document.getElementById('newFieldType').value
+  const optionsRaw = document.getElementById('newFieldOptions').value
+  const options = optionsRaw.split('\n').map(s => s.trim()).filter(s => s)
+  const placeholder = document.getElementById('newFieldPlaceholder').value.trim()
+  const required = document.getElementById('newFieldRequired').checked
+  const id = 'custom_' + Date.now()
+  customFields.push({ id, label, type, options, placeholder, required })
+  closeAddFieldModal()
+  renderCustomFieldsList()
+  renderFormPreview()
+  toast(`"${label}" 필드가 추가되었습니다!`)
+}
+
+function editCustomField(id) {
+  const f = customFields.find(x => x.id === id)
+  if (!f) return
+  document.getElementById('editFieldId').value = f.id
+  document.getElementById('editFieldLabel').value = f.label
+  document.getElementById('editFieldType').value = f.type
+  document.getElementById('editFieldOptions').value = (f.options || []).join('\n')
+  document.getElementById('editFieldPlaceholder').value = f.placeholder || ''
+  document.getElementById('editFieldRequired').checked = !!f.required
+  const needsOpts = ['select','radio','checkbox_field'].includes(f.type)
+  document.getElementById('editFieldOptionsArea').classList.toggle('hidden', !needsOpts)
+  document.getElementById('modalEditField').classList.remove('hidden')
+  document.getElementById('modalEditField').classList.add('flex')
+  document.getElementById('editFieldLabel').focus()
+}
+
+function closeEditFieldModal() {
+  document.getElementById('modalEditField').classList.add('hidden')
+  document.getElementById('modalEditField').classList.remove('flex')
+}
+
+function onEditFieldTypeChange() {
+  const t = document.getElementById('editFieldType').value
+  const needsOpts = t === 'select' || t === 'radio' || t === 'checkbox_field'
+  document.getElementById('editFieldOptionsArea').classList.toggle('hidden', !needsOpts)
+}
+
+function confirmEditField() {
+  const id = document.getElementById('editFieldId').value
+  const label = document.getElementById('editFieldLabel').value.trim()
+  if (!label) { document.getElementById('editFieldLabel').focus(); return }
+  const type = document.getElementById('editFieldType').value
+  const optionsRaw = document.getElementById('editFieldOptions').value
+  const options = optionsRaw.split('\n').map(s => s.trim()).filter(s => s)
+  const placeholder = document.getElementById('editFieldPlaceholder').value.trim()
+  const required = document.getElementById('editFieldRequired').checked
+  const idx = customFields.findIndex(x => x.id === id)
+  if (idx !== -1) {
+    customFields[idx] = { id, label, type, options, placeholder, required }
+  }
+  closeEditFieldModal()
+  renderCustomFieldsList()
+  renderFormPreview()
+  toast(`"${label}" 필드가 수정되었습니다!`)
+}
+
+function removeCustomField(id) {
+  customFields = customFields.filter(f => f.id !== id)
+  renderCustomFieldsList()
+  renderFormPreview()
+}
+
+function renderCustomFieldsList() {
+  const container = document.getElementById('customFieldsList')
+  if (customFields.length === 0) {
+    container.innerHTML = ''
+    return
+  }
+  container.innerHTML = `
+    <div class="border-t pt-2 space-y-1.5">
+      <p class="text-xs text-gray-400 font-medium px-1">커스텀 필드</p>
+      ${customFields.map(f => `
+        <div class="flex items-center justify-between py-1.5 px-2 rounded-lg bg-indigo-50 border border-indigo-100">
+          <div class="flex items-center gap-2 text-sm flex-1 min-w-0">
+            <i class="fas fa-grip-vertical text-gray-300 text-xs"></i>
+            <span class="font-medium text-indigo-800 truncate">${escHtml(f.label)}</span>
+            <span class="text-xs text-indigo-400">${f.type}</span>
+            ${f.required ? '<span class="text-xs text-red-400">*</span>' : ''}
+          </div>
+          <div class="flex items-center gap-1 flex-shrink-0">
+            <button onclick="editCustomField('${f.id}')" class="text-indigo-400 hover:text-indigo-600 text-xs p-1 rounded hover:bg-indigo-100" title="수정">
+              <i class="fas fa-pencil-alt"></i>
+            </button>
+            <button onclick="removeCustomField('${f.id}')" class="text-red-400 hover:text-red-600 text-xs p-1 rounded hover:bg-red-50" title="삭제">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>`).join('')}
+    </div>`
+}
+
+// ──────────────────────────────────────────────
+// 개인정보 수집동의 팝업 HTML 생성 (ownerName 변수 적용)
+// ──────────────────────────────────────────────
+
+// 기본 수집 동의 본문 텍스트 (일반 텍스트, {{학원명}} 변수 사용 가능)
+function getDefaultConsentBodyText(ownerName) {
+  var name = ownerName || '학원';
+  var text = "고객님의 개인정보를 보호하고자 다음과 같이 개인정보 처리방침을 안내드리오니, 상세히 읽은 후 동의해주시기 바랍니다.\n\n1. 개인정보의 처리 목적\n{{학원명}}(이하 '회사')는 고객님의 개인정보를 다음의 목적을 위해 처리합니다.\n- 서비스 제공 및 계약 이행 (수업 안내, 교육 일정 조율 등)\n- 고객 문의 및 민원 처리\n- 마케팅 및 광고성 정보 제공 (이벤트 안내, 혜택 정보 등)\n\n2. 수집하는 개인정보 항목\n필수항목: 이름, 연락처(전화번호)\n선택항목: 자녀 이름, 학년, 관심 과목 등\n\n3. 개인정보의 보유 및 이용 기간\n개인정보는 수집 및 이용 목적이 달성된 후 지체 없이 파기합니다.\n단, 관계 법령에 따라 보존이 필요한 경우 해당 기간 동안 보관합니다.\n\n4. 동의 거부 권리 및 불이익\n귀하는 개인정보 수집·이용에 대한 동의를 거부할 권리가 있습니다.\n다만, 동의 거부 시 서비스 이용이 제한될 수 있습니다.";
+  return text.replace(/\{\{학원명\}\}/g, name);
+}
+
+// 수집 동의 textarea 기본값 채우기 (학원명 변경 시 빈 경우에만 자동 설정)
+function updateConsentTextDefault() {
+  var el = document.getElementById('ssConsentText')
+  if (!el) return
+  // 가입 시 등록한 학원명 우선 사용
+  var lockedName = ''
+  try {
+    var _u = JSON.parse(localStorage.getItem('adminUser') || localStorage.getItem('user') || '{}')
+    lockedName = (_u.academy_name || _u.academyName || '').trim()
+  } catch(e) {}
+  var ownerEl = document.getElementById('ssOwnerName')
+  var ownerName = lockedName || (ownerEl && ownerEl.value || '').trim()
+  if (lockedName && ownerEl) ownerEl.value = lockedName
+  // 비어 있거나 이전 기본 텍스트인 경우만 업데이트
+  if (!el.value.trim() || el.dataset.isDefault === 'true') {
+    el.value = getDefaultConsentBodyText(ownerName)
+    el.dataset.isDefault = 'true'
+  }
+  renderExternalFormHtml()
+  renderFormPreview()
+}
+
+// 수집 동의 본문 기본 문구로 초기화
+function resetConsentText() {
+  var el = document.getElementById('ssConsentText')
+  if (!el) return
+  // 가입 시 등록한 학원명 우선 사용
+  var lockedName = ''
+  try {
+    var _u = JSON.parse(localStorage.getItem('adminUser') || localStorage.getItem('user') || '{}')
+    lockedName = (_u.academy_name || _u.academyName || '').trim()
+  } catch(e) {}
+  var ownerEl = document.getElementById('ssOwnerName')
+  var ownerName = lockedName || (ownerEl && ownerEl.value || '').trim()
+  if (lockedName && ownerEl) ownerEl.value = lockedName
+  el.value = getDefaultConsentBodyText(ownerName)
+  el.dataset.isDefault = 'true'
+  renderExternalFormHtml()
+  renderFormPreview()
+}
+
+// 수집 동의 본문 텍스트 → 팝업용 HTML 변환
+function buildPrivacyPolicyHtml(ownerName, customBodyText) {
+  var company = ownerName ? ownerName : '학원'
+  var bodyText = customBodyText || getDefaultConsentBodyText(company)
+  // {{학원명}} 변수 치환
+  bodyText = bodyText.replace(/\{\{학원명\}\}/g, company)
+  // 줄바꿈을 <br>로, 번호 목록 줄을 <p>로 변환
+  var bodyHtml = bodyText
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')
+  return '<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>개인정보 수집동의<\/title>'
+    + '<style>body{font-family:sans-serif;padding:24px;color:#1e293b;font-size:14px;line-height:1.8;}'
+    + 'h2{font-size:18px;font-weight:700;margin-bottom:16px;}'
+    + 'p{margin:4px 0;}<\/style><\/head><body>'
+    + '<h2>개인정보 수집 및 이용 동의<\/h2>'
+    + '<p>' + bodyHtml + '<\/p>'
+    + '<\/body><\/html>'
+}
+
+function buildPrivacyConsentHtml(formId, agreeUrl, ownerName, customBodyText) {
+  var company   = ownerName || ''
+  var labelText = company ? company + ' 개인정보 수집동의 (필수)' : '개인정보 수집동의 (필수)'
+  var policyHtml = buildPrivacyPolicyHtml(company, customBodyText)
+  var b64 = ''
+  try {
+    var _pcBytes = new TextEncoder().encode(policyHtml)
+    var _pcBin = ''; _pcBytes.forEach(function(b){ _pcBin += String.fromCharCode(b) })
+    b64 = btoa(_pcBin)
+  } catch(_pcErr) {
+    try { b64 = btoa(unescape(encodeURIComponent(policyHtml))) } catch(_) { b64 = '' }
+  }
+  var sid   = formId + '_pdata'
+  var btnId = formId + '_termsbtn'
+  var ovId  = formId + '_modal'
+  var bdId  = formId + '_modalbody'
+
+  // onclick 속성 없이 data-* 속성만 사용 → DOMContentLoaded 핸들러가 이벤트 연결
+  var html = ''
+    + '<script id="' + sid + '" type="text/plain">' + b64 + '<'+'/script>\n'
+    + '<div id="' + ovId + '" data-modal-overlay style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;align-items:center;justify-content:center;">\n'
+    + '  <div style="background:#fff;border-radius:16px;width:92%;max-width:540px;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;">\n'
+    + '    <div style="padding:20px 24px 16px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">\n'
+    + '      <h2 style="font-size:17px;font-weight:700;color:#1e293b;margin:0;">약관 보기</h2>\n'
+    + '      <button data-close-modal="' + ovId + '" type="button" style="background:none;border:none;cursor:pointer;padding:4px;color:#64748b;font-size:24px;line-height:1;">×</button>\n'
+    + '    </div>\n'
+    + '    <div id="' + bdId + '" style="padding:20px 24px;overflow-y:auto;font-size:14px;line-height:1.8;color:#374151;flex:1 1 auto;"></div>\n'
+    + '    <div style="padding:12px 24px 16px;border-top:1px solid #e5e7eb;text-align:center;flex-shrink:0;">\n'
+    + '      <button data-close-modal="' + ovId + '" type="button" style="padding:10px 32px;background:#6366f1;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;">확인</button>\n'
+    + '    </div>\n'
+    + '  </div>\n'
+    + '</div>\n'
+    + '<div style="margin-bottom:16px;padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">\n'
+    + '  <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer;color:#374151;">\n'
+    + '    <input type="checkbox" id="' + formId + '_agree" name="agree" required style="width:16px;height:16px;accent-color:#6366f1;flex-shrink:0;margin-top:2px;">\n'
+    + '    <span><strong>' + labelText + '</strong><br><span style="color:#64748b;font-size:12px;">수집된 개인정보는 상담 및 서비스 제공 목적으로만 사용됩니다.</span></span>\n'
+    + '  </label>\n'
+    + '  <a href="javascript:void(0)" id="' + btnId + '" data-terms-btn data-sid="' + sid + '" data-ov="' + ovId + '" data-bd="' + bdId + '" style="font-size:12px;color:#6366f1;text-decoration:underline;display:inline-block;margin-top:6px;margin-left:26px;">약관 보기</a>\n'
+    + '</div>'
+
+  return html
+}
+
+// 폼 HTML 생성 & 렌더
+// ──────────────────────────────────────────────
+function buildFormFieldsHtml() {
+  const fields = []
+
+  // 기본 필드
+  if (document.getElementById('fieldName')?.checked) fields.push(
+    `  <div style="margin-bottom:16px;">\n    <label style="display:block;font-size:14px;font-weight:600;margin-bottom:6px;color:#374151;">이름 *</label>\n    <input type="text" name="name" required placeholder="홍길동" style="width:100%;padding:12px 16px;border:2px solid #e5e7eb;border-radius:10px;font-size:15px;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e5e7eb'">\n  </div>`)
+
+  if (document.getElementById('fieldPhone')?.checked) fields.push(
+    `  <div style="margin-bottom:16px;">\n    <label style="display:block;font-size:14px;font-weight:600;margin-bottom:6px;color:#374151;">연락처 *</label>\n    <input type="tel" name="phone" required placeholder="010-0000-0000" style="width:100%;padding:12px 16px;border:2px solid #e5e7eb;border-radius:10px;font-size:15px;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e5e7eb'">\n  </div>`)
+
+  if (document.getElementById('fieldEmail')?.checked) fields.push(
+    `  <div style="margin-bottom:16px;">\n    <label style="display:block;font-size:14px;font-weight:600;margin-bottom:6px;color:#374151;">이메일</label>\n    <input type="email" name="email" placeholder="example@email.com" style="width:100%;padding:12px 16px;border:2px solid #e5e7eb;border-radius:10px;font-size:15px;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e5e7eb'">\n  </div>`)
+
+  if (document.getElementById('fieldGrade')?.checked) fields.push(
+    `  <div style="margin-bottom:16px;">\n    <label style="display:block;font-size:14px;font-weight:600;margin-bottom:6px;color:#374151;">자녀 학년</label>\n    <select name="grade" style="width:100%;padding:12px 16px;border:2px solid #e5e7eb;border-radius:10px;font-size:15px;outline:none;box-sizing:border-box;background:#fff;">\n      <option value="">선택</option>\n      <option>초등 1~3학년</option><option>초등 4~6학년</option>\n      <option>중학교 1학년</option><option>중학교 2학년</option><option>중학교 3학년</option>\n      <option>고등학교 1학년</option><option>고등학교 2학년</option><option>고등학교 3학년</option>\n    </select>\n  </div>`)
+
+  if (document.getElementById('fieldMessage')?.checked) fields.push(
+    `  <div style="margin-bottom:16px;">\n    <label style="display:block;font-size:14px;font-weight:600;margin-bottom:6px;color:#374151;">문의 내용</label>\n    <textarea name="message" rows="3" placeholder="궁금한 점을 입력해주세요." style="width:100%;padding:12px 16px;border:2px solid #e5e7eb;border-radius:10px;font-size:15px;outline:none;box-sizing:border-box;resize:vertical;" onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e5e7eb'"></textarea>\n  </div>`)
+
+  // 커스텀 필드
+  customFields.forEach(f => {
+    const reqAttr = f.required ? ' required' : ''
+    const ph = f.placeholder ? ` placeholder="${escAttr(f.placeholder)}"` : ''
+    const label = escHtml(f.label) + (f.required ? ' *' : '')
+    const namePart = 'name="' + escAttr(f.id) + '"'
+
+    if (f.type === 'textarea') {
+      fields.push(`  <div style="margin-bottom:16px;">\n    <label style="display:block;font-size:14px;font-weight:600;margin-bottom:6px;color:#374151;">${label}</label>\n    <textarea ${namePart}${reqAttr}${ph} rows="3" style="width:100%;padding:12px 16px;border:2px solid #e5e7eb;border-radius:10px;font-size:15px;outline:none;box-sizing:border-box;resize:vertical;" onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e5e7eb'"></textarea>\n  </div>`)
+    } else if (f.type === 'select') {
+      const opts = f.options.map(o => `      <option>${escHtml(o)}</option>`).join('\n')
+      fields.push(`  <div style="margin-bottom:16px;">\n    <label style="display:block;font-size:14px;font-weight:600;margin-bottom:6px;color:#374151;">${label}</label>\n    <select ${namePart}${reqAttr} style="width:100%;padding:12px 16px;border:2px solid #e5e7eb;border-radius:10px;font-size:15px;outline:none;box-sizing:border-box;background:#fff;">\n      <option value="">선택하세요</option>\n${opts}\n    </select>\n  </div>`)
+    } else if (f.type === 'radio') {
+      const radios = f.options.map(o => `    <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer;"><input type="radio" name="${escAttr(f.id)}"${reqAttr} value="${escAttr(o)}" style="accent-color:#6366f1;">${escHtml(o)}</label>`).join('\n')
+      fields.push(`  <div style="margin-bottom:16px;">\n    <label style="display:block;font-size:14px;font-weight:600;margin-bottom:8px;color:#374151;">${label}</label>\n${radios}\n  </div>`)
+    } else if (f.type === 'checkbox_field') {
+      const checks = f.options.map(o => `    <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer;"><input type="checkbox" name="${escAttr(f.id)}[]" value="${escAttr(o)}" style="accent-color:#6366f1;">${escHtml(o)}</label>`).join('\n')
+      fields.push(`  <div style="margin-bottom:16px;">\n    <label style="display:block;font-size:14px;font-weight:600;margin-bottom:8px;color:#374151;">${label}</label>\n${checks}\n  </div>`)
+    } else {
+      fields.push(`  <div style="margin-bottom:16px;">\n    <label style="display:block;font-size:14px;font-weight:600;margin-bottom:6px;color:#374151;">${label}</label>\n    <input type="${f.type}" ${namePart}${reqAttr}${ph} style="width:100%;padding:12px 16px;border:2px solid #e5e7eb;border-radius:10px;font-size:15px;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e5e7eb'">\n  </div>`)
+    }
+  })
+
+  return fields.join('\n')
+}
+
+function renderFormPreview() {
+  const btnText      = document.getElementById('formBtnText')?.value || '무료 상담 신청'
+  const slug         = editingSlug || 'SLUG_HERE'
+  var _fpUser = {}; try { _fpUser = JSON.parse(localStorage.getItem('adminUser')||localStorage.getItem('user')||'{}'); } catch(e){}
+  const ownerName    = (_fpUser.academy_name||_fpUser.academyName||'').trim() || (document.getElementById('ssOwnerName') && document.getElementById('ssOwnerName').value || '').trim()
+  const agreeUrl     = (document.getElementById('ssAgreementUrl') && document.getElementById('ssAgreementUrl').value || '').trim()
+  const customBody   = (document.getElementById('ssConsentText') && document.getElementById('ssConsentText').value || '').trim()
+  const fieldsHtml   = buildFormFieldsHtml()
+  const consentHtml  = buildPrivacyConsentHtml('contactForm', agreeUrl, ownerName, customBody || null)
+
+  const html = `<!-- 상담 신청 폼 -->
+<section id="form" style="max-width:560px;margin:60px auto;padding:0 20px;font-family:sans-serif;">
+  <div style="background:#fff;border-radius:20px;padding:36px;box-shadow:0 8px 32px rgba(0,0,0,0.1);">
+    <h2 style="font-size:24px;font-weight:800;text-align:center;margin:0 0 8px;color:#1e293b;">지금 바로 상담 신청</h2>
+    <p style="text-align:center;color:#64748b;margin:0 0 24px;font-size:14px;">빠른 시간 내 연락드리겠습니다.</p>
+    <form id="contactForm" onsubmit="submitLandingForm(event,'${slug}')">
+${fieldsHtml}
+${consentHtml}
+      <button type="submit"
+        style="width:100%;padding:16px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:700;cursor:pointer;transition:opacity .2s;"
+        onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">
+        ${btnText} →
+      </button>
+    </form>
+  </div>
+</section>
+` + SUBMIT_SCRIPT_TAG.replace(/무료 상담 신청 →/g, btnText + ' →')
+
+  document.getElementById('formHtmlPreview').textContent = html
+  // 외부 폼도 함께 업데이트
+  renderExternalFormHtml()
+  return html
+}
+
+function insertFormBlock() {
+  if (!editingSlug) {
+    // 새 페이지 - 저장 전 경고
+    toast('⚠️ 페이지를 먼저 저장해주세요! 저장 후 폼 슬러그가 자동으로 설정됩니다.', 4000)
+  }
+  const html = renderFormPreview()
+  document.getElementById('htmlEditor').value += '\n' + html + '\n'
+  schedulePreview()
+  switchEditorTab('html')
+  if (editingSlug) {
+    toast('✅ 폼이 HTML에 삽입되었습니다!')
+  }
+}
+
+function removeFormFromHtml() {
+  if (!confirm('HTML에서 폼 섹션을 제거하시겠습니까?\n(<!-- 상담 신청 폼 --> 주석부터 </section>까지 삭제됩니다)')) return
+  const editor = document.getElementById('htmlEditor')
+  let html = editor.value
+  // 폼 주석부터 해당 section 닫힘까지 제거
+  const startMark = '<!-- 상담 신청 폼 -->'
+  const start = html.indexOf(startMark)
+  if (start === -1) { toast('HTML에 폼이 없습니다.'); return }
+  // section 태그 닫는 위치 찾기
+  let depth = 0
+  let i = html.indexOf('<section', start)
+  let end = start
+  if (i !== -1) {
+    const sub = html.slice(i)
+    let cursor = 0
+    while (cursor < sub.length) {
+      const open = sub.indexOf('<section', cursor)
+      const close = sub.indexOf('</section>', cursor)
+      if (open !== -1 && (open < close || close === -1)) {
+        depth++; cursor = open + 1
+      } else if (close !== -1) {
+        depth--; cursor = close + 1
+        if (depth === 0) { end = i + close + '</section>'.length; break }
+      } else { break }
+    }
+    // 스크립트 태그까지 포함
+    const afterSection = html.slice(end).trimStart()
+    if (afterSection.startsWith('<script>') || afterSection.startsWith('<script ')) {
+      const scriptEnd = html.indexOf('<'+'/script>', end)
+      if (scriptEnd !== -1) end = scriptEnd + ('<'+'/script>').length
+    }
+  }
+  editor.value = html.slice(0, start).trimEnd() + html.slice(end)
+  schedulePreview()
+  switchEditorTab('html')
+  toast('✅ 폼이 제거되었습니다.')
+}
+
+function copyFormHtml() {
+  copyText(document.getElementById('formHtmlPreview').textContent)
+  toast('폼 HTML이 복사되었습니다!')
+}
+
+// 외부 임베드 폼 HTML 생성
+// ① 외부 전송 URL 없음 → SUPERPLACE API로 fetch 제출 (기존 방식)
+// ② 외부 전송 URL 있음 → 순수 <form action="URL" method="post"> 직접 제출 (구글 스프레드시트 등 연동)
+function renderExternalFormHtml() {
+  const slug      = editingSlug || 'SLUG_HERE'
+  const btnText   = (document.getElementById('formBtnText') && document.getElementById('formBtnText').value) || '무료 상담 신청'
+  const origin    = location.origin
+  const fieldsHtml = buildFormFieldsHtml()
+
+  // 구글 스프레드시트 연동 설정 읽기
+  const actionUrl  = (document.getElementById('ssActionUrl')  && document.getElementById('ssActionUrl').value  || '').trim()
+  // 가입한 학원명 우선 사용
+  var _lbUser = {}; try { _lbUser = JSON.parse(localStorage.getItem('adminUser')||localStorage.getItem('user')||'{}'); } catch(e){}
+  const ownerName = (_lbUser.academy_name||_lbUser.academyName||'').trim() || (document.getElementById('ssOwnerName') && document.getElementById('ssOwnerName').value || '').trim()
+  const hiddenRaw  = (document.getElementById('ssHiddenParams') && document.getElementById('ssHiddenParams').value || '').trim()
+  const agreeUrl   = (document.getElementById('ssAgreementUrl') && document.getElementById('ssAgreementUrl').value || '').trim()
+
+  const formId = 'spForm_'   + slug.replace(/-/g,'_')
+  const resId  = 'spResult_' + slug.replace(/-/g,'_')
+  const fnName = 'spSubmit_' + slug.replace(/-/g,'_')
+  const q  = '"'
+  const sq = "'"
+
+  // hidden 파라미터 파싱 (name=value 줄바꿈 구분)
+  var hiddenInputs = ''
+  if (hiddenRaw) {
+    hiddenInputs = hiddenRaw.split('\n').map(function(line) {
+      var eq = line.indexOf('='); if (eq < 1) return ''
+      var n = line.slice(0, eq).trim(); var v = line.slice(eq+1).trim()
+      return n ? '  <input type=' + q + 'hidden' + q + ' name=' + q + n + q + ' value=' + q + v + q + '>' : ''
+    }).filter(Boolean).join('\n')
+  }
+
+  // ── 개인정보 동의 블록 (항상 포함 — agreeUrl 유무에 따라 외부링크 또는 인라인 팝업) ──
+  var customBody  = (document.getElementById('ssConsentText') && document.getElementById('ssConsentText').value || '').trim()
+  var ownerDisplayText = ownerName ? ownerName + ' 개인정보 수집동의 (필수)' : '개인정보 수집동의 (필수)'
+  // buildPrivacyConsentHtml 재사용 (base64 팝업, 이스케이프 안전)
+  var consentBlock = buildPrivacyConsentHtml(formId, agreeUrl, ownerName, customBody || null)
+  var consentBlockLines = consentBlock.split('\n')
+
+  var lines = []
+
+  if (actionUrl) {
+    // ────────────────────────────────────────────────────────
+    // ② 외부 전송 URL 있음: 순수 <form> 직접 POST — JS fetch 없음
+    //    구글 스프레드시트(Apps Script) 등 직접 연동
+    // ────────────────────────────────────────────────────────
+    lines.push('<!-- 슈퍼플레이스 외부 신청 폼 (slug: ' + slug + ') -->')
+    lines.push('<form id=' + q + formId + q + ' name=' + q + formId + q)
+    lines.push('  action=' + q + actionUrl + q + ' method=' + q + 'post' + q)
+    lines.push('  onsubmit=' + q + 'return ' + fnName + '_check(this)' + q)
+    lines.push('  style=' + q + 'padding:24px;border:1px solid #e5e7eb;border-radius:16px;max-width:480px;font-family:-apple-system,sans-serif;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,0.06);' + q + '>')
+    lines.push('  <input type=' + q + 'hidden' + q + ' name=' + q + 'landing_slug' + q + ' value=' + q + slug + q + '>')
+    if (hiddenInputs) lines.push(hiddenInputs)
+    lines.push(fieldsHtml)
+    consentBlockLines.forEach(function(l) { lines.push(l) })
+    lines.push('  <button type=' + q + 'submit' + q + ' style=' + q + 'width:100%;padding:14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;' + q + '>')
+    lines.push('    ' + btnText + ' →')
+    lines.push('  </button>')
+    lines.push('</form>')
+    lines.push('<script>')
+    lines.push('function ' + fnName + '_check(form){')
+    lines.push('  var chk=form.querySelector(' + sq + '#' + formId + '_agree' + sq + ');')
+    lines.push('  if(chk&&!chk.checked){alert(' + sq + '개인정보 수집에 동의해주세요.' + sq + ');return false;}')
+    lines.push('  return true;')
+    lines.push('}')
+    lines.push('<'+'/script>')
+
+  } else {
+    // ────────────────────────────────────────────────────────
+    // ① 외부 전송 URL 없음: SUPERPLACE API로 fetch 제출 (기존 방식)
+    //    신청자 현황에 자동 저장됨
+    // ────────────────────────────────────────────────────────
+    lines.push('<!-- 슈퍼플레이스 외부 신청 폼 (slug: ' + slug + ') -->')
+    lines.push('<form id=' + q + formId + q + ' name=' + q + formId + q + ' action=' + q + '#' + q + ' method=' + q + 'post' + q + ' onsubmit=' + q + 'return ' + fnName + '(event)' + q + ' style=' + q + 'padding:24px;border:1px solid #e5e7eb;border-radius:16px;max-width:480px;font-family:-apple-system,sans-serif;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,0.06);' + q + '>')
+    lines.push('  <input type=' + q + 'hidden' + q + ' name=' + q + 'landing_slug' + q + ' value=' + q + slug + q + '>')
+    lines.push(fieldsHtml)
+    consentBlockLines.forEach(function(l) { lines.push(l) })
+    lines.push('  <button type=' + q + 'submit' + q + ' style=' + q + 'width:100%;padding:14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;' + q + '>')
+    lines.push('    ' + btnText + ' →')
+    lines.push('  </button>')
+    lines.push('  <div id=' + q + resId + q + ' style=' + q + 'margin-top:12px;text-align:center;font-size:14px;' + q + '></div>')
+    lines.push('</form>')
+    lines.push('<script>')
+    lines.push('function ' + fnName + '(e) {')
+    lines.push('  e.preventDefault();')
+    lines.push('  var agreeChk=document.getElementById(' + sq + formId + '_agree' + sq + ');')
+    lines.push('  if(agreeChk&&!agreeChk.checked){alert(' + sq + '개인정보 수집에 동의해주세요.' + sq + ');return false;}')
+    lines.push('  var fd=new FormData(e.target);')
+    lines.push('  var body={};')
+    lines.push('  fd.forEach(function(v,k){')
+    lines.push('    if(k.endsWith(' + sq + '[]' + sq + ')){var rk=k.slice(0,-2);body[rk]=(body[rk]?body[rk]+' + sq + ',' + sq + ':' + sq + sq + ')+v;}')
+    lines.push('    else{body[k]=v;}')
+    lines.push('  });')
+    lines.push('  var btn=e.target.querySelector(' + sq + 'button[type=submit]' + sq + ');')
+    lines.push('  var res=document.getElementById(' + sq + resId + sq + ');')
+    lines.push('  if(btn){btn.disabled=true;btn.textContent=' + sq + '제출 중...' + sq + ';}')
+    lines.push('  fetch(' + sq + origin + '/api/landing/form-submit' + sq + ',{')
+    lines.push('    method:' + sq + 'POST' + sq + ',')
+    lines.push('    headers:{' + sq + 'Content-Type' + sq + ':' + sq + 'application/json' + sq + '},')
+    lines.push('    body:JSON.stringify(body)')
+    lines.push('  })')
+    lines.push('  .then(function(r){return r.json();})')
+    lines.push('  .then(function(d){')
+    lines.push('    if(d.success){')
+    lines.push('      e.target.style.display=' + sq + 'none' + sq + ';')
+    lines.push('      res.innerHTML=' + sq + '<div style=' + q + 'padding:24px;background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0;' + q + '><div style=' + q + 'font-size:36px;margin-bottom:8px;' + q + '>&#127881;</div><p style=' + q + 'font-weight:700;color:#166534;font-size:16px;' + q + '>신청이 완료되었습니다!</p><p style=' + q + 'color:#4b7c59;font-size:13px;margin-top:4px;' + q + '>빠른 시간 내 연락드리겠습니다.</p></div>' + sq + ';')
+    lines.push('    }else{')
+    lines.push('      if(btn){btn.disabled=false;btn.textContent=' + sq + btnText + ' →' + sq + ';}')
+    lines.push('      if(res)res.innerHTML=' + sq + '<p style=' + q + 'color:#ef4444;margin:4px 0;' + q + '>제출 실패: ' + sq + '+(d.error||' + sq + '오류' + sq + ')+ ' + sq + '</p>' + sq + ';')
+    lines.push('    }')
+    lines.push('  })')
+    lines.push('  .catch(function(){')
+    lines.push('    if(btn){btn.disabled=false;btn.textContent=' + sq + btnText + ' →' + sq + ';}')
+    lines.push('    if(res)res.innerHTML=' + sq + '<p style=' + q + 'color:#ef4444;margin:4px 0;' + q + '>네트워크 오류가 발생했습니다.</p>' + sq + ';')
+    lines.push('  });')
+    lines.push('  return false;')
+    lines.push('}')
+    // data-terms-btn 이벤트 리스너 (onclick 없이 동작)
+    lines.push('document.addEventListener(' + sq + 'DOMContentLoaded' + sq + ',function(){')
+    lines.push('  document.querySelectorAll(' + sq + 'a[data-terms-btn]' + sq + ').forEach(function(link){')
+    lines.push('    link.addEventListener(' + sq + 'click' + sq + ',function(e){')
+    lines.push('      e.preventDefault();')
+    lines.push('      var sid=link.getAttribute(' + sq + 'data-sid' + sq + ');')
+    lines.push('      var ovId=link.getAttribute(' + sq + 'data-ov' + sq + ');')
+    lines.push('      var bdId=link.getAttribute(' + sq + 'data-bd' + sq + ');')
+    lines.push('      var el=document.getElementById(sid);')
+    lines.push('      var ov=document.getElementById(ovId);')
+    lines.push('      var bd=document.getElementById(bdId);')
+    lines.push('      if(!el||!ov||!bd)return;')
+    lines.push('      try{')
+    lines.push('        var _ab=Uint8Array.from(atob(el.textContent.trim()),function(c){return c.charCodeAt(0);});')
+    lines.push('        var h=new TextDecoder().decode(_ab);')
+    lines.push('        var parser=new DOMParser();')
+    lines.push('        var doc=parser.parseFromString(h,' + sq + 'text/html' + sq + ');')
+    lines.push('        bd.innerHTML=doc.body?doc.body.innerHTML:h;')
+    lines.push('      }catch(ex){bd.textContent=' + sq + '약관 내용을 불러올 수 없습니다.' + sq + ';}')
+    lines.push('      ov.style.display=' + sq + 'flex' + sq + ';')
+    lines.push('    });')
+    lines.push('  });')
+    lines.push('  document.querySelectorAll(' + sq + '[data-close-modal]' + sq + ').forEach(function(btn){')
+    lines.push('    btn.addEventListener(' + sq + 'click' + sq + ',function(){')
+    lines.push('      var ovId=btn.getAttribute(' + sq + 'data-close-modal' + sq + ');')
+    lines.push('      var ov=document.getElementById(ovId);')
+    lines.push('      if(ov)ov.style.display=' + sq + 'none' + sq + ';')
+    lines.push('    });')
+    lines.push('  });')
+    lines.push('  document.querySelectorAll(' + sq + '[data-modal-overlay]' + sq + ').forEach(function(ov){')
+    lines.push('    ov.addEventListener(' + sq + 'click' + sq + ',function(e){')
+    lines.push('      if(e.target===ov)ov.style.display=' + sq + 'none' + sq + ';')
+    lines.push('    });')
+    lines.push('  });')
+    lines.push('});')
+    lines.push('<'+'/script>')
+  }
+
+  var html = lines.join('\n')
+  var el = document.getElementById('externalFormHtmlPreview')
+  if (el) el.textContent = html
+  return html
+}
+
+function copyExternalFormHtml() {
+  if (!editingSlug) {
+    toast('⚠️ 페이지를 먼저 저장해주세요! 저장 후 외부 폼 코드가 생성됩니다.', 4000)
+    return
+  }
+  const html = renderExternalFormHtml()
+  copyText(html)
+  toast('🌐 외부 임베드 폼 HTML이 복사되었습니다!')
+}
+
+async function loadFormSubmissions() {
+  if (!editingSlug) {
+    document.getElementById('formSubmissions').innerHTML = '<p class="text-center text-gray-400">저장 후 확인 가능합니다.</p>'
+    return
+  }
+  const el = document.getElementById('formSubmissions')
+  el.innerHTML = '<p class="text-center text-gray-400"><i class="fas fa-spinner fa-spin"></i></p>'
+  const linkEl = document.getElementById('linkToSubs')
+  if (linkEl) {
+    linkEl.href = `/sunmin1wsna12ssad2/landing-submissions?slug=${editingSlug}`
+    linkEl.classList.remove('hidden')
+  }
+  try {
+    const res = await fetch(`/api/landing/form-submissions?slug=${editingSlug}&userId=${userId}`, { credentials: 'include' })
+    const data = await res.json()
+    const subs = data.submissions || []
+    if (subs.length === 0) {
+      el.innerHTML = '<p class="text-center text-gray-400 py-2">아직 신청자가 없습니다.</p>'
+      return
+    }
+    el.innerHTML = `
+      <div class="space-y-2">
+        ${subs.slice(0, 5).map(s => `
+          <div class="rounded-lg bg-gray-50 border px-3 py-2">
+            <div class="flex items-center justify-between">
+              <span class="font-semibold text-gray-700 text-xs">${escHtml(s.name || '-')}</span>
+              <span class="text-gray-400 text-xs">${s.phone || '-'}</span>
+            </div>
+            <div class="text-gray-400 text-xs mt-0.5">${s.created_at ? new Date(s.created_at).toLocaleString('ko-KR') : ''}</div>
+          </div>`).join('')}
+        ${subs.length > 5 ? `<p class="text-center text-indigo-600 text-xs font-medium">+${subs.length - 5}명 더 있음</p>` : ''}
+      </div>`
+  } catch(e) {
+    el.innerHTML = '<p class="text-center text-red-500 text-xs">불러오기 실패</p>'
+  }
+}
+
+// ──────────────────────────────────────────────
+// 공유 URL 복사
+// ──────────────────────────────────────────────
+function copyShareUrlDirect() {
+  const url = document.getElementById('shareUrl').value || (editingSlug ? `${location.origin}/landing/${editingSlug}` : '')
+  if (!url) { toast('저장 후 사용 가능합니다'); return }
+  copyText(url)
+}
+
+// ──────────────────────────────────────────────
+// QR 코드 생성 & 다운로드
+// ──────────────────────────────────────────────
+async function downloadQR() {
+  const url = document.getElementById('shareUrl').value || (editingSlug ? `${location.origin}/landing/${editingSlug}` : '')
+  if (!url) { toast('⚠️ 저장 후 QR을 생성할 수 있습니다'); return }
+
+  const btn = document.getElementById('btnQR')
+  const origHtml = btn.innerHTML
+  btn.disabled = true
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'
+
+  try {
+    // Google QR API로 512×512 QR 이미지 생성 (CORS 안전)
+    const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&margin=2&data=${encodeURIComponent(url)}`
+
+    // fetch → blob → canvas → 파일명 삽입 후 다운로드
+    const res = await fetch(qrApiUrl)
+    if (!res.ok) throw new Error('QR API 오류')
+    const blob = await res.blob()
+
+    // Canvas에서 URL 텍스트를 QR 아래 삽입
+    const img = new Image()
+    const imgUrl = URL.createObjectURL(blob)
+    await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = imgUrl })
+
+    const padding = 24
+    const labelH = 32
+    const cv = document.createElement('canvas')
+    cv.width = img.width + padding * 2
+    cv.height = img.height + padding * 2 + labelH
+    const ctx = cv.getContext('2d')
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, cv.width, cv.height)
+    ctx.drawImage(img, padding, padding)
+    ctx.fillStyle = '#374151'
+    ctx.font = '13px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText(url.length > 60 ? url.substring(0, 57) + '...' : url, cv.width / 2, img.height + padding + labelH - 8)
+    URL.revokeObjectURL(imgUrl)
+
+    // 다운로드
+    const slug = editingSlug || 'landing'
+    const a = document.createElement('a')
+    a.download = `qr_${slug}.png`
+    a.href = cv.toDataURL('image/png')
+    a.click()
+    toast('✅ QR 코드 다운로드 완료!')
+  } catch(e) {
+    toast('❌ QR 생성 오류: ' + e.message)
+  }
+
+  btn.disabled = false
+  btn.innerHTML = origHtml
+}
+
+// ──────────────────────────────────────────────
+// 카드 QR 코드 생성 & 다운로드 (slug, url 직접 지정)
+// ──────────────────────────────────────────────
+async function downloadCardQR(slug, url, btn) {
+  if (!url) { toast('⚠️ 배포된 페이지만 QR을 생성할 수 있습니다'); return }
+
+  const origHtml = btn.innerHTML
+  btn.disabled = true
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'
+
+  try {
+    // 같은 도메인 프록시로 fetch → CSP connect-src 제한 없음
+    const proxyUrl = `/api/qr-proxy?size=512&data=${encodeURIComponent(url)}`
+    const res = await fetch(proxyUrl)
+    if (!res.ok) throw new Error('QR 프록시 오류 ' + res.status)
+    const blob = await res.blob()
+
+    // QR 이미지 그대로 다운로드 (URL 텍스트 없음)
+    const img = new Image()
+    const imgUrl = URL.createObjectURL(blob)
+    await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = imgUrl })
+
+    const cv = document.createElement('canvas')
+    cv.width = img.width
+    cv.height = img.height
+    const ctx = cv.getContext('2d')
+    ctx.drawImage(img, 0, 0)
+    URL.revokeObjectURL(imgUrl)
+
+    // 바로 다운로드
+    const a = document.createElement('a')
+    a.download = `qr_${slug}.png`
+    a.href = cv.toDataURL('image/png')
+    a.click()
+    toast('✅ QR 코드 다운로드 완료!')
+  } catch(e) {
+    toast('❌ QR 생성 오류: ' + e.message)
+  }
+
+  btn.disabled = false
+  btn.innerHTML = origHtml
+}
+
+// ──────────────────────────────────────────────
+// HTML 포맷
+// ──────────────────────────────────────────────
+function formatHtml() {
+  try {
+    const el = document.getElementById('htmlEditor')
+    let html = el.value.replace(/>\s*</g, '>\n<').split('\n').map(l => l.trim()).filter(l => l.length > 0).join('\n')
+    el.value = html
+    schedulePreview()
+    toast('HTML이 정렬되었습니다!')
+  } catch(e) {}
+}
+
+// ──────────────────────────────────────────────
+// 기본 HTML 템플릿
+// ──────────────────────────────────────────────
+function defaultHtml() {
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>학원 홍보 페이지</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, 'Apple SD Gothic Neo', sans-serif; }
+  </style>
+</head>
+<body>
+
+<!-- 헤더 섹션 -->
+<section style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;text-align:center;padding:80px 20px;">
+  <h1 style="font-size:48px;font-weight:900;margin:0 0 16px;">🎓 우리 학원 이름</h1>
+  <p style="font-size:20px;opacity:.9;margin:0 0 32px;">최고의 교육을 경험해보세요</p>
+  <a href="#form" style="display:inline-block;background:#fff;color:#6366f1;padding:16px 40px;border-radius:50px;font-size:18px;font-weight:bold;text-decoration:none;">지금 신청하기 →</a>
+</section>
+
+<!-- 특징 섹션 -->
+<section style="max-width:900px;margin:60px auto;padding:0 20px;">
+  <h2 style="text-align:center;font-size:32px;font-weight:800;color:#1e293b;margin:0 0 40px;">왜 우리 학원인가요?</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px;">
+    <div style="background:#f0f9ff;border-radius:16px;padding:28px;text-align:center;">
+      <div style="font-size:40px;margin-bottom:12px;">🏆</div>
+      <h3 style="font-size:18px;font-weight:700;margin:0 0 8px;">전문 강사진</h3>
+      <p style="font-size:14px;color:#64748b;">10년 이상의 경력을 가진 전문 강사</p>
+    </div>
+    <div style="background:#f0fdf4;border-radius:16px;padding:28px;text-align:center;">
+      <div style="font-size:40px;margin-bottom:12px;">📊</div>
+      <h3 style="font-size:18px;font-weight:700;margin:0 0 8px;">성적 향상 보장</h3>
+      <p style="font-size:14px;color:#64748b;">체계적인 커리큘럼으로 성적 향상</p>
+    </div>
+    <div style="background:#fdf4ff;border-radius:16px;padding:28px;text-align:center;">
+      <div style="font-size:40px;margin-bottom:12px;">💝</div>
+      <h3 style="font-size:18px;font-weight:700;margin:0 0 8px;">1:1 맞춤 지도</h3>
+      <p style="font-size:14px;color:#64748b;">개인별 맞춤형 수업 제공</p>
+    </div>
+  </div>
+</section>
+
+<!-- 상담 신청 폼 (저장 후 폼 탭에서 [HTML에 폼 삽입] 버튼으로 실제 폼으로 교체하세요) -->
+<section id="form" style="max-width:560px;margin:60px auto;padding:0 20px;font-family:sans-serif;">
+  <div style="background:#fff;border-radius:20px;padding:36px;box-shadow:0 8px 32px rgba(0,0,0,0.1);">
+    <h2 style="font-size:24px;font-weight:800;text-align:center;margin:0 0 8px;color:#1e293b;">무료 상담 신청</h2>
+    <p style="text-align:center;color:#64748b;margin:0 0 24px;font-size:14px;">빠른 시간 내 연락드리겠습니다.</p>
+    <form id="contactForm" onsubmit="submitLandingForm(event,'SLUG_HERE')">
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:14px;font-weight:600;margin-bottom:6px;color:#374151;">이름 *</label>
+        <input type="text" name="name" required placeholder="홍길동" style="width:100%;padding:12px 16px;border:2px solid #e5e7eb;border-radius:10px;font-size:15px;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e5e7eb'">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:14px;font-weight:600;margin-bottom:6px;color:#374151;">연락처 *</label>
+        <input type="tel" name="phone" required placeholder="010-0000-0000" style="width:100%;padding:12px 16px;border:2px solid #e5e7eb;border-radius:10px;font-size:15px;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e5e7eb'">
+      </div>
+      <div style="margin-bottom:16px;padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
+        <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer;color:#374151;">
+          <input type="checkbox" id="contactForm_agree" name="agree" required style="width:16px;height:16px;accent-color:#6366f1;flex-shrink:0;margin-top:2px;">
+          <span><strong>개인정보 수집동의 (필수)</strong><br><span style="color:#64748b;font-size:12px;">수집된 개인정보는 상담 및 서비스 제공 목적으로만 사용됩니다.</span></span>
+        </label>
+        <a href="javascript:void(0)" onclick="openDefaultPrivacyModal();return false;" style="font-size:12px;color:#6366f1;text-decoration:underline;display:inline-block;margin-top:6px;margin-left:26px;">약관 보기</a>
+      </div>
+      <button type="submit" style="width:100%;padding:16px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:700;cursor:pointer;transition:opacity .2s;" onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">
+        무료 상담 신청 →
+      </button>
+    </form>
+  </div>
+</section>
+` + SUBMIT_SCRIPT_TAG + `
+
+<\/body>
+<\/html>`
+}
+
+// ──────────────────────────────────────────────
+// 유틸리티
+// ──────────────────────────────────────────────
+function escHtml(str) {
+  const d = document.createElement('div'); d.textContent = String(str || ''); return d.innerHTML
+}
+function escAttr(str) {
+  return String(str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => toast('📋 복사되었습니다!'))
+}
+
+let toastTimer
+function toast(msg, duration = 2800) {
+  const el = document.getElementById('toast')
+  el.textContent = msg
+  el.classList.add('show')
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => el.classList.remove('show'), duration)
+}
+
+// ──────────────────────────────────────────────
+// 초기화
+// ──────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadMyPages()
+  // URL 파라미터 ?tpl=TYPE 감지 → 자동으로 템플릿 로드
+  const urlParams = new URLSearchParams(location.search)
+  const tplParam = urlParams.get('tpl')
+  if (tplParam && !['academy-comparison','ai-personalized'].includes(tplParam)) {
+    loadTemplateIntoEditor(tplParam)
+  }
+  // 기본 폼 필드 변경 감지
+  ['fieldName','fieldPhone','fieldEmail','fieldGrade','fieldMessage'].forEach(id => {
+    const el = document.getElementById(id)
+    if (el) el.addEventListener('change', renderFormPreview)
+  })
+  document.getElementById('formBtnText').addEventListener('input', renderFormPreview)
+  // 폼 필드 변경 감지
+  ;['geruCode','geruChannel','geruOwnerName','geruAgreementUrl'].forEach(id => {
+    const el = document.getElementById(id)
+    if (el) el.addEventListener('input', renderFormPreview)
+  })
+  // 학원 이름 자동 채우기 + 수집 동의 textarea 초기화
+  ;(function() {
+    // localStorage에서 학원명 읽기
+    var ownerName = ''
+    try {
+      var user = JSON.parse(localStorage.getItem('adminUser') || localStorage.getItem('user') || '{}')
+      ownerName = (user.academy_name || user.academyName || '').trim()
+    } catch(e) {}
+    // hidden input에 세팅
+    var ownerEl = document.getElementById('ssOwnerName')
+    if (ownerEl && ownerName) ownerEl.value = ownerName
+    // 수집 동의 textarea 초기화 (기본 문구)
+    var el = document.getElementById('ssConsentText')
+    if (el && !el.value.trim()) {
+      el.value = getDefaultConsentBodyText(ownerName)
+      el.dataset.isDefault = 'true'
+    }
+    if (el) el.addEventListener('input', function() {
+      el.dataset.isDefault = 'false'
+      renderExternalFormHtml()
+      renderFormPreview()
+    })
+  })()
+  // 폼 유형 라디오 변경 감지
+  ;['formTypeInternal','formTypeGeru'].forEach(id => {
+    const el = document.getElementById(id)
+    if (el) el.addEventListener('change', onFormTypeChange)
+  })
+  // 공유 설정 이미지 미리보기
+  document.getElementById('ogImageUrl').addEventListener('input', function() {
+    if (this.value) {
+      document.getElementById('ogThumbImg').src = this.value
+      document.getElementById('ogThumbPreview').classList.remove('hidden')
+    } else {
+      document.getElementById('ogThumbPreview').classList.add('hidden')
+    }
+  })
+  // ESC로 모달 닫기
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      closeAddFieldModal()
+      closeImageModal()
+      closeTemplateModal()
+      spFloatClose()
+    }
+  })
+})
+
+// 약관 모달 열기/닫기
+function openPrivacyModal(htmlContent) {
+  var overlay = document.getElementById('privacyModalOverlay')
+  var body = document.getElementById('privacyModalBody')
+  if (!overlay || !body) return
+  body.innerHTML = htmlContent
+  overlay.style.display = 'flex'
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) closePrivacyModal()
+  })
+}
+function closePrivacyModal() {
+  var overlay = document.getElementById('privacyModalOverlay')
+  if (overlay) overlay.style.display = 'none'
+}
+function openDefaultPrivacyModal() {
+  var ownerName = '학원'
+  try {
+    var u = JSON.parse(localStorage.getItem('adminUser') || localStorage.getItem('user') || '{}')
+    ownerName = (u.academy_name || u.academyName || '학원').trim()
+  } catch(e) {}
+  var consentEl = document.getElementById('ssConsentText')
+  var customText = consentEl ? consentEl.value.trim() : ''
+  var policyHtml = buildPrivacyPolicyHtml(ownerName, customText)
+  var parser = new DOMParser()
+  var doc = parser.parseFromString(policyHtml, 'text/html')
+  var bodyContent = doc.body ? doc.body.innerHTML : policyHtml
+  openPrivacyModal(bodyContent)
+}
+
+
+
+</script>
+</body>
+</html>
