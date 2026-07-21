@@ -90,8 +90,25 @@ export const youtubeUnifiedPage = `<!DOCTYPE html>
       .main-area{margin-left:0;}
       .hamburger{display:flex;}
     }
-    /* embed mode: hide internal sidebar when rendered inside dashboard iframe */
-    .embed .sidebar,.embed .hamburger{display:none!important;} .embed .main-area{margin-left:0!important;width:100%!important;}
+    /* embed mode: 상단바는 유지하되 햄버거만 숨김 */
+    .embed .hamburger{display:none!important;} .embed .main-area{margin-left:0!important;width:100%!important;}
+    /* ===== 좌측 사이드바 → 상단 네비게이션 바 (BYGENCY 톤) ===== */
+    .wrap{flex-direction:column!important;}
+    .sidebar{position:sticky!important;top:0!important;left:0!important;width:100%!important;height:auto!important;flex-direction:row!important;align-items:center!important;border-right:none!important;border-bottom:1px solid #e2e8f0!important;overflow:visible!important;padding:8px 16px!important;gap:10px!important;box-shadow:0 1px 3px rgba(0,0,0,.04);z-index:50;}
+    .embed .sidebar{display:flex!important;}
+    .sb-header{padding:0 10px 0 0!important;border-bottom:none!important;flex:0 0 auto!important;border-right:1px solid #f1f5f9;}
+    .sb-logo-sub{display:none!important;}
+    .sb-nav{padding:0!important;flex:1 1 auto!important;min-width:0!important;display:flex!important;flex-direction:row!important;align-items:center!important;gap:2px!important;overflow-x:auto!important;overflow-y:hidden!important;}
+    .sb-nav::-webkit-scrollbar{display:none;} .sb-nav{scrollbar-width:none;}
+    .sb-group{display:none!important;}
+    .sb-item{flex:0 0 auto!important;white-space:nowrap!important;padding:8px 12px!important;margin:0!important;font-size:13.5px!important;}
+    .sb-badge,.sb-badge-green{margin-left:6px!important;}
+    .sb-footer{padding:0!important;border-top:none!important;flex:0 0 auto!important;margin-left:auto!important;}
+    .sb-footer > div:last-child{display:none!important;}
+    .sb-footer a{margin:0!important;padding:8px 12px!important;white-space:nowrap;}
+    .main-area{margin-left:0!important;}
+    .hamburger{display:none!important;}
+    @media(max-width:900px){ .sb-header .sb-logo-text{display:none;} }
   </style>
 </head>
 <body>
@@ -144,7 +161,7 @@ export const youtubeUnifiedPage = `<!DOCTYPE html>
       </a>
     </nav>
     <div class="sb-footer">
-      <a href="/sunmin1wsna12ssad2/marketing" style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#fff5f5;border-radius:10px;text-decoration:none;color:#cc0000;font-size:13px;font-weight:700;margin-bottom:10px;border:1.5px solid #fecdd3;">
+      <a href="/dashboard_USE17237_612" style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#fff5f5;border-radius:10px;text-decoration:none;color:#cc0000;font-size:13px;font-weight:700;margin-bottom:10px;border:1.5px solid #fecdd3;">
         <i class="fas fa-arrow-left" style="font-size:12px;"></i> 마케팅 센터
       </a>
       <div style="font-size:11px;color:#94a3b8;text-align:center;">YouTube Data API v3 연동</div>

@@ -309,9 +309,24 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
       .stat-grid{grid-template-columns:1fr 1fr;}
       .post-grid{grid-template-columns:repeat(3,1fr);}
     }
-    /* embed mode: hide internal sidebar when rendered inside dashboard iframe */
-    .embed .sidebar{display:none!important;}
+    /* embed mode: 상단바 유지, 햄버거만 숨김 */
     .embed .main-area{margin-left:0!important;}
+    /* ===== 좌측 사이드바 → 상단 네비게이션 바 (BYGENCY 톤) ===== */
+    .wrap{flex-direction:column!important;}
+    .sidebar{position:sticky!important;top:0!important;left:0!important;width:100%!important;height:auto!important;flex-direction:row!important;align-items:center!important;border-right:none!important;border-bottom:1px solid var(--border)!important;overflow:visible!important;padding:0 14px 0 0!important;gap:8px!important;transform:none!important;z-index:50;box-shadow:0 1px 3px rgba(0,0,0,.04);}
+    .embed .sidebar{display:flex!important;}
+    .sb-header{padding:10px 14px!important;flex:0 0 auto!important;border-radius:0!important;}
+    .sb-logo-sub{display:none!important;}
+    .sb-nav{padding:0!important;flex:1 1 auto!important;min-width:0!important;display:flex!important;flex-direction:row!important;align-items:center!important;gap:2px!important;overflow-x:auto!important;overflow-y:hidden!important;}
+    .sb-nav::-webkit-scrollbar{display:none;} .sb-nav{scrollbar-width:none;}
+    .sb-section{display:none!important;}
+    .sb-item{flex:0 0 auto!important;white-space:nowrap!important;padding:8px 12px!important;margin:0!important;}
+    .sb-badge{margin-left:6px!important;}
+    .sb-footer{padding:0 4px 0 0!important;border-top:none!important;flex:0 0 auto!important;margin-left:auto!important;}
+    .sb-footer > div:last-child{display:none!important;}
+    .sb-footer a{margin:0!important;padding:8px 12px!important;white-space:nowrap;}
+    .main-area{margin-left:0!important;}
+    .hamburger{display:none!important;}
   </style>
 </head>
 <body>
