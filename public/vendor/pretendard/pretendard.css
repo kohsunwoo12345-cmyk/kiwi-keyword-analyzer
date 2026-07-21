@@ -1,0 +1,20 @@
+/*
+Copyright (c) 2021 Kil Hyung-jin, with Reserved Font Name Pretendard.
+https://github.com/orioncactus/pretendard
+Licensed under the SIL Open Font License, Version 1.1.
+로컬 번들: 가변 폰트 1개로 100~900 전체 굵기 커버. font-family 'Pretendard'로 선언해 기존 참조 호환.
+*/
+@font-face {
+  font-family: 'Pretendard';
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+  src: url('./PretendardVariable.woff2') format('woff2-variations');
+}
+@font-face {
+  font-family: 'Pretendard Variable';
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+  src: url('./PretendardVariable.woff2') format('woff2-variations');
+}

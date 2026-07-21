@@ -13,8 +13,8 @@
   <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>랜딩페이지 빌더 - SUPERPLACE</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/vendor/css/tailwind.min.css">
+  <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
   <script>
   /* BYGENCY 이식: 세션 쿠키 기반 인증. /api/me 로 사용자 정보를 localStorage 에 채워 빌더 호환. */
   (function(){ try{ var x=new XMLHttpRequest(); x.open('GET','/api/me',false); x.withCredentials=true; x.send();
@@ -22,7 +22,7 @@
   }catch(e){} })();
   </script>
   <style>
-    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    @import url('/vendor/pretendard/pretendard.css');
     * { font-family: 'Pretendard', -apple-system, sans-serif; }
     .tab-btn { transition: all .2s; }
     .tab-btn.active { background:#6366f1; color:#fff; }
@@ -1012,8 +1012,8 @@ function closeTemplateModal() {
 
 function spNormalizeAllowedCdnHtml(html) {
   return String(html || '')
-    .replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/gsap\/3\.12\.2\/gsap\.min\.js/g, 'https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js')
-    .replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/gsap\/3\.12\.2\/ScrollTrigger\.min\.js/g, 'https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/ScrollTrigger.min.js')
+    .replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/gsap\/3\.12\.2\/gsap\.min\.js/g, '/vendor/js/gsap.min.js')
+    .replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/gsap\/3\.12\.2\/ScrollTrigger\.min\.js/g, '/vendor/js/ScrollTrigger.min.js')
 }
 
 async function loadTemplateIntoEditor(type) {

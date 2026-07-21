@@ -13,9 +13,9 @@
   <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>신청자 관리 - SUPERPLACE</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="/vendor/css/tailwind.min.css">
+  <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+  <script src="/vendor/js/xlsx.full.min.js"></script>
   <!-- BYGENCY: 세션 쿠키 기반 인증. /api/me 로 사용자 정보를 localStorage 에 채움(표시용) -->
   <script>
   (function(){ try{ var x=new XMLHttpRequest(); x.open('GET','/api/me',false); x.withCredentials=true; x.send();
@@ -23,7 +23,7 @@
   }catch(e){} })();
   </script>
   <style>
-    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    @import url('/vendor/pretendard/pretendard.css');
     * { font-family: 'Pretendard', -apple-system, sans-serif; }
     #toast {
       position:fixed; bottom:32px; left:50%; transform:translateX(-50%);

@@ -38,8 +38,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, params })
   <meta name="twitter:title" content="${ogTitle}">
   <meta name="twitter:description" content="${ogDesc}">
   ${ogImg ? `<meta name="twitter:image" content="${ogImg}">` : ''}
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+  <script src="/vendor/js/chart.umd.min.js"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Pretendard',sans-serif}
     body{background:#f8fafc;min-height:100vh;color:#1e293b}
