@@ -82,12 +82,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
           안녕하세요 ${name}님, BYGENCY 가입이 완료되었어요.<br/>
           요금제를 활성화하면 <b>마케팅 대시보드</b>와 <b>노드형 AI 영상 제작</b>을 모두 사용할 수 있습니다.
         </p>
-        <a href="https://bygency.co/activate" style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:12px">요금제 활성화하기</a>
+        <a href="https://bygency.co/activate" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:12px">요금제 활성화하기</a>
         <p style="color:#94a3b8;font-size:12px;line-height:1.6;margin:18px 0 0">
           친구가 요금제에 가입하면 결제액의 1%를 크레딧으로 받을 수 있어요.
         </p>`)
-    await resendEmail(env, { to: email, subject: '[BYGENCY] 가입을 환영합니다 🎉', html, from: 'BYGENCY <cs@bygency.co>' }, { db, kind: 'welcome', userId: id })
-  } catch { /* 환영 메일 실패는 가입에 영향 없음 */ }
+    // from 미지정 → resendEmail 이 RESEND_FROM 환경변수(검증된 발신주소) 우선 사용, 없으면 cs@bygency.co
+    // 발송 성공/실패·사유는 email_log(관리자 "환영인사 메일" 메뉴)에 기록됨.
+    const wr = await resendEmail(env, { to: email, subject: '[BYGENCY] 가입을 환영합니다 🎉', html }, { db, kind: 'welcome', userId: id })
+    if (!wr.ok) console.warn('[signup] welcome email failed:', wr.error)
+  } catch (e) { console.warn('[signup] welcome email exception:', e) }
 
   const geo = geoFrom(request)
   const token = await createSession(db, id, { ip: clientIp(request), ua: request.headers.get('User-Agent') || '', country: geo.country })
