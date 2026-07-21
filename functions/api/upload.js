@@ -6,7 +6,8 @@
 
 import { resolveDB, getSessionUser } from "./_utils";
 
-const ALLOWED_CT = /^(image\/(png|jpe?g|gif|webp|avif|svg\+xml|heic|heif)|video\/(mp4|webm|quicktime|x-matroska)|audio\/(mpeg|mp3|wav|x-wav|wave|webm|ogg|mp4|aac|x-m4a|m4a))(;|$)/i;
+// 사진/동영상/오디오는 하위 형식 제한 없이 모두 허용 (제한없이 첨부)
+const ALLOWED_CT = /^(image|video|audio)\//i;
 
 function r2Bucket(env) {
   // ① 흔한 바인딩 이름 우선
@@ -55,14 +56,29 @@ export async function onRequest(context) {
   try {
     const ct = request.headers.get("Content-Type") || "application/octet-stream";
     if (!ALLOWED_CT.test(ct)) return j({ error: "이미지/영상/오디오 파일만 업로드할 수 있습니다." }, 415);
-    const buf = await request.arrayBuffer();
-    if (!buf || buf.byteLength === 0) return j({ error: "빈 파일" }, 400);
-    if (buf.byteLength > 200 * 1024 * 1024) return j({ error: "200MB 초과 파일은 업로드할 수 없습니다" }, 413);
     const ext = (ct.split("/")[1] || "bin").split(";")[0].split("+")[0];
     const key = "u/" + crypto.randomUUID() + "." + ext;
-    await bucket.put(key, buf, { httpMetadata: { contentType: ct } });
+    const clen = Number(request.headers.get("Content-Length") || 0) || 0;
+    // 제한없이 첨부: 본문을 메모리에 담지 않고 R2 로 스트리밍 → 대용량 사진/동영상도 그대로 저장.
+    //  (스트림 저장 실패 시 arrayBuffer 폴백)
+    let size = clen;
+    if (request.body && typeof bucket.put === "function") {
+      try {
+        await bucket.put(key, request.body, { httpMetadata: { contentType: ct } });
+      } catch (streamErr) {
+        const buf = await request.arrayBuffer();
+        if (!buf || buf.byteLength === 0) return j({ error: "빈 파일" }, 400);
+        size = buf.byteLength;
+        await bucket.put(key, buf, { httpMetadata: { contentType: ct } });
+      }
+    } else {
+      const buf = await request.arrayBuffer();
+      if (!buf || buf.byteLength === 0) return j({ error: "빈 파일" }, 400);
+      size = buf.byteLength;
+      await bucket.put(key, buf, { httpMetadata: { contentType: ct } });
+    }
     const origin = new URL(request.url).origin;
-    return j({ url: origin + "/api/media/" + key, key, size: buf.byteLength, contentType: ct });
+    return j({ url: origin + "/api/media/" + key, key, size, contentType: ct });
   } catch (e) {
     return j({ error: "업로드 실패: " + String((e && e.message) || e).slice(0, 220) }, 502);
   }

@@ -67,7 +67,8 @@ export default function NoticesPage() {
   async function toJpegBlob(file: File): Promise<{ blob: Blob; type: string }> {
     try {
       const bmp = await createImageBitmap(file)
-      const max = 1600
+      // 제한없이 첨부 — 사실상 원본 크기 유지(초대형만 4096px로 안전 축소, HEIC 등은 JPEG 변환)
+      const max = 4096
       const scale = Math.min(1, max / Math.max(bmp.width, bmp.height))
       const w = Math.max(1, Math.round(bmp.width * scale)), h = Math.max(1, Math.round(bmp.height * scale))
       const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h
@@ -93,8 +94,8 @@ export default function NoticesPage() {
     setUploading(false)
   }
   async function onUploadVideo(file: File) {
-    if (file.size > 60 * 1024 * 1024) { setMsg('동영상은 60MB 이하만 업로드할 수 있어요. 큰 파일은 URL로 붙여넣어 주세요.'); return }
-    setUploadingV(true); setMsg('')
+    // 제한없이 첨부 — 대용량도 그대로 업로드(스트리밍). 진행 안내만 표시.
+    setUploadingV(true); setMsg(file.size > 60 * 1024 * 1024 ? `동영상 업로드 중… (${Math.round(file.size / 1024 / 1024)}MB, 잠시 걸릴 수 있어요)` : '')
     try {
       const r = await fetch('/api/upload', { method: 'POST', credentials: 'include', headers: { 'Content-Type': file.type || 'video/mp4' }, body: file })
       const txt = await r.text()
