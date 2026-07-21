@@ -1,4 +1,5 @@
 import { Env, json, ensureSchema, resolveDB, requireAdminUser, logAudit, clientIp, sameOriginOk } from '../_utils'
+import { ensureVisitorNoticeSchema, getVisitorStats } from '../_notices'
 
 // 팝업 알림 캠페인 — 관리자 발송/조회
 //  POST /api/admin/notices  { title, body, imageUrl?, ctaLabel?, ctaUrl?, target, userId?, userIds?, plan? }
@@ -28,6 +29,21 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // CTA URL 안전성 — 같은 사이트 경로(/...) 또는 http/https 만 허용
   if (ctaUrl && !/^(https?:\/\/|\/)/i.test(ctaUrl)) return json({ ok: false, error: 'CTA URL 은 http(s) 또는 / 로 시작해야 합니다.' }, 400)
   if (imageUrl && !/^(https?:\/\/|\/)/i.test(imageUrl)) return json({ ok: false, error: '이미지 URL 형식이 올바르지 않습니다.' }, 400)
+
+  // 접속 전체(비회원 포함) — 개별 회원 영수증 없이 캠페인만 생성. 홈페이지/랜딩 방문자에게 팝업.
+  if (target === 'visitors') {
+    await ensureVisitorNoticeSchema(db)
+    const scopePath = String(b.scopePath || '').trim().slice(0, 200)
+    if (scopePath && !/^\//.test(scopePath)) return json({ ok: false, error: '랜딩 경로는 / 로 시작해야 합니다.' }, 400)
+    const now2 = new Date().toISOString()
+    const campId2 = uid('nc_')
+    await db.prepare(
+      `INSERT INTO notice_campaigns (id, title, body, image_url, cta_label, cta_url, target, audience, scope_path, created_by, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'visitors', 0, ?, ?, ?)`,
+    ).bind(campId2, title, body, imageUrl || null, ctaLabel || null, ctaUrl || null, scopePath || null, admin.email, now2).run()
+    await logAudit(db, admin, 'notice_send', `visitors${scopePath ? ':' + scopePath : ''}`, title, 'info', clientIp(request))
+    return json({ ok: true, campaignId: campId2, audience: 0, target: 'visitors' })
+  }
 
   // 대상 회원 선정
   let recipients: any[] = []
@@ -79,6 +95,30 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (id) {
     const camp: any = await db.prepare('SELECT * FROM notice_campaigns WHERE id = ?').bind(id).first()
     if (!camp) return json({ ok: false, error: '캠페인을 찾을 수 없습니다.' }, 404)
+    // 접속 전체(방문자) 캠페인 → 방문자 이벤트 기반 통계 + 최근 접속 IP·회원여부
+    if (camp.target === 'visitors') {
+      await ensureVisitorNoticeSchema(db)
+      const stats = await getVisitorStats(db, id)
+      const ev = (await db.prepare(
+        `SELECT ip, is_member, member_email, kind, path, MAX(created_at) AS created_at
+         FROM notice_visitor_events WHERE campaign_id = ?
+         GROUP BY ip, is_member, member_email, kind, path
+         ORDER BY created_at DESC LIMIT 300`,
+      ).bind(id).all()).results as any[] || []
+      return json({
+        ok: true,
+        campaign: {
+          id: camp.id, title: camp.title, body: camp.body, imageUrl: camp.image_url,
+          ctaLabel: camp.cta_label, ctaUrl: camp.cta_url, target: camp.target, scopePath: camp.scope_path || '',
+          audience: camp.audience, createdBy: camp.created_by, createdAt: camp.created_at,
+        },
+        visitorStats: stats,
+        visitorEvents: ev.map((e) => ({
+          ip: e.ip || '', isMember: Number(e.is_member) || 0, memberEmail: e.member_email || '',
+          kind: e.kind, path: e.path || '', createdAt: e.created_at,
+        })),
+      })
+    }
     const rows = (await db.prepare(
       `SELECT r.user_id, r.read_at, u.name, u.email, u.plan
        FROM notice_receipts r LEFT JOIN users u ON u.id = r.user_id
@@ -98,6 +138,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   // 목록 + 집계
+  await ensureVisitorNoticeSchema(db)
   const camps = (await db.prepare('SELECT * FROM notice_campaigns ORDER BY created_at DESC LIMIT 200').all()).results || []
   const agg = (await db.prepare(
     `SELECT campaign_id,
@@ -107,10 +148,31 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   ).all()).results || []
   const aggMap: Record<string, { total: number; reads: number }> = {}
   for (const a of agg as any[]) aggMap[a.campaign_id] = { total: Number(a.total) || 0, reads: Number(a.reads) || 0 }
+  // 방문자 캠페인 집계 (노출/읽음/전환)
+  const vagg = (await db.prepare(
+    `SELECT campaign_id, kind, COUNT(*) AS n FROM notice_visitor_events GROUP BY campaign_id, kind`,
+  ).all().catch(() => ({ results: [] }))).results || []
+  const vMap: Record<string, { views: number; reads: number; convert: number }> = {}
+  for (const a of vagg as any[]) {
+    if (!vMap[a.campaign_id]) vMap[a.campaign_id] = { views: 0, reads: 0, convert: 0 }
+    if (a.kind === 'view') vMap[a.campaign_id].views = Number(a.n) || 0
+    else if (a.kind === 'read') vMap[a.campaign_id].reads = Number(a.n) || 0
+    else if (a.kind === 'convert') vMap[a.campaign_id].convert = Number(a.n) || 0
+  }
 
   return json({
     ok: true,
     campaigns: (camps as any[]).map((c) => {
+      if (c.target === 'visitors') {
+        const v = vMap[c.id] || { views: 0, reads: 0, convert: 0 }
+        return {
+          id: c.id, title: c.title, body: c.body, imageUrl: c.image_url,
+          ctaLabel: c.cta_label, ctaUrl: c.cta_url, target: c.target, scopePath: c.scope_path || '',
+          audience: c.audience, createdBy: c.created_by, createdAt: c.created_at,
+          total: v.views, readCount: v.reads, unreadCount: Math.max(0, v.views - v.reads),
+          views: v.views, conversions: v.convert,
+        }
+      }
       const a = aggMap[c.id] || { total: c.audience || 0, reads: 0 }
       return {
         id: c.id, title: c.title, body: c.body, imageUrl: c.image_url,

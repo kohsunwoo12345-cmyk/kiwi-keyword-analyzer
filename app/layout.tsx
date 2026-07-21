@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { VisitTracker } from '@/components/VisitTracker'
+import { PublicNoticePopups } from '@/components/PublicNoticePopups'
 import { SupportChat } from '@/components/SupportChat'
 import { LanguageProvider } from '@/lib/i18n'
 import { JsonLd } from '@/components/seo/JsonLd'
@@ -72,6 +73,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <LanguageProvider>
           <VisitTracker />
           {children}
+          <PublicNoticePopups />
           <SupportChat />
         </LanguageProvider>
       </body>

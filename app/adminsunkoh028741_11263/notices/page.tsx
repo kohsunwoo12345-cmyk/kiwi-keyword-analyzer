@@ -7,6 +7,7 @@ import { Panel } from '@/components/ui'
 import {
   adminNoticeList, adminNoticeSend, adminNoticeDetail, adminUsers,
   type AdminNoticeCampaign, type NoticeRecipient, type User,
+  type VisitorStat, type NoticeVisitorEvent,
 } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -15,7 +16,8 @@ const kst = (iso?: string | null) => {
   try { return new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) } catch { return iso }
 }
 const num = (n: number) => (n || 0).toLocaleString('ko-KR')
-type Target = 'all' | 'plan' | 'multi'
+type Target = 'all' | 'plan' | 'multi' | 'visitors'
+const memberLabel = (m: number) => m === 1 ? '회원(로그인)' : m === 2 ? '회원 IP' : '비회원'
 
 export default function NoticesPage() {
   // 발송 폼 상태
@@ -26,6 +28,7 @@ export default function NoticesPage() {
   const [ctaUrl, setCtaUrl] = useState('')
   const [target, setTarget] = useState<Target>('all')
   const [plan, setPlan] = useState('Plus')
+  const [scopePath, setScopePath] = useState('')
   const [picked, setPicked] = useState<Record<string, boolean>>({})
   const [uploading, setUploading] = useState(false)
   const [sending, setSending] = useState(false)
@@ -36,7 +39,7 @@ export default function NoticesPage() {
   const [campaigns, setCampaigns] = useState<AdminNoticeCampaign[]>([])
   const [loading, setLoading] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
-  const [detail, setDetail] = useState<{ recipients: NoticeRecipient[]; campaign?: AdminNoticeCampaign } | null>(null)
+  const [detail, setDetail] = useState<{ recipients: NoticeRecipient[]; campaign?: AdminNoticeCampaign; visitorStats?: { views: VisitorStat; reads: VisitorStat; conversions: VisitorStat }; visitorEvents?: NoticeVisitorEvent[] } | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [rFilter, setRFilter] = useState<'all' | 'read' | 'unread'>('all')
 
@@ -89,18 +92,20 @@ export default function NoticesPage() {
     if (!title.trim() || !body.trim()) { setMsg('제목과 내용을 입력하세요.'); return }
     if (target === 'multi' && pickedIds.length === 0) { setMsg('발송할 회원을 선택하세요.'); return }
     if (ctaLabel.trim() && !ctaUrl.trim()) { setMsg('CTA 버튼 텍스트가 있으면 이동 URL도 입력하세요.'); return }
-    const label = target === 'all' ? '전체 회원' : target === 'plan' ? `${plan} 요금제` : `선택 ${pickedIds.length}명`
+    const label = target === 'all' ? '전체 회원' : target === 'plan' ? `${plan} 요금제`
+      : target === 'visitors' ? (scopePath.trim() ? `접속 전체 · ${scopePath.trim()} 방문자` : '접속 전체(비회원 포함)') : `선택 ${pickedIds.length}명`
     if (!confirm(`${label}에게 알림을 발송할까요?\n발송 후에는 즉시 팝업으로 표시됩니다.`)) return
     setSending(true); setMsg('')
     const res = await adminNoticeSend({
       title: title.trim(), body: body.trim(),
       imageUrl: imageUrl.trim() || undefined, ctaLabel: ctaLabel.trim() || undefined, ctaUrl: ctaUrl.trim() || undefined,
       target, plan: target === 'plan' ? plan : undefined, userIds: target === 'multi' ? pickedIds : undefined,
+      scopePath: target === 'visitors' ? (scopePath.trim() || undefined) : undefined,
     })
     setSending(false)
     if (res.ok) {
-      setMsg(`✅ ${num(res.audience || 0)}명에게 발송 완료`)
-      setTitle(''); setBody(''); setImageUrl(''); setCtaLabel(''); setCtaUrl(''); setPicked({})
+      setMsg(target === 'visitors' ? '✅ 접속 전체(비회원 포함) 발송 완료 — 방문 즉시 팝업으로 표시됩니다.' : `✅ ${num(res.audience || 0)}명에게 발송 완료`)
+      setTitle(''); setBody(''); setImageUrl(''); setCtaLabel(''); setCtaUrl(''); setPicked({}); setScopePath('')
       load()
     } else setMsg(res.error || '발송 실패')
   }
@@ -108,7 +113,7 @@ export default function NoticesPage() {
   function openDetail(id: string) {
     setOpenId(id); setDetail(null); setDetailLoading(true); setRFilter('all')
     adminNoticeDetail(id).then((d) => {
-      setDetail({ recipients: d.recipients || [], campaign: d.campaign }); setDetailLoading(false)
+      setDetail({ recipients: d.recipients || [], campaign: d.campaign, visitorStats: d.visitorStats, visitorEvents: d.visitorEvents }); setDetailLoading(false)
     })
   }
 
@@ -121,7 +126,7 @@ export default function NoticesPage() {
 
   return (
     <div>
-      <PageHeader icon={Bell} eyebrow="NOTICE" title="알림" desc="회원에게 팝업 알림을 발송하고, 사진·CTA 버튼을 함께 담을 수 있습니다. 누가 읽었는지(X로 닫음)도 확인할 수 있어요." />
+      <PageHeader icon={Bell} eyebrow="NOTICE" title="알림" desc="회원 또는 접속 전체(비회원 포함)에게 하단→상단 슬라이드 팝업을 발송합니다. 사진·CTA를 담고, 노출·읽음(X)·전환·접속 IP(회원/비회원)까지 확인할 수 있어요." />
 
       <div className="grid gap-4 lg:grid-cols-5">
         {/* ── 발송 폼 ── */}
@@ -177,11 +182,18 @@ export default function NoticesPage() {
               <div>
                 <label className="mb-1 block text-xs font-semibold text-[var(--text-dim)]">발송 대상</label>
                 <div className="flex flex-wrap gap-1.5">
-                  {([['all', '전체 회원'], ['plan', '요금제별'], ['multi', '회원 선택']] as [Target, string][]).map(([t, l]) => (
+                  {([['all', '전체 회원'], ['plan', '요금제별'], ['multi', '회원 선택'], ['visitors', '접속 전체(비회원)']] as [Target, string][]).map(([t, l]) => (
                     <button key={t} onClick={() => setTarget(t)}
-                      className={cn('rounded-lg border px-3 py-1.5 text-sm font-semibold', target === t ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-slate-50')}>{l}</button>
+                      className={cn('rounded-lg border px-3 py-1.5 text-sm font-semibold', target === t ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-slate-50')}>{l}</button>
                   ))}
                 </div>
+                {target === 'visitors' && (
+                  <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50/50 p-2.5">
+                    <p className="text-[11px] leading-relaxed text-blue-700">홈페이지·랜딩에 <b>접속한 모든 사람(비회원 포함)</b>에게 접속 즉시 하단→상단 슬라이드 팝업으로 표시됩니다. X를 누르면 읽음 처리돼요.</p>
+                    <label className="mb-1 mt-2 block text-[11px] font-semibold text-[var(--text-dim)]">특정 랜딩 경로만 (선택 · 비우면 전체 페이지)</label>
+                    <input value={scopePath} onChange={(e) => setScopePath(e.target.value)} placeholder="예) /l/summer-sale (우리 빌더로 만든 랜딩 경로)" className="input w-full text-xs" />
+                  </div>
+                )}
                 {target === 'plan' && (
                   <select value={plan} onChange={(e) => setPlan(e.target.value)} className="input mt-2 w-full">
                     {['없음', 'Plus', 'Pro', 'Max'].map((p) => <option key={p} value={p}>{p} 요금제</option>)}
@@ -200,7 +212,7 @@ export default function NoticesPage() {
                       ))}
                       {filteredUsers.length === 0 && <div className="px-1.5 py-2 text-xs text-[var(--text-dim)]">검색 결과 없음</div>}
                     </div>
-                    <div className="mt-1 text-right text-[11px] font-semibold text-indigo-600">{pickedIds.length}명 선택됨</div>
+                    <div className="mt-1 text-right text-[11px] font-semibold text-blue-600">{pickedIds.length}명 선택됨</div>
                   </div>
                 )}
               </div>
@@ -208,7 +220,7 @@ export default function NoticesPage() {
               {msg && <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-[var(--text-soft)]">{msg}</div>}
 
               <button onClick={onSend} disabled={sending}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60">
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">
                 {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} 알림 발송
               </button>
             </div>
@@ -224,7 +236,7 @@ export default function NoticesPage() {
                   <X size={16} className="mt-0.5 flex-shrink-0 text-slate-400" />
                 </div>
                 <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-slate-600">{body || '알림 내용이 여기에 표시됩니다.'}</p>
-                {ctaLabel && <div className="mt-3 rounded-lg bg-indigo-600 py-2 text-center text-xs font-bold text-white">{ctaLabel}</div>}
+                {ctaLabel && <div className="mt-3 rounded-lg bg-blue-600 py-2 text-center text-xs font-bold text-white">{ctaLabel}</div>}
               </div>
             </div>
           </Panel>
@@ -250,6 +262,7 @@ export default function NoticesPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <span className="truncate text-sm font-bold">{c.title}</span>
+                            {c.target === 'visitors' && <span className="flex-shrink-0 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-600">접속 전체</span>}
                             {c.imageUrl && <ImagePlus size={12} className="flex-shrink-0 text-slate-400" />}
                             {c.ctaUrl && <Link2 size={12} className="flex-shrink-0 text-slate-400" />}
                           </div>
@@ -257,12 +270,21 @@ export default function NoticesPage() {
                         </div>
                         <ChevronRight size={16} className="flex-shrink-0 text-slate-300" />
                       </div>
-                      <div className="mt-2 flex items-center gap-3 text-[11px]">
-                        <span className="inline-flex items-center gap-1 text-[var(--text-dim)]"><Users size={12} /> {num(c.total)}명</span>
-                        <span className="inline-flex items-center gap-1 font-semibold text-emerald-600"><CheckCircle2 size={12} /> 읽음 {num(c.readCount)}</span>
-                        <span className="inline-flex items-center gap-1 font-semibold text-slate-400"><Circle size={12} /> 안읽음 {num(c.unreadCount)}</span>
-                        <span className="ml-auto text-[var(--text-dim)]">{kst(c.createdAt)}</span>
-                      </div>
+                      {c.target === 'visitors' ? (
+                        <div className="mt-2 flex items-center gap-3 text-[11px]">
+                          <span className="inline-flex items-center gap-1 text-[var(--text-dim)]"><Eye size={12} /> 노출 {num(c.views ?? c.total)}</span>
+                          <span className="inline-flex items-center gap-1 font-semibold text-emerald-600"><CheckCircle2 size={12} /> 읽음 {num(c.readCount)}</span>
+                          <span className="inline-flex items-center gap-1 font-semibold text-blue-600"><Link2 size={12} /> 전환 {num(c.conversions ?? 0)}</span>
+                          <span className="ml-auto text-[var(--text-dim)]">{kst(c.createdAt)}</span>
+                        </div>
+                      ) : (
+                        <div className="mt-2 flex items-center gap-3 text-[11px]">
+                          <span className="inline-flex items-center gap-1 text-[var(--text-dim)]"><Users size={12} /> {num(c.total)}명</span>
+                          <span className="inline-flex items-center gap-1 font-semibold text-emerald-600"><CheckCircle2 size={12} /> 읽음 {num(c.readCount)}</span>
+                          <span className="inline-flex items-center gap-1 font-semibold text-slate-400"><Circle size={12} /> 안읽음 {num(c.unreadCount)}</span>
+                          <span className="ml-auto text-[var(--text-dim)]">{kst(c.createdAt)}</span>
+                        </div>
+                      )}
                       <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
                         <div className="h-full rounded-full bg-emerald-500" style={{ width: rate + '%' }} />
                       </div>
@@ -283,22 +305,62 @@ export default function NoticesPage() {
               <div className="flex items-center gap-2 font-bold"><Eye size={16} /> {detail?.campaign?.title || '읽음 현황'}</div>
               <button onClick={() => setOpenId(null)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"><X size={18} /></button>
             </div>
-            <div className="border-b border-[var(--border)] px-5 py-2.5">
-              <div className="flex gap-1.5">
-                {([['all', '전체'], ['read', '읽음'], ['unread', '안읽음']] as ['all' | 'read' | 'unread', string][]).map(([f, l]) => {
-                  const cnt = f === 'all' ? (detail?.recipients.length || 0) : f === 'read' ? (detail?.campaign?.readCount ?? (detail?.recipients.filter((r) => r.read).length || 0)) : (detail?.recipients.filter((r) => !r.read).length || 0)
-                  return (
-                    <button key={f} onClick={() => setRFilter(f)}
-                      className={cn('rounded-lg px-3 py-1.5 text-xs font-semibold', rFilter === f ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}>
-                      {l} {num(cnt)}
-                    </button>
-                  )
-                })}
+            {!(detail?.campaign?.target === 'visitors' || detail?.visitorStats) && (
+              <div className="border-b border-[var(--border)] px-5 py-2.5">
+                <div className="flex gap-1.5">
+                  {([['all', '전체'], ['read', '읽음'], ['unread', '안읽음']] as ['all' | 'read' | 'unread', string][]).map(([f, l]) => {
+                    const cnt = f === 'all' ? (detail?.recipients.length || 0) : f === 'read' ? (detail?.campaign?.readCount ?? (detail?.recipients.filter((r) => r.read).length || 0)) : (detail?.recipients.filter((r) => !r.read).length || 0)
+                    return (
+                      <button key={f} onClick={() => setRFilter(f)}
+                        className={cn('rounded-lg px-3 py-1.5 text-xs font-semibold', rFilter === f ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}>
+                        {l} {num(cnt)}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-            <div className="max-h-[60vh] overflow-y-auto">
+            )}
+            <div className="max-h-[62vh] overflow-y-auto">
               {detailLoading ? (
                 <div className="flex items-center justify-center gap-2 py-16 text-sm text-[var(--text-dim)]"><Loader2 size={16} className="animate-spin" /> 불러오는 중…</div>
+              ) : (detail?.campaign?.target === 'visitors' || detail?.visitorStats) ? (
+                <div className="p-5">
+                  {/* 방문자(비회원 포함) 성과: 노출 → 읽음 → 전환 */}
+                  <div className="grid grid-cols-3 gap-3">
+                    {([['노출', detail?.visitorStats?.views, 'text-slate-700'], ['읽음(X)', detail?.visitorStats?.reads, 'text-emerald-600'], ['전환(CTA)', detail?.visitorStats?.conversions, 'text-blue-600']] as [string, VisitorStat | undefined, string][]).map(([l, s, c]) => (
+                      <div key={l} className="rounded-xl border border-[var(--border)] p-3 text-center">
+                        <div className="text-[11px] font-semibold text-[var(--text-dim)]">{l}</div>
+                        <div className={cn('mt-0.5 text-2xl font-bold tabular-nums', c)}>{num(s?.total || 0)}</div>
+                        <div className="mt-0.5 text-[10px] text-[var(--text-dim)]">회원 {num(s?.members || 0)} · 비회원 {num(s?.guests || 0)}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {detail?.campaign?.scopePath && <div className="mt-3 text-[11px] text-[var(--text-dim)]">랜딩 경로: <b className="text-blue-600">{detail.campaign.scopePath}</b></div>}
+                  <div className="mt-4 text-xs font-semibold text-[var(--text-dim)]">접속 IP · 회원/비회원 (최근)</div>
+                  <div className="mt-1.5 overflow-hidden rounded-xl border border-[var(--border)]">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 text-xs text-[var(--text-dim)]">
+                        <tr><th className="px-3 py-2 text-left font-semibold">IP</th><th className="px-3 py-2 text-left font-semibold">구분</th><th className="px-3 py-2 text-left font-semibold">동작</th><th className="px-3 py-2 text-right font-semibold">시각(KST)</th></tr>
+                      </thead>
+                      <tbody>
+                        {(detail?.visitorEvents || []).length === 0 ? (
+                          <tr><td colSpan={4} className="px-3 py-8 text-center text-[var(--text-dim)]">아직 접속 기록이 없습니다.</td></tr>
+                        ) : (detail?.visitorEvents || []).map((e, i) => (
+                          <tr key={i} className="border-t border-[var(--border)]">
+                            <td className="px-3 py-2 font-mono text-xs">{e.ip || '-'}</td>
+                            <td className="px-3 py-2">
+                              <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', e.isMember ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500')}>
+                                {memberLabel(e.isMember)}{e.memberEmail ? ` · ${e.memberEmail}` : ''}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-xs text-[var(--text-soft)]">{e.kind === 'view' ? '노출' : e.kind === 'read' ? '읽음(X)' : '전환(CTA)'}</td>
+                            <td className="px-3 py-2 text-right text-xs text-[var(--text-dim)]">{kst(e.createdAt)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               ) : shownRecipients.length === 0 ? (
                 <div className="py-16 text-center text-sm text-[var(--text-dim)]">해당하는 회원이 없습니다.</div>
               ) : (

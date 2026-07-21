@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/dash/PageHeader'
 import { StatCard, Panel, Button } from '@/components/ui'
 import { Reveal } from '@/components/motion'
 import { adminCreditGrants, type CreditGrantsStats } from '@/lib/auth'
+import { kstDateTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
 
 const ACCENT = '#2563eb'
@@ -21,14 +22,8 @@ const TYPE_OPTIONS: { key: 'all' | 'auto' | 'manual'; label: string }[] = [
 
 const num = (n: number) => (n || 0).toLocaleString('ko-KR')
 const cr = (n: number) => (Math.round((n || 0) * 10) / 10).toLocaleString('ko-KR')
-
-function fmtDateTime(iso: string) {
-  if (!iso) return '-'
-  const d = new Date(iso)
-  if (Number.isNaN(+d)) return '-'
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
-}
+// 모든 시간은 한국시간(KST) 고정
+const fmtDateTime = (iso: string) => kstDateTime(iso)
 
 function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
   const esc = (v: string | number) => {
@@ -198,7 +193,7 @@ export default function AdminCreditGrantsPage() {
                 <table className="w-full min-w-[880px] text-sm">
                   <thead className="sticky top-0 z-10 bg-white">
                     <tr className={THEAD}>
-                      <th className={TH}>시각</th>
+                      <th className={TH}>시각 (KST)</th>
                       <th className={TH}>구분</th>
                       <th className={TH}>회원</th>
                       <th className={cn(TH, 'text-right')}>지급 크레딧</th>

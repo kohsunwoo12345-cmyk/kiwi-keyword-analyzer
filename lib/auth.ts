@@ -1161,7 +1161,12 @@ export interface AdminNoticeCampaign extends NoticeItem {
   total: number
   readCount: number
   unreadCount: number
+  scopePath?: string
+  views?: number
+  conversions?: number
 }
+export interface VisitorStat { total: number; members: number; guests: number }
+export interface NoticeVisitorEvent { ip: string; isMember: number; memberEmail: string; kind: string; path: string; createdAt: string }
 export interface NoticeRecipient {
   userId: string
   name: string
@@ -1193,7 +1198,7 @@ export async function adminNoticeList(): Promise<{ ok: boolean; campaigns: Admin
   } catch { return { ok: false, campaigns: [], error: '네트워크 오류' } }
 }
 // 관리자: 특정 캠페인의 회원별 읽음/안읽음 상세
-export async function adminNoticeDetail(id: string): Promise<{ ok: boolean; campaign?: AdminNoticeCampaign; recipients?: NoticeRecipient[]; readCount?: number; unreadCount?: number; error?: string }> {
+export async function adminNoticeDetail(id: string): Promise<{ ok: boolean; campaign?: AdminNoticeCampaign; recipients?: NoticeRecipient[]; readCount?: number; unreadCount?: number; visitorStats?: { views: VisitorStat; reads: VisitorStat; conversions: VisitorStat }; visitorEvents?: NoticeVisitorEvent[]; error?: string }> {
   try {
     const r = await fetch('/api/admin/notices?id=' + encodeURIComponent(id), { credentials: 'include', cache: 'no-store' })
     return await r.json()
@@ -1202,7 +1207,7 @@ export async function adminNoticeDetail(id: string): Promise<{ ok: boolean; camp
 // 관리자: 알림 발송
 export async function adminNoticeSend(payload: {
   title: string; body: string; imageUrl?: string; ctaLabel?: string; ctaUrl?: string
-  target: 'all' | 'plan' | 'user' | 'multi'; plan?: string; userId?: string; userIds?: string[]
+  target: 'all' | 'plan' | 'user' | 'multi' | 'visitors'; plan?: string; userId?: string; userIds?: string[]; scopePath?: string
 }): Promise<{ ok: boolean; campaignId?: string; audience?: number; error?: string }> {
   return postJson('/api/admin/notices', payload)
 }

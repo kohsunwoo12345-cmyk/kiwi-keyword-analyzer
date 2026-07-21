@@ -70,6 +70,30 @@ f.addEventListener('submit',async function(e){e.preventDefault();b.disabled=true
  }catch(err){b.disabled=false;b.textContent='신청하기';alert('네트워크 오류');}
 });
 </script>
+<script>(function(){
+ function vid(){try{var v=localStorage.getItem('bg_visitor');if(!v){v='vz_'+Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.setItem('bg_visitor',v);}return v;}catch(e){return '';}}
+ var path=location.pathname,V=vid();
+ function post(id,k){try{fetch('/api/public-notices',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({campaignId:id,visitor:V,kind:k,path:path})});}catch(e){}}
+ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+ function render(list){
+  var wrap=document.getElementById('bgNW');
+  if(!wrap){wrap=document.createElement('div');wrap.id='bgNW';wrap.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:99999;display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px;pointer-events:none';document.body.appendChild(wrap);}
+  list.slice(0,3).forEach(function(n){
+   if(document.getElementById('bgn_'+n.id))return;
+   var c=document.createElement('div');c.id='bgn_'+n.id;
+   c.style.cssText='pointer-events:auto;width:100%;max-width:360px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 20px 50px -12px rgba(0,0,0,.35);transform:translateY(30px);opacity:0;transition:all .3s ease';
+   var img=n.imageUrl?'<img src="'+esc(n.imageUrl)+'" style="width:100%;max-height:176px;object-fit:cover;display:block">':'';
+   var cta=(n.ctaLabel&&n.ctaUrl)?'<button data-go style="margin-top:12px;width:100%;padding:10px;border:0;border-radius:12px;background:#2563eb;color:#fff;font-weight:700;font-size:14px;cursor:pointer">'+esc(n.ctaLabel)+'</button>':'';
+   c.innerHTML=img+'<div style="padding:16px"><div style="display:flex;justify-content:space-between;gap:12px"><b style="font-size:14px;color:#0f172a">'+esc(n.title)+'</b><span data-x style="cursor:pointer;color:#94a3b8;font-size:20px;line-height:1">\\u00d7</span></div><p style="margin:6px 0 0;font-size:13px;color:#475569;white-space:pre-wrap">'+esc(n.body)+'</p>'+cta+'</div>';
+   wrap.appendChild(c);
+   requestAnimationFrame(function(){c.style.transform='none';c.style.opacity='1';});
+   function close(){c.style.transform='translateY(30px)';c.style.opacity='0';setTimeout(function(){c.remove();},320);}
+   c.querySelector('[data-x]').onclick=function(){post(n.id,'read');close();};
+   var g=c.querySelector('[data-go]');if(g)g.onclick=function(){post(n.id,'convert');if(/^https?:\\/\\//i.test(n.ctaUrl))window.open(n.ctaUrl,'_blank','noopener');else location.href=n.ctaUrl;close();};
+  });
+ }
+ fetch('/api/public-notices?path='+encodeURIComponent(path)+'&visitor='+encodeURIComponent(V),{cache:'no-store'}).then(function(r){return r.json();}).then(function(d){if(d&&d.ok&&d.notices&&d.notices.length)render(d.notices);}).catch(function(){});
+})();</script>
 </body></html>`
   return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } })
 }
