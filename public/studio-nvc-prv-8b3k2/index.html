@@ -264,8 +264,8 @@ button .ico{ margin-right:5px; }
 /* ── 홈 · 채팅으로 영상 생성 ── */
 #chatHome{ position:fixed; left:44px; top:40px; right:0; bottom:0; z-index:80; display:flex; flex-direction:column;
   background:#000; color:#e8eaf2;
-  opacity:0; visibility:hidden; pointer-events:none; transform:translateX(46px);
-  transition:opacity .26s ease, transform .34s cubic-bezier(.22,1,.36,1), visibility .34s; }
+  opacity:0; visibility:hidden; pointer-events:none; transform:translateX(72px);
+  transition:opacity .3s ease, transform .42s cubic-bezier(.22,1,.36,1), visibility .42s; }
 #chatHome.on{ opacity:1; visibility:visible; pointer-events:auto; transform:translateX(0); }
 .ch-head{ display:flex; align-items:center; justify-content:space-between; padding:11px 18px; border-bottom:1px solid rgba(255,255,255,.06); flex-shrink:0; }
 .ch-title{ display:flex; align-items:center; gap:8px; font-size:14px; font-weight:800; color:#eef0f8; }
@@ -373,8 +373,8 @@ body.create-open #btnQueue{ display:none !important; }
 /* ── 제작 화면 (중앙 히어로 + 하단 프롬프트 바) ── */
 #railCreate svg{ width:17px; height:17px; }
 #createHome{ position:fixed; left:44px; top:40px; right:0; bottom:0; z-index:82; display:flex; flex-direction:column; background:#000; color:#e8eaf2;
-  opacity:0; visibility:hidden; pointer-events:none; transform:translateX(46px);
-  transition:opacity .26s ease, transform .34s cubic-bezier(.22,1,.36,1), visibility .34s; }
+  opacity:0; visibility:hidden; pointer-events:none; transform:translateX(72px);
+  transition:opacity .3s ease, transform .42s cubic-bezier(.22,1,.36,1), visibility .42s; }
 #createHome.on{ opacity:1; visibility:visible; pointer-events:auto; transform:translateX(0); }
 .cr-head{ display:flex; align-items:center; justify-content:space-between; padding:11px 18px; border-bottom:1px solid rgba(255,255,255,.06); flex-shrink:0; }
 .cr-title{ font-size:14px; font-weight:800; color:#eef0f8; }
@@ -492,6 +492,15 @@ body.create-open #btnQueue{ display:none !important; }
 .genbar i{ position:absolute; top:0; left:0; height:100%; width:40%; border-radius:3px;
   background:linear-gradient(90deg,transparent,#8fa6ff,#c3b0ff,transparent); animation:genBar 1.5s ease-in-out infinite; }
 @keyframes genBar{ 0%{ left:-42%; } 100%{ left:104%; } }
+/* ── 전역 페이지 전환 로더 (모든 화면 이동 시 동일한 고급 AI UI) ── */
+#navLoader{ position:fixed; inset:0; z-index:200; display:flex; align-items:center; justify-content:center;
+  background:radial-gradient(120% 100% at 50% 45%, rgba(20,22,34,.86), rgba(6,7,12,.94));
+  -webkit-backdrop-filter:blur(7px); backdrop-filter:blur(7px);
+  opacity:0; visibility:hidden; pointer-events:none; transition:opacity .22s ease, visibility .22s; }
+#navLoader.on{ opacity:1; visibility:visible; pointer-events:auto; }
+#navLoader .nav-load-card{ display:flex; flex-direction:column; align-items:center; gap:16px;
+  transform:translateY(6px) scale(.98); opacity:0; transition:transform .3s cubic-bezier(.22,1,.36,1), opacity .3s ease; }
+#navLoader.on .nav-load-card{ transform:none; opacity:1; }
 #edges path.link.cut-hit{ stroke:#ff5a5a !important; opacity:1; stroke-dasharray:5 4; }
 
 /* ── 노드 (ComfyUI 원본 스타일) ── */
@@ -1503,10 +1512,10 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 </div>
 
 <div id="rail">
-  <button id="railHome" title="홈 · 채팅으로 영상 생성">
+  <button id="railHome" title="홈 · 제작 페이지">
     <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg>
   </button>
-  <button id="railCreate" title="제작 · 프롬프트로 바로 만들기">
+  <button id="railCreate" title="새 채팅으로 영상·이미지 생성">
     <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18"/></svg>
   </button>
   <button id="railLib" title="노드 라이브러리">▤</button>
@@ -2277,6 +2286,31 @@ function genLoader(label, minH){
     '<div class="gentext">'+esc(label||'생성 중')+'<i>.</i><i>.</i><i>.</i></div>'+
     '<div class="genbar"><i></i></div></div>';
 }
+/* 채팅·제작 카드용 생성 중 로더 — 노드와 동일한 고급 AI 로더 UI */
+function genCardLoader(isImage){
+  return '<div class="ch-genc">'+
+    '<div class="genring"><span class="genorbit"></span></div>'+
+    '<div class="gentext">'+(isImage?'이미지':'영상')+' 생성 중<i>.</i><i>.</i><i>.</i></div>'+
+    '<div class="genbar"><i></i></div></div>';
+}
+/* ── 전역 페이지 전환 로더 (모든 화면 이동 시 동일한 고급 AI UI) ── */
+function navLoader(){ return document.getElementById('navLoader'); }
+var _navLoaderT=null;
+function showNavLoader(label){
+  var ov=navLoader();
+  if(!ov){ ov=document.createElement('div'); ov.id='navLoader';
+    ov.innerHTML='<div class="nav-load-card">'+
+      '<div class="genring" style="width:56px;height:56px;"><span class="genorbit"></span></div>'+
+      '<div class="gentext" id="navLoadTx" style="font-size:13px;letter-spacing:.5px;">'+esc(label||'불러오는 중')+'<i>.</i><i>.</i><i>.</i></div>'+
+      '<div class="genbar" style="max-width:180px;"><i></i></div></div>';
+    (document.body||document.documentElement).appendChild(ov);
+  } else { var tx=document.getElementById('navLoadTx'); if(tx)tx.innerHTML=esc(label||'불러오는 중')+'<i>.</i><i>.</i><i>.</i>'; }
+  // 강제 리플로우 후 표시 (transition 적용)
+  void ov.offsetWidth; ov.classList.add('on');
+  if(_navLoaderT){ clearTimeout(_navLoaderT); }
+  _navLoaderT=setTimeout(hideNavLoader, 620);   // 전환 연출용 — 짧게 보였다 사라짐
+}
+function hideNavLoader(){ var ov=navLoader(); if(ov)ov.classList.remove('on'); if(_navLoaderT){ clearTimeout(_navLoaderT); _navLoaderT=null; } }
 /* 이미지 레퍼런스 포트 연결이 모델 최대치를 넘으면 초과 안내 */
 function refExceedToast(nodeId, port){
   if(port!=='ref') return;
@@ -3866,7 +3900,7 @@ function widgetHTML(n,w){
   if(w.t==='imagegenout'){
     if(n.w.imgGenerating) return genLoader('생성 중',100);
     if(n.w.imgError) return '<div class="wpreview vperr"><span class="vperr-x">'+ICON.close+'</span><b>생성 실패</b><span class="vperr-msg">'+esc(String(n.w.imgError).slice(0,180))+'</span><span class="vperr-hint">키 미설정이면 그 모델은 생성이 안 됩니다</span></div>';
-    if(!n.w.img) return '<div class="wpreview" style="aspect-ratio:1/1;"></div>';
+    if(!n.w.img) return '';   // 생성 전에는 빈 이미지 칸을 두지 않음 — [이미지 생성]을 눌러야 생성 중 칸이 나타난다
     return '<div class="wpreview"><span class="badge">'+esc(n.w.model||'이미지')+'</span><img src="'+esc(n.w.img)+'" alt="생성 이미지"></div>'+
       '<button class="wbtn" data-dlimg>'+ICON.dl+' 이미지 저장</button>'+
       '<div class="refcnt">우측 IMAGE 포트 → 다른 모델의 <b>레퍼런스/첫 프레임</b>에 연결해 재활용</div>';
@@ -5853,8 +5887,8 @@ pfHandleTossReturn();
     setTimeout(function(){ var t=chEl('chText'); if(t)t.focus(); },50);
   }
   function applyClose(){ home.classList.remove('on'); document.body.classList.remove('chat-open'); }
-  function open(){ if(!hashIsChat()){ location.hash='chat'; } applyOpen(); }   // URL 을 #chat 으로
-  function close(){ if(hashIsChat()){ history.replaceState(null,'',location.pathname+location.search); } applyClose(); }  // URL 을 기본으로
+  function open(){ try{ showNavLoader('채팅 준비 중'); }catch(e){} if(!hashIsChat()){ location.hash='chat'; } applyOpen(); }   // URL 을 #chat 으로
+  function close(){ try{ showNavLoader('스튜디오로 이동 중'); }catch(e){} if(hashIsChat()){ history.replaceState(null,'',location.pathname+location.search); } applyClose(); }  // URL 을 기본으로
   function toggleHome(){ if(home.classList.contains('on')) close(); else open(); }
   // 뒤로가기/앞으로가기·직접 URL 접근 시 뷰 동기화
   window.addEventListener('hashchange', function(){ if(hashIsChat()) applyOpen(); else applyClose(); });
@@ -5870,7 +5904,7 @@ pfHandleTossReturn();
     // 생성 중 카드(우측 상단에 삽입)
     var w=outWrap();
     var gen=document.createElement('div'); gen.className='ch-card gen'; gen.setAttribute('data-kind', isImage?'image':'video');
-    gen.innerHTML='<div class="ch-genc"><span class="ch-dots"><i></i><i></i><i></i></span><span>'+(isImage?'이미지':'영상')+' 생성 중…</span></div>';
+    gen.innerHTML=genCardLoader(isImage);
     if(w){ w.insertBefore(gen, w.firstChild); } applyFilter();
     try{
       var params={ model:model, prompt:prompt, ratio:ratio, res:res, seconds:sec };
@@ -5903,7 +5937,8 @@ pfHandleTossReturn();
     busy=false; if(sendBtn)sendBtn.disabled=false;
   }
 
-  var rh=chEl('railHome'); if(rh)rh.addEventListener('click',toggleHome);
+  // + 버튼(railCreate) → 채팅(#chat) 열기
+  var rh=chEl('railCreate'); if(rh)rh.addEventListener('click',toggleHome);
   document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&home.classList.contains('on'))close(); });
   var cc=chEl('chClose'); if(cc)cc.addEventListener('click',close);
   var tn=chEl('chToNode'); if(tn)tn.addEventListener('click',close);
@@ -5974,7 +6009,7 @@ pfHandleTossReturn();
 
   async function genOnce(params, model, isImage, sec, ratio, res, att, recipe){
     var w=resWrap(); var gen=document.createElement('div'); gen.className='ch-card gen'; gen.setAttribute('data-kind',isImage?'image':'video');
-    gen.innerHTML='<div class="ch-genc"><span class="ch-dots"><i></i><i></i><i></i></span><span>'+(isImage?'이미지':'영상')+' 생성 중…</span></div>';
+    gen.innerHTML=genCardLoader(isImage);
     if(w)w.insertBefore(gen,w.firstChild); showResults();
     try{ var r=await generateWithAPI(params);
       if(!r||r.error||!r.url){ var em=(r&&r.error)||'생성에 실패했습니다.'; gen.classList.remove('gen'); gen.innerHTML='<div class="ch-fail">'+WARN+' 생성 실패<br>'+esc(String(em).slice(0,130))+'</div>'; return; }
@@ -6008,13 +6043,14 @@ pfHandleTossReturn();
   function isCreate(){ return (location.hash||'').toLowerCase()==='#create'; }
   function applyOpen(){ if(home.classList.contains('on'))return; fillModels(); renderGrid(); home.classList.add('on'); document.body.classList.add('create-open'); try{ if(typeof I18N_LANG!=='undefined' && I18N_LANG!=='ko') applyI18n(home); }catch(e){} setTimeout(function(){var t=el('crText'); if(t)t.focus();},50); }
   function applyClose(){ home.classList.remove('on'); document.body.classList.remove('create-open'); }
-  function open(){ if(!isCreate())location.hash='create'; applyOpen(); }
-  function close(){ if(isCreate())history.replaceState(null,'',location.pathname+location.search); applyClose(); }
+  function open(){ try{ showNavLoader('제작 준비 중'); }catch(e){} if(!isCreate())location.hash='create'; applyOpen(); }
+  function close(){ try{ showNavLoader('스튜디오로 이동 중'); }catch(e){} if(isCreate())history.replaceState(null,'',location.pathname+location.search); applyClose(); }
   function toggle(){ if(home.classList.contains('on'))close(); else open(); }
   window.addEventListener('hashchange',function(){ if(isCreate())applyOpen(); else applyClose(); });
   if(isCreate())setTimeout(applyOpen,0);
 
-  var rc=el('railCreate'); if(rc)rc.addEventListener('click',toggle);
+  // 홈 버튼(railHome) → 제작(#create) 열기
+  var rc=el('railHome'); if(rc)rc.addEventListener('click',toggle);
   document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&home.classList.contains('on'))close(); });
   var cc=el('crClose'); if(cc)cc.addEventListener('click',close);
   var tn=el('crToNode'); if(tn)tn.addEventListener('click',close);
