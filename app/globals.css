@@ -551,3 +551,14 @@ body {
   85% { opacity: 1; }
   100% { top: 110%; opacity: 0; }
 }
+
+/* 고퀄 SVG 이모지 (Twemoji) — 텍스트 속 이모지를 인라인 이미지로 렌더 */
+img.bg-emoji {
+  display: inline-block;
+  height: 1em;
+  width: 1em;
+  margin: 0 0.05em 0 0.1em;
+  vertical-align: -0.125em;
+  object-fit: contain;
+  user-select: none;
+}

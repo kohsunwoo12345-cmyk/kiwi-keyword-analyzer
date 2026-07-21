@@ -108,6 +108,7 @@ f.addEventListener('submit',async function(e){e.preventDefault();b.disabled=true
  }
  fetch('/api/public-notices?path='+encodeURIComponent(path)+'&visitor='+encodeURIComponent(V),{cache:'no-store'}).then(function(r){return r.json();}).then(function(d){if(d&&d.ok&&d.notices&&d.notices.length)render(d.notices);}).catch(function(){});
 })();</script>
+<script src="/emoji-parser.js" defer></script>
 </body></html>`
   return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } })
 }

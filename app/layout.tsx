@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { VisitTracker } from '@/components/VisitTracker'
 import { PublicNoticePopups } from '@/components/PublicNoticePopups'
+import { EmojiParser } from '@/components/EmojiParser'
 import { SupportChat } from '@/components/SupportChat'
 import { LanguageProvider } from '@/lib/i18n'
 import { JsonLd } from '@/components/seo/JsonLd'
@@ -72,6 +73,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={inter.className}>
         <LanguageProvider>
           <VisitTracker />
+          <EmojiParser />
           {children}
           <PublicNoticePopups />
           <SupportChat />
