@@ -11,17 +11,21 @@ export const alimtalkPage = `<!DOCTYPE html>
   <meta property="og:site_name" content="BYGENCY">
   <meta property="og:title" content="BYGENCY">
   <meta property="og:description" content="학원 전문 마케팅 학원 관리 프로그램">
-  <meta property="og:image" content="https://wearesuperplace.com/superplace-logo.png">
+  <meta property="og:image" content="https://bygency.co/brand/app-icon.png">
   <meta property="twitter:card" content="summary_large_image">
   <meta property="twitter:title" content="BYGENCY">
   <meta property="twitter:description" content="학원 전문 마케팅 학원 관리 프로그램">
-  <meta property="twitter:image" content="https://wearesuperplace.com/superplace-logo.png">
+  <meta property="twitter:image" content="https://bygency.co/brand/app-icon.png">
+  <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- 폰트·아이콘 CSS 를 렌더 비차단(async)으로 로드 → 첫 페인트 즉시 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" media="print" onload="this.media='all'">
   <style>
-    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
     body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; }
 
     /* 폰 목업 */

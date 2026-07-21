@@ -11,15 +11,17 @@ export const smsPage = `    <!DOCTYPE html>
         <meta property="og:site_name" content="BYGENCY">
         <meta property="og:title" content="BYGENCY">
         <meta property="og:description" content="학원 전문 마케팅 학원 관리 프로그램">
-        <meta property="og:image" content="https://wearesuperplace.com/superplace-logo.png">
+        <meta property="og:image" content="https://bygency.co/brand/app-icon.png">
         <meta property="twitter:card" content="summary_large_image">
         <meta property="twitter:title" content="BYGENCY">
         <meta property="twitter:description" content="학원 전문 마케팅 학원 관리 프로그램">
-        <meta property="twitter:image" content="https://wearesuperplace.com/superplace-logo.png">
+        <meta property="twitter:image" content="https://bygency.co/brand/app-icon.png">
+        <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
         <script src="https://cdn.tailwindcss.com"></script>
-        <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+        <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable.css" media="print" onload="this.media='all'">
         <style>
-          @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable.css');
           * {
             font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
           }
