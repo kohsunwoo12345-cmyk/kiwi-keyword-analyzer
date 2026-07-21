@@ -62,7 +62,7 @@ export default function McpDocsPage() {
   ]
 
   return (
-    <div className="site-dark min-h-screen overflow-x-hidden">
+    <div className="site-dark min-h-screen overflow-x-clip">
       <Navbar />
 
       {/* Hero */}

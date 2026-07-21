@@ -26,7 +26,7 @@ export function LegalShell({
 }) {
   const pathname = usePathname()
   return (
-    <div className="site-dark min-h-screen overflow-x-hidden">
+    <div className="site-dark min-h-screen overflow-x-clip">
       <Navbar />
 
       {/* header */}

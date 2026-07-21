@@ -398,7 +398,7 @@ export function FeatureDetail({ slug }: { slug: string }) {
 
   if (!feature) {
     return (
-      <div className="site-dark min-h-screen overflow-x-hidden">
+      <div className="site-dark min-h-screen overflow-x-clip">
         <Navbar />
         <div className="mx-auto flex min-h-[70vh] max-w-2xl flex-col items-center justify-center px-5 pt-16 text-center">
           <h1 className="text-3xl font-bold">{t('찾을 수 없습니다')}</h1>
@@ -417,7 +417,7 @@ export function FeatureDetail({ slug }: { slug: string }) {
   const others = FEATURES.filter((f) => f.slug !== slug)
 
   return (
-    <div className="site-dark min-h-screen overflow-x-hidden">
+    <div className="site-dark min-h-screen overflow-x-clip">
       <Navbar />
 
       {/* ===== HERO ===== */}

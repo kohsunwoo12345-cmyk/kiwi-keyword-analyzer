@@ -70,7 +70,7 @@ const M: Dict = {
 export function FeaturesHubContent() {
   const t = useT(M)
   return (
-    <div className="site-dark min-h-screen overflow-x-hidden">
+    <div className="site-dark min-h-screen overflow-x-clip">
       <Navbar />
 
       {/* ===== HERO ===== */}

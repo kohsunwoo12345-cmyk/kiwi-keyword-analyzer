@@ -94,7 +94,7 @@ const TOOLS = [
 export default function ClaudeMcpPage() {
   const t = useT(M)
   return (
-    <div className="site-dark min-h-screen overflow-x-hidden">
+    <div className="site-dark min-h-screen overflow-x-clip">
       <Navbar />
 
       {/* HERO */}

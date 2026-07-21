@@ -805,7 +805,7 @@ export default function Home() {
     }
   })
   return (
-    <div className="site-dark min-h-screen overflow-x-hidden">
+    <div className="site-dark min-h-screen overflow-x-clip">
       <JsonLd data={[softwareLd(), breadcrumbLd([{ name: '홈', path: '/' }])]} />
       <Navbar />
 

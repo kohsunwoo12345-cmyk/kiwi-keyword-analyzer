@@ -639,7 +639,7 @@ export default function PricingPage() {
   const videoTiers = applyConfig(VIDEO_TIERS, 'video', cfg)
   const marketerTiers = applyConfig(MARKETER_TIERS, 'marketer', cfg)
   return (
-    <div className="site-dark min-h-screen overflow-x-hidden">
+    <div className="site-dark min-h-screen overflow-x-clip">
       <JsonLd data={breadcrumbLd([{ name: '홈', path: '/' }, { name: '요금제', path: '/pricing' }])} />
       <Navbar />
 

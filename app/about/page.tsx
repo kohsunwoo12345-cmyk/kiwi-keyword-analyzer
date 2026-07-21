@@ -240,7 +240,7 @@ const M: Dict = {
 export default function AboutPage() {
   const t = useT(M)
   return (
-    <div className="site-dark min-h-screen overflow-x-hidden">
+    <div className="site-dark min-h-screen overflow-x-clip">
       <Navbar />
 
       {/* ===== HERO ===== */}
