@@ -21,8 +21,8 @@ export const videoMakerPage = `<!DOCTYPE html>
     *{box-sizing:border-box;margin:0;padding:0}
     .tw{display:inline-block;vertical-align:middle;pointer-events:none;user-select:none;width:14px;height:14px;flex-shrink:0;}
     :root{
-      --primary:#2563eb;--primary-light:#3b82f6;--primary-dark:#1d4ed8;
-      --accent:#2563eb;--accent2:#3b82f6;
+      --primary:#7c3aed;--primary-light:#8b5cf6;--primary-dark:#6d28d9;
+      --accent:#7c3aed;--accent2:#8b5cf6;
       --bg:#f6f7f9;--surface:#ffffff;--surface2:#f1f3f6;
       --border:#e5e7eb;--border2:#d0d5dd;
       --text:#0f172a;--text2:#1e293b;--text3:#64748b;--text4:#94a3b8;
@@ -79,7 +79,7 @@ export const videoMakerPage = `<!DOCTYPE html>
     .lp{
       background:#fff;border-right:1.5px solid var(--border);
       display:flex;flex-direction:column;overflow:hidden;
-      box-shadow:2px 0 18px rgba(37,99,235,.07);
+      box-shadow:2px 0 18px rgba(124,58,237,.07);
     }
 
     /* ── STEP TABS ── */
@@ -97,7 +97,7 @@ export const videoMakerPage = `<!DOCTYPE html>
       user-select:none;-webkit-user-select:none;
       position:relative;z-index:10;
     }
-    .ltab:hover{color:var(--primary);background:rgba(37,99,235,.06)}
+    .ltab:hover{color:var(--primary);background:rgba(124,58,237,.06)}
     .ltab.on{color:var(--primary);border-bottom-color:var(--primary);background:#fff;font-weight:900;box-shadow:inset 0 -2px 0 var(--primary)}
     .ltab-panel{display:none;flex-direction:column;position:relative}
     .ltab-panel.on{display:flex;flex:1;min-height:0;overflow:hidden}
@@ -117,10 +117,10 @@ export const videoMakerPage = `<!DOCTYPE html>
       border-radius:13px;text-align:center;cursor:pointer;transition:all .2s;
       font-size:9px;font-weight:800;color:var(--text3);
       user-select:none;-webkit-user-select:none;
-      box-shadow:0 1px 4px rgba(37,99,235,.06);
+      box-shadow:0 1px 4px rgba(124,58,237,.06);
     }
-    .fo:hover{border-color:var(--primary-light);color:var(--primary);background:rgba(37,99,235,.04);transform:translateY(-1px)}
-    .fo.on{border-color:var(--primary);background:linear-gradient(145deg,rgba(37,99,235,.08),rgba(37,99,235,.08));color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.12),0 3px 12px rgba(37,99,235,.1)}
+    .fo:hover{border-color:var(--primary-light);color:var(--primary);background:rgba(124,58,237,.04);transform:translateY(-1px)}
+    .fo.on{border-color:var(--primary);background:linear-gradient(145deg,rgba(124,58,237,.08),rgba(124,58,237,.08));color:var(--primary);box-shadow:0 0 0 3px rgba(124,58,237,.12),0 3px 12px rgba(124,58,237,.1)}
     .fo-ico{font-size:22px;display:block;margin-bottom:5px}
     .dur-row{display:flex;gap:5px;flex-wrap:wrap;margin-top:12px}
     .dc{
@@ -129,17 +129,17 @@ export const videoMakerPage = `<!DOCTYPE html>
       cursor:pointer;transition:all .15s;user-select:none;
     }
     .dc:hover{border-color:var(--primary-light);color:var(--primary)}
-    .dc.on{background:var(--primary);border-color:var(--primary);color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.3)}
+    .dc.on{background:var(--primary);border-color:var(--primary);color:#fff;box-shadow:0 2px 8px rgba(124,58,237,.3)}
 
     /* ── TEMPLATE GRID ── */
     .tpl-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px}
     .tc{
       border:2px solid var(--border);border-radius:14px;overflow:hidden;
       cursor:pointer;transition:all .22s cubic-bezier(.34,1.56,.64,1);background:#fff;position:relative;
-      box-shadow:0 2px 8px rgba(37,99,235,.07);
+      box-shadow:0 2px 8px rgba(124,58,237,.07);
     }
-    .tc:hover{border-color:var(--primary-light);box-shadow:0 8px 28px rgba(37,99,235,.2);transform:translateY(-4px) scale(1.01)}
-    .tc.on{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.18),0 8px 28px rgba(37,99,235,.22)}
+    .tc:hover{border-color:var(--primary-light);box-shadow:0 8px 28px rgba(124,58,237,.2);transform:translateY(-4px) scale(1.01)}
+    .tc.on{border-color:var(--primary);box-shadow:0 0 0 3px rgba(124,58,237,.18),0 8px 28px rgba(124,58,237,.22)}
     .tc-preview{height:95px;position:relative;overflow:hidden;border-radius:10px 10px 0 0;pointer-events:none}
     .tc-badge{
       position:absolute;top:6px;right:6px;padding:2px 7px;border-radius:5px;
@@ -149,7 +149,7 @@ export const videoMakerPage = `<!DOCTYPE html>
       position:absolute;top:6px;left:6px;width:22px;height:22px;
       background:var(--primary);border-radius:50%;display:none;
       align-items:center;justify-content:center;font-size:11px;color:#fff;z-index:2;
-      box-shadow:0 2px 6px rgba(37,99,235,.4);
+      box-shadow:0 2px 6px rgba(124,58,237,.4);
     }
     .tc.on .tc-check{display:flex}
     .tc-info{padding:8px 10px 10px}
@@ -161,16 +161,16 @@ export const videoMakerPage = `<!DOCTYPE html>
       background:linear-gradient(135deg,var(--primary),var(--accent));
       border:none;color:#fff;
       border-radius:8px;font-size:9px;font-weight:800;cursor:pointer;font-family:inherit;
-      transition:all .18s;box-shadow:0 2px 8px rgba(37,99,235,.25);
+      transition:all .18s;box-shadow:0 2px 8px rgba(124,58,237,.25);
     }
-    .tc-use:hover{box-shadow:0 4px 14px rgba(37,99,235,.4);transform:translateY(-1px)}
+    .tc-use:hover{box-shadow:0 4px 14px rgba(124,58,237,.4);transform:translateY(-1px)}
     .tc-use:active{transform:translateY(0)}
 
     /* ── SCRIPT TABS ── */
     .script-mode-tabs{
       display:flex;gap:0;border:1.5px solid var(--border);border-radius:11px;
       overflow:hidden;margin-bottom:14px;
-      box-shadow:0 1px 4px rgba(37,99,235,.06);
+      box-shadow:0 1px 4px rgba(124,58,237,.06);
     }
     .smt{
       flex:1;padding:8px 4px;text-align:center;font-size:10px;font-weight:800;
@@ -178,13 +178,13 @@ export const videoMakerPage = `<!DOCTYPE html>
       user-select:none;-webkit-user-select:none;
     }
     .smt:not(:last-child){border-right:1px solid var(--border)}
-    .smt:hover{color:var(--primary);background:rgba(37,99,235,.05)}
+    .smt:hover{color:var(--primary);background:rgba(124,58,237,.05)}
     .smt.on{background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff}
 
     /* ── AI BOX ── */
     .ai-box{
-      background:linear-gradient(135deg,rgba(37,99,235,.07),rgba(139,92,246,.07));
-      border:1.5px solid rgba(37,99,235,.22);border-radius:14px;padding:16px;
+      background:linear-gradient(135deg,rgba(124,58,237,.07),rgba(139,92,246,.07));
+      border:1.5px solid rgba(124,58,237,.22);border-radius:14px;padding:16px;
     }
     .ai-box label{font-size:10px;font-weight:800;color:var(--text2);display:block;margin-bottom:6px}
     .ai-box input,.ai-box select,.ai-box textarea{
@@ -192,7 +192,7 @@ export const videoMakerPage = `<!DOCTYPE html>
       font-size:12px;font-family:inherit;background:#fff;color:var(--text);
       outline:none;transition:border-color .15s;
     }
-    .ai-box input:focus,.ai-box select:focus,.ai-box textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+    .ai-box input:focus,.ai-box select:focus,.ai-box textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(124,58,237,.1)}
     .tone-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:5px}
     .tone-btn{
       padding:8px 5px;background:#fff;border:1.5px solid var(--border);
@@ -200,7 +200,7 @@ export const videoMakerPage = `<!DOCTYPE html>
       font-size:10px;font-weight:700;color:var(--text3);
       user-select:none;-webkit-user-select:none;
     }
-    .tone-btn:hover{border-color:var(--primary-light);color:var(--primary);background:rgba(37,99,235,.05)}
+    .tone-btn:hover{border-color:var(--primary-light);color:var(--primary);background:rgba(124,58,237,.05)}
     .tone-btn.on{background:var(--primary);border-color:var(--primary);color:#fff}
     .cnt-row{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap}
     .cnt-btn{
@@ -217,7 +217,7 @@ export const videoMakerPage = `<!DOCTYPE html>
       background:#fff;border:1.5px solid var(--border);border-radius:12px;
       overflow:hidden;transition:border-color .15s;box-shadow:0 1px 4px rgba(0,0,0,.04);
     }
-    .sc-card.active{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+    .sc-card.active{border-color:var(--primary);box-shadow:0 0 0 3px rgba(124,58,237,.1)}
     .sc-hd{
       display:flex;align-items:center;gap:8px;padding:10px 13px;
       background:var(--surface2);cursor:pointer;
@@ -231,7 +231,7 @@ export const videoMakerPage = `<!DOCTYPE html>
     }
     .sc-title-txt{flex:1;font-size:11px;font-weight:700;color:var(--text);min-width:0}
     .sc-dur-badge{
-      font-size:9px;background:rgba(37,99,235,.12);color:var(--primary);
+      font-size:9px;background:rgba(124,58,237,.12);color:var(--primary);
       padding:2px 8px;border-radius:6px;font-weight:800;flex-shrink:0;
     }
     .sc-del{
@@ -261,7 +261,7 @@ export const videoMakerPage = `<!DOCTYPE html>
       border-radius:8px;color:var(--text4);cursor:pointer;font-size:10px;
       font-weight:600;font-family:inherit;transition:all .15s;text-align:center;
     }
-    .sc-img-btn:hover{border-color:var(--primary);color:var(--primary);background:rgba(37,99,235,.05)}
+    .sc-img-btn:hover{border-color:var(--primary);color:var(--primary);background:rgba(124,58,237,.05)}
     .sc-trans-sel{
       width:100%;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;
       font-size:10px;font-family:inherit;background:#fff;color:var(--text);
@@ -269,7 +269,7 @@ export const videoMakerPage = `<!DOCTYPE html>
     }
     .sc-trans-sel:focus{border-color:var(--primary)}
     /* 씬 더블클릭 편집 하이라이트 */
-    .sc-ta:focus{background:rgba(37,99,235,.03);border-color:var(--primary)}
+    .sc-ta:focus{background:rgba(124,58,237,.03);border-color:var(--primary)}
     /* 전환효과 미리보기 overlay */
     #trans-overlay{
       position:absolute;inset:0;pointer-events:none;z-index:10;
@@ -281,7 +281,7 @@ export const videoMakerPage = `<!DOCTYPE html>
       background:transparent;color:var(--text4);cursor:pointer;font-size:11px;
       font-weight:700;font-family:inherit;transition:all .15s;margin-top:7px;
     }
-    .add-sc:hover{border-color:var(--primary);color:var(--primary);background:rgba(37,99,235,.05)}
+    .add-sc:hover{border-color:var(--primary);color:var(--primary);background:rgba(124,58,237,.05)}
 
     /* ── VOICE / BGM ── */
     .v-filters,.bgm-filters{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
@@ -291,13 +291,13 @@ export const videoMakerPage = `<!DOCTYPE html>
       cursor:pointer;transition:all .15s;user-select:none;
     }
     .vf:hover,.bf:hover{border-color:var(--primary-light);color:var(--primary)}
-    .vf.on,.bf.on{background:var(--primary);border-color:var(--primary);color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.25)}
+    .vf.on,.bf.on{background:var(--primary);border-color:var(--primary);color:#fff;box-shadow:0 2px 8px rgba(124,58,237,.25)}
     .v-search,.bgm-search{
       width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:10px;
       font-size:11px;font-family:inherit;background:#fff;color:var(--text);
       outline:none;transition:border-color .15s;margin-bottom:10px;
     }
-    .v-search:focus,.bgm-search:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+    .v-search:focus,.bgm-search:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(124,58,237,.1)}
     .v-list,.bgm-list{
       display:flex;flex-direction:column;gap:5px;max-height:300px;overflow-y:auto;
     }
@@ -306,8 +306,8 @@ export const videoMakerPage = `<!DOCTYPE html>
       background:#fff;border:1.5px solid var(--border);border-radius:11px;
       cursor:pointer;transition:all .15s;
     }
-    .vi:hover{border-color:var(--primary-light);background:rgba(37,99,235,.04);transform:translateX(2px)}
-    .vi.on{border-color:var(--primary);background:rgba(37,99,235,.07);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+    .vi:hover{border-color:var(--primary-light);background:rgba(124,58,237,.04);transform:translateX(2px)}
+    .vi.on{border-color:var(--primary);background:rgba(124,58,237,.07);box-shadow:0 0 0 3px rgba(124,58,237,.1)}
     .vi-ico{
       width:32px;height:32px;border-radius:50%;display:flex;align-items:center;
       justify-content:center;font-size:14px;flex-shrink:0;color:#fff;
@@ -330,8 +330,8 @@ export const videoMakerPage = `<!DOCTYPE html>
       background:#fff;border:1.5px solid var(--border);border-radius:11px;
       cursor:pointer;transition:all .15s;
     }
-    .bi:hover{border-color:var(--primary-light);background:rgba(37,99,235,.04);transform:translateX(2px)}
-    .bi.on{border-color:var(--primary);background:rgba(37,99,235,.07);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+    .bi:hover{border-color:var(--primary-light);background:rgba(124,58,237,.04);transform:translateX(2px)}
+    .bi.on{border-color:var(--primary);background:rgba(124,58,237,.07);box-shadow:0 0 0 3px rgba(124,58,237,.1)}
     .bi-ico{font-size:17px;flex-shrink:0}
     .bi-info{flex:1;min-width:0}
     .bi-name{font-size:10px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -351,10 +351,10 @@ export const videoMakerPage = `<!DOCTYPE html>
       font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;
       transition:all .18s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;
     }
-    .btn-p{background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff;box-shadow:0 2px 10px rgba(37,99,235,.32)}
-    .btn-p:hover{box-shadow:0 5px 20px rgba(37,99,235,.44);transform:translateY(-1px)}
-    .btn-s{background:#fff;color:var(--text2);border:1.5px solid var(--border);box-shadow:0 1px 4px rgba(37,99,235,.06)}
-    .btn-s:hover{border-color:var(--primary-light);color:var(--primary);background:rgba(37,99,235,.04);transform:translateY(-1px)}
+    .btn-p{background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff;box-shadow:0 2px 10px rgba(124,58,237,.32)}
+    .btn-p:hover{box-shadow:0 5px 20px rgba(124,58,237,.44);transform:translateY(-1px)}
+    .btn-s{background:#fff;color:var(--text2);border:1.5px solid var(--border);box-shadow:0 1px 4px rgba(124,58,237,.06)}
+    .btn-s:hover{border-color:var(--primary-light);color:var(--primary);background:rgba(124,58,237,.04);transform:translateY(-1px)}
     .btn-g{background:linear-gradient(135deg,var(--success),#059669);color:#fff;box-shadow:0 2px 10px rgba(14,164,114,.3)}
     .btn-g:hover{box-shadow:0 5px 18px rgba(14,164,114,.4);transform:translateY(-1px)}
     .btn-r{background:var(--danger);color:#fff}
@@ -369,8 +369,8 @@ export const videoMakerPage = `<!DOCTYPE html>
       font-size:9px;font-weight:800;color:var(--text4);cursor:pointer;
       transition:all .15s;position:relative;
     }
-    .sn:hover{border-color:var(--primary-light);color:var(--primary);background:rgba(37,99,235,.06)}
-    .sn.cur{background:var(--primary);border-color:var(--primary);color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.3)}
+    .sn:hover{border-color:var(--primary-light);color:var(--primary);background:rgba(124,58,237,.06)}
+    .sn.cur{background:var(--primary);border-color:var(--primary);color:#fff;box-shadow:0 2px 8px rgba(124,58,237,.3)}
     .sn.has-img::after{
       content:'';position:absolute;bottom:2px;right:2px;
       width:5px;height:5px;background:var(--success);border-radius:50%;
@@ -384,7 +384,7 @@ export const videoMakerPage = `<!DOCTYPE html>
     .rp-top{
       display:flex;align-items:center;gap:6px;padding:11px 18px;
       background:rgba(255,255,255,.95);border-bottom:1.5px solid var(--border);flex-wrap:wrap;flex-shrink:0;
-      box-shadow:0 2px 10px rgba(37,99,235,.07);backdrop-filter:blur(8px);
+      box-shadow:0 2px 10px rgba(124,58,237,.07);backdrop-filter:blur(8px);
     }
     .rp-canvas-wrap{
       flex:1;display:flex;align-items:center;justify-content:center;
@@ -392,23 +392,23 @@ export const videoMakerPage = `<!DOCTYPE html>
     }
     .canvas-outer{
       display:inline-block;
-      box-shadow:0 16px 56px rgba(37,99,235,.25),0 4px 16px rgba(0,0,0,.1),0 0 0 1px rgba(37,99,235,.1);
+      box-shadow:0 16px 56px rgba(124,58,237,.25),0 4px 16px rgba(0,0,0,.1),0 0 0 1px rgba(124,58,237,.1);
       border-radius:18px;overflow:visible;
     }
     #pv{ border-radius:18px; }
     .rp-bottom{
       padding:15px 18px;background:rgba(255,255,255,.95);border-top:1.5px solid var(--border);flex-shrink:0;
-      box-shadow:0 -2px 10px rgba(37,99,235,.07);backdrop-filter:blur(8px);
+      box-shadow:0 -2px 10px rgba(124,58,237,.07);backdrop-filter:blur(8px);
     }
 
     /* ── MAKE BUTTON ── */
     .make-btn{
       width:100%;padding:18px;
-      background:linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%);
+      background:linear-gradient(135deg,#6d28d9 0%,#7c3aed 100%);
       color:#fff;border:none;border-radius:14px;
       font-size:17px;font-weight:900;cursor:pointer;font-family:inherit;
       transition:all .28s cubic-bezier(.34,1.56,.64,1);
-      box-shadow:0 8px 28px rgba(37,99,235,.48),0 2px 6px rgba(37,99,235,.3);
+      box-shadow:0 8px 28px rgba(124,58,237,.48),0 2px 6px rgba(124,58,237,.3);
       letter-spacing:.3px;position:relative;overflow:hidden;
     }
     .make-btn::after{
@@ -416,22 +416,22 @@ export const videoMakerPage = `<!DOCTYPE html>
       background:linear-gradient(180deg,rgba(255,255,255,.12) 0%,transparent 100%);
       pointer-events:none;
     }
-    .make-btn:hover{box-shadow:0 14px 42px rgba(37,99,235,.62),0 4px 12px rgba(37,99,235,.35);transform:translateY(-3px) scale(1.005)}
-    .make-btn:active{transform:translateY(0) scale(0.997);box-shadow:0 4px 16px rgba(37,99,235,.35)}
-    .make-btn:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:0 4px 14px rgba(37,99,235,.25)}
+    .make-btn:hover{box-shadow:0 14px 42px rgba(124,58,237,.62),0 4px 12px rgba(124,58,237,.35);transform:translateY(-3px) scale(1.005)}
+    .make-btn:active{transform:translateY(0) scale(0.997);box-shadow:0 4px 16px rgba(124,58,237,.35)}
+    .make-btn:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:0 4px 14px rgba(124,58,237,.25)}
 
     /* ── PROGRESS BOX ── */
-    .prog-box{background:linear-gradient(145deg,rgba(37,99,235,.05),rgba(37,99,235,.05));border:1.5px solid rgba(37,99,235,.15);border-radius:16px;padding:18px}
+    .prog-box{background:linear-gradient(145deg,rgba(124,58,237,.05),rgba(124,58,237,.05));border:1.5px solid rgba(124,58,237,.15);border-radius:16px;padding:18px}
     .prog-title{font-size:13px;font-weight:800;color:var(--text);margin-bottom:7px}
     .prog-pct{font-size:28px;font-weight:900;color:var(--primary);margin-bottom:5px}
-    .prog-bar-bg{width:100%;height:9px;background:rgba(37,99,235,.1);border-radius:5px;overflow:hidden;margin-bottom:7px}
-    .prog-bar{height:100%;background:linear-gradient(90deg,var(--primary),var(--accent));border-radius:5px;transition:width .3s;box-shadow:0 0 8px rgba(37,99,235,.3)}
+    .prog-bar-bg{width:100%;height:9px;background:rgba(124,58,237,.1);border-radius:5px;overflow:hidden;margin-bottom:7px}
+    .prog-bar{height:100%;background:linear-gradient(90deg,var(--primary),var(--accent));border-radius:5px;transition:width .3s;box-shadow:0 0 8px rgba(124,58,237,.3)}
     .prog-scene{font-size:10px;color:var(--text3);margin-bottom:3px}
     .prog-log{font-size:9px;color:var(--text4);max-height:50px;overflow-y:auto}
 
     /* ── RESULT BOX ── */
     .result-box{text-align:center}
-    .result-video{width:100%;max-height:220px;border-radius:12px;margin-top:10px;border:2px solid var(--border);box-shadow:0 4px 20px rgba(37,99,235,.15)}
+    .result-video{width:100%;max-height:220px;border-radius:12px;margin-top:10px;border:2px solid var(--border);box-shadow:0 4px 20px rgba(124,58,237,.15)}
 
     /* ── EDITING OPTIONS ── */
     .ed-section{margin-bottom:16px}
@@ -447,8 +447,8 @@ export const videoMakerPage = `<!DOCTYPE html>
       padding:8px 9px;cursor:pointer;transition:all .15s;text-align:center;
       user-select:none;
     }
-    .ed-opt:hover{border-color:var(--primary-light);background:rgba(37,99,235,.05)}
-    .ed-opt.on{border-color:var(--primary);background:rgba(37,99,235,.09);box-shadow:0 0 0 2px rgba(37,99,235,.15)}
+    .ed-opt:hover{border-color:var(--primary-light);background:rgba(124,58,237,.05)}
+    .ed-opt.on{border-color:var(--primary);background:rgba(124,58,237,.09);box-shadow:0 0 0 2px rgba(124,58,237,.15)}
     .ed-opt-ico{font-size:17px;display:block;margin-bottom:3px}
     .ed-opt-name{font-size:9px;color:var(--text3);font-weight:600;line-height:1.2}
     .ed-opt.on .ed-opt-name{color:var(--primary);font-weight:700}
@@ -478,9 +478,9 @@ export const videoMakerPage = `<!DOCTYPE html>
     .gv-thumb canvas{width:100%;height:100%;object-fit:cover}
     .gv-play-ico{
       position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-      width:40px;height:40px;background:rgba(37,99,235,.88);border-radius:50%;
+      width:40px;height:40px;background:rgba(124,58,237,.88);border-radius:50%;
       display:flex;align-items:center;justify-content:center;font-size:17px;color:#fff;
-      box-shadow:0 4px 12px rgba(37,99,235,.4);
+      box-shadow:0 4px 12px rgba(124,58,237,.4);
     }
     .gv-info{padding:10px 12px 5px}
     .gv-name{font-size:10px;font-weight:800;color:var(--text);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -504,7 +504,7 @@ export const videoMakerPage = `<!DOCTYPE html>
       text-align:center;margin-top:10px;font-size:10px;color:var(--text3);
       background:rgba(255,255,255,.9);padding:4px 12px;border-radius:20px;
       display:inline-block;backdrop-filter:blur(8px);font-weight:600;
-      box-shadow:0 2px 8px rgba(37,99,235,.1);
+      box-shadow:0 2px 8px rgba(124,58,237,.1);
     }
 
     /* ── TOAST ── */
@@ -521,7 +521,7 @@ export const videoMakerPage = `<!DOCTYPE html>
     /* ── SCROLLBAR ── */
     ::-webkit-scrollbar{width:4px}
     ::-webkit-scrollbar-track{background:transparent}
-    ::-webkit-scrollbar-thumb{background:rgba(37,99,235,.25);border-radius:3px}
+    ::-webkit-scrollbar-thumb{background:rgba(124,58,237,.25);border-radius:3px}
     ::-webkit-scrollbar-thumb:hover{background:var(--primary)}
 
     /* ── SCENE NAV EXTRA ── */
@@ -531,10 +531,10 @@ export const videoMakerPage = `<!DOCTYPE html>
       display:flex;align-items:center;justify-content:center;
       font-size:9px;font-weight:800;color:var(--text4);cursor:pointer;
       transition:all .18s;position:relative;
-      box-shadow:0 1px 3px rgba(37,99,235,.06);
+      box-shadow:0 1px 3px rgba(124,58,237,.06);
     }
-    .sn:hover{border-color:var(--primary-light);color:var(--primary);background:rgba(37,99,235,.05);transform:translateY(-1px)}
-    .sn.cur{background:linear-gradient(135deg,var(--primary),var(--accent));border-color:var(--primary);color:#fff;box-shadow:0 3px 10px rgba(37,99,235,.32)}
+    .sn:hover{border-color:var(--primary-light);color:var(--primary);background:rgba(124,58,237,.05);transform:translateY(-1px)}
+    .sn.cur{background:linear-gradient(135deg,var(--primary),var(--accent));border-color:var(--primary);color:#fff;box-shadow:0 3px 10px rgba(124,58,237,.32)}
     .sn.has-img::after{
       content:'';position:absolute;bottom:2px;right:2px;
       width:5px;height:5px;background:var(--success);border-radius:50%;box-shadow:0 0 0 1px #fff;
@@ -742,7 +742,7 @@ export const videoMakerPage = `<!DOCTYPE html>
           </div>
         </div>
         <div style="margin-top:10px">
-          <div style="font-size:9px;color:var(--text4);line-height:1.5;padding:6px 8px;background:rgba(37,99,235,.07);border-radius:7px">⏱ 영상 길이는 대본/음성에 맞춰 자동 조절됩니다</div>
+          <div style="font-size:9px;color:var(--text4);line-height:1.5;padding:6px 8px;background:rgba(124,58,237,.07);border-radius:7px">⏱ 영상 길이는 대본/음성에 맞춰 자동 조절됩니다</div>
         </div>
       </div>
     </div>
@@ -796,7 +796,7 @@ export const videoMakerPage = `<!DOCTYPE html>
           <span class="vf" onclick="filterVTag('openai',this)" style="background:#0ea5e9;color:#fff;font-weight:700"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f916.svg" class="tw" alt="🤖"> OpenAI 전체</span>
           <span class="vf" onclick="filterVTag('openai-tts1',this)" style="background:#0284c7;color:#fff;font-weight:700"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f916.svg" class="tw" alt="🤖"> tts-1</span>
           <span class="vf" onclick="filterVTag('openai-tts1hd',this)" style="background:#0c4a6e;color:#fff;font-weight:700"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f916.svg" class="tw" alt="🤖"> tts-1-hd</span>
-          <span class="vf" onclick="filterVTag('openai-4omini',this)" style="background:#1e3a8a;color:#fff;font-weight:700"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f916.svg" class="tw" alt="🤖"> gpt-4o-mini-tts</span>
+          <span class="vf" onclick="filterVTag('openai-4omini',this)" style="background:#4c1d95;color:#fff;font-weight:700"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f916.svg" class="tw" alt="🤖"> gpt-4o-mini-tts</span>
           <span class="vf" onclick="filterVTag('elevenlabs',this)" style="background:#7c3aed;color:#fff;font-weight:700">🔊 ElevenLabs</span>
           <span class="vf" onclick="filterVTag('female',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f469.svg" class="tw" alt="👩"> 여성</span>
           <span class="vf" onclick="filterVTag('male',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f468.svg" class="tw" alt="👨"> 남성</span>
@@ -965,9 +965,9 @@ export const videoMakerPage = `<!DOCTYPE html>
           }
           /* 선택(active) 상태 */
           .blk-wrap.blk-selected .blk-ce {
-            border-color:#2563eb !important;
+            border-color:#7c3aed !important;
             border-style:solid !important;
-            box-shadow:0 0 0 2px rgba(37,99,235,0.28) !important;
+            box-shadow:0 0 0 2px rgba(124,58,237,0.28) !important;
           }
           .blk-wrap.blk-selected .blk-tb { opacity:1 !important; pointer-events:auto !important; }
           /* 툴바: 선택 전엔 숨김 */
@@ -1005,7 +1005,7 @@ export const videoMakerPage = `<!DOCTYPE html>
           /* 편집 모드: 배경 없음, 텍스트 그 자리에서 바로 수정 — 캔바/미리캔버스 방식 */
           .blk-ce.blk-editing {
             cursor:text !important;
-            border-color:rgba(37,99,235,0.7) !important;
+            border-color:rgba(124,58,237,0.7) !important;
             border-style:solid !important;
             background:transparent !important; /* ★ 배경 없음 — Canvas 위에서 바로 편집 */
             user-select:text !important;
@@ -1018,7 +1018,7 @@ export const videoMakerPage = `<!DOCTYPE html>
           /* 선택 핸들 (8개 모서리/엣지) */
           .blk-handle {
             position:absolute; width:8px; height:8px;
-            background:#fff; border:1.5px solid #2563eb;
+            background:#fff; border:1.5px solid #7c3aed;
             border-radius:2px; z-index:35;
             display:none;
           }
@@ -1040,7 +1040,7 @@ export const videoMakerPage = `<!DOCTYPE html>
             display:flex; align-items:center; gap:2px;
             padding:0 8px;
             white-space:nowrap;
-            border:1px solid rgba(37,99,235,0.45);
+            border:1px solid rgba(124,58,237,0.45);
             box-shadow:0 4px 16px rgba(0,0,0,0.45);
             cursor:grab;
             user-select:none;
@@ -1056,7 +1056,7 @@ export const videoMakerPage = `<!DOCTYPE html>
             flex-shrink:0;
           }
           .blk-tb-btn:hover { background:rgba(255,255,255,0.12); }
-          .blk-tb-btn.active { background:rgba(37,99,235,0.35); color:#a5b4fc; }
+          .blk-tb-btn.active { background:rgba(124,58,237,0.35); color:#a5b4fc; }
           .blk-tb-label { font-size:8px; font-weight:700; color:#a5b4fc; pointer-events:none; flex-shrink:0; }
           .blk-tb-szinput {
             width:30px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18);
@@ -1246,12 +1246,12 @@ export const videoMakerPage = `<!DOCTYPE html>
       </div>
       <!-- 캔버스 하단 툴바 -->
       <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:rgba(255,255,255,.92);border-top:1px solid var(--border);flex-wrap:wrap">
-        <button onclick="previewTextAnim()" title="텍스트 애니메이션 미리보기" style="padding:4px 10px;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;border:none;border-radius:7px;font-size:9px;font-weight:700;cursor:pointer;flex-shrink:0">▶ 텍스트 미리보기</button>
+        <button onclick="previewTextAnim()" title="텍스트 애니메이션 미리보기" style="padding:4px 10px;background:linear-gradient(135deg,#7c3aed,#8b5cf6);color:#fff;border:none;border-radius:7px;font-size:9px;font-weight:700;cursor:pointer;flex-shrink:0">▶ 텍스트 미리보기</button>
         <span style="font-size:9px;color:#64748b;font-weight:700;flex-shrink:0">🔍 사진·영상 크기</span>
         <input type="range" id="media-size-slider" min="20" max="300" step="5" value="100"
                oninput="setMediaZoom(this.value)"
                title="사진/영상 크기 조절 (드래그로 위치 이동)"
-               style="flex:1;min-width:90px;accent-color:#2563eb;cursor:pointer">
+               style="flex:1;min-width:90px;accent-color:#7c3aed;cursor:pointer">
         <span id="media-size-val" style="font-size:9px;font-weight:800;color:#4f46e5;min-width:34px;text-align:right;flex-shrink:0">100%</span>
         <button onclick="resetMediaTransform()" title="위치·크기 초기화" style="padding:4px 8px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:7px;font-size:9px;cursor:pointer;flex-shrink:0">↺ 초기화</button>
       </div>
@@ -1295,23 +1295,23 @@ export const videoMakerPage = `<!DOCTYPE html>
 
 <!-- ══ 렌더링 진행 팝업 모달 ══ -->
 <div id="render-modal" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(10,10,20,.82);backdrop-filter:blur(12px)">
-  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(92vw,480px);background:linear-gradient(145deg,#13132b,#1e1b4b);border:1.5px solid rgba(37,99,235,.3);border-radius:24px;padding:32px 28px;box-shadow:0 32px 80px rgba(0,0,0,.7);text-align:center">
+  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(92vw,480px);background:linear-gradient(145deg,#13132b,#1e1b4b);border:1.5px solid rgba(124,58,237,.3);border-radius:24px;padding:32px 28px;box-shadow:0 32px 80px rgba(0,0,0,.7);text-align:center">
     <!-- 아이콘 애니메이션 -->
     <div style="width:72px;height:72px;margin:0 auto 20px;position:relative">
       <svg viewBox="0 0 72 72" style="width:72px;height:72px;animation:renderSpin 2.4s linear infinite">
-        <circle cx="36" cy="36" r="30" fill="none" stroke="rgba(37,99,235,.2)" stroke-width="5"/>
+        <circle cx="36" cy="36" r="30" fill="none" stroke="rgba(124,58,237,.2)" stroke-width="5"/>
         <circle cx="36" cy="36" r="30" fill="none" stroke="url(#rg)" stroke-width="5" stroke-linecap="round" stroke-dasharray="100 90" stroke-dashoffset="0"/>
-        <defs><linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#2563eb"/><stop offset="100%" stop-color="#3b82f6"/></linearGradient></defs>
+        <defs><linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#7c3aed"/><stop offset="100%" stop-color="#8b5cf6"/></linearGradient></defs>
       </svg>
       <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="4" fill="#2563eb" opacity=".15"/><path d="M8 5v14l11-7-11-7z" fill="#60a5fa"/></svg>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="4" fill="#7c3aed" opacity=".15"/><path d="M8 5v14l11-7-11-7z" fill="#60a5fa"/></svg>
       </div>
     </div>
     <div id="render-modal-title" style="color:#e2e8f0;font-size:18px;font-weight:900;margin-bottom:6px;letter-spacing:-.3px">영상 제작 중...</div>
     <div id="render-modal-pct" style="color:#a5b4fc;font-size:28px;font-weight:900;margin:8px 0 4px;font-family:monospace">0%</div>
     <!-- 프로그레스 바 -->
     <div style="background:rgba(255,255,255,.08);border-radius:99px;height:8px;margin:10px 0 14px;overflow:hidden">
-      <div id="render-modal-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#2563eb,#3b82f6,#2563eb);border-radius:99px;transition:width .3s;box-shadow:0 0 12px rgba(37,99,235,.6)"></div>
+      <div id="render-modal-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#7c3aed,#8b5cf6,#7c3aed);border-radius:99px;transition:width .3s;box-shadow:0 0 12px rgba(124,58,237,.6)"></div>
     </div>
     <!-- 씬 도트 -->
     <div id="render-modal-scene" style="display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-bottom:12px;min-height:22px"></div>
@@ -1340,7 +1340,7 @@ export const videoMakerPage = `<!DOCTYPE html>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v13M5 16l7 7 7-7" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         다운로드
       </button>
-      <button onclick="saveToGallery()" style="flex:1;min-width:110px;background:rgba(37,99,235,.15);color:#a5b4fc;border:1.5px solid rgba(37,99,235,.3);border-radius:14px;padding:13px 20px;font-size:13px;font-weight:800;cursor:pointer;transition:all .2s" onmouseover="this.style.background='rgba(37,99,235,.25)'" onmouseout="this.style.background='rgba(37,99,235,.15)'">
+      <button onclick="saveToGallery()" style="flex:1;min-width:110px;background:rgba(124,58,237,.15);color:#a5b4fc;border:1.5px solid rgba(124,58,237,.3);border-radius:14px;padding:13px 20px;font-size:13px;font-weight:800;cursor:pointer;transition:all .2s" onmouseover="this.style.background='rgba(124,58,237,.25)'" onmouseout="this.style.background='rgba(124,58,237,.15)'">
         갤러리 저장
       </button>
       <button onclick="closeDoneModal()" style="flex:1;min-width:100px;background:rgba(255,255,255,.06);color:#94a3b8;border:1.5px solid rgba(255,255,255,.1);border-radius:14px;padding:13px 20px;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s" onmouseover="this.style.background='rgba(255,255,255,.12)'" onmouseout="this.style.background='rgba(255,255,255,.06)'">
@@ -1433,12 +1433,12 @@ export const videoMakerPage = `<!DOCTYPE html>
   width:18px;height:18px;border-radius:50%;
   background:#fff;border:3px solid var(--primary);
   cursor:pointer;transition:all .15s;z-index:5;
-  box-shadow:0 2px 8px rgba(37,99,235,.25);
+  box-shadow:0 2px 8px rgba(124,58,237,.25);
 }
 .tl-dot.active{
   width:22px;height:22px;
   background:var(--primary);border-color:#fff;
-  box-shadow:0 0 0 3px rgba(37,99,235,.3),0 2px 8px rgba(37,99,235,.4);
+  box-shadow:0 0 0 3px rgba(124,58,237,.3),0 2px 8px rgba(124,58,237,.4);
 }
 .tl-dot:hover:not(.active){
   width:20px;height:20px;
@@ -1529,7 +1529,7 @@ function getCurVoice(){
   // 완전히 비어있을 때 Echo 4o 기본 객체 반환
   return {
     name:'Echo 4o (OpenAI·남성)', lang:'ko-KR', gender:'male',
-    pitch:1.0, rate:1.0, ico:'🔊', bg:'#1e40af',
+    pitch:1.0, rate:1.0, ico:'🔊', bg:'#5b21b6',
     desc:'OpenAI Echo (gpt-4o-mini-tts): 최신 모델 남성',
     special:null, gId:'openai:gpt-4o-mini-tts:echo',
     gPitch:0, gRate:1.0,
@@ -1669,12 +1669,12 @@ var GOOGLE_TTS_VOICES = [
   // ─── 🇰🇷 한국어 Neural2 (최고 품질, 공식 존재 목소리만: A여,B여,C남) ───
   {name:'지수 (한국어·여·Neural2-A)', lang:'ko-KR',gender:'female',ico:'✨',bg:'#15803d',desc:'Google Neural2 한국어 여성1',gId:'gtts:ko-KR-Neural2-A',gPitch:0,  gRate:1.0},
   {name:'수아 (한국어·여·Neural2-B)', lang:'ko-KR',gender:'female',ico:'💎',bg:'#166534',desc:'Google Neural2 한국어 여성2',gId:'gtts:ko-KR-Neural2-B',gPitch:2,  gRate:1.0},
-  {name:'준서 (한국어·남·Neural2-C)', lang:'ko-KR',gender:'male',  ico:'⭐',bg:'#1e3a8a',desc:'Google Neural2 한국어 남성1',gId:'gtts:ko-KR-Neural2-C',gPitch:0,  gRate:1.0},
+  {name:'준서 (한국어·남·Neural2-C)', lang:'ko-KR',gender:'male',  ico:'⭐',bg:'#4c1d95',desc:'Google Neural2 한국어 남성1',gId:'gtts:ko-KR-Neural2-C',gPitch:0,  gRate:1.0},
   // ─── 🇰🇷 한국어 WaveNet (A여,B여,C남,D남) ───
   {name:'아라 (한국어·여·WaveNet-A)',  lang:'ko-KR',gender:'female',ico:'🌸',bg:'#0f766e',desc:'Google WaveNet 한국어 여성A',gId:'gtts:ko-KR-Wavenet-A',gPitch:1,  gRate:1.0},
   {name:'나래 (한국어·여·WaveNet-B)',  lang:'ko-KR',gender:'female',ico:'🎵',bg:'#0d9488',desc:'Google WaveNet 한국어 여성B',gId:'gtts:ko-KR-Wavenet-B',gPitch:3,  gRate:1.0},
-  {name:'도현 (한국어·남·WaveNet-C)',  lang:'ko-KR',gender:'male',  ico:'🎙️',bg:'#1d4ed8',desc:'Google WaveNet 한국어 남성C',gId:'gtts:ko-KR-Wavenet-C',gPitch:-1, gRate:1.0},
-  {name:'강민 (한국어·남·WaveNet-D)',  lang:'ko-KR',gender:'male',  ico:'🏆',bg:'#1e40af',desc:'Google WaveNet 한국어 남성D',gId:'gtts:ko-KR-Wavenet-D',gPitch:-3, gRate:1.0},
+  {name:'도현 (한국어·남·WaveNet-C)',  lang:'ko-KR',gender:'male',  ico:'🎙️',bg:'#6d28d9',desc:'Google WaveNet 한국어 남성C',gId:'gtts:ko-KR-Wavenet-C',gPitch:-1, gRate:1.0},
+  {name:'강민 (한국어·남·WaveNet-D)',  lang:'ko-KR',gender:'male',  ico:'🏆',bg:'#5b21b6',desc:'Google WaveNet 한국어 남성D',gId:'gtts:ko-KR-Wavenet-D',gPitch:-3, gRate:1.0},
   // ─── 🇰🇷 한국어 Standard (A여,B여,C남,D남) ───
   {name:'소이 (한국어·여·Standard-A)', lang:'ko-KR',gender:'female',ico:'🌟',bg:'#065f46',desc:'Google Standard 한국어 여성A',gId:'gtts:ko-KR-Standard-A',gPitch:0,  gRate:1.0},
   {name:'하은 (한국어·여·Standard-B)', lang:'ko-KR',gender:'female',ico:'💐',bg:'#134e4a',desc:'Google Standard 한국어 여성B',gId:'gtts:ko-KR-Standard-B',gPitch:2,  gRate:1.0},
@@ -1686,9 +1686,9 @@ var GOOGLE_TTS_VOICES = [
   {name:'Aria (EN·여·Neural2-C)',      lang:'en-US',gender:'female',ico:'👩',bg:'#059669',desc:'Google Neural2 English Female C',gId:'gtts:en-US-Neural2-C',gPitch:0, gRate:1.0},
   {name:'Brandon (EN·남·Neural2-B)',   lang:'en-US',gender:'male',  ico:'👨',bg:'#374151',desc:'Google Neural2 English Male B',   gId:'gtts:en-US-Neural2-B',gPitch:0, gRate:1.0},
   {name:'Chloe (EN·여·Neural2-E)',     lang:'en-US',gender:'female',ico:'✨',bg:'#0891b2',desc:'Google Neural2 English Female E',gId:'gtts:en-US-Neural2-E',gPitch:2, gRate:1.0},
-  {name:'Dylan (EN·남·Neural2-D)',     lang:'en-US',gender:'male',  ico:'🎤',bg:'#1d4ed8',desc:'Google Neural2 English Male D',   gId:'gtts:en-US-Neural2-D',gPitch:-2,gRate:1.0},
+  {name:'Dylan (EN·남·Neural2-D)',     lang:'en-US',gender:'male',  ico:'🎤',bg:'#6d28d9',desc:'Google Neural2 English Male D',   gId:'gtts:en-US-Neural2-D',gPitch:-2,gRate:1.0},
   {name:'Evelyn (EN·여·Neural2-F)',    lang:'en-US',gender:'female',ico:'🌸',bg:'#065f46',desc:'Google Neural2 English Female F',gId:'gtts:en-US-Neural2-F',gPitch:1, gRate:1.0},
-  {name:'Frank (EN·남·Neural2-A)',     lang:'en-US',gender:'male',  ico:'🎙️',bg:'#1e3a8a',desc:'Google Neural2 English Male A',   gId:'gtts:en-US-Neural2-A',gPitch:-3,gRate:1.0},
+  {name:'Frank (EN·남·Neural2-A)',     lang:'en-US',gender:'male',  ico:'🎙️',bg:'#4c1d95',desc:'Google Neural2 English Male A',   gId:'gtts:en-US-Neural2-A',gPitch:-3,gRate:1.0},
   // ─── 🇬🇧 영국 영어 Neural2 (A여,B남,C여,D남,F여) ───
   {name:'Alice (EN-GB·여·Neural2-A)', lang:'en-GB',gender:'female',ico:'🇬🇧',bg:'#0369a1',desc:'Google Neural2 British Female A',gId:'gtts:en-GB-Neural2-A',gPitch:0, gRate:1.0},
   {name:'George (EN-GB·남·Neural2-B)',lang:'en-GB',gender:'male',  ico:'🏰',bg:'#0c4a6e',desc:'Google Neural2 British Male B', gId:'gtts:en-GB-Neural2-B',gPitch:-2,gRate:1.0},
@@ -1703,7 +1703,7 @@ var OPENAI_TTS_VOICES = [
   // ── tts-1 (기본·빠름) ──
   {name:'Alloy (OpenAI·중성)', lang:'ko-KR',gender:'female',ico:'🤖',bg:'#0ea5e9',desc:'OpenAI Alloy (tts-1): 중성적이고 균형잡힌 목소리',gId:'openai:alloy',gPitch:0,gRate:1.0},
   {name:'Echo (OpenAI·남성)',  lang:'ko-KR',gender:'male',  ico:'🔊',bg:'#0369a1',desc:'OpenAI Echo (tts-1): 낮고 안정적인 남성 목소리',  gId:'openai:echo', gPitch:0,gRate:1.0},
-  {name:'Fable (OpenAI·남성)',lang:'ko-KR',gender:'male',  ico:'📖',bg:'#1e3a8a',desc:'OpenAI Fable (tts-1): 영국식 억양의 남성 목소리', gId:'openai:fable',gPitch:0,gRate:1.0},
+  {name:'Fable (OpenAI·남성)',lang:'ko-KR',gender:'male',  ico:'📖',bg:'#4c1d95',desc:'OpenAI Fable (tts-1): 영국식 억양의 남성 목소리', gId:'openai:fable',gPitch:0,gRate:1.0},
   {name:'Onyx (OpenAI·남성)', lang:'ko-KR',gender:'male',  ico:'⬛',bg:'#0f172a',desc:'OpenAI Onyx (tts-1): 깊고 굵은 남성 목소리',     gId:'openai:onyx', gPitch:0,gRate:1.0},
   {name:'Nova (OpenAI·여성)', lang:'ko-KR',gender:'female',ico:'✨',bg:'#6d28d9',desc:'OpenAI Nova (tts-1): 밝고 에너지 넘치는 여성',    gId:'openai:nova', gPitch:0,gRate:1.0},
   {name:'Shimmer (OpenAI·여성)',lang:'ko-KR',gender:'female',ico:'💫',bg:'#7c3aed',desc:'OpenAI Shimmer (tts-1): 부드럽고 따뜻한 여성',  gId:'openai:shimmer',gPitch:0,gRate:1.0},
@@ -1720,7 +1720,7 @@ var OPENAI_TTS_VOICES = [
   {name:'Alloy 4o (OpenAI·중성)', lang:'ko-KR',gender:'female',ico:'🤖',bg:'#0ea5e9',desc:'OpenAI Alloy (gpt-4o-mini-tts): 최신 모델 중성',gId:'openai:gpt-4o-mini-tts:alloy',gPitch:0,gRate:1.0},
   {name:'Nova 4o (OpenAI·여성)', lang:'ko-KR',gender:'female',ico:'✨',bg:'#7c3aed',desc:'OpenAI Nova (gpt-4o-mini-tts): 최신 모델 여성',  gId:'openai:gpt-4o-mini-tts:nova', gPitch:0,gRate:1.0},
   {name:'Shimmer 4o (OpenAI·여성)',lang:'ko-KR',gender:'female',ico:'💫',bg:'#6d28d9',desc:'OpenAI Shimmer (gpt-4o-mini-tts): 최신 부드러운 여성',gId:'openai:gpt-4o-mini-tts:shimmer',gPitch:0,gRate:1.0},
-  {name:'Echo 4o (OpenAI·남성)',  lang:'ko-KR',gender:'male',  ico:'🔊',bg:'#1e40af',desc:'OpenAI Echo (gpt-4o-mini-tts): 최신 모델 남성',  gId:'openai:gpt-4o-mini-tts:echo', gPitch:0,gRate:1.0},
+  {name:'Echo 4o (OpenAI·남성)',  lang:'ko-KR',gender:'male',  ico:'🔊',bg:'#5b21b6',desc:'OpenAI Echo (gpt-4o-mini-tts): 최신 모델 남성',  gId:'openai:gpt-4o-mini-tts:echo', gPitch:0,gRate:1.0},
   {name:'Onyx 4o (OpenAI·남성)', lang:'ko-KR',gender:'male',  ico:'⬛',bg:'#18181b',desc:'OpenAI Onyx (gpt-4o-mini-tts): 최신 깊은 남성',  gId:'openai:gpt-4o-mini-tts:onyx', gPitch:0,gRate:1.0},
   {name:'Coral 4o (OpenAI·여성)',lang:'ko-KR',gender:'female', ico:'🪸',bg:'#be123c',desc:'OpenAI Coral (gpt-4o-mini-tts): 최신 친근한 여성',gId:'openai:gpt-4o-mini-tts:coral',gPitch:0,gRate:1.0},
 ];
@@ -1735,13 +1735,13 @@ var HF_TTS_VOICES = [
   // hf: 접두사 + 화자이름 → 백엔드에서 parler-tts-mini-v1 사용
   {name:'Jon (EN·Parler)',  lang:'en-US',gender:'male',  ico:'🤗',bg:'#374151',desc:'Parler-TTS Jon: 모노톤 빠른 전달',   gId:'hf:Jon',    gPitch:0,gRate:1.0},
   {name:'Lea (EN·Parler)',  lang:'en-US',gender:'female',ico:'🤗',bg:'#059669',desc:'Parler-TTS Lea: 표현력 있고 생동감', gId:'hf:Lea',    gPitch:0,gRate:1.0},
-  {name:'Gary (EN·Parler)', lang:'en-US',gender:'male',  ico:'🤗',bg:'#1e3a8a',desc:'Parler-TTS Gary: 깊고 낮은 목소리', gId:'hf:Gary',   gPitch:0,gRate:1.0},
+  {name:'Gary (EN·Parler)', lang:'en-US',gender:'male',  ico:'🤗',bg:'#4c1d95',desc:'Parler-TTS Gary: 깊고 낮은 목소리', gId:'hf:Gary',   gPitch:0,gRate:1.0},
   {name:'Jenna (EN·Parler)',lang:'en-US',gender:'female',ico:'🤗',bg:'#0891b2',desc:'Parler-TTS Jenna: 밝고 빠른 여성',  gId:'hf:Jenna',  gPitch:0,gRate:1.0},
   {name:'Mike (EN·Parler)', lang:'en-US',gender:'male',  ico:'🤗',bg:'#0f766e',desc:'Parler-TTS Mike: 자신감 있는 남성', gId:'hf:Mike',   gPitch:0,gRate:1.0},
   {name:'Laura (EN·Parler)',lang:'en-US',gender:'female',ico:'🤗',bg:'#065f46',desc:'Parler-TTS Laura: 따뜻하고 부드럽', gId:'hf:Laura',  gPitch:0,gRate:1.0},
-  {name:'Rick (EN·Parler)', lang:'en-US',gender:'male',  ico:'🤗',bg:'#1e40af',desc:'Parler-TTS Rick: 거칠고 낮은 남성', gId:'hf:Rick',   gPitch:0,gRate:1.0},
+  {name:'Rick (EN·Parler)', lang:'en-US',gender:'male',  ico:'🤗',bg:'#5b21b6',desc:'Parler-TTS Rick: 거칠고 낮은 남성', gId:'hf:Rick',   gPitch:0,gRate:1.0},
   {name:'Alisa (EN·Parler)',lang:'en-US',gender:'female',ico:'🤗',bg:'#7e22ce',desc:'Parler-TTS Alisa: 밝고 활기찬 여성',gId:'hf:Alisa',  gPitch:0,gRate:1.0},
-  {name:'Daniel (EN·Parler)',lang:'en-US',gender:'male', ico:'🤗',bg:'#1d4ed8',desc:'Parler-TTS Daniel: 전문적인 남성',  gId:'hf:Daniel', gPitch:0,gRate:1.0},
+  {name:'Daniel (EN·Parler)',lang:'en-US',gender:'male', ico:'🤗',bg:'#6d28d9',desc:'Parler-TTS Daniel: 전문적인 남성',  gId:'hf:Daniel', gPitch:0,gRate:1.0},
   {name:'Olivia (EN·Parler)',lang:'en-US',gender:'female',ico:'🤗',bg:'#0369a1',desc:'Parler-TTS Olivia: 활발한 여성',   gId:'hf:Olivia', gPitch:0,gRate:1.0},
 ];
 
@@ -1752,17 +1752,17 @@ var ELEVENLABS_TTS_VOICES = [
   {name:'Rachel (EL·다국어)',  lang:'ko-KR',gender:'female',ico:'🔊',bg:'#7c3aed',desc:'ElevenLabs Rachel: 부드럽고 전문적',  gId:'el:21m00Tcm4TlvDq8ikWAM', gPitch:0,gRate:1.0},
   {name:'Domi (EL·다국어)',    lang:'ko-KR',gender:'female',ico:'🔊',bg:'#6d28d9',desc:'ElevenLabs Domi: 강하고 자신감 있는', gId:'el:AZnzlk1XvdvUeBnXmlld',  gPitch:0,gRate:1.0},
   {name:'Bella (EL·다국어)',   lang:'ko-KR',gender:'female',ico:'🔊',bg:'#5b21b6',desc:'ElevenLabs Bella: 부드럽고 따뜻한',   gId:'el:EXAVITQu4vr4xnSDxMaL',  gPitch:0,gRate:1.0},
-  {name:'Antoni (EL·다국어)',  lang:'ko-KR',gender:'male',  ico:'🔊',bg:'#1d4ed8',desc:'ElevenLabs Antoni: 잘 조율된 남성',   gId:'el:ErXwobaYiN019PkySvjV',  gPitch:0,gRate:1.0},
+  {name:'Antoni (EL·다국어)',  lang:'ko-KR',gender:'male',  ico:'🔊',bg:'#6d28d9',desc:'ElevenLabs Antoni: 잘 조율된 남성',   gId:'el:ErXwobaYiN019PkySvjV',  gPitch:0,gRate:1.0},
   {name:'Elli (EL·다국어)',    lang:'ko-KR',gender:'female',ico:'🔊',bg:'#0891b2',desc:'ElevenLabs Elli: 감정이 풍부한 여성', gId:'el:MF3mGyEYCl7XYWbV9V6O',  gPitch:0,gRate:1.0},
   {name:'Josh (EL·다국어)',    lang:'ko-KR',gender:'male',  ico:'🔊',bg:'#065f46',desc:'ElevenLabs Josh: 젊고 활기찬 남성',   gId:'el:TxGEqnHWrfWFTfGW9XjX',  gPitch:0,gRate:1.0},
-  {name:'Arnold (EL·다국어)', lang:'ko-KR',gender:'male',  ico:'🔊',bg:'#1e3a8a',desc:'ElevenLabs Arnold: 힘차고 강인한',    gId:'el:VR6AewLTigWG4xSOukaG',  gPitch:0,gRate:1.0},
+  {name:'Arnold (EL·다국어)', lang:'ko-KR',gender:'male',  ico:'🔊',bg:'#4c1d95',desc:'ElevenLabs Arnold: 힘차고 강인한',    gId:'el:VR6AewLTigWG4xSOukaG',  gPitch:0,gRate:1.0},
   {name:'Adam (EL·다국어)',   lang:'ko-KR',gender:'male',  ico:'🔊',bg:'#3730a3',desc:'ElevenLabs Adam: 깊고 안정적인 남성', gId:'el:pNInz4obpRclQ5WKvqLj',  gPitch:0,gRate:1.0},
   {name:'Sam (EL·다국어)',    lang:'ko-KR',gender:'male',  ico:'🔊',bg:'#0f766e',desc:'ElevenLabs Sam: 거칠고 개성 있는',    gId:'el:yoZ06aMxZJJ28mfd3POQ',  gPitch:0,gRate:1.0},
   // ─── 고품질 신규 목소리 (Turbo v2.5) ───
   {name:'Sarah (EL·고품질)',  lang:'ko-KR',gender:'female',ico:'🔊',bg:'#be185d',desc:'ElevenLabs Sarah: 자연스럽고 친근한', gId:'el:EXAVITQu4vr4xnSDxMaL',  gPitch:0,gRate:1.0},
   {name:'Charlie (EL·고품질)',lang:'en-US',gender:'male',  ico:'🔊',bg:'#b45309',desc:'ElevenLabs Charlie: 캐주얼하고 자연스', gId:'el:IKne3meq5aSn9XLyUdCD', gPitch:0,gRate:1.0},
   {name:'Laura (EL·고품질)', lang:'en-US',gender:'female',ico:'🔊',bg:'#0369a1',desc:'ElevenLabs Laura: 업비트하고 명확한',  gId:'el:FGY2WhTYpPnrIDTdsKH5',  gPitch:0,gRate:1.0},
-  {name:'George (EL·고품질)',lang:'en-US',gender:'male',  ico:'🔊',bg:'#1e40af',desc:'ElevenLabs George: 따뜻하고 느긋한',  gId:'el:JBFqnCBsd6RMkjVDRZzb',  gPitch:0,gRate:1.0},
+  {name:'George (EL·고품질)',lang:'en-US',gender:'male',  ico:'🔊',bg:'#5b21b6',desc:'ElevenLabs George: 따뜻하고 느긋한',  gId:'el:JBFqnCBsd6RMkjVDRZzb',  gPitch:0,gRate:1.0},
   {name:'Callum (EL·고품질)',lang:'en-US',gender:'male',  ico:'🔊',bg:'#374151',desc:'ElevenLabs Callum: 강렬하고 불안정한', gId:'el:N2lVS1w4EtoT3dr4eOWO', gPitch:0,gRate:1.0},
 ];
 
@@ -1774,14 +1774,14 @@ var VOICE_DEFS = [
   {name:'📺 뉴스앵커',lang:'ko-KR',gender:'special',pitch:1.0,rate:0.92,ico:'📺',bg:'#0f172a',desc:'뉴스 아나운서 스타일',special:'news'},
   {name:'🎧 ASMR',lang:'ko-KR',gender:'special',pitch:0.95,rate:0.7,ico:'🎧',bg:'#0f766e',desc:'매우 느리고 부드러운 ASMR',special:'asmr'},
   {name:'⚡ 에너지 MAX',lang:'ko-KR',gender:'special',pitch:1.5,rate:1.9,ico:'⚡',bg:'#b45309',desc:'최고속·고에너지 목소리',special:'energy'},
-  {name:'🎙️ 내레이터',lang:'ko-KR',gender:'special',pitch:0.85,rate:0.88,ico:'🎙️',bg:'#1e3a8a',desc:'차분한 다큐 내레이터',special:'narrator'},
+  {name:'🎙️ 내레이터',lang:'ko-KR',gender:'special',pitch:0.85,rate:0.88,ico:'🎙️',bg:'#4c1d95',desc:'차분한 다큐 내레이터',special:'narrator'},
   {name:'👶 어린이',lang:'ko-KR',gender:'special',pitch:1.9,rate:1.2,ico:'👶',bg:'#fb923c',desc:'귀여운 어린이 목소리',special:'child'},
   {name:'👴 할아버지',lang:'ko-KR',gender:'special',pitch:0.55,rate:0.75,ico:'👴',bg:'#78350f',desc:'낮고 느린 어르신 목소리',special:'grandpa'},
   {name:'🤫 속삭임 (Whisper)',lang:'ko-KR',gender:'special',pitch:1.1,rate:0.8,ico:'🤫',bg:'#4c1d95',desc:'부드러운 속삭임',special:'whisper'},
   {name:'😱 흥분 MAX!!',lang:'ko-KR',gender:'special',pitch:1.7,rate:2.0,ico:'😱',bg:'#e11d48',desc:'매우 빠르고 흥분된',special:'excited'},
   {name:'🎪 개그맨 (Comedian)',lang:'ko-KR',gender:'special',pitch:1.6,rate:1.3,ico:'🎪',bg:'#f59e0b',desc:'재미있고 과장된 개그 스타일',special:'comedian'},
   {name:'👻 공포 (Horror)',lang:'ko-KR',gender:'special',pitch:0.35,rate:0.65,ico:'👻',bg:'#111827',desc:'소름끼치는 공포 목소리',special:'horror'},
-  {name:'🤓 박사님 (Professor)',lang:'ko-KR',gender:'special',pitch:0.9,rate:0.82,ico:'🤓',bg:'#1e40af',desc:'학자 느낌의 설명체',special:'professor'},
+  {name:'🤓 박사님 (Professor)',lang:'ko-KR',gender:'special',pitch:0.9,rate:0.82,ico:'🤓',bg:'#5b21b6',desc:'학자 느낌의 설명체',special:'professor'},
   {name:'😭 드라마 (Dramatic)',lang:'ko-KR',gender:'special',pitch:1.3,rate:0.78,ico:'😭',bg:'#7e22ce',desc:'드라마틱하고 감정적인',special:'dramatic'},
   {name:'🎵 노래 스타일',lang:'ko-KR',gender:'special',pitch:1.8,rate:0.95,ico:'🎵',bg:'#db2777',desc:'노래하듯 높은 음정',special:'singing'},
   {name:'🌙 새벽 감성',lang:'ko-KR',gender:'special',pitch:0.88,rate:0.72,ico:'🌙',bg:'#312e81',desc:'새벽 감성의 느리고 나른한',special:'midnight'},
@@ -1807,19 +1807,19 @@ var VOICE_DEFS = [
   {name:'혜리 (한국어)',lang:'ko-KR',gender:'female',pitch:0.9,rate:1.0,ico:'🎭',bg:'#4c1d95',desc:'성숙한 여성'},
   {name:'다인 (한국어)',lang:'ko-KR',gender:'female',pitch:1.7,rate:0.95,ico:'🌟',bg:'#c084fc',desc:'매우 높은 여성'},
   // ─── Korean Male ───
-  {name:'민준 (한국어)',lang:'ko-KR',gender:'male',pitch:0.8,rate:1.0,ico:'👨',bg:'#1d4ed8',desc:'보통 남성 목소리'},
-  {name:'현우 (한국어)',lang:'ko-KR',gender:'male',pitch:0.65,rate:0.95,ico:'🎙️',bg:'#1e40af',desc:'낮고 깊은 남성'},
-  {name:'지훈 (한국어)',lang:'ko-KR',gender:'male',pitch:0.9,rate:1.1,ico:'🎤',bg:'#2563eb',desc:'활기찬 남성'},
-  {name:'태양 (한국어)',lang:'ko-KR',gender:'male',pitch:0.75,rate:1.0,ico:'🔊',bg:'#1d4ed8',desc:'중저음 남성'},
+  {name:'민준 (한국어)',lang:'ko-KR',gender:'male',pitch:0.8,rate:1.0,ico:'👨',bg:'#6d28d9',desc:'보통 남성 목소리'},
+  {name:'현우 (한국어)',lang:'ko-KR',gender:'male',pitch:0.65,rate:0.95,ico:'🎙️',bg:'#5b21b6',desc:'낮고 깊은 남성'},
+  {name:'지훈 (한국어)',lang:'ko-KR',gender:'male',pitch:0.9,rate:1.1,ico:'🎤',bg:'#7c3aed',desc:'활기찬 남성'},
+  {name:'태양 (한국어)',lang:'ko-KR',gender:'male',pitch:0.75,rate:1.0,ico:'🔊',bg:'#6d28d9',desc:'중저음 남성'},
   {name:'성민 (한국어)',lang:'ko-KR',gender:'male',pitch:0.95,rate:1.15,ico:'⚡',bg:'#3730a3',desc:'빠르고 에너지 있는'},
-  {name:'동현 (한국어)',lang:'ko-KR',gender:'male',pitch:0.7,rate:0.9,ico:'🎭',bg:'#1e3a8a',desc:'느리고 깊은'},
-  {name:'재원 (한국어)',lang:'ko-KR',gender:'male',pitch:1.0,rate:1.0,ico:'💡',bg:'#2563eb',desc:'중성적인 남성'},
-  {name:'준혁 (한국어)',lang:'ko-KR',gender:'male',pitch:0.85,rate:1.05,ico:'🎸',bg:'#1d4ed8',desc:'자연스러운 남성'},
-  {name:'도윤 (한국어)',lang:'ko-KR',gender:'male',pitch:0.6,rate:0.85,ico:'🎬',bg:'#1e40af',desc:'낮고 느린 내레이터'},
+  {name:'동현 (한국어)',lang:'ko-KR',gender:'male',pitch:0.7,rate:0.9,ico:'🎭',bg:'#4c1d95',desc:'느리고 깊은'},
+  {name:'재원 (한국어)',lang:'ko-KR',gender:'male',pitch:1.0,rate:1.0,ico:'💡',bg:'#7c3aed',desc:'중성적인 남성'},
+  {name:'준혁 (한국어)',lang:'ko-KR',gender:'male',pitch:0.85,rate:1.05,ico:'🎸',bg:'#6d28d9',desc:'자연스러운 남성'},
+  {name:'도윤 (한국어)',lang:'ko-KR',gender:'male',pitch:0.6,rate:0.85,ico:'🎬',bg:'#5b21b6',desc:'낮고 느린 내레이터'},
   {name:'시우 (한국어)',lang:'ko-KR',gender:'male',pitch:0.9,rate:1.2,ico:'🔥',bg:'#3730a3',desc:'빠르고 강렬한'},
-  {name:'강준 (한국어)',lang:'ko-KR',gender:'male',pitch:0.72,rate:0.92,ico:'🏆',bg:'#1e40af',desc:'묵직하고 카리스마'},
+  {name:'강준 (한국어)',lang:'ko-KR',gender:'male',pitch:0.72,rate:0.92,ico:'🏆',bg:'#5b21b6',desc:'묵직하고 카리스마'},
   {name:'이안 (한국어)',lang:'ko-KR',gender:'male',pitch:1.0,rate:1.3,ico:'🚀',bg:'#3730a3',desc:'매우 빠른 남성'},
-  {name:'서준 (한국어)',lang:'ko-KR',gender:'male',pitch:0.82,rate:0.98,ico:'🎵',bg:'#1d4ed8',desc:'따뜻한 남성'},
+  {name:'서준 (한국어)',lang:'ko-KR',gender:'male',pitch:0.82,rate:0.98,ico:'🎵',bg:'#6d28d9',desc:'따뜻한 남성'},
   // ─── English Female (US) ───
   {name:'Emma (EN-US)',lang:'en-US',gender:'female',pitch:1.2,rate:1.0,ico:'👩‍🦳',bg:'#059669',desc:'Clear American'},
   {name:'Olivia (EN-US)',lang:'en-US',gender:'female',pitch:1.4,rate:0.95,ico:'🌸',bg:'#047857',desc:'Soft & Gentle'},
@@ -1851,7 +1851,7 @@ var VOICE_DEFS = [
   {name:'🌊 딥 베이스',lang:'ko-KR',gender:'special',pitch:0.3,rate:0.8,ico:'🌊',bg:'#0c4a6e',desc:'깊고 묵직한 저음',special:'deepbass'},
   {name:'🦁 카리스마',lang:'ko-KR',gender:'special',pitch:0.75,rate:0.9,ico:'🦁',bg:'#92400e',desc:'카리스마 넘치는 강한 목소리',special:'charisma'},
   {name:'🌺 하와이안',lang:'ko-KR',gender:'special',pitch:1.25,rate:0.9,ico:'🌺',bg:'#0891b2',desc:'여유롭고 따뜻한 하와이안 스타일',special:'hawaiian'},
-  {name:'🎓 강의 (Lecture)',lang:'ko-KR',gender:'special',pitch:0.95,rate:0.85,ico:'🎓',bg:'#1e40af',desc:'교수 강의 스타일',special:'lecture'},
+  {name:'🎓 강의 (Lecture)',lang:'ko-KR',gender:'special',pitch:0.95,rate:0.85,ico:'🎓',bg:'#5b21b6',desc:'교수 강의 스타일',special:'lecture'},
   {name:'📣 광고 (Ad Voice)',lang:'ko-KR',gender:'special',pitch:1.1,rate:1.2,ico:'📣',bg:'#f59e0b',desc:'광고/CF 나레이션 스타일',special:'ad'},
   {name:'🤩 팬미팅 MC',lang:'ko-KR',gender:'special',pitch:1.35,rate:1.4,ico:'🤩',bg:'#db2777',desc:'아이돌 팬미팅 MC 스타일',special:'fanmeet'},
   {name:'🏠 실내 감성',lang:'ko-KR',gender:'special',pitch:1.0,rate:0.75,ico:'🏠',bg:'#065f46',desc:'잔잔하고 고요한 실내 분위기',special:'indoor'},
@@ -1862,7 +1862,7 @@ var VOICE_DEFS = [
   {name:'다인 (한국어)',lang:'ko-KR',gender:'female',pitch:1.7,rate:1.0,ico:'🎵',bg:'#9333ea',desc:'밝고 귀여운'},
   // ─── 추가 Korean Male ───
   {name:'태양 (한국어)',lang:'ko-KR',gender:'male',pitch:0.8,rate:1.1,ico:'☀️',bg:'#0284c7',desc:'에너지 넘치는 남성'},
-  {name:'준혁 (한국어)',lang:'ko-KR',gender:'male',pitch:0.6,rate:0.85,ico:'🎙️',bg:'#1e3a8a',desc:'깊고 안정적인 남성'},
+  {name:'준혁 (한국어)',lang:'ko-KR',gender:'male',pitch:0.6,rate:0.85,ico:'🎙️',bg:'#4c1d95',desc:'깊고 안정적인 남성'},
   {name:'재원 (한국어)',lang:'ko-KR',gender:'male',pitch:0.75,rate:0.9,ico:'🎭',bg:'#134e4a',desc:'성숙하고 신뢰감 있는'},
   {name:'민호 (한국어)',lang:'ko-KR',gender:'male',pitch:0.9,rate:1.2,ico:'🔥',bg:'#7f1d1d',desc:'열정적이고 힘찬 남성'}
 ];
@@ -6613,7 +6613,7 @@ function prepareTTSThenRecord(){
     addLog('⚠️ getCurVoice() null → Echo 4o 직접 fallback');
     v = {
       name:'Echo 4o (OpenAI·남성)', lang:'ko-KR', gender:'male',
-      pitch:1.0, rate:1.0, ico:'🔊', bg:'#1e40af',
+      pitch:1.0, rate:1.0, ico:'🔊', bg:'#5b21b6',
       desc:'OpenAI Echo (gpt-4o-mini-tts): 최신 모델 남성',
       special:null, gId:'openai:gpt-4o-mini-tts:echo',
       gPitch:0, gRate:1.0,
@@ -8298,7 +8298,7 @@ var COLOR_PALETTE = [
   '#f0fdf4','#dcfce7','#86efac','#4ade80','#22c55e','#16a34a','#166534','#052e16',
   '#ecfdf5','#d1fae5','#6ee7b7','#34d399','#10b981','#059669','#065f46','#022c22',
   '#f0f9ff','#e0f2fe','#7dd3fc','#38bdf8','#0ea5e9','#0284c7','#075985','#082f49',
-  '#eff6ff','#dbeafe','#93c5fd','#60a5fa','#3b82f6','#2563eb','#1d4ed8','#1e3a8a',
+  '#eff6ff','#dbeafe','#93c5fd','#60a5fa','#8b5cf6','#7c3aed','#6d28d9','#4c1d95',
   '#f5f3ff','#ede9fe','#c4b5fd','#a78bfa','#8b5cf6','#7c3aed','#6d28d9','#4c1d95',
   '#fdf4ff','#fae8ff','#e879f9','#d946ef','#c026d3','#a21caf','#7e22ce','#3b0764',
   '#fff1f2','#ffe4e6','#fda4af','#fb7185','#f43f5e','#e11d48','#9f1239','#4c0519',

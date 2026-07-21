@@ -9,7 +9,7 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>인스타그램 마케팅 - BYGENCY</title>
-  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" media="print" onload="this.media=&#39;all&#39;"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
   <style>
     :root {
@@ -18,7 +18,7 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
       --grad4: linear-gradient(135deg,#833ab4,#e1306c,#fd1d1d,#fcb045);
       --bg:#f4f6fb; --surface:#fff; --border:#e8edf4;
       --text1:#0f172a; --text2:#475569; --text3:#94a3b8;
-      --green:#22c55e; --amber:#f59e0b; --red:#ef4444; --blue:#3b82f6;
+      --green:#22c55e; --amber:#f59e0b; --red:#ef4444; --blue:#8b5cf6;
       --radius-sm:8px; --radius:14px; --radius-lg:20px;
       --shadow-sm:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
       --shadow:0 4px 16px rgba(0,0,0,.08);
@@ -531,8 +531,8 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
           <div class="stat-change neutral" id="stat-likes-change">—</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon" style="background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(59,130,246,.06));">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <div class="stat-icon" style="background:linear-gradient(135deg,rgba(139,92,246,.12),rgba(139,92,246,.06));">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
             </svg>
           </div>
@@ -776,8 +776,8 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
       <!-- KPI Row -->
       <div class="stat-grid" style="margin-bottom:20px;">
         <div class="stat-card">
-          <div class="stat-icon" style="background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(59,130,246,.06));">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round">
+          <div class="stat-icon" style="background:linear-gradient(135deg,rgba(139,92,246,.12),rgba(139,92,246,.06));">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
             </svg>
           </div>
@@ -877,7 +877,7 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
         </div>
         <div class="card" style="margin-bottom:0;">
           <div class="sh" style="margin-bottom:14px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 00-8 8c0 5.4 7.1 12.3 7.6 12.7a.6.6 0 00.8 0C12.9 22.3 20 15.4 20 10a8 8 0 00-8-8z"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 00-8 8c0 5.4 7.1 12.3 7.6 12.7a.6.6 0 00.8 0C12.9 22.3 20 15.4 20 10a8 8 0 00-8-8z"/></svg>
             <h2 style="font-size:14px;">상위 지역</h2>
           </div>
           <div id="location-list" style="padding:4px 0;">
@@ -1346,8 +1346,8 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
               <button onclick="copyText('https://wearesuperplace.com/api/instagram/webhook')" style="background:#e2e8f0;border:none;padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer;flex-shrink:0;font-family:inherit;">복사</button>
             </div>
             <div style="display:flex;gap:5px;">
-              <span style="padding:3px 9px;background:#dbeafe;border-radius:12px;font-size:10px;color:#1d4ed8;font-weight:700;">comments</span>
-              <span style="padding:3px 9px;background:#dbeafe;border-radius:12px;font-size:10px;color:#1d4ed8;font-weight:700;">messages</span>
+              <span style="padding:3px 9px;background:#dbeafe;border-radius:12px;font-size:10px;color:#6d28d9;font-weight:700;">comments</span>
+              <span style="padding:3px 9px;background:#dbeafe;border-radius:12px;font-size:10px;color:#6d28d9;font-weight:700;">messages</span>
             </div>
           </div>
         </div>
@@ -2573,7 +2573,7 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
       if (logs.length === 0) { container.innerHTML = '<div style="text-align:center;padding:28px;color:var(--text3);font-size:13px;">수신된 웹훅이 없습니다</div>'; return; }
       container.innerHTML = logs.map(l => {
         var commentIcon = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#833ab4" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>';
-        var msgIcon     = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>';
+        var msgIcon     = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>';
         var defIcon     = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#e1306c" stroke-width="2" stroke-linecap="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/></svg>';
         const icon = l.event_type==='comment' ? commentIcon : l.event_type==='message' ? msgIcon : defIcon;
         const dateStr = new Date(l.created_at).toLocaleString('ko-KR');

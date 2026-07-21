@@ -154,7 +154,7 @@ export const smsPage = `    <!DOCTYPE html>
                                 <button onclick="insertVariable('#{랜딩페이지URL}')" class="text-xs px-3 py-1.5 bg-green-50 hover:bg-green-100 border border-green-300 text-green-700 rounded-lg transition font-medium">
                                     <i class="fas fa-link mr-1"></i>#{랜딩페이지URL}
                                 </button>
-                                <button onclick="insertVariable('#{학부모연락처}')" class="text-xs px-3 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-300 text-blue-700 rounded-lg transition font-medium">
+                                <button onclick="insertVariable('#{학부모연락처}')" class="text-xs px-3 py-1.5 bg-violet-50 hover:bg-violet-100 border border-violet-300 text-violet-700 rounded-lg transition font-medium">
                                     <i class="fas fa-phone mr-1"></i>#{학부모연락처}
                                 </button>
                             </div>
@@ -178,7 +178,7 @@ export const smsPage = `    <!DOCTYPE html>
                             </div>
 
                             <div class="flex items-center justify-between mt-3">
-                                <span id="messageType" class="text-sm font-medium px-3 py-1 bg-blue-100 text-blue-800 rounded-full">SMS (단문)</span>
+                                <span id="messageType" class="text-sm font-medium px-3 py-1 bg-violet-100 text-violet-800 rounded-full">SMS (단문)</span>
                                 <p class="text-xs text-gray-500">100자 초과 시 LMS(장문 90P)로 자동 전환 / 100자 이내 SMS 45P</p>
                             </div>
                         </div>
@@ -244,13 +244,13 @@ export const smsPage = `    <!DOCTYPE html>
                                 </div>
                             </div>
                             <!-- 랜딩페이지 첨부 -->
-                            <div class="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                            <div class="mb-3 p-3 bg-violet-50 rounded-lg border border-violet-200">
                                 <label class="flex items-center gap-2 cursor-pointer mb-1">
-                                    <input type="checkbox" id="attachLanding" onchange="toggleLandingAttach()" class="w-4 h-4 accent-blue-600 rounded">
-                                    <span class="text-sm font-semibold text-blue-800">🔗 랜딩페이지 첨부</span>
+                                    <input type="checkbox" id="attachLanding" onchange="toggleLandingAttach()" class="w-4 h-4 accent-violet-600 rounded">
+                                    <span class="text-sm font-semibold text-violet-800">🔗 랜딩페이지 첨부</span>
                                 </label>
-                                <p class="text-xs text-blue-600 ml-6">각 학생 이름으로 생성된 최근 랜딩페이지 URL이 #{랜딩페이지URL} 변수로 자동 첨부됩니다</p>
-                                <div id="landingAttachStatus" class="hidden ml-6 mt-1.5 text-xs text-blue-700 font-medium"></div>
+                                <p class="text-xs text-violet-600 ml-6">각 학생 이름으로 생성된 최근 랜딩페이지 URL이 #{랜딩페이지URL} 변수로 자동 첨부됩니다</p>
+                                <div id="landingAttachStatus" class="hidden ml-6 mt-1.5 text-xs text-violet-700 font-medium"></div>
                             </div>
                             <!-- 학생 DB에서 직접 추가 버튼 -->
                             <button onclick="openStudentPickerModal()" id="btnAddFromStudents"
@@ -460,7 +460,7 @@ export const smsPage = `    <!DOCTYPE html>
                     costPerMessageEl.textContent = '90P';
                 } else {
                     messageTypeEl.textContent = 'SMS (단문 · ' + charCount + '자)';
-                    messageTypeEl.className = 'text-sm font-medium px-3 py-1 bg-blue-100 text-blue-800 rounded-full';
+                    messageTypeEl.className = 'text-sm font-medium px-3 py-1 bg-violet-100 text-violet-800 rounded-full';
                     costPerMessageEl.textContent = '45P';
                 }
                 
@@ -1057,7 +1057,7 @@ export const smsPage = `    <!DOCTYPE html>
                     if (costPerMessageEl) costPerMessageEl.textContent = '90P';
                 } else {
                     messageTypeEl.textContent = 'SMS (단문 · ' + charCount + '자)';
-                    messageTypeEl.className = 'text-sm font-medium px-3 py-1 bg-blue-100 text-blue-800 rounded-full';
+                    messageTypeEl.className = 'text-sm font-medium px-3 py-1 bg-violet-100 text-violet-800 rounded-full';
                     if (costPerMessageEl) costPerMessageEl.textContent = '45P';
                 }
                 updateCost();
@@ -1293,7 +1293,7 @@ export const smsPage = `    <!DOCTYPE html>
                     const checked = pickerSelected.has(sid) ? 'checked' : '';
                     const phoneTags =
                         (hasParentPhone
-                            ? '<span class="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-200">👨‍👩‍👧 학부모 ' + formatPhoneNumber(parentPhone) + '</span>'
+                            ? '<span class="text-xs px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 border border-violet-200">👨‍👩‍👧 학부모 ' + formatPhoneNumber(parentPhone) + '</span>'
                             : '<span class="text-xs px-1.5 py-0.5 rounded bg-red-50 text-red-400">학부모 연락처 없음</span>') +
                         ' ' +
                         (hasStudentPhone

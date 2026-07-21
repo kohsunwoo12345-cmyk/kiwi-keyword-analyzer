@@ -7,7 +7,7 @@ export const youtubeUnifiedPage = `<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>유튜브 마케팅 - BYGENCY</title>
   <script src="https://cdn.tailwindcss.com"><\/script>
-  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" media="print" onload="this.media=&#39;all&#39;"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0;}
@@ -60,7 +60,7 @@ export const youtubeUnifiedPage = `<!DOCTYPE html>
     tr:hover td{background:#fffbfb;}
     .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}
     .badge-red{background:#fff5f5;color:#ff0000;}
-    .badge-blue{background:#eff6ff;color:#3b82f6;}
+    .badge-blue{background:#eff6ff;color:#8b5cf6;}
     .badge-green{background:#f0fdf4;color:#16a34a;}
     .badge-yellow{background:#fefce8;color:#ca8a04;}
     .badge-gray{background:#f8fafc;color:#64748b;}
@@ -659,7 +659,7 @@ function renderChannelDetail(el, ch, videos) {
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:20px;">';
   var stats = [
     {label:'구독자 수', val:fmt(ch.subscriberCount), icon:'👥', color:'#ff0000'},
-    {label:'총 조회수', val:fmt(ch.viewCount), icon:'👁️', color:'#3b82f6'},
+    {label:'총 조회수', val:fmt(ch.viewCount), icon:'👁️', color:'#8b5cf6'},
     {label:'업로드 영상', val:fmt(ch.videoCount), icon:'🎬', color:'#8b5cf6'},
     {label:'평균 조회수', val:fmt(avgViews), icon:'📊', color:'#f59e0b'},
     {label:'영상당 평균 참여율', val:engRate + '%', icon:'💬', color:'#10b981'},
@@ -753,7 +753,7 @@ function renderVideoResults(el, videos, query) {
     if(v.tags && v.tags.length > 0) {
       html += '<div style="display:flex;flex-wrap:wrap;gap:3px;">';
       v.tags.slice(0, 8).forEach(function(t) {
-        html += '<span style="font-size:10px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:8px;padding:2px 6px;">#' + escHtml(t) + '</span>';
+        html += '<span style="font-size:10px;background:#eff6ff;color:#7c3aed;border:1px solid #bfdbfe;border-radius:8px;padding:2px 6px;">#' + escHtml(t) + '</span>';
       });
       if(v.tags.length > 8) html += '<span style="font-size:10px;color:#94a3b8;">+' + (v.tags.length - 8) + '개</span>';
       html += '</div>';
@@ -848,7 +848,7 @@ function renderKeywordResult(el, mainKw, data) {
     var avgViews = videoData.length ? Math.round(totalViews / videoData.length) : 0;
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">';
     html += '<div class="stat-box"><div style="font-size:18px;">👁️</div><div class="stat-val" style="font-size:20px;color:#ff0000;">' + fmt(avgViews) + '</div><div class="stat-label">평균 조회수</div></div>';
-    html += '<div class="stat-box"><div style="font-size:18px;">👍</div><div class="stat-val" style="font-size:20px;color:#3b82f6;">' + fmt(Math.round(totalLikes/videoData.length)) + '</div><div class="stat-label">평균 좋아요</div></div>';
+    html += '<div class="stat-box"><div style="font-size:18px;">👍</div><div class="stat-val" style="font-size:20px;color:#8b5cf6;">' + fmt(Math.round(totalLikes/videoData.length)) + '</div><div class="stat-label">평균 좋아요</div></div>';
     html += '<div class="stat-box"><div style="font-size:18px;">🎬</div><div class="stat-val" style="font-size:20px;color:#8b5cf6;">' + videoData.length + '</div><div class="stat-label">분석 영상 수</div></div>';
     html += '</div>';
 
@@ -910,7 +910,7 @@ function renderKeywordInsight(el, kw, channels, videos) {
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px;">';
   var stats = [
     {label:'관련 채널 수', val:channels.length + '개', icon:'📺', color:'#ff0000'},
-    {label:'채널 평균 구독자', val:fmt(avgSubs), icon:'👥', color:'#3b82f6'},
+    {label:'채널 평균 구독자', val:fmt(avgSubs), icon:'👥', color:'#8b5cf6'},
     {label:'영상 평균 조회수', val:fmt(avgViews), icon:'👁️', color:'#8b5cf6'},
     {label:'영상 평균 좋아요', val:fmt(avgLikes), icon:'👍', color:'#f59e0b'},
     {label:'경쟁도', val:compLabel, icon:'⚔️', color:'#10b981'},
@@ -1031,7 +1031,7 @@ async function compareChannels() {
 }
 
 function renderCompetitor(el, channels) {
-  var colors = ['#ff0000', '#3b82f6', '#10b981'];
+  var colors = ['#ff0000', '#8b5cf6', '#10b981'];
   var maxSubs = Math.max.apply(null, channels.map(function(c){return parseInt(c.subscriberCount)||0;}));
   var maxViews = Math.max.apply(null, channels.map(function(c){return parseInt(c.viewCount)||0;}));
   var maxVideos = Math.max.apply(null, channels.map(function(c){return parseInt(c.videoCount)||0;}));
@@ -1180,7 +1180,7 @@ function renderVideoDetail(el, d) {
   // 핵심 통계
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:14px;">';
   html += '<div class="stat-box"><div style="font-size:18px;">👁️</div><div class="stat-val" style="font-size:20px;color:#ff0000;">' + fmt(d.stats.viewCount) + '</div><div class="stat-label">조회수</div></div>';
-  html += '<div class="stat-box"><div style="font-size:18px;">👍</div><div class="stat-val" style="font-size:20px;color:#3b82f6;">' + fmt(d.stats.likeCount) + '</div><div class="stat-label">좋아요</div></div>';
+  html += '<div class="stat-box"><div style="font-size:18px;">👍</div><div class="stat-val" style="font-size:20px;color:#8b5cf6;">' + fmt(d.stats.likeCount) + '</div><div class="stat-label">좋아요</div></div>';
   html += '<div class="stat-box"><div style="font-size:18px;">💬</div><div class="stat-val" style="font-size:20px;color:#8b5cf6;">' + fmt(d.stats.commentCount) + '</div><div class="stat-label">댓글 수</div></div>';
   html += '<div class="stat-box"><div style="font-size:18px;">📊</div><div class="stat-val" style="font-size:20px;color:#f59e0b;">' + d.stats.engagementRate + '%</div><div class="stat-label">참여율</div></div>';
   html += '</div>';

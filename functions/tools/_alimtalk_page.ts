@@ -157,7 +157,7 @@ export const alimtalkPage = `<!DOCTYPE html>
           </span>
         </div>
         <!-- 채널 없을 때 -->
-        <div id="noChannelBanner" class="hidden mt-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-xs text-blue-700 flex items-center justify-between">
+        <div id="noChannelBanner" class="hidden mt-2 bg-violet-50 border border-violet-200 rounded-xl px-3 py-2 text-xs text-violet-700 flex items-center justify-between">
           <span><i class="fas fa-info-circle mr-1"></i>등록된 채널이 없습니다.</span>
           <a href="/dashboard_USE17237_612/alimtalk/templates" target="_top" class="font-bold underline">채널 등록 →</a>
         </div>
@@ -237,11 +237,11 @@ export const alimtalkPage = `<!DOCTYPE html>
             </div>
           </div>
           <!-- 선택된 학생 랜딩페이지 정보 -->
-          <div id="landingInfo" class="hidden mt-3 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 text-xs">
-            <div class="flex items-center gap-1.5 text-blue-700 font-bold mb-1">
+          <div id="landingInfo" class="hidden mt-3 bg-violet-50 border border-violet-200 rounded-xl px-3 py-2.5 text-xs">
+            <div class="flex items-center gap-1.5 text-violet-700 font-bold mb-1">
               <i class="fas fa-link"></i>랜딩페이지 자동 첨부
             </div>
-            <p class="text-blue-600">각 학생의 가장 최근 랜딩페이지를 자동으로 <code class="bg-blue-100 px-1 rounded">#{랜딩페이지URL}</code> 변수에 치환합니다.</p>
+            <p class="text-violet-600">각 학생의 가장 최근 랜딩페이지를 자동으로 <code class="bg-violet-100 px-1 rounded">#{랜딩페이지URL}</code> 변수에 치환합니다.</p>
           </div>
         </div>
 
@@ -795,7 +795,7 @@ export const alimtalkPage = `<!DOCTYPE html>
       var landing    = studentLandingMap[st.id] || '';
       var gradeLabel = st.grade ? '<span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">' + esc(st.grade) + '</span>' : '';
       var landingBadge = landing
-        ? '<i class="fas fa-link text-blue-400 text-[9px]" title="랜딩페이지 있음"></i>'
+        ? '<i class="fas fa-link text-violet-400 text-[9px]" title="랜딩페이지 있음"></i>'
         : '<i class="fas fa-link text-gray-200 text-[9px]"></i>';
       html += '<div class="student-item' + (isChecked ? ' selected' : '') + '" onclick="toggleStudent(' + st.id + ')" data-student-id="' + st.id + '">';
       html += '<input type="checkbox" ' + (isChecked ? 'checked' : '') + ' onclick="event.stopPropagation();toggleStudent(' + st.id + ')">';
@@ -803,7 +803,7 @@ export const alimtalkPage = `<!DOCTYPE html>
       html += '<div class="flex items-center gap-1.5"><span class="text-sm font-semibold text-gray-800">' + esc(st.name) + '</span>' + gradeLabel + '</div>';
       html += '<div class="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5">' + landingBadge;
       if (landing) {
-        html += '<span class="truncate text-blue-400">랜딩페이지 연결됨</span>';
+        html += '<span class="truncate text-violet-400">랜딩페이지 연결됨</span>';
       } else {
         html += '<span class="text-gray-300">랜딩페이지 없음</span>';
       }

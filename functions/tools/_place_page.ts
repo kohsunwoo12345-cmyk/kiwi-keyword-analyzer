@@ -17,7 +17,7 @@ export const naverPlaceRankPage = `
       --p:#4f46e5;--p2:#4338ca;--p3:#6366f1;
       --acc:#7c3aed;
       --green:#10b981;--green2:#059669;
-      --amber:#f59e0b;--red:#ef4444;--blue:#3b82f6;
+      --amber:#f59e0b;--red:#ef4444;--blue:#8b5cf6;
       --bg:#f1f5f9;
       --surface:#ffffff;
       --surface2:#f8fafc;
@@ -126,7 +126,7 @@ export const naverPlaceRankPage = `
       padding:3px 10px;border-radius:20px;
     }
     .sb-ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}
-    .sb-run{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe}
+    .sb-run{background:#eff6ff;color:#5b21b6;border:1px solid #bfdbfe}
     .sb-wait{background:#fffbeb;color:#92400e;border:1px solid #fde68a}
     .sb-check{background:#f1f5f9;color:var(--txt3);border:1px solid var(--border)}
     .sbar-next{font-size:12px;color:var(--txt4);margin-left:auto}
@@ -286,7 +286,7 @@ export const naverPlaceRankPage = `
       padding:4px 12px;border-radius:20px;
       font-size:12px;font-weight:700;border:1px solid transparent;
     }
-    .pill-b{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+    .pill-b{background:#eff6ff;border-color:#bfdbfe;color:#6d28d9}
     .pill-g{background:#ecfdf5;border-color:#a7f3d0;color:#065f46}
     .pill-o{background:#fff7ed;border-color:#fed7aa;color:#c2410c}
     .pill-v{background:#f5f3ff;border-color:#ddd6fe;color:#6d28d9}
@@ -317,7 +317,7 @@ export const naverPlaceRankPage = `
     .ti-rank .u{font-size:9px;font-weight:600;margin-top:1px}
     .tg-gold{background:#fffbeb;border-color:#fde68a;color:#b45309}
     .tg-green{background:#ecfdf5;border-color:#6ee7b7;color:#065f46}
-    .tg-blue{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}
+    .tg-blue{background:#eff6ff;border-color:#bfdbfe;color:#5b21b6}
     .tg-gray{background:var(--surface2);border-color:var(--border);color:var(--txt4)}
     .ti-body{flex:1;min-width:0}
     .ti-kw{font-size:14px;font-weight:700;color:var(--txt);line-height:1.3}
@@ -353,7 +353,7 @@ export const naverPlaceRankPage = `
       font-size:13px;margin-bottom:16px;line-height:1.5;
     }
     .alert-w{background:#fffbeb;border:1px solid #fde68a;color:#92400e}
-    .alert-i{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
+    .alert-i{background:#eff6ff;border:1px solid #bfdbfe;color:#5b21b6}
 
     /* ── DASHBOARD TABLE ── */
     .tbl-scroll{overflow-x:auto;border-radius:0 0 var(--r) var(--r)}
@@ -376,7 +376,7 @@ export const naverPlaceRankPage = `
     }
     .rc-1{background:#fef3c7;color:#92400e}
     .rc-3{background:#d1fae5;color:#065f46}
-    .rc-10{background:#dbeafe;color:#1e40af}
+    .rc-10{background:#dbeafe;color:#5b21b6}
     .rc-x{background:#f1f5f9;color:var(--txt3)}
     .rc-n{background:#f8fafc;color:#cbd5e1}
     .tbl-best{font-weight:800}
@@ -410,7 +410,7 @@ export const naverPlaceRankPage = `
     .toast-s{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46}
     .toast-e{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
     .toast-w{background:#fffbeb;border:1px solid #fde68a;color:#92400e}
-    .toast-i{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
+    .toast-i{background:#eff6ff;border:1px solid #bfdbfe;color:#5b21b6}
     .toast-ico{flex-shrink:0;margin-top:1px}
 
     /* ── DIVIDER ── */
@@ -595,7 +595,7 @@ export const naverPlaceRankPage = `
     <div class="card-head">
       <div class="card-title">
         <div class="c-ico" style="background:#eff6ff">
-          <svg width="16" height="16" fill="none" stroke="#3b82f6" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <svg width="16" height="16" fill="none" stroke="#8b5cf6" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
         </div>
         자동 추적 키워드
       </div>
@@ -1295,7 +1295,7 @@ function buildTable(hist){
     '<th class="tk">키워드</th>'+
     dates.map(dt=>{
       const d=new Date(dt+'T12:00:00'),dw=dn[d.getDay()];
-      const c=d.getDay()===0?'color:#ef4444':d.getDay()===6?'color:#3b82f6':'';
+      const c=d.getDay()===0?'color:#ef4444':d.getDay()===6?'color:#8b5cf6':'';
       return '<th style="'+c+'">'+dt.slice(5).replace('-','/')+'<br><span style="font-weight:500;font-size:10px;opacity:.7">'+dw+'</span></th>';
     }).join('')+
     '<th>최고</th><th>평균</th>';
