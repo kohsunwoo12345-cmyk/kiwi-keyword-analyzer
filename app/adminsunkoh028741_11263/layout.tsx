@@ -41,6 +41,7 @@ import {
   PartyPopper,
   KeyRound,
   Coins,
+  TrendingUp,
 } from 'lucide-react'
 import { Logo } from '@/components/Brand'
 import { adminSupportCount, adminPendingCounts } from '@/lib/auth'
@@ -93,6 +94,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { title: '퍼널 빌더', href: '/tools/funnel-builder.html', icon: Filter },
       { title: '마케팅 자동화', href: '/tools/marketing-automation.html', icon: Zap },
+      { title: '광고 성과', href: `${ADMIN_BASE}/ad-performance`, icon: TrendingUp },
       { title: '퍼널 분석', href: '/tools/funnel-landing-analytics.html', icon: LineChart },
       { title: '쿠폰·할인코드', href: `${ADMIN_BASE}/coupons`, icon: Ticket },
       { title: '발송 설정', href: `${ADMIN_BASE}/messaging`, icon: Send },

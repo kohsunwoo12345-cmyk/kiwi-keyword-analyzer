@@ -328,6 +328,42 @@ export async function adminCreditGrants(days = 90, type: 'all' | 'auto' | 'manua
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
 
+/* ── 광고 성과 (관리자) — 랜딩 조회수·전환율 + 알림 광고 ── */
+export interface AdLandingPerf {
+  id: number; slug: string; title: string; url: string; createdAt: string
+  views: number; uniqueVisitors: number; conversions: number; rate: number
+}
+export interface AdRow {
+  campaignId: string; title: string; target: string; ctaUrl: string
+  slug: string; landingTitle: string; landingUrl: string; isOurLanding: boolean
+  impressions: number; reads: number; clicks: number | null; ctr: number | null; createdAt: string
+  landingViews: number; landingConversions: number; landingRate: number
+}
+export interface AdPerfStats {
+  ok: boolean; error?: string
+  totals?: { landings: number; landingViews: number; landingConversions: number; ads: number; adImpressions: number; adClicks: number }
+  landings?: AdLandingPerf[]
+  ads?: AdRow[]
+}
+export interface AdLandingDetail {
+  ok: boolean; found?: boolean; reason?: string; slug?: string; error?: string
+  landing?: AdLandingPerf
+  byDay?: { d: string; views: number; uniq: number; conversions: number }[]
+  linkedAds?: { campaignId: string; title: string; target: string; createdAt: string }[]
+}
+export async function adminAdPerformance(): Promise<AdPerfStats> {
+  try {
+    const r = await fetch('/api/admin/ad-performance', { credentials: 'include', cache: 'no-store' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+export async function adminAdLandingAnalyze(url: string): Promise<AdLandingDetail> {
+  try {
+    const r = await fetch('/api/admin/ad-performance?url=' + encodeURIComponent(url), { credentials: 'include', cache: 'no-store' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+
 /* ── AI 생성 기록 (관리자) — 각 생성물의 프롬프트·레퍼런스·결과·비용 ── */
 export interface AiGenerationRow {
   id: string

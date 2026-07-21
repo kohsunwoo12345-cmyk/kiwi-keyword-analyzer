@@ -75,6 +75,7 @@ f.addEventListener('submit',async function(e){e.preventDefault();b.disabled=true
  function dismissed(){try{return JSON.parse(sessionStorage.getItem('bg_notice_dismissed')||'[]');}catch(e){return [];}}
  function addDismiss(id){try{var a=dismissed();if(a.indexOf(id)<0){a.push(id);sessionStorage.setItem('bg_notice_dismissed',JSON.stringify(a));}}catch(e){}}
  var path=location.pathname,V=vid();
+ try{fetch('/api/visit',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({path:path,ref:document.referrer||'',visitor:V})});}catch(e){}
  function post(id,k,days){try{fetch('/api/public-notices',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({campaignId:id,visitor:V,kind:k,days:days,path:path})});}catch(e){}}
  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
  function render(list){
