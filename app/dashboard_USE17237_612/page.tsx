@@ -73,9 +73,8 @@ export default function DashboardHome() {
       <div className="space-y-6 p-6 lg:p-8">
         {/* 플랜 미보유 → 요금제 활성화 유도 (도구는 숨김, 홈만 노출) */}
         {ready && !hasPlan && (
-          <div className="relative flex flex-col items-start justify-between gap-4 overflow-hidden rounded-2xl border border-violet-500/25 bg-gradient-to-br from-violet-600/15 to-fuchsia-600/10 p-6 sm:flex-row sm:items-center">
-            <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-56 rounded-full bg-violet-500/20 blur-[70px]" />
-            <div className="relative">
+          <div className="card flex flex-col items-start justify-between gap-4 p-6 sm:flex-row sm:items-center">
+            <div>
               <h3 className="text-base font-bold">아직 요금제가 없습니다</h3>
               <p className="mt-1 text-sm text-[var(--text-soft)]">
                 요금제를 활성화하면 마케팅 도구와 노드형 AI 영상 제작을 모두 사용할 수 있어요.
@@ -83,9 +82,9 @@ export default function DashboardHome() {
             </div>
             <Link
               href="/activate"
-              className="relative inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 px-5 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
+              className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-violet-700"
             >
-              바로 요금제를 활성화해 주세요 <ArrowRight size={15} />
+              요금제 활성화 <ArrowRight size={15} />
             </Link>
           </div>
         )}
@@ -94,11 +93,10 @@ export default function DashboardHome() {
         {hasPlan && (user?.products === 'both' || user?.products === 'video' || user?.role === 'admin') && (
           <a
             href="/studio-nvc-prv-8b3k2/"
-            className="group relative flex items-center justify-between gap-4 overflow-hidden rounded-2xl border border-violet-500/25 bg-gradient-to-br from-violet-600/15 to-fuchsia-600/10 p-5 transition hover:border-violet-500/50"
+            className="card group flex items-center justify-between gap-4 p-5 transition hover:border-violet-300 hover:shadow-md"
           >
-            <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-56 rounded-full bg-violet-500/20 blur-[70px]" />
-            <div className="relative flex items-center gap-4">
-              <span className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg shadow-violet-500/30">
+            <div className="flex items-center gap-4">
+              <span className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-sm">
                 <Clapperboard size={22} />
               </span>
               <div>
@@ -106,8 +104,8 @@ export default function DashboardHome() {
                 <p className="mt-0.5 text-xs text-[var(--text-soft)]">블록을 연결하듯 광고·숏폼 영상을 생성하세요.</p>
               </div>
             </div>
-            <span className="relative inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-bold text-white transition group-hover:bg-white/15">
-              영상 노드 스튜디오로 <ArrowRight size={15} />
+            <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white transition group-hover:bg-violet-700">
+              영상 스튜디오 열기 <ArrowRight size={15} />
             </span>
           </a>
         )}

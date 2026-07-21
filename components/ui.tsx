@@ -108,18 +108,18 @@ export function StatCard({
   return (
     <div className="card hover-lift p-5">
       <div className="flex items-start justify-between">
-        <span className="text-sm text-[var(--text-soft)]">{label}</span>
+        <span className="text-[13px] font-medium text-[var(--text-soft)]">{label}</span>
         {Icon && (
           <span
-            className="grid h-9 w-9 place-items-center rounded-lg"
+            className="grid h-9 w-9 place-items-center rounded-xl"
             style={{ background: `${accent}14`, color: accent }}
           >
             <Icon size={17} />
           </span>
         )}
       </div>
-      <div className="mt-3 flex items-end justify-between">
-        <span className="text-2xl font-bold tracking-tight">{value}</span>
+      <div className="mt-3.5 flex items-end justify-between">
+        <span className="text-[28px] font-extrabold leading-none tracking-tight">{value}</span>
         {delta !== undefined && (
           <span
             className={cn(
