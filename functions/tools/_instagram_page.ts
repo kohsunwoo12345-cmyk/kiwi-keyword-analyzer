@@ -2170,7 +2170,7 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
               <label style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">캡션</label>
               <span id="pub-caption-count" style="font-size:11px;color:#94a3b8;">0 / 2200</span>
             </div>
-            <textarea id="pub-caption" rows="4" maxlength="2200" placeholder="게시물 캡션을 입력하세요. 해시태그도 추가할 수 있습니다. #마케팅 #슈퍼플레이스" style="width:100%;padding:10px 14px;border:2px solid #e8edf4;border-radius:10px;font-size:13px;outline:none;font-family:inherit;resize:vertical;line-height:1.6;transition:border .15s;" onfocus="this.style.borderColor='#e1306c'" onblur="this.style.borderColor='#e8edf4'" oninput="document.getElementById('pub-caption-count').textContent=this.value.length+' / 2200'"></textarea>
+            <textarea id="pub-caption" rows="4" maxlength="2200" placeholder="게시물 캡션을 입력하세요. 해시태그도 추가할 수 있습니다. #마케팅 #바이전시" style="width:100%;padding:10px 14px;border:2px solid #e8edf4;border-radius:10px;font-size:13px;outline:none;font-family:inherit;resize:vertical;line-height:1.6;transition:border .15s;" onfocus="this.style.borderColor='#e1306c'" onblur="this.style.borderColor='#e8edf4'" oninput="document.getElementById('pub-caption-count').textContent=this.value.length+' / 2200'"></textarea>
           </div>
 
           <!-- 에러 메시지 -->

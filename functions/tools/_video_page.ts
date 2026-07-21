@@ -688,7 +688,7 @@ export const videoMakerPage = `<!DOCTYPE html>
 <!-- TOP BAR -->
 <div class="tb">
   <button class="tb-back hub-back-btn" onclick="window.location.href='/super1647'">← 뒤로</button>
-  <div class="tb-logo"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ac.svg" class="tw" alt="🎬"> SUPERVIDEO <span>5.0</span></div>
+  <div class="tb-logo"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ac.svg" class="tw" alt="🎬"> BYGENCY 영상 <span>5.0</span></div>
 
   <a href="/tools/my-videos" class="tb-gallery-btn" style="text-decoration:none"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f39e.svg" class="tw" alt="🎞"> 내 영상 <span id="gallery-count" style="display:inline-flex;align-items:center;justify-content:center;background:var(--primary);color:#fff;width:18px;height:18px;border-radius:50%;font-size:9px;font-weight:900;margin-left:3px">0</span></a>
 </div>
