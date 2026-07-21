@@ -1,4 +1,4 @@
-import { TopBar } from '@/components/layout/TopBar'
+import { Sidebar } from '@/components/layout/Sidebar'
 import { PwaTracker } from '@/components/PwaTracker'
 import { ProfileGate } from '@/components/ProfileGate'
 import { EventBanner } from '@/components/EventBanner'
@@ -9,10 +9,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <DashThemeProvider>
       <ProfileGate>
-        <div className="flex min-h-screen flex-col bg-[var(--bg)]">
+        <div className="min-h-screen bg-[var(--bg)] lg:flex">
           <PwaTracker />
           <EventBanner />
-          <TopBar />
+          <Sidebar />
           <main className="min-w-0 flex-1">{children}</main>
           <NoticePopups />
         </div>

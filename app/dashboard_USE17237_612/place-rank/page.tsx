@@ -6,7 +6,7 @@ export default function PlaceRankToolPage() {
     <iframe
       src="/tools/place?embed=1"
       title="플레이스 순위"
-      className="block h-[calc(100vh-56px)] min-h-[720px] w-full border-0 lg:h-[calc(100vh-56px)]"
+      className="block h-[calc(100vh-56px)] min-h-[720px] w-full border-0 lg:h-screen"
     />
   )
 }

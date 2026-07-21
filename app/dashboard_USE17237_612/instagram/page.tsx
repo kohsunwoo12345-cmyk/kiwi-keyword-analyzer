@@ -6,7 +6,7 @@ export default function InstagramToolPage() {
     <iframe
       src="/tools/instagram?embed=1"
       title="인스타그램"
-      className="block h-[calc(100vh-56px)] min-h-[720px] w-full border-0 lg:h-[calc(100vh-56px)]"
+      className="block h-[calc(100vh-56px)] min-h-[720px] w-full border-0 lg:h-screen"
     />
   )
 }
