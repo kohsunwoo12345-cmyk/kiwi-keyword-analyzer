@@ -13,6 +13,7 @@ import {
   addNotification,
   rewardReferralFirstPaid,
 } from '../_utils'
+import { getPlanConfig } from '../_plans'
 import { sendSms, aligoAlimtalk } from '../_aligo'
 
 // 개월수(0~12) → 만료 ISO. 0 = 무기한(null)
@@ -93,8 +94,22 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const label = track === 'video' ? 'AI 영상' : '마케터'
     const months = Math.max(0, Math.min(12, Math.round(Number(body.months) || 0)))
     const until = plan === '없음' ? null : untilFromMonths(months)   // 0개월=무기한
+    // 변경 전 플랜 (새로 시작되는 유료 플랜에만 크레딧 지급 → 중복 지급 방지)
+    const prev: any = await db.prepare(`SELECT ${col} AS p FROM users WHERE id = ?`).bind(id).first()
+    const prevPlan = String(prev?.p || '없음')
     await db.prepare(`UPDATE users SET ${col} = ?, ${untilCol} = ? WHERE id = ?`).bind(plan, until, id).run()
     await logActivity(db, id, 'plan', `${label} 플랜 변경 → ${plan}${until ? ` (${months}개월)` : ''}`)
+    // 플랜이 시작되면(무료→유료 또는 다른 유료 플랜으로 전환) 설정된 지급 크레딧을 즉시 지급
+    if (plan !== '없음' && plan !== prevPlan) {
+      try {
+        const cfg = await getPlanConfig(db)
+        const grant = Number(cfg[track]?.[plan]?.credits) || 0
+        if (grant > 0) {
+          await applyBalance(db, id, 'credit', grant, `${label} ${plan} 플랜 지급 크레딧`)
+          await addNotification(db, id, '플랜 크레딧이 지급되었습니다', `${label} ${plan} 플랜 가입으로 크레딧 ${grant.toLocaleString()}개가 지급되었습니다.`)
+        }
+      } catch { /* 크레딧 지급 실패는 플랜 변경 자체를 막지 않음 */ }
+    }
     // 추천인 리워드: 피추천인이 유료 요금제에 처음 가입하면 추천인에게 결제액의 1% 크레딧 지급
     if (plan !== '없음') await rewardReferralFirstPaid(db, id, track, plan)
   } else if (action === 'password') {

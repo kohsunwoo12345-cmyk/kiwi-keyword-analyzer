@@ -309,6 +309,25 @@ export async function adminApiKeys(days = 90): Promise<ApiKeysStats> {
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
 
+/* ── 크레딧 지급 내역 (관리자) — 자동/수동 지급 ── */
+export interface CreditGrantRow {
+  id: string; userId: string; userName: string; userEmail: string
+  amount: number; balanceAfter: number | null; memo: string; createdAt: string
+  auto: boolean; category: string
+}
+export interface CreditGrantsStats {
+  ok: boolean; error?: string; days?: number; type?: string
+  totals?: { count: number; total: number; autoCount: number; autoTotal: number; manualCount: number; manualTotal: number }
+  byCategory?: { category: string; auto: boolean; count: number; credits: number }[]
+  rows?: CreditGrantRow[]
+}
+export async function adminCreditGrants(days = 90, type: 'all' | 'auto' | 'manual' = 'all'): Promise<CreditGrantsStats> {
+  try {
+    const r = await fetch(`/api/admin/credit-grants?days=${days}&type=${type}`, { credentials: 'include', cache: 'no-store' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+
 /* ── AI 생성 기록 (관리자) — 각 생성물의 프롬프트·레퍼런스·결과·비용 ── */
 export interface AiGenerationRow {
   id: string

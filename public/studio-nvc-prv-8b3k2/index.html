@@ -5873,7 +5873,7 @@ pfHandleTossReturn();
   // ── URL 분리: 홈(채팅) = #chat, 노드 스튜디오 = 기본 URL ──
   //   /studio-nvc-prv-8b3k2/        → 노드 스튜디오
   //   /studio-nvc-prv-8b3k2/#chat   → 홈(AI 채팅 생성)
-  function hashIsChat(){ return (location.hash||'').toLowerCase()==='#chat'; }
+  function hashIsChat(){ return (location.hash||'').toLowerCase()==='#create'; }   // 채팅 화면의 URL 은 #create
   function applyOpen(){
     if(home.classList.contains('on')) return;
     fillModels(); renderOutput(); home.classList.add('on'); document.body.classList.add('chat-open');
@@ -5881,12 +5881,12 @@ pfHandleTossReturn();
     setTimeout(function(){ var t=chEl('chText'); if(t)t.focus(); },50);
   }
   function applyClose(){ home.classList.remove('on'); document.body.classList.remove('chat-open'); }
-  function open(){ try{ showNavLoader('채팅 준비 중'); }catch(e){} if(!hashIsChat()){ location.hash='chat'; } applyOpen(); }   // URL 을 #chat 으로
+  function open(){ try{ showNavLoader('채팅 준비 중'); }catch(e){} if(!hashIsChat()){ location.hash='create'; } applyOpen(); }   // 채팅 화면 URL = #create
   function close(){ try{ showNavLoader('스튜디오로 이동 중'); }catch(e){} if(hashIsChat()){ history.replaceState(null,'',location.pathname+location.search); } applyClose(); }  // URL 을 기본으로
   function toggleHome(){ if(home.classList.contains('on')) close(); else open(); }
   // 뒤로가기/앞으로가기·직접 URL 접근 시 뷰 동기화
   window.addEventListener('hashchange', function(){ if(hashIsChat()) applyOpen(); else applyClose(); });
-  if(hashIsChat()) setTimeout(applyOpen, 0);   // #chat 로 직접 들어온 경우 홈 자동 열기
+  if(hashIsChat()) setTimeout(applyOpen, 0);   // #create 로 직접 들어온 경우 채팅 자동 열기
 
   async function send(){
     var ta=chEl('chText'); var prompt=(ta.value||'').trim();
@@ -6034,10 +6034,10 @@ pfHandleTossReturn();
   }
 
   // 라우팅: #create (노드 스튜디오와 별도 URL)
-  function isCreate(){ return (location.hash||'').toLowerCase()==='#create'; }
+  function isCreate(){ return (location.hash||'').toLowerCase()==='#chat'; }   // 제작 화면의 URL 은 #chat
   function applyOpen(){ if(home.classList.contains('on'))return; fillModels(); renderGrid(); home.classList.add('on'); document.body.classList.add('create-open'); try{ if(typeof I18N_LANG!=='undefined' && I18N_LANG!=='ko') applyI18n(home); }catch(e){} setTimeout(function(){var t=el('crText'); if(t)t.focus();},50); }
   function applyClose(){ home.classList.remove('on'); document.body.classList.remove('create-open'); }
-  function open(){ try{ showNavLoader('제작 준비 중'); }catch(e){} if(!isCreate())location.hash='create'; applyOpen(); }
+  function open(){ try{ showNavLoader('제작 준비 중'); }catch(e){} if(!isCreate())location.hash='chat'; applyOpen(); }   // 제작 화면 URL = #chat
   function close(){ try{ showNavLoader('스튜디오로 이동 중'); }catch(e){} if(isCreate())history.replaceState(null,'',location.pathname+location.search); applyClose(); }
   function toggle(){ if(home.classList.contains('on'))close(); else open(); }
   window.addEventListener('hashchange',function(){ if(isCreate())applyOpen(); else applyClose(); });
