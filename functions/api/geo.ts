@@ -4,10 +4,15 @@ import { Env, json, geoFrom } from './_utils'
 const COUNTRY_LANG: Record<string, string> = {
   KR: 'ko', // 대한민국
   JP: 'ja', // 일본
-  CN: 'zh', // 중국
-  TW: 'zh', // 대만
-  HK: 'zh', // 홍콩
-  MO: 'zh', // 마카오
+  CN: 'zh', TW: 'zh', HK: 'zh', MO: 'zh', // 중화권
+  // 스페인어권
+  ES: 'es', MX: 'es', AR: 'es', CO: 'es', CL: 'es', PE: 'es', VE: 'es', EC: 'es', GT: 'es', CU: 'es', BO: 'es', DO: 'es', HN: 'es', PY: 'es', SV: 'es', NI: 'es', CR: 'es', PA: 'es', UY: 'es',
+  // 프랑스어권
+  FR: 'fr', BE: 'fr', LU: 'fr', MC: 'fr', SN: 'fr', CI: 'fr',
+  // 독일어권
+  DE: 'de', AT: 'de', CH: 'de', LI: 'de',
+  // 이탈리아어권
+  IT: 'it', SM: 'it', VA: 'it',
 }
 
 // GET /api/geo → 접속 IP의 국가와 추천 언어 (공개)

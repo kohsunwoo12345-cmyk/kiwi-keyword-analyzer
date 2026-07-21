@@ -2,13 +2,17 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
-export type Lang = 'ko' | 'en' | 'ja' | 'zh'
+export type Lang = 'ko' | 'en' | 'ja' | 'zh' | 'es' | 'fr' | 'de' | 'it'
 
 export const LANGS: { code: Lang; native: string; label: string; flag: string }[] = [
   { code: 'ko', native: '한국어', label: 'Korean', flag: '🇰🇷' },
   { code: 'en', native: 'English', label: 'English', flag: '🇺🇸' },
   { code: 'ja', native: '日本語', label: 'Japanese', flag: '🇯🇵' },
   { code: 'zh', native: '中文', label: 'Chinese', flag: '🇨🇳' },
+  { code: 'es', native: 'Español', label: 'Spanish', flag: '🇪🇸' },
+  { code: 'fr', native: 'Français', label: 'French', flag: '🇫🇷' },
+  { code: 'de', native: 'Deutsch', label: 'German', flag: '🇩🇪' },
+  { code: 'it', native: 'Italiano', label: 'Italian', flag: '🇮🇹' },
 ]
 
 /** 한국어 원문(key) → 각 언어 번역. 없는 언어는 한국어로 폴백. */
@@ -22,7 +26,7 @@ interface I18nValue {
 const I18nContext = createContext<I18nValue>({ lang: 'ko', setLang: () => {}, ready: false })
 
 const STORAGE_KEY = 'bg_lang'
-const VALID: Lang[] = ['ko', 'en', 'ja', 'zh']
+const VALID: Lang[] = ['ko', 'en', 'ja', 'zh', 'es', 'fr', 'de', 'it']
 
 function savedLang(): Lang | null {
   try {
@@ -95,11 +99,14 @@ export function useI18n() {
   return useContext(I18nContext)
 }
 
-/** 페이지/컴포넌트가 자체 사전으로 번역. t('한국어') → 현재 언어 문자열(없으면 한국어). */
+/** 페이지/컴포넌트가 자체 사전으로 번역.
+ *  t('한국어') → 현재 언어 문자열. 없으면 영어로 폴백(국제 기본), 영어도 없으면 한국어 원문. */
 export function useT(messages: Dict = {}) {
   const { lang } = useI18n()
   return (ko: string): string => {
     if (lang === 'ko') return ko
-    return messages[ko]?.[lang] ?? ko
+    const m = messages[ko]
+    if (!m) return ko
+    return m[lang] ?? m.en ?? ko
   }
 }

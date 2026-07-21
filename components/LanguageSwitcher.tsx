@@ -52,7 +52,7 @@ export function LanguageSwitcher({
       {open && (
         <div
           className={cn(
-            'absolute right-0 top-full z-50 mt-2 w-40 overflow-hidden rounded-xl border p-1 shadow-xl',
+            'absolute right-0 top-full z-50 mt-2 max-h-[70vh] w-40 overflow-y-auto rounded-xl border p-1 shadow-xl',
             dark
               ? 'border-white/10 bg-[#0b1120]/95 backdrop-blur-xl'
               : 'border-[var(--border)] bg-white',

@@ -42,7 +42,7 @@ export function orgLd() {
       'BYGENCY(바이전시)는 노드형 AI 광고 영상 제작을 중심으로 유튜브·블로그 분석, 광고 분석, DB수집 랜딩페이지, CRM 을 하나로 통합한 대한민국 올인원 AI 마케팅 플랫폼입니다.',
     slogan: '마케팅의 모든 것을 BYGENCY 하나로',
     areaServed: ['KR', 'US', 'JP', 'CN'],
-    knowsLanguage: ['ko', 'en', 'ja', 'zh'],
+    knowsLanguage: ['ko', 'en', 'ja', 'zh', 'es', 'fr', 'de', 'it'],
     contactPoint: [{
       '@type': 'ContactPoint',
       contactType: 'customer support',
@@ -61,7 +61,7 @@ export function websiteLd() {
     name: BRAND,
     alternateName: BRAND_KO,
     url: SITE_URL,
-    inLanguage: ['ko', 'en', 'ja', 'zh'],
+    inLanguage: ['ko', 'en', 'ja', 'zh', 'es', 'fr', 'de', 'it'],
     publisher: { '@id': `${SITE_URL}/#organization` },
     potentialAction: {
       '@type': 'SearchAction',
@@ -82,7 +82,7 @@ export function softwareLd() {
     applicationSubCategory: 'AI Video Generation',
     operatingSystem: 'Web',
     url: SITE_URL,
-    inLanguage: ['ko', 'en', 'ja', 'zh'],
+    inLanguage: ['ko', 'en', 'ja', 'zh', 'es', 'fr', 'de', 'it'],
     publisher: { '@id': `${SITE_URL}/#organization` },
     description:
       '노드형(워크플로우) 방식으로 Veo·Runway·Seedance·Kling 등 최신 AI 모델을 연결해 광고 영상을 제작하는 웹 스튜디오. 유튜브·블로그·광고 분석, DB수집 랜딩페이지, CRM 까지 한 곳에서.',

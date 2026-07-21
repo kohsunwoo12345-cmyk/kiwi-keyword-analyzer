@@ -20,17 +20,17 @@ const LINKS = [
 ]
 
 const M: Dict = {
-  제품: { en: 'Product', ja: '製品', zh: '产品' },
-  기능: { en: 'Features', ja: '機能', zh: '功能' },
-  요금제: { en: 'Pricing', ja: '料金', zh: '价格' },
-  회사소개: { en: 'About', ja: '会社概要', zh: '关于' },
-  문의: { en: 'Contact', ja: 'お問い合わせ', zh: '联系' },
-  로그인: { en: 'Log in', ja: 'ログイン', zh: '登录' },
-  '지금 시작하기': { en: 'Get started', ja: '今すぐ始める', zh: '立即开始' },
-  시작하기: { en: 'Start', ja: '始める', zh: '开始' },
-  대시보드: { en: 'Dashboard', ja: 'ダッシュボード', zh: '控制台' },
-  '대시보드로 이동': { en: 'Go to dashboard', ja: 'ダッシュボードへ', zh: '进入控制台' },
-  '올인원 마케팅 기능': { en: 'All-in-one marketing', ja: 'オールインワン機能', zh: '一体化营销功能' },
+  제품: { en: 'Product', ja: '製品', zh: '产品', es: 'Producto', fr: 'Produit', de: 'Produkt', it: 'Prodotto' },
+  기능: { en: 'Features', ja: '機能', zh: '功能', es: 'Funciones', fr: 'Fonctionnalités', de: 'Funktionen', it: 'Funzionalità' },
+  요금제: { en: 'Pricing', ja: '料金', zh: '价格', es: 'Precios', fr: 'Tarifs', de: 'Preise', it: 'Prezzi' },
+  회사소개: { en: 'About', ja: '会社概要', zh: '关于', es: 'Nosotros', fr: 'À propos', de: 'Über uns', it: 'Chi siamo' },
+  문의: { en: 'Contact', ja: 'お問い合わせ', zh: '联系', es: 'Contacto', fr: 'Contact', de: 'Kontakt', it: 'Contatti' },
+  로그인: { en: 'Log in', ja: 'ログイン', zh: '登录', es: 'Iniciar sesión', fr: 'Se connecter', de: 'Anmelden', it: 'Accedi' },
+  '지금 시작하기': { en: 'Get started', ja: '今すぐ始める', zh: '立即开始', es: 'Empezar ahora', fr: 'Commencer', de: 'Jetzt starten', it: 'Inizia ora' },
+  시작하기: { en: 'Start', ja: '始める', zh: '开始', es: 'Empezar', fr: 'Démarrer', de: 'Starten', it: 'Inizia' },
+  대시보드: { en: 'Dashboard', ja: 'ダッシュボード', zh: '控制台', es: 'Panel', fr: 'Tableau de bord', de: 'Dashboard', it: 'Dashboard' },
+  '대시보드로 이동': { en: 'Go to dashboard', ja: 'ダッシュボードへ', zh: '进入控制台', es: 'Ir al panel', fr: 'Aller au tableau de bord', de: 'Zum Dashboard', it: 'Vai alla dashboard' },
+  '올인원 마케팅 기능': { en: 'All-in-one marketing', ja: 'オールインワン機能', zh: '一体化营销功能', es: 'Marketing todo en uno', fr: 'Marketing tout-en-un', de: 'All-in-one-Marketing', it: 'Marketing all-in-one' },
 }
 
 export function Navbar() {
