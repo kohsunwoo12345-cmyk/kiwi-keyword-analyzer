@@ -562,3 +562,151 @@ img.bg-emoji {
   object-fit: contain;
   user-select: none;
 }
+
+/* ============================================================
+   마케팅 노드 스튜디오 테마 — studio-nvc-prv-8b3k2 캔버스 미러
+   .mkt-canvas 하위에서만 적용(다크). 기존 var 오버라이드로
+   하위 페이지 마크업이 자동으로 다크화됨.
+   ============================================================ */
+.mkt-canvas {
+  --mkt-accent: #5b6cff;
+  --mkt-accent-2: #8fa0ff;
+  --mkt-blue: #93c5fd;
+  --mkt-text: #f0f2f7;
+  --mkt-text-soft: #c0c5d2;
+  --mkt-text-dim: #8a8f9c;
+  --mkt-surface: #1b1e27;
+  --mkt-deep: #0f1117;
+  --mkt-border: #262a36;
+  --mkt-border-2: #2c2f3a;
+  /* 기존 디자인 토큰 오버라이드 → 하위 컴포넌트 자동 다크 */
+  --border: #262a36;
+  --border-soft: #20232c;
+  --text: #f0f2f7;
+  --text-soft: #c0c5d2;
+  --text-dim: #8a8f9c;
+  --bg: #16181f;
+  --bg-soft: #1b1e27;
+  position: relative;
+  min-height: 100%;
+  color: var(--mkt-text-soft);
+  background-color: #16181f;
+  background-image:
+    radial-gradient(1100px 520px at 10% -10%, rgba(91, 108, 255, 0.16), transparent 60%),
+    radial-gradient(920px 540px at 100% -5%, rgba(168, 85, 247, 0.11), transparent 55%),
+    radial-gradient(circle, rgba(255, 255, 255, 0.03) 1px, transparent 1.4px);
+  background-size: auto, auto, 22px 22px;
+  background-position: center, center, center;
+  background-attachment: fixed, fixed, fixed;
+}
+/* 상단 노드바(스튜디오 메뉴바 미러) */
+.mkt-canvas .mkt-topbar {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 22px; border-bottom: 1px solid #000;
+  background: linear-gradient(180deg, #1b1b1f, #161618);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+}
+.mkt-canvas .mkt-eyebrow {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--mkt-accent-2);
+}
+.mkt-canvas .mkt-h1 {
+  font-size: 21px; font-weight: 800; letter-spacing: -0.01em; color: var(--mkt-text);
+  background: linear-gradient(90deg, #eaf0ff, #a9c2ff 65%, #7fc6ff);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+/* 패널 */
+.mkt-canvas .mkt-panel {
+  background: linear-gradient(180deg, #1b1e27, #181a22);
+  border: 1px solid var(--mkt-border);
+  border-radius: 14px;
+  box-shadow: 0 10px 34px -14px rgba(0, 0, 0, 0.6);
+}
+.mkt-canvas .mkt-panel-hd {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px; border-bottom: 1px solid var(--mkt-border);
+  font-size: 13px; font-weight: 700; color: var(--mkt-text);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent);
+  border-radius: 14px 14px 0 0;
+}
+.mkt-canvas .mkt-panel-bd { padding: 16px; }
+/* 노드 카드(ComfyUI 스타일) */
+.mkt-canvas .mkt-node {
+  position: relative; display: flex; flex-direction: column;
+  background: linear-gradient(180deg, #1c1f29, #161821);
+  border: 1px solid var(--mkt-border-2); border-radius: 11px;
+  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.66);
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s, box-shadow 0.18s;
+  overflow: hidden;
+}
+.mkt-canvas a.mkt-node:hover {
+  transform: translateY(-3px);
+  border-color: var(--nc, #5b6cff);
+  box-shadow: 0 20px 46px -14px color-mix(in srgb, var(--nc, #5b6cff) 55%, transparent);
+}
+.mkt-canvas .mkt-node-hd {
+  display: flex; align-items: center; gap: 9px; height: 34px; padding: 0 12px;
+  background: linear-gradient(180deg, #242835, #1e222e);
+  border-bottom: 1px solid #12141b;
+  font-weight: 700; font-size: 13px; color: #e8eaf2;
+}
+.mkt-canvas .mkt-node-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto;
+  background: var(--nc, #5b6cff);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.04), 0 0 10px 0 var(--nc, #5b6cff);
+}
+.mkt-canvas .mkt-node-id {
+  margin-left: auto; font-size: 9.5px; font-weight: 800; letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--nc, #5b6cff) 55%, #9aa4c4);
+}
+.mkt-canvas .mkt-node-bd { padding: 12px 13px 13px; flex: 1; display: flex; flex-direction: column; gap: 9px; }
+/* 포트(좌우 연결점) */
+.mkt-canvas .mkt-port {
+  position: absolute; width: 11px; height: 11px; border-radius: 50%;
+  border: 1.5px solid #0e0f14; top: 24px; z-index: 4;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+.mkt-canvas .mkt-port.in { left: -6px; }
+.mkt-canvas .mkt-port.out { right: -6px; }
+/* 아이콘 배지 */
+.mkt-canvas .mkt-badge {
+  display: grid; place-items: center; flex: 0 0 auto; border-radius: 11px; color: #fff;
+  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--nc, #5b6cff) 70%, transparent);
+}
+/* 태그 필 */
+.mkt-canvas .mkt-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px;
+  color: var(--mkt-blue); background: rgba(59, 130, 246, 0.14); border: 1px solid rgba(59, 130, 246, 0.3);
+}
+/* 스탯 카드 */
+.mkt-canvas .mkt-stat {
+  background: linear-gradient(180deg, #181b23, #141620);
+  border: 1px solid var(--mkt-border); border-radius: 13px; padding: 14px 16px;
+}
+.mkt-canvas .mkt-stat-v { font-size: 24px; font-weight: 800; letter-spacing: -0.01em; color: var(--mkt-text); }
+.mkt-canvas .mkt-stat-l { margin-top: 3px; font-size: 11px; font-weight: 600; color: var(--mkt-text-dim); }
+/* 테이블 */
+.mkt-canvas .mkt-th { color: var(--mkt-text-dim); font-weight: 600; }
+.mkt-canvas .mkt-tr { border-bottom: 1px solid #20232c; }
+.mkt-canvas .mkt-tr:last-child { border-bottom: 0; }
+.mkt-canvas .mkt-tr:hover { background: rgba(255, 255, 255, 0.028); }
+/* 입력/버튼/카드 다크 보정 */
+.mkt-canvas .input { background: #0f1117; border-color: #262a36; color: #e8eaf2; }
+.mkt-canvas .input::placeholder { color: #5a6070; }
+.mkt-canvas .card-2 { background: #1b1e27; border-color: #262a36; }
+.mkt-canvas .mkt-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 10px;
+  font-size: 13px; font-weight: 700; cursor: pointer; border: 1px solid transparent;
+  background: linear-gradient(135deg, #5b6cff, #6d5cf0); color: #fff;
+  box-shadow: 0 8px 20px -8px rgba(91, 108, 255, 0.7); transition: filter 0.15s, transform 0.12s;
+}
+.mkt-canvas .mkt-btn:hover { filter: brightness(1.08); }
+.mkt-canvas .mkt-btn:active { transform: translateY(1px); }
+.mkt-canvas .mkt-btn:disabled { opacity: 0.55; cursor: default; box-shadow: none; }
+.mkt-canvas .mkt-btn.ghost {
+  background: #191c26; border-color: #2c2f3a; color: #d5d9e2; box-shadow: none;
+}
+.mkt-canvas .mkt-btn.ghost:hover { border-color: #5b6cff; color: #fff; }
+/* 연결선 SVG */
+.mkt-canvas .mkt-wire { stroke: url(#mktWire); stroke-width: 2; fill: none; opacity: 0.5; }

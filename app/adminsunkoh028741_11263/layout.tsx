@@ -45,6 +45,7 @@ import {
   Palette,
   Route,
   Inbox,
+  Workflow,
 } from 'lucide-react'
 import { Logo } from '@/components/Brand'
 import { adminSupportCount, adminPendingCounts } from '@/lib/auth'
@@ -95,6 +96,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: '마케팅',
     items: [
+      { title: '마케팅 대시보드', href: `${ADMIN_BASE}/marketing`, icon: Workflow },
       { title: '퍼널 빌더', href: '/tools/funnel-builder.html', icon: Filter },
       { title: '마케팅 자동화', href: '/tools/marketing-automation.html', icon: Zap },
       { title: '랜딩페이지 제작', href: '/tools/landing-builder.html', icon: Palette },

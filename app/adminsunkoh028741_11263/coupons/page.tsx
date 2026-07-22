@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Ticket, Plus, RefreshCw, Power, Trash2, Percent, BadgePercent, Users, Coins, Loader2 } from 'lucide-react'
-import { PageHeader } from '@/components/dash/PageHeader'
-import { StatCard, Panel, Badge, Button } from '@/components/ui'
+import { MktCanvas, MktHeader, MktPanel, MktStat, MktButton, MktTag, mktTable } from '@/components/marketing/node'
 import { Reveal } from '@/components/motion'
 import { adminCoupons, adminCouponCreate, adminCouponAction, type Coupon, type CouponRedemption } from '@/lib/auth'
 import { cn } from '@/lib/utils'
@@ -11,7 +10,7 @@ import { cn } from '@/lib/utils'
 const ACCENT = '#ec4899'
 const won = (n: number) => '₩' + (n || 0).toLocaleString('ko-KR')
 const kst = (iso?: string | null) => { if (!iso) return '-'; try { return new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) } catch { return iso || '-' } }
-const INPUT = 'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2.5 text-sm outline-none focus:border-pink-500'
+const INPUT = 'w-full rounded-xl border border-[var(--border)] bg-white/[0.03] px-3 py-2.5 text-sm text-[var(--mkt-text)] outline-none focus:border-[#5b6cff]'
 
 export default function AdminCouponsPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([])
@@ -66,36 +65,36 @@ export default function AdminCouponsPage() {
   }
 
   return (
-    <div className="animate-fade-in">
-      <PageHeader
+    <MktCanvas>
+      <MktHeader
         icon={Ticket}
         eyebrow="MARKETING"
         title="쿠폰 · 할인코드"
         desc="마케팅용 할인코드를 만들고 관리합니다. 발급된 코드는 요금제 활성화(/activate)에서 회원이 입력해 즉시 할인됩니다."
         accent={ACCENT}
-        action={<Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw size={15} className={cn(loading && 'animate-spin')} /> 새로고침</Button>}
+        action={<MktButton variant="ghost" onClick={load} disabled={loading}><RefreshCw size={15} className={cn(loading && 'animate-spin')} /> 새로고침</MktButton>}
       />
 
       <div className="space-y-6 p-6 lg:p-8">
         <Reveal>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatCard label="전체 쿠폰" value={String(stats.total)} icon={Ticket} accent="#ec4899" />
-            <StatCard label="활성 쿠폰" value={String(stats.active)} icon={BadgePercent} accent="#10b981" />
-            <StatCard label="총 사용" value={String(stats.totalUses)} icon={Users} accent="#0ea5e9" />
-            <StatCard label="총 할인액" value={won(stats.totalDiscount)} icon={Coins} accent="#f59e0b" />
+            <MktStat label="전체 쿠폰" value={String(stats.total)} icon={Ticket} accent="#ec4899" />
+            <MktStat label="활성 쿠폰" value={String(stats.active)} icon={BadgePercent} accent="#10b981" />
+            <MktStat label="총 사용" value={String(stats.totalUses)} icon={Users} accent="#0ea5e9" />
+            <MktStat label="총 할인액" value={won(stats.totalDiscount)} icon={Coins} accent="#f59e0b" />
           </div>
         </Reveal>
 
         <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
           {/* 생성 */}
           <Reveal>
-            <Panel title={<span className="flex items-center gap-2"><Plus size={16} className="text-pink-600" /> 쿠폰 만들기</span>}>
+            <MktPanel icon={Plus} title="쿠폰 만들기">
               <div className="space-y-3">
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-[var(--text-dim)]">쿠폰 코드</label>
                   <div className="flex gap-2">
                     <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="예: WELCOME20" className={INPUT} />
-                    <Button variant="outline" size="sm" onClick={genCode}>자동생성</Button>
+                    <MktButton variant="ghost" onClick={genCode}>자동생성</MktButton>
                   </div>
                 </div>
                 <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="설명 (선택, 예: 신규가입 20% 할인)" className={INPUT} />
@@ -104,7 +103,7 @@ export default function AdminCouponsPage() {
                   <label className="mb-1 block text-xs font-semibold text-[var(--text-dim)]">할인 방식</label>
                   <div className="flex gap-2">
                     {([['percent', '정률(%)'], ['fixed', '정액(원)']] as ['percent' | 'fixed', string][]).map(([v, l]) => (
-                      <button key={v} onClick={() => setDiscountType(v)} className={cn('flex-1 rounded-lg border px-3 py-2 text-xs font-semibold', discountType === v ? 'border-pink-400 bg-pink-50 text-pink-700' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-slate-50')}>{l}</button>
+                      <button key={v} onClick={() => setDiscountType(v)} className={cn('flex-1 rounded-lg border px-3 py-2 text-xs font-semibold', discountType === v ? 'border-[#5b6cff] bg-[#5b6cff]/15 text-[#93c5fd]' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-white/5')}>{l}</button>
                     ))}
                     <div className="relative flex-1">
                       <input value={discountValue} onChange={(e) => setDiscountValue(e.target.value.replace(/[^0-9]/g, ''))} className={cn(INPUT, 'pr-8 text-right')} />
@@ -154,17 +153,17 @@ export default function AdminCouponsPage() {
                   </div>
                 </div>
 
-                {msg && <div className={cn('rounded-lg px-3 py-2 text-sm font-semibold', msg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700')}>{msg.text}</div>}
-                <Button variant="primary" size="md" className="w-full !bg-pink-600 hover:!bg-pink-700" disabled={busy} onClick={create}>
+                {msg && <div className={cn('rounded-lg px-3 py-2 text-sm font-semibold', msg.ok ? 'bg-[#10b981]/15 text-[#8fe6b8]' : 'bg-[#ff9b9b]/12 text-[#ff9b9b]')}>{msg.text}</div>}
+                <MktButton variant="solid" className="w-full" disabled={busy} onClick={create}>
                   {busy ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} 쿠폰 생성
-                </Button>
+                </MktButton>
               </div>
-            </Panel>
+            </MktPanel>
           </Reveal>
 
           {/* 목록 */}
           <Reveal>
-            <Panel title={<span className="flex items-center gap-2"><Percent size={16} className="text-pink-600" /> 발급된 쿠폰</span>}>
+            <MktPanel icon={Percent} title="발급된 쿠폰">
               {coupons.length === 0 ? (
                 <p className="py-10 text-center text-sm text-[var(--text-dim)]">{loading ? '불러오는 중…' : '발급된 쿠폰이 없습니다.'}</p>
               ) : (
@@ -176,15 +175,15 @@ export default function AdminCouponsPage() {
                       <div key={c.id} className="rounded-xl border border-[var(--border)] p-3">
                         <div className="flex items-center gap-2">
                           <span className="rounded-lg bg-slate-900 px-2 py-1 font-mono text-sm font-bold tracking-wider text-white">{c.code}</span>
-                          <span className="text-sm font-bold text-pink-600">{c.discount_type === 'percent' ? `${c.discount_value}%` : won(c.discount_value)}</span>
+                          <span className="text-sm font-bold text-[#8fa0ff]">{c.discount_type === 'percent' ? `${c.discount_value}%` : won(c.discount_value)}</span>
                           {c.active && !expired && !exhausted ? (
-                            <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">활성</Badge>
+                            <MktTag className="bg-[#10b981]/15 text-[#8fe6b8]">활성</MktTag>
                           ) : (
-                            <Badge className="border-slate-200 bg-slate-50 text-slate-500">{expired ? '만료' : exhausted ? '소진' : '비활성'}</Badge>
+                            <MktTag>{expired ? '만료' : exhausted ? '소진' : '비활성'}</MktTag>
                           )}
                           <div className="ml-auto flex gap-1">
-                            <button onClick={() => toggle(c.id)} title={c.active ? '비활성화' : '활성화'} className="grid h-7 w-7 place-items-center rounded-lg text-[var(--text-soft)] hover:bg-slate-100"><Power size={14} /></button>
-                            <button onClick={() => remove(c.id, c.code)} title="삭제" className="grid h-7 w-7 place-items-center rounded-lg text-rose-500 hover:bg-rose-50"><Trash2 size={14} /></button>
+                            <button onClick={() => toggle(c.id)} title={c.active ? '비활성화' : '활성화'} className="grid h-7 w-7 place-items-center rounded-lg text-[var(--text-soft)] hover:bg-white/5"><Power size={14} /></button>
+                            <button onClick={() => remove(c.id, c.code)} title="삭제" className="grid h-7 w-7 place-items-center rounded-lg text-[#ff9b9b] hover:bg-white/5"><Trash2 size={14} /></button>
                           </div>
                         </div>
                         {c.description && <p className="mt-1.5 text-xs text-[var(--text-soft)]">{c.description}</p>}
@@ -200,35 +199,35 @@ export default function AdminCouponsPage() {
                   })}
                 </div>
               )}
-            </Panel>
+            </MktPanel>
           </Reveal>
         </div>
 
         {/* 사용 내역 */}
         <Reveal>
-          <Panel title={<span className="flex items-center gap-2"><Users size={16} className="text-pink-600" /> 쿠폰 사용 내역</span>}>
+          <MktPanel icon={Users} title="쿠폰 사용 내역">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-sm">
                 <thead>
-                  <tr className="border-b border-[var(--border-soft)] text-left text-xs text-[var(--text-dim)]">
-                    <th className="pb-2.5 font-medium">사용시각 (KST)</th>
-                    <th className="pb-2.5 font-medium">코드</th>
-                    <th className="pb-2.5 font-medium">회원</th>
-                    <th className="pb-2.5 font-medium">플랜</th>
-                    <th className="pb-2.5 text-right font-medium">정가</th>
-                    <th className="pb-2.5 text-right font-medium">할인</th>
-                    <th className="pb-2.5 text-right font-medium">결제액</th>
+                  <tr className={cn(mktTable.thead, 'text-[var(--text-dim)]')}>
+                    <th className={mktTable.th}>사용시각 (KST)</th>
+                    <th className={mktTable.th}>코드</th>
+                    <th className={mktTable.th}>회원</th>
+                    <th className={mktTable.th}>플랜</th>
+                    <th className={cn(mktTable.th, 'text-right')}>정가</th>
+                    <th className={cn(mktTable.th, 'text-right')}>할인</th>
+                    <th className={cn(mktTable.th, 'text-right')}>결제액</th>
                   </tr>
                 </thead>
                 <tbody>
                   {reds.map((r, i) => (
-                    <tr key={i} className="border-b border-[var(--border-soft)] last:border-0">
+                    <tr key={i} className={cn(mktTable.tr, 'last:border-0')}>
                       <td className="whitespace-nowrap py-2.5 text-[var(--text-soft)]">{kst(r.created_at)}</td>
                       <td className="py-2.5 font-mono text-xs font-semibold">{r.code}</td>
                       <td className="py-2.5">{r.name || '-'} <span className="text-xs text-[var(--text-dim)]">{r.email || ''}</span></td>
                       <td className="py-2.5 text-[var(--text-soft)]">{r.track === 'video' ? '영상' : '마케터'} {r.plan} {r.months}개월</td>
                       <td className="py-2.5 text-right text-[var(--text-dim)] line-through">{won(r.original_krw)}</td>
-                      <td className="py-2.5 text-right font-semibold text-pink-600">-{won(r.discount_krw)}</td>
+                      <td className="py-2.5 text-right font-semibold text-[#8fa0ff]">-{won(r.discount_krw)}</td>
                       <td className="py-2.5 text-right font-bold">{won(r.final_krw)}</td>
                     </tr>
                   ))}
@@ -236,9 +235,9 @@ export default function AdminCouponsPage() {
                 </tbody>
               </table>
             </div>
-          </Panel>
+          </MktPanel>
         </Reveal>
       </div>
-    </div>
+    </MktCanvas>
   )
 }

@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Send, Phone, Plus, RefreshCw, Check, X, Trash2, Loader2, MessageCircle, ShieldCheck, KeyRound, Mail } from 'lucide-react'
-import { PageHeader } from '@/components/dash/PageHeader'
-import { Panel } from '@/components/ui'
+import { MktCanvas, MktHeader, MktPanel, MktButton } from '@/components/marketing/node'
 import { adminSenders, adminSenderAdd, adminSenderAction, kakaoChannels, kakaoChannelAuth, kakaoChannelAdd, kakaoCategories, adminSendEmail, type AdminSender, type KakaoChannel } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -12,8 +11,8 @@ const fmtPhone = (p: string) => (p || '').replace(/(\d{2,3})(\d{3,4})(\d{4})/, '
 
 export default function MessagingPage() {
   return (
-    <div>
-      <PageHeader icon={Send} eyebrow="MESSAGING" title="발송 설정" desc="문자 발신번호·카카오 알림톡 채널·이메일(Resend)을 관리자가 직접 등록·발송합니다. 등록된 발신번호·채널은 마케팅 자동화·CRM 발송에서 바로 사용됩니다." />
+    <MktCanvas>
+      <MktHeader icon={Send} eyebrow="MESSAGING" title="발송 설정" desc="문자 발신번호·카카오 알림톡 채널·이메일(Resend)을 관리자가 직접 등록·발송합니다. 등록된 발신번호·채널은 마케팅 자동화·CRM 발송에서 바로 사용됩니다." />
       <div className="grid gap-4 lg:grid-cols-2">
         <SenderSection />
         <KakaoSection />
@@ -21,7 +20,7 @@ export default function MessagingPage() {
       <div className="mt-4">
         <EmailSection />
       </div>
-    </div>
+    </MktCanvas>
   )
 }
 
@@ -48,33 +47,33 @@ function SenderSection() {
   }
 
   return (
-    <Panel title={<span className="inline-flex items-center gap-2"><Phone size={16} /> 문자 발신번호</span>} action={<button onClick={load} className="text-[var(--text-dim)] hover:text-[var(--text)]"><RefreshCw size={14} className={cn(loading && 'animate-spin')} /></button>}>
-      <p className="mb-3 text-xs text-[var(--text-dim)]">발신번호는 통신사 정책상 <b>알리고에 사전등록·인증된 번호</b>여야 실제 발송됩니다. 여기서 등록하면 <b>즉시 승인</b>되어 발송에 바로 사용됩니다.</p>
-      {envSender && <div className="mb-3 inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"><ShieldCheck size={12} /> 시스템 기본 발신번호: {fmtPhone(envSender)}</div>}
+    <MktPanel icon={Phone} title="문자 발신번호" action={<button onClick={load} className="text-[var(--mkt-text-dim)] hover:text-[var(--mkt-text)]"><RefreshCw size={14} className={cn(loading && 'animate-spin')} /></button>}>
+      <p className="mb-3 text-xs text-[var(--mkt-text-dim)]">발신번호는 통신사 정책상 <b>알리고에 사전등록·인증된 번호</b>여야 실제 발송됩니다. 여기서 등록하면 <b>즉시 승인</b>되어 발송에 바로 사용됩니다.</p>
+      {envSender && <div className="mb-3 inline-flex items-center gap-1.5 rounded-lg bg-[#10b981]/15 px-2.5 py-1 text-xs font-semibold text-[#8fe6b8]"><ShieldCheck size={12} /> 시스템 기본 발신번호: {fmtPhone(envSender)}</div>}
       <div className="mb-3 flex gap-2">
         <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="발신번호 (예: 025771000)" className="input flex-1" />
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="이름표(선택)" className="input w-28" />
-        <button onClick={add} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60">{busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} 등록</button>
+        <MktButton onClick={add} disabled={busy}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} 등록</MktButton>
       </div>
-      {msg && <div className="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-[var(--text-soft)]">{msg}</div>}
+      {msg && <div className="mb-3 rounded-lg bg-white/[0.03] px-3 py-2 text-sm font-semibold text-[var(--mkt-text-soft)]">{msg}</div>}
       {senders.length === 0 ? (
-        <div className="py-8 text-center text-sm text-[var(--text-dim)]">{loading ? '불러오는 중…' : '등록된 발신번호가 없습니다.'}</div>
+        <div className="py-8 text-center text-sm text-[var(--mkt-text-dim)]">{loading ? '불러오는 중…' : '등록된 발신번호가 없습니다.'}</div>
       ) : (
         <div className="space-y-1.5">
           {senders.map((s) => (
             <div key={s.id} className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-2 text-sm">
               <span className="font-bold">{fmtPhone(s.phone)}</span>
-              {s.label && <span className="text-xs text-[var(--text-dim)]">{s.label}</span>}
-              <span className="text-[10px] text-[var(--text-dim)]">· {s.ownerName}</span>
-              <span className={cn('ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold', s.status === 'approved' ? 'bg-emerald-50 text-emerald-700' : s.status === 'pending' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500')}>{s.status === 'approved' ? '승인' : s.status === 'pending' ? '대기' : '반려'}</span>
-              {s.status === 'pending' && <button onClick={() => act('approve', s.id)} title="승인" className="rounded p-1 text-emerald-500 hover:bg-emerald-50"><Check size={14} /></button>}
-              {s.status === 'pending' && <button onClick={() => act('reject', s.id)} title="반려" className="rounded p-1 text-amber-500 hover:bg-amber-50"><X size={14} /></button>}
-              <button onClick={() => act('delete', s.id)} title="삭제" className="rounded p-1 text-slate-300 hover:bg-rose-50 hover:text-rose-500"><Trash2 size={13} /></button>
+              {s.label && <span className="text-xs text-[var(--mkt-text-dim)]">{s.label}</span>}
+              <span className="text-[10px] text-[var(--mkt-text-dim)]">· {s.ownerName}</span>
+              <span className={cn('ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold', s.status === 'approved' ? 'bg-[#10b981]/15 text-[#8fe6b8]' : s.status === 'pending' ? 'bg-[#ffd66b]/12 text-[#ffd66b]' : 'bg-white/[0.03] text-[var(--mkt-text-dim)]')}>{s.status === 'approved' ? '승인' : s.status === 'pending' ? '대기' : '반려'}</span>
+              {s.status === 'pending' && <button onClick={() => act('approve', s.id)} title="승인" className="rounded p-1 text-[#8fe6b8] hover:bg-white/5"><Check size={14} /></button>}
+              {s.status === 'pending' && <button onClick={() => act('reject', s.id)} title="반려" className="rounded p-1 text-[#ffd66b] hover:bg-white/5"><X size={14} /></button>}
+              <button onClick={() => act('delete', s.id)} title="삭제" className="rounded p-1 text-[var(--mkt-text-dim)] hover:bg-[#ff9b9b]/12 hover:text-[#ff9b9b]"><Trash2 size={13} /></button>
             </div>
           ))}
         </div>
       )}
-    </Panel>
+    </MktPanel>
   )
 }
 
@@ -110,9 +109,9 @@ function KakaoSection() {
   }
 
   return (
-    <Panel title={<span className="inline-flex items-center gap-2"><MessageCircle size={16} /> 카카오 알림톡 채널</span>} action={<button onClick={load} className="text-[var(--text-dim)] hover:text-[var(--text)]"><RefreshCw size={14} className={cn(loading && 'animate-spin')} /></button>}>
-      <p className="mb-2 text-xs text-[var(--text-dim)]">카카오 채널을 등록하면 <b>발신프로필(senderKey)</b>이 발급되어 알림톡을 보낼 수 있습니다. 채널 관리자 카카오톡으로 인증번호가 발송됩니다.</p>
-      <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-700">
+    <MktPanel icon={MessageCircle} title="카카오 알림톡 채널" action={<button onClick={load} className="text-[var(--mkt-text-dim)] hover:text-[var(--mkt-text)]"><RefreshCw size={14} className={cn(loading && 'animate-spin')} /></button>}>
+      <p className="mb-2 text-xs text-[var(--mkt-text-dim)]">카카오 채널을 등록하면 <b>발신프로필(senderKey)</b>이 발급되어 알림톡을 보낼 수 있습니다. 채널 관리자 카카오톡으로 인증번호가 발송됩니다.</p>
+      <div className="mb-3 rounded-lg border border-[#ffd66b]/25 bg-[#ffd66b]/12 px-3 py-2 text-[11px] leading-relaxed text-[#ffd66b]">
         <b>등록 전 확인</b> — ① 카카오톡 채널 관리자센터에서 채널을 개설하고 <b>검색용 아이디</b>를 설정하세요.
         ② 채널 관리자센터 → 채널 설정 → <b>관리자 알림</b>에 아래 <b>휴대폰번호를 관리자 알림 수신번호로 등록</b>해야 인증번호가 도착합니다.
         (미등록 시 &quot;존재하지 않는 카카오톡 채널&quot; 오류)
@@ -121,27 +120,27 @@ function KakaoSection() {
       {channels.length > 0 && (
         <div className="mb-3 space-y-1.5">
           {channels.map((c) => (
-            <div key={c.channelId} className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
-              <ShieldCheck size={14} className="text-emerald-600" />
+            <div key={c.channelId} className="flex items-center gap-2 rounded-lg border border-[#10b981]/25 bg-[#10b981]/15 px-3 py-2 text-sm">
+              <ShieldCheck size={14} className="text-[#8fe6b8]" />
               <span className="font-bold">{c.channelName || c.searchId}</span>
-              {c.phoneNumber && <span className="text-xs text-[var(--text-dim)]">{fmtPhone(c.phoneNumber)}</span>}
-              <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700"><KeyRound size={10} /> 등록됨</span>
+              {c.phoneNumber && <span className="text-xs text-[var(--mkt-text-dim)]">{fmtPhone(c.phoneNumber)}</span>}
+              <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-semibold text-[#8fe6b8]"><KeyRound size={10} /> 등록됨</span>
             </div>
           ))}
         </div>
       )}
 
-      <div className="rounded-xl border border-[var(--border)] bg-slate-50 p-3.5">
-        <div className="mb-2 flex items-center gap-2 text-xs font-bold text-[var(--text-dim)]">
-          <span className={cn('grid h-5 w-5 place-items-center rounded-full text-[10px] font-bold', step === 1 ? 'bg-indigo-600 text-white' : 'bg-emerald-500 text-white')}>1</span> 채널 인증
-          <span className="mx-1 text-slate-300">→</span>
-          <span className={cn('grid h-5 w-5 place-items-center rounded-full text-[10px] font-bold', step === 2 ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500')}>2</span> 등록 완료
+      <div className="rounded-xl border border-[var(--border)] bg-white/[0.03] p-3.5">
+        <div className="mb-2 flex items-center gap-2 text-xs font-bold text-[var(--mkt-text-dim)]">
+          <span className={cn('grid h-5 w-5 place-items-center rounded-full text-[10px] font-bold', step === 1 ? 'bg-[#5b6cff] text-white' : 'bg-[#10b981] text-white')}>1</span> 채널 인증
+          <span className="mx-1 text-[var(--mkt-text-dim)]">→</span>
+          <span className={cn('grid h-5 w-5 place-items-center rounded-full text-[10px] font-bold', step === 2 ? 'bg-[#5b6cff] text-white' : 'bg-white/[0.06] text-[var(--mkt-text-dim)]')}>2</span> 등록 완료
         </div>
         {step === 1 ? (
           <div className="space-y-2">
             <input value={plusid} onChange={(e) => setPlusid(e.target.value)} placeholder="채널 검색용 아이디 (예: @bygency)" className="input w-full" />
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="채널 관리자 휴대폰번호" className="input w-full" />
-            <button onClick={reqAuth} disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60">{busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} 인증번호 요청</button>
+            <MktButton onClick={reqAuth} disabled={busy} className="w-full">{busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} 인증번호 요청</MktButton>
           </div>
         ) : (
           <div className="space-y-2">
@@ -150,16 +149,16 @@ function KakaoSection() {
               <option value="">카테고리 선택 (필수)</option>
               {cats.map((c, i) => <option key={i} value={catCode(c)}>{catName(c)}</option>)}
             </select>
-            {cats.length === 0 && <p className="text-[11px] text-rose-500">카테고리를 불러오지 못했습니다. 알리고 환경변수(ALIGO_API_KEY/ALIGO_ID_KEY)를 확인하세요.</p>}
+            {cats.length === 0 && <p className="text-[11px] text-[#ff9b9b]">카테고리를 불러오지 못했습니다. 알리고 환경변수(ALIGO_API_KEY/ALIGO_ID_KEY)를 확인하세요.</p>}
             <div className="flex gap-2">
-              <button onClick={() => { setStep(1); setMsg('') }} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--text-soft)] hover:bg-white">← 이전</button>
-              <button onClick={complete} disabled={busy} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60">{busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} 채널 등록 완료</button>
+              <MktButton variant="ghost" onClick={() => { setStep(1); setMsg('') }}>← 이전</MktButton>
+              <MktButton onClick={complete} disabled={busy} className="flex-1">{busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} 채널 등록 완료</MktButton>
             </div>
           </div>
         )}
       </div>
-      {msg && <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-[var(--text-soft)]">{msg}</div>}
-    </Panel>
+      {msg && <div className="mt-3 rounded-lg bg-white/[0.03] px-3 py-2 text-sm font-semibold text-[var(--mkt-text-soft)]">{msg}</div>}
+    </MktPanel>
   )
 }
 
@@ -193,11 +192,11 @@ function EmailSection() {
   }
 
   return (
-    <Panel title={<span className="inline-flex items-center gap-2"><Mail size={16} /> 이메일 발송 (Resend)</span>}>
-      <p className="mb-3 text-xs text-[var(--text-dim)]">Resend로 실제 이메일을 발송합니다. 상단에 로고가 포함되고, 세그먼트 발송 시 광고 표기·수신거부 안내가 자동 부착됩니다. 발송 이력은 <b>이메일 발송 기록</b>에서 확인할 수 있어요.</p>
+    <MktPanel icon={Mail} title="이메일 발송 (Resend)">
+      <p className="mb-3 text-xs text-[var(--mkt-text-dim)]">Resend로 실제 이메일을 발송합니다. 상단에 로고가 포함되고, 세그먼트 발송 시 광고 표기·수신거부 안내가 자동 부착됩니다. 발송 이력은 <b>이메일 발송 기록</b>에서 확인할 수 있어요.</p>
       <div className="mb-3 flex gap-1.5">
         {([['direct', '직접 수신자'], ['segment', '회원 세그먼트']] as ['direct' | 'segment', string][]).map(([v, l]) => (
-          <button key={v} onClick={() => setMode(v)} className={cn('inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-semibold', mode === v ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-slate-50')}>{l}</button>
+          <button key={v} onClick={() => setMode(v)} className={cn('inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-semibold', mode === v ? 'border-[#5b6cff] bg-[#5b6cff]/15 text-[#93c5fd]' : 'border-[var(--border)] text-[var(--mkt-text-soft)] hover:bg-white/5')}>{l}</button>
         ))}
       </div>
       {mode === 'direct' ? (
@@ -205,17 +204,17 @@ function EmailSection() {
       ) : (
         <div className="mb-2 flex flex-wrap gap-1.5">
           {([['all', '전체 회원'], ['active', '최근 30일 활동'], ['plan', '요금제별']] as ['all' | 'active' | 'plan', string][]).map(([v, l]) => (
-            <button key={v} onClick={() => setSeg(v)} className={cn('rounded-lg border px-3 py-1.5 text-sm font-semibold', seg === v ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-slate-50')}>{l}</button>
+            <button key={v} onClick={() => setSeg(v)} className={cn('rounded-lg border px-3 py-1.5 text-sm font-semibold', seg === v ? 'border-[#5b6cff] bg-[#5b6cff]/15 text-[#93c5fd]' : 'border-[var(--border)] text-[var(--mkt-text-soft)] hover:bg-white/5')}>{l}</button>
           ))}
           {seg === 'plan' && <select value={plan} onChange={(e) => setPlan(e.target.value)} className="input">{['없음', 'Plus', 'Pro', 'Max'].map((p) => <option key={p} value={p}>{p}</option>)}</select>}
         </div>
       )}
       <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="이메일 제목" className="input mb-2 w-full" />
       <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={5} placeholder="이메일 내용. {이름} 은 회원 이름으로 치환됩니다." className="input w-full resize-none" />
-      {msg && <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-[var(--text-soft)]">{msg}</div>}
+      {msg && <div className="mt-3 rounded-lg bg-white/[0.03] px-3 py-2 text-sm font-semibold text-[var(--mkt-text-soft)]">{msg}</div>}
       <div className="mt-3 flex justify-end">
-        <button onClick={send} disabled={busy} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60">{busy ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} 이메일 발송</button>
+        <MktButton onClick={send} disabled={busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} 이메일 발송</MktButton>
       </div>
-    </Panel>
+    </MktPanel>
   )
 }
