@@ -3192,29 +3192,52 @@ function generateImageNode(n){
     ims.forEach(function(u){ if(u&&raw.indexOf(u)<0)raw.push(u); });
   });
   (n.w.imgs||[]).forEach(function(u){ if(u&&raw.indexOf(u)<0)raw.push(u); });   // 직접 업로드
-  var limit=modelRefLimit(n.w.model);
-  if(raw.length>limit){ toast(n.w.model+' 모델은 레퍼런스 최대 '+limit+'장 — 앞의 '+limit+'장만 사용합니다.'); }
-  raw=raw.slice(0,limit);
   if(n.type==='img3d' && !raw.length){ toast('3D로 변환할 레퍼런스 이미지를 연결하거나 직접 업로드하세요'); return; }  // 3D 변환은 레퍼런스 필수
+  var limit=modelRefLimit(n.w.model);
   var isFlux=/^Flux/.test(n.w.model||'') && !/Kontext/.test(n.w.model||'');
-  var cnList=(isFlux && n.w.cnList)?n.w.cnList.slice():[];
+  var cnList=(n.w.cnList&&n.w.cnList.length)?n.w.cnList.slice():[];   // ControlNet 스택 — 이제 모든 이미지 모델에서 사용 가능
   if(cnList.length && !raw.length){ toast('ControlNet은 레퍼런스 이미지가 필요합니다 — ref 포트에 이미지를 연결하세요'); return; }
+  // ── 합산 레퍼런스 한도 = 연결/업로드 레퍼런스 + 컨트롤넷 맵 ──
+  //  Flux 는 fal 네이티브 ControlNet(레퍼런스를 제어원으로 재사용)이라 추가 장수 0.
+  //  그 외 모델(GPT Image 등)은 컨트롤넷 타입 1개당 맵 1장이 레퍼런스로 추가되어 한도에 합산된다.
+  var cnRefCount = isFlux ? 0 : cnList.length;
+  var combinedRefs = raw.length + cnRefCount;
+  if(combinedRefs > limit){
+    var _msg='레퍼런스 초과 — '+n.w.model+'은(는) 최대 '+limit+'장까지 넣을 수 있어요. 현재 레퍼런스 '+raw.length+'장'+(cnRefCount?(' + 컨트롤넷 맵 '+cnRefCount+'장 = '+combinedRefs+'장'):'')+'. 개수를 줄여주세요.';
+    toast(_msg); n.w.imgError='레퍼런스 초과 (한도 '+limit+'장 · 현재 '+combinedRefs+'장)'; render(); return;
+  }
+  if(isFlux && raw.length>limit){ raw=raw.slice(0,limit); }
   var refCountUsed=0, refUsedList=[];
+  var cnChargeCount=isFlux?cnList.length:0;   // fal ControlNet 가산(+10%)은 Flux 에만; 비-Flux 는 맵이 레퍼런스로 이미 가산됨
   n.w.imgGenerating=true; n.w.imgError=null; render();
   Promise.all(raw.map(function(r){ return shrinkImageSrc(r,1024,0.85); })).then(function(shr){
-   var refs=shr.filter(Boolean); var refImg=refs[0]||null; refCountUsed=refs.length; refUsedList=refs.slice(0,4);
-   if(refs.length>1) toast('레퍼런스 '+refs.length+'장으로 생성 중… (1장당 크레딧 소폭 가산)');
-   return generateWithAPI({ model:n.w.model, prompt:prompt, ratio:n.w.ratio||'1:1',
-    refImage:refImg, refImages:refs, firstFrame:refImg, refCount:refs.length,
-    controlnets:cnList,
-    cnSteps:(n.w.cnSteps==null?28:n.w.cnSteps), cnGuidance:(n.w.cnGuidance==null?3.5:n.w.cnGuidance) }); })
+   var refs=shr.filter(Boolean);
+   var _fire=function(finalRefs){
+     var refImg=finalRefs[0]||null; refCountUsed=finalRefs.length; refUsedList=finalRefs.slice(0,4);
+     if(finalRefs.length>1) toast('레퍼런스 '+finalRefs.length+'장으로 생성 중… (1장당 크레딧 소폭 가산)');
+     return generateWithAPI({ model:n.w.model, prompt:prompt, ratio:n.w.ratio||'1:1',
+      refImage:refImg, refImages:finalRefs, firstFrame:refImg, refCount:finalRefs.length,
+      controlnets:isFlux?cnList:[],
+      cnSteps:(n.w.cnSteps==null?28:n.w.cnSteps), cnGuidance:(n.w.cnGuidance==null?3.5:n.w.cnGuidance) });
+   };
+   if(!isFlux && cnList.length){
+     // 비-Flux: 컨트롤넷 맵(브라우저 전처리)을 만들어 레퍼런스 이미지로 추가 (이미 만든 미리보기 맵은 재사용)
+     var fnMap={canny:cannyPreview,depth:depthPreview,pose:posePreview}, src0=raw[0];
+     return Promise.all(cnList.map(function(c){
+       var pre=n.w.cnPreviews&&n.w.cnPreviews[c.type];
+       if(pre&&String(pre).indexOf('data:')===0) return Promise.resolve(pre);
+       return (fnMap[c.type]||cannyPreview)(src0).then(function(r){ return c.type==='pose'?(r&&r.url):r; }).catch(function(){ return null; });
+     })).then(function(maps){ return _fire(refs.concat(maps.filter(Boolean))); });
+   }
+   return _fire(refs);
+  })
     .then(function(res){
       n.w.imgGenerating=false;
       if(!res || res.error){ n.w.imgError=(res&&res.error)||'생성 실패';
         var info=showGenError(n.w.imgError, (res&&res.provider)||providerOf(n.w.model), n.w.model);
         toast((info&&info.title)||('이미지 생성 실패: '+String(n.w.imgError).slice(0,80))); render(); return; }
       n.w.img=res.url; n.w.imgKind=res.kind||'image';
-      if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image', null, false, refCountUsed, prompt, refUsedList, res.url, cnList.length);   // 레퍼런스 장수 + ControlNet 가산
+      if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image', null, false, refCountUsed, prompt, refUsedList, res.url, cnChargeCount);   // 레퍼런스 장수 + ControlNet 가산(fal 전용)
       saveToGallery(res.url, 'image', n.w.model, 0, null);
       if(res.url && res.type!=='error') autoRefFromResult(n, res.url);   // 생성 결과를 이미지 레퍼런스에 자동 투입
       toast('이미지 생성 완료'); snapshot(); render();
@@ -4077,9 +4100,9 @@ function widgetHTML(n,w){
     html+='</div>';
     return html;
   }
-  if(w.t==='fluxctrl'){   // Flux 전용: ControlNet 다중 스택(Canny/Depth/Pose · fal) + 전처리 미리보기
+  if(w.t==='fluxctrl'){   // ControlNet 다중 스택(Canny/Depth/Pose) — Flux=fal 네이티브, 그 외 모델=맵을 레퍼런스로 투입
     var fm=n.w.model||'';
-    if(!/^Flux/.test(fm) || /Kontext/.test(fm)) return '';   // Kontext(I2I 편집)·비-Flux 모델은 미지원 → 숨김
+    if(/Kontext/.test(fm)) return '';   // Kontext(I2I 편집)는 레퍼런스 1장 편집 모델 → 미지원
     if(!n.w.cnList) n.w.cnList = (n.w.controlnet ? [{type:n.w.controlnet, strength:(n.w.loraStrength==null?1:n.w.loraStrength), start:0, end:1}] : []);  // 예전 단일 → 마이그레이션
     var list=n.w.cnList;
     var steps=(n.w.cnSteps==null?28:n.w.cnSteps);
