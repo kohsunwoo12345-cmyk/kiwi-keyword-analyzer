@@ -1,6 +1,6 @@
 // Ported from SUPERPLACE: GET /api/pixabay/search — Pixabay 미디어 검색 프록시
 // 남용 방지: 로그인 세션 필수 — 우리 PIXABAY_API_KEY 를 익명 스크래핑에 노출하지 않음.
-import { getSessionUser, resolveDB } from '../../_utils'
+import { getSessionUser, resolveDB } from '../_utils'
 function formatPixabayData(data: any, isVideo: boolean) {
   if (isVideo) {
     const videos = ((data.hits || [])).map((v: any) => {

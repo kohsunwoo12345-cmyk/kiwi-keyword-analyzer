@@ -1,6 +1,6 @@
 // Ported from SUPERPLACE: GET /api/bgm/search — Pixabay Music 검색 프록시
 // 남용 방지: 로그인 세션 필수 — 우리 PIXABAY_API_KEY 를 익명 스크래핑에 노출하지 않음.
-import { getSessionUser, resolveDB } from '../../_utils'
+import { getSessionUser, resolveDB } from '../_utils'
 export const onRequestGet: PagesFunction = async ({ request, env }) => {
   const j = (obj: any) => new Response(JSON.stringify(obj), { headers: { 'content-type': 'application/json; charset=utf-8' } })
   const gdb = resolveDB(env as any)

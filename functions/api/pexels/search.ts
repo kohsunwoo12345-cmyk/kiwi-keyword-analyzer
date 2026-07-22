@@ -1,6 +1,6 @@
 // Ported from SUPERPLACE: GET /api/pexels/search — Pexels 미디어 검색 프록시 (CORS 우회)
 // 남용 방지: 로그인 세션 필수 — 우리 PEXELS_API_KEY 를 익명 스크래핑에 노출하지 않음.
-import { getSessionUser, resolveDB } from '../../_utils'
+import { getSessionUser, resolveDB } from '../_utils'
 function formatPexelsData(data: any, isVideo: boolean) {
   if (isVideo) {
     const videos = (data.videos || []).map((v: any) => {
