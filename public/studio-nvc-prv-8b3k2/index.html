@@ -2838,38 +2838,33 @@ function cannyPreview(srcUrl){
         // 5x5 가우시안(σ≈1.2) 로 노이즈 제거 (얇은 선을 위해 필수)
         var gk=[2,4,5,4,2,4,9,12,9,4,5,12,15,12,5,4,9,12,9,4,2,4,5,4,2], b=new Float32Array(N),s;
         for(y=0;y<H;y++)for(x=0;x<W;x++){ s=0; for(ky=-2;ky<=2;ky++)for(kx=-2;kx<=2;kx++){ xx=Math.min(W-1,Math.max(0,x+kx)); yy=Math.min(H-1,Math.max(0,y+ky)); s+=g[yy*W+xx]*gk[(ky+2)*5+(kx+2)]; } b[y*W+x]=s/159; }
-        // Sobel 크기 + 방향(4방향 양자화)
-        var mag=new Float32Array(N), dir=new Uint8Array(N);
+        // Sobel gx, gy, 크기(L2) — 방향을 양자화하지 않고 그대로 보관(보간 NMS용)
+        var gxA=new Float32Array(N), gyA=new Float32Array(N), mag=new Float32Array(N);
         for(y=1;y<H-1;y++)for(x=1;x<W-1;x++){
           var sx=-b[(y-1)*W+x-1]+b[(y-1)*W+x+1]-2*b[y*W+x-1]+2*b[y*W+x+1]-b[(y+1)*W+x-1]+b[(y+1)*W+x+1];
           var sy=-b[(y-1)*W+x-1]-2*b[(y-1)*W+x]-b[(y-1)*W+x+1]+b[(y+1)*W+x-1]+2*b[(y+1)*W+x]+b[(y+1)*W+x+1];
-          mag[y*W+x]=Math.sqrt(sx*sx+sy*sy);
-          var ang=Math.atan2(sy,sx)*180/Math.PI; if(ang<0)ang+=180;
-          dir[y*W+x]=(ang<22.5||ang>=157.5)?0:(ang<67.5?1:(ang<112.5?2:3));
+          gxA[y*W+x]=sx; gyA[y*W+x]=sy; mag[y*W+x]=Math.sqrt(sx*sx+sy*sy);
         }
-        // 비최대 억제 → 능선만 남겨 1px 두께로
-        var nms=new Float32Array(N), a1,a2,q,dd;
-        for(y=1;y<H-1;y++)for(x=1;x<W-1;x++){ q=mag[y*W+x]; dd=dir[y*W+x];
-          if(dd===0){a1=mag[y*W+x-1];a2=mag[y*W+x+1];}
-          else if(dd===1){a1=mag[(y-1)*W+x+1];a2=mag[(y+1)*W+x-1];}
-          else if(dd===2){a1=mag[(y-1)*W+x];a2=mag[(y+1)*W+x];}
-          else {a1=mag[(y-1)*W+x-1];a2=mag[(y+1)*W+x+1];}
-          nms[y*W+x]=(q>=a1&&q>=a2)?q:0; }
-        // 이중 임계 + 히스테리시스 — 낮은 lo 로 약한 엣지를 강한 엣지에 이어붙여 선이 끊기지 않게
-        var hi=45, lo=15, edge=new Uint8Array(N), stack=[];
+        // 보간(sub-pixel) 비최대억제 — 그라디언트 방향으로 ±1 지점을 이중선형 보간해 비교.
+        //  4방향 양자화보다 곡선에서 끊김이 적고, 항상 1px 얇은 능선만 남는다(팽창 불필요).
+        function smpl(fx,fy){ var x0=fx|0, y0=fy|0; if(x0<0||y0<0||x0>=W-1||y0>=H-1) return 0;
+          var tx=fx-x0, ty=fy-y0, A=mag[y0*W+x0], B=mag[y0*W+x0+1], C=mag[(y0+1)*W+x0], D=mag[(y0+1)*W+x0+1];
+          return A*(1-tx)*(1-ty)+B*tx*(1-ty)+C*(1-tx)*ty+D*tx*ty; }
+        var nms=new Float32Array(N);
+        for(y=1;y<H-1;y++)for(x=1;x<W-1;x++){ var mg=mag[y*W+x]; if(mg<8) continue;
+          var inv=1/mg, dx=gxA[y*W+x]*inv, dy=gyA[y*W+x]*inv;
+          if(mg>=smpl(x+dx,y+dy) && mg>=smpl(x-dx,y-dy)) nms[y*W+x]=mg; }
+        // 이중 임계 + 히스테리시스 — 낮은 lo(약한 엣지를 강한 엣지에 연결)로 얇으면서 연속된 선
+        var hi=36, lo=13, edge=new Uint8Array(N), stack=[];
         for(i=0;i<N;i++){ edge[i]=nms[i]>=hi?2:(nms[i]>=lo?1:0); if(edge[i]===2)stack.push(i); }
         while(stack.length){ var idx=stack.pop(), ex=idx%W, ey=(idx/W)|0;
           for(ky=-1;ky<=1;ky++)for(kx=-1;kx<=1;kx++){ xx=ex+kx; yy=ey+ky; if(xx<0||yy<0||xx>=W||yy>=H)continue; var ni=yy*W+xx; if(edge[ni]===1){edge[ni]=2;stack.push(ni);} } }
-        // 1) 완전 고립 픽셀(이웃 0개)만 제거 — 선은 보존
-        var fin=new Uint8Array(N);
-        for(y=1;y<H-1;y++)for(x=1;x<W-1;x++){ if(edge[y*W+x]!==2)continue; var nb=0;
-          for(ky=-1;ky<=1;ky++)for(kx=-1;kx<=1;kx++){ if(!kx&&!ky)continue; if(edge[(y+ky)*W+(x+kx)]===2)nb++; }
-          if(nb>=1) fin[y*W+x]=1; }
-        // 2) 형태학적 팽창(3x3, 8-이웃) 1회 — 끊긴 선을 확실히 이어 연속된 일러스트식 선으로 (닫힘 연산)
+        // 완전 고립 픽셀(이웃 0개)만 제거 — 얇은 1px 선 유지(팽창 없음)
         var out=ctx.createImageData(W,H), o=out.data;
         for(i=0;i<N;i++){ o[i*4]=o[i*4+1]=o[i*4+2]=0; o[i*4+3]=255; }
-        for(y=1;y<H-1;y++)for(x=1;x<W-1;x++){ if(!fin[y*W+x])continue;
-          for(ky=-1;ky<=1;ky++)for(kx=-1;kx<=1;kx++){ var oi=((y+ky)*W+(x+kx))*4; o[oi]=o[oi+1]=o[oi+2]=255; } }
+        for(y=1;y<H-1;y++)for(x=1;x<W-1;x++){ if(edge[y*W+x]!==2)continue; var nb=0;
+          for(ky=-1;ky<=1;ky++)for(kx=-1;kx<=1;kx++){ if(!kx&&!ky)continue; if(edge[(y+ky)*W+(x+kx)]===2)nb++; }
+          if(nb>=1){ var oi=(y*W+x)*4; o[oi]=o[oi+1]=o[oi+2]=255; } }
         ctx.putImageData(out,0,0); resolve(c.toDataURL('image/png'));
       }catch(err){ reject(err); }
     };
