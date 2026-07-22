@@ -63,22 +63,32 @@ export default function NoticesPage() {
     return users.filter((u) => (u.name + ' ' + u.email + ' ' + (u.phone || '')).toLowerCase().includes(q)).slice(0, 200)
   }, [users, userQuery])
 
-  // 업로드 전 항상 JPEG 로 재인코딩(아이폰 HEIC·큰 사진 대응). 브라우저가 못 여는 경우만 원본 업로드.
+  // 업로드 전 JPEG 로 재인코딩(아이폰 HEIC·큰 사진 대응).
+  // 저장소(R2) 미연결 시 D1 폴백(값당 ~2MB)에 맞추어, 결과 용량이 목표(≈1.6MB) 이하가 되도록
+  // 해상도·품질을 점진 축소해 사진이 무조건 업로드되게 한다.
   async function toJpegBlob(file: File): Promise<{ blob: Blob; type: string }> {
+    const TARGET = 1_600_000
     try {
       const bmp = await createImageBitmap(file)
-      // 제한없이 첨부 — 사실상 원본 크기 유지(초대형만 4096px로 안전 축소, HEIC 등은 JPEG 변환)
-      const max = 4096
-      const scale = Math.min(1, max / Math.max(bmp.width, bmp.height))
-      const w = Math.max(1, Math.round(bmp.width * scale)), h = Math.max(1, Math.round(bmp.height * scale))
-      const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h
-      const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('ctx')
-      ctx.drawImage(bmp, 0, 0, w, h)
-      const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.88))
-      if (!blob) throw new Error('encode')
-      return { blob, type: 'image/jpeg' }
+      let dim = 4096
+      let last: Blob | null = null
+      for (let i = 0; i < 7; i++) {
+        const scale = Math.min(1, dim / Math.max(bmp.width, bmp.height))
+        const w = Math.max(1, Math.round(bmp.width * scale)), h = Math.max(1, Math.round(bmp.height * scale))
+        const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h
+        const ctx = canvas.getContext('2d'); if (!ctx) break
+        ctx.drawImage(bmp, 0, 0, w, h)
+        const quality = i < 2 ? 0.88 : i < 4 ? 0.78 : 0.65
+        const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', quality))
+        if (!blob) break
+        last = blob
+        if (blob.size <= TARGET || dim <= 720) return { blob, type: 'image/jpeg' }
+        dim = Math.round(dim * 0.72)   // 목표 초과 시 점점 축소
+      }
+      if (last) return { blob: last, type: 'image/jpeg' }
+      throw new Error('encode')
     } catch {
-      return { blob: file, type: file.type || 'application/octet-stream' }   // 폴백: 원본
+      return { blob: file, type: /^image\//i.test(file.type) ? file.type : 'image/jpeg' }   // 폴백: 원본(이미지 타입 보정)
     }
   }
   async function onUpload(file: File) {
@@ -91,7 +101,9 @@ export default function NoticesPage() {
       const txt = await r.text()
       let d: any = {}; try { d = JSON.parse(txt) } catch {}
       if (r.ok && d.url) setImageUrl(d.url)
-      else setMsg('업로드 실패 (' + r.status + '): ' + (d.error || txt.slice(0, 120)))
+      else if (r.status === 413 || d.needR2) setMsg('이미지 용량이 커서 저장소 한도를 넘었어요. 더 작은 사진을 쓰거나 관리자에게 R2 저장소 연결을 요청하세요.')
+      else if (!d.error) setMsg(`업로드 서버 오류(${r.status}). 잠시 후 다시 시도해 주세요. (R2 저장소 미연결일 수 있어요)`)
+      else setMsg('업로드 실패 (' + r.status + '): ' + d.error)
     } catch (e: any) { setMsg('업로드 실패: ' + String(e?.message || e).slice(0, 100)) }
     setUploading(false)
   }
@@ -104,7 +116,9 @@ export default function NoticesPage() {
       const txt = await r.text()
       let d: any = {}; try { d = JSON.parse(txt) } catch {}
       if (r.ok && d.url) setVideoUrl(d.url)
-      else setMsg('동영상 업로드 실패 (' + r.status + '): ' + (d.error || txt.slice(0, 120)))
+      else if (r.status === 413 || d.needR2) setMsg('동영상은 용량이 커서 R2 저장소 연결이 필요합니다. 관리자에게 Cloudflare R2 버킷 연결을 요청하세요. (사진은 자동 축소로 업로드됩니다)')
+      else if (!d.error) setMsg(`동영상 업로드 서버 오류(${r.status}). 잠시 후 다시 시도해 주세요. (R2 저장소 미연결일 수 있어요)`)
+      else setMsg('동영상 업로드 실패 (' + r.status + '): ' + d.error)
     } catch (e: any) { setMsg('동영상 업로드 실패: ' + String(e?.message || e).slice(0, 100)) }
     setUploadingV(false)
   }

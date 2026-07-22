@@ -84,12 +84,15 @@ export async function onRequest(context) {
       return j({ url: origin + "/api/media/" + key, key, size, contentType: ct, store: "r2" });
     }
 
-    // ② R2 미설정 → D1 폴백 (사진·영상 무조건 업로드). D1 단일 BLOB 안전 상한 적용.
+    // ② R2 미설정 → D1 폴백. D1 은 값당 약 2MB 한도 → 안전 마진 1.9MB.
+    //    큰 파일을 메모리에 통째로 읽으면 워커 OOM(502) 이므로 Content-Length 로 먼저 차단.
+    const MAX_D1 = 1_900_000;
+    const clen = Number(request.headers.get("Content-Length") || 0) || 0;
+    const tooBigMsg = "저장소(R2)가 연결되지 않아 약 1.8MB 이하만 첨부할 수 있습니다. 사진은 자동 축소되며, 큰 영상은 Cloudflare R2 버킷을 연결하세요.";
+    if (clen && clen > MAX_D1) return j({ error: tooBigMsg, size: clen, needR2: true }, 413);
     const buf = await request.arrayBuffer();
     if (!buf || buf.byteLength === 0) return j({ error: "빈 파일" }, 400);
-    const MAX_D1 = 24 * 1024 * 1024; // 24MB
-    if (buf.byteLength > MAX_D1)
-      return j({ error: "R2 미연결 상태에서는 24MB 이하만 첨부할 수 있습니다. 더 큰 영상은 Cloudflare R2 버킷을 연결하세요.", size: buf.byteLength }, 413);
+    if (buf.byteLength > MAX_D1) return j({ error: tooBigMsg, size: buf.byteLength, needR2: true }, 413);
     await db.prepare("CREATE TABLE IF NOT EXISTS media_blobs (key TEXT PRIMARY KEY, content_type TEXT, data BLOB, size INTEGER, created_at TEXT)").run().catch(() => {});
     await db.prepare("INSERT INTO media_blobs (key, content_type, data, size, created_at) VALUES (?, ?, ?, ?, ?)")
       .bind(key, ct, new Uint8Array(buf), buf.byteLength, new Date().toISOString()).run();
