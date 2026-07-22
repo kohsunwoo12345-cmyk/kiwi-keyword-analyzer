@@ -2861,9 +2861,9 @@ function cannyPreview(srcUrl){
         for(i=0;i<N;i++){ if(nms[i]>0){ if(nms[i]>maxMag)maxMag=nms[i]; nz++; } }
         if(maxMag<=0) maxMag=1;
         for(i=0;i<N;i++){ if(nms[i]>0){ hist[Math.min(HIST-1,(nms[i]/maxMag*(HIST-1))|0)]++; } }
-        var want=Math.floor(nz*0.09), acc=0, hiBkt=HIST-1, hbk;
+        var want=Math.floor(nz*0.26), acc=0, hiBkt=HIST-1, hbk;   // 상위 ~26% 를 강한 엣지로 — 더 많은 윤곽 검출
         for(hbk=HIST-1;hbk>=0;hbk--){ acc+=hist[hbk]; if(acc>=want){ hiBkt=hbk; break; } }
-        var hi=Math.max(8, hiBkt/(HIST-1)*maxMag), lo=hi*0.4;
+        var hi=Math.max(6, hiBkt/(HIST-1)*maxMag), lo=hi*0.33;    // lo 낮춰 약한 윤곽까지 연결(누락 감소)
         var edge=new Uint8Array(N), stack=[];
         for(i=0;i<N;i++){ edge[i]=nms[i]>=hi?2:(nms[i]>=lo?1:0); if(edge[i]===2)stack.push(i); }
         while(stack.length){ var idx=stack.pop(), ex=idx%W, ey=(idx/W)|0;
