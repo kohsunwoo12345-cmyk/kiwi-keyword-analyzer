@@ -1,4 +1,4 @@
-import { Env, json, geoFrom } from './_utils'
+import { Env, json, geoFrom, isAIBot } from './_utils'
 
 /** 국가코드 → 서비스 언어 매핑. 미지정/기타는 영어. */
 const COUNTRY_LANG: Record<string, string> = {
@@ -29,6 +29,10 @@ const COUNTRY_LANG: Record<string, string> = {
 export const onRequestGet: PagesFunction<Env> = async ({ request }) => {
   const geo = geoFrom(request)
   const country = (geo.country || request.headers.get('CF-IPCountry') || '').toUpperCase()
+  // Gemini·Claude·GPT 등 AI 크롤러/에이전트는 국가와 무관하게 항상 한국어로 노출
+  if (isAIBot(request.headers.get('User-Agent'))) {
+    return json({ ok: true, country, city: geo.city || '', lang: 'ko', ai: true })
+  }
   const lang = COUNTRY_LANG[country] || 'en'
   return json({ ok: true, country, city: geo.city || '', lang })
 }

@@ -865,6 +865,28 @@ export function geoFrom(request: Request): { country: string; city: string; regi
   }
 }
 
+/** AI/LLM 크롤러·에이전트 User-Agent 판별.
+ *  Gemini·Claude·GPT 등 AI가 접속하면 국가와 무관하게 한국어로 노출하기 위한 용도.
+ *  (검색 SEO 봇은 제외 — 순수 AI 학습/응답용 크롤러와 어시스턴트만 매칭) */
+const AI_UA_RE = new RegExp(
+  [
+    'gptbot', 'oai-searchbot', 'chatgpt', 'chatgpt-user', 'openai',           // OpenAI / ChatGPT
+    'claudebot', 'claude-web', 'claude-user', 'claude-searchbot', 'anthropic', // Anthropic / Claude
+    'google-extended', 'googleother', 'gemini', 'bard', 'google-cloudvertexai', // Google Gemini / Bard
+    'perplexity', 'youbot', 'phindbot',                                        // Perplexity / You / Phind
+    'ccbot', 'cohere-ai', 'cohere', 'diffbot', 'bytespider',                   // CommonCrawl / Cohere / ByteDance(Doubao)
+    'meta-externalagent', 'meta-externalfetcher', 'facebookbot',              // Meta AI
+    'amazonbot', 'applebot-extended', 'petalbot',                              // Amazon / Apple AI / Huawei
+    'ai2bot', 'timpibot', 'omgili', 'imagesift', 'webzio-extended',           // 기타 AI 학습 크롤러
+    'mistralai', 'deepseek', 'kagibot', 'duckassistbot', 'novaact',           // Mistral / DeepSeek / Kagi / DuckDuckGo / Amazon Nova
+  ].join('|'),
+  'i',
+)
+export function isAIBot(ua: string | null | undefined): boolean {
+  if (!ua) return false
+  return AI_UA_RE.test(ua)
+}
+
 /** IP 목록 → 각 IP에 매핑된 회원(영구 매핑 테이블). 위협/조회 화면에서 회원/비회원 식별에 사용. */
 export async function getIpMembers(db: D1Database, ips: string[]): Promise<Record<string, { user_id: string; email: string; name: string; role: string; last_seen: string }[]>> {
   const uniq = [...new Set(ips.filter((x) => x && x !== 'unknown'))]
