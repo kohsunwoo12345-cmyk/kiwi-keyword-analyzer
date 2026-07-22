@@ -25,7 +25,6 @@ import { Button, SectionTag, Panel } from '@/components/ui'
 import { Reveal, Counter } from '@/components/motion'
 import { cn } from '@/lib/utils'
 import { FEATURES, getFeature, type Feature } from '@/lib/features'
-import { collectLead } from '@/lib/auth'
 import { useT, type Dict } from '@/lib/i18n'
 
 /* ───────────────── i18n dictionary ───────────────── */
@@ -550,9 +549,7 @@ export function FeatureDetail({ slug }: { slug: string }) {
               {t('설명보다 한 번 써보는 게 빠릅니다')}
             </h2>
             <p className="mt-4 text-[var(--text-soft)]">
-              {slug === 'leads'
-                ? t('아래 폼은 실제로 동작합니다. 지금 입력하면 DB가 그대로 수집되는 걸 직접 확인하세요.')
-                : t('백문이 불여일견. 아래 데모로 기능의 흐름을 지금 바로 경험해보세요.')}
+              {t('백문이 불여일견. 아래 데모로 기능의 흐름을 지금 바로 경험해보세요.')}
             </p>
           </Reveal>
 
@@ -644,8 +641,6 @@ export function FeatureDetail({ slug }: { slug: string }) {
 function FeatureDemo({ slug, feature }: { slug: string; feature: Feature }) {
   const t = useT(M)
   switch (slug) {
-    case 'leads':
-      return <LeadsDemo feature={feature} />
     case 'blog':
       return <BlogDemo feature={feature} />
     case 'youtube':
@@ -717,85 +712,6 @@ function PreviewTag() {
 }
 function fieldCls() {
   return 'w-full rounded-xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none transition-all placeholder:text-[var(--text-dim)] focus:border-blue-400 focus:ring-2 focus:ring-blue-200'
-}
-
-/* ───────────────── LEADS (real) ───────────────── */
-function LeadsDemo({ feature }: { feature: Feature }) {
-  const t = useT(M)
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [email, setEmail] = useState('')
-  const [state, setState] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
-  const [msg, setMsg] = useState('')
-  const [total, setTotal] = useState<number | null>(null)
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!name.trim() || !phone.trim()) {
-      setState('error')
-      setMsg('이름과 연락처를 입력해주세요.')
-      return
-    }
-    setState('loading')
-    setMsg('')
-    const res = await collectLead({ name: name.trim(), phone: phone.trim(), email: email.trim() || undefined, source: 'feature-leads' })
-    if (res.ok) {
-      setState('ok')
-      setTotal(typeof res.total === 'number' ? res.total : null)
-    } else {
-      setState('error')
-      setMsg(res.error || 'DB 수집에 실패했습니다. 잠시 후 다시 시도해주세요.')
-    }
-  }
-
-  if (state === 'ok') {
-    return (
-      <div className="flex flex-col items-center py-6 text-center">
-        <span className="grid h-16 w-16 place-items-center rounded-full bg-emerald-100 text-emerald-600">
-          <CheckCircle2 size={34} />
-        </span>
-        <h4 className="mt-5 text-xl font-bold">{t('DB가 수집되었습니다!')}</h4>
-        <p className="mt-2 text-sm text-[var(--text-soft)]">
-          {total !== null ? (
-            <>{t('지금까지 누적 ')}<span className="font-bold text-emerald-600">{total.toLocaleString('ko-KR')}{t('건')}</span>{t('이 수집되었습니다.')}</>
-          ) : (
-            t('정상적으로 저장되었습니다.')
-          )}
-        </p>
-        <button
-          onClick={() => { setState('idle'); setName(''); setPhone(''); setEmail('') }}
-          className="mt-6 text-sm font-semibold text-blue-600 hover:underline"
-        >
-          {t('다시 체험하기')}
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <form onSubmit={submit} className="space-y-3">
-      <p className="text-sm text-[var(--text-soft)]">
-        {t('무료 상담을 신청하시면 담당 컨설턴트가 연락드립니다.')}
-      </p>
-      <div>
-        <label className="mb-1.5 block text-xs font-semibold text-[var(--text-soft)]">{t('이름 *')}</label>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('홍길동')} className={fieldCls()} />
-      </div>
-      <div>
-        <label className="mb-1.5 block text-xs font-semibold text-[var(--text-soft)]">{t('연락처 *')}</label>
-        <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-1234-5678" inputMode="tel" className={fieldCls()} />
-      </div>
-      <div>
-        <label className="mb-1.5 block text-xs font-semibold text-[var(--text-soft)]">{t('이메일 (선택)')}</label>
-        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" inputMode="email" className={fieldCls()} />
-      </div>
-      {state === 'error' && <p className="text-sm font-medium text-rose-500">{t(msg)}</p>}
-      <Button type="submit" disabled={state === 'loading'} className="w-full" size="lg">
-        {state === 'loading' ? (<><Loader2 size={18} className="animate-spin" /> {t('수집 중...')}</>) : (<>{t('무료 상담 신청하기')} <ArrowRight size={18} /></>)}
-      </Button>
-      <p className="text-center text-xs text-[var(--text-dim)]">{t('실제로 DB가 저장되는 라이브 폼입니다.')}</p>
-    </form>
-  )
 }
 
 /* ───────────────── BLOG ───────────────── */

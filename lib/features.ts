@@ -1,5 +1,4 @@
 import {
-  Database,
   PlaySquare,
   PenSquare,
   Users,
@@ -38,17 +37,6 @@ export const FEATURES: Feature[] = [
       '텍스트→영상 · 이미지→영상 · 영상→영상(V2V·실사화)',
       '노드 워크플로우로 컷·장면을 자유롭게 연결하고 재사용',
     ],
-  },
-  {
-    slug: 'leads',
-    no: 2,
-    title: 'DB 수집 랜딩페이지',
-    short: '랜딩 · DB수집',
-    desc: '노코드 빌더로 고객 DB를 수집하는 랜딩페이지를 만들고, 유입·전환을 실시간으로 추적합니다.',
-    icon: Database,
-    color: 'from-violet-500 to-indigo-500',
-    accent: '#7c3aed',
-    points: ['드래그&드롭 폼 빌더', '전환율·유입 실시간 추적', '수집 DB 자동 정제·중복제거', 'CRM 자동 연동'],
   },
   {
     slug: 'youtube',

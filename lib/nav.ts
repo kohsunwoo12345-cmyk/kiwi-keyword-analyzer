@@ -23,7 +23,6 @@ import {
   Coins,
   Wallet,
   CreditCard,
-  Database,
   Bell,
   type LucideIcon,
 } from 'lucide-react'
@@ -50,17 +49,6 @@ export const NAV_HOME: NavItem = {
 }
 
 export const NAV_CATEGORIES: NavCategory[] = [
-  {
-    id: 'leads',
-    title: 'DB 수집',
-    icon: Database,
-    accent: '#2563eb',
-    badge: 'HOT',
-    items: [
-      { title: 'DB 수집 랜딩', href: '/dashboard_USE17237_612/leads', icon: Database },
-      { title: '수집 DB · 성과', href: '/dashboard_USE17237_612/leads#db', icon: TrendingUp },
-    ],
-  },
   {
     id: 'credits',
     title: '크레딧·결제',

@@ -10,7 +10,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: '/', priority: 1.0, freq: 'daily' },
     { path: '/features', priority: 0.9, freq: 'weekly' },
     { path: '/features/video', priority: 0.9, freq: 'weekly' },
-    { path: '/features/leads', priority: 0.8, freq: 'weekly' },
     { path: '/features/youtube', priority: 0.8, freq: 'weekly' },
     { path: '/features/blog', priority: 0.8, freq: 'weekly' },
     { path: '/features/team', priority: 0.7, freq: 'weekly' },

@@ -89,8 +89,8 @@ export default function DashboardHome() {
           </div>
         )}
 
-        {/* 노드형 영상 스튜디오 바로가기 — 유료 플랜 + 영상/둘 다 선택 회원 */}
-        {hasPlan && (user?.products === 'both' || user?.products === 'video' || user?.role === 'admin') && (
+        {/* 노드형 영상 스튜디오 바로가기 — AI 영상 플랜 구독자(또는 관리자)에게만 노출 */}
+        {(user?.role === 'admin' || (!!user?.videoPlan && user.videoPlan !== '없음')) && (
           <a
             href="/studio-nvc-prv-8b3k2/"
             className="card group flex items-center justify-between gap-4 p-5 transition hover:border-blue-300 hover:shadow-md"
