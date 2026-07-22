@@ -14,8 +14,6 @@ import {
   MapPin,
   TrendingUp,
   Bot,
-  Camera,
-  Image as ImageIcon,
   PlaySquare,
   Calendar,
   ClipboardList,
@@ -125,19 +123,6 @@ export const NAV_CATEGORIES: NavCategory[] = [
     items: [
       { title: '블로그 분석', href: '/dashboard_USE17237_612/blog', icon: BarChart3 },
       { title: 'AI 블로그 작성', href: '/dashboard_USE17237_612/blog/writer', icon: Bot },
-    ],
-  },
-  {
-    id: 'instagram',
-    title: '인스타그램',
-    icon: Camera,
-    accent: '#ec4899',
-    badge: 'NEW',
-    items: [
-      { title: '인스타그램 홈', href: '/dashboard_USE17237_612/instagram', icon: Camera },
-      { title: '콘텐츠 관리', href: '/dashboard_USE17237_612/instagram/content', icon: ImageIcon },
-      { title: '인사이트 분석', href: '/dashboard_USE17237_612/instagram/insights', icon: BarChart3 },
-      { title: 'DM 자동화', href: '/dashboard_USE17237_612/instagram/dm', icon: MessageCircle },
     ],
   },
   {

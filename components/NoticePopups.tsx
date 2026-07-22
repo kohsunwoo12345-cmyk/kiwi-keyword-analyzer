@@ -92,18 +92,20 @@ export function NoticePopups() {
               {n.ctaLabel && n.ctaUrl && (
                 <button
                   onClick={() => go(n)}
-                  className="mt-3 w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-700"
+                  className="mt-3 w-full rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 py-3.5 text-[15px] font-extrabold text-white shadow-lg shadow-indigo-600/30 transition hover:brightness-110 active:scale-[0.99]"
                 >
                   {n.ctaLabel}
                 </button>
               )}
               {n.canSnooze && (
-                <button
-                  onClick={() => snooze(n.id)}
-                  className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                >
-                  <MoonStar size={13} /> 3일 동안 보지 않기
-                </button>
+                <div className="mt-1.5 text-center">
+                  <button
+                    onClick={() => snooze(n.id)}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 transition hover:text-slate-600"
+                  >
+                    <MoonStar size={11} /> 3일 동안 보지 않기
+                  </button>
+                </div>
               )}
             </div>
           </div>

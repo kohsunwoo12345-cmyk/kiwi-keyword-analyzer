@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
-import { X } from 'lucide-react'
+import { X, MoonStar } from 'lucide-react'
 import { NoticeMedia } from '@/components/NoticeMedia'
 
 interface PubNotice {
@@ -127,17 +127,19 @@ export function PublicNoticePopups() {
               {n.ctaLabel && n.ctaUrl && (
                 <button
                   onClick={() => go(n)}
-                  className="mt-3 w-full rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700"
+                  className="mt-3 w-full rounded-xl bg-gradient-to-r from-blue-600 to-sky-500 py-3.5 text-[15px] font-extrabold text-white shadow-lg shadow-blue-600/30 transition hover:brightness-110 active:scale-[0.99]"
                 >
                   {n.ctaLabel}
                 </button>
               )}
-              <button
-                onClick={() => snooze3(n.id)}
-                className="mt-2 w-full rounded-lg py-1.5 text-[12px] font-semibold text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
-              >
-                3일 동안 보지 않기
-              </button>
+              <div className="mt-1.5 text-center">
+                <button
+                  onClick={() => snooze3(n.id)}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 transition hover:text-slate-600"
+                >
+                  <MoonStar size={11} /> 3일 동안 보지 않기
+                </button>
+              </div>
             </div>
           </div>
         )
