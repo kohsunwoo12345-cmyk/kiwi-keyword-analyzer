@@ -1067,6 +1067,26 @@ export async function sendSmsCampaign(to: string | string[], text: string): Prom
   return postJson('/api/sms/send', { to, text })
 }
 
+/* ───────── 발송 이력·통계 (실데이터) ───────── */
+export interface MsgLogStats { batches: number; recipients: number; sent: number; failed: number; cost: number; successRate: number }
+export interface SmsLogRow { id: string; sender: string; type: string; text: string; recipients: number; sent: number; failed: number; createdAt: string }
+export interface AlimtalkLogRow { id: string; templateId: string; text: string; recipients: number; sent: number; failed: number; createdAt: string }
+export interface MsgTrendPoint { date: string; requested: number; sent: number }
+
+export async function smsLogs(): Promise<{ ok: boolean; error?: string; stats?: MsgLogStats; byType?: { type: string; count: number }[]; trend?: MsgTrendPoint[]; logs?: SmsLogRow[] }> {
+  try {
+    const r = await fetch('/api/sms/logs', { credentials: 'include', cache: 'no-store' })
+    return await r.json()
+  } catch (e: any) { return { ok: false, error: String(e?.message || e) } }
+}
+
+export async function alimtalkLogs(): Promise<{ ok: boolean; error?: string; stats?: MsgLogStats; trend?: MsgTrendPoint[]; logs?: AlimtalkLogRow[] }> {
+  try {
+    const r = await fetch('/api/alimtalk/logs', { credentials: 'include', cache: 'no-store' })
+    return await r.json()
+  } catch (e: any) { return { ok: false, error: String(e?.message || e) } }
+}
+
 /* ───────── 승인 관리 (관리자) ───────── */
 export interface PlanReq { id: string; user_id: string; name: string | null; email: string | null; track: string | null; from_plan: string | null; to_plan: string; status: string; memo: string | null; created_at: string; decided_at: string | null }
 export interface SenderReq { id: string; user_id: string; name: string | null; email: string | null; phone: string; label: string | null; status: string; created_at: string; decided_at: string | null }

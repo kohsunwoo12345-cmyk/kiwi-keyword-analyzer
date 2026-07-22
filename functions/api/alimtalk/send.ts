@@ -50,6 +50,19 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
   if (failed > 0) await db.prepare('UPDATE users SET credits = credits + ? WHERE id = ?').bind(failed, me.id).run()
 
   await logActivity(db, me.id, 'credit', `알림톡 발송 ${sent}/${recipients.length}건`)
+
+  // 발송 이력 기록 (알림톡 발송 이력·통계 페이지 실데이터용). 실패해도 발송 결과에는 영향 없음.
+  try {
+    await db.prepare(`CREATE TABLE IF NOT EXISTS alimtalk_logs (
+      id TEXT PRIMARY KEY, user_id TEXT, template_id TEXT, sender_key TEXT, text TEXT,
+      recipients INTEGER, sent INTEGER, failed INTEGER, cost INTEGER, created_at TEXT)`).run()
+    await db.prepare(`CREATE INDEX IF NOT EXISTS idx_atk_logs_user ON alimtalk_logs(user_id, created_at)`).run().catch(() => {})
+    await db.prepare(`INSERT INTO alimtalk_logs (id,user_id,template_id,sender_key,text,recipients,sent,failed,cost,created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`).bind(
+        'al_' + crypto.randomUUID().replace(/-/g, '').slice(0, 18), me.id, templateId, senderKey, text.slice(0, 500),
+        recipients.length, sent, failed, sent, new Date().toISOString()).run()
+  } catch { /* 로그 실패 무시 */ }
+
   const fresh: any = await db.prepare('SELECT credits FROM users WHERE id = ?').bind(me.id).first()
   const configured = aligoAlimtalkConfigured(env) && !!templateId
   return json({

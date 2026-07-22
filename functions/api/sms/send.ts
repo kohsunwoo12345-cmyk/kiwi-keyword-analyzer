@@ -61,6 +61,20 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   await logActivity(db, me.id, 'sms', `문자 발송 ${sent}/${recipients.length}건`)
+
+  // 발송 이력 기록 (발송 이력·통계 페이지 실데이터용). 실패해도 발송 결과에는 영향 없음.
+  try {
+    await db.prepare(`CREATE TABLE IF NOT EXISTS sms_logs (
+      id TEXT PRIMARY KEY, user_id TEXT, sender TEXT, msg_type TEXT, text TEXT,
+      recipients INTEGER, sent INTEGER, failed INTEGER, cost INTEGER, created_at TEXT)`).run()
+    await db.prepare(`CREATE INDEX IF NOT EXISTS idx_sms_logs_user ON sms_logs(user_id, created_at)`).run().catch(() => {})
+    const msgType = [...text].length > 45 ? 'LMS' : 'SMS'
+    await db.prepare(`INSERT INTO sms_logs (id,user_id,sender,msg_type,text,recipients,sent,failed,cost,created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`).bind(
+        'sl_' + crypto.randomUUID().replace(/-/g, '').slice(0, 18), me.id, from, msgType, text.slice(0, 500),
+        recipients.length, sent, fails.length, sent, new Date().toISOString()).run()
+  } catch { /* 로그 실패 무시 */ }
+
   const fresh: any = await db.prepare('SELECT * FROM users WHERE id = ?').bind(me.id).first()
 
   const configured = aligoConfigured(env)
