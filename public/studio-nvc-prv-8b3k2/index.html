@@ -153,8 +153,9 @@ button .ico{ margin-right:5px; }
 .pf-navbtn .pfn-ic svg{ width:17px; height:17px; }
 .pf-navbtn.danger{ grid-column:1 / -1; border-color:#4a2530; background:rgba(120,30,45,.14); color:#ff9b9b; }
 .pf-navbtn.danger:hover{ border-color:#c0293f; background:rgba(120,30,45,.24); }
-.pf-lang{ margin-top:8px; display:flex; gap:8px; }
-.pf-langopt{ flex:1; text-align:center; padding:9px; border-radius:9px; border:1px solid #2c2f3a; background:#0f1117;
+.pf-lang{ margin-top:8px; display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+@media(max-width:520px){ .pf-lang{ grid-template-columns:repeat(2,1fr); } }
+.pf-langopt{ text-align:center; padding:10px 8px; border-radius:9px; border:1px solid #2c2f3a; background:#0f1117;
   color:#cfd3dc; font-size:12.5px; cursor:pointer; }
 .pf-langopt:hover,.pf-langopt.on{ border-color:#5b6cff; color:#fff; background:#1a1d28; }
 .pf-sec{ margin-top:14px; padding-top:12px; border-top:1px solid #23262f; }
@@ -1391,7 +1392,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 
       <section class="pf-pane" data-pane="lang">
         <h3 class="pf-h3">언어</h3>
-        <div class="pf-lang" id="pfLangBox" style="display:flex">
+        <div class="pf-lang" id="pfLangBox">
           <a class="pf-langopt" data-lang="ko">한국어</a>
           <a class="pf-langopt" data-lang="en">English</a>
           <a class="pf-langopt" data-lang="zh">中文</a>
@@ -1834,7 +1835,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 'use strict';
 var STUDIO_BUILD_TAG='2026-07-13-v56';   // 서버 health.build 와 정확히 같아야 최신(캐시/배포지연 아님)
 // (검증용) ?cnexport=1 접속 시 전처리 함수만 window 로 노출 — 순수 이미지 함수라 보안 영향 없음
-try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor }; }catch(_e){} },0); } }catch(_e){}
+try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
   function s(inner,vb){ return '<svg class="ico" viewBox="'+(vb||'0 0 24 24')+'" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+inner+'</svg>'; }
@@ -3070,12 +3071,13 @@ function openPoseEditor(n){
     +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">'
       +'<b style="color:#cfeeffff;font-size:14px;">'+tr('오픈포즈 관절 편집')+'</b>'
       +'<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+        +'<button id="peAdd" class="wbtn" style="width:auto;padding:5px 10px;">'+tr('관절 추가')+'</button>'
         +'<button id="peTpl" class="wbtn" style="width:auto;padding:5px 10px;">'+tr('기본 포즈')+'</button>'
         +'<button id="peRe" class="wbtn" style="width:auto;padding:5px 10px;">'+tr('재인식')+'</button>'
         +'<button id="peApply" class="wbtn" style="width:auto;padding:5px 12px;background:#1c6ee0;border-color:#1c6ee0;color:#fff;">'+tr('적용')+'</button>'
         +'<button id="peClose" class="wbtn" style="width:auto;padding:5px 10px;">'+tr('닫기')+'</button>'
       +'</div></div>'
-    +'<div style="color:#6fd6a0;font-size:11px;margin-bottom:8px;line-height:1.4;">'+tr('관절 점을 드래그해 사람 형태에 맞추세요. 적용하면 편집한 포즈맵이 ControlNet 입력으로 사용됩니다.')+'</div>'
+    +'<div style="color:#6fd6a0;font-size:11px;margin-bottom:8px;line-height:1.4;">'+tr('관절 점을 드래그해 맞추고, 점을 클릭하면 확대되어 삭제할 수 있어요. "관절 추가"로 다시 넣을 수 있습니다.')+'</div>'
     +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="color:#9fbfd0;font-size:11px;white-space:nowrap;">'+tr('점 크기')+'</span><input id="peDot" type="range" min="0.4" max="2.4" step="0.1" value="'+(n.w.poseDot||1)+'" style="flex:1;"></div>'
     +'<svg id="peSvg" width="'+boxW+'" height="'+boxH+'" viewBox="0 0 '+dim.w+' '+dim.h+'" style="background:#000;border-radius:10px;touch-action:none;display:block;max-width:100%;"></svg>'
   +'</div>';
@@ -3085,6 +3087,7 @@ function openPoseEditor(n){
   document.getElementById('peApply').onclick=applyPoseEditor;
   document.getElementById('peDot').oninput=function(e){ _poseEditNode.w.poseDot=+e.target.value; buildPoseSvg(); };
   document.getElementById('peTpl').onclick=function(){ _poseEditNode.w.poseKP=centerPose(defaultPoseKP()); buildPoseSvg(); toast(tr('기본 포즈를 불러왔어요 — 관절점을 드래그해 맞추세요')); };
+  document.getElementById('peAdd').onclick=openJointAdd;
   document.getElementById('peRe').onclick=function(){
     var rn=inputNodeOf(n.id,'ref')||inputNodeOf(n.id,'vidref')||inputNodeOf(n.id,'first'); var src=rn?imgOfNode(rn):null;
     if(!src){ toast(tr('레퍼런스 이미지를 연결하세요')); return; }
@@ -3097,26 +3100,69 @@ function buildPoseSvg(){
   var n=_poseEditNode; if(!n)return; var svg=document.getElementById('peSvg'); if(!svg)return;
   var dim=n.w.poseDim||{w:512,h:512}, W=dim.w, H=dim.h, kp=n.w.poseKP, lw=Math.max(3,W/90), s='', i;
   var dm=(n.w.poseDot||1), rr=Math.max(6, lw*1.1*dm);   // 점 크기 반영(최소 잡기 쉬운 크기 유지)
-  for(i=0;i<OP_PAIRS.length;i++){ var pr=OP_PAIRS[i], a=kp[pr[0]], b=kp[pr[1]], vis=(a&&b)?'':'display:none;';
+  var vok=function(p){ return p && (p.v==null||p.v>=0.12); };   // 삭제(v<0.12)된 관절은 숨김
+  for(i=0;i<OP_PAIRS.length;i++){ var pr=OP_PAIRS[i], a=kp[pr[0]], b=kp[pr[1]], vis=(vok(a)&&vok(b))?'':'display:none;';
     s+='<line data-li="'+i+'" data-a="'+pr[0]+'" data-b="'+pr[1]+'" x1="'+(a?a.x*W:0)+'" y1="'+(a?a.y*H:0)+'" x2="'+(b?b.x*W:0)+'" y2="'+(b?b.y*H:0)+'" stroke="'+OP_LIMB[i%OP_LIMB.length]+'" stroke-width="'+lw+'" stroke-linecap="round" opacity="0.6" style="'+vis+'"/>'; }
-  for(i=0;i<18;i++){ var pt=kp[i], vv=pt?'':'display:none;';
-    s+='<circle data-kpi="'+i+'" cx="'+(pt?pt.x*W:0)+'" cy="'+(pt?pt.y*H:0)+'" r="'+rr+'" fill="'+OP_KPC[i%OP_KPC.length]+'" stroke="#fff" stroke-width="'+(lw*0.35)+'" style="cursor:grab;'+vv+'"><title>'+esc(OP_NAMES[i]||'')+'</title></circle>'; }
+  for(i=0;i<18;i++){ var pt=kp[i], vv=vok(pt)?'':'display:none;';
+    s+='<circle data-kpi="'+i+'" cx="'+(pt?pt.x*W:0)+'" cy="'+(pt?pt.y*H:0)+'" r="'+rr+'" fill="'+OP_KPC[i%OP_KPC.length]+'" stroke="#fff" stroke-width="'+(lw*0.35)+'" style="cursor:pointer;'+vv+'"><title>'+esc(OP_NAMES[i]||'')+'</title></circle>'; }
   svg.innerHTML=s;
-  var dragging=null;
+  var dragging=null, moved=false, sx=0, sy=0;
   function norm(evt){ var r=svg.getBoundingClientRect(); return { x:Math.min(1,Math.max(0,(evt.clientX-r.left)/r.width)), y:Math.min(1,Math.max(0,(evt.clientY-r.top)/r.height)) }; }
   Array.prototype.forEach.call(svg.querySelectorAll('circle[data-kpi]'),function(cir){
-    cir.addEventListener('pointerdown',function(e){ e.preventDefault(); dragging=+cir.getAttribute('data-kpi'); try{cir.setPointerCapture(e.pointerId);}catch(_){} });
+    cir.addEventListener('pointerdown',function(e){ e.preventDefault(); dragging=+cir.getAttribute('data-kpi'); moved=false; sx=e.clientX; sy=e.clientY; try{cir.setPointerCapture(e.pointerId);}catch(_){} });
   });
   svg.addEventListener('pointermove',function(e){
-    if(dragging==null)return; var nn=norm(e); var k=_poseEditNode.w.poseKP[dragging]; if(!k){ k=_poseEditNode.w.poseKP[dragging]={x:0,y:0,v:1}; } k.x=nn.x; k.y=nn.y; k.v=1;
+    if(dragging==null)return; if(Math.abs(e.clientX-sx)>3||Math.abs(e.clientY-sy)>3) moved=true;
+    var nn=norm(e); var k=_poseEditNode.w.poseKP[dragging]; if(!k){ k=_poseEditNode.w.poseKP[dragging]={x:0,y:0,v:1}; } k.x=nn.x; k.y=nn.y; k.v=1;
     var cir=svg.querySelector('circle[data-kpi="'+dragging+'"]'); if(cir){ cir.setAttribute('cx',k.x*W); cir.setAttribute('cy',k.y*H); cir.style.display=''; }
     Array.prototype.forEach.call(svg.querySelectorAll('line[data-li]'),function(ln){
       if(+ln.getAttribute('data-a')===dragging){ ln.setAttribute('x1',k.x*W); ln.setAttribute('y1',k.y*H); ln.style.display=''; }
       if(+ln.getAttribute('data-b')===dragging){ ln.setAttribute('x2',k.x*W); ln.setAttribute('y2',k.y*H); ln.style.display=''; }
     });
   });
-  svg.addEventListener('pointerup',function(){ dragging=null; });
+  svg.addEventListener('pointerup',function(){ if(dragging!=null && !moved){ var idx=dragging; dragging=null; openJointDetail(idx); return; } dragging=null; });   // 이동 없이 클릭 = 확대·삭제 팝업
   svg.addEventListener('pointercancel',function(){ dragging=null; });
+}
+// 관절 클릭 → 확대 팝업(삭제 가능)
+function openJointDetail(i){
+  var n=_poseEditNode; if(!n||!n.w.poseKP)return;
+  var prev=document.getElementById('peJoint'); if(prev)prev.remove();
+  var col=OP_KPC[i%OP_KPC.length];
+  var box=document.createElement('div'); box.id='peJoint';
+  box.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(2,6,16,.72);display:flex;align-items:center;justify-content:center;padding:20px;';
+  box.innerHTML='<div style="background:#0e1620;border:1px solid #24333c;border-radius:16px;padding:20px 24px;min-width:240px;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.6);">'
+    +'<div style="width:88px;height:88px;margin:2px auto 12px;border-radius:50%;background:'+col+';box-shadow:0 0 0 7px rgba(255,255,255,.12);"></div>'
+    +'<div style="color:#eaf2ff;font-size:16px;font-weight:800;">'+esc(OP_NAMES[i]||('관절 '+i))+'</div>'
+    +'<div style="color:#8fa4b8;font-size:11px;margin:4px 0 16px;">'+tr('이 관절을 삭제할 수 있어요. ("관절 추가"로 다시 넣기)')+'</div>'
+    +'<div style="display:flex;gap:8px;justify-content:center;">'
+      +'<button id="pjDel" class="wbtn" style="width:auto;padding:8px 18px;background:#c02b45;border-color:#c02b45;color:#fff;">'+tr('삭제')+'</button>'
+      +'<button id="pjClose" class="wbtn" style="width:auto;padding:8px 18px;">'+tr('닫기')+'</button>'
+    +'</div></div>';
+  document.body.appendChild(box);
+  document.getElementById('pjClose').onclick=function(){ box.remove(); };
+  box.addEventListener('mousedown',function(e){ if(e.target===box) box.remove(); });
+  document.getElementById('pjDel').onclick=function(){ if(n.w.poseKP[i]) n.w.poseKP[i].v=0; box.remove(); buildPoseSvg(); toast(tr('관절을 삭제했어요. "관절 추가"로 다시 넣을 수 있어요.')); };
+}
+// 삭제/미검출 관절을 다시 생성
+function openJointAdd(){
+  var n=_poseEditNode; if(!n||!n.w.poseKP)return;
+  var tpl=centerPose(defaultPoseKP()), missing=[], i;
+  for(i=0;i<18;i++){ var p=n.w.poseKP[i]; if(!p||(p.v!=null&&p.v<0.12)) missing.push(i); }
+  if(!missing.length){ toast(tr('모든 관절이 이미 표시되어 있어요.')); return; }
+  var prev=document.getElementById('peAddBox'); if(prev)prev.remove();
+  var box=document.createElement('div'); box.id='peAddBox';
+  box.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(2,6,16,.72);display:flex;align-items:center;justify-content:center;padding:20px;';
+  var items=missing.map(function(i){ return '<button class="wbtn pjAddOpt" data-ji="'+i+'" style="width:auto;padding:7px 12px;display:inline-flex;align-items:center;gap:6px;"><i style="width:12px;height:12px;border-radius:50%;background:'+OP_KPC[i%OP_KPC.length]+';display:inline-block;"></i>'+esc(OP_NAMES[i])+'</button>'; }).join('');
+  box.innerHTML='<div style="background:#0e1620;border:1px solid #24333c;border-radius:16px;padding:18px 20px;max-width:360px;box-shadow:0 30px 80px rgba(0,0,0,.6);">'
+    +'<div style="color:#eaf2ff;font-size:14px;font-weight:800;margin-bottom:4px;">'+tr('관절 추가')+'</div>'
+    +'<div style="color:#8fa4b8;font-size:11px;margin-bottom:12px;">'+tr('추가할 관절을 선택하세요. 가운데에 생성되며 드래그로 옮기세요.')+'</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;">'+items+'</div>'
+    +'<div style="text-align:right;margin-top:12px;"><button id="pjAddClose" class="wbtn" style="width:auto;padding:6px 12px;">'+tr('닫기')+'</button></div>'
+  +'</div>';
+  document.body.appendChild(box);
+  document.getElementById('pjAddClose').onclick=function(){ box.remove(); };
+  box.addEventListener('mousedown',function(e){ if(e.target===box) box.remove(); });
+  Array.prototype.forEach.call(box.querySelectorAll('.pjAddOpt'),function(bt){ bt.onclick=function(){ var i=+bt.getAttribute('data-ji'); var t=tpl[i]||{x:0.5,y:0.5}; _poseEditNode.w.poseKP[i]={x:t.x,y:t.y,v:1}; box.remove(); buildPoseSvg(); toast(tr('관절을 추가했어요 — 드래그로 위치를 맞추세요.')); }; });
 }
 function applyPoseEditor(){
   var n=_poseEditNode; if(!n)return; var dim=n.w.poseDim||{w:512,h:512};
