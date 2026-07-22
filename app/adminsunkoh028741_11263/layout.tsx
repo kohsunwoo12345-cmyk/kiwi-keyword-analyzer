@@ -46,6 +46,7 @@ import {
   Route,
   Inbox,
   Workflow,
+  Search,
 } from 'lucide-react'
 import { Logo } from '@/components/Brand'
 import { adminSupportCount, adminPendingCounts } from '@/lib/auth'
@@ -121,6 +122,9 @@ function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
   const [supportUnread, setSupportUnread] = useState(0)
   const [pendingApprovals, setPendingApprovals] = useState(0)
+  const [query, setQuery] = useState('')
+  const q = query.trim().toLowerCase()
+  const match = (title: string) => !q || title.toLowerCase().includes(q)
   useEffect(() => {
     let alive = true
     const load = () => {
@@ -169,9 +173,37 @@ function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
       </Link>
     )
   }
+  const groups = NAV_GROUPS
+    .map((group) => ({ ...group, items: group.items.filter((it) => match(it.title)) }))
+    .filter((group) => group.items.length > 0)
+  const showSettings = match('설정')
+  const noResults = groups.length === 0 && !showSettings
+
   return (
     <nav className="space-y-4">
-      {NAV_GROUPS.map((group) => (
+      {/* 메뉴 검색 */}
+      <div className="relative px-1">
+        <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="메뉴 검색…"
+          aria-label="메뉴 검색"
+          className="w-full rounded-lg border border-[var(--border)] bg-slate-50 py-2 pl-9 pr-8 text-sm outline-none transition-colors focus:border-violet-400 focus:bg-white"
+        />
+        {query && (
+          <button
+            type="button"
+            onClick={() => setQuery('')}
+            aria-label="검색 지우기"
+            className="absolute right-2.5 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded text-[var(--text-dim)] hover:bg-slate-200 hover:text-[var(--text)]"
+          >
+            <X size={13} />
+          </button>
+        )}
+      </div>
+
+      {groups.map((group) => (
         <div key={group.label} className="space-y-1">
           <p className="px-3 pb-1 pt-1 text-[11px] font-bold uppercase tracking-widest text-[var(--text-dim)]">
             {group.label}
@@ -179,7 +211,12 @@ function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
           {group.items.map(renderItem)}
         </div>
       ))}
-      {renderItem({ title: '설정', href: '#', icon: Settings })}
+      {showSettings && renderItem({ title: '설정', href: '#', icon: Settings })}
+      {noResults && (
+        <p className="px-3 py-6 text-center text-xs text-[var(--text-dim)]">
+          &lsquo;{query}&rsquo; 검색 결과가 없습니다.
+        </p>
+      )}
     </nav>
   )
 }

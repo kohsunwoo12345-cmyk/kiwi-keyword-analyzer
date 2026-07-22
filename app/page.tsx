@@ -156,6 +156,14 @@ const M: Dict = {
   '연동 방법 보기': { en: 'See how to connect', ja: '連携方法を見る', zh: '查看对接方法' },
   '클로드 MCP 소개': { en: 'About Claude MCP', ja: 'Claude MCPの紹介', zh: '了解 Claude MCP' },
   '클로드 MCP 소개 보기': { en: 'See the Claude MCP introduction', ja: 'Claude MCPの紹介を見る', zh: '查看 Claude MCP 介绍' },
+  '개발자 API': { en: 'Developer API', ja: '開発者API', zh: '开发者 API' },
+  '다양한 AI를 한 번에 API로 사용해보세요': { en: 'Use many AI models at once through one API', ja: '多彩なAIモデルをAPIで一度に', zh: '通过一个 API 一次调用多种 AI' },
+  'Veo · Runway · Flux · GPT Image 등 최신 AI 모델을 하나의 API로 호출하세요. 본인 계정 크레딧으로 차감됩니다.': {
+    en: 'Call the latest AI models — Veo, Runway, Flux, GPT Image and more — through a single API. Billed to your own account credits.',
+    ja: 'Veo・Runway・Flux・GPT Image など最新AIモデルを単一のAPIで呼び出し。ご自身のアカウントのクレジットから差し引かれます。',
+    zh: '通过单一 API 调用 Veo、Runway、Flux、GPT Image 等最新 AI 模型，按您自己的账户积分扣费。',
+  },
+  'API 문서 보기': { en: 'View API docs', ja: 'APIドキュメントを見る', zh: '查看 API 文档' },
 
   // ===== PAIN =====
   '솔직히, 지금 이렇지 않나요?': {
@@ -899,6 +907,40 @@ export default function Home() {
               {t('클로드 MCP 소개')}
             </Link>
           </div>
+        </Reveal>
+      </section>
+
+      {/* ===== 개발자 API 소개 배지 ===== */}
+      <section className="border-b border-white/10 pb-12">
+        <Reveal className="mx-auto max-w-3xl px-5">
+          <Link
+            href="/docs/api"
+            aria-label={t('API 문서 보기')}
+            className="group mx-auto flex flex-col items-center gap-4 rounded-2xl border border-blue-400/20 bg-gradient-to-br from-blue-500/[0.08] to-transparent px-6 py-6 text-center transition hover:border-blue-400/40 hover:from-blue-500/[0.14] sm:flex-row sm:text-left"
+          >
+            <span className="grid h-14 w-14 flex-shrink-0 place-items-center rounded-2xl border border-blue-400/30 bg-blue-500/10 text-blue-300">
+              <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="m18 16 4-4-4-4" />
+                <path d="m6 8-4 4 4 4" />
+                <path d="m14.5 4-5 16" />
+              </svg>
+            </span>
+            <div className="flex-1">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-400/25 bg-blue-500/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-blue-300">
+                {t('개발자 API')}
+              </span>
+              <h3 className="mt-2 text-lg font-bold tracking-tight">{t('다양한 AI를 한 번에 API로 사용해보세요')}</h3>
+              <p className="mt-1 text-sm text-slate-300">
+                {t('Veo · Runway · Flux · GPT Image 등 최신 AI 모델을 하나의 API로 호출하세요. 본인 계정 크레딧으로 차감됩니다.')}
+              </p>
+            </div>
+            <span className="inline-flex flex-shrink-0 items-center gap-2 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition group-hover:brightness-110">
+              {t('API 문서 보기')}
+              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            </span>
+          </Link>
         </Reveal>
       </section>
 
