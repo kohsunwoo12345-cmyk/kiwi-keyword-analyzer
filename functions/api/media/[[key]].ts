@@ -1,7 +1,7 @@
 // GET /api/media/:key{.+} — R2 저장 미디어(이미지/영상/오디오) 서빙. Range 지원.
 //  · ?dl=1 이면 다운로드(attachment), 아니면 인라인 미리보기.
 //  · content-type 은 업로드 시 저장한 httpMetadata 를 우선 사용.
-import { resolveBucket } from '../_utils'
+import { resolveBucket, resolveDB } from '../_utils'
 
 function ctFromKey(key: string): string {
   const ext = (key.split('.').pop() || '').toLowerCase()
@@ -30,9 +30,35 @@ export const onRequestGet: PagesFunction = async ({ request, env, params }) => {
     const key = decodeURIComponent(rawKey)
     if (!key) return cjson({ error: 'no key' }, 400)
     const R2: any = resolveBucket(env)
-    if (!R2) return cjson({ error: 'R2 not configured' }, 503)
+
+    // D1 폴백 서빙 — R2 미설정이거나 R2 에 없을 때 media_blobs 에서 제공
+    const serveFromD1 = async () => {
+      const db = resolveDB(env)
+      if (!db) return null
+      const row: any = await db.prepare('SELECT content_type, data, size FROM media_blobs WHERE key = ?').bind(key).first().catch(() => null)
+      if (!row || row.data == null) return null
+      let ct = row.content_type || ctFromKey(key)
+      const active = isActiveType(ct)
+      if (active) ct = 'application/octet-stream'
+      const headers = new Headers()
+      headers.set('Content-Type', ct)
+      headers.set('X-Content-Type-Options', 'nosniff')
+      headers.set('Accept-Ranges', 'none')
+      headers.set('Access-Control-Allow-Origin', '*')
+      headers.set('Cache-Control', 'private, max-age=3600')
+      headers.set('Content-Disposition', (dl0 || active ? 'attachment' : 'inline') + '; filename="' + (key.split('/').pop() || 'file') + '"')
+      if (active) headers.set('Content-Security-Policy', "default-src 'none'; sandbox")
+      const body = row.data // D1 BLOB → ArrayBuffer
+      return new Response(body, { status: 200, headers })
+    }
 
     const url = new URL(request.url)
+    const dl0 = url.searchParams.get('dl') === '1'
+    if (!R2) {
+      const d1 = await serveFromD1()
+      return d1 || cjson({ error: '파일 없음' }, 404)
+    }
+
     const dl = url.searchParams.get('dl') === '1'
     const fileBaseName = key.split('/').pop() || 'file'
     const rangeHeader = request.headers.get('Range')
@@ -73,7 +99,7 @@ export const onRequestGet: PagesFunction = async ({ request, env, params }) => {
     }
 
     const object: any = await R2.get(key)
-    if (!object) return cjson({ error: '파일 없음' }, 404)
+    if (!object) { const d1 = await serveFromD1(); return d1 || cjson({ error: '파일 없음' }, 404) }
     const extra: Record<string, string> = {}
     if (object.size) extra['Content-Length'] = String(object.size)
     return put(object, 200, extra)

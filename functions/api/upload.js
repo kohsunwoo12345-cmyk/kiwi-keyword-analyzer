@@ -51,34 +51,49 @@ export async function onRequest(context) {
   }
 
   const bucket = r2Bucket(env);
-  if (!bucket) return j({ error: "R2 버킷 바인딩을 찾을 수 없습니다. Cloudflare Pages → Settings → Functions → R2 bindings 를 확인하세요." }, 500);
+  const db = resolveDB(env);
+  // R2 도 D1 도 없으면 저장 불가
+  if (!bucket && !db) return j({ error: "저장소가 없습니다 (R2/D1 미설정). Cloudflare Pages → Settings → Functions 바인딩을 확인하세요." }, 500);
 
   try {
     const ct = request.headers.get("Content-Type") || "application/octet-stream";
     if (!ALLOWED_CT.test(ct)) return j({ error: "이미지/영상/오디오 파일만 업로드할 수 있습니다." }, 415);
     const ext = (ct.split("/")[1] || "bin").split(";")[0].split("+")[0];
     const key = "u/" + crypto.randomUUID() + "." + ext;
-    const clen = Number(request.headers.get("Content-Length") || 0) || 0;
-    // 제한없이 첨부: 본문을 메모리에 담지 않고 R2 로 스트리밍 → 대용량 사진/동영상도 그대로 저장.
-    //  (스트림 저장 실패 시 arrayBuffer 폴백)
-    let size = clen;
-    if (request.body && typeof bucket.put === "function") {
-      try {
-        await bucket.put(key, request.body, { httpMetadata: { contentType: ct } });
-      } catch (streamErr) {
+    const origin = new URL(request.url).origin;
+
+    // ① R2 우선 — 본문을 메모리에 담지 않고 스트리밍 저장(대용량 사진·동영상)
+    if (bucket) {
+      const clen = Number(request.headers.get("Content-Length") || 0) || 0;
+      let size = clen;
+      if (request.body) {
+        try {
+          await bucket.put(key, request.body, { httpMetadata: { contentType: ct } });
+        } catch (streamErr) {
+          const buf = await request.arrayBuffer();
+          if (!buf || buf.byteLength === 0) return j({ error: "빈 파일" }, 400);
+          size = buf.byteLength;
+          await bucket.put(key, buf, { httpMetadata: { contentType: ct } });
+        }
+      } else {
         const buf = await request.arrayBuffer();
         if (!buf || buf.byteLength === 0) return j({ error: "빈 파일" }, 400);
         size = buf.byteLength;
         await bucket.put(key, buf, { httpMetadata: { contentType: ct } });
       }
-    } else {
-      const buf = await request.arrayBuffer();
-      if (!buf || buf.byteLength === 0) return j({ error: "빈 파일" }, 400);
-      size = buf.byteLength;
-      await bucket.put(key, buf, { httpMetadata: { contentType: ct } });
+      return j({ url: origin + "/api/media/" + key, key, size, contentType: ct, store: "r2" });
     }
-    const origin = new URL(request.url).origin;
-    return j({ url: origin + "/api/media/" + key, key, size, contentType: ct });
+
+    // ② R2 미설정 → D1 폴백 (사진·영상 무조건 업로드). D1 단일 BLOB 안전 상한 적용.
+    const buf = await request.arrayBuffer();
+    if (!buf || buf.byteLength === 0) return j({ error: "빈 파일" }, 400);
+    const MAX_D1 = 24 * 1024 * 1024; // 24MB
+    if (buf.byteLength > MAX_D1)
+      return j({ error: "R2 미연결 상태에서는 24MB 이하만 첨부할 수 있습니다. 더 큰 영상은 Cloudflare R2 버킷을 연결하세요.", size: buf.byteLength }, 413);
+    await db.prepare("CREATE TABLE IF NOT EXISTS media_blobs (key TEXT PRIMARY KEY, content_type TEXT, data BLOB, size INTEGER, created_at TEXT)").run().catch(() => {});
+    await db.prepare("INSERT INTO media_blobs (key, content_type, data, size, created_at) VALUES (?, ?, ?, ?, ?)")
+      .bind(key, ct, new Uint8Array(buf), buf.byteLength, new Date().toISOString()).run();
+    return j({ url: origin + "/api/media/" + key, key, size: buf.byteLength, contentType: ct, store: "d1" });
   } catch (e) {
     return j({ error: "업로드 실패: " + String((e && e.message) || e).slice(0, 220) }, 502);
   }

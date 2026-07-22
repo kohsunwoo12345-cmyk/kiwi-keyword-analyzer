@@ -84,7 +84,9 @@ export default function NoticesPage() {
   async function onUpload(file: File) {
     setUploading(true); setMsg('')
     try {
-      const { blob, type } = await toJpegBlob(file)
+      const enc = await toJpegBlob(file)
+      const blob = enc.blob
+      const type = /^image\//i.test(enc.type) ? enc.type : 'image/jpeg'   // 이미지 입력은 항상 image/* 로 전송(415 방지)
       const r = await fetch('/api/upload', { method: 'POST', credentials: 'include', headers: { 'Content-Type': type }, body: blob })
       const txt = await r.text()
       let d: any = {}; try { d = JSON.parse(txt) } catch {}
@@ -97,7 +99,8 @@ export default function NoticesPage() {
     // 제한없이 첨부 — 대용량도 그대로 업로드(스트리밍). 진행 안내만 표시.
     setUploadingV(true); setMsg(file.size > 60 * 1024 * 1024 ? `동영상 업로드 중… (${Math.round(file.size / 1024 / 1024)}MB, 잠시 걸릴 수 있어요)` : '')
     try {
-      const r = await fetch('/api/upload', { method: 'POST', credentials: 'include', headers: { 'Content-Type': file.type || 'video/mp4' }, body: file })
+      const vtype = /^video\//i.test(file.type) ? file.type : 'video/mp4'   // 비디오 입력은 항상 video/* 로 전송(415 방지)
+      const r = await fetch('/api/upload', { method: 'POST', credentials: 'include', headers: { 'Content-Type': vtype }, body: file })
       const txt = await r.text()
       let d: any = {}; try { d = JSON.parse(txt) } catch {}
       if (r.ok && d.url) setVideoUrl(d.url)
