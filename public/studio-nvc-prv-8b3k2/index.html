@@ -2992,6 +2992,16 @@ var OP_PAIRS=[[1,2],[1,5],[2,3],[3,4],[5,6],[6,7],[1,8],[8,9],[9,10],[1,11],[11,
 var OP_LIMB=['#ff0000','#ff5500','#ffaa00','#ffff00','#aaff00','#55ff00','#00ff00','#00ff55','#00ffaa','#00ffff','#00aaff','#0055ff','#0000ff','#5500ff','#aa00ff','#ff00ff','#ff00aa'];
 var OP_KPC=['#ff0000','#ff5500','#ffaa00','#ffff00','#aaff00','#55ff00','#00ff00','#00ff55','#00ffaa','#00ffff','#00aaff','#0055ff','#0000ff','#5500ff','#aa00ff','#ff00ff','#ff00aa','#ff0055'];
 var OP_NAMES=['코','목','오른어깨','오른팔꿈치','오른손목','왼어깨','왼팔꿈치','왼손목','오른엉덩이','오른무릎','오른발목','왼엉덩이','왼무릎','왼발목','오른눈','왼눈','오른귀','왼귀'];
+// 정면 서 있는 기본 포즈 템플릿(정규화 좌표) — 자동 인식 실패/부정확 시 편집 시작점으로 제공
+var DEFAULT_POSE=[
+  {x:0.50,y:0.10},{x:0.50,y:0.20},                    // 코, 목
+  {x:0.41,y:0.20},{x:0.38,y:0.33},{x:0.37,y:0.46},    // 오른 어깨·팔꿈치·손목
+  {x:0.59,y:0.20},{x:0.62,y:0.33},{x:0.63,y:0.46},    // 왼 어깨·팔꿈치·손목
+  {x:0.45,y:0.48},{x:0.44,y:0.66},{x:0.44,y:0.86},    // 오른 엉덩이·무릎·발목
+  {x:0.55,y:0.48},{x:0.56,y:0.66},{x:0.56,y:0.86},    // 왼 엉덩이·무릎·발목
+  {x:0.47,y:0.075},{x:0.53,y:0.075},{x:0.435,y:0.095},{x:0.565,y:0.095} // 오른눈·왼눈·오른귀·왼귀
+];
+function defaultPoseKP(){ return DEFAULT_POSE.map(function(p){ return { x:p.x, y:p.y, v:1 }; }); }
 function mpToOpenPose(pts){
   var kp=[],j,m,pt;
   for(j=0;j<18;j++){
@@ -3026,24 +3036,23 @@ function renderOpenPose(kp,W,H,dotMult){
 }
 // 사람 한 명을 OpenPose(18관절)로 인식 → {url(맵), kps(정규화 좌표·편집용), w, h} 반환.
 function posePreview(srcUrl){
-  return new Promise(function(resolve,reject){
+  return new Promise(function(resolve){
     var img=new Image(); img.crossOrigin='anonymous';
+    var W=512, H=512;
+    // 인식 실패/부정확·모델 로드 실패 시에도 편집용 기본 포즈를 제공(항상 편집 가능한 결과)
+    function templateResult(){ var kp=centerPose(defaultPoseKP()); resolve({ url:renderOpenPose(kp,W,H,1).toDataURL('image/png'), kps:kp, w:W, h:H, template:true }); }
     img.onload=function(){
+      W=Math.min(768, img.naturalWidth||768); var sc=W/(img.naturalWidth||W); H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
+      var c=document.createElement('canvas'); c.width=W; c.height=H; var ctx=c.getContext('2d'); ctx.drawImage(img,0,0,W,H);
       ensurePoseLM().then(function(lm){
-        var W=Math.min(512, img.naturalWidth||512), sc=W/(img.naturalWidth||W), H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
-        var c=document.createElement('canvas'); c.width=W; c.height=H; var ctx=c.getContext('2d'); ctx.drawImage(img,0,0,W,H);
-        var res=lm.detect(c);
+        var res; try{ res=lm.detect(c); }catch(e){ return templateResult(); }
         var lms=(res&&res.landmarks)||[];
-        if(!lms.length){
-          var e=document.createElement('canvas'); e.width=W; e.height=H; var ex=e.getContext('2d');
-          ex.fillStyle='#000'; ex.fillRect(0,0,W,H); ex.fillStyle='#8a8f9c'; ex.font='13px Inter,system-ui'; ex.fillText('사람 포즈를 찾지 못했습니다', 12, 24);
-          resolve({ url:e.toDataURL('image/png'), kps:null, w:W, h:H }); return;
-        }
+        if(!lms.length) return templateResult();
         var kp=centerPose(mpToOpenPose(lms[0]));   // 첫 번째(가장 큰) 한 명만 → 정중앙 정렬
-        resolve({ url:renderOpenPose(kp,W,H,1).toDataURL('image/png'), kps:kp, w:W, h:H });
-      }).catch(function(err){ reject(err); });
+        resolve({ url:renderOpenPose(kp,W,H,1).toDataURL('image/png'), kps:kp, w:W, h:H, template:false });
+      }).catch(function(){ templateResult(); });
     };
-    img.onerror=function(){ reject(new Error('이미지 로드 실패')); };
+    img.onerror=function(){ W=512; H=512; templateResult(); };
     img.src=sameOriginMedia(srcUrl);
   });
 }
@@ -3060,7 +3069,8 @@ function openPoseEditor(n){
   ov.innerHTML='<div style="background:#0e1620;border:1px solid #24333c;border-radius:16px;padding:14px;max-width:96vw;max-height:96vh;overflow:auto;box-shadow:0 30px 80px rgba(0,0,0,.6);">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">'
       +'<b style="color:#cfeeffff;font-size:14px;">'+tr('오픈포즈 관절 편집')+'</b>'
-      +'<div style="display:flex;gap:6px;">'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+        +'<button id="peTpl" class="wbtn" style="width:auto;padding:5px 10px;">'+tr('기본 포즈')+'</button>'
         +'<button id="peRe" class="wbtn" style="width:auto;padding:5px 10px;">'+tr('재인식')+'</button>'
         +'<button id="peApply" class="wbtn" style="width:auto;padding:5px 12px;background:#1c6ee0;border-color:#1c6ee0;color:#fff;">'+tr('적용')+'</button>'
         +'<button id="peClose" class="wbtn" style="width:auto;padding:5px 10px;">'+tr('닫기')+'</button>'
@@ -3074,6 +3084,7 @@ function openPoseEditor(n){
   document.getElementById('peClose').onclick=closePoseEditor;
   document.getElementById('peApply').onclick=applyPoseEditor;
   document.getElementById('peDot').oninput=function(e){ _poseEditNode.w.poseDot=+e.target.value; buildPoseSvg(); };
+  document.getElementById('peTpl').onclick=function(){ _poseEditNode.w.poseKP=centerPose(defaultPoseKP()); buildPoseSvg(); toast(tr('기본 포즈를 불러왔어요 — 관절점을 드래그해 맞추세요')); };
   document.getElementById('peRe').onclick=function(){
     var rn=inputNodeOf(n.id,'ref')||inputNodeOf(n.id,'vidref')||inputNodeOf(n.id,'first'); var src=rn?imgOfNode(rn):null;
     if(!src){ toast(tr('레퍼런스 이미지를 연결하세요')); return; }
@@ -4886,7 +4897,7 @@ canvas.addEventListener('click',function(e){
     var errMap={canny:'실패(CORS 확인)',depth:'실패(CORS 확인)',pose:'포즈 인식 불가(인터넷/CORS 확인)'};
     if(ptype==='pose'){
       posePreview(src).then(function(r){ n2.w.cnPreviews.pose=r.url; n2.w.poseKP=r.kps; n2.w.poseDim={w:r.w,h:r.h}; render();
-        if(r.kps) toast(tr('포즈 미리보기를 클릭하면 관절점을 직접 옮길 수 있어요')); })
+        toast(tr(r.template ? '자동 인식이 어려워 기본 포즈를 넣었어요. 미리보기를 클릭해 관절을 맞춰주세요.' : '포즈 미리보기를 클릭하면 관절점을 직접 옮길 수 있어요')); })
         .catch(function(){ n2.w.cnPreviews.pose='ERR:'+errMap.pose; render(); });
       return;
     }
