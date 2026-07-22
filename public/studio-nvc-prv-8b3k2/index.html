@@ -2853,18 +2853,23 @@ function cannyPreview(srcUrl){
           else if(dd===2){a1=mag[(y-1)*W+x];a2=mag[(y+1)*W+x];}
           else {a1=mag[(y-1)*W+x-1];a2=mag[(y+1)*W+x+1];}
           nms[y*W+x]=(q>=a1&&q>=a2)?q:0; }
-        // 이중 임계 + 히스테리시스 — 임계를 높여 잔픽셀(텍스처)은 버리고 주요 윤곽만 남김
-        var hi=100, lo=45, edge=new Uint8Array(N), stack=[];
+        // 이중 임계 + 히스테리시스 — 낮은 lo 로 약한 엣지를 강한 엣지에 이어붙여 선이 끊기지 않게
+        var hi=55, lo=20, edge=new Uint8Array(N), stack=[];
         for(i=0;i<N;i++){ edge[i]=nms[i]>=hi?2:(nms[i]>=lo?1:0); if(edge[i]===2)stack.push(i); }
         while(stack.length){ var idx=stack.pop(), ex=idx%W, ey=(idx/W)|0;
           for(ky=-1;ky<=1;ky++)for(kx=-1;kx<=1;kx++){ xx=ex+kx; yy=ey+ky; if(xx<0||yy<0||xx>=W||yy>=H)continue; var ni=yy*W+xx; if(edge[ni]===1){edge[ni]=2;stack.push(ni);} } }
-        // 스페클 제거: 8-이웃 중 엣지가 2개 미만인 고립 픽셀 삭제 → 흩어진 픽셀 대폭 감소
+        // 1) 완전 고립 픽셀(이웃 0개)만 제거 — 선은 보존
         var fin=new Uint8Array(N);
         for(y=1;y<H-1;y++)for(x=1;x<W-1;x++){ if(edge[y*W+x]!==2)continue; var nb=0;
           for(ky=-1;ky<=1;ky++)for(kx=-1;kx<=1;kx++){ if(!kx&&!ky)continue; if(edge[(y+ky)*W+(x+kx)]===2)nb++; }
-          if(nb>=2) fin[y*W+x]=1; }
+          if(nb>=1) fin[y*W+x]=1; }
+        // 2) 갭 브릿지: 엣지 이웃을 2개 이상 가진 빈 픽셀을 채워 끊긴 선을 자연스럽게 연결(일러스트식 연속 선)
+        var br=fin.slice();
+        for(y=1;y<H-1;y++)for(x=1;x<W-1;x++){ if(fin[y*W+x])continue; var nb2=0;
+          for(ky=-1;ky<=1;ky++)for(kx=-1;kx<=1;kx++){ if(!kx&&!ky)continue; if(fin[(y+ky)*W+(x+kx)])nb2++; }
+          if(nb2>=2) br[y*W+x]=1; }
         var out=ctx.createImageData(W,H), o=out.data;
-        for(i=0;i<N;i++){ var v=fin[i]?255:0; o[i*4]=o[i*4+1]=o[i*4+2]=v; o[i*4+3]=255; }
+        for(i=0;i<N;i++){ var v=br[i]?255:0; o[i*4]=o[i*4+1]=o[i*4+2]=v; o[i*4+3]=255; }
         ctx.putImageData(out,0,0); resolve(c.toDataURL('image/png'));
       }catch(err){ reject(err); }
     };
