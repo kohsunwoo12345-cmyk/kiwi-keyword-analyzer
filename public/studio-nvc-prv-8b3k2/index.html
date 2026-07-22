@@ -4896,9 +4896,20 @@ canvas.addEventListener('click',function(e){
     var fnMap={canny:cannyPreview,depth:depthPreview,pose:posePreview};
     var errMap={canny:'실패(CORS 확인)',depth:'실패(CORS 확인)',pose:'포즈 인식 불가(인터넷/CORS 확인)'};
     if(ptype==='pose'){
-      posePreview(src).then(function(r){ n2.w.cnPreviews.pose=r.url; n2.w.poseKP=r.kps; n2.w.poseDim={w:r.w,h:r.h}; render();
-        toast(tr(r.template ? '자동 인식이 어려워 기본 포즈를 넣었어요. 미리보기를 클릭해 관절을 맞춰주세요.' : '포즈 미리보기를 클릭하면 관절점을 직접 옮길 수 있어요')); })
-        .catch(function(){ n2.w.cnPreviews.pose='ERR:'+errMap.pose; render(); });
+      // 폴백: MediaPipe(편집용) → 기본 포즈 템플릿
+      var poseFallback=function(){
+        posePreview(src).then(function(r){ n2.w.cnPreviews.pose=r.url; n2.w.poseKP=r.kps; n2.w.poseDim={w:r.w,h:r.h}; render();
+          toast(tr(r.template ? '자동 인식이 어려워 기본 포즈를 넣었어요. 미리보기를 클릭해 관절을 맞춰주세요.' : '포즈 미리보기를 클릭하면 관절점을 직접 옮길 수 있어요')); })
+          .catch(function(){ n2.w.cnPreviews.pose='ERR:'+errMap.pose; render(); });
+      };
+      // 1순위: 서버 fal 정밀 포즈(생성이 실제 쓰는 전처리기 · 애니/일러스트도 정확)
+      fetch('/api/studio/pose-preview',{ method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ imageUrl:src }) })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if(d && d.ok && d.url){ n2.w.cnPreviews.pose=d.url; n2.w.poseKP=null; render(); toast(tr('정밀 포즈로 인식했어요. 크게 보려면 클릭하세요.')); }
+          else poseFallback();
+        })
+        .catch(function(){ poseFallback(); });
       return;
     }
     (fnMap[ptype]||cannyPreview)(src).then(function(u){ n2.w.cnPreviews[ptype]=u; render(); })
