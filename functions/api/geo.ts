@@ -13,6 +13,16 @@ const COUNTRY_LANG: Record<string, string> = {
   DE: 'de', AT: 'de', CH: 'de', LI: 'de',
   // 이탈리아어권
   IT: 'it', SM: 'it', VA: 'it',
+  // 힌디어권(인도)
+  IN: 'hi',
+  // 아랍어권
+  SA: 'ar', AE: 'ar', EG: 'ar', IQ: 'ar', JO: 'ar', KW: 'ar', QA: 'ar', BH: 'ar', OM: 'ar', LB: 'ar', SY: 'ar', YE: 'ar', LY: 'ar', DZ: 'ar', MA: 'ar', TN: 'ar', SD: 'ar', PS: 'ar',
+  // 포르투갈어권
+  BR: 'pt', PT: 'pt', AO: 'pt', MZ: 'pt',
+  // 러시아어권
+  RU: 'ru', BY: 'ru', KZ: 'ru', KG: 'ru',
+  // 인도네시아어권
+  ID: 'id',
 }
 
 // GET /api/geo → 접속 IP의 국가와 추천 언어 (공개)
