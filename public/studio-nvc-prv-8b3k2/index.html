@@ -3012,7 +3012,7 @@ function mpToOpenPose(pts){
 }
 // 인식된 포즈를 캔버스 정중앙으로 정렬 + 화면의 ~82%로 맞춤 (사람이 치우쳐 있어도 가운데에 정확히)
 function centerPose(kp){
-  var xs=[],ys=[]; kp.forEach(function(p){ if(p&&(p.v==null||p.v>=0.2)){ xs.push(p.x); ys.push(p.y); } });
+  var xs=[],ys=[]; kp.forEach(function(p){ if(p&&(p.v==null||p.v>=0.12)){ xs.push(p.x); ys.push(p.y); } });
   if(xs.length<2) return kp;
   var minx=Math.min.apply(null,xs), maxx=Math.max.apply(null,xs), miny=Math.min.apply(null,ys), maxy=Math.max.apply(null,ys);
   var bw=(maxx-minx)||0.01, bh=(maxy-miny)||0.01, cx=(minx+maxx)/2, cy=(miny+maxy)/2;
@@ -3026,12 +3026,12 @@ function renderOpenPose(kp,W,H,dotMult){
   ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
   var lw=Math.max(3,Math.round(W/90)), dotR=Math.max(1.5, lw*0.9*dm), i;   // 기본 점은 더 작게(기존 1.15→0.9배)
   for(i=0;i<OP_PAIRS.length;i++){ var a=kp[OP_PAIRS[i][0]], b=kp[OP_PAIRS[i][1]];
-    if(!a||!b||(a.v!=null&&a.v<0.2)||(b.v!=null&&b.v<0.2))continue;
+    if(!a||!b||(a.v!=null&&a.v<0.12)||(b.v!=null&&b.v<0.12))continue;
     var ax=a.x*W,ay=a.y*H,bx=b.x*W,by=b.y*H, mx=(ax+bx)/2,my=(ay+by)/2, len=Math.hypot(ax-bx,ay-by), ang=Math.atan2(by-ay,bx-ax);
     ctx.save(); ctx.translate(mx,my); ctx.rotate(ang); ctx.globalAlpha=0.6; ctx.fillStyle=OP_LIMB[i%OP_LIMB.length];
     ctx.beginPath(); ctx.ellipse(0,0,len/2,lw,0,0,2*Math.PI); ctx.fill(); ctx.restore(); }
   ctx.globalAlpha=1;
-  for(i=0;i<18;i++){ var pt=kp[i]; if(!pt||(pt.v!=null&&pt.v<0.2))continue; ctx.fillStyle=OP_KPC[i%OP_KPC.length]; ctx.beginPath(); ctx.arc(pt.x*W,pt.y*H,dotR,0,2*Math.PI); ctx.fill(); }
+  for(i=0;i<18;i++){ var pt=kp[i]; if(!pt||(pt.v!=null&&pt.v<0.12))continue; ctx.fillStyle=OP_KPC[i%OP_KPC.length]; ctx.beginPath(); ctx.arc(pt.x*W,pt.y*H,dotR,0,2*Math.PI); ctx.fill(); }
   return c;
 }
 // 사람 한 명을 OpenPose(18관절)로 인식 → {url(맵), kps(정규화 좌표·편집용), w, h} 반환.
@@ -4896,20 +4896,10 @@ canvas.addEventListener('click',function(e){
     var fnMap={canny:cannyPreview,depth:depthPreview,pose:posePreview};
     var errMap={canny:'실패(CORS 확인)',depth:'실패(CORS 확인)',pose:'포즈 인식 불가(인터넷/CORS 확인)'};
     if(ptype==='pose'){
-      // 폴백: MediaPipe(편집용) → 기본 포즈 템플릿
-      var poseFallback=function(){
-        posePreview(src).then(function(r){ n2.w.cnPreviews.pose=r.url; n2.w.poseKP=r.kps; n2.w.poseDim={w:r.w,h:r.h}; render();
-          toast(tr(r.template ? '자동 인식이 어려워 기본 포즈를 넣었어요. 미리보기를 클릭해 관절을 맞춰주세요.' : '포즈 미리보기를 클릭하면 관절점을 직접 옮길 수 있어요')); })
-          .catch(function(){ n2.w.cnPreviews.pose='ERR:'+errMap.pose; render(); });
-      };
-      // 1순위: 서버 fal 정밀 포즈(생성이 실제 쓰는 전처리기 · 애니/일러스트도 정확)
-      fetch('/api/studio/pose-preview',{ method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ imageUrl:src }) })
-        .then(function(r){ return r.json(); })
-        .then(function(d){
-          if(d && d.ok && d.url){ n2.w.cnPreviews.pose=d.url; n2.w.poseKP=null; render(); toast(tr('정밀 포즈로 인식했어요. 크게 보려면 클릭하세요.')); }
-          else poseFallback();
-        })
-        .catch(function(){ poseFallback(); });
+      // 우리 프로그램(브라우저) 자체 정밀 포즈 인식 → 인식 결과를 관절 편집으로 정확히 맞춤. 실패 시 기본 포즈 템플릿.
+      posePreview(src).then(function(r){ n2.w.cnPreviews.pose=r.url; n2.w.poseKP=r.kps; n2.w.poseDim={w:r.w,h:r.h}; render();
+        toast(tr(r.template ? '자동 인식이 어려워 기본 포즈를 넣었어요. 미리보기를 클릭해 관절을 맞춰주세요.' : '포즈를 인식했어요. 미리보기를 클릭해 관절을 미세 조정할 수 있어요.')); })
+        .catch(function(){ n2.w.cnPreviews.pose='ERR:'+errMap.pose; render(); });
       return;
     }
     (fnMap[ptype]||cannyPreview)(src).then(function(u){ n2.w.cnPreviews[ptype]=u; render(); })
