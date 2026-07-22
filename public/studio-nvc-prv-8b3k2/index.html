@@ -2888,6 +2888,18 @@ function ensureSegmenter(){
   }).then(function(s){ _segLM=s; return s; }).catch(function(err){ _segTry=null; throw err; });
   return _segTry;
 }
+/* 실제 단안 깊이 추정 모델(Depth-Anything, transformers.js) 지연 로드 — 최초 1회 모델 다운로드.
+   ControlNet Depth 레퍼런스와 동일한 부드러운 깊이맵(가까울수록 밝음)을 브라우저에서 생성. */
+var _depthModel=null,_depthTry=null;
+function ensureDepthModel(){
+  if(_depthModel) return Promise.resolve(_depthModel);
+  if(_depthTry) return _depthTry;
+  _depthTry=import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2').then(function(mod){
+    try{ mod.env.allowLocalModels=false; mod.env.useBrowserCache=true; }catch(_){}
+    return mod.pipeline('depth-estimation','Xenova/depth-anything-small-hf',{ quantized:true });
+  }).then(function(p){ _depthModel=p; return p; }).catch(function(err){ _depthTry=null; throw err; });
+  return _depthTry;
+}
 function depthPreview(srcUrl){
   return new Promise(function(resolve,reject){
     var img=new Image(); img.crossOrigin='anonymous';
@@ -2906,8 +2918,8 @@ function depthPreview(srcUrl){
         for(i=0;i<N;i++){ var nv=(g[i]-mn)/rng; nv=1/(1+Math.exp(-(nv-0.5)*7)); var v=Math.round(nv*255); o[i*4]=o[i*4+1]=o[i*4+2]=v; o[i*4+3]=255; }
         ctx.putImageData(out,0,0); resolve(c.toDataURL('image/png'));
       }
-      // 인물 세그멘테이션 → 엑스레이 실루엣(인물=밝게 내부음영, 배경=검정)
-      ensureSegmenter().then(function(seg){
+      // 2순위: 인물 세그멘테이션 실루엣 (깊이 모델 불가 시)
+      function segFallback(){ ensureSegmenter().then(function(seg){
         var res; try{ res=seg.segment(c); }catch(e){ return fallback(); }
         var masks=res&&res.confidenceMasks;
         if(!masks||!masks.length){ try{res.close&&res.close();}catch(_){}; return fallback(); }
@@ -2924,7 +2936,19 @@ function depthPreview(srcUrl){
         }
         try{ masks.forEach(function(m){ m.close&&m.close(); }); res.close&&res.close(); }catch(_){}
         ctx.putImageData(out,0,0); resolve(c.toDataURL('image/png'));
-      }).catch(function(){ fallback(); });
+      }).catch(function(){ fallback(); }); }
+      // 1순위: 실제 단안 깊이 모델(Depth-Anything) — 레퍼런스와 동일한 부드러운 깊이맵
+      ensureDepthModel().then(function(dep){
+        return dep(c.toDataURL('image/png')).then(function(out){
+          var dmp=out&&out.depth; if(!dmp||!dmp.data){ return segFallback(); }
+          var dw=dmp.width, dh=dmp.height, ch=dmp.channels||1;
+          var tmp=document.createElement('canvas'); tmp.width=dw; tmp.height=dh; var tctx=tmp.getContext('2d');
+          var idata=tctx.createImageData(dw,dh), od=idata.data, j;
+          for(j=0;j<dw*dh;j++){ var v=dmp.data[j*ch]; od[j*4]=od[j*4+1]=od[j*4+2]=v; od[j*4+3]=255; }
+          tctx.putImageData(idata,0,0); ctx.clearRect(0,0,W,H); ctx.drawImage(tmp,0,0,W,H);
+          resolve(c.toDataURL('image/png'));
+        });
+      }).catch(function(){ segFallback(); });
     };
     img.onerror=function(){ reject(new Error('이미지 로드 실패')); };
     img.src=sameOriginMedia(srcUrl);
