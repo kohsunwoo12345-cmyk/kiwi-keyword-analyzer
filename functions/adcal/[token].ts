@@ -259,5 +259,6 @@ render();
 setInterval(poll, 20000);
 document.addEventListener('visibilitychange',function(){ if(!document.hidden) poll(); });
 </script>
+<script src="/emoji-parser.js" defer></script>
 </body></html>`
 }

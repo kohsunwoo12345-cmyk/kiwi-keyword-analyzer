@@ -273,6 +273,7 @@ window.addEventListener('DOMContentLoaded',function(){
   loadReport();
 });
 </script>
+<script src="/emoji-parser.js" defer></script>
 <\/body>
 <\/html>`
   return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } })
