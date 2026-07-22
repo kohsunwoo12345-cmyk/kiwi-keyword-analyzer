@@ -7,7 +7,7 @@ import { Panel } from '@/components/ui'
 import {
   adminNoticeList, adminNoticeSend, adminNoticeDetail, adminUsers,
   type AdminNoticeCampaign, type NoticeRecipient, type User,
-  type VisitorStat, type NoticeVisitorEvent,
+  type VisitorStat, type NoticeVisitorEvent, type NoticeSnooze,
 } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -44,7 +44,7 @@ export default function NoticesPage() {
   const [campaigns, setCampaigns] = useState<AdminNoticeCampaign[]>([])
   const [loading, setLoading] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
-  const [detail, setDetail] = useState<{ recipients: NoticeRecipient[]; campaign?: AdminNoticeCampaign; visitorStats?: { views: VisitorStat; reads: VisitorStat; conversions: VisitorStat }; visitorEvents?: NoticeVisitorEvent[] } | null>(null)
+  const [detail, setDetail] = useState<{ recipients: NoticeRecipient[]; campaign?: AdminNoticeCampaign; visitorStats?: { views: VisitorStat; reads: VisitorStat; conversions: VisitorStat }; visitorEvents?: NoticeVisitorEvent[]; snoozeList?: NoticeSnooze[]; readCount?: number } | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [rFilter, setRFilter] = useState<'all' | 'read' | 'unread'>('all')
 
@@ -112,6 +112,7 @@ export default function NoticesPage() {
   async function onSend() {
     if (!title.trim() || !body.trim()) { setMsg('제목과 내용을 입력하세요.'); return }
     if (target === 'multi' && pickedIds.length === 0) { setMsg('발송할 회원을 선택하세요.'); return }
+    if (!(Number(days) > 0)) { setMsg('노출 기간(일)을 선택하세요. 이 기간 동안 대상에게 계속 노출됩니다.'); return }
     if (ctaLabel.trim() && !ctaUrl.trim()) { setMsg('CTA 버튼 텍스트가 있으면 이동 URL도 입력하세요.'); return }
     const planLabel = plan === '__paid__' ? '유료 전체' : plan === '없음' ? '미가입(무료)' : plan
     const label = target === 'all' ? '전체 회원'
@@ -126,11 +127,11 @@ export default function NoticesPage() {
       target, plan: target === 'plan' ? plan : undefined, track: target === 'plan' ? track : undefined,
       userIds: target === 'multi' ? pickedIds : undefined,
       scopePath: target === 'visitors' ? (scopePath.trim() || undefined) : undefined,
-      days: target === 'visitors' && Number(days) > 0 ? Number(days) : undefined,
+      days: Number(days) > 0 ? Number(days) : undefined,
     })
     setSending(false)
     if (res.ok) {
-      setMsg(target === 'visitors' ? `✅ 접속 전체(비회원 포함) 발송 완료 — ${Number(days) > 0 ? `${days}일 동안 ` : ''}방문 즉시 팝업으로 표시됩니다.` : `✅ ${num(res.audience || 0)}명에게 발송 완료`)
+      setMsg(target === 'visitors' ? `✅ 접속 전체(비회원 포함) 발송 완료 — ${days}일 동안 방문 즉시 팝업으로 표시됩니다.` : `✅ ${num(res.audience || 0)}명에게 발송 완료 — ${days}일 동안 계속 노출됩니다.`)
       setTitle(''); setBody(''); setImageUrl(''); setVideoUrl(''); setDays(''); setCtaLabel(''); setCtaUrl(''); setPicked({}); setScopePath('')
       load()
     } else setMsg(res.error || '발송 실패')
@@ -139,7 +140,7 @@ export default function NoticesPage() {
   function openDetail(id: string) {
     setOpenId(id); setDetail(null); setDetailLoading(true); setRFilter('all')
     adminNoticeDetail(id).then((d) => {
-      setDetail({ recipients: d.recipients || [], campaign: d.campaign, visitorStats: d.visitorStats, visitorEvents: d.visitorEvents }); setDetailLoading(false)
+      setDetail({ recipients: d.recipients || [], campaign: d.campaign, visitorStats: d.visitorStats, visitorEvents: d.visitorEvents, snoozeList: d.snoozeList || [], readCount: d.readCount }); setDetailLoading(false)
     })
   }
 
@@ -235,14 +236,17 @@ export default function NoticesPage() {
                       className={cn('rounded-lg border px-3 py-1.5 text-sm font-semibold', target === t ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-slate-50')}>{l}</button>
                   ))}
                 </div>
+                {/* 노출 기간 — 모든 대상 공통 · 필수 */}
+                <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50/60 p-2.5">
+                  <label className="mb-1 flex items-center gap-1 text-[11px] font-bold text-amber-700"><Clock size={12} /> 노출 기간 (일) · 필수</label>
+                  <input value={days} onChange={(e) => setDays(e.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" placeholder="예) 7 → 7일 동안 대상에게 계속 노출" className={cn('input w-full text-xs', !(Number(days) > 0) && 'border-amber-400')} />
+                  <p className="mt-1 text-[11px] leading-relaxed text-amber-700">설정한 기간 동안 대상에게 <b>계속 표시</b>됩니다. 사용자가 “3일 동안 보지 않기”를 누르면 그 사람에게만 3일간 숨겨지고, 이후 기간이 유지 중이면 다시 표시됩니다.</p>
+                </div>
                 {target === 'visitors' && (
                   <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50/50 p-2.5">
-                    <p className="text-[11px] leading-relaxed text-blue-700">홈페이지·랜딩에 <b>접속한 모든 사람(비회원 포함)</b>에게 접속 즉시 하단→상단 슬라이드 팝업으로 표시됩니다. X를 누르면 읽음 처리돼요.</p>
+                    <p className="text-[11px] leading-relaxed text-blue-700">홈페이지·랜딩에 <b>접속한 모든 사람(비회원 포함)</b>에게 접속 즉시 하단→상단 슬라이드 팝업으로 표시됩니다.</p>
                     <label className="mb-1 mt-2 block text-[11px] font-semibold text-[var(--text-dim)]">특정 랜딩 경로만 (선택 · 비우면 전체 페이지)</label>
                     <input value={scopePath} onChange={(e) => setScopePath(e.target.value)} placeholder="예) /f/f-abc123 (우리 빌더로 만든 랜딩 경로)" className="input w-full text-xs" />
-                    <label className="mb-1 mt-2 flex items-center gap-1 text-[11px] font-semibold text-[var(--text-dim)]"><Clock size={12} /> 노출 기간 (일 · 비우면 30일)</label>
-                    <input value={days} onChange={(e) => setDays(e.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" placeholder="예) 7 → 7일 동안 접속자 모두에게 계속 노출" className="input w-full text-xs" />
-                    <p className="mt-1 text-[11px] text-blue-600">설정한 기간 동안 접속한 모든 사람에게 계속 표시됩니다. 방문자가 “3일 동안 보지 않기”를 누르면 그 사람에게만 3일간 숨겨지고, 이후 기간이 유지 중이면 다시 표시됩니다.</p>
                   </div>
                 )}
                 {target === 'plan' && (
@@ -446,6 +450,25 @@ export default function NoticesPage() {
                       </tbody>
                     </table>
                   </div>
+                  {(detail?.snoozeList || []).length > 0 && (
+                    <>
+                      <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-amber-700"><MoonStar size={12} /> “3일 보지 않기” 누른 사람 ({(detail?.snoozeList || []).length})</div>
+                      <div className="mt-1.5 overflow-hidden rounded-xl border border-amber-200">
+                        <table className="w-full text-sm">
+                          <thead className="bg-amber-50 text-xs text-amber-700"><tr><th className="px-3 py-2 text-left font-semibold">IP</th><th className="px-3 py-2 text-left font-semibold">구분</th><th className="px-3 py-2 text-right font-semibold">해제 예정(KST)</th></tr></thead>
+                          <tbody>
+                            {(detail?.snoozeList || []).map((s, i) => (
+                              <tr key={i} className="border-t border-amber-100">
+                                <td className="px-3 py-2 font-mono text-xs">{s.ip || '-'}</td>
+                                <td className="px-3 py-2"><span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', s.isMember ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500')}>{memberLabel(s.isMember || 0)}{s.memberEmail ? ` · ${s.memberEmail}` : ''}</span></td>
+                                <td className="px-3 py-2 text-right text-xs text-[var(--text-dim)]">{kst(s.until)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
                 </div>
               ) : shownRecipients.length === 0 ? (
                 <div className="py-16 text-center text-sm text-[var(--text-dim)]">해당하는 회원이 없습니다.</div>
@@ -469,6 +492,25 @@ export default function NoticesPage() {
                     ))}
                   </tbody>
                 </table>
+              )}
+              {!(detail?.campaign?.target === 'visitors' || detail?.visitorStats) && (detail?.snoozeList || []).length > 0 && (
+                <div className="mt-3">
+                  <div className="flex items-center gap-1 text-xs font-semibold text-amber-700"><MoonStar size={12} /> “3일 보지 않기” 누른 회원 ({(detail?.snoozeList || []).length})</div>
+                  <div className="mt-1.5 overflow-hidden rounded-xl border border-amber-200">
+                    <table className="w-full text-sm">
+                      <thead className="bg-amber-50 text-xs text-amber-700"><tr><th className="px-3 py-2 text-left font-semibold">회원</th><th className="px-3 py-2 text-left font-semibold">이메일</th><th className="px-3 py-2 text-right font-semibold">해제 예정(KST)</th></tr></thead>
+                      <tbody>
+                        {(detail?.snoozeList || []).map((s, i) => (
+                          <tr key={i} className="border-t border-amber-100">
+                            <td className="px-3 py-2 font-semibold">{s.name || '-'}</td>
+                            <td className="px-3 py-2 text-xs text-[var(--text-soft)]">{s.email || '-'}</td>
+                            <td className="px-3 py-2 text-right text-xs text-[var(--text-dim)]">{kst(s.until)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               )}
             </div>
           </div>

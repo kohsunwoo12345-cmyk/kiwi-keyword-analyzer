@@ -1190,6 +1190,7 @@ export interface NoticeItem {
   ctaLabel: string
   ctaUrl: string
   createdAt: string
+  canSnooze?: boolean
 }
 export interface NoticeHistoryItem {
   id: string; title: string; body: string
@@ -1240,6 +1241,10 @@ export async function fetchNotices(): Promise<{ ok: boolean; notices: NoticeItem
 export async function markNoticeRead(campaignId: string): Promise<{ ok: boolean }> {
   return postJson('/api/notices', { campaignId })
 }
+// 사용자: "3일 동안 보지 않기" — 기간형 알림을 3일간 숨김
+export async function snoozeNotice(campaignId: string): Promise<{ ok: boolean }> {
+  return postJson('/api/notices', { campaignId, snooze: true })
+}
 
 // 관리자: 발송한 캠페인 목록 + 읽음/안읽음 집계
 export async function adminNoticeList(): Promise<{ ok: boolean; campaigns: AdminNoticeCampaign[]; error?: string }> {
@@ -1250,7 +1255,8 @@ export async function adminNoticeList(): Promise<{ ok: boolean; campaigns: Admin
   } catch { return { ok: false, campaigns: [], error: '네트워크 오류' } }
 }
 // 관리자: 특정 캠페인의 회원별 읽음/안읽음 상세
-export async function adminNoticeDetail(id: string): Promise<{ ok: boolean; campaign?: AdminNoticeCampaign; recipients?: NoticeRecipient[]; readCount?: number; unreadCount?: number; visitorStats?: { views: VisitorStat; reads: VisitorStat; conversions: VisitorStat; snoozes?: number }; visitorEvents?: NoticeVisitorEvent[]; error?: string }> {
+export interface NoticeSnooze { ip?: string; isMember?: number; memberEmail?: string; userId?: string; name?: string; email?: string; until: string; createdAt: string }
+export async function adminNoticeDetail(id: string): Promise<{ ok: boolean; campaign?: AdminNoticeCampaign; recipients?: NoticeRecipient[]; readCount?: number; unreadCount?: number; visitorStats?: { views: VisitorStat; reads: VisitorStat; conversions: VisitorStat; snoozes?: number }; visitorEvents?: NoticeVisitorEvent[]; snoozeList?: NoticeSnooze[]; error?: string }> {
   try {
     const r = await fetch('/api/admin/notices?id=' + encodeURIComponent(id), { credentials: 'include', cache: 'no-store' })
     return await r.json()

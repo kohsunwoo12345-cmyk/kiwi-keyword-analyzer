@@ -33,14 +33,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (imageUrl && !/^(https?:\/\/|\/)/i.test(imageUrl)) return json({ ok: false, error: '이미지 URL 형식이 올바르지 않습니다.' }, 400)
   if (videoUrl && !/^(https?:\/\/|\/)/i.test(videoUrl)) return json({ ok: false, error: '동영상 URL 형식이 올바르지 않습니다.' }, 400)
 
+  // 노출 기간 (모든 대상 공통) — startAt/endAt(ISO) 우선, 없으면 days 로 종료일 계산. 대상 선택 시 필수.
+  const startAt = String(b.startAt || '').trim() || null
+  let endAt = String(b.endAt || '').trim() || null
+  if (!endAt && Number(b.days) > 0) endAt = new Date(Date.now() + Math.min(365, Number(b.days)) * 86400000).toISOString()
+  if (!endAt) return json({ ok: false, error: '노출 기간(일)을 선택하세요.' }, 400)
+
   // 접속 전체(비회원 포함) — 개별 회원 영수증 없이 캠페인만 생성. 홈페이지/랜딩 방문자에게 팝업.
   if (target === 'visitors') {
     const scopePath = String(b.scopePath || '').trim().slice(0, 200)
     if (scopePath && !/^\//.test(scopePath)) return json({ ok: false, error: '랜딩 경로는 / 로 시작해야 합니다.' }, 400)
-    // 노출 기간 (선택): startAt/endAt(ISO) 우선, 없으면 days 로 종료일 계산
-    const startAt = String(b.startAt || '').trim() || null
-    let endAt = String(b.endAt || '').trim() || null
-    if (!endAt && Number(b.days) > 0) endAt = new Date(Date.now() + Math.min(365, Number(b.days)) * 86400000).toISOString()
     const now2 = new Date().toISOString()
     const campId2 = uid('nc_')
     await db.prepare(
@@ -85,9 +87,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const now = new Date().toISOString()
   const campId = uid('nc_')
   await db.prepare(
-    `INSERT INTO notice_campaigns (id, title, body, image_url, video_url, cta_label, cta_url, target, audience, created_by, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).bind(campId, title, body, imageUrl || null, videoUrl || null, ctaLabel || null, ctaUrl || null, target, recipients.length, admin.email, now).run()
+    `INSERT INTO notice_campaigns (id, title, body, image_url, video_url, cta_label, cta_url, target, audience, start_at, end_at, created_by, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(campId, title, body, imageUrl || null, videoUrl || null, ctaLabel || null, ctaUrl || null, target, recipients.length, startAt, endAt, admin.email, now).run()
 
   // 수신 영수증 배치 삽입 (D1 batch, 100개씩)
   const stmt = db.prepare('INSERT OR IGNORE INTO notice_receipts (id, campaign_id, user_id, read_at, created_at) VALUES (?, ?, ?, NULL, ?)')
@@ -123,6 +125,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
          GROUP BY ip, is_member, member_email, kind, path
          ORDER BY created_at DESC LIMIT 300`,
       ).bind(id).all()).results as any[] || []
+      // "3일 보지 않기"를 누른 방문자 목록 (IP·회원여부·이메일·만료시각)
+      const snz = (await db.prepare(
+        `SELECT s.until, s.created_at,
+           (SELECT e.ip FROM notice_visitor_events e WHERE e.campaign_id = s.campaign_id AND e.visitor = s.visitor ORDER BY e.created_at DESC LIMIT 1) AS ip,
+           (SELECT e.is_member FROM notice_visitor_events e WHERE e.campaign_id = s.campaign_id AND e.visitor = s.visitor ORDER BY e.created_at DESC LIMIT 1) AS is_member,
+           (SELECT e.member_email FROM notice_visitor_events e WHERE e.campaign_id = s.campaign_id AND e.visitor = s.visitor ORDER BY e.created_at DESC LIMIT 1) AS member_email
+         FROM notice_snoozes s WHERE s.campaign_id = ? ORDER BY s.created_at DESC LIMIT 300`,
+      ).bind(id).all().catch(() => ({ results: [] }))).results as any[] || []
       return json({
         ok: true,
         campaign: {
@@ -136,23 +146,36 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
           ip: e.ip || '', isMember: Number(e.is_member) || 0, memberEmail: e.member_email || '',
           kind: e.kind, path: e.path || '', createdAt: e.created_at,
         })),
+        snoozeList: snz.map((s) => ({
+          ip: s.ip || '', isMember: Number(s.is_member) || 0, memberEmail: s.member_email || '',
+          until: s.until, createdAt: s.created_at,
+        })),
       })
     }
+    await ensureVisitorNoticeSchema(db)
     const rows = (await db.prepare(
       `SELECT r.user_id, r.read_at, u.name, u.email, u.plan
        FROM notice_receipts r LEFT JOIN users u ON u.id = r.user_id
        WHERE r.campaign_id = ? ORDER BY (r.read_at IS NULL) DESC, r.read_at DESC`,
     ).bind(id).all()).results || []
     const readCount = rows.filter((r: any) => r.read_at).length
+    // 회원이 "3일 보지 않기"를 누른 목록 (notice_snoozes.visitor = 회원 id)
+    const msnz = (await db.prepare(
+      `SELECT s.visitor AS user_id, s.until, s.created_at, u.name, u.email
+       FROM notice_snoozes s LEFT JOIN users u ON u.id = s.visitor
+       WHERE s.campaign_id = ? ORDER BY s.created_at DESC LIMIT 500`,
+    ).bind(id).all().catch(() => ({ results: [] }))).results as any[] || []
     return json({
       ok: true,
       campaign: {
         id: camp.id, title: camp.title, body: camp.body, imageUrl: camp.image_url, videoUrl: camp.video_url || '',
         ctaLabel: camp.cta_label, ctaUrl: camp.cta_url, target: camp.target,
+        startAt: camp.start_at || '', endAt: camp.end_at || '',
         audience: camp.audience, createdBy: camp.created_by, createdAt: camp.created_at,
       },
       readCount, unreadCount: rows.length - readCount,
       recipients: rows.map((r: any) => ({ userId: r.user_id, name: r.name || '(탈퇴)', email: r.email || '', plan: r.plan || '', read: !!r.read_at, readAt: r.read_at })),
+      snoozeList: msnz.map((s) => ({ userId: s.user_id, name: s.name || '(탈퇴)', email: s.email || '', until: s.until, createdAt: s.created_at })),
     })
   }
 

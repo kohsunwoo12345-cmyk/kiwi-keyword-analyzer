@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { X } from 'lucide-react'
-import { fetchNotices, markNoticeRead, type NoticeItem } from '@/lib/auth'
+import { X, MoonStar } from 'lucide-react'
+import { fetchNotices, markNoticeRead, snoozeNotice, type NoticeItem } from '@/lib/auth'
 import { NoticeMedia } from '@/components/NoticeMedia'
 
 // 관리자가 발송한 팝업 알림 — 하단에서 상단으로 슬라이드로 올라온다.
@@ -34,6 +34,16 @@ export function NoticePopups() {
   const dismiss = (id: string) => {
     setClosing((c) => ({ ...c, [id]: true }))
     markNoticeRead(id).catch(() => {})
+    setTimeout(() => {
+      setItems((prev) => prev.filter((n) => n.id !== id))
+      setClosing((c) => { const n = { ...c }; delete n[id]; return n })
+    }, 320)
+  }
+
+  // "3일 동안 보지 않기" — 읽음과 별개로 3일간 숨김(기간 유지 중이면 이후 재노출)
+  const snooze = (id: string) => {
+    setClosing((c) => ({ ...c, [id]: true }))
+    snoozeNotice(id).catch(() => {})
     setTimeout(() => {
       setItems((prev) => prev.filter((n) => n.id !== id))
       setClosing((c) => { const n = { ...c }; delete n[id]; return n })
@@ -85,6 +95,14 @@ export function NoticePopups() {
                   className="mt-3 w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white transition hover:bg-indigo-700"
                 >
                   {n.ctaLabel}
+                </button>
+              )}
+              {n.canSnooze && (
+                <button
+                  onClick={() => snooze(n.id)}
+                  className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <MoonStar size={13} /> 3일 동안 보지 않기
                 </button>
               )}
             </div>
