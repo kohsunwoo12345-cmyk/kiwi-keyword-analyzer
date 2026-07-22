@@ -2,27 +2,13 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <!-- PWA 설정 -->
-  <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#6366f1">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="슈퍼플레이스">
-  <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="apple-touch-icon" sizes="152x152" href="/icon-152.png">
-  <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>랜딩페이지 빌더 - SUPERPLACE</title>
-  <link rel="stylesheet" href="/vendor/css/tailwind.min.css">
-  <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
-  <script>
-  /* BYGENCY 이식: 세션 쿠키 기반 인증. /api/me 로 사용자 정보를 localStorage 에 채워 빌더 호환. */
-  (function(){ try{ var x=new XMLHttpRequest(); x.open('GET','/api/me',false); x.withCredentials=true; x.send();
-    if(x.status===200){ var d=JSON.parse(x.responseText||'{}'); var u=(d&&d.user)||d; if(u&&u.id){ u.user_type='admin'; u.role='admin'; localStorage.setItem('user',JSON.stringify(u)); localStorage.setItem('adminUser',JSON.stringify(u)); } }
-  }catch(e){} })();
-  </script>
+  <title>랜딩페이지 빌더 - BYGENCY</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    @import url('/vendor/pretendard/pretendard.css');
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
     * { font-family: 'Pretendard', -apple-system, sans-serif; }
     .tab-btn { transition: all .2s; }
     .tab-btn.active { background:#6366f1; color:#fff; }
@@ -78,7 +64,7 @@
 <header class="bg-white border-b shadow-sm sticky top-0 z-40">
   <div class="max-w-screen-2xl mx-auto px-6 py-3 flex items-center justify-between">
     <div class="flex items-center gap-4">
-      <a href="/sunmin1wsna12ssad2/marketing" class="text-gray-400 hover:text-indigo-600 transition">
+      <a href="/dashboard_USE17237_612" target="_top" class="text-gray-400 hover:text-indigo-600 transition">
         <i class="fas fa-arrow-left text-lg"></i>
       </a>
       <div class="w-px h-6 bg-gray-200"></div>
@@ -88,7 +74,7 @@
       </h1>
     </div>
     <div class="flex items-center gap-3">
-      <a href="/sunmin1wsna12ssad2/landing-submissions" class="px-4 py-2 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-100 transition">
+      <a href="/dashboard_USE17237_612/landing/analytics" target="_top" class="px-4 py-2 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-100 transition">
         <i class="fas fa-inbox mr-1.5"></i>신청자 관리
       </a>
       <button onclick="showView('list')" id="navList" class="px-4 py-2 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-100 transition">
@@ -417,7 +403,7 @@
                 <!-- 모드 설명 -->
                 <div class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 space-y-1">
                   <p class="font-semibold">📌 외부 임베드 폼 두 가지 모드</p>
-                  <p>• <strong>폼 전송 URL 비어있음</strong> → SUPERPLACE에 저장 (기본, fetch 방식)</p>
+                  <p>• <strong>폼 전송 URL 비어있음</strong> → BYGENCY에 저장 (기본, fetch 방식)</p>
                   <p>• <strong>폼 전송 URL 입력</strong> → 해당 URL로 <code class="bg-amber-100 px-1 rounded">&lt;form action&gt;</code> 직접 POST<br>
                     &nbsp;&nbsp;(구글 Apps Script 등 직접 연동, JS fetch 없이 순수 form 태그)</p>
                 </div>
@@ -683,7 +669,7 @@
       </div>
     </div>
     <div class="p-4 border-t flex-shrink-0 bg-gray-50 rounded-b-2xl flex items-center justify-between">
-      <a href="/sunmin1wsna12ssad2/landing-templates" target="_blank" class="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+      <a href="#" onclick="return false;" class="hidden text-xs text-indigo-600 hover:text-indigo-800 items-center gap-1">
         <i class="fas fa-external-link-alt"></i>템플릿 HTML 편집하기
       </a>
       <button onclick="closeTemplateModal()" class="px-4 py-2 text-sm text-gray-500 border rounded-lg hover:bg-gray-100">취소</button>
@@ -775,7 +761,7 @@ const SUBMIT_SCRIPT_TAG = '<scr'+'ipt>'+
 // 상태
 // ──────────────────────────────────────────────
 // 관리자 사용자 정보 로드 (adminUser 우선, 없으면 user 사용)
-// auth-check.js 가 저장한 adminUser를 우선 사용
+// 세션 쿠키로 인증(getSessionUser). localStorage adminUser/user는 폴백일 뿐임
 const _adminUser = JSON.parse(localStorage.getItem('adminUser') || 'null')
 const _regularUser = JSON.parse(localStorage.getItem('user') || '{}')
 const currentUser = _adminUser || _regularUser
@@ -907,7 +893,7 @@ async function loadMyPages() {
               <button onclick="editPage('${p.slug}')" class="flex-1 px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition font-semibold">
                 <i class="fas fa-edit mr-1"></i>수정
               </button>
-              <a href="/sunmin1wsna12ssad2/landing-submissions?slug=${p.slug}" class="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs rounded-lg hover:bg-emerald-100 transition border border-emerald-200 font-semibold" title="신청자 보기">
+              <a href="/dashboard_USE17237_612/landing/analytics?slug=${p.slug}" target="_top" class="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs rounded-lg hover:bg-emerald-100 transition border border-emerald-200 font-semibold" title="신청자 보기">
                 <i class="fas fa-users"></i>
               </a>
               <a href="${shareUrl}" target="_blank" class="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded-lg hover:bg-gray-200 transition border" title="페이지 열기">
@@ -1012,8 +998,8 @@ function closeTemplateModal() {
 
 function spNormalizeAllowedCdnHtml(html) {
   return String(html || '')
-    .replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/gsap\/3\.12\.2\/gsap\.min\.js/g, '/vendor/js/gsap.min.js')
-    .replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/gsap\/3\.12\.2\/ScrollTrigger\.min\.js/g, '/vendor/js/ScrollTrigger.min.js')
+    .replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/gsap\/3\.12\.2\/gsap\.min\.js/g, 'https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js')
+    .replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/gsap\/3\.12\.2\/ScrollTrigger\.min\.js/g, 'https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/ScrollTrigger.min.js')
 }
 
 async function loadTemplateIntoEditor(type) {
@@ -1984,7 +1970,7 @@ function copyFormHtml() {
 }
 
 // 외부 임베드 폼 HTML 생성
-// ① 외부 전송 URL 없음 → SUPERPLACE API로 fetch 제출 (기존 방식)
+// ① 외부 전송 URL 없음 → BYGENCY API로 fetch 제출 (기존 방식)
 // ② 외부 전송 URL 있음 → 순수 <form action="URL" method="post"> 직접 제출 (구글 스프레드시트 등 연동)
 function renderExternalFormHtml() {
   const slug      = editingSlug || 'SLUG_HERE'
@@ -2030,7 +2016,7 @@ function renderExternalFormHtml() {
     // ② 외부 전송 URL 있음: 순수 <form> 직접 POST — JS fetch 없음
     //    구글 스프레드시트(Apps Script) 등 직접 연동
     // ────────────────────────────────────────────────────────
-    lines.push('<!-- 슈퍼플레이스 외부 신청 폼 (slug: ' + slug + ') -->')
+    lines.push('<!-- 바이전시 외부 신청 폼 (slug: ' + slug + ') -->')
     lines.push('<form id=' + q + formId + q + ' name=' + q + formId + q)
     lines.push('  action=' + q + actionUrl + q + ' method=' + q + 'post' + q)
     lines.push('  onsubmit=' + q + 'return ' + fnName + '_check(this)' + q)
@@ -2053,10 +2039,10 @@ function renderExternalFormHtml() {
 
   } else {
     // ────────────────────────────────────────────────────────
-    // ① 외부 전송 URL 없음: SUPERPLACE API로 fetch 제출 (기존 방식)
+    // ① 외부 전송 URL 없음: BYGENCY API로 fetch 제출 (기존 방식)
     //    신청자 현황에 자동 저장됨
     // ────────────────────────────────────────────────────────
-    lines.push('<!-- 슈퍼플레이스 외부 신청 폼 (slug: ' + slug + ') -->')
+    lines.push('<!-- 바이전시 외부 신청 폼 (slug: ' + slug + ') -->')
     lines.push('<form id=' + q + formId + q + ' name=' + q + formId + q + ' action=' + q + '#' + q + ' method=' + q + 'post' + q + ' onsubmit=' + q + 'return ' + fnName + '(event)' + q + ' style=' + q + 'padding:24px;border:1px solid #e5e7eb;border-radius:16px;max-width:480px;font-family:-apple-system,sans-serif;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,0.06);' + q + '>')
     lines.push('  <input type=' + q + 'hidden' + q + ' name=' + q + 'landing_slug' + q + ' value=' + q + slug + q + '>')
     lines.push(fieldsHtml)
@@ -2164,7 +2150,7 @@ async function loadFormSubmissions() {
   el.innerHTML = '<p class="text-center text-gray-400"><i class="fas fa-spinner fa-spin"></i></p>'
   const linkEl = document.getElementById('linkToSubs')
   if (linkEl) {
-    linkEl.href = `/sunmin1wsna12ssad2/landing-submissions?slug=${editingSlug}`
+    linkEl.href = `/dashboard_USE17237_612/landing/analytics?slug=${editingSlug}`
     linkEl.classList.remove('hidden')
   }
   try {
