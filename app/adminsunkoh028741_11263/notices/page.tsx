@@ -16,6 +16,19 @@ const kst = (iso?: string | null) => {
   try { return new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) } catch { return iso }
 }
 const num = (n: number) => (n || 0).toLocaleString('ko-KR')
+// datetime-local 값(YYYY-MM-DDTHH:mm)을 한국시간(UTC+9)으로 해석해 UTC ISO 로 변환
+const kstLocalToIso = (v: string): string | undefined => {
+  if (!v) return undefined
+  const s = v.length === 16 ? v + ':00' : v
+  const d = new Date(s + '+09:00')
+  return isNaN(d.getTime()) ? undefined : d.toISOString()
+}
+// Date → 한국시간 datetime-local 문자열 (YYYY-MM-DDTHH:mm)
+const toKstLocal = (d: Date): string => {
+  const k = new Date(d.getTime() + 9 * 3600000)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${k.getUTCFullYear()}-${p(k.getUTCMonth() + 1)}-${p(k.getUTCDate())}T${p(k.getUTCHours())}:${p(k.getUTCMinutes())}`
+}
 type Target = 'all' | 'plan' | 'multi' | 'visitors'
 const memberLabel = (m: number) => m === 1 ? '회원(로그인)' : m === 2 ? '회원 IP' : '비회원'
 
@@ -25,7 +38,8 @@ export default function NoticesPage() {
   const [body, setBody] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [videoUrl, setVideoUrl] = useState('')
-  const [days, setDays] = useState('')
+  const [startLocal, setStartLocal] = useState('')   // 노출 시작 (KST, datetime-local · 비우면 즉시)
+  const [endLocal, setEndLocal] = useState('')       // 노출 종료 (KST, datetime-local · 비우면 1회성)
   const [ctaLabel, setCtaLabel] = useState('')
   const [ctaUrl, setCtaUrl] = useState('')
   const [target, setTarget] = useState<Target>('all')
@@ -126,8 +140,10 @@ export default function NoticesPage() {
   async function onSend() {
     if (!title.trim() || !body.trim()) { setMsg('제목과 내용을 입력하세요.'); return }
     if (target === 'multi' && pickedIds.length === 0) { setMsg('발송할 회원을 선택하세요.'); return }
-    if (!(Number(days) > 0)) { setMsg('노출 기간(일)을 선택하세요. 이 기간 동안 대상에게 계속 노출됩니다.'); return }
     if (ctaLabel.trim() && !ctaUrl.trim()) { setMsg('CTA 버튼 텍스트가 있으면 이동 URL도 입력하세요.'); return }
+    const startAtIso = kstLocalToIso(startLocal)
+    const endAtIso = kstLocalToIso(endLocal)
+    if (startAtIso && endAtIso && endAtIso <= startAtIso) { setMsg('종료 시각은 시작 시각보다 뒤여야 합니다.'); return }
     const planLabel = plan === '__paid__' ? '유료 전체' : plan === '없음' ? '미가입(무료)' : plan
     const label = target === 'all' ? '전체 회원'
       : target === 'plan' ? `${track === 'video' ? '영상' : '마케팅'} · ${planLabel} 회원`
@@ -141,12 +157,13 @@ export default function NoticesPage() {
       target, plan: target === 'plan' ? plan : undefined, track: target === 'plan' ? track : undefined,
       userIds: target === 'multi' ? pickedIds : undefined,
       scopePath: target === 'visitors' ? (scopePath.trim() || undefined) : undefined,
-      days: Number(days) > 0 ? Number(days) : undefined,
+      startAt: startAtIso, endAt: endAtIso,
     })
     setSending(false)
     if (res.ok) {
-      setMsg(target === 'visitors' ? `✅ 접속 전체(비회원 포함) 발송 완료 — ${days}일 동안 방문 즉시 팝업으로 표시됩니다.` : `✅ ${num(res.audience || 0)}명에게 발송 완료 — ${days}일 동안 계속 노출됩니다.`)
-      setTitle(''); setBody(''); setImageUrl(''); setVideoUrl(''); setDays(''); setCtaLabel(''); setCtaUrl(''); setPicked({}); setScopePath('')
+      const periodMsg = endAtIso ? ` — ${kst(endAtIso)}까지 계속 노출` : ' — 1회성(한 번 보면 끝)'
+      setMsg(target === 'visitors' ? `✅ 접속 전체(비회원 포함) 발송 완료${periodMsg}` : `✅ ${num(res.audience || 0)}명에게 발송 완료${periodMsg}`)
+      setTitle(''); setBody(''); setImageUrl(''); setVideoUrl(''); setStartLocal(''); setEndLocal(''); setCtaLabel(''); setCtaUrl(''); setPicked({}); setScopePath('')
       load()
     } else setMsg(res.error || '발송 실패')
   }
@@ -250,11 +267,30 @@ export default function NoticesPage() {
                       className={cn('rounded-lg border px-3 py-1.5 text-sm font-semibold', target === t ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-slate-50')}>{l}</button>
                   ))}
                 </div>
-                {/* 노출 기간 — 모든 대상 공통 · 필수 */}
-                <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50/60 p-2.5">
-                  <label className="mb-1 flex items-center gap-1 text-[11px] font-bold text-amber-700"><Clock size={12} /> 노출 기간 (일) · 필수</label>
-                  <input value={days} onChange={(e) => setDays(e.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" placeholder="예) 7 → 7일 동안 대상에게 계속 노출" className={cn('input w-full text-xs', !(Number(days) > 0) && 'border-amber-400')} />
-                  <p className="mt-1 text-[11px] leading-relaxed text-amber-700">설정한 기간 동안 대상에게 <b>계속 표시</b>됩니다. 사용자가 “3일 동안 보지 않기”를 누르면 그 사람에게만 3일간 숨겨지고, 이후 기간이 유지 중이면 다시 표시됩니다.</p>
+                {/* 노출 기간 — 모든 대상 공통 · 선택 (달력, 한국시간 KST) */}
+                <div className="mt-2 rounded-lg border border-[var(--border)] bg-slate-50/60 p-2.5">
+                  <label className="mb-1.5 flex items-center gap-1 text-[11px] font-bold text-[var(--text-soft)]"><Clock size={12} /> 노출 기간 (선택 · 한국시간 KST)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="mb-0.5 block text-[10px] text-[var(--text-dim)]">시작 (비우면 즉시)</span>
+                      <input type="datetime-local" value={startLocal} onChange={(e) => setStartLocal(e.target.value)} className="input w-full text-xs" />
+                    </div>
+                    <div>
+                      <span className="mb-0.5 block text-[10px] text-[var(--text-dim)]">종료 (비우면 1회성)</span>
+                      <input type="datetime-local" value={endLocal} onChange={(e) => setEndLocal(e.target.value)} className="input w-full text-xs" />
+                    </div>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {([['지금~7일', 7], ['지금~14일', 14], ['지금~30일', 30]] as [string, number][]).map(([l, n]) => (
+                      <button key={n} type="button" onClick={() => { setStartLocal(toKstLocal(new Date())); setEndLocal(toKstLocal(new Date(Date.now() + n * 86400000))) }}
+                        className="rounded-md border border-[var(--border)] bg-white px-2 py-0.5 text-[10px] font-semibold text-[var(--text-soft)] hover:bg-slate-100">{l}</button>
+                    ))}
+                    <button type="button" onClick={() => { setStartLocal(''); setEndLocal('') }}
+                      className="rounded-md border border-[var(--border)] bg-white px-2 py-0.5 text-[10px] font-semibold text-[var(--text-soft)] hover:bg-slate-100">1회성(기간 없음)</button>
+                  </div>
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--text-dim)]">
+                    <b className="text-[var(--text-soft)]">종료를 비우면 1회성</b> — 한 번 보고 닫으면 다시 안 뜹니다. <b className="text-[var(--text-soft)]">종료를 설정하면</b> 그 시각(KST)까지 계속 노출되고, 사용자가 “3일 동안 보지 않기”를 누르면 그 사람에게만 3일간 숨겨집니다.
+                  </p>
                 </div>
                 {target === 'visitors' && (
                   <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50/50 p-2.5">

@@ -33,11 +33,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (imageUrl && !/^(https?:\/\/|\/)/i.test(imageUrl)) return json({ ok: false, error: '이미지 URL 형식이 올바르지 않습니다.' }, 400)
   if (videoUrl && !/^(https?:\/\/|\/)/i.test(videoUrl)) return json({ ok: false, error: '동영상 URL 형식이 올바르지 않습니다.' }, 400)
 
-  // 노출 기간 (모든 대상 공통) — startAt/endAt(ISO) 우선, 없으면 days 로 종료일 계산. 대상 선택 시 필수.
+  // 노출 기간 (모든 대상 공통 · 선택) — startAt/endAt(ISO, 클라이언트가 KST→UTC 변환) 우선, 없으면 days.
+  //  · 종료(endAt) 미설정 = 1회성(회원은 한 번 읽으면 끝, 방문자는 생성 후 30일 내 1회).
+  //  · 종료 설정 = 그 시각까지 계속 노출("3일 보지 않기" 제외).
   const startAt = String(b.startAt || '').trim() || null
   let endAt = String(b.endAt || '').trim() || null
   if (!endAt && Number(b.days) > 0) endAt = new Date(Date.now() + Math.min(365, Number(b.days)) * 86400000).toISOString()
-  if (!endAt) return json({ ok: false, error: '노출 기간(일)을 선택하세요.' }, 400)
 
   // 접속 전체(비회원 포함) — 개별 회원 영수증 없이 캠페인만 생성. 홈페이지/랜딩 방문자에게 팝업.
   if (target === 'visitors') {
