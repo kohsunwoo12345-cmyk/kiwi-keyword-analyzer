@@ -2826,18 +2826,40 @@ function cannyPreview(srcUrl){
     var img=new Image(); img.crossOrigin='anonymous';
     img.onload=function(){
       try{
-        var W=Math.min(384, img.naturalWidth||384), sc=W/(img.naturalWidth||W), H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
+        // 고해상도(≤768) grayscale → 가우시안 → Sobel → 비최대억제(NMS) → 이중임계+히스테리시스
+        // = ComfyUI/OpenCV Canny 처럼 1px 두께의 선명한 엣지맵 (기존 Sobel 단일임계는 굵고 뭉개짐)
+        var W=Math.min(768, img.naturalWidth||768), sc=W/(img.naturalWidth||W), H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
         var c=document.createElement('canvas'); c.width=W; c.height=H;
         var ctx=c.getContext('2d'); ctx.drawImage(img,0,0,W,H);
-        var d=ctx.getImageData(0,0,W,H), p=d.data, g=new Float32Array(W*H);
-        for(var i=0;i<W*H;i++) g[i]=0.299*p[i*4]+0.587*p[i*4+1]+0.114*p[i*4+2];
-        var out=ctx.createImageData(W,H), o=out.data;
-        for(var y=1;y<H-1;y++)for(var x=1;x<W-1;x++){
-          var gx=-g[(y-1)*W+x-1]+g[(y-1)*W+x+1]-2*g[y*W+x-1]+2*g[y*W+x+1]-g[(y+1)*W+x-1]+g[(y+1)*W+x+1];
-          var gy=-g[(y-1)*W+x-1]-2*g[(y-1)*W+x]-g[(y-1)*W+x+1]+g[(y+1)*W+x-1]+2*g[(y+1)*W+x]+g[(y+1)*W+x+1];
-          var v=Math.sqrt(gx*gx+gy*gy)>90?255:0, idx=(y*W+x)*4;
-          o[idx]=o[idx+1]=o[idx+2]=v; o[idx+3]=255;
+        var p=ctx.getImageData(0,0,W,H).data, N=W*H, g=new Float32Array(N), i,x,y,kx,ky,xx,yy;
+        for(i=0;i<N;i++) g[i]=0.299*p[i*4]+0.587*p[i*4+1]+0.114*p[i*4+2];
+        // 5x5 가우시안(σ≈1.2) 로 노이즈 제거 (얇은 선을 위해 필수)
+        var gk=[2,4,5,4,2,4,9,12,9,4,5,12,15,12,5,4,9,12,9,4,2,4,5,4,2], b=new Float32Array(N),s;
+        for(y=0;y<H;y++)for(x=0;x<W;x++){ s=0; for(ky=-2;ky<=2;ky++)for(kx=-2;kx<=2;kx++){ xx=Math.min(W-1,Math.max(0,x+kx)); yy=Math.min(H-1,Math.max(0,y+ky)); s+=g[yy*W+xx]*gk[(ky+2)*5+(kx+2)]; } b[y*W+x]=s/159; }
+        // Sobel 크기 + 방향(4방향 양자화)
+        var mag=new Float32Array(N), dir=new Uint8Array(N);
+        for(y=1;y<H-1;y++)for(x=1;x<W-1;x++){
+          var sx=-b[(y-1)*W+x-1]+b[(y-1)*W+x+1]-2*b[y*W+x-1]+2*b[y*W+x+1]-b[(y+1)*W+x-1]+b[(y+1)*W+x+1];
+          var sy=-b[(y-1)*W+x-1]-2*b[(y-1)*W+x]-b[(y-1)*W+x+1]+b[(y+1)*W+x-1]+2*b[(y+1)*W+x]+b[(y+1)*W+x+1];
+          mag[y*W+x]=Math.sqrt(sx*sx+sy*sy);
+          var ang=Math.atan2(sy,sx)*180/Math.PI; if(ang<0)ang+=180;
+          dir[y*W+x]=(ang<22.5||ang>=157.5)?0:(ang<67.5?1:(ang<112.5?2:3));
         }
+        // 비최대 억제 → 능선만 남겨 1px 두께로
+        var nms=new Float32Array(N), a1,a2,q,dd;
+        for(y=1;y<H-1;y++)for(x=1;x<W-1;x++){ q=mag[y*W+x]; dd=dir[y*W+x];
+          if(dd===0){a1=mag[y*W+x-1];a2=mag[y*W+x+1];}
+          else if(dd===1){a1=mag[(y-1)*W+x+1];a2=mag[(y+1)*W+x-1];}
+          else if(dd===2){a1=mag[(y-1)*W+x];a2=mag[(y+1)*W+x];}
+          else {a1=mag[(y-1)*W+x-1];a2=mag[(y+1)*W+x+1];}
+          nms[y*W+x]=(q>=a1&&q>=a2)?q:0; }
+        // 이중 임계 + 히스테리시스(약한 엣지가 강한 엣지에 연결되면 승격)
+        var hi=42, lo=16, edge=new Uint8Array(N), stack=[];
+        for(i=0;i<N;i++){ edge[i]=nms[i]>=hi?2:(nms[i]>=lo?1:0); if(edge[i]===2)stack.push(i); }
+        while(stack.length){ var idx=stack.pop(), ex=idx%W, ey=(idx/W)|0;
+          for(ky=-1;ky<=1;ky++)for(kx=-1;kx<=1;kx++){ xx=ex+kx; yy=ey+ky; if(xx<0||yy<0||xx>=W||yy>=H)continue; var ni=yy*W+xx; if(edge[ni]===1){edge[ni]=2;stack.push(ni);} } }
+        var out=ctx.createImageData(W,H), o=out.data;
+        for(i=0;i<N;i++){ var v=edge[i]===2?255:0; o[i*4]=o[i*4+1]=o[i*4+2]=v; o[i*4+3]=255; }
         ctx.putImageData(out,0,0); resolve(c.toDataURL('image/png'));
       }catch(err){ reject(err); }
     };
@@ -2851,18 +2873,19 @@ function depthPreview(srcUrl){
     var img=new Image(); img.crossOrigin='anonymous';
     img.onload=function(){
       try{
-        var W=Math.min(384, img.naturalWidth||384), sc=W/(img.naturalWidth||W), H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
+        // 고해상도(≤512) + 최소 블러 + S자(시그모이드) 대비 → 뿌옇지 않고 구조가 또렷한 깊이 근사.
+        // (기존은 큰 반경 박스블러 3패스로 형체가 뭉개져 ControlNet 이 구조를 못 읽었음)
+        var W=Math.min(512, img.naturalWidth||512), sc=W/(img.naturalWidth||W), H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
         var c=document.createElement('canvas'); c.width=W; c.height=H; var ctx=c.getContext('2d'); ctx.drawImage(img,0,0,W,H);
         var d=ctx.getImageData(0,0,W,H), p=d.data, g=new Float32Array(W*H), i;
         for(i=0;i<W*H;i++) g[i]=0.299*p[i*4]+0.587*p[i*4+1]+0.114*p[i*4+2];
-        var r=Math.max(2,Math.round(W/40));                 // 분리형 박스블러 3패스 ≈ 가우시안(깊이는 부드러움)
-        function blur(){ var t=new Float32Array(W*H),x,y,s,cnt,k,xx,yy;
+        var r=Math.max(1,Math.round(W/240));                 // 아주 작은 반경 1패스 — 노이즈만 제거, 형체 보존
+        (function blur(){ var t=new Float32Array(W*H),x,y,s,cnt,k,xx,yy;
           for(y=0;y<H;y++)for(x=0;x<W;x++){ s=0;cnt=0; for(k=-r;k<=r;k++){ xx=x+k; if(xx>=0&&xx<W){s+=g[y*W+xx];cnt++;} } t[y*W+x]=s/cnt; }
-          for(x=0;x<W;x++)for(y=0;y<H;y++){ s=0;cnt=0; for(k=-r;k<=r;k++){ yy=y+k; if(yy>=0&&yy<H){s+=t[yy*W+x];cnt++;} } g[y*W+x]=s/cnt; } }
-        blur(); blur(); blur();
+          for(x=0;x<W;x++)for(y=0;y<H;y++){ s=0;cnt=0; for(k=-r;k<=r;k++){ yy=y+k; if(yy>=0&&yy<H){s+=t[yy*W+x];cnt++;} } g[y*W+x]=s/cnt; } })();
         var mn=1e9,mx=-1e9; for(i=0;i<W*H;i++){ if(g[i]<mn)mn=g[i]; if(g[i]>mx)mx=g[i]; }
         var rng=(mx-mn)||1, out=ctx.createImageData(W,H), o=out.data;
-        for(i=0;i<W*H;i++){ var v=Math.round(Math.pow((g[i]-mn)/rng,0.85)*255); o[i*4]=o[i*4+1]=o[i*4+2]=v; o[i*4+3]=255; }
+        for(i=0;i<W*H;i++){ var nv=(g[i]-mn)/rng; nv=1/(1+Math.exp(-(nv-0.5)*7)); var v=Math.round(nv*255); o[i*4]=o[i*4+1]=o[i*4+2]=v; o[i*4+3]=255; }
         ctx.putImageData(out,0,0); resolve(c.toDataURL('image/png'));
       }catch(err){ reject(err); }
     };
@@ -2879,36 +2902,129 @@ function ensurePoseLM(){
   _poseTry=import(V+'/vision_bundle.mjs').then(function(m){
     return m.FilesetResolver.forVisionTasks(V+'/wasm').then(function(fr){
       return m.PoseLandmarker.createFromOptions(fr,{
-        baseOptions:{ modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task' },
-        runningMode:'IMAGE', numPoses:2 });
+        baseOptions:{ modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task' },
+        runningMode:'IMAGE', numPoses:1 });  // 한 명만 인식(정확도 higher: full 모델)
     });
   }).then(function(lm){ _poseLM=lm; return lm; }).catch(function(err){ _poseTry=null; throw err; });
   return _poseTry;
 }
-var POSE_LINKS=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28],[0,11],[0,12]];
+// ── OpenPose(COCO-18) 관절·뼈대·색상 (표준 렌더) ──
+//  MediaPipe 33 랜드마크 → OpenPose 18 관절 매핑 (-1=neck: 양어깨 중점)
+var OP_MP=[0,-1,12,14,16,11,13,15,24,26,28,23,25,27,5,2,8,7];
+var OP_PAIRS=[[1,2],[1,5],[2,3],[3,4],[5,6],[6,7],[1,8],[8,9],[9,10],[1,11],[11,12],[12,13],[1,0],[0,14],[14,16],[0,15],[15,17]];
+var OP_LIMB=['#ff0000','#ff5500','#ffaa00','#ffff00','#aaff00','#55ff00','#00ff00','#00ff55','#00ffaa','#00ffff','#00aaff','#0055ff','#0000ff','#5500ff','#aa00ff','#ff00ff','#ff00aa'];
+var OP_KPC=['#ff0000','#ff5500','#ffaa00','#ffff00','#aaff00','#55ff00','#00ff00','#00ff55','#00ffaa','#00ffff','#00aaff','#0055ff','#0000ff','#5500ff','#aa00ff','#ff00ff','#ff00aa','#ff0055'];
+var OP_NAMES=['코','목','오른어깨','오른팔꿈치','오른손목','왼어깨','왼팔꿈치','왼손목','오른엉덩이','오른무릎','오른발목','왼엉덩이','왼무릎','왼발목','오른눈','왼눈','오른귀','왼귀'];
+function mpToOpenPose(pts){
+  var kp=[],j,m,pt;
+  for(j=0;j<18;j++){
+    if(j===1){ var a=pts[11],b=pts[12]; kp.push((a&&b)?{x:(a.x+b.x)/2,y:(a.y+b.y)/2,v:Math.min(a.visibility==null?1:a.visibility,b.visibility==null?1:b.visibility)}:null); continue; }
+    m=OP_MP[j]; pt=pts[m]; kp.push(pt?{x:pt.x,y:pt.y,v:pt.visibility==null?1:pt.visibility}:null);
+  }
+  return kp;
+}
+// OpenPose 스타일 렌더 (검은 배경 + 반투명 두꺼운 뼈대 타원 + 컬러 관절점). kp: 정규화(0~1) 좌표.
+function renderOpenPose(kp,W,H){
+  var c=document.createElement('canvas'); c.width=W; c.height=H; var ctx=c.getContext('2d');
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+  var lw=Math.max(3,Math.round(W/90)), i;
+  for(i=0;i<OP_PAIRS.length;i++){ var a=kp[OP_PAIRS[i][0]], b=kp[OP_PAIRS[i][1]];
+    if(!a||!b||(a.v!=null&&a.v<0.2)||(b.v!=null&&b.v<0.2))continue;
+    var ax=a.x*W,ay=a.y*H,bx=b.x*W,by=b.y*H, mx=(ax+bx)/2,my=(ay+by)/2, len=Math.hypot(ax-bx,ay-by), ang=Math.atan2(by-ay,bx-ax);
+    ctx.save(); ctx.translate(mx,my); ctx.rotate(ang); ctx.globalAlpha=0.6; ctx.fillStyle=OP_LIMB[i%OP_LIMB.length];
+    ctx.beginPath(); ctx.ellipse(0,0,len/2,lw,0,0,2*Math.PI); ctx.fill(); ctx.restore(); }
+  ctx.globalAlpha=1;
+  for(i=0;i<18;i++){ var pt=kp[i]; if(!pt||(pt.v!=null&&pt.v<0.2))continue; ctx.fillStyle=OP_KPC[i%OP_KPC.length]; ctx.beginPath(); ctx.arc(pt.x*W,pt.y*H,lw*1.15,0,2*Math.PI); ctx.fill(); }
+  return c;
+}
+// 사람 한 명을 OpenPose(18관절)로 인식 → {url(맵), kps(정규화 좌표·편집용), w, h} 반환.
 function posePreview(srcUrl){
   return new Promise(function(resolve,reject){
     var img=new Image(); img.crossOrigin='anonymous';
     img.onload=function(){
       ensurePoseLM().then(function(lm){
-        var W=Math.min(384, img.naturalWidth||384), sc=W/(img.naturalWidth||W), H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
+        var W=Math.min(512, img.naturalWidth||512), sc=W/(img.naturalWidth||W), H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
         var c=document.createElement('canvas'); c.width=W; c.height=H; var ctx=c.getContext('2d'); ctx.drawImage(img,0,0,W,H);
         var res=lm.detect(c);
-        ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
         var lms=(res&&res.landmarks)||[];
-        lms.forEach(function(pts){
-          ctx.strokeStyle='#22e3ff'; ctx.lineWidth=Math.max(2,W/110); ctx.lineCap='round';
-          POSE_LINKS.forEach(function(pair){ var a=pts[pair[0]], b=pts[pair[1]]; if(!a||!b)return; ctx.beginPath(); ctx.moveTo(a.x*W,a.y*H); ctx.lineTo(b.x*W,b.y*H); ctx.stroke(); });
-          ctx.fillStyle='#ff3b6b'; pts.forEach(function(pt){ ctx.beginPath(); ctx.arc(pt.x*W,pt.y*H,Math.max(2.5,W/85),0,7); ctx.fill(); });
-        });
-        if(!lms.length){ ctx.fillStyle='#8a8f9c'; ctx.font='12px Inter,system-ui'; ctx.fillText('사람 포즈를 찾지 못했습니다', 10, 20); }
-        resolve(c.toDataURL('image/png'));
+        if(!lms.length){
+          var e=document.createElement('canvas'); e.width=W; e.height=H; var ex=e.getContext('2d');
+          ex.fillStyle='#000'; ex.fillRect(0,0,W,H); ex.fillStyle='#8a8f9c'; ex.font='13px Inter,system-ui'; ex.fillText('사람 포즈를 찾지 못했습니다', 12, 24);
+          resolve({ url:e.toDataURL('image/png'), kps:null, w:W, h:H }); return;
+        }
+        var kp=mpToOpenPose(lms[0]);   // 첫 번째(가장 큰) 한 명만
+        resolve({ url:renderOpenPose(kp,W,H).toDataURL('image/png'), kps:kp, w:W, h:H });
       }).catch(function(err){ reject(err); });
     };
     img.onerror=function(){ reject(new Error('이미지 로드 실패')); };
     img.src=sameOriginMedia(srcUrl);
   });
 }
+/* ── 오픈포즈 관절 편집기 (확대 팝업 · 점 하나하나 드래그) ── */
+var _poseEditNode=null;
+function openPoseEditor(n){
+  if(!n||!n.w||!n.w.poseKP){ toast(tr('먼저 Pose 전처리 미리보기를 생성하세요')); return; }
+  _poseEditNode=n;
+  var dim=n.w.poseDim||{w:512,h:512}, AR=dim.w/dim.h;
+  var boxW=Math.round(Math.min(window.innerWidth*0.9, window.innerHeight*0.78*AR, 640));
+  var boxH=Math.round(boxW/AR);
+  var ov=document.createElement('div'); ov.id='poseEditOv';
+  ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(2,6,16,.85);display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.innerHTML='<div style="background:#0e1620;border:1px solid #24333c;border-radius:16px;padding:14px;max-width:96vw;max-height:96vh;overflow:auto;box-shadow:0 30px 80px rgba(0,0,0,.6);">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">'
+      +'<b style="color:#cfeeffff;font-size:14px;">'+tr('오픈포즈 관절 편집')+'</b>'
+      +'<div style="display:flex;gap:6px;">'
+        +'<button id="peRe" class="wbtn" style="width:auto;padding:5px 10px;">'+tr('재인식')+'</button>'
+        +'<button id="peApply" class="wbtn" style="width:auto;padding:5px 12px;background:#1c6ee0;border-color:#1c6ee0;color:#fff;">'+tr('적용')+'</button>'
+        +'<button id="peClose" class="wbtn" style="width:auto;padding:5px 10px;">'+tr('닫기')+'</button>'
+      +'</div></div>'
+    +'<div style="color:#6fd6a0;font-size:11px;margin-bottom:8px;line-height:1.4;">'+tr('관절 점을 드래그해 사람 형태에 맞추세요. 적용하면 편집한 포즈맵이 ControlNet 입력으로 사용됩니다.')+'</div>'
+    +'<svg id="peSvg" width="'+boxW+'" height="'+boxH+'" viewBox="0 0 '+dim.w+' '+dim.h+'" style="background:#000;border-radius:10px;touch-action:none;display:block;max-width:100%;"></svg>'
+  +'</div>';
+  document.body.appendChild(ov);
+  buildPoseSvg();
+  document.getElementById('peClose').onclick=closePoseEditor;
+  document.getElementById('peApply').onclick=applyPoseEditor;
+  document.getElementById('peRe').onclick=function(){
+    var rn=inputNodeOf(n.id,'ref')||inputNodeOf(n.id,'vidref')||inputNodeOf(n.id,'first'); var src=rn?imgOfNode(rn):null;
+    if(!src){ toast(tr('레퍼런스 이미지를 연결하세요')); return; }
+    toast(tr('다시 인식 중…'));
+    posePreview(src).then(function(r){ if(r.kps){ n.w.poseKP=r.kps; n.w.poseDim={w:r.w,h:r.h}; n.w.cnPreviews=n.w.cnPreviews||{}; n.w.cnPreviews.pose=r.url; buildPoseSvg(); render(); } else toast(tr('사람 포즈를 찾지 못했습니다')); }).catch(function(){ toast(tr('포즈 인식 불가')); });
+  };
+  ov.addEventListener('mousedown',function(e){ if(e.target===ov) closePoseEditor(); });
+}
+function buildPoseSvg(){
+  var n=_poseEditNode; if(!n)return; var svg=document.getElementById('peSvg'); if(!svg)return;
+  var dim=n.w.poseDim||{w:512,h:512}, W=dim.w, H=dim.h, kp=n.w.poseKP, lw=Math.max(3,W/90), s='', i;
+  for(i=0;i<OP_PAIRS.length;i++){ var pr=OP_PAIRS[i], a=kp[pr[0]], b=kp[pr[1]], vis=(a&&b)?'':'display:none;';
+    s+='<line data-li="'+i+'" data-a="'+pr[0]+'" data-b="'+pr[1]+'" x1="'+(a?a.x*W:0)+'" y1="'+(a?a.y*H:0)+'" x2="'+(b?b.x*W:0)+'" y2="'+(b?b.y*H:0)+'" stroke="'+OP_LIMB[i%OP_LIMB.length]+'" stroke-width="'+lw+'" stroke-linecap="round" opacity="0.6" style="'+vis+'"/>'; }
+  for(i=0;i<18;i++){ var pt=kp[i], vv=pt?'':'display:none;';
+    s+='<circle data-kpi="'+i+'" cx="'+(pt?pt.x*W:0)+'" cy="'+(pt?pt.y*H:0)+'" r="'+(lw*1.7)+'" fill="'+OP_KPC[i%OP_KPC.length]+'" stroke="#fff" stroke-width="'+(lw*0.35)+'" style="cursor:grab;'+vv+'"><title>'+esc(OP_NAMES[i]||'')+'</title></circle>'; }
+  svg.innerHTML=s;
+  var dragging=null;
+  function norm(evt){ var r=svg.getBoundingClientRect(); return { x:Math.min(1,Math.max(0,(evt.clientX-r.left)/r.width)), y:Math.min(1,Math.max(0,(evt.clientY-r.top)/r.height)) }; }
+  Array.prototype.forEach.call(svg.querySelectorAll('circle[data-kpi]'),function(cir){
+    cir.addEventListener('pointerdown',function(e){ e.preventDefault(); dragging=+cir.getAttribute('data-kpi'); try{cir.setPointerCapture(e.pointerId);}catch(_){} });
+  });
+  svg.addEventListener('pointermove',function(e){
+    if(dragging==null)return; var nn=norm(e); var k=_poseEditNode.w.poseKP[dragging]; if(!k){ k=_poseEditNode.w.poseKP[dragging]={x:0,y:0,v:1}; } k.x=nn.x; k.y=nn.y; k.v=1;
+    var cir=svg.querySelector('circle[data-kpi="'+dragging+'"]'); if(cir){ cir.setAttribute('cx',k.x*W); cir.setAttribute('cy',k.y*H); cir.style.display=''; }
+    Array.prototype.forEach.call(svg.querySelectorAll('line[data-li]'),function(ln){
+      if(+ln.getAttribute('data-a')===dragging){ ln.setAttribute('x1',k.x*W); ln.setAttribute('y1',k.y*H); ln.style.display=''; }
+      if(+ln.getAttribute('data-b')===dragging){ ln.setAttribute('x2',k.x*W); ln.setAttribute('y2',k.y*H); ln.style.display=''; }
+    });
+  });
+  svg.addEventListener('pointerup',function(){ dragging=null; });
+  svg.addEventListener('pointercancel',function(){ dragging=null; });
+}
+function applyPoseEditor(){
+  var n=_poseEditNode; if(!n)return; var dim=n.w.poseDim||{w:512,h:512};
+  n.w.cnPreviews=n.w.cnPreviews||{};
+  n.w.cnPreviews.pose=renderOpenPose(n.w.poseKP,dim.w,dim.h).toDataURL('image/png');
+  n.w.poseEdited=true;
+  closePoseEditor(); render(); snapshot(); toast(tr('편집한 포즈를 적용했습니다'));
+}
+function closePoseEditor(){ var ov=document.getElementById('poseEditOv'); if(ov)ov.remove(); _poseEditNode=null; }
 /* "이미지 생성" 노드 단독 실행 — 프롬프트(+레퍼런스)로 이미지 1장 생성해 노드에 표시.
    결과는 n.w.img 에 저장되어 우측 IMAGE 포트로 다른 모델의 레퍼런스/첫 프레임에 연결 가능. */
 /* 나레이션 노드 실행 — 원본 영상 + AI 음성 해설 합성 (서버: provider=narrate) */
@@ -3044,6 +3160,22 @@ function generatePromptNode(n){
     .catch(function(e){ n.w.pgGenerating=false; n.w.pgError=String(e&&e.message||e); render(); });
 }
 
+/* 생성 결과를 그 노드의 이미지 레퍼런스로 자동 투입 — 반복 보정(생성→레퍼런스→재생성)이 바로 가능.
+   같은 노드는 자동 레퍼런스 1개를 재사용(중복 노드 생성 방지). */
+function autoRefFromResult(n, url){
+  if(!n || !url) return;
+  try{
+    var ex = n.w.autoRefId ? state.nodes.find(function(x){ return x.id===n.w.autoRefId; }) : null;
+    if(ex){ ex.w.imgs=[url]; ex.w.vids=[]; }
+    else {
+      var used = state.links.filter(function(l){ return l.to===n.id && l.toPort==='ref'; }).length;
+      var rn = addNode('imageref', n.x - 260, n.y + used*140, false); rn.w.imgs=[url]; rn.w.vids=[];
+      var dup = state.links.some(function(l){ return l.from===rn.id && l.to===n.id && l.toPort==='ref'; });
+      if(!dup) state.links.push({ from:rn.id, fromPort:'out', to:n.id, toPort:'ref', type:'IMAGE' });
+      n.w.autoRefId = rn.id;
+    }
+  }catch(_){}
+}
 function generateImageNode(n){
   if(!n || n.w.imgGenerating) return;
   var is3D=(n.type==='img3d'||n.type==='gen3d');
@@ -3084,6 +3216,7 @@ function generateImageNode(n){
       n.w.img=res.url; n.w.imgKind=res.kind||'image';
       if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image', null, false, refCountUsed, prompt, refUsedList, res.url, cnList.length);   // 레퍼런스 장수 + ControlNet 가산
       saveToGallery(res.url, 'image', n.w.model, 0, null);
+      if(res.url && res.type!=='error') autoRefFromResult(n, res.url);   // 생성 결과를 이미지 레퍼런스에 자동 투입
       toast('이미지 생성 완료'); snapshot(); render();
     })
     .catch(function(e){ n.w.imgGenerating=false; n.w.imgError=String(e&&e.message||e);
@@ -3964,7 +4097,10 @@ function widgetHTML(n,w){
       if(u===true) return '<div class="wpreview" style="aspect-ratio:1/1;margin-top:5px;display:flex;align-items:center;justify-content:center;"><span style="color:#6fc9dd;font-size:10px;">'+tr('생성 중…')+'</span></div>';
       if(!u) return '';
       if(String(u).indexOf('ERR:')===0) return '<div class="wpreview" style="aspect-ratio:1/1;margin-top:5px;display:flex;align-items:center;justify-content:center;padding:6px;text-align:center;"><span style="color:#c47;font-size:9px;line-height:1.3;">'+esc(tr(u.slice(4)))+'</span></div>';
-      return '<div class="wpreview" style="aspect-ratio:1/1;margin-top:5px;"><span class="badge">'+tr('전처리 미리보기')+'</span><img src="'+esc(u)+'" alt="'+type+' preview"></div>'; };
+      var editable=(type==='pose' && n.w.poseKP);
+      var attr=editable?(' data-poseedit="'+n.id+'" style="aspect-ratio:1/1;margin-top:5px;cursor:zoom-in;" title="'+esc(tr('클릭해 관절점 편집·확대'))+'"'):' style="aspect-ratio:1/1;margin-top:5px;"';
+      var extraBadge=editable?'<span class="badge" style="right:5px;left:auto;background:#3aa0ff;">'+tr('점 편집')+' ⤢</span>':'';
+      return '<div class="wpreview"'+attr+'><span class="badge">'+tr('전처리 미리보기')+'</span>'+extraBadge+'<img src="'+esc(u)+'" alt="'+type+' preview"></div>'; };
     var rows=list.map(function(c){
       var lb={canny:'Canny',depth:'Depth',pose:'Pose'}[c.type]||c.type;
       var sc=(c.strength==null?1:c.strength), s0=(c.start==null?0:c.start), s1=(c.end==null?1:c.end);
@@ -4621,10 +4757,18 @@ canvas.addEventListener('click',function(e){
     toast(tr(ptype==='pose'?'Pose 전처리 맵 생성 중… (최초 모델 로드로 몇 초 걸릴 수 있어요)':'전처리 맵 생성 중…'));
     var fnMap={canny:cannyPreview,depth:depthPreview,pose:posePreview};
     var errMap={canny:'실패(CORS 확인)',depth:'실패(CORS 확인)',pose:'포즈 인식 불가(인터넷/CORS 확인)'};
+    if(ptype==='pose'){
+      posePreview(src).then(function(r){ n2.w.cnPreviews.pose=r.url; n2.w.poseKP=r.kps; n2.w.poseDim={w:r.w,h:r.h}; render();
+        if(r.kps) toast(tr('포즈 미리보기를 클릭하면 관절점을 직접 옮길 수 있어요')); })
+        .catch(function(){ n2.w.cnPreviews.pose='ERR:'+errMap.pose; render(); });
+      return;
+    }
     (fnMap[ptype]||cannyPreview)(src).then(function(u){ n2.w.cnPreviews[ptype]=u; render(); })
       .catch(function(){ n2.w.cnPreviews[ptype]='ERR:'+(errMap[ptype]||'실패'); render(); });
     return;
   }
+  var _ped=e.target.closest('[data-poseedit]');
+  if(_ped){ openPoseEditor(n2); return; }
   if(e.target.closest('[data-runnode]')){ runQueue(); return; }
   if(e.target.closest('[data-imggen]')){ generateImageNode(n2); return; }
   if(e.target.closest('[data-promptgen]')){ generatePromptNode(n2); return; }
