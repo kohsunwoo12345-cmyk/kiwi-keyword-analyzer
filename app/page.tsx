@@ -39,6 +39,7 @@ import { Button, SectionTag } from '@/components/ui'
 import { PlanStartButton } from '@/components/PlanStartButton'
 import { Reveal, Marquee } from '@/components/motion'
 import { LogoMark } from '@/components/Brand'
+import { LazyMount } from '@/components/LazyMount'
 import { FEATURES } from '@/lib/features'
 import { useT, type Dict } from '@/lib/i18n'
 import { Faq } from '@/components/Faq'
@@ -862,10 +863,14 @@ export default function Home() {
       </section>
 
       {/* ===== AI 파이프라인 (히어로 칩 바로 아래, 실시간 라이브 진행) ===== */}
-      <AIPipeline />
+      <LazyMount minHeight={560}>
+        <AIPipeline />
+      </LazyMount>
 
       {/* ===== AI 영상 갤러리 (힉스필드 스타일, 모델별 제작 영상) ===== */}
-      <AIVideoGallery />
+      <LazyMount minHeight={460}>
+        <AIVideoGallery />
+      </LazyMount>
 
       {/* ===== 클로드 MCP 연동 배지 ===== */}
       <section className="border-b border-white/10 py-12">
@@ -912,7 +917,9 @@ export default function Home() {
               {t('유튜브 · 네이버 플레이스 · 카카오 · 블로그 · 인스타그램 · 뉴스까지, 주요 마케팅 채널을 한 곳에서 수집·분석·실행합니다.')}
             </p>
           </div>
-          <HeroOrbit />
+          <LazyMount minHeight={420}>
+            <HeroOrbit />
+          </LazyMount>
         </div>
       </section>
 
@@ -990,7 +997,9 @@ export default function Home() {
 
           {/* 대형 AI 영상 제작 쇼케이스 */}
           <Reveal variant="rise" className="mt-14">
-            <AIVideoShowcase />
+            <LazyMount minHeight={460}>
+              <AIVideoShowcase />
+            </LazyMount>
           </Reveal>
 
           {/* 부가 서비스 */}
@@ -1009,7 +1018,9 @@ export default function Home() {
 
           {/* 마케팅 대시보드 미리보기 (부가 서비스 섹션으로 이동) */}
           <div className="relative mt-10">
-            <HeroDashboard />
+            <LazyMount minHeight={480}>
+              <HeroDashboard />
+            </LazyMount>
           </div>
 
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -6,6 +6,16 @@ import { MapPin, Building2, Mail, Hash, ArrowRight, AlertCircle, Check, LogOut, 
 import { Logo } from '@/components/Brand'
 import { Button } from '@/components/ui'
 import { useAuth, saveAddress, logout } from '@/lib/auth'
+import { useI18n, type Lang } from '@/lib/i18n'
+
+// 국가(한국어 표기) → 서비스 언어. 미지원 국가는 영어.
+const COUNTRY_LANG: Record<string, Lang> = {
+  대한민국: 'ko', 미국: 'en', 일본: 'ja', 중국: 'zh', 대만: 'zh', 홍콩: 'zh',
+  싱가포르: 'en', 캐나다: 'en', 영국: 'en', 호주: 'en', 독일: 'de', 프랑스: 'fr',
+  네덜란드: 'en', 스페인: 'es', 이탈리아: 'it', 베트남: 'en', 태국: 'en',
+  인도네시아: 'id', 말레이시아: 'id', 필리핀: 'en', 인도: 'hi', 아랍에미리트: 'ar',
+  사우디아라비아: 'ar', 브라질: 'pt', 멕시코: 'es',
+}
 
 const inputBase =
   'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] pl-11 pr-3.5 py-3 text-sm outline-none transition-colors focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 placeholder:text-[var(--text-dim)]'
@@ -23,6 +33,7 @@ const COUNTRIES = Object.keys(COUNTRY_DIAL)
 export default function CompleteProfilePage() {
   const router = useRouter()
   const { user, ready } = useAuth()
+  const { setLang } = useI18n()
 
   const [country, setCountry] = useState('대한민국')
   const [company, setCompany] = useState('')
@@ -33,6 +44,14 @@ export default function CompleteProfilePage() {
   const [refCode, setRefCode] = useState('')
 
   const dialCode = COUNTRY_DIAL[country] || ''
+
+  // 국가 선택 시 해당 국가의 언어로 전환
+  const changeCountry = (c: string) => {
+    setCountry(c)
+    const lg = COUNTRY_LANG[c]
+    if (lg) setLang(lg)
+  }
+
   const [agreeTos, setAgreeTos] = useState(false)
   const [agreePrivacy, setAgreePrivacy] = useState(false)
   const [agreeMkt, setAgreeMkt] = useState(false)
@@ -174,7 +193,7 @@ export default function CompleteProfilePage() {
                   <select
                     id="country"
                     value={country}
-                    onChange={(e) => setCountry(e.target.value)}
+                    onChange={(e) => changeCountry(e.target.value)}
                     style={{ colorScheme: 'dark' }}
                     className={inputBase + ' appearance-none pr-9 text-[var(--text)]'}
                   >

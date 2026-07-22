@@ -86,8 +86,12 @@ export function EmojiParser() {
     }
     const schedule = (n: Node) => { pending.add(n); if (!raf) raf = requestAnimationFrame(flush) }
 
-    // 최초 1회 전체 파싱
-    walk(document.body)
+    // 최초 1회 전체 파싱 — 유휴 시간에 수행해 하이드레이션 롱태스크(렉)를 피함
+    const ric: (cb: () => void) => number =
+      typeof (window as unknown as { requestIdleCallback?: unknown }).requestIdleCallback === 'function'
+        ? (cb) => (window as unknown as { requestIdleCallback: (cb: () => void, o: { timeout: number }) => number }).requestIdleCallback(cb, { timeout: 1500 })
+        : (cb) => window.setTimeout(cb, 200)
+    ric(() => walk(document.body))
 
     const obs = new MutationObserver((records) => {
       for (const r of records) {
