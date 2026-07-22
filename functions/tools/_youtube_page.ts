@@ -559,7 +559,7 @@ async function checkApiStatus() {
     if(data.ok) {
       badge.className = 'badge badge-green';
       badge.textContent = '✅ API 연결됨';
-      if(homeStatus) homeStatus.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:14px;background:#f0fdf4;border-radius:10px;border:1px solid #bbf7d0;"><span style="font-size:20px;">✅</span><div><div style="font-weight:700;color:#16a34a;">YouTube Data API v3 연결 완료</div><div style="font-size:12px;color:#64748b;margin-top:2px;">실시간 데이터 조회 가능 · 채널 검색, 영상 분석, 키워드 분석 모두 사용 가능합니다</div></div></div>';
+      if(homeStatus) homeStatus.innerHTML = '';
     } else {
       badge.className = 'badge badge-red';
       badge.textContent = '❌ API 오류';
