@@ -5225,9 +5225,41 @@ function migrateFlows(){
     return Promise.all(jobs).then(function(){ try{ localStorage.removeItem(FLOW_KEY); }catch(e){} });
   }).catch(function(){});
 }
-function loadFlows(){ return IDB.ok ? IDB.all('flows').then(function(a){
-  return (a||[]).filter(function(f){ return !f.uid || f.uid===UID; })   // 내 계정(또는 레거시) 것만
-    .sort(function(x,y){ return (y.ts||'').localeCompare(x.ts||''); }); }).catch(function(){ return []; }) : Promise.resolve([]); }
+function localFlows(){ return IDB.ok ? IDB.all('flows').then(function(a){
+  return (a||[]).filter(function(f){ return !f.uid || f.uid===UID; }); }).catch(function(){ return []; }) : Promise.resolve([]); }
+/* 계정에 서버 저장된 이름별 워크플로우 목록 (다른 PC/브라우저에서도 보이도록) */
+function serverFlowList(){
+  if(UID==='guest') return Promise.resolve([]);
+  return fetch('/api/studio/flows',{ credentials:'include', cache:'no-store' })
+    .then(function(r){ return r.ok?r.json():null; })
+    .then(function(d){ return (d&&d.ok&&d.flows)? d.flows.map(function(f){
+      return { id:f.id, name:f.name, nodes:f.nodes||0, ts:f.ts||'', uid:UID, _srv:true,
+        data:(f.data==null?'':(typeof f.data==='string'?f.data:JSON.stringify(f.data))) }; }) : []; })
+    .catch(function(){ return []; });
+}
+/* 저장(스트립된 경량본을 계정에 업서트) / 삭제 */
+function serverFlowSave(rec){
+  if(UID==='guest'||ADMIN_LOAD_UID) return;
+  try{
+    var g=null; try{ g=JSON.parse(rec.data); }catch(e){ g=null; }
+    var lite=g? stripGraphMedia(g) : null;   // 대용량 base64 미디어 제거(원격 URL 은 유지)
+    fetch('/api/studio/flows',{ method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ id:rec.id, name:rec.name, nodes:rec.nodes, ts:rec.ts, data:lite }) }).catch(function(){});
+  }catch(e){}
+}
+function serverFlowDelete(id){
+  if(UID==='guest') return;
+  try{ fetch('/api/studio/flows?id='+encodeURIComponent(id),{ method:'DELETE', credentials:'include' }).catch(function(){}); }catch(e){}
+}
+/* 로컬(IndexedDB, 전체 미디어) + 서버(계정, 경량본)를 합쳐 목록 구성 — id 기준 중복 제거(로컬 우선) */
+function loadFlows(){
+  return Promise.all([localFlows(), serverFlowList()]).then(function(res){
+    var local=res[0]||[], srv=res[1]||[], seen={}, out=[];
+    local.forEach(function(f){ seen[f.id]=1; out.push(f); });
+    srv.forEach(function(f){ if(!seen[f.id]) out.push(f); });
+    return out.sort(function(x,y){ return (y.ts||'').localeCompare(x.ts||''); });
+  }).catch(function(){ return []; });
+}
 function newFlowId(){ return 'wf-'+Date.now()+'-'+Math.floor(Math.random()*1e6); }
 function saveCurrentFlow(){
   var name=prompt('워크플로우 이름을 입력하세요','내 워크플로우');
@@ -5242,8 +5274,8 @@ function saveCurrentFlow(){
     inlineGraphMedia(state.nodes).then(function(inlined){
       var payload=JSON.stringify({nodes:inlined,links:links,seq:seq});
       var rec={ id: exist?exist.id:newFlowId(), name:name, data:payload, ts:stamp, nodes:nodeCount, uid:UID };
-      IDB.set('flows',rec).then(function(){ toast('저장됨: '+name); renderFlows(); })
-        .catch(function(err){ toast('저장 실패: '+String(err&&err.name||err).slice(0,50)); });
+      IDB.set('flows',rec).then(function(){ serverFlowSave(rec); toast('저장됨: '+name+(UID!=='guest'?' (계정 동기화)':'')); renderFlows(); })
+        .catch(function(err){ serverFlowSave(rec); toast('저장 실패(로컬): '+String(err&&err.name||err).slice(0,40)+' · 계정에는 저장 시도됨'); renderFlows(); });
     });
   });
 }
@@ -5280,8 +5312,10 @@ flowModal.addEventListener('mousedown',function(e){ if(e.target===flowModal) flo
 document.getElementById('flowNew').addEventListener('click',function(){ saveCurrentFlow(); });
 flowBody.addEventListener('click',function(e){
   var lo=e.target.closest('[data-fload]'), de=e.target.closest('[data-fdel]');
-  if(lo){ var f=_flowCache[+lo.getAttribute('data-fload')]; if(f){ try{ restore(f.data); var ad=activeDoc(); if(ad){ ad.name=f.name; renderTabs(); } snapshot(); flowModal.classList.remove('show'); toast('불러옴: '+f.name); fitView(); }catch(err){ toast('불러오기 실패'); } } }
-  else if(de){ var f2=_flowCache[+de.getAttribute('data-fdel')]; if(f2&&confirm('"'+f2.name+'" 을(를) 삭제할까요?')){ IDB.del('flows',f2.id).then(renderFlows); } }
+  if(lo){ var f=_flowCache[+lo.getAttribute('data-fload')]; if(f){ try{ restore(f.data); var ad=activeDoc(); if(ad){ ad.name=f.name; renderTabs(); } snapshot();
+      if(f._srv&&IDB.ok){ try{ IDB.set('flows',{ id:f.id, name:f.name, data:f.data, ts:f.ts, nodes:f.nodes, uid:UID }); }catch(e){} }   // 서버 전용 항목을 로컬에도 캐시
+      flowModal.classList.remove('show'); toast('불러옴: '+f.name); fitView(); }catch(err){ toast('불러오기 실패'); } } }
+  else if(de){ var f2=_flowCache[+de.getAttribute('data-fdel')]; if(f2&&confirm('"'+f2.name+'" 을(를) 삭제할까요?')){ serverFlowDelete(f2.id); (IDB.ok?IDB.del('flows',f2.id):Promise.resolve()).then(renderFlows).catch(renderFlows); } }
 });
 /* 파일 내보내기/가져오기(백업용) */
 document.getElementById('flowExport').addEventListener('click',function(){
