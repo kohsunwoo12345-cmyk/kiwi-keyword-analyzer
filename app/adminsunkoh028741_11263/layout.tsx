@@ -48,6 +48,7 @@ import {
   Workflow,
   Search,
   Contact,
+  CalendarRange,
 } from 'lucide-react'
 import { Logo } from '@/components/Brand'
 import { adminSupportCount, adminPendingCounts } from '@/lib/auth'
@@ -105,6 +106,7 @@ const NAV_GROUPS: NavGroup[] = [
       { title: '랜딩 신청 DB', href: '/tools/landing-submissions.html', icon: Inbox },
       { title: '랜딩 경로 분석', href: '/tools/landing-traffic.html', icon: Route },
       { title: '광고주 관리', href: `${ADMIN_BASE}/advertisers`, icon: Contact },
+      { title: '전개 캘린더', href: `${ADMIN_BASE}/calendar`, icon: CalendarRange },
       { title: '광고 성과', href: `${ADMIN_BASE}/ad-performance`, icon: TrendingUp },
       { title: '퍼널 분석', href: '/tools/funnel-landing-analytics.html', icon: LineChart },
       { title: '쿠폰·할인코드', href: `${ADMIN_BASE}/coupons`, icon: Ticket },

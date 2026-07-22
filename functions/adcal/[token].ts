@@ -21,20 +21,27 @@ export const onRequestGet: PagesFunction<any> = async ({ params, env, request })
   const db = resolveDB(env)
   if (!db) return errPage('데이터베이스에 연결할 수 없습니다.')
 
-  const isGeneral = String(v.aid) === '_general'
-  let adv: any = null, events: any[] = []
+  const aid = String(v.aid)
+  const isGeneral = aid === '_general'
+  const isCal = aid.indexOf('_cal_') === 0
+  let adv: any = null, events: any[] = [], calName = ''
   try {
-    if (!isGeneral) adv = await db.prepare('SELECT company_name,industry,product,status FROM advertisers WHERE id=?').bind(String(v.aid)).first()
+    if (isCal) {
+      const cal: any = await db.prepare('SELECT name FROM ad_calendars WHERE id=?').bind(aid.slice(5)).first().catch(() => null)
+      calName = (cal && cal.name) || '전개 캘린더'
+    } else if (!isGeneral) {
+      adv = await db.prepare('SELECT company_name,industry,product,status FROM advertisers WHERE id=?').bind(aid).first()
+    }
     const { results } = await db.prepare(
       'SELECT title,type,color,start_date,end_date,memo,result,ad_result,cost_result,link FROM ad_campaigns WHERE advertiser_id=? ORDER BY start_date ASC',
-    ).bind(String(v.aid)).all()
+    ).bind(aid).all()
     events = (results as any[]) || []
   } catch {
     return errPage('데이터를 불러오지 못했습니다.')
   }
 
-  const company = (adv && adv.company_name) || (isGeneral ? '마케팅 전개' : '광고주')
-  const heading = isGeneral ? '마케팅 전개 캘린더' : company + ' · 광고 집행 캘린더'
+  const company = (adv && adv.company_name) || (isCal ? calName : (isGeneral ? '마케팅 전개' : '광고주'))
+  const heading = isCal ? calName : (isGeneral ? '마케팅 전개 캘린더' : company + ' · 광고 집행 캘린더')
   const origin = new URL(request.url).origin
   const data = JSON.stringify(events.map((e) => ({
     title: e.title || '', type: e.type || 'run', color: e.color || '',
