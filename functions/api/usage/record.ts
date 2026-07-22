@@ -83,26 +83,19 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const cnMult = cnCount > 0 ? 1 + cnPct / 100 : 1
   const wantCredits = Math.round(c.credits * refMult * cnMult * 100) / 100
 
-  // 크레딧 100% 차감 (로그인 사용자만). 원자적 조건부 차감으로 동시 요청 이중차감·음수(TOCTOU) 방지.
-  //  · 잔액 ≥ 필요분이면 정확히 필요분 차감. 부족하면 남은 잔액만큼만 원자적으로 차감.
+  // 크레딧 100% 차감 (로그인 사용자만).
+  //  · 생성은 이미 유료 제공사에서 완료된 상태이므로, 잔액이 부족하더라도 실제 원가만큼 전액 차감한다.
+  //    (예전처럼 "남은 잔액만" 차감하면 0.01크레딧 계정이 고가 영상을 사실상 공짜로 생성 → 손해).
+  //  · 잔액이 음수가 되면 이후 생성은 /api/generate 의 credits>0 게이트에서 자동 차단(=미납 잠금).
+  //  · 원자적 무조건 차감으로 동시 요청 시에도 이중차감 없이 정확히 원가만큼만 반영된다.
   let charged = 0
   let afterBal = Number(me?.credits) || 0
   if (me && wantCredits > 0) {
     const full: any = await db
-      .prepare('UPDATE users SET credits = ROUND(credits - ?, 2) WHERE id = ? AND credits >= ?')
-      .bind(wantCredits, me.id, wantCredits)
+      .prepare('UPDATE users SET credits = ROUND(credits - ?, 2) WHERE id = ?')
+      .bind(wantCredits, me.id)
       .run()
-    if (full?.meta?.changes === 1) {
-      charged = wantCredits
-    } else {
-      // 잔액 부족: 현재 남은 잔액을 읽어 그만큼만 0 으로 (credits <= rem 가드로 그새 증가 시 중복차감 방지)
-      const cur: any = await db.prepare('SELECT credits FROM users WHERE id = ?').bind(me.id).first()
-      const rem = Math.max(0, Math.round((Number(cur?.credits) || 0) * 100) / 100)
-      if (rem > 0) {
-        const part: any = await db.prepare('UPDATE users SET credits = 0 WHERE id = ? AND credits <= ? AND credits > 0').bind(me.id, rem).run()
-        if (part?.meta?.changes === 1) charged = rem
-      }
-    }
+    if (full?.meta?.changes === 1) charged = wantCredits
     if (charged > 0) {
       const row: any = await db.prepare('SELECT credits FROM users WHERE id = ?').bind(me.id).first()
       afterBal = Math.round((Number(row?.credits) || 0) * 100) / 100

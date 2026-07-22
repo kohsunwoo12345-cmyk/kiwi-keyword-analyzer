@@ -8,7 +8,8 @@
 // 키는 Cloudflare Pages 환경변수에서만 읽으며 절대 응답에 포함되지 않습니다.
 
 import { getSessionUser, resolveDB } from "./_utils";
-import { getUserByApiKey } from "./_apikeys";
+import { getUserByApiKey, enforceRateLimit, ensureApiKeysSchema } from "./_apikeys";
+import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from "./studio/_pricing";
 
 const RUNWAY_VER = "2024-11-06";
 
@@ -53,13 +54,16 @@ function r2BucketOf(env) {
 
 /* 대본(텍스트)을 자체 다중엔진 TTS(/api/tts/v2/speak)로 음성(mp3) 합성 → R2 호스팅 → 공개 URL.
    이미 audioUrl 이 오면 그대로 사용. 실패 시 { error, status } 반환. */
-async function synthTTSUrl(env, origin, b, _fetchT) {
+async function synthTTSUrl(env, origin, b, _fetchT, cookie) {
   let audioUrl = String(b.audioUrl || "").trim();
   if (/^https?:\/\//.test(audioUrl)) return { audioUrl };
   const text = String(b.text || b.narration || "").trim();
   if (!text) return { error: "대사(텍스트)를 입력하세요.", status: 400 };
+  // 내부 호출: TTS 엔드포인트가 로그인 세션을 요구하므로 원 사용자 쿠키를 전달한다.
+  const ttsHeaders = { "Content-Type": "application/json" };
+  if (cookie) ttsHeaders["Cookie"] = cookie;
   const tr = await _fetchT(origin + "/api/tts/v2/speak", {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST", headers: ttsHeaders,
     body: JSON.stringify({ text: text.slice(0, 4000), voice_id: b.voice || "gtts:ko-KR-Neural2-A", speaking_rate: Number(b.rate) || 1.0 })
   }, 60000);
   const ctt = (tr.headers.get("content-type") || "").toLowerCase();
@@ -654,10 +658,43 @@ async function handle(context) {
     if (!me) return json({ error: "로그인이 필요합니다.", needLogin: true }, 401);
     // 실제 생성(POST)은 크레딧 보유자(또는 관리자)만 — dryRun 검증 요청은 통과
     if (method === "POST") {
-      let dry = false;
-      try { const body = await request.clone().json(); dry = !!(body && body.dryRun); } catch (_e) {}
-      if (!dry && !(me.role === "admin" || Number(me.credits) > 0)) {
+      let pbody = {};
+      try { pbody = await request.clone().json(); } catch (_e) {}
+      const dry = !!(pbody && pbody.dryRun);
+      const isAdmin = me.role === "admin";
+      if (!dry && !isAdmin && !(Number(me.credits) > 0)) {
         return json({ error: "크레딧이 부족합니다. 요금제를 활성화해 주세요.", needPlan: true }, 402);
+      }
+      if (!dry && !isAdmin && db && me.id) {
+        // ── 남용 방지 ①: 사전 잔액 게이트 — 예상 과금 이상 보유해야 생성 시작 ──
+        //  유료 제공사 호출 "이전"에 차단하므로, 잔액이 부족하면 제공사 비용 자체가 발생하지 않는다.
+        //  precheck 와 동일한 공식(computeCharge)을 서버에서 재계산해 클라이언트 우회를 무력화한다.
+        try {
+          const mdl = String(pbody.model || "");
+          if (mdl && MODEL_COST[mdl]) {
+            const rate = await getUsdKrw(db);
+            const mk = await resolveMarkup(db, me.id, mdl, Number(me.credit_markup) || 0);
+            const cc = computeCharge({ model: mdl, units: Number(pbody.seconds) || 8, res: pbody.res || "1080p", audio: !!pbody.generateAudio }, rate, mk);
+            const surPct = await resolveRefSurcharge(db, me.id);
+            const refMult = 1 + (surPct / 100) * Math.max(0, Number(pbody.refCount) || 0);
+            const cnCount = Math.max(0, (pbody.controlnets && pbody.controlnets.length) || Number(pbody.cn) || 0);
+            const cnMult = cnCount > 0 ? 1 + (await resolveCnSurcharge(db)) / 100 : 1;
+            const need = Math.round(cc.credits * refMult * cnMult * 100) / 100;
+            if (need > 0 && Number(me.credits) < need) {
+              return json({ error: `크레딧이 부족합니다. 필요 ${need.toLocaleString("ko-KR")}크레딧 · 보유 ${Number(me.credits).toLocaleString("ko-KR")}크레딧`, need, balance: Number(me.credits), needPlan: true }, 402);
+            }
+          }
+        } catch (_e) { /* 추정 실패 시 credits>0 게이트로 통과 (락아웃 방지) */ }
+        // ── 남용 방지 ②: 레이트리밋(분/시/일) + 15초 버스트 가드 (denial-of-wallet 완화) ──
+        try { await ensureApiKeysSchema(db); } catch (_e) {}
+        const rl = await enforceRateLimit(db, me.id, "post", false);
+        if (!rl.ok) return json({ error: rl.reason || "요청이 너무 많습니다. 잠시 후 다시 시도하세요.", retryAfter: rl.retryAfter || 30 }, 429);
+        try {
+          const burst = await db.prepare(
+            "SELECT COUNT(*) AS n FROM api_rate WHERE user_id=? AND kind='post' AND ts>?"
+          ).bind(String(me.id), new Date(Date.now() - 15000).toISOString()).first();
+          if (Number(burst && burst.n || 0) > 5) return json({ error: "짧은 시간에 너무 많은 생성을 요청했습니다. 잠시 후 다시 시도하세요.", retryAfter: 15 }, 429);
+        } catch (_e) { /* 집계 실패는 통과 (락아웃 방지) */ }
       }
     }
   }
@@ -694,6 +731,21 @@ async function handle(context) {
     // (보안) 키 값/환경변수 조회 엔드포인트는 제거됨 — API 키는 어떤 응답에도 절대 노출하지 않습니다.
     if (u.searchParams.get("diag") === "keys") {
       return json({ error: "이 엔드포인트는 보안상 제거되었습니다. API 키는 노출되지 않습니다." }, 410);
+    }
+    // ── 남용 방지: 진단(diag) 엔드포인트는 실제 유료 제공사 생성 태스크를 제출하므로 관리자 전용 ──
+    //  (익명 GET 으로 Seedance/Flux/Veo 등 유료 호출을 소진하는 denial-of-wallet 차단)
+    {
+      const diagVal = u.searchParams.get("diag");
+      if (diagVal && diagVal !== "keys") {
+        const ddb = resolveDB(env);
+        let dme = ddb ? await getSessionUser(request, ddb) : null;
+        if (!dme || dme.role !== "admin") {
+          const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+          const gtok = env.MCP_AUTH_TOKEN || env.mcp_auth_token || "";
+          if (gtok && bearer && ctEqStr(bearer, String(gtok))) dme = { role: "admin" };
+        }
+        if (!dme || dme.role !== "admin") return json({ error: "진단 엔드포인트는 관리자 전용입니다.", needAdmin: true }, 403);
+      }
     }
     // GET 기반 Seedance 제출 — 스튜디오 POST 가 (원인불명) 플랫폼 502 날 때의 우회 경로.
     // 이미지/영상은 이미 공개 URL 이라 쿼리스트링으로 충분하고, GET 은 진단들처럼 안정적이다.
@@ -1457,7 +1509,7 @@ async function handle(context) {
     if (!/^https?:\/\//.test(videoUrl))
       return json({ error: "나레이션을 입힐 영상의 공개 URL이 필요합니다. (출력 노드의 영상을 음성 노드에 연결하세요)" }, 400);
     const origin = new URL(request.url).origin;
-    const tts = await synthTTSUrl(env, origin, b, fetchT);
+    const tts = await synthTTSUrl(env, origin, b, fetchT, request.headers.get("cookie"));
     if (tts.error) return json({ error: "나레이션 " + tts.error }, tts.status || 502);
     // fal ffmpeg — 원본 영상 + 나레이션 오디오 병합 (env 로 모델 교체 가능)
     const model = pick(env, ["FAL_MERGE_MODEL", "fal_merge_model"]) || "fal-ai/ffmpeg-api/merge-audio-video";
@@ -1479,7 +1531,7 @@ async function handle(context) {
     if (!/^https?:\/\//.test(videoUrl))
       return json({ error: "립싱크할 영상의 공개 URL이 필요합니다. (얼굴/인물이 나오는 영상을 연결하세요)" }, 400);
     const origin = new URL(request.url).origin;
-    const tts = await synthTTSUrl(env, origin, b, fetchT);
+    const tts = await synthTTSUrl(env, origin, b, fetchT, request.headers.get("cookie"));
     if (tts.error) return json({ error: "립싱크 " + tts.error }, tts.status || 502);
     // fal 립싱크 모델 (env 로 교체 가능). sync-lipsync 은 video_url+audio_url 규격.
     const model = pick(env, ["FAL_LIPSYNC_MODEL", "fal_lipsync_model"]) || "fal-ai/sync-lipsync";

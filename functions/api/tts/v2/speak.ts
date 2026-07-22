@@ -1,4 +1,8 @@
 // Ported from SUPERPLACE: POST /api/tts/v2/speak — 다중 엔진 TTS (Google / OpenAI / ElevenLabs / HuggingFace)
+// 남용 방지: 로그인 세션 필수(유료 TTS 공급자 호출을 익명에게 노출하지 않음).
+//   스튜디오·영상 도구의 브라우저 호출은 세션 쿠키를 지니므로 그대로 통과하고,
+//   내부 서버 호출(generate.js synthTTSUrl)은 원 사용자 쿠키를 전달해 통과한다.
+import { getSessionUser, resolveDB } from '../../_utils'
 const PARLER_VOICE_DESC: Record<string, string> = {
   'Jon':    "Jon's voice is monotone yet slightly fast in delivery, with a very close recording that almost has no background noise.",
   'Lea':    "Lea speaks with a slightly expressive and animated voice, at a moderate speed. The recording is of very high quality.",
@@ -54,6 +58,12 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
   const userIp = request.headers.get('cf-connecting-ip') || 'unknown'
   const colo = request.headers.get('cf-ipcountry') || 'unknown'
   console.log(`[TTS:ENTRY:${traceId}] cf-ray=${cfRay} ip=${userIp} country=${colo}`)
+  // ── 남용 방지: 로그인 세션 필수 ──
+  try {
+    const db = resolveDB(env as any)
+    const me: any = db ? await getSessionUser(request, db) : null
+    if (!me) return cjson({ error: '로그인이 필요합니다.', traceId }, 401)
+  } catch { /* DB 미가용 시엔 게이트를 건너뛰지 않고 안전하게 차단 */ return cjson({ error: '인증 확인 실패', traceId }, 401) }
   try {
     const body = await request.json() as {
       text?: string
