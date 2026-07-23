@@ -8,9 +8,10 @@ import { Env, ensureSchema, resolveDB, requireAdminUser } from '../_utils'
 const FILES: string[] = [
   '/models/lib/transformers',
   '/models/lib/vision',
-  // Depth-Anything V2 base (최상 정밀) — 1순위
+  // Depth-Anything V2 base (최상 정밀) — 1순위. fp32(model.onnx) + 양자화(model_quantized.onnx)
   '/models/hf/onnx-community/depth-anything-v2-base/resolve/main/config.json',
   '/models/hf/onnx-community/depth-anything-v2-base/resolve/main/preprocessor_config.json',
+  '/models/hf/onnx-community/depth-anything-v2-base/resolve/main/onnx/model.onnx',
   '/models/hf/onnx-community/depth-anything-v2-base/resolve/main/onnx/model_quantized.onnx',
   // Depth-Anything V1 base (더 정밀) — 2순위
   '/models/hf/Xenova/depth-anything-base-hf/resolve/main/config.json',

@@ -2928,11 +2928,12 @@ function ensureDepthModel(){
       mod.env.remoteHost=location.origin+'/models/hf';
       try{ mod.env.backends.onnx.wasm.wasmPaths=location.origin+'/models/ort/'; }catch(_){}
     }catch(_){}
-    // 최상 정밀도: Depth-Anything V2(base) → V1 base → small 3단 폴백. (self-host R2 캐시)
-    function _dp(m){ return mod.pipeline('depth-estimation', m, { quantized:true }); }
-    return _dp('onnx-community/depth-anything-v2-base')
-      .catch(function(){ return _dp('Xenova/depth-anything-base-hf'); })
-      .catch(function(){ return _dp('Xenova/depth-anything-small-hf'); });
+    // 최상 정밀도: V2 base fp32(전체 정밀) → V2 base 양자화 → V1 base → small. (self-host R2 캐시)
+    function _dp(m,q){ return mod.pipeline('depth-estimation', m, { quantized:q }); }
+    return _dp('onnx-community/depth-anything-v2-base', false)
+      .catch(function(){ return _dp('onnx-community/depth-anything-v2-base', true); })
+      .catch(function(){ return _dp('Xenova/depth-anything-base-hf', true); })
+      .catch(function(){ return _dp('Xenova/depth-anything-small-hf', true); });
   }).then(function(p){ _depthModel=p; return p; }).catch(function(err){ _depthTry=null; throw err; });
   return _depthTry;
 }
