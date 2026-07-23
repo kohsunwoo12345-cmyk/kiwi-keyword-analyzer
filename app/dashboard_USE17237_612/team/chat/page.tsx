@@ -1,295 +1,480 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { MessageCircle, Send, Users, Sparkles } from 'lucide-react'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import Link from 'next/link'
+import { MessageCircle, Send, Paperclip, Image as ImageIcon, Film, Users, Loader2 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { aiGenerate } from '@/lib/auth'
+
+interface Member {
+  id: string
+  name: string
+  email: string
+  role: string
+}
+
+interface Team {
+  id: string
+  name: string
+  ownerId: string
+  role: string
+  members: Member[]
+}
 
 interface Msg {
   id: string
-  author: string
-  mine: boolean
+  user_id: string
+  name: string
   text: string
-  time: string
+  kind: 'text' | 'image' | 'video'
+  media_key: string | null
+  media_name: string | null
+  created_at: string
 }
 
-const CHANNELS = [
-  { id: 'general', name: '일반', desc: '팀 전체 공지' },
-  { id: 'marketing', name: '마케팅', desc: '캠페인 전략' },
-  { id: 'design', name: '디자인', desc: '소재 & 시안' },
-  { id: 'ads', name: '광고', desc: '성과 & 예산' },
+const AVATAR_COLORS = [
+  'from-violet-500 to-fuchsia-500',
+  'from-sky-500 to-blue-500',
+  'from-emerald-500 to-green-500',
+  'from-amber-500 to-orange-500',
+  'from-rose-500 to-pink-500',
+  'from-indigo-500 to-violet-500',
+  'from-cyan-500 to-sky-500',
+  'from-teal-500 to-emerald-500',
 ]
 
-const MEMBERS = [
-  { name: '김지훈', role: '팀장', status: 'online' as const },
-  { name: '이수민', role: '콘텐츠', status: 'online' as const },
-  { name: '박현우', role: '영상', status: 'online' as const },
-  { name: '최민지', role: '디자인', status: 'away' as const },
-  { name: '정예린', role: '광고', status: 'offline' as const },
-]
-
-const AI_NAME = 'AI 어시스턴트'
-
-const AVATAR_COLORS: Record<string, string> = {
-  김지훈: 'from-violet-500 to-fuchsia-500',
-  이수민: 'from-sky-500 to-blue-500',
-  박현우: 'from-emerald-500 to-green-500',
-  최민지: 'from-amber-500 to-orange-500',
-  정예린: 'from-rose-500 to-pink-500',
-  [AI_NAME]: 'from-indigo-500 to-violet-500',
+function avatarClass(key: string) {
+  let h = 0
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0
+  return AVATAR_COLORS[h % AVATAR_COLORS.length]
 }
 
-function avatarClass(name: string) {
-  return AVATAR_COLORS[name] || 'from-slate-400 to-slate-500'
-}
-
-const SEED: Record<string, Msg[]> = {
-  general: [
-    { id: 'g1', author: '김지훈', mine: false, text: '다들 좋은 아침입니다! 오늘 오후 3시 주간 회의 잊지 마세요 🙌', time: '09:02' },
-    { id: 'g2', author: '이수민', mine: false, text: '넵 회의록 미리 공유해둘게요~', time: '09:05' },
-    { id: 'g3', author: '나', mine: true, text: '어젠다에 7월 캠페인 성과 항목 추가해주세요!', time: '09:07' },
-  ],
-  marketing: [
-    { id: 'm1', author: '이수민', mine: false, text: '여름 세일 캠페인 카피 초안 나왔어요. 검토 부탁드려요!', time: '10:12' },
-    { id: 'm2', author: '나', mine: true, text: '"지금 아니면 손해" 훅 좋네요. 타겟은 20대 여성으로 갈까요?', time: '10:15' },
-    { id: 'm3', author: '박현우', mine: false, text: '릴스용 숏폼도 같이 준비하면 시너지 날 것 같아요', time: '10:18' },
-  ],
-  design: [
-    { id: 'd1', author: '최민지', mine: false, text: '배너 시안 3종 업로드했습니다. A안이 브랜드 톤에 제일 맞는 것 같아요', time: '11:30' },
-    { id: 'd2', author: '나', mine: true, text: 'A안 좋습니다! CTA 버튼만 조금 더 크게 갈 수 있을까요?', time: '11:33' },
-  ],
-  ads: [
-    { id: 'a1', author: '정예린', mine: false, text: '리타겟팅 캠페인 ROAS 8.4 찍었어요 🎉 예산 증액 제안드립니다', time: '14:20' },
-    { id: 'a2', author: '나', mine: true, text: '오 대박이네요. 네이버 신규가입 캠페인 예산 일부 옮기죠', time: '14:22' },
-  ],
-}
-
-const REPLIES: Record<string, { author: string; text: string }[]> = {
-  general: [
-    { author: '이수민', text: '반영했습니다! 회의 때 뵐게요 😄' },
-    { author: '김지훈', text: '좋아요, 확인했습니다 👍' },
-  ],
-  marketing: [
-    { author: '이수민', text: '넵 20대 여성 타겟으로 소재 다듬어볼게요!' },
-    { author: '박현우', text: '숏폼 스크립트 오늘 안으로 공유드릴게요' },
-  ],
-  design: [
-    { author: '최민지', text: 'CTA 사이즈 키워서 다시 올릴게요! 잠시만요' },
-  ],
-  ads: [
-    { author: '정예린', text: '바로 예산 재배분 세팅하겠습니다 💪' },
-  ],
-}
-
-function now() {
-  const d = new Date()
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
-function Avatar({ name, size = 36 }: { name: string; size?: number }) {
+function Avatar({ name, seed, size = 36 }: { name: string; seed: string; size?: number }) {
   return (
     <span
-      className={`grid flex-shrink-0 place-items-center rounded-full bg-gradient-to-br ${avatarClass(name)} font-semibold text-white`}
+      className={`grid flex-shrink-0 place-items-center rounded-full bg-gradient-to-br ${avatarClass(seed)} font-semibold text-white`}
       style={{ height: size, width: size, fontSize: size * 0.4 }}
     >
-      {name === AI_NAME ? <Sparkles size={size * 0.5} /> : name === '나' ? '나' : name[0]}
+      {name ? name[0] : '?'}
     </span>
   )
 }
 
+function fmtTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleTimeString('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return ''
+  }
+}
+
 export default function TeamChatPage() {
-  const [active, setActive] = useState('general')
-  const [store, setStore] = useState<Record<string, Msg[]>>(SEED)
+  const [loading, setLoading] = useState(true)
+  const [teams, setTeams] = useState<Team[]>([])
+  const [meId, setMeId] = useState('')
+  const [teamId, setTeamId] = useState('')
+  const [messages, setMessages] = useState<Msg[]>([])
   const [input, setInput] = useState('')
-  const [typing, setTyping] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [err, setErr] = useState('')
+
+  const afterRef = useRef('')
+  const pollRef = useRef<() => void>(() => {})
   const endRef = useRef<HTMLDivElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
-  const messages = store[active]
+  const team = teams.find((t) => t.id === teamId)
+  const members = team?.members || []
 
+  // 초기 로드: 내 팀 목록 + 내 정보
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const r = await fetch('/api/team', { credentials: 'include' }).then((res) => res.json())
+        if (r.ok) {
+          const ts: Team[] = r.teams || []
+          setTeams(ts)
+          setMeId(r.meId || '')
+          if (ts.length) setTeamId(ts[0].id)
+        }
+      } catch {
+        /* ignore */
+      }
+      setLoading(false)
+    })()
+  }, [])
+
+  // 선택된 팀의 메시지 폴링 (~4초)
+  useEffect(() => {
+    if (!teamId) return
+    afterRef.current = ''
+    setMessages([])
+    let stopped = false
+
+    async function poll() {
+      try {
+        const r = await fetch(
+          `/api/team?messages=${encodeURIComponent(teamId)}&after=${encodeURIComponent(afterRef.current)}`,
+          { credentials: 'include' },
+        ).then((res) => res.json())
+        if (stopped) return
+        if (r.ok && Array.isArray(r.messages) && r.messages.length) {
+          setMessages((prev) => {
+            const seen = new Set(prev.map((m) => m.id))
+            const fresh = (r.messages as Msg[]).filter((m) => !seen.has(m.id))
+            if (!fresh.length) return prev
+            afterRef.current = fresh[fresh.length - 1].created_at
+            return [...prev, ...fresh]
+          })
+        }
+      } catch {
+        /* ignore transient errors */
+      }
+    }
+
+    pollRef.current = poll
+    poll()
+    const iv = setInterval(poll, 4000)
+    return () => {
+      stopped = true
+      clearInterval(iv)
+    }
+  }, [teamId])
+
+  // 새 메시지마다 하단으로 스크롤
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, typing])
+  }, [messages])
 
-  function appendMsg(ch: string, msg: Msg) {
-    setStore((prev) => ({ ...prev, [ch]: [...prev[ch], msg] }))
-  }
+  const refreshSoon = useCallback(() => {
+    // 전송 직후 바로 반영
+    setTimeout(() => pollRef.current(), 150)
+  }, [])
 
-  function rid(prefix: string) {
-    return prefix + Math.random().toString(36).slice(2, 7)
-  }
-
-  async function send() {
-    if (!input.trim() || typing) return
-    const ch = active
+  async function sendText() {
     const text = input.trim()
-    appendMsg(ch, { id: rid('u'), author: '나', mine: true, text, time: now() })
-    setInput('')
-
-    // 실제 OpenAI 응답 (크레딧 1개 차감/실패 시 환불)
-    setTyping(true)
-    let r: Awaited<ReturnType<typeof aiGenerate>>
+    if (!text || sending || uploading || !teamId) return
+    setSending(true)
+    setErr('')
     try {
-      r = await aiGenerate({
-        prompt: text,
-        system: '당신은 BYGENCY의 마케팅 AI 어시스턴트입니다. 한국어로 간결하고 실용적인 마케팅 조언을 제공합니다.',
-        feature: 'AI 챗봇',
-        cost: 1,
-      })
+      const r = await fetch('/api/team', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'send', teamId, text }),
+      }).then((res) => res.json())
+      if (r.ok) {
+        setInput('')
+        refreshSoon()
+      } else {
+        setErr(r.error || '메시지 전송에 실패했습니다.')
+      }
     } catch {
-      r = { ok: false, error: '네트워크 오류가 발생했습니다.' }
+      setErr('네트워크 오류가 발생했습니다.')
     }
-    setTyping(false)
-
-    if (r.ok && r.text) {
-      appendMsg(ch, { id: rid('a'), author: AI_NAME, mine: false, text: r.text, time: now() })
-    } else {
-      // graceful fallback: 안내 + 기존 캔드 응답으로 대화 유지
-      const pool = REPLIES[ch]
-      const canned = pool[Math.floor(Math.random() * pool.length)]
-      const note = r.error ? `AI 응답을 불러오지 못했어요 (${r.error}).` : 'AI 응답을 불러오지 못했어요.'
-      appendMsg(ch, {
-        id: rid('a'),
-        author: AI_NAME,
-        mine: false,
-        text: `${note} ${canned.text}`,
-        time: now(),
-      })
-    }
+    setSending(false)
   }
 
-  const statusColor = { online: 'bg-emerald-500', away: 'bg-amber-500', offline: 'bg-slate-300' }
-  const statusLabel = { online: '온라인', away: '자리비움', offline: '오프라인' }
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !teamId) return
+    setUploading(true)
+    setErr('')
+    try {
+      const fd = new FormData()
+      fd.append('teamId', teamId)
+      fd.append('file', file)
+      const up = await fetch('/api/team/upload', {
+        method: 'POST',
+        credentials: 'include',
+        body: fd,
+      }).then((res) => res.json())
+      if (!up.ok) {
+        setErr(up.error || '파일 업로드에 실패했습니다.')
+        setUploading(false)
+        return
+      }
+      const caption = input.trim()
+      const r = await fetch('/api/team', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send',
+          teamId,
+          kind: up.kind,
+          mediaKey: up.key,
+          mediaName: up.name,
+          text: caption,
+        }),
+      }).then((res) => res.json())
+      if (r.ok) {
+        setInput('')
+        refreshSoon()
+      } else {
+        setErr(r.error || '전송에 실패했습니다.')
+      }
+    } catch {
+      setErr('업로드 중 오류가 발생했습니다.')
+    }
+    setUploading(false)
+  }
+
+  // ── 로딩 ────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="animate-fade-in">
+        <PageHeader
+          icon={MessageCircle}
+          eyebrow="TEAM"
+          title="팀 채팅"
+          desc="팀원과 실시간으로 메시지와 사진·영상을 주고받으세요."
+          accent="#0ea5e9"
+        />
+        <div className="grid place-items-center p-20 text-[var(--text-dim)]">
+          <Loader2 className="animate-spin" size={28} />
+        </div>
+      </div>
+    )
+  }
+
+  // ── 팀 없음 ─────────────────────────────────────────────
+  if (!teams.length) {
+    return (
+      <div className="animate-fade-in">
+        <PageHeader
+          icon={MessageCircle}
+          eyebrow="TEAM"
+          title="팀 채팅"
+          desc="팀원과 실시간으로 메시지와 사진·영상을 주고받으세요."
+          accent="#0ea5e9"
+        />
+        <div className="p-6 lg:p-8">
+          <div className="card grid place-items-center gap-4 p-12 text-center">
+            <span className="grid h-16 w-16 place-items-center rounded-2xl bg-sky-50 text-sky-500">
+              <Users size={30} />
+            </span>
+            <div>
+              <p className="text-lg font-semibold">아직 참여 중인 팀이 없어요</p>
+              <p className="mt-1 text-sm text-[var(--text-soft)]">
+                팀을 만들고 팀원을 초대하면 팀 채팅을 시작할 수 있어요.
+              </p>
+            </div>
+            <Link
+              href="/dashboard_USE17237_612/team/manage"
+              className="brand-gradient inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:brightness-105"
+            >
+              <Users size={16} /> 팀 관리로 이동
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const busy = sending || uploading
 
   return (
     <div className="animate-fade-in">
       <PageHeader
         icon={MessageCircle}
-        eyebrow="팀 협업"
+        eyebrow="TEAM"
         title="팀 채팅"
-        desc="채널별로 팀원과 실시간으로 소통하세요."
+        desc="팀원과 실시간으로 메시지와 사진·영상을 주고받으세요."
         accent="#0ea5e9"
+        action={
+          teams.length > 1 ? (
+            <select
+              value={teamId}
+              onChange={(e) => setTeamId(e.target.value)}
+              className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm font-medium outline-none focus:border-sky-500"
+            >
+              {teams.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          ) : undefined
+        }
       />
 
       <div className="grid gap-6 p-6 lg:grid-cols-[260px_1fr] lg:p-8">
-        {/* Sidebar: channels + members */}
+        {/* 사이드바: 팀원 목록 */}
         <div className="space-y-6">
           <div className="card p-4">
             <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">
-              <MessageCircle size={13} /> 채널
+              <Users size={13} /> 팀원 · {members.length}명
             </p>
-            <div className="space-y-1">
-              {CHANNELS.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setActive(c.id)}
-                  className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                    active === c.id
-                      ? 'bg-sky-50 font-semibold text-sky-700'
-                      : 'text-[var(--text-soft)] hover:bg-slate-50'
-                  }`}
-                >
-                  <span className={active === c.id ? 'text-sky-500' : 'text-[var(--text-dim)]'}>#</span>
-                  {c.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="card p-4">
-            <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">
-              <Users size={13} /> 멤버 · {MEMBERS.filter((m) => m.status === 'online').length}명 접속
-            </p>
-            <div className="space-y-2.5">
-              {MEMBERS.map((m) => (
-                <div key={m.name} className="flex items-center gap-2.5">
-                  <div className="relative">
-                    <Avatar name={m.name} size={32} />
-                    <span
-                      className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white ${statusColor[m.status]}`}
-                    />
+            {members.length === 0 ? (
+              <p className="text-sm text-[var(--text-dim)]">팀원이 없습니다.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {members.map((m) => (
+                  <div key={m.id} className="flex items-center gap-2.5">
+                    <Avatar name={m.name} seed={m.id} size={32} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {m.name}
+                        {m.id === meId && <span className="ml-1 text-xs text-sky-500">(나)</span>}
+                      </p>
+                      <p className="truncate text-xs text-[var(--text-dim)]">{m.role || '멤버'}</p>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{m.name}</p>
-                    <p className="text-xs text-[var(--text-dim)]">{m.role}</p>
-                  </div>
-                  <span className="text-[11px] text-[var(--text-dim)]">{statusLabel[m.status]}</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Chat area */}
+        {/* 채팅 영역 */}
         <div className="card flex h-[640px] flex-col overflow-hidden">
           <div className="flex items-center gap-2 border-b border-[var(--border)] px-5 py-4">
-            <span className="text-lg font-bold text-sky-500">#</span>
+            <MessageCircle size={18} className="text-sky-500" />
             <div>
-              <p className="font-semibold">{CHANNELS.find((c) => c.id === active)?.name}</p>
-              <p className="text-xs text-[var(--text-dim)]">{CHANNELS.find((c) => c.id === active)?.desc}</p>
+              <p className="font-semibold">{team?.name}</p>
+              <p className="text-xs text-[var(--text-dim)]">{members.length}명 · 팀 채팅</p>
             </div>
           </div>
 
           <div className="flex-1 space-y-4 overflow-y-auto p-5">
-            {messages.map((m) => (
-              <div key={m.id} className={`flex gap-3 ${m.mine ? 'flex-row-reverse' : ''}`}>
-                <Avatar name={m.author} />
-                <div className={`max-w-[70%] ${m.mine ? 'items-end text-right' : ''} flex flex-col`}>
-                  <div className={`mb-1 flex items-center gap-2 text-xs ${m.mine ? 'flex-row-reverse' : ''}`}>
-                    <span className="font-semibold">{m.author}</span>
-                    <span className="text-[var(--text-dim)]">{m.time}</span>
-                  </div>
-                  <div
-                    className={`whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
-                      m.mine
-                        ? 'brand-gradient text-white'
-                        : 'bg-[var(--panel-2)] text-[var(--text-soft)]'
-                    }`}
-                  >
-                    {m.text}
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {typing && (
-              <div className="flex gap-3">
-                <Avatar name={AI_NAME} />
-                <div className="flex flex-col">
-                  <div className="mb-1 flex items-center gap-2 text-xs">
-                    <span className="font-semibold">{AI_NAME}</span>
-                    <span className="text-[var(--text-dim)]">입력 중…</span>
-                  </div>
-                  <div className="flex items-center gap-1 rounded-2xl bg-[var(--panel-2)] px-3.5 py-3">
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--text-dim)] [animation-delay:-0.3s]" />
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--text-dim)] [animation-delay:-0.15s]" />
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--text-dim)]" />
-                  </div>
+            {members.length < 2 && messages.length === 0 && (
+              <div className="grid h-full place-items-center text-center">
+                <div className="text-[var(--text-dim)]">
+                  <Users size={28} className="mx-auto mb-2 opacity-60" />
+                  <p className="text-sm">팀원을 초대하면 대화를 시작할 수 있어요</p>
                 </div>
               </div>
             )}
+
+            {members.length >= 2 && messages.length === 0 && (
+              <div className="grid h-full place-items-center text-center">
+                <div className="text-[var(--text-dim)]">
+                  <MessageCircle size={28} className="mx-auto mb-2 opacity-60" />
+                  <p className="text-sm">아직 메시지가 없어요. 먼저 인사를 건네보세요!</p>
+                </div>
+              </div>
+            )}
+
+            {messages.map((m) => {
+              const mine = m.user_id === meId
+              const mediaUrl = m.media_key ? '/api/media/' + m.media_key : ''
+              return (
+                <div key={m.id} className={`flex gap-3 ${mine ? 'flex-row-reverse' : ''}`}>
+                  {!mine && <Avatar name={m.name} seed={m.user_id} />}
+                  <div className={`flex max-w-[75%] flex-col ${mine ? 'items-end text-right' : 'items-start'}`}>
+                    <div className={`mb-1 flex items-center gap-2 text-xs ${mine ? 'flex-row-reverse' : ''}`}>
+                      {!mine && <span className="font-semibold">{m.name}</span>}
+                      <span className="text-[var(--text-dim)]">{fmtTime(m.created_at)}</span>
+                    </div>
+
+                    {m.kind === 'image' && mediaUrl ? (
+                      <div className="flex flex-col gap-1.5">
+                        <a href={mediaUrl} target="_blank" rel="noopener noreferrer">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={mediaUrl}
+                            alt={m.media_name || '이미지'}
+                            className="max-w-[260px] cursor-pointer rounded-2xl border border-[var(--border)]"
+                          />
+                        </a>
+                        {m.text && (
+                          <div
+                            className={`whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+                              mine ? 'brand-gradient text-white' : 'bg-[var(--panel-2)] text-[var(--text-soft)]'
+                            }`}
+                          >
+                            {m.text}
+                          </div>
+                        )}
+                      </div>
+                    ) : m.kind === 'video' && mediaUrl ? (
+                      <div className="flex flex-col gap-1.5">
+                        <video
+                          src={mediaUrl}
+                          controls
+                          className="max-w-[280px] rounded-2xl border border-[var(--border)]"
+                        />
+                        {m.text && (
+                          <div
+                            className={`whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+                              mine ? 'brand-gradient text-white' : 'bg-[var(--panel-2)] text-[var(--text-soft)]'
+                            }`}
+                          >
+                            {m.text}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div
+                        className={`whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
+                          mine ? 'brand-gradient text-white' : 'bg-[var(--panel-2)] text-[var(--text-soft)]'
+                        }`}
+                      >
+                        {m.text}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+
+            {uploading && (
+              <div className="flex justify-end">
+                <div className="flex items-center gap-2 rounded-2xl bg-[var(--panel-2)] px-3.5 py-2.5 text-sm text-[var(--text-soft)]">
+                  <Loader2 size={15} className="animate-spin" /> 업로드 중…
+                </div>
+              </div>
+            )}
+
             <div ref={endRef} />
           </div>
 
+          {/* 작성 영역 */}
           <div className="border-t border-[var(--border)] p-3">
+            {err && (
+              <p className="mb-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{err}</p>
+            )}
             <div className="flex gap-2">
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*,video/*"
+                onChange={onFile}
+                className="hidden"
+              />
+              <button
+                onClick={() => fileRef.current?.click()}
+                disabled={busy}
+                title="사진·영상 첨부"
+                className="grid place-items-center rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3 text-[var(--text-soft)] transition-colors hover:border-sky-500 hover:text-sky-500 disabled:opacity-60"
+              >
+                <Paperclip size={18} />
+              </button>
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && send()}
-                disabled={typing}
-                placeholder={`#${CHANNELS.find((c) => c.id === active)?.name} 에 메시지 보내기...`}
+                onKeyDown={(e) => e.key === 'Enter' && sendText()}
+                disabled={busy}
+                placeholder="메시지를 입력하세요…"
                 className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500 disabled:opacity-60"
               />
               <button
-                onClick={send}
-                disabled={typing || !input.trim()}
+                onClick={sendText}
+                disabled={busy || !input.trim()}
                 className="grid place-items-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-500 px-4 text-white transition-all hover:brightness-105 disabled:opacity-60"
               >
-                <Send size={18} />
+                {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
               </button>
             </div>
-            <p className="mt-2 flex items-center gap-1.5 pl-1 text-[11px] text-[var(--text-dim)]">
-              <Sparkles size={11} className="text-indigo-500" /> AI 어시스턴트 응답 · 1 크레딧/메시지 (실패 시 자동 환불)
+            <p className="mt-2 flex items-center gap-2 pl-1 text-[11px] text-[var(--text-dim)]">
+              <ImageIcon size={12} /> 사진 15MB
+              <Film size={12} className="ml-1" /> 영상 200MB까지 · 이미지·영상만 첨부할 수 있어요
             </p>
           </div>
         </div>
