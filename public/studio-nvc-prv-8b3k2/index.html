@@ -2937,10 +2937,9 @@ function ensureDepthModel(){
       mod.env.remoteHost=location.origin+'/models/hf';
       try{ mod.env.backends.onnx.wasm.wasmPaths=location.origin+'/models/ort/'; }catch(_){}
     }catch(_){}
-    // 최상 정밀도: V2 base fp32(전체 정밀) → V2 base 양자화 → V1 base → small. (self-host R2 캐시)
+    // V2 base 양자화(≈97MB) → V1 base → small. (fp32 전체 모델은 ≈380MB로 Worker 프록시 한도 초과·브라우저 과대 → 미사용)
     function _dp(m,q){ return mod.pipeline('depth-estimation', m, { quantized:q }); }
-    return _dp('onnx-community/depth-anything-v2-base', false)
-      .catch(function(){ return _dp('onnx-community/depth-anything-v2-base', true); })
+    return _dp('onnx-community/depth-anything-v2-base', true)
       .catch(function(){ return _dp('Xenova/depth-anything-base-hf', true); })
       .catch(function(){ return _dp('Xenova/depth-anything-small-hf', true); });
   }).then(function(p){ _depthModel=p; return p; }).catch(function(err){ _depthTry=null; throw err; });
