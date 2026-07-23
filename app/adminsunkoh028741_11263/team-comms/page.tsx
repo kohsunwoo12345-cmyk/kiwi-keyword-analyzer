@@ -137,7 +137,7 @@ export default function TeamCommsPage() {
                   if (e.key === 'Enter') runSearch()
                 }}
                 placeholder="보낸사람 이름 · 메시지 내용 · 팀명 · 이메일 검색"
-                className="input w-full rounded-xl border py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#5b6cff]"
+                className="input w-full rounded-xl border py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#7c3aed]"
               />
             </div>
             <MktButton onClick={runSearch}>
@@ -150,7 +150,7 @@ export default function TeamCommsPage() {
             <select
               value={teamId}
               onChange={(e) => setTeamId(e.target.value)}
-              className="input rounded-xl border px-3 py-2 text-sm outline-none focus:border-[#5b6cff]"
+              className="input rounded-xl border px-3 py-2 text-sm outline-none focus:border-[#7c3aed]"
             >
               <option value="">전체 팀</option>
               {teams.map((t) => (
@@ -169,7 +169,7 @@ export default function TeamCommsPage() {
                   className={cn(
                     'px-3.5 py-2 text-sm font-semibold transition-colors',
                     i > 0 && 'border-l border-[var(--mkt-border)]',
-                    type === t.v ? 'bg-[#5b6cff]/18 text-[#93c5fd]' : 'text-[var(--mkt-text-soft)] hover:bg-white/5'
+                    type === t.v ? 'bg-[#7c3aed]/15 text-[#4f46e5]' : 'text-[var(--mkt-text-soft)] hover:bg-[var(--panel-2)]'
                   )}
                 >
                   {t.label}
@@ -191,7 +191,7 @@ export default function TeamCommsPage() {
             <Loader2 size={18} className="animate-spin" /> 연락 내역을 불러오는 중…
           </div>
         ) : err ? (
-          <div className="rounded-xl border border-[#ff9b9b]/25 bg-[#ff9b9b]/10 px-4 py-6 text-center text-sm font-semibold text-[#ff9b9b]">
+          <div className="rounded-xl border border-[#ff9b9b]/25 bg-[#ff9b9b]/10 px-4 py-6 text-center text-sm font-semibold text-[#e11d48]">
             {err}
           </div>
         ) : items.length === 0 ? (
@@ -224,7 +224,7 @@ function CommRow({ it }: { it: CommItem }) {
         >
           <b.Icon size={11} /> {b.label}
         </span>
-        <span className="inline-flex items-center gap-1 rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px] font-semibold text-[var(--mkt-text-soft)]">
+        <span className="inline-flex items-center gap-1 rounded-md bg-[var(--panel-2)] px-2 py-0.5 text-[11px] font-semibold text-[var(--mkt-text-soft)]">
           <Users size={10} /> {it.teamName || '알 수 없는 팀'}
         </span>
         <span className="text-sm font-bold text-[var(--mkt-text)]">{it.userName || '알 수 없음'}</span>
@@ -236,11 +236,11 @@ function CommRow({ it }: { it: CommItem }) {
       <div className="mt-3">
         {it.type === 'share' || it.kind === 'workflow' ? (
           <div className="rounded-xl border border-[#a855f7]/25 bg-[#a855f7]/10 px-3.5 py-3">
-            <div className="mb-1 flex items-center gap-1.5 text-xs font-bold text-[#c99bf7]">
+            <div className="mb-1 flex items-center gap-1.5 text-xs font-bold text-[#7c3aed]">
               <Share2 size={13} /> 노드 페이지 워크플로우 공유
               {it.toName && <span className="font-semibold text-[var(--mkt-text-soft)]">→ {it.toName}</span>}
               {typeof it.nodeCount === 'number' && (
-                <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-[var(--mkt-text-soft)]">
+                <span className="rounded-full bg-[var(--panel-2)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--mkt-text-soft)]">
                   노드 {it.nodeCount}개
                 </span>
               )}

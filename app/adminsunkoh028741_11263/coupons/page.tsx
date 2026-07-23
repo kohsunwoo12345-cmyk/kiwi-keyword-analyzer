@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 const ACCENT = '#ec4899'
 const won = (n: number) => '₩' + (n || 0).toLocaleString('ko-KR')
 const kst = (iso?: string | null) => { if (!iso) return '-'; try { return new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) } catch { return iso || '-' } }
-const INPUT = 'w-full rounded-xl border border-[var(--border)] bg-white/[0.03] px-3 py-2.5 text-sm text-[var(--mkt-text)] outline-none focus:border-[#5b6cff]'
+const INPUT = 'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2.5 text-sm text-[var(--mkt-text)] outline-none focus:border-[#7c3aed]'
 
 export default function AdminCouponsPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([])
@@ -104,7 +104,7 @@ export default function AdminCouponsPage() {
                   <label className="mb-1 block text-xs font-semibold text-[var(--text-dim)]">할인 방식</label>
                   <div className="flex gap-2">
                     {([['percent', '정률(%)'], ['fixed', '정액(원)']] as ['percent' | 'fixed', string][]).map(([v, l]) => (
-                      <button key={v} onClick={() => setDiscountType(v)} className={cn('flex-1 rounded-lg border px-3 py-2 text-xs font-semibold', discountType === v ? 'border-[#5b6cff] bg-[#5b6cff]/15 text-[#93c5fd]' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-white/5')}>{l}</button>
+                      <button key={v} onClick={() => setDiscountType(v)} className={cn('flex-1 rounded-lg border px-3 py-2 text-xs font-semibold', discountType === v ? 'border-[#7c3aed] bg-[#7c3aed]/12 text-[#4f46e5]' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-[var(--panel-2)]')}>{l}</button>
                     ))}
                     <div className="relative flex-1">
                       <input value={discountValue} onChange={(e) => setDiscountValue(e.target.value.replace(/[^0-9]/g, ''))} className={cn(INPUT, 'pr-8 text-right')} />
@@ -154,7 +154,7 @@ export default function AdminCouponsPage() {
                   </div>
                 </div>
 
-                {msg && <div className={cn('rounded-lg px-3 py-2 text-sm font-semibold', msg.ok ? 'bg-[#10b981]/15 text-[#8fe6b8]' : 'bg-[#ff9b9b]/12 text-[#ff9b9b]')}><EmojiText>{msg.text}</EmojiText></div>}
+                {msg && <div className={cn('rounded-lg px-3 py-2 text-sm font-semibold', msg.ok ? 'bg-[#10b981]/15 text-[#059669]' : 'bg-[#ff9b9b]/12 text-[#e11d48]')}><EmojiText>{msg.text}</EmojiText></div>}
                 <MktButton variant="solid" className="w-full" disabled={busy} onClick={create}>
                   {busy ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} 쿠폰 생성
                 </MktButton>
@@ -176,15 +176,15 @@ export default function AdminCouponsPage() {
                       <div key={c.id} className="rounded-xl border border-[var(--border)] p-3">
                         <div className="flex items-center gap-2">
                           <span className="rounded-lg bg-slate-900 px-2 py-1 font-mono text-sm font-bold tracking-wider text-white">{c.code}</span>
-                          <span className="text-sm font-bold text-[#8fa0ff]">{c.discount_type === 'percent' ? `${c.discount_value}%` : won(c.discount_value)}</span>
+                          <span className="text-sm font-bold text-[#6d28d9]">{c.discount_type === 'percent' ? `${c.discount_value}%` : won(c.discount_value)}</span>
                           {c.active && !expired && !exhausted ? (
-                            <MktTag className="bg-[#10b981]/15 text-[#8fe6b8]">활성</MktTag>
+                            <MktTag className="bg-[#10b981]/15 text-[#059669]">활성</MktTag>
                           ) : (
                             <MktTag>{expired ? '만료' : exhausted ? '소진' : '비활성'}</MktTag>
                           )}
                           <div className="ml-auto flex gap-1">
-                            <button onClick={() => toggle(c.id)} title={c.active ? '비활성화' : '활성화'} className="grid h-7 w-7 place-items-center rounded-lg text-[var(--text-soft)] hover:bg-white/5"><Power size={14} /></button>
-                            <button onClick={() => remove(c.id, c.code)} title="삭제" className="grid h-7 w-7 place-items-center rounded-lg text-[#ff9b9b] hover:bg-white/5"><Trash2 size={14} /></button>
+                            <button onClick={() => toggle(c.id)} title={c.active ? '비활성화' : '활성화'} className="grid h-7 w-7 place-items-center rounded-lg text-[var(--text-soft)] hover:bg-[var(--panel-2)]"><Power size={14} /></button>
+                            <button onClick={() => remove(c.id, c.code)} title="삭제" className="grid h-7 w-7 place-items-center rounded-lg text-[#e11d48] hover:bg-[var(--panel-2)]"><Trash2 size={14} /></button>
                           </div>
                         </div>
                         {c.description && <p className="mt-1.5 text-xs text-[var(--text-soft)]">{c.description}</p>}
@@ -228,7 +228,7 @@ export default function AdminCouponsPage() {
                       <td className="py-2.5">{r.name || '-'} <span className="text-xs text-[var(--text-dim)]">{r.email || ''}</span></td>
                       <td className="py-2.5 text-[var(--text-soft)]">{r.track === 'video' ? '영상' : '마케터'} {r.plan} {r.months}개월</td>
                       <td className="py-2.5 text-right text-[var(--text-dim)] line-through">{won(r.original_krw)}</td>
-                      <td className="py-2.5 text-right font-semibold text-[#8fa0ff]">-{won(r.discount_krw)}</td>
+                      <td className="py-2.5 text-right font-semibold text-[#6d28d9]">-{won(r.discount_krw)}</td>
                       <td className="py-2.5 text-right font-bold">{won(r.final_krw)}</td>
                     </tr>
                   ))}

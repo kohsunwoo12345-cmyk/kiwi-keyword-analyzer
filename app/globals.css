@@ -812,3 +812,99 @@ img.bg-emoji {
 @media (prefers-reduced-motion: reduce) {
   .dash-page-slide { animation: none; }
 }
+/* ============================================================
+   관리자 콘솔 톤 매칭 — .mkt-canvas 를 라이트로 재테마.
+   (마케팅 노드 컴포넌트를 쓰는 관리자 페이지 6종이 검게 나오던 것을
+    관리자 콘솔의 밝은 톤앤매너·보라 액센트로 일괄 통일)
+   ============================================================ */
+.mkt-canvas {
+  --mkt-accent: #7c3aed;
+  --mkt-accent-2: #7c3aed;
+  --mkt-blue: #6d28d9;
+  --mkt-text: #14161f;
+  --mkt-text-soft: #5a6377;
+  --mkt-text-dim: #96a0b3;
+  --mkt-surface: #ffffff;
+  --mkt-deep: #f7f8fc;
+  --mkt-border: #e8eaf1;
+  --mkt-border-2: #eef0f6;
+  --border: #e8eaf1;
+  --border-soft: #eef0f6;
+  --text: #14161f;
+  --text-soft: #5a6377;
+  --text-dim: #96a0b3;
+  --bg: #f5f6fb;
+  --bg-soft: #ffffff;
+  color: #5a6377;
+  background-color: #f5f6fb;
+  background-image:
+    radial-gradient(1100px 520px at 10% -10%, rgba(124, 58, 237, 0.06), transparent 60%),
+    radial-gradient(920px 540px at 100% -5%, rgba(124, 58, 237, 0.05), transparent 55%);
+  background-size: auto, auto;
+  background-attachment: fixed, fixed;
+}
+.mkt-canvas .mkt-topbar {
+  border-bottom: 1px solid var(--mkt-border);
+  background: #ffffff;
+  box-shadow: var(--shadow-sm);
+}
+.mkt-canvas .mkt-h1 {
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: #14161f;
+}
+.mkt-canvas .mkt-eyebrow { color: #7c3aed; }
+.mkt-canvas .mkt-panel {
+  background: #ffffff;
+  border: 1px solid var(--mkt-border);
+  box-shadow: var(--shadow-sm);
+}
+.mkt-canvas .mkt-panel-hd {
+  border-bottom: 1px solid var(--mkt-border);
+  background: linear-gradient(180deg, rgba(124, 58, 237, 0.035), transparent);
+  color: #14161f;
+}
+.mkt-canvas .mkt-node {
+  background: #ffffff;
+  border: 1px solid var(--mkt-border);
+  box-shadow: var(--shadow-sm);
+}
+.mkt-canvas a.mkt-node:hover {
+  border-color: var(--nc, #7c3aed);
+  box-shadow: 0 16px 36px -16px color-mix(in srgb, var(--nc, #7c3aed) 30%, transparent);
+}
+.mkt-canvas .mkt-node-hd {
+  background: #f7f8fc;
+  border-bottom: 1px solid var(--mkt-border);
+  color: #14161f;
+}
+.mkt-canvas .mkt-node-id { color: #96a0b3; }
+.mkt-canvas .mkt-badge { color: #ffffff; }
+.mkt-canvas .mkt-tag {
+  color: #6d28d9;
+  background: rgba(124, 58, 237, 0.1);
+  border: 1px solid rgba(124, 58, 237, 0.24);
+}
+.mkt-canvas .mkt-stat {
+  background: #ffffff;
+  border: 1px solid var(--mkt-border);
+}
+.mkt-canvas .mkt-tr { border-bottom: 1px solid #eef0f6; }
+.mkt-canvas .mkt-tr:hover { background: rgba(124, 58, 237, 0.04); }
+.mkt-canvas .input { background: #f7f8fc; border-color: #e8eaf1; color: #14161f; }
+.mkt-canvas .input::placeholder { color: #96a0b3; }
+.mkt-canvas .input:focus { border-color: #7c3aed; box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.14); }
+.mkt-canvas .card-2 { background: #ffffff; border-color: #e8eaf1; }
+.mkt-canvas .mkt-btn {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  box-shadow: 0 8px 20px -8px rgba(124, 58, 237, 0.5);
+}
+.mkt-canvas .mkt-btn.ghost {
+  background: #ffffff;
+  border: 1px solid #e8eaf1;
+  color: #5a6377;
+  box-shadow: none;
+}
+.mkt-canvas .mkt-btn.ghost:hover { border-color: #7c3aed; color: #7c3aed; background: rgba(124, 58, 237, 0.05); }
+.mkt-canvas .mkt-port { border-color: #e8eaf1; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05); }

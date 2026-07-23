@@ -221,7 +221,7 @@ export default function LandingDbPage() {
                     if (e.key === 'Enter') runSearch()
                   }}
                   placeholder="회원명 · 이메일 검색"
-                  className="input w-full rounded-xl border py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#5b6cff]"
+                  className="input w-full rounded-xl border py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#7c3aed]"
                 />
               </div>
               <MktButton onClick={runSearch}>
@@ -237,7 +237,7 @@ export default function LandingDbPage() {
                 <Loader2 size={18} className="animate-spin" /> 회원 목록을 불러오는 중…
               </div>
             ) : err ? (
-              <div className="rounded-xl border border-[#ff9b9b]/25 bg-[#ff9b9b]/10 px-4 py-6 text-center text-sm font-semibold text-[#ff9b9b]">
+              <div className="rounded-xl border border-[#ff9b9b]/25 bg-[#ff9b9b]/10 px-4 py-6 text-center text-sm font-semibold text-[#e11d48]">
                 {err}
               </div>
             ) : users.length === 0 ? (
@@ -273,7 +273,7 @@ export default function LandingDbPage() {
                           <td className={cn(mktTable.td, 'font-semibold text-[var(--mkt-text)]')}>{u.name || '이름 없음'}</td>
                           <td className={cn(mktTable.td, 'text-[var(--mkt-text-soft)]')}>{u.email || '-'}</td>
                           <td className={cn(mktTable.td, 'text-right tabular-nums')}>{(u.page_count || 0).toLocaleString()}</td>
-                          <td className={cn(mktTable.td, 'text-right tabular-nums font-semibold text-[#93c5fd]')}>
+                          <td className={cn(mktTable.td, 'text-right tabular-nums font-semibold text-[#4f46e5]')}>
                             {(u.submission_count || 0).toLocaleString()}
                           </td>
                           <td className={cn(mktTable.td, 'tabular-nums text-[var(--mkt-text-dim)]')}>{kstDate(u.last_page_at)}</td>
@@ -337,7 +337,7 @@ function DetailView({
           <Loader2 size={18} className="animate-spin" /> 회원 데이터를 불러오는 중…
         </div>
       ) : err ? (
-        <div className="mt-4 rounded-xl border border-[#ff9b9b]/25 bg-[#ff9b9b]/10 px-4 py-6 text-center text-sm font-semibold text-[#ff9b9b]">
+        <div className="mt-4 rounded-xl border border-[#ff9b9b]/25 bg-[#ff9b9b]/10 px-4 py-6 text-center text-sm font-semibold text-[#e11d48]">
           {err}
         </div>
       ) : (
@@ -375,7 +375,7 @@ function DetailView({
                         <tr key={p.id} className={mktTable.tr}>
                           <td className={cn(mktTable.td, 'font-semibold text-[var(--mkt-text)]')}>{p.title || '(제목 없음)'}</td>
                           <td className={cn(mktTable.td, 'text-[var(--mkt-text-dim)]')}>
-                            <code className="rounded bg-white/[0.05] px-1.5 py-0.5 text-[11px]">{p.slug || '-'}</code>
+                            <code className="rounded bg-[var(--panel-2)] px-1.5 py-0.5 text-[11px]">{p.slug || '-'}</code>
                           </td>
                           <td className={mktTable.td}>
                             <span
@@ -388,7 +388,7 @@ function DetailView({
                           <td className={cn(mktTable.td, 'text-right tabular-nums text-[var(--mkt-text-soft)]')}>
                             {(p.view_count || 0).toLocaleString()}
                           </td>
-                          <td className={cn(mktTable.td, 'text-right tabular-nums font-semibold text-[#93c5fd]')}>
+                          <td className={cn(mktTable.td, 'text-right tabular-nums font-semibold text-[#4f46e5]')}>
                             {(p.submission_count || 0).toLocaleString()}
                           </td>
                           <td className={cn(mktTable.td, 'tabular-nums text-[var(--mkt-text-dim)]')}>{kstDate(p.created_at)}</td>
@@ -446,7 +446,7 @@ function DetailView({
                                 {extras.map(([k, v]) => (
                                   <span
                                     key={k}
-                                    className="inline-flex items-center gap-1 rounded-md bg-white/[0.05] px-1.5 py-0.5 text-[11px] text-[var(--mkt-text-soft)]"
+                                    className="inline-flex items-center gap-1 rounded-md bg-[var(--panel-2)] px-1.5 py-0.5 text-[11px] text-[var(--mkt-text-soft)]"
                                   >
                                     <b className="font-semibold text-[var(--mkt-text-dim)]">{k}:</b> {v}
                                   </span>

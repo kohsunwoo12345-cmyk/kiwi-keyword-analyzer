@@ -17,7 +17,7 @@ const pct = (n: number | null | undefined) => (n == null ? '-' : `${n}%`)
 const THEAD = 'border-b border-[var(--border)] text-left text-xs text-[var(--mkt-text-dim)]'
 const TH = 'px-3 py-2.5 font-medium whitespace-nowrap'
 const TD = 'px-3 py-2.5 whitespace-nowrap'
-const TR = 'border-b border-[var(--border-soft)] last:border-0 hover:bg-white/5'
+const TR = 'border-b border-[var(--border-soft)] last:border-0 hover:bg-[var(--panel-2)]'
 
 export default function AdPerformancePage() {
   const [data, setData] = useState<AdPerfStats>({ ok: false })
@@ -78,33 +78,33 @@ export default function AdPerformancePage() {
             {detail && (
               <div className="mt-4">
                 {!detail.found ? (
-                  <div className="rounded-xl border border-[#7a5b17] bg-[#ffd66b]/10 px-4 py-3 text-sm text-[#ffd66b]">
+                  <div className="rounded-xl border border-[#7a5b17] bg-[#ffd66b]/10 px-4 py-3 text-sm text-[#b45309]">
                     {detail.reason || '우리 랜딩페이지 URL이 아닙니다.'}
                   </div>
                 ) : detail.landing ? (
                   <div className="space-y-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-bold">{detail.landing.title || detail.landing.slug}</span>
-                      <a href={detail.landing.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md bg-[#5b6cff]/15 px-2 py-0.5 font-mono text-[11px] text-[#93c5fd] hover:underline">{detail.landing.url} <ExternalLink size={11} /></a>
+                      <a href={detail.landing.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md bg-[#7c3aed]/12 px-2 py-0.5 font-mono text-[11px] text-[#4f46e5] hover:underline">{detail.landing.url} <ExternalLink size={11} /></a>
                     </div>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                       <div className="rounded-xl border border-[var(--border)] p-3 text-center"><div className="text-[11px] font-semibold text-[var(--text-dim)]">조회수</div><div className="mt-0.5 text-2xl font-bold tabular-nums text-[var(--mkt-text)]">{num(detail.landing.views)}</div></div>
                       <div className="rounded-xl border border-[var(--border)] p-3 text-center"><div className="text-[11px] font-semibold text-[var(--text-dim)]">순 방문자</div><div className="mt-0.5 text-2xl font-bold tabular-nums text-[var(--mkt-text)]">{num(detail.landing.uniqueVisitors)}</div></div>
-                      <div className="rounded-xl border border-[var(--border)] p-3 text-center"><div className="text-[11px] font-semibold text-[var(--text-dim)]">전환(신청)</div><div className="mt-0.5 text-2xl font-bold tabular-nums text-[#8fe6b8]">{num(detail.landing.conversions)}</div></div>
-                      <div className="rounded-xl border border-[var(--border)] p-3 text-center"><div className="text-[11px] font-semibold text-[var(--text-dim)]">전환율</div><div className="mt-0.5 text-2xl font-bold tabular-nums text-[#8fa0ff]">{pct(detail.landing.rate)}</div></div>
+                      <div className="rounded-xl border border-[var(--border)] p-3 text-center"><div className="text-[11px] font-semibold text-[var(--text-dim)]">전환(신청)</div><div className="mt-0.5 text-2xl font-bold tabular-nums text-[#059669]">{num(detail.landing.conversions)}</div></div>
+                      <div className="rounded-xl border border-[var(--border)] p-3 text-center"><div className="text-[11px] font-semibold text-[var(--text-dim)]">전환율</div><div className="mt-0.5 text-2xl font-bold tabular-nums text-[#6d28d9]">{pct(detail.landing.rate)}</div></div>
                     </div>
                     {(detail.byDay ?? []).length > 0 && (
                       <div className="overflow-hidden rounded-xl border border-[var(--border)]">
                         <table className="w-full text-sm">
-                          <thead className="bg-white/[0.03] text-xs text-[var(--text-dim)]"><tr><th className="px-3 py-2 text-left font-semibold">날짜(KST)</th><th className="px-3 py-2 text-right font-semibold">조회</th><th className="px-3 py-2 text-right font-semibold">순 방문</th><th className="px-3 py-2 text-right font-semibold">전환</th><th className="px-3 py-2 text-right font-semibold">전환율</th></tr></thead>
+                          <thead className="bg-[var(--panel-2)] text-xs text-[var(--text-dim)]"><tr><th className="px-3 py-2 text-left font-semibold">날짜(KST)</th><th className="px-3 py-2 text-right font-semibold">조회</th><th className="px-3 py-2 text-right font-semibold">순 방문</th><th className="px-3 py-2 text-right font-semibold">전환</th><th className="px-3 py-2 text-right font-semibold">전환율</th></tr></thead>
                           <tbody>
                             {(detail.byDay ?? []).map((d) => (
                               <tr key={d.d} className="border-t border-[var(--border)]">
                                 <td className="px-3 py-2 tabular-nums">{d.d}</td>
                                 <td className="px-3 py-2 text-right tabular-nums">{num(d.views)}</td>
                                 <td className="px-3 py-2 text-right tabular-nums text-[var(--text-soft)]">{num(d.uniq)}</td>
-                                <td className="px-3 py-2 text-right tabular-nums text-[#8fe6b8]">{num(d.conversions)}</td>
-                                <td className="px-3 py-2 text-right tabular-nums text-[#8fa0ff]">{d.views > 0 ? Math.round((d.conversions / d.views) * 1000) / 10 : 0}%</td>
+                                <td className="px-3 py-2 text-right tabular-nums text-[#059669]">{num(d.conversions)}</td>
+                                <td className="px-3 py-2 text-right tabular-nums text-[#6d28d9]">{d.views > 0 ? Math.round((d.conversions / d.views) * 1000) / 10 : 0}%</td>
                               </tr>
                             ))}
                           </tbody>
@@ -157,8 +157,8 @@ export default function AdPerformancePage() {
                       </td>
                       <td className={cn(TD, 'text-right tabular-nums')}>{num(l.views)}</td>
                       <td className={cn(TD, 'text-right tabular-nums text-[var(--text-soft)]')}>{num(l.uniqueVisitors)}</td>
-                      <td className={cn(TD, 'text-right tabular-nums text-[#8fe6b8]')}>{num(l.conversions)}</td>
-                      <td className={cn(TD, 'text-right font-semibold tabular-nums text-[#8fa0ff]')}>{pct(l.rate)}</td>
+                      <td className={cn(TD, 'text-right tabular-nums text-[#059669]')}>{num(l.conversions)}</td>
+                      <td className={cn(TD, 'text-right font-semibold tabular-nums text-[#6d28d9]')}>{pct(l.rate)}</td>
                       <td className={cn(TD, 'text-xs text-[var(--text-soft)]')}>{kstDate(l.createdAt)}</td>
                     </tr>
                   ))}
@@ -191,20 +191,20 @@ export default function AdPerformancePage() {
                   ) : ads.map((a) => (
                     <tr key={a.campaignId} className={TR}>
                       <td className={TD}>
-                        <div className="flex items-center gap-1.5 font-semibold"><Bell size={12} className="text-[#8fa0ff]" /> {a.title}</div>
+                        <div className="flex items-center gap-1.5 font-semibold"><Bell size={12} className="text-[#6d28d9]" /> {a.title}</div>
                         <div className="text-[11px] text-[var(--text-dim)]">{a.target === 'visitors' ? '접속 전체' : a.target === 'all' ? '전체 회원' : a.target === 'plan' ? '요금제별' : a.target}</div>
                       </td>
                       <td className={TD}>
                         {a.isOurLanding
-                          ? <a href={a.landingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-mono text-[11px] text-[#8fa0ff] hover:underline"><Link2 size={11} /> {a.landingUrl}</a>
+                          ? <a href={a.landingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-mono text-[11px] text-[#6d28d9] hover:underline"><Link2 size={11} /> {a.landingUrl}</a>
                           : <span className="text-[11px] text-[var(--text-dim)]">외부/미등록</span>}
                       </td>
                       <td className={cn(TD, 'text-right tabular-nums')}>{num(a.impressions)}</td>
                       <td className={cn(TD, 'text-right tabular-nums text-[var(--text-soft)]')}>{num(a.reads)}</td>
-                      <td className={cn(TD, 'text-right tabular-nums text-[#b8a5ff]')}>{a.clicks == null ? '-' : num(a.clicks)}</td>
+                      <td className={cn(TD, 'text-right tabular-nums text-[#6d28d9]')}>{a.clicks == null ? '-' : num(a.clicks)}</td>
                       <td className={cn(TD, 'text-right tabular-nums')}>{pct(a.ctr)}</td>
-                      <td className={cn(TD, 'text-right tabular-nums text-[#8fe6b8]')}>{num(a.landingConversions)}</td>
-                      <td className={cn(TD, 'text-right font-semibold tabular-nums text-[#8fa0ff]')}>{pct(a.landingRate)}</td>
+                      <td className={cn(TD, 'text-right tabular-nums text-[#059669]')}>{num(a.landingConversions)}</td>
+                      <td className={cn(TD, 'text-right font-semibold tabular-nums text-[#6d28d9]')}>{pct(a.landingRate)}</td>
                     </tr>
                   ))}
                 </tbody>
