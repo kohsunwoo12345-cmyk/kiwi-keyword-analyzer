@@ -565,12 +565,13 @@ export async function addFriend(code: string): Promise<{ ok: boolean; error?: st
 }
 
 /* ── 소셜: 친구 1:1(개인) 채팅 + 팀(단체) 채팅 목록 ── */
-export interface SocialFriend { id: string; name: string; email: string }
+export interface SocialFriend { id: string; name: string; realName?: string; alias?: string; email: string; avatar?: string; status?: string }
 export interface SocialTeam { id: string; name: string; memberCount: number }
-export interface SocialThread { friendId: string; name: string; email: string; lastText: string; lastFromMe: boolean; lastAt: string; unread: number }
+export interface SocialThread { friendId: string; name: string; realName?: string; alias?: string; email: string; avatar?: string; lastText: string; lastFromMe: boolean; lastAt: string; unread: number }
+export interface SocialPartner { id: string; name: string; email: string; avatar: string; status: string; alias: string }
 export interface SocialOverview {
   ok: boolean; error?: string
-  meId?: string; meName?: string; meEmail?: string; myCode?: string
+  meId?: string; meName?: string; meEmail?: string; myCode?: string; myAvatar?: string; myStatus?: string
   friends: SocialFriend[]; teams: SocialTeam[]; threads: SocialThread[]; totalUnread: number
 }
 export interface DmMessage { id: string; from_id: string; to_id: string; text: string; read_to: number; created_at: string }
@@ -581,18 +582,18 @@ export async function socialOverview(): Promise<SocialOverview> {
     const d = await r.json()
     return {
       ok: !!d.ok, error: d.error,
-      meId: d.meId, meName: d.meName, meEmail: d.meEmail, myCode: d.myCode,
+      meId: d.meId, meName: d.meName, meEmail: d.meEmail, myCode: d.myCode, myAvatar: d.myAvatar, myStatus: d.myStatus,
       friends: d.friends || [], teams: d.teams || [], threads: d.threads || [], totalUnread: d.totalUnread || 0,
     }
   } catch { return { ok: false, error: '네트워크 오류', friends: [], teams: [], threads: [], totalUnread: 0 } }
 }
 // 특정 친구와의 DM 메시지 (after 이후만, seen=1 이면 읽음 처리)
-export async function dmMessages(friendId: string, after = '', seen = false): Promise<{ ok: boolean; messages: DmMessage[]; meId?: string; error?: string }> {
+export async function dmMessages(friendId: string, after = '', seen = false): Promise<{ ok: boolean; messages: DmMessage[]; meId?: string; partner?: SocialPartner | null; error?: string }> {
   try {
     const q = `dm=${encodeURIComponent(friendId)}&after=${encodeURIComponent(after)}${seen ? '&seen=1' : ''}`
     const r = await fetch('/api/social?' + q, { credentials: 'include', cache: 'no-store' })
     const d = await r.json()
-    return { ok: !!d.ok, messages: d.messages || [], meId: d.meId, error: d.error }
+    return { ok: !!d.ok, messages: d.messages || [], meId: d.meId, partner: d.partner, error: d.error }
   } catch { return { ok: false, messages: [], error: '네트워크 오류' } }
 }
 export async function dmSend(toId: string, text: string): Promise<{ ok: boolean; id?: string; created_at?: string; error?: string }> {
@@ -600,6 +601,24 @@ export async function dmSend(toId: string, text: string): Promise<{ ok: boolean;
 }
 export async function dmSeen(friendId: string): Promise<{ ok: boolean }> {
   return postJson('/api/social', { action: 'dm_seen', friendId })
+}
+// 내 채팅 프로필(사진·상태 메시지) 설정
+export async function setChatProfile(avatarUrl: string, status: string): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/social', { action: 'set_profile', avatarUrl, status })
+}
+// 친구 별명 설정(빈 값이면 해제)
+export async function setFriendAlias(friendId: string, nickname: string): Promise<{ ok: boolean; nickname?: string; error?: string }> {
+  return postJson('/api/social', { action: 'set_alias', friendId, nickname })
+}
+// 채팅 프로필 사진 업로드 → URL 반환 (기존 /api/upload 재사용)
+export async function uploadChatAvatar(file: Blob, contentType: string): Promise<{ ok: boolean; url?: string; error?: string }> {
+  try {
+    const type = /^image\//i.test(contentType) ? contentType : 'image/jpeg'
+    const r = await fetch('/api/upload', { method: 'POST', credentials: 'include', headers: { 'Content-Type': type }, body: file })
+    const d = await r.json().catch(() => ({}))
+    if (r.ok && d.url) return { ok: true, url: d.url }
+    return { ok: false, error: d.error || `업로드 실패 (${r.status})` }
+  } catch { return { ok: false, error: '네트워크 오류' } }
 }
 // 팀(단체) 채팅 메시지 — /api/team 재사용 (텍스트 전용 · 도크에서 사용)
 export interface TeamChatMsg { id: string; user_id: string; name: string; text: string; kind?: string; media_key?: string | null; media_name?: string | null; created_at: string }

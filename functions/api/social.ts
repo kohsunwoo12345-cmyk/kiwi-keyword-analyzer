@@ -30,6 +30,19 @@ async function ensureSocialTables(db: D1Database) {
   ).run().catch(() => {})
   await db.prepare('CREATE INDEX IF NOT EXISTS idx_dm_conv ON dm_messages(conv_id, created_at)').run().catch(() => {})
   await db.prepare('CREATE INDEX IF NOT EXISTS idx_dm_to ON dm_messages(to_id, read_to)').run().catch(() => {})
+  // 친구 별명(내가 보는 이름만 바꿈) — owner 가 friend 를 부르는 별명
+  await db.prepare(
+    `CREATE TABLE IF NOT EXISTS friend_aliases (
+       owner_id TEXT NOT NULL,
+       friend_id TEXT NOT NULL,
+       nickname TEXT,
+       updated_at TEXT,
+       PRIMARY KEY (owner_id, friend_id)
+     )`,
+  ).run().catch(() => {})
+  // 채팅 프로필 컬럼(프로필 사진·상태 메시지) — 없으면 추가
+  await db.prepare('ALTER TABLE users ADD COLUMN chat_avatar TEXT').run().catch(() => {})
+  await db.prepare('ALTER TABLE users ADD COLUMN chat_status TEXT').run().catch(() => {})
 }
 
 async function areFriends(db: D1Database, a: string, b: string): Promise<boolean> {
@@ -60,12 +73,21 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const rows = (await db.prepare(
       'SELECT id, from_id, to_id, text, read_to, created_at FROM dm_messages WHERE conv_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 300',
     ).bind(cid, after).all()).results || []
-    return json({ ok: true, messages: rows, meId: me.id })
+    // 상대 프로필(사진·상태·별명) — 대화 헤더/프로필 카드용
+    const fr: any = await db.prepare('SELECT id, name, email, chat_avatar, chat_status FROM users WHERE id = ?').bind(dm).first().catch(() => null)
+    const al: any = await db.prepare('SELECT nickname FROM friend_aliases WHERE owner_id = ? AND friend_id = ?').bind(me.id, dm).first().catch(() => null)
+    const partner = fr ? { id: fr.id, name: fr.name, email: fr.email || '', avatar: fr.chat_avatar || '', status: fr.chat_status || '', alias: (al?.nickname || '') } : null
+    return json({ ok: true, messages: rows, meId: me.id, partner })
   }
 
-  // 친구 목록
+  // 내 별명 매핑 (friend_id → nickname)
+  const aliasRows = (await db.prepare('SELECT friend_id, nickname FROM friend_aliases WHERE owner_id = ?').bind(me.id).all().catch(() => ({ results: [] }))).results as any[] || []
+  const aliasMap: Record<string, string> = {}
+  for (const a of aliasRows) if (a.nickname) aliasMap[a.friend_id] = a.nickname
+
+  // 친구 목록 (프로필 사진·상태 포함)
   const friends = (await db.prepare(
-    `SELECT u.id, u.name, u.email FROM friendships f JOIN users u ON u.id = f.friend_id
+    `SELECT u.id, u.name, u.email, u.chat_avatar, u.chat_status FROM friendships f JOIN users u ON u.id = f.friend_id
      WHERE f.user_id = ? ORDER BY u.name COLLATE NOCASE ASC LIMIT 500`,
   ).bind(me.id).all()).results as any[] || []
 
@@ -87,7 +109,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       'SELECT COUNT(*) AS c FROM dm_messages WHERE conv_id = ? AND to_id = ? AND read_to = 0',
     ).bind(cid, me.id).first().catch(() => ({ c: 0 }))
     threads.push({
-      friendId: fr.id, name: fr.name, email: fr.email,
+      friendId: fr.id, name: aliasMap[fr.id] || fr.name, realName: fr.name, alias: aliasMap[fr.id] || '',
+      email: fr.email, avatar: fr.chat_avatar || '',
       lastText: last.text, lastFromMe: last.from_id === me.id, lastAt: last.created_at,
       unread: Number(unreadRow?.c) || 0,
     })
@@ -98,7 +121,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   return json({
     ok: true,
     meId: me.id, meName: me.name, meEmail: me.email || '', myCode: me.referral_code || '',
-    friends: friends.map((f) => ({ id: f.id, name: f.name, email: f.email })),
+    myAvatar: me.chat_avatar || '', myStatus: me.chat_status || '',
+    friends: friends.map((f) => ({
+      id: f.id, name: aliasMap[f.id] || f.name, realName: f.name, alias: aliasMap[f.id] || '',
+      email: f.email, avatar: f.chat_avatar || '', status: f.chat_status || '',
+    })),
     teams: teams.map((t) => ({ id: t.id, name: t.name, memberCount: Number(t.memberCount) || 1 })),
     threads,
     totalUnread,
@@ -140,6 +167,32 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const cid = convId(me.id, friendId)
     await db.prepare('UPDATE dm_messages SET read_to = 1 WHERE conv_id = ? AND to_id = ? AND read_to = 0').bind(cid, me.id).run().catch(() => {})
     return json({ ok: true })
+  }
+
+  // 내 채팅 프로필 설정 — 프로필 사진 + 상태 메시지
+  if (action === 'set_profile') {
+    const avatar = String(b.avatarUrl ?? '').trim().slice(0, 1000)
+    const status = String(b.status ?? '').trim().slice(0, 120)
+    if (avatar && !/^(https?:\/\/|\/)/i.test(avatar)) return json({ ok: false, error: '프로필 사진 주소 형식이 올바르지 않습니다.' }, 400)
+    await db.prepare('UPDATE users SET chat_avatar = ?, chat_status = ? WHERE id = ?').bind(avatar || null, status || null, me.id).run()
+    return json({ ok: true, avatar, status })
+  }
+
+  // 친구 별명 설정 — 내가 보는 이름만 변경(빈 값이면 해제)
+  if (action === 'set_alias') {
+    const friendId = String(b.friendId || '').trim()
+    const nickname = String(b.nickname ?? '').trim().slice(0, 40)
+    if (!friendId) return json({ ok: false, error: 'friendId 필요' }, 400)
+    if (!(await areFriends(db, me.id, friendId))) return json({ ok: false, error: '친구만 별명을 설정할 수 있습니다.' }, 403)
+    if (!nickname) {
+      await db.prepare('DELETE FROM friend_aliases WHERE owner_id = ? AND friend_id = ?').bind(me.id, friendId).run().catch(() => {})
+      return json({ ok: true, nickname: '' })
+    }
+    await db.prepare(
+      `INSERT INTO friend_aliases (owner_id, friend_id, nickname, updated_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT(owner_id, friend_id) DO UPDATE SET nickname = excluded.nickname, updated_at = excluded.updated_at`,
+    ).bind(me.id, friendId, nickname, now).run()
+    return json({ ok: true, nickname })
   }
 
   return json({ ok: false, error: '알 수 없는 작업입니다.' }, 400)
