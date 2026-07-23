@@ -564,6 +564,94 @@ export async function addFriend(code: string): Promise<{ ok: boolean; error?: st
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
 
+/* ── 소셜: 친구 1:1(개인) 채팅 + 팀(단체) 채팅 목록 ── */
+export interface SocialFriend { id: string; name: string; realName?: string; alias?: string; email: string; avatar?: string; status?: string }
+export interface SocialTeam { id: string; name: string; memberCount: number }
+export interface SocialThread { friendId: string; name: string; realName?: string; alias?: string; email: string; avatar?: string; lastText: string; lastFromMe: boolean; lastAt: string; unread: number }
+export interface SocialPartner { id: string; name: string; email: string; avatar: string; status: string; alias: string }
+export interface SocialOverview {
+  ok: boolean; error?: string
+  meId?: string; meName?: string; meEmail?: string; myCode?: string; myAvatar?: string; myStatus?: string
+  friends: SocialFriend[]; teams: SocialTeam[]; threads: SocialThread[]; totalUnread: number
+}
+export interface DmMessage { id: string; from_id: string; to_id: string; text: string; kind?: string; media_key?: string | null; media_name?: string | null; read_to: number; created_at: string }
+export interface ChatMediaOpts { kind: 'image' | 'video'; mediaKey: string; mediaName?: string }
+
+export async function socialOverview(): Promise<SocialOverview> {
+  try {
+    const r = await fetch('/api/social', { credentials: 'include', cache: 'no-store' })
+    const d = await r.json()
+    return {
+      ok: !!d.ok, error: d.error,
+      meId: d.meId, meName: d.meName, meEmail: d.meEmail, myCode: d.myCode, myAvatar: d.myAvatar, myStatus: d.myStatus,
+      friends: d.friends || [], teams: d.teams || [], threads: d.threads || [], totalUnread: d.totalUnread || 0,
+    }
+  } catch { return { ok: false, error: '네트워크 오류', friends: [], teams: [], threads: [], totalUnread: 0 } }
+}
+// 특정 친구와의 DM 메시지 (after 이후만, seen=1 이면 읽음 처리)
+export async function dmMessages(friendId: string, after = '', seen = false): Promise<{ ok: boolean; messages: DmMessage[]; meId?: string; partner?: SocialPartner | null; error?: string }> {
+  try {
+    const q = `dm=${encodeURIComponent(friendId)}&after=${encodeURIComponent(after)}${seen ? '&seen=1' : ''}`
+    const r = await fetch('/api/social?' + q, { credentials: 'include', cache: 'no-store' })
+    const d = await r.json()
+    return { ok: !!d.ok, messages: d.messages || [], meId: d.meId, partner: d.partner, error: d.error }
+  } catch { return { ok: false, messages: [], error: '네트워크 오류' } }
+}
+export async function dmSend(toId: string, text: string, media?: ChatMediaOpts): Promise<{ ok: boolean; id?: string; created_at?: string; error?: string }> {
+  return postJson('/api/social', { action: 'dm_send', toId, text, ...(media ? { kind: media.kind, mediaKey: media.mediaKey, mediaName: media.mediaName || '' } : {}) })
+}
+// 개인(DM) 채팅 사진/영상 업로드 → { kind, key, name }
+export async function uploadDmMedia(toId: string, file: File): Promise<{ ok: boolean; kind?: 'image' | 'video'; key?: string; name?: string; error?: string }> {
+  try {
+    const fd = new FormData(); fd.append('toId', toId); fd.append('file', file)
+    const r = await fetch('/api/social/upload', { method: 'POST', credentials: 'include', body: fd })
+    const d = await r.json().catch(() => ({}))
+    return { ok: !!d.ok, kind: d.kind, key: d.key, name: d.name, error: d.error }
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+export async function dmSeen(friendId: string): Promise<{ ok: boolean }> {
+  return postJson('/api/social', { action: 'dm_seen', friendId })
+}
+// 내 채팅 프로필(사진·상태 메시지) 설정
+export async function setChatProfile(avatarUrl: string, status: string): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/social', { action: 'set_profile', avatarUrl, status })
+}
+// 친구 별명 설정(빈 값이면 해제)
+export async function setFriendAlias(friendId: string, nickname: string): Promise<{ ok: boolean; nickname?: string; error?: string }> {
+  return postJson('/api/social', { action: 'set_alias', friendId, nickname })
+}
+// 채팅 프로필 사진 업로드 → URL 반환 (기존 /api/upload 재사용)
+export async function uploadChatAvatar(file: Blob, contentType: string): Promise<{ ok: boolean; url?: string; error?: string }> {
+  try {
+    const type = /^image\//i.test(contentType) ? contentType : 'image/jpeg'
+    const r = await fetch('/api/upload', { method: 'POST', credentials: 'include', headers: { 'Content-Type': type }, body: file })
+    const d = await r.json().catch(() => ({}))
+    if (r.ok && d.url) return { ok: true, url: d.url }
+    return { ok: false, error: d.error || `업로드 실패 (${r.status})` }
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+// 팀(단체) 채팅 메시지 — /api/team 재사용 (텍스트 전용 · 도크에서 사용)
+export interface TeamChatMsg { id: string; user_id: string; name: string; text: string; kind?: string; media_key?: string | null; media_name?: string | null; created_at: string }
+export async function teamMessages(teamId: string, after = ''): Promise<{ ok: boolean; messages: TeamChatMsg[]; meId?: string; error?: string }> {
+  try {
+    const r = await fetch(`/api/team?messages=${encodeURIComponent(teamId)}&after=${encodeURIComponent(after)}`, { credentials: 'include', cache: 'no-store' })
+    const d = await r.json()
+    return { ok: !!d.ok, messages: d.messages || [], meId: d.meId, error: d.error }
+  } catch { return { ok: false, messages: [], error: '네트워크 오류' } }
+}
+export async function teamSend(teamId: string, text: string, media?: ChatMediaOpts): Promise<{ ok: boolean; id?: string; error?: string }> {
+  return postJson('/api/team', { action: 'send', teamId, text, ...(media ? { kind: media.kind, mediaKey: media.mediaKey, mediaName: media.mediaName || '' } : {}) })
+}
+// 팀(단체) 채팅 사진/영상 업로드 → { kind, key, name }
+export async function uploadTeamMedia(teamId: string, file: File): Promise<{ ok: boolean; kind?: 'image' | 'video'; key?: string; name?: string; error?: string }> {
+  try {
+    const fd = new FormData(); fd.append('teamId', teamId); fd.append('file', file)
+    const r = await fetch('/api/team/upload', { method: 'POST', credentials: 'include', body: fd })
+    const d = await r.json().catch(() => ({}))
+    return { ok: !!d.ok, kind: d.kind, key: d.key, name: d.name, error: d.error }
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+
 /* ── 관리자: 가입/추천/결제 조회 ── */
 export interface ReferralRow { id: string; name: string; email: string; plan: string; videoPlan: string; paid: boolean; credits: number; referralCode: string; referredById: string; referredByName: string; friendCount: number; referredCount: number; company?: string; phone?: string; provider?: string; country?: string; postalCode?: string; address1?: string; address2?: string; addressDone?: boolean; createdAt: string; tosConsent?: number; privacyConsent?: number; marketingConsent?: number; aiConsent?: number; consentAt?: string }
 export interface AdminReferrals { ok: boolean; error?: string; totals?: { members: number; paid: number; unpaid: number; referred: number }; rows?: ReferralRow[] }
@@ -1289,6 +1377,14 @@ export async function adminNoticeSend(payload: {
   scopePath?: string; startAt?: string; endAt?: string; days?: number
 }): Promise<{ ok: boolean; campaignId?: string; audience?: number; error?: string }> {
   return postJson('/api/admin/notices', payload)
+}
+// 관리자: 알림 삭제 = 발송 취소 (전송 기록·읽음·방문자 이벤트·스누즈 모두 제거)
+export async function adminNoticeDelete(id: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const r = await fetch('/api/admin/notices?id=' + encodeURIComponent(id), { method: 'DELETE', credentials: 'include' })
+    const d = await r.json().catch(() => ({}))
+    return { ok: !!d.ok, error: d.error }
+  } catch { return { ok: false, error: '네트워크 오류' } }
 }
 
 /* ───────── 관리자: 노드 스튜디오 감사 ───────── */

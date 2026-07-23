@@ -18,6 +18,7 @@ import {
   Inbox,
   Database,
   MapPin,
+  History,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { StatCard, Panel, Badge, Button } from '@/components/ui'
@@ -38,11 +39,15 @@ import { cn } from '@/lib/utils'
 
 const ACCENT = '#7c3aed'
 
+// 한국 표준시(KST, Asia/Seoul) 기준으로 표시 — 관리자 브라우저 시간대와 무관하게 항상 한국 시간.
 function fmtDate(iso: string) {
   const d = new Date(iso)
   if (Number.isNaN(+d)) return '-'
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+  const parts = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d).reduce((a, p) => ((a[p.type] = p.value), a), {} as Record<string, string>)
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`
 }
 function timeAgo(iso: string) {
   const d = +new Date(iso)
@@ -150,6 +155,7 @@ export default function AdminApprovalsPage() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  const [histFilter, setHistFilter] = useState<'approved' | 'rejected' | 'all'>('approved')
 
   const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
   function showToast(msg: string, kind: 'ok' | 'err' = 'ok') {
@@ -236,6 +242,67 @@ export default function AdminApprovalsPage() {
       [u.name, u.email, u.company, u.phone || ''].some((f) => f.toLowerCase().includes(q)),
     )
   }, [signups, query])
+
+  // 승인 내역 — 처리 완료(승인/반려)된 모든 요청을 한 곳에 모아 최근 처리순으로. 처리시각은 KST 기준.
+  type HistoryRow = {
+    key: string; name: string | null; email: string | null
+    category: string; detail: string; status: 'approved' | 'rejected'; decidedAt: string
+  }
+  const approvalHistory = useMemo<HistoryRow[]>(() => {
+    const rows: HistoryRow[] = []
+    for (const p of planRequests) {
+      if (p.status !== 'approved' && p.status !== 'rejected') continue
+      rows.push({
+        key: 'plan:' + p.id, name: p.name, email: p.email, category: '플랜 변경',
+        detail: `${trackLabel(p.track)} · ${planLabel(p.from_plan)} → ${planLabel(p.to_plan)}`,
+        status: p.status as 'approved' | 'rejected', decidedAt: p.decided_at || p.created_at,
+      })
+    }
+    for (const p of pointRequests) {
+      if (p.status !== 'approved' && p.status !== 'rejected') continue
+      rows.push({
+        key: 'point:' + p.id, name: p.name, email: p.email, category: '포인트 지급',
+        detail: `${p.amount.toLocaleString()}P${p.memo ? ' · ' + p.memo : ''}`,
+        status: p.status as 'approved' | 'rejected', decidedAt: p.decided_at || p.created_at,
+      })
+    }
+    for (const c of creditRequests) {
+      if (c.status !== 'approved' && c.status !== 'rejected') continue
+      rows.push({
+        key: 'credit:' + c.id, name: c.name, email: c.email, category: '크레딧 충전',
+        detail: `${c.amount.toLocaleString()}개${c.price > 0 ? ' · ' + c.price.toLocaleString() + '원' : ''}`,
+        status: c.status as 'approved' | 'rejected', decidedAt: c.decided_at || c.created_at,
+      })
+    }
+    for (const t of teamOrders) {
+      if (t.status !== 'paid' && t.status !== 'failed') continue
+      rows.push({
+        key: 'team:' + t.id, name: t.name, email: t.email, category: '팀 요금제',
+        detail: `${t.seats}좌석 · ${t.months}개월${t.amount > 0 ? ' · ' + t.amount.toLocaleString() + '원' : ''}`,
+        status: t.status === 'paid' ? 'approved' : 'rejected', decidedAt: t.paid_at || t.created_at,
+      })
+    }
+    for (const s of senderNumbers) {
+      if (s.status !== 'approved' && s.status !== 'rejected') continue
+      rows.push({
+        key: 'sender:' + s.id, name: s.name, email: s.email, category: '발신번호',
+        detail: `${s.phone}${s.label ? ' · ' + s.label : ''}`,
+        status: s.status as 'approved' | 'rejected', decidedAt: s.decided_at || s.created_at,
+      })
+    }
+    const filtered = histFilter === 'all' ? rows : rows.filter((r) => r.status === histFilter)
+    return filtered.sort((a, b) => +new Date(b.decidedAt) - +new Date(a.decidedAt))
+  }, [planRequests, pointRequests, creditRequests, teamOrders, senderNumbers, histFilter])
+
+  const approvedCount = useMemo(
+    () =>
+      planRequests.filter((r) => r.status === 'approved').length +
+      pointRequests.filter((r) => r.status === 'approved').length +
+      creditRequests.filter((r) => r.status === 'approved').length +
+      teamOrders.filter((r) => r.status === 'paid').length +
+      senderNumbers.filter((r) => r.status === 'approved').length,
+    [planRequests, pointRequests, creditRequests, teamOrders, senderNumbers],
+  )
 
   function exportSignupsCsv() {
     const headers = [
@@ -901,6 +968,95 @@ export default function AdminApprovalsPage() {
                     <tr>
                       <td colSpan={6} className="py-10 text-center text-[var(--text-dim)]">
                         {loading ? '불러오는 중…' : '수집된 리드가 없습니다.'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        </Reveal>
+
+        {/* 승인 내역 (처리 완료된 요청 모음 · 한국시간 KST) */}
+        <Reveal>
+          <Panel
+            title={
+              <span className="flex items-center gap-2">
+                <History size={16} className="text-emerald-600" /> 승인 내역
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                  승인 {approvedCount}건
+                </span>
+                <span className="text-[11px] font-normal text-[var(--text-dim)]">· 처리시각 한국 기준(KST)</span>
+              </span>
+            }
+            action={
+              <div className="flex items-center gap-1">
+                {(
+                  [
+                    ['approved', '승인'],
+                    ['rejected', '반려'],
+                    ['all', '전체'],
+                  ] as ['approved' | 'rejected' | 'all', string][]
+                ).map(([f, l]) => (
+                  <button
+                    key={f}
+                    onClick={() => setHistFilter(f)}
+                    className={cn(
+                      'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
+                      histFilter === f
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                    )}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            }
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border-soft)] text-left text-xs text-[var(--text-dim)]">
+                    <th className="pb-2.5 font-medium">회원</th>
+                    <th className="pb-2.5 font-medium">유형</th>
+                    <th className="pb-2.5 font-medium">상세</th>
+                    <th className="pb-2.5 font-medium">결과</th>
+                    <th className="pb-2.5 text-right font-medium">처리 시각 (KST)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {approvalHistory.map((h) => (
+                    <tr
+                      key={h.key}
+                      className="border-b border-[var(--border-soft)] last:border-0 hover:bg-slate-50"
+                    >
+                      <td className="py-3">
+                        <MemberCell name={h.name} email={h.email} />
+                      </td>
+                      <td className="py-3">
+                        <Badge className="border-slate-200 bg-slate-50 text-slate-600">{h.category}</Badge>
+                      </td>
+                      <td className="py-3 text-[var(--text-soft)]">{h.detail}</td>
+                      <td className="py-3">
+                        <Badge className={statusBadgeClass(h.status)}>{statusLabel(h.status)}</Badge>
+                      </td>
+                      <td className="whitespace-nowrap py-3 text-right text-[var(--text-soft)]">
+                        {fmtDate(h.decidedAt)}
+                        <span className="ml-1 text-xs text-[var(--text-dim)]">· {timeAgo(h.decidedAt)}</span>
+                      </td>
+                    </tr>
+                  ))}
+                  {approvalHistory.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-10 text-center text-[var(--text-dim)]">
+                        {loading
+                          ? '불러오는 중…'
+                          : histFilter === 'rejected'
+                          ? '반려된 내역이 없습니다.'
+                          : histFilter === 'approved'
+                          ? '아직 승인된 내역이 없습니다.'
+                          : '처리된 내역이 없습니다.'}
                       </td>
                     </tr>
                   )}
