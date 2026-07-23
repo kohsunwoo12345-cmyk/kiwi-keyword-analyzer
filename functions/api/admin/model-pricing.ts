@@ -248,6 +248,36 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     await logAudit(db, admin, 'user_academy', uid, academy || '(해제)', 'info', ip)
     return json({ ok: true, academy })
   }
+  // 여러 회원 일괄 학원 배정
+  if (action === 'set_users_academy') {
+    const ids = (Array.isArray(b.userIds) ? b.userIds : []).map((x: any) => String(x)).filter(Boolean).slice(0, 2000)
+    if (!ids.length) return json({ ok: false, error: '회원을 선택하세요.' }, 400)
+    const academy = String(b.academy || '').trim().slice(0, 60)
+    const ph = ids.map(() => '?').join(',')
+    await db.prepare(`UPDATE users SET academy = ? WHERE id IN (${ph})`).bind(academy || null, ...ids).run()
+    await logAudit(db, admin, 'users_academy_bulk', ids.length + '명', academy || '(해제)', 'high', ip)
+    return json({ ok: true, count: ids.length, academy })
+  }
+  // 여러 회원 일괄 개인 단가 설정
+  if (action === 'set_users_creditprice') {
+    const ids = (Array.isArray(b.userIds) ? b.userIds : []).map((x: any) => String(x)).filter(Boolean).slice(0, 2000)
+    if (!ids.length) return json({ ok: false, error: '회원을 선택하세요.' }, 400)
+    const price = Math.max(1, Math.min(100000, Math.round(Number(b.price) || 0)))
+    if (!price) return json({ ok: false, error: '단가는 1원 이상이어야 합니다.' }, 400)
+    const ph = ids.map(() => '?').join(',')
+    await db.prepare(`UPDATE users SET credit_price = ? WHERE id IN (${ph})`).bind(price, ...ids).run()
+    await logAudit(db, admin, 'users_credit_price_bulk', ids.length + '명', price + '원/크레딧', 'high', ip)
+    return json({ ok: true, count: ids.length, price })
+  }
+  // 여러 회원 일괄 개인 단가 해제
+  if (action === 'reset_users_creditprice') {
+    const ids = (Array.isArray(b.userIds) ? b.userIds : []).map((x: any) => String(x)).filter(Boolean).slice(0, 2000)
+    if (!ids.length) return json({ ok: false, error: '회원을 선택하세요.' }, 400)
+    const ph = ids.map(() => '?').join(',')
+    await db.prepare(`UPDATE users SET credit_price = NULL WHERE id IN (${ph})`).bind(...ids).run()
+    await logAudit(db, admin, 'users_credit_price_bulk_reset', ids.length + '명', '기본', 'info', ip)
+    return json({ ok: true, count: ids.length })
+  }
   // 학원(그룹)별 크레딧 단가(원/크레딧) 설정
   if (action === 'set_academy_creditprice') {
     const academy = String(b.academy || '').trim().slice(0, 60)

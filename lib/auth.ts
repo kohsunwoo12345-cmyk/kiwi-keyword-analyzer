@@ -736,7 +736,7 @@ export async function adminModelPricing(userId = ''): Promise<AdminModelPricing>
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
 export async function adminModelPricingAction(
-  action: 'set_global' | 'reset_global' | 'set_global_all' | 'reset_global_all' | 'set_user' | 'set_user_all' | 'reset_user' | 'set_user_overall' | 'reset_user_overall' | 'set_user_refsur' | 'reset_user_refsur' | 'set_global_refsur' | 'set_global_cnsur' | 'set_promptgen' | 'set_user_creditprice' | 'reset_user_creditprice' | 'set_global_creditprice' | 'set_user_academy' | 'set_academy_creditprice' | 'del_academy_creditprice',
+  action: 'set_global' | 'reset_global' | 'set_global_all' | 'reset_global_all' | 'set_user' | 'set_user_all' | 'reset_user' | 'set_user_overall' | 'reset_user_overall' | 'set_user_refsur' | 'reset_user_refsur' | 'set_global_refsur' | 'set_global_cnsur' | 'set_promptgen' | 'set_user_creditprice' | 'reset_user_creditprice' | 'set_global_creditprice' | 'set_user_academy' | 'set_academy_creditprice' | 'del_academy_creditprice' | 'set_users_academy' | 'set_users_creditprice' | 'reset_users_creditprice',
   payload: Record<string, unknown> = {},
 ): Promise<{ ok: boolean; error?: string }> {
   return postJson('/api/admin/model-pricing', { action, ...payload })

@@ -23,6 +23,13 @@ export default function CreditPricingPage() {
   const [newAcademy, setNewAcademy] = useState('')
   const [newAcademyPrice, setNewAcademyPrice] = useState('')
 
+  // 다중 선택 + 일괄 처리
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkAcademy, setBulkAcademy] = useState('')
+  const [bulkPrice, setBulkPrice] = useState('')
+  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const academyNames = useMemo(() => academies.map((a) => a.name), [academies])
+
   async function load(query = q) {
     setLoading(true)
     try {
@@ -32,6 +39,7 @@ export default function CreditPricingPage() {
         setAcademies(r.academies || [])
         const g = Number(r.creditPriceDefault) > 0 ? Number(r.creditPriceDefault) : 65
         setGlobalPrice(g); setGlobalInput(String(g))
+        setSelected(new Set())
       }
     } finally { setLoading(false) }
   }
@@ -66,6 +74,25 @@ export default function CreditPricingPage() {
     if (!name) { alert('학원명을 입력하세요.'); return }
     if (p < 1) { alert('단가는 1원 이상이어야 합니다.'); return }
     run('ac-add', () => adminModelPricingAction('set_academy_creditprice', { academy: name, price: p })).then((ok) => { if (ok) { setNewAcademy(''); setNewAcademyPrice('') } })
+  }
+
+  // 일괄 처리 (선택한 회원들)
+  const ids = () => Array.from(selected)
+  const bulkAssignAcademy = () => {
+    if (!selected.size) { alert('회원을 선택하세요.'); return }
+    run('bulk-ac', () => adminModelPricingAction('set_users_academy', { userIds: ids(), academy: bulkAcademy.trim() }))
+      .then((ok) => { if (ok) alert(`${selected.size}명을 '${bulkAcademy.trim() || '(학원 해제)'}'로 배정했습니다.`) })
+  }
+  const bulkSetPrice = () => {
+    if (!selected.size) { alert('회원을 선택하세요.'); return }
+    const p = Math.round(Number(bulkPrice) || 0)
+    if (p < 1) { alert('단가는 1원 이상이어야 합니다.'); return }
+    run('bulk-price', () => adminModelPricingAction('set_users_creditprice', { userIds: ids(), price: p }))
+      .then((ok) => { if (ok) alert(`${selected.size}명 개인 단가를 ${p}원으로 설정했습니다.`) })
+  }
+  const bulkResetPrice = () => {
+    if (!selected.size) { alert('회원을 선택하세요.'); return }
+    run('bulk-reset', () => adminModelPricingAction('reset_users_creditprice', { userIds: ids() }))
   }
 
   return (
@@ -142,7 +169,10 @@ export default function CreditPricingPage() {
 
         {/* 회원별 단가 */}
         <Panel title={<span className="inline-flex items-center gap-2"><UserIcon className="h-4 w-4" /> 회원별 단가</span>}>
-          <div className="mb-4 flex items-center gap-2">
+          {/* 학원 선택용 검색 드롭다운(datalist) — 입력하면 검색되고 클릭하면 목록 표시 */}
+          <datalist id="academyList">{academyNames.map((n) => <option key={n} value={n} />)}</datalist>
+
+          <div className="mb-3 flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-soft)]" />
               <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') load() }}
@@ -150,6 +180,36 @@ export default function CreditPricingPage() {
             </div>
             <Button size="sm" variant="outline" onClick={() => load()}>검색</Button>
           </div>
+
+          {/* 전체 선택 + 일괄 처리 바 */}
+          {users.length > 0 && (
+            <div className="mb-3 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-3">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <label className="inline-flex items-center gap-2 text-sm font-medium text-[var(--text)]">
+                  <input type="checkbox" className="h-4 w-4 accent-violet-600"
+                    checked={selected.size > 0 && selected.size === users.length}
+                    ref={(el) => { if (el) el.indeterminate = selected.size > 0 && selected.size < users.length }}
+                    onChange={(e) => setSelected(e.target.checked ? new Set(users.map((u) => u.id)) : new Set())} />
+                  전체 선택 <span className="text-violet-700">{selected.size > 0 ? `· ${selected.size}명 선택됨` : ''}</span>
+                </label>
+                {selected.size > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* 학원 일괄 배정 (드롭다운+검색) */}
+                    <input list="academyList" value={bulkAcademy} onChange={(e) => setBulkAcademy(e.target.value)}
+                      className="w-40 rounded-md border border-[var(--border)] bg-[var(--panel)] px-2 py-1.5 text-sm" placeholder="학원 선택/입력" />
+                    <Button size="sm" variant="primary" disabled={busy === 'bulk-ac'} onClick={bulkAssignAcademy}>선택 {selected.size}명 학원 배정</Button>
+                    <span className="h-4 w-px bg-[var(--border)]" />
+                    {/* 개인 단가 일괄 */}
+                    <input type="number" min={1} value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)}
+                      className="w-24 rounded-md border border-[var(--border)] bg-[var(--panel)] px-2 py-1.5 text-sm" placeholder="단가(원)" />
+                    <Button size="sm" variant="soft" disabled={busy === 'bulk-price'} onClick={bulkSetPrice}>선택 {selected.size}명 단가</Button>
+                    <Button size="sm" variant="ghost" disabled={busy === 'bulk-reset'} onClick={bulkResetPrice}>단가 해제</Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {loading ? (
             <div className="py-8 text-center text-sm text-[var(--text-soft)]">불러오는 중…</div>
           ) : users.length === 0 ? (
@@ -159,7 +219,7 @@ export default function CreditPricingPage() {
               {users.map((u) => {
                 const eff = effectivePrice(u)
                 return (
-                  <UserPriceRow key={u.id} u={u} eff={eff} busy={busy}
+                  <UserPriceRow key={u.id} u={u} eff={eff} busy={busy} checked={selected.has(u.id)} onToggle={() => toggle(u.id)}
                     onSetPrice={(p) => run('u-' + u.id, () => adminModelPricingAction('set_user_creditprice', { userId: u.id, price: p }))}
                     onResetPrice={() => run('ur-' + u.id, () => adminModelPricingAction('reset_user_creditprice', { userId: u.id }))}
                     onSetAcademy={(name) => run('ua-' + u.id, () => adminModelPricingAction('set_user_academy', { userId: u.id, academy: name }))}
@@ -197,22 +257,24 @@ function AcademyRowEditor({ a, globalPrice, busy, onSave, onDel }: { a: AcademyR
   )
 }
 
-function UserPriceRow({ u, eff, busy, onSetPrice, onResetPrice, onSetAcademy }: {
+function UserPriceRow({ u, eff, busy, checked, onToggle, onSetPrice, onResetPrice, onSetAcademy }: {
   u: UserMarkupRow; eff: { price: number; src: string }; busy: string | null
+  checked: boolean; onToggle: () => void
   onSetPrice: (p: number) => void; onResetPrice: () => void; onSetAcademy: (name: string) => void
 }) {
   const [price, setPrice] = useState(u.creditPrice != null ? String(u.creditPrice) : '')
   const [academy, setAcademy] = useState(u.academy || '')
   useEffect(() => { setPrice(u.creditPrice != null ? String(u.creditPrice) : ''); setAcademy(u.academy || '') }, [u.creditPrice, u.academy])
   return (
-    <div className="grid grid-cols-1 items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--panel)] p-3 md:grid-cols-[1.3fr_1fr_1.2fr_auto]">
+    <div className={cn('grid grid-cols-1 items-center gap-3 rounded-xl border bg-[var(--panel)] p-3 md:grid-cols-[auto_1.3fr_1fr_1.2fr_auto]', checked ? 'border-violet-300 ring-1 ring-violet-200' : 'border-[var(--border)]')}>
+      <input type="checkbox" className="h-4 w-4 accent-violet-600" checked={checked} onChange={onToggle} />
       <div className="min-w-0">
         <div className="truncate text-sm font-medium text-[var(--text)]">{u.name || '(이름 없음)'} <span className="ml-1 font-mono text-[11px] text-[var(--text-soft)]">{u.id}</span></div>
         <div className="truncate text-xs text-[var(--text-soft)]">{u.email}</div>
       </div>
-      {/* 학원 배정 */}
+      {/* 학원 배정 (드롭다운+검색) */}
       <div className="flex items-center gap-1.5">
-        <input value={academy} onChange={(e) => setAcademy(e.target.value)} className="w-full rounded-md border border-[var(--border)] bg-[var(--panel)] px-2 py-1 text-sm" placeholder="학원(선택)" />
+        <input list="academyList" value={academy} onChange={(e) => setAcademy(e.target.value)} className="w-full rounded-md border border-[var(--border)] bg-[var(--panel)] px-2 py-1 text-sm" placeholder="학원 선택/입력" />
         <Button size="sm" variant="ghost" disabled={busy === 'ua-' + u.id} onClick={() => onSetAcademy(academy.trim())}>배정</Button>
       </div>
       {/* 개인 단가 */}
