@@ -22,8 +22,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const q = String(url.searchParams.get('q') || '').trim()
     const like = '%' + q + '%'
     const rows = (q
-      ? await db.prepare("SELECT id,name,email,plan,credits,credit_markup,ref_surcharge,credit_price,created_at FROM users WHERE role != 'admin' AND (name LIKE ? OR email LIKE ?) ORDER BY created_at DESC LIMIT 1000").bind(like, like).all()
-      : await db.prepare("SELECT id,name,email,plan,credits,credit_markup,ref_surcharge,credit_price,created_at FROM users WHERE role != 'admin' ORDER BY created_at DESC LIMIT 1000").all()
+      ? await db.prepare("SELECT id,name,email,plan,credits,credit_markup,ref_surcharge,credit_price,academy,created_at FROM users WHERE role != 'admin' AND (name LIKE ? OR email LIKE ?) ORDER BY created_at DESC LIMIT 1000").bind(like, like).all()
+      : await db.prepare("SELECT id,name,email,plan,credits,credit_markup,ref_surcharge,credit_price,academy,created_at FROM users WHERE role != 'admin' ORDER BY created_at DESC LIMIT 1000").all()
     ).results || []
     const ovMap: Record<string, number> = {}
     try {
@@ -36,6 +36,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const cnSurchargeDefault = gcn != null && gcn !== '' && Number(gcn) >= 0 ? Number(gcn) : CN_SURCHARGE_DEFAULT
     const gcp = await getSetting(db, 'credit_price_krw')
     const creditPriceDefault = gcp != null && gcp !== '' && Number(gcp) > 0 ? Number(gcp) : 65 // 기본 65원/크레딧
+    // 학원(그룹)별 크레딧 단가 맵
+    let academyPrices: Record<string, number> = {}
+    try { const raw = await getSetting(db, 'academy_credit_prices'); if (raw) academyPrices = JSON.parse(raw) } catch { academyPrices = {} }
+    // 학원 목록(회원이 배정된 학원 + 단가만 설정된 학원) + 소속 회원 수
+    const acCount: Record<string, number> = {}
+    for (const u of rows as any[]) { const a = String(u.academy || '').trim(); if (a) acCount[a] = (acCount[a] || 0) + 1 }
+    const academyNames = Array.from(new Set([...Object.keys(acCount), ...Object.keys(academyPrices)])).filter(Boolean).sort()
+    const academies = academyNames.map((name) => ({ name, members: acCount[name] || 0, price: Number(academyPrices[name]) > 0 ? Number(academyPrices[name]) : null }))
     const pgm = await getSetting(db, 'promptgen_markup')
     const promptgenMarkup = pgm != null && pgm !== '' && isFinite(Number(pgm)) ? Math.max(1, Number(pgm)) : 2.5
     const pgRate = await getUsdKrw(db)
@@ -50,11 +58,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         overrides: ovMap[u.id] || 0,           // 모델별 개별 지정 개수
         refSurcharge: u.ref_surcharge == null ? null : Number(u.ref_surcharge), // null = 전역 기본값 사용
         creditPrice: u.credit_price == null ? null : Number(u.credit_price), // null = 전역/기본 단가 사용
+        academy: String(u.academy || ''), // 소속 학원(그룹)
       })),
       defaultMarkup: { video: 3.0, image: 2.5 },
       refSurchargeDefault: refDefault,
       cnSurchargeDefault,
       creditPriceDefault,
+      academyPrices,
+      academies,
       promptgenMarkup,
       promptgenCredits,
     })
@@ -228,6 +239,37 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     await setSetting(db, 'credit_price_krw', String(price))
     await logAudit(db, admin, 'global_credit_price', '전역', price + '원/크레딧', 'high', ip)
     return json({ ok: true, price })
+  }
+  // 회원의 소속 학원(그룹) 지정/해제
+  if (action === 'set_user_academy') {
+    const uid = String(b.userId || ''); if (!uid) return json({ ok: false, error: 'userId 필요' }, 400)
+    const academy = String(b.academy || '').trim().slice(0, 60)
+    await db.prepare('UPDATE users SET academy = ? WHERE id = ?').bind(academy || null, uid).run()
+    await logAudit(db, admin, 'user_academy', uid, academy || '(해제)', 'info', ip)
+    return json({ ok: true, academy })
+  }
+  // 학원(그룹)별 크레딧 단가(원/크레딧) 설정
+  if (action === 'set_academy_creditprice') {
+    const academy = String(b.academy || '').trim().slice(0, 60)
+    if (!academy) return json({ ok: false, error: '학원명을 입력하세요.' }, 400)
+    const price = Math.max(1, Math.min(100000, Math.round(Number(b.price) || 0)))
+    if (!price) return json({ ok: false, error: '단가는 1원 이상이어야 합니다.' }, 400)
+    let map: Record<string, number> = {}
+    try { const raw = await getSetting(db, 'academy_credit_prices'); if (raw) map = JSON.parse(raw) } catch { map = {} }
+    map[academy] = price
+    await setSetting(db, 'academy_credit_prices', JSON.stringify(map))
+    await logAudit(db, admin, 'academy_credit_price', academy, price + '원/크레딧', 'high', ip)
+    return json({ ok: true, academy, price })
+  }
+  // 학원(그룹)별 크레딧 단가 삭제(해당 학원 회원은 전역 단가 사용)
+  if (action === 'del_academy_creditprice') {
+    const academy = String(b.academy || '').trim().slice(0, 60)
+    let map: Record<string, number> = {}
+    try { const raw = await getSetting(db, 'academy_credit_prices'); if (raw) map = JSON.parse(raw) } catch { map = {} }
+    delete map[academy]
+    await setSetting(db, 'academy_credit_prices', JSON.stringify(map))
+    await logAudit(db, admin, 'academy_credit_price_del', academy, '삭제', 'info', ip)
+    return json({ ok: true })
   }
   return json({ ok: false, error: '알 수 없는 작업입니다.' }, 400)
 }

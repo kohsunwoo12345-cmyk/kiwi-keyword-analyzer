@@ -97,6 +97,7 @@ const NAV_GROUPS: NavGroup[] = [
       { title: '사용자 활동 기록', href: `${ADMIN_BASE}/user-activity`, icon: History },
       { title: '매출', href: `${ADMIN_BASE}/revenue`, icon: Banknote },
       { title: '크레딧 지급 내역', href: `${ADMIN_BASE}/credit-grants`, icon: Coins },
+      { title: '크레딧 단가 설정', href: `${ADMIN_BASE}/credit-pricing`, icon: Coins },
       { title: '결제·정산', href: `${ADMIN_BASE}/billing`, icon: BadgeDollarSign },
       { title: '지사 정산', href: `${ADMIN_BASE}/settlement`, icon: Landmark },
       { title: '요금제 관리', href: `${ADMIN_BASE}/plans`, icon: Tag },
