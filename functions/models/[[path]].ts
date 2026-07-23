@@ -49,7 +49,10 @@ export const onRequestGet: PagesFunction = async ({ params, env, request }) => {
     upstreamUrl = base + sub + search
     ct = ctOf(sub)
   }
-  const key = 'modelcache/' + cat + '/' + sub + (search ? '_' + btoa(search).replace(/[^a-zA-Z0-9]/g, '') : '')
+  // 카테고리별 캐시 버전 — 상류 URL을 바꾼 카테고리는 버전을 올려 옛(잘못된) R2 캐시를 무효화한다.
+  //  ort: onnxruntime-web@1.14.0 → transformers 자체 dist wasm 으로 교체(v2). 기존 잘못된 wasm 재적재 강제.
+  const CACHE_VER: Record<string, string> = { ort: 'v2' }
+  const key = 'modelcache/' + cat + (CACHE_VER[cat] ? '@' + CACHE_VER[cat] : '') + '/' + sub + (search ? '_' + btoa(search).replace(/[^a-zA-Z0-9]/g, '') : '')
   const cors = { 'access-control-allow-origin': '*', 'cross-origin-resource-policy': 'cross-origin' }
 
   const R2: any = resolveBucket(env)
