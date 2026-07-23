@@ -136,6 +136,10 @@
 .site-light .accent-text {
   background-image: linear-gradient(135deg, #0891b2 0%, #2563eb 100%);
 }
+/* 다크모드에서 좌측 상단 BYGENCY 워드마크(바이전시 문구)를 흰색으로 */
+.site-dark .brand-word {
+  color: #ffffff;
+}
 .site-dark .grid-bg,
 .site-light .grid-bg {
   background-image:

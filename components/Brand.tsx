@@ -82,7 +82,7 @@ export function Logo({
       <AppIcon size={size} />
       <span
         className={cn(
-          'font-black tracking-[0.14em] text-[#0a1730]',
+          'brand-word font-black tracking-[0.14em] text-[#0a1730]',
           wordClassName,
         )}
         style={{ fontSize: size * 0.62 }}

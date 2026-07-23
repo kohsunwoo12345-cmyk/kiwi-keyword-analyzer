@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 // Cloudflare Pages Functions(D1) 기반 실제 인증 클라이언트
 export interface User {
@@ -127,6 +127,8 @@ export async function logout(): Promise<void> {
     await fetch('/api/logout', { method: 'POST', credentials: 'include' })
   } catch {
     /* ignore */
+  } finally {
+    resetAuth()
   }
 }
 
@@ -140,23 +142,69 @@ export async function fetchMe(): Promise<User | null> {
   }
 }
 
+/**
+ * 로그인 상태 훅 — 모듈 단위 공유 스토어.
+ *
+ * 이전에는 useAuth() 를 쓰는 컴포넌트마다 각자 /api/me 를 호출했다.
+ * 대시보드 한 화면에서 Sidebar·AccountPanel·ChatDock·ProfileGate·페이지가
+ * 동시에 마운트되면 동일한 요청이 5번 이상 중복 발생 → 초기 로딩 지연.
+ *
+ * 아래 스토어는 /api/me 를 "한 번만" 호출해 결과를 캐시하고, 모든 구독자가
+ * 이를 공유한다. 페이지 간 이동(SPA) 시에도 재요청하지 않아 즉시 렌더된다.
+ */
+type AuthListener = () => void
+const authState: { user: User | null; ready: boolean } = { user: null, ready: false }
+let authInFlight: Promise<void> | null = null
+const authListeners = new Set<AuthListener>()
+
+function emitAuth() {
+  for (const l of authListeners) l()
+}
+
+/** /api/me 를 최초 1회만 호출 (중복/재요청 방지) */
+function ensureAuthLoaded() {
+  if (authState.ready || authInFlight) return
+  authInFlight = fetchMe()
+    .then((u) => {
+      authState.user = u
+    })
+    .catch(() => {
+      authState.user = null
+    })
+    .then(() => {
+      authState.ready = true
+      authInFlight = null
+      emitAuth()
+    })
+}
+
+/** 공유 유저 상태 갱신 (크레딧 변경 등) — 모든 구독 컴포넌트에 즉시 반영 */
+export function setAuthUser(u: User | null) {
+  authState.user = u
+  emitAuth()
+}
+
+/** 캐시 초기화 — 로그아웃 시 사용 */
+export function resetAuth() {
+  authState.user = null
+  authState.ready = false
+  authInFlight = null
+  emitAuth()
+}
+
 /** 로그인 상태 훅 */
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null)
-  const [ready, setReady] = useState(false)
+  const [, forceRender] = useState(0)
   useEffect(() => {
-    let alive = true
-    fetchMe().then((u) => {
-      if (alive) {
-        setUser(u)
-        setReady(true)
-      }
-    })
+    const listener = () => forceRender((n) => n + 1)
+    authListeners.add(listener)
+    ensureAuthLoaded()
     return () => {
-      alive = false
+      authListeners.delete(listener)
     }
   }, [])
-  return { user, ready, setUser }
+  const setUser = useCallback((u: User | null) => setAuthUser(u), [])
+  return { user: authState.user, ready: authState.ready, setUser }
 }
 
 /** 관리자: 전체 회원 목록 + 통계 */
