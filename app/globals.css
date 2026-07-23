@@ -798,3 +798,17 @@ img.bg-emoji {
 .mkt-canvas .mkt-btn.ghost:hover { border-color: #5b6cff; color: #fff; }
 /* 연결선 SVG */
 .mkt-canvas .mkt-wire { stroke: url(#mktWire); stroke-width: 2; fill: none; opacity: 0.5; }
+
+/* 대시보드 페이지 전환 슬라이드 (경로 변경 시 재생) */
+@keyframes dashPageSlideIn {
+  from { opacity: 0; transform: translateX(26px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.dash-page-slide {
+  animation: dashPageSlideIn 0.30s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  overflow-x: clip;
+  will-change: transform, opacity;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dash-page-slide { animation: none; }
+}

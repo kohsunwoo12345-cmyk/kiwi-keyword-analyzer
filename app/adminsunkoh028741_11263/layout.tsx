@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
+import { PageTransition } from '@/components/dash/PageTransition'
 import {
   LayoutDashboard,
   Users,
@@ -369,7 +370,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* main */}
-      <main className="min-w-0 flex-1">{children}</main>
+      <main className="min-w-0 flex-1"><PageTransition>{children}</PageTransition></main>
     </div>
     </AdminAccessGuard>
   )
