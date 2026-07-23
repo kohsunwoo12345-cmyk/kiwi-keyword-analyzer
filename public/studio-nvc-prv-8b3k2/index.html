@@ -2831,7 +2831,7 @@ function cannyPreview(srcUrl){
       try{
         // 고해상도(≤768) grayscale → 가우시안 → Sobel → 비최대억제(NMS) → 이중임계+히스테리시스
         // = ComfyUI/OpenCV Canny 처럼 1px 두께의 선명한 엣지맵 (기존 Sobel 단일임계는 굵고 뭉개짐)
-        var W=Math.min(1280, img.naturalWidth||1280), sc=W/(img.naturalWidth||W), H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
+        var W=Math.min(2048, img.naturalWidth||2048), sc=W/(img.naturalWidth||W), H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
         var c=document.createElement('canvas'); c.width=W; c.height=H;
         var ctx=c.getContext('2d'); ctx.drawImage(img,0,0,W,H);
         var p=ctx.getImageData(0,0,W,H).data, N=W*H, g=new Float32Array(N), i,x,y,kx,ky,xx,yy;
@@ -2928,9 +2928,11 @@ function ensureDepthModel(){
       mod.env.remoteHost=location.origin+'/models/hf';
       try{ mod.env.backends.onnx.wasm.wasmPaths=location.origin+'/models/ort/'; }catch(_){}
     }catch(_){}
-    // 더 정밀한 base 모델 우선 → 실패 시 small 폴백. (self-host 라 큰 모델도 R2 캐시로 로드)
-    return mod.pipeline('depth-estimation','Xenova/depth-anything-base-hf',{ quantized:true })
-      .catch(function(){ return mod.pipeline('depth-estimation','Xenova/depth-anything-small-hf',{ quantized:true }); });
+    // 최상 정밀도: Depth-Anything V2(base) → V1 base → small 3단 폴백. (self-host R2 캐시)
+    function _dp(m){ return mod.pipeline('depth-estimation', m, { quantized:true }); }
+    return _dp('onnx-community/depth-anything-v2-base')
+      .catch(function(){ return _dp('Xenova/depth-anything-base-hf'); })
+      .catch(function(){ return _dp('Xenova/depth-anything-small-hf'); });
   }).then(function(p){ _depthModel=p; return p; }).catch(function(err){ _depthTry=null; throw err; });
   return _depthTry;
 }
