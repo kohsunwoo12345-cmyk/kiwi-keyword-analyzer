@@ -2831,7 +2831,7 @@ function cannyPreview(srcUrl){
       try{
         // 고해상도(≤768) grayscale → 가우시안 → Sobel → 비최대억제(NMS) → 이중임계+히스테리시스
         // = ComfyUI/OpenCV Canny 처럼 1px 두께의 선명한 엣지맵 (기존 Sobel 단일임계는 굵고 뭉개짐)
-        var W=Math.min(768, img.naturalWidth||768), sc=W/(img.naturalWidth||W), H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
+        var W=Math.min(1024, img.naturalWidth||1024), sc=W/(img.naturalWidth||W), H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
         var c=document.createElement('canvas'); c.width=W; c.height=H;
         var ctx=c.getContext('2d'); ctx.drawImage(img,0,0,W,H);
         var p=ctx.getImageData(0,0,W,H).data, N=W*H, g=new Float32Array(N), i,x,y,kx,ky,xx,yy;
@@ -2858,7 +2858,8 @@ function cannyPreview(srcUrl){
           var inv=1/mg, dx=gxA[y*W+x]*inv, dy=gyA[y*W+x]*inv;
           if(mg>=smpl(x+dx,y+dy) && mg>=smpl(x-dx,y-dy)) nms[y*W+x]=mg; }
         // 적응형(auto) 임계 — 상위 ~34% NMS 를 강한 엣지 시드로, 히스테리시스 lo(0.30) 로 약한 테두리를
-        //  강한 엣지에 이어붙여 전체 윤곽을 살리되, 고립 노이즈는 배제(recall↑ + 노이즈 억제 균형).
+        //  강한 엣지에 이어붙여 전체 윤곽을 살리되 얇게 유지. 고립 노이즈는 작은요소 제거로 정리.
+        //  (해상도 1024 로 올려 실제 사진의 가는 선까지 더 많이 따 낸다)
         var HIST=1024, hist=new Int32Array(HIST), maxMag=0, nz=0;
         for(i=0;i<N;i++){ if(nms[i]>0){ if(nms[i]>maxMag)maxMag=nms[i]; nz++; } }
         if(maxMag<=0) maxMag=1;
@@ -2965,10 +2966,15 @@ function depthPreview(srcUrl){
       ensureDepthModel().then(function(dep){
         return dep(c.toDataURL('image/png')).then(function(out){
           var dmp=out&&out.depth; if(!dmp||!dmp.data){ return segFallback(); }
-          var dw=dmp.width, dh=dmp.height, ch=dmp.channels||1;
+          var dw=dmp.width, dh=dmp.height, ch=dmp.channels||1, np=dw*dh, j;
+          // 모델 출력은 대비가 낮게 나올 수 있어 전체 다이내믹레인지로 재정규화(min~max→0~255)
+          //  + 약한 감마로 가까운 면을 또렷하게 → 레퍼런스처럼 선명한 깊이맵
+          var dmn=1e9, dmx=-1e9;
+          for(j=0;j<np;j++){ var vv=dmp.data[j*ch]; if(vv<dmn)dmn=vv; if(vv>dmx)dmx=vv; }
+          var drng=(dmx-dmn)||1;
           var tmp=document.createElement('canvas'); tmp.width=dw; tmp.height=dh; var tctx=tmp.getContext('2d');
-          var idata=tctx.createImageData(dw,dh), od=idata.data, j;
-          for(j=0;j<dw*dh;j++){ var v=dmp.data[j*ch]; od[j*4]=od[j*4+1]=od[j*4+2]=v; od[j*4+3]=255; }
+          var idata=tctx.createImageData(dw,dh), od=idata.data;
+          for(j=0;j<np;j++){ var nv=(dmp.data[j*ch]-dmn)/drng; nv=Math.pow(nv,0.85); var v=Math.round(nv*255); od[j*4]=od[j*4+1]=od[j*4+2]=v; od[j*4+3]=255; }
           tctx.putImageData(idata,0,0); ctx.clearRect(0,0,W,H); ctx.drawImage(tmp,0,0,W,H);
           resolve(c.toDataURL('image/png'));
         });
