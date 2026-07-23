@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X, LogOut, Shield, Moon, Sun, CreditCard, Settings } from 'lucide-react'
+import { X, LogOut, Shield, Moon, Sun, Monitor, CreditCard, Settings } from 'lucide-react'
 import { useAuth, logout } from '@/lib/auth'
 import { useDashTheme } from '@/components/dash/DashThemeProvider'
 import { cn } from '@/lib/utils'
@@ -26,17 +26,34 @@ export function AvatarSvg({ size = 30 }: { size?: number }) {
   )
 }
 
+// 시스템 / 라이트 / 다크 3분할 세그먼트 컨트롤
 function PanelThemeToggle() {
-  const { theme, setTheme } = useDashTheme()
+  const { mode, setMode } = useDashTheme()
+  const opts: { key: 'system' | 'light' | 'dark'; label: string; icon: typeof Monitor }[] = [
+    { key: 'system', label: '시스템', icon: Monitor },
+    { key: 'light', label: '라이트', icon: Sun },
+    { key: 'dark', label: '다크', icon: Moon },
+  ]
   return (
-    <button
-      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-      className="grid h-9 w-9 place-items-center rounded-lg border border-[var(--border)] text-[var(--text-soft)] transition-colors hover:text-[var(--text)]"
-      title={theme === 'dark' ? '라이트 모드' : '다크 모드'}
-      aria-label="테마 전환"
-    >
-      {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-    </button>
+    <div className="flex items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--panel-2)] p-0.5">
+      {opts.map(({ key, label, icon: Icon }) => (
+        <button
+          key={key}
+          onClick={() => setMode(key)}
+          title={label}
+          aria-label={label}
+          aria-pressed={mode === key}
+          className={cn(
+            'flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors',
+            mode === key
+              ? 'bg-blue-500 text-white shadow-sm'
+              : 'text-[var(--text-dim)] hover:text-[var(--text)]',
+          )}
+        >
+          <Icon size={13} /> {label}
+        </button>
+      ))}
+    </div>
   )
 }
 

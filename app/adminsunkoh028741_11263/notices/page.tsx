@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bell, Send, ImagePlus, Link2, RefreshCw, X, CheckCircle2, Circle, Users, Loader2, Eye, ChevronRight, Film, Clock, MoonStar } from 'lucide-react'
+import { Bell, Send, ImagePlus, Link2, RefreshCw, X, CheckCircle2, Circle, Users, Loader2, Eye, ChevronRight, Film, Clock, MoonStar, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel } from '@/components/ui'
 import { EmojiText } from '@/components/Emoji'
 import {
-  adminNoticeList, adminNoticeSend, adminNoticeDetail, adminUsers,
+  adminNoticeList, adminNoticeSend, adminNoticeDetail, adminNoticeDelete, adminUsers,
   type AdminNoticeCampaign, type NoticeRecipient, type User,
   type VisitorStat, type NoticeVisitorEvent, type NoticeSnooze,
 } from '@/lib/auth'
@@ -59,9 +59,10 @@ export default function NoticesPage() {
   const [campaigns, setCampaigns] = useState<AdminNoticeCampaign[]>([])
   const [loading, setLoading] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
-  const [detail, setDetail] = useState<{ recipients: NoticeRecipient[]; campaign?: AdminNoticeCampaign; visitorStats?: { views: VisitorStat; reads: VisitorStat; conversions: VisitorStat }; visitorEvents?: NoticeVisitorEvent[]; snoozeList?: NoticeSnooze[]; readCount?: number } | null>(null)
+  const [detail, setDetail] = useState<{ recipients: NoticeRecipient[]; campaign?: AdminNoticeCampaign; visitorStats?: { views: VisitorStat; reads: VisitorStat; conversions: VisitorStat; snoozes?: number }; visitorEvents?: NoticeVisitorEvent[]; snoozeList?: NoticeSnooze[]; readCount?: number } | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [rFilter, setRFilter] = useState<'all' | 'read' | 'unread'>('all')
+  const [deleting, setDeleting] = useState(false)
 
   // 회원 목록(선택 발송용)
   const [users, setUsers] = useState<User[]>([])
@@ -174,6 +175,21 @@ export default function NoticesPage() {
     adminNoticeDetail(id).then((d) => {
       setDetail({ recipients: d.recipients || [], campaign: d.campaign, visitorStats: d.visitorStats, visitorEvents: d.visitorEvents, snoozeList: d.snoozeList || [], readCount: d.readCount }); setDetailLoading(false)
     })
+  }
+
+  async function onDelete(id: string) {
+    const c = campaigns.find((x) => x.id === id)
+    if (!confirm(`“${c?.title || '이 알림'}”을(를) 삭제할까요?\n전송된 알림 기록과 읽음·접속 통계가 모두 사라지고, 표시 중인 팝업도 즉시 취소됩니다.\n이 작업은 되돌릴 수 없습니다.`)) return
+    setDeleting(true)
+    const res = await adminNoticeDelete(id)
+    setDeleting(false)
+    if (res.ok) {
+      setCampaigns((prev) => prev.filter((x) => x.id !== id))
+      setOpenId(null); setDetail(null)
+      setMsg('🗑️ 알림을 삭제(발송 취소)했습니다.')
+    } else {
+      alert(res.error || '삭제에 실패했습니다.')
+    }
   }
 
   const shownRecipients = useMemo(() => {
@@ -436,7 +452,13 @@ export default function NoticesPage() {
           <div className="max-h-[85vh] w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
               <div className="flex items-center gap-2 font-bold"><Eye size={16} /> {detail?.campaign?.title || '읽음 현황'}</div>
-              <button onClick={() => setOpenId(null)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"><X size={18} /></button>
+              <div className="flex items-center gap-1">
+                <button onClick={() => openId && onDelete(openId)} disabled={deleting}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-60">
+                  {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} 삭제(발송 취소)
+                </button>
+                <button onClick={() => setOpenId(null)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"><X size={18} /></button>
+              </div>
             </div>
             {!(detail?.campaign?.target === 'visitors' || detail?.visitorStats) && (
               <div className="border-b border-[var(--border)] px-5 py-2.5">

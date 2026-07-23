@@ -103,6 +103,35 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   return json({ ok: true, campaignId: campId, audience: recipients.length })
 }
 
+// DELETE /api/admin/notices?id=<캠페인>  → 캠페인 삭제 = 발송 취소
+//   · 캠페인 본체 + 수신 영수증(notice_receipts) + 방문자 이벤트 + 스누즈 기록을 모두 제거.
+//   · 사용자/방문자 팝업 쿼리는 캠페인·영수증 조인이므로, 삭제 즉시 팝업 노출이 취소되고 기록도 사라진다.
+export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {
+  const db = resolveDB(env)
+  if (!db) return json({ ok: false, error: 'DB 바인딩 없음' }, 500)
+  await ensureSchema(db)
+  const guard = await requireAdminUser(request, db)
+  if (guard.error) return guard.error
+  if (!sameOriginOk(request)) return json({ ok: false, error: '잘못된 요청' }, 403)
+  const admin = { id: guard.me.id, email: guard.me.email }
+
+  const url = new URL(request.url)
+  const id = (url.searchParams.get('id') || '').trim()
+  if (!id) return json({ ok: false, error: '삭제할 알림 ID가 없습니다.' }, 400)
+
+  const camp: any = await db.prepare('SELECT id, title FROM notice_campaigns WHERE id = ?').bind(id).first()
+  if (!camp) return json({ ok: false, error: '알림을 찾을 수 없습니다.' }, 404)
+
+  // 연결된 기록을 함께 제거 (발송 기록·읽음·방문자 이벤트·스누즈 취소)
+  await db.prepare('DELETE FROM notice_receipts WHERE campaign_id = ?').bind(id).run().catch(() => {})
+  await db.prepare('DELETE FROM notice_visitor_events WHERE campaign_id = ?').bind(id).run().catch(() => {})
+  await db.prepare('DELETE FROM notice_snoozes WHERE campaign_id = ?').bind(id).run().catch(() => {})
+  await db.prepare('DELETE FROM notice_campaigns WHERE id = ?').bind(id).run()
+
+  await logAudit(db, admin, 'notice_delete', id, camp.title || '', 'warn', clientIp(request))
+  return json({ ok: true })
+}
+
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env)
   if (!db) return json({ ok: false, error: 'DB 바인딩 없음' }, 500)
