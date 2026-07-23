@@ -12,6 +12,10 @@ import {
   Globe,
   Lock,
   UserRound,
+  Share2,
+  Copy,
+  Check,
+  X,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button } from '@/components/ui'
@@ -63,6 +67,12 @@ interface CalEvent {
   target_user_id: string | null
   created_at: string
 }
+interface Board {
+  id: string
+  name: string
+  owner_id: string
+  created_at: string
+}
 
 function ymStr(y: number, m: number) {
   return `${y}-${String(m).padStart(2, '0')}`
@@ -78,6 +88,19 @@ export default function TeamCalendarPage() {
   const [teams, setTeams] = useState<Team[]>([])
   const [meId, setMeId] = useState('')
   const [teamId, setTeamId] = useState('')
+
+  // calendars (boards) — 워크플로 상단 탭처럼 여러 캘린더
+  const [boards, setBoards] = useState<Board[]>([])
+  const [boardId, setBoardId] = useState('')
+  const [newBoardName, setNewBoardName] = useState('')
+  const [addingBoard, setAddingBoard] = useState(false)
+  const [boardBusy, setBoardBusy] = useState(false)
+
+  // share
+  const [shareUrl, setShareUrl] = useState('')
+  const [shareName, setShareName] = useState('')
+  const [sharing, setSharing] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const [ym, setYm] = useState({ y: now.getFullYear(), m: now.getMonth() + 1 })
   const [events, setEvents] = useState<CalEvent[]>([])
@@ -120,11 +143,30 @@ export default function TeamCalendarPage() {
     }
   }, [])
 
-  // 3) load events for selected team + month
-  const loadEvents = useCallback(() => {
+  // 2) load boards (calendars) for the selected team
+  const loadBoards = useCallback(() => {
     if (!teamId) return
+    fetch(`/api/team?boards=${encodeURIComponent(teamId)}`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.ok) {
+          const bs: Board[] = d.boards || []
+          setBoards(bs)
+          setBoardId((prev) => (bs.some((b) => b.id === prev) ? prev : bs[0]?.id || ''))
+        }
+      })
+      .catch(() => {})
+  }, [teamId])
+
+  useEffect(() => {
+    loadBoards()
+  }, [loadBoards])
+
+  // 3) load events for selected team + board + month
+  const loadEvents = useCallback(() => {
+    if (!teamId || !boardId) return
     setLoadingEvents(true)
-    fetch(`/api/team?calendar=${encodeURIComponent(teamId)}&month=${monthKey}`, {
+    fetch(`/api/team?calendar=${encodeURIComponent(teamId)}&board=${encodeURIComponent(boardId)}&month=${monthKey}`, {
       credentials: 'include',
     })
       .then((r) => r.json())
@@ -133,11 +175,59 @@ export default function TeamCalendarPage() {
       })
       .catch(() => {})
       .finally(() => setLoadingEvents(false))
-  }, [teamId, monthKey])
+  }, [teamId, boardId, monthKey])
 
   useEffect(() => {
     loadEvents()
   }, [loadEvents])
+
+  async function addBoard() {
+    const name = newBoardName.trim()
+    if (!name || !teamId) return
+    setBoardBusy(true)
+    try {
+      const res = await fetch('/api/team', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'board_add', teamId, name }),
+      })
+      const d = await res.json()
+      if (d.ok) { setNewBoardName(''); setAddingBoard(false); loadBoards(); setBoardId(d.id) }
+      else setErr(d.error || '캘린더 생성 실패')
+    } catch { setErr('네트워크 오류') } finally { setBoardBusy(false) }
+  }
+
+  async function delBoard(id: string) {
+    if (boards.length <= 1) { setErr('마지막 캘린더는 삭제할 수 없습니다.'); return }
+    if (!confirm('이 캘린더와 안의 모든 일정을 삭제할까요?')) return
+    setBoardBusy(true)
+    try {
+      const res = await fetch('/api/team', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'board_del', boardId: id }),
+      })
+      const d = await res.json()
+      if (d.ok) loadBoards()
+      else setErr(d.error || '삭제 실패')
+    } catch { setErr('네트워크 오류') } finally { setBoardBusy(false) }
+  }
+
+  async function shareBoard() {
+    if (!boardId) return
+    setSharing(true); setCopied(false)
+    try {
+      const res = await fetch('/api/team', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cal_share', boardId }),
+      })
+      const d = await res.json()
+      if (d.ok) { setShareUrl(d.url); setShareName(d.name || '') }
+      else setErr(d.error || '공유 링크 생성 실패')
+    } catch { setErr('네트워크 오류') } finally { setSharing(false) }
+  }
+
+  async function copyShare() {
+    try { await navigator.clipboard.writeText(shareUrl); setCopied(true); setTimeout(() => setCopied(false), 1800) } catch { /* noop */ }
+  }
 
   // keep target member valid when team/members change
   useEffect(() => {
@@ -190,6 +280,7 @@ export default function TeamCalendarPage() {
         body: JSON.stringify({
           action: 'cal_add',
           teamId,
+          boardId,
           d: fDate,
           title: fTitle.trim(),
           color: fColor,
@@ -292,6 +383,106 @@ export default function TeamCalendarPage() {
           ) : undefined
         }
       />
+
+      {/* Calendar tabs (workflow-style) + share */}
+      <div className="flex flex-wrap items-center gap-2 px-6 pt-4 lg:px-8">
+        <div className="flex flex-1 flex-wrap items-center gap-1.5">
+          {boards.map((bd) => (
+            <div
+              key={bd.id}
+              className={`group flex items-center gap-1 rounded-t-lg border-b-2 px-3 py-1.5 text-sm font-semibold transition-colors ${
+                bd.id === boardId
+                  ? 'border-sky-500 bg-[var(--panel-2)] text-sky-600'
+                  : 'border-transparent text-[var(--text-soft)] hover:bg-[var(--panel-2)]'
+              }`}
+            >
+              <button onClick={() => setBoardId(bd.id)} className="max-w-[160px] truncate">
+                {bd.name}
+              </button>
+              {boards.length > 1 && bd.id === boardId && (
+                <button
+                  onClick={() => delBoard(bd.id)}
+                  disabled={boardBusy}
+                  className="ml-0.5 grid h-4 w-4 place-items-center rounded text-[var(--text-dim)] hover:text-rose-500"
+                  aria-label="캘린더 삭제"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          ))}
+          {addingBoard ? (
+            <span className="flex items-center gap-1">
+              <input
+                autoFocus
+                value={newBoardName}
+                onChange={(e) => setNewBoardName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') addBoard(); if (e.key === 'Escape') { setAddingBoard(false); setNewBoardName('') } }}
+                placeholder="캘린더 이름"
+                className="w-32 rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1 text-sm outline-none focus:border-sky-500"
+              />
+              <button onClick={addBoard} disabled={boardBusy || !newBoardName.trim()} className="grid h-7 w-7 place-items-center rounded-lg bg-sky-500 text-white disabled:opacity-50">
+                {boardBusy ? <Loader2 size={13} className="animate-spin" /> : <Check size={14} />}
+              </button>
+            </span>
+          ) : (
+            <button
+              onClick={() => setAddingBoard(true)}
+              className="flex items-center gap-1 rounded-lg border border-dashed border-[var(--border)] px-2.5 py-1.5 text-xs font-medium text-[var(--text-dim)] hover:border-sky-400 hover:text-sky-500"
+            >
+              <Plus size={13} /> 새 캘린더
+            </button>
+          )}
+        </div>
+        <button
+          onClick={shareBoard}
+          disabled={sharing || !boardId}
+          className="flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-sky-500 to-blue-500 px-3.5 py-2 text-sm font-semibold text-white transition-all hover:brightness-105 disabled:opacity-60"
+        >
+          {sharing ? <Loader2 size={15} className="animate-spin" /> : <Share2 size={15} />} 공유 링크
+        </button>
+      </div>
+
+      {/* Share link modal */}
+      {shareUrl && (
+        <div
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShareUrl('')}
+        >
+          <div className="card w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-1 flex items-center gap-2">
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-sky-500/15 text-sky-500"><Share2 size={17} /></span>
+              <div>
+                <p className="font-semibold">캘린더 공유 링크</p>
+                <p className="text-xs text-[var(--text-dim)]">{shareName || '집행 캘린더'} · 팀 전체 공유 일정만 표시됩니다</p>
+              </div>
+            </div>
+            <p className="mb-3 mt-2 text-xs text-[var(--text-soft)]">
+              누구나 이 링크로 열람할 수 있는 <b>읽기 전용</b> 페이지입니다. 카카오톡·메신저·SNS에 공유하면 미리보기(OG) 카드가 표시됩니다.
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                readOnly
+                value={shareUrl}
+                onFocus={(e) => e.target.select()}
+                className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2.5 text-sm outline-none"
+              />
+              <button
+                onClick={copyShare}
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-sky-500 to-blue-500 px-3.5 py-2.5 text-sm font-semibold text-white"
+              >
+                {copied ? <Check size={15} /> : <Copy size={15} />} {copied ? '복사됨' : '복사'}
+              </button>
+            </div>
+            <div className="mt-4 flex justify-between">
+              <a href={shareUrl} target="_blank" rel="noreferrer" className="text-sm font-medium text-sky-500 hover:underline">
+                새 탭에서 열기 →
+              </a>
+              <button onClick={() => setShareUrl('')} className="text-sm text-[var(--text-dim)] hover:text-[var(--text)]">닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-6 p-6 lg:grid-cols-[1fr_360px] lg:p-8">
         {/* Calendar grid */}
