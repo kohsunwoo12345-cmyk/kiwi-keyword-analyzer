@@ -2972,8 +2972,8 @@ function depthPreview(srcUrl){
   return new Promise(function(resolve,reject){
     var img=new Image(); img.crossOrigin='anonymous';
     img.onload=function(){
-      var W=Math.min(768, img.naturalWidth||768), sc=W/(img.naturalWidth||W), H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
-      var c=document.createElement('canvas'); c.width=W; c.height=H; var ctx=c.getContext('2d'); ctx.drawImage(img,0,0,W,H);
+      var W=Math.min(1024, img.naturalWidth||1024), sc=W/(img.naturalWidth||W), H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
+      var c=document.createElement('canvas'); c.width=W; c.height=H; var ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high'; ctx.drawImage(img,0,0,W,H);
       var p=ctx.getImageData(0,0,W,H).data, N=W*H, lum=new Float32Array(N), i;
       for(i=0;i<N;i++) lum[i]=0.299*p[i*4]+0.587*p[i*4+1]+0.114*p[i*4+2];
       // 세그멘테이션 불가 시 폴백 — 휘도 기반(약하지만 동작)
@@ -3026,12 +3026,23 @@ function depthPreview(srcUrl){
           var idata=tctx.createImageData(dw,dh), od=idata.data;
           for(j=0;j<np;j++){ var nv=(dmp.data[j*ch]-vLo)/vr; if(nv<0)nv=0; if(nv>1)nv=1; nv=Math.pow(nv,0.85); var v=Math.round(nv*255); od[j*4]=od[j*4+1]=od[j*4+2]=v; od[j*4+3]=255; }
           tctx.putImageData(idata,0,0); ctx.clearRect(0,0,W,H); ctx.drawImage(tmp,0,0,W,H);
-          // ── 엣지 인지 정제: 원본 사진(휘도)을 가이드로 깊이 경계를 실제 피사체 윤곽에 스냅(흐릿한 덩어리→또렷한 인식) ──
+          // ── 엣지 게이팅 정제: 원본 사진(휘도)을 가이드로 '강한 실제 경계에서만' 깊이를 스냅하고,
+          //    평탄/텍스처 내부는 모델 깊이를 그대로 유지 → 형태 흐트러짐(텍스처가 깊이로 새는 것) 0, 경계만 또렷. ──
           var up=ctx.getImageData(0,0,W,H), ud=up.data, dep01=new Float32Array(N), gd01=new Float32Array(N);
           for(i=0;i<N;i++){ dep01[i]=ud[i*4]/255; gd01[i]=lum[i]/255; }
-          var rr=Math.max(2,Math.round(W/48)), q=_guidedRefine(dep01,gd01,W,H,rr,0.0016);
+          //   eps 를 크게(0.010) → 대비 큰 실제 경계만 전이, 미세 텍스처(저대비)는 무시. 반경은 W/40.
+          var rr=Math.max(2,Math.round(W/40)), q=_guidedRefine(dep01,gd01,W,H,rr,0.010);
+          var fin=new Float32Array(N), yy, xx, idx, gx, gy, gm, w2;
+          for(yy=0;yy<H;yy++)for(xx=0;xx<W;xx++){
+            idx=yy*W+xx;
+            var xl=xx>0?idx-1:idx, xr=xx<W-1?idx+1:idx, yu=yy>0?idx-W:idx, yd=yy<H-1?idx+W:idx;
+            gx=gd01[xr]-gd01[xl]; gy=gd01[yd]-gd01[yu]; gm=Math.abs(gx)+Math.abs(gy);
+            // gm 0.08~0.28 구간에서 0→1(smoothstep): 강한 경계일수록 스냅, 텍스처는 게이트 차단.
+            w2=(gm-0.08)/0.20; if(w2<0)w2=0; if(w2>1)w2=1; w2=w2*w2*(3-2*w2);
+            fin[idx]=w2*q[idx]+(1-w2)*dep01[idx];
+          }
           var of=ctx.createImageData(W,H), oo=of.data;
-          for(i=0;i<N;i++){ var q2=q[i]; if(q2<0)q2=0; if(q2>1)q2=1; var g2=Math.round(q2*255); oo[i*4]=oo[i*4+1]=oo[i*4+2]=g2; oo[i*4+3]=255; }
+          for(i=0;i<N;i++){ var q2=fin[i]; if(q2<0)q2=0; if(q2>1)q2=1; var g2=Math.round(q2*255); oo[i*4]=oo[i*4+1]=oo[i*4+2]=g2; oo[i*4+3]=255; }
           ctx.putImageData(of,0,0);
           resolve(c.toDataURL('image/png'));
         });
