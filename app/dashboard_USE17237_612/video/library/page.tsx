@@ -144,7 +144,7 @@ export default function VideoLibraryPage() {
                 'rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors',
                 filter === f
                   ? 'border-purple-200 bg-purple-50 text-purple-700'
-                  : 'border-[var(--border)] bg-white text-[var(--text-soft)] hover:bg-slate-50',
+                  : 'border-[var(--border)] bg-white text-[var(--text-soft)] hover:bg-[var(--panel-2)]',
               )}
             >
               {f}
@@ -167,9 +167,9 @@ export default function VideoLibraryPage() {
                 {/* 상태 배지 */}
                 <div className="absolute left-3 top-3">
                   {v.status === '완료' ? (
-                    <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">완료</Badge>
+                    <Badge className="border-emerald-200 bg-emerald-500/12 text-emerald-700">완료</Badge>
                   ) : (
-                    <Badge className="border-amber-200 bg-amber-50 text-amber-700">
+                    <Badge className="border-amber-200 bg-amber-500/12 text-amber-700">
                       <Clock size={12} /> 생성중
                     </Badge>
                   )}
@@ -205,7 +205,7 @@ export default function VideoLibraryPage() {
                 >
                   <Download size={15} /> 다운로드
                 </Button>
-                <Button variant="ghost" size="sm" className="!px-2.5 text-rose-500 hover:!bg-rose-50">
+                <Button variant="ghost" size="sm" className="!px-2.5 text-rose-500 hover:!bg-rose-500/12">
                   <Trash2 size={15} />
                 </Button>
               </div>

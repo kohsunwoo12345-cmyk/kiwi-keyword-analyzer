@@ -126,7 +126,7 @@ export default function SmsComposePage() {
                   className={`group flex items-start gap-2 rounded-xl border p-3 transition-colors ${
                     editingId === t.id
                       ? 'border-indigo-300 bg-indigo-50'
-                      : 'border-[var(--border)] hover:bg-slate-50'
+                      : 'border-[var(--border)] hover:bg-[var(--panel-2)]'
                   }`}
                 >
                   <button onClick={() => loadTemplate(t)} className="min-w-0 flex-1 text-left">
@@ -135,7 +135,7 @@ export default function SmsComposePage() {
                   </button>
                   <button
                     onClick={() => deleteTemplate(t.id)}
-                    className="flex-shrink-0 rounded-lg p-1.5 text-[var(--text-dim)] hover:bg-rose-50 hover:text-rose-500"
+                    className="flex-shrink-0 rounded-lg p-1.5 text-[var(--text-dim)] hover:bg-rose-500/12 hover:text-rose-500"
                     aria-label="삭제"
                   >
                     <Trash2 size={15} />

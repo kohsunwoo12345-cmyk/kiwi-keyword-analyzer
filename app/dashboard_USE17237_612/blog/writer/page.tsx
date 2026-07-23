@@ -250,7 +250,7 @@ export default function BlogWriterPage() {
             )}
 
             {note && !loading && (
-              <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              <div className="mb-3 rounded-xl border border-amber-200 bg-amber-500/12 px-3 py-2 text-xs text-amber-700">
                 {note}
               </div>
             )}
@@ -339,7 +339,7 @@ export default function BlogWriterPage() {
               </thead>
               <tbody>
                 {drafts.map((d) => (
-                  <tr key={d.id} className="border-b border-[var(--border-soft)] hover:bg-slate-50">
+                  <tr key={d.id} className="border-b border-[var(--border-soft)] hover:bg-[var(--panel-2)]">
                     <td className="px-3 py-3 font-medium">{d.title}</td>
                     <td className="px-3 py-3 text-[var(--text-soft)]">{d.keyword}</td>
                     <td className="px-3 py-3">
@@ -347,7 +347,7 @@ export default function BlogWriterPage() {
                         className={cn(
                           d.platform === '네이버 블로그'
                             ? 'border-green-200 bg-green-50 text-green-700'
-                            : 'border-amber-200 bg-amber-50 text-amber-700',
+                            : 'border-amber-200 bg-amber-500/12 text-amber-700',
                         )}
                       >
                         {d.platform}
