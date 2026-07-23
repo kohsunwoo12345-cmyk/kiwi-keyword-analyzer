@@ -84,7 +84,7 @@
   <!-- xlsx(엑셀 가져오기용)는 defer 로 로드 → 초기 렌더를 막지 않음 -->
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
-    *, body { font-family: 'Pretendard', -apple-system, sans-serif; }
+    *, body { font-family: 'Inter','Pretendard','Noto Sans KR',-apple-system,sans-serif; }
     :root {
       --pri: #6366f1; --pri-d: #4f46e5; --green: #22c55e; --red: #ef4444;
       --amber: #f59e0b; --bg: #f1f5f9; --card: #fff; --border: #e2e8f0;
@@ -273,7 +273,7 @@
       font-size: 13px; box-shadow: 0 4px 20px rgba(0,0,0,.18); animation: slideUp .3s ease; }
     .toast-msg.success { background: #22c55e; }
     .toast-msg.error { background: #ef4444; }
-    .toast-msg.info { background: #3b82f6; }
+    .toast-msg.info { background: #6366f1; }
     @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
 
     /* ── 뱃지 / 기타 ── */
@@ -342,7 +342,7 @@
     .edge-label { font-size: 11px; fill: #6b7280; font-weight: 700; pointer-events: none; font-family: 'Pretendard', sans-serif; }
 
     /* 그룹 타입 색상 */
-    .gtype-entry { background: linear-gradient(135deg, #3b82f6, #6366f1); }
+    .gtype-entry { background: linear-gradient(135deg, #6366f1, #6366f1); }
     .gtype-upsell { background: linear-gradient(135deg, #22c55e, #16a34a); }
     .gtype-downsell { background: linear-gradient(135deg, #f59e0b, #ef4444); }
     .gtype-thankyou { background: linear-gradient(135deg, #8b5cf6, #ec4899); }
@@ -515,7 +515,7 @@
     <div style="margin-bottom:18px;"><label class="label-sm">색상 테마</label>
       <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;" id="groupColorPicker">
         <div class="group-color-btn" data-color="#6366f1" onclick="selectGroupColor('#6366f1')" style="width:28px;height:28px;border-radius:50%;background:#6366f1;cursor:pointer;border:3px solid #6366f1;"></div>
-        <div class="group-color-btn" data-color="#3b82f6" onclick="selectGroupColor('#3b82f6')" style="width:28px;height:28px;border-radius:50%;background:#3b82f6;cursor:pointer;"></div>
+        <div class="group-color-btn" data-color="#6366f1" onclick="selectGroupColor('#6366f1')" style="width:28px;height:28px;border-radius:50%;background:#6366f1;cursor:pointer;"></div>
         <div class="group-color-btn" data-color="#22c55e" onclick="selectGroupColor('#22c55e')" style="width:28px;height:28px;border-radius:50%;background:#22c55e;cursor:pointer;"></div>
         <div class="group-color-btn" data-color="#f59e0b" onclick="selectGroupColor('#f59e0b')" style="width:28px;height:28px;border-radius:50%;background:#f59e0b;cursor:pointer;"></div>
         <div class="group-color-btn" data-color="#ef4444" onclick="selectGroupColor('#ef4444')" style="width:28px;height:28px;border-radius:50%;background:#ef4444;cursor:pointer;"></div>
@@ -1169,9 +1169,9 @@
           <div style="background:#eff6ff;padding:8px 12px;border-bottom:1.5px solid #bfdbfe;display:flex;align-items:center;justify-content:space-between;">
             <div>
               <div style="font-size:10px;font-weight:700;color:#1d4ed8;">🌐 외부 임베드 폼</div>
-              <div style="font-size:9px;color:#3b82f6;">외부 사이트에 붙여넣으면 저장됨</div>
+              <div style="font-size:9px;color:#6366f1;">외부 사이트에 붙여넣으면 저장됨</div>
             </div>
-            <button onclick="copyExternalFormHtml()" style="background:#2563eb;color:#fff;border:none;padding:3px 8px;border-radius:6px;font-size:9px;font-weight:700;cursor:pointer;">복사</button>
+            <button onclick="copyExternalFormHtml()" style="background:#4f46e5;color:#fff;border:none;padding:3px 8px;border-radius:6px;font-size:9px;font-weight:700;cursor:pointer;">복사</button>
           </div>
           <pre id="edExternalFormHtmlPreview" style="font-size:9px;background:#0f172a;color:#93c5fd;padding:8px;overflow-x:auto;white-space:pre-wrap;max-height:70px;margin:0;"></pre>
           <!-- 구글 스프레드시트 연동 -->
@@ -1190,7 +1190,7 @@
               <textarea id="edSsHiddenParams" class="input-field" rows="2" style="font-size:10px;padding:4px 7px;margin-bottom:4px;resize:none;" oninput="this.dataset.isDefault='false';renderEdFormPreview();renderEdExternalFormHtml();"></textarea>
             </div>
           </div>
-          <div style="background:#eff6ff;border-top:1.5px solid #bfdbfe;padding:5px 12px;font-size:9px;color:#3b82f6;">💡 저장 후 복사 → 신청자 현황에 자동 저장</div>
+          <div style="background:#eff6ff;border-top:1.5px solid #bfdbfe;padding:5px 12px;font-size:9px;color:#6366f1;">💡 저장 후 복사 → 신청자 현황에 자동 저장</div>
         </div>
 
         <!-- ④ 개인정보 수집동의 -->
@@ -3330,7 +3330,7 @@ async function _doImport(rows, nameIdx, phoneIdx, extraIdx) {
       <div style="font-size:17px;font-weight:800;color:#1f2937;margin-bottom:4px;">DB 등록 중...</div>
       <div id="_importGroupName" style="font-size:12px;color:#6b7280;margin-bottom:18px;">그룹에 저장하는 중입니다</div>
       <div style="background:#f1f5f9;border-radius:100px;height:10px;overflow:hidden;margin-bottom:10px;">
-        <div id="_importBar" style="height:100%;width:0%;background:linear-gradient(90deg,#3b82f6,#6366f1);border-radius:100px;transition:width .25s ease;"></div>
+        <div id="_importBar" style="height:100%;width:0%;background:linear-gradient(90deg,#6366f1,#4f46e5);border-radius:100px;transition:width .25s ease;"></div>
       </div>
       <div id="_importStat" style="font-size:13px;color:#374151;font-weight:600;">0 / ${total}</div>
       <div id="_importDetail" style="font-size:11px;color:#9ca3af;margin-top:4px;">준비 중...</div>
