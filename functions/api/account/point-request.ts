@@ -1,4 +1,4 @@
-import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity } from '../_utils'
+import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity, ADMIN_EMAIL } from '../_utils'
 
 // POST /api/account/point-request { amount, memo? } → 포인트 지급 신청(승인 대기)
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -7,6 +7,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await ensureSchema(db)
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
+
+  // 포인트 지급 제도 종료 — 신규 신청 불가 (관리자 제외)
+  if (me.email !== ADMIN_EMAIL && me.role !== 'admin') {
+    return json({ ok: false, error: '포인트 지급 제도가 종료되어 더 이상 신청할 수 없습니다.' }, 410)
+  }
 
   const body: any = await request.json().catch(() => ({}))
   const amount = Math.floor(Number(body.amount || 0))

@@ -29,6 +29,7 @@ import {
   Gift,
   Link2,
   Trash2,
+  X,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button, Badge } from '@/components/ui'
@@ -222,6 +223,11 @@ export default function ProfilePage() {
   const [notifications, setNotifications] = useState<Noti[]>([])
   const [activity, setActivity] = useState<ActivityRow[]>([])
 
+  // 결제 내역(플랜 + 크레딧 충전) — 팝업
+  const [payItems, setPayItems] = useState<{ type: string; title: string; amountKrw: number; credits: number; memo: string; at: string }[]>([])
+  const [payTotal, setPayTotal] = useState(0)
+  const [payOpen, setPayOpen] = useState(false)
+
   // password form
   const [cur, setCur] = useState('')
   const [next, setNext] = useState('')
@@ -297,6 +303,11 @@ export default function ProfilePage() {
       setActivity(d.activity)
       setLoading(false)
     })
+    // 결제 내역(플랜 결제 + 크레딧 충전 전체)
+    fetch('/api/account/payments', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => { if (!alive) return; if (d.ok) { setPayItems(d.items || []); setPayTotal(d.totalKrw || 0) } })
+      .catch(() => {})
     return () => {
       alive = false
     }
@@ -546,7 +557,6 @@ export default function ProfilePage() {
   const curTier = planTrack === 'marketer' ? (user?.plan ?? '없음') : (user?.videoPlan ?? '없음')
   const pointTx = transactions.filter((t) => t.kind === 'point')
   const creditTx = transactions.filter((t) => t.kind === 'credit')
-  const purchaseTx = transactions.filter((t) => t.kind === 'purchase')
   const unread = notifications.filter((n) => !n.read).length
 
   return (
@@ -1073,94 +1083,7 @@ export default function ProfilePage() {
               </Panel>
             </div>
 
-            {/* 3.6 포인트 지급 신청 */}
-            <Panel title={<span className="flex items-center gap-2"><Coins size={16} className="text-amber-500" /> 포인트 지급 신청</span>}>
-              <p className="mb-3 rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm text-[var(--text-soft)]">
-                필요한 포인트를 신청하면 관리자 승인 후 지급됩니다. (현재 보유: <b className="text-amber-600">{ko(user.points)}P</b>)
-              </p>
-              <div className="grid gap-6 lg:grid-cols-2">
-                <form onSubmit={submitPoint} className="space-y-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">신청 포인트</label>
-                    <input
-                      value={pointAmount}
-                      onChange={(e) => setPointAmount(e.target.value)}
-                      className={inputCls}
-                      placeholder="예: 10000"
-                      inputMode="numeric"
-                    />
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {[1000, 5000, 10000, 50000, 100000].map((v) => (
-                        <button
-                          key={v}
-                          type="button"
-                          onClick={() => setPointAmount(String(v))}
-                          className="rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-2.5 py-1 text-xs font-medium text-[var(--text-soft)] transition-colors hover:border-amber-300 hover:text-amber-600"
-                        >
-                          +{ko(v)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">
-                      메모 <span className="text-[var(--text-dim)]">(선택)</span>
-                    </label>
-                    <input
-                      value={pointMemo}
-                      onChange={(e) => setPointMemo(e.target.value)}
-                      className={inputCls}
-                      placeholder="신청 사유를 남겨주세요"
-                    />
-                  </div>
-
-                  {pointOk && (
-                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2.5 text-sm text-emerald-700">
-                      <Check size={15} /> 신청이 접수되었습니다. 관리자 승인 후 지급됩니다.
-                    </div>
-                  )}
-                  {pointErr && (
-                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
-                      <AlertCircle size={15} /> {pointErr}
-                    </div>
-                  )}
-
-                  <Button type="submit" disabled={pointBusy} className="w-full">
-                    {pointBusy ? '신청 중...' : '포인트 신청'}
-                  </Button>
-                </form>
-
-                <div>
-                  <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
-                    <Clock size={13} /> 신청 내역
-                  </p>
-                  {pointReqs.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-[var(--text-dim)]">신청 내역이 없습니다</p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {pointReqs.map((r, i) => {
-                        const m = statusMeta(r.status)
-                        return (
-                          <li
-                            key={i}
-                            className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-soft)] px-3.5 py-2.5"
-                          >
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium">{ko(r.amount)}P</p>
-                              <p className="mt-0.5 text-xs text-[var(--text-dim)]">
-                                {fmtDate(r.created_at)}
-                                {r.memo ? <span className="ml-1">· {r.memo}</span> : null}
-                              </p>
-                            </div>
-                            <Badge className={m.badge}>{m.label}</Badge>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            </Panel>
+            {/* 포인트 지급 제도 종료 — 신청 패널 제거됨 */}
 
             {/* 3.7 크레딧 충전 신청 */}
             <Panel title={<span className="flex items-center gap-2"><Coins size={16} className="text-amber-500" /> 크레딧 충전 신청</span>}>
@@ -1278,32 +1201,29 @@ export default function ProfilePage() {
               </Panel>
             </div>
 
-            {/* 5. 구매 내역 */}
-            <Panel title={<span className="flex items-center gap-2"><Receipt size={16} className="text-sky-600" /> 구매 내역</span>}>
-              {purchaseTx.length === 0 ? (
-                <p className="py-8 text-center text-sm text-[var(--text-dim)]">구매 내역이 없습니다</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[420px] text-sm">
-                    <thead>
-                      <tr className="border-b border-[var(--border-soft)] text-left text-xs text-[var(--text-dim)]">
-                        <th className="pb-2 pr-3 font-medium">일시</th>
-                        <th className="pb-2 pr-3 font-medium">내용</th>
-                        <th className="pb-2 text-right font-medium">금액</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {purchaseTx.map((t, i) => (
-                        <tr key={i} className="border-b border-[var(--border-soft)] hover:bg-slate-50">
-                          <td className="py-2.5 pr-3 whitespace-nowrap text-[var(--text-soft)]">{fmtDate(t.created_at)}</td>
-                          <td className="py-2.5 pr-3">{t.memo || '-'}</td>
-                          <td className="py-2.5 text-right font-semibold">{ko(Math.abs(t.amount))}원</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+            {/* 5. 결제 내역 (팝업) */}
+            <Panel
+              title={<span className="flex items-center gap-2"><Receipt size={16} className="text-sky-600" /> 결제 내역</span>}
+              action={
+                <Button variant="ghost" size="sm" onClick={() => setPayOpen(true)}>
+                  전체 보기
+                </Button>
+              }
+            >
+              <button
+                onClick={() => setPayOpen(true)}
+                className="flex w-full items-center justify-between rounded-xl border border-[var(--border-soft)] bg-white px-4 py-3.5 text-left transition-colors hover:border-sky-300 hover:bg-sky-50/40"
+              >
+                <div>
+                  <p className="text-sm font-semibold">플랜·크레딧 결제 내역 보기</p>
+                  <p className="mt-0.5 text-xs text-[var(--text-dim)]">
+                    총 {payItems.length}건 · 누적 결제 {ko(payTotal)}원
+                  </p>
                 </div>
-              )}
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-sky-500/10 text-sky-600">
+                  <Receipt size={16} />
+                </span>
+              </button>
             </Panel>
 
             {/* 6. 알림 */}
@@ -1486,6 +1406,67 @@ export default function ProfilePage() {
               >
                 {cancelBusy ? '취소 중...' : '구독 취소'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 결제 내역 팝업 — 노드형(스튜디오) 프로필 스타일 · 한국어 전용 */}
+      {payOpen && (
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setPayOpen(false)}
+        >
+          <div
+            className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0e1626] text-slate-100 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div className="flex items-center gap-2.5">
+                <span className="grid h-9 w-9 place-items-center rounded-xl bg-sky-500/15 text-sky-400">
+                  <Receipt size={18} />
+                </span>
+                <div>
+                  <p className="text-sm font-bold">결제 내역</p>
+                  <p className="text-[11px] text-slate-400">플랜 결제 · 크레딧 충전 전체</p>
+                </div>
+              </div>
+              <button onClick={() => setPayOpen(false)} className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 px-5 py-4">
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <p className="text-[11px] text-slate-400">총 결제 금액</p>
+                <p className="mt-0.5 text-lg font-extrabold text-sky-300">{ko(payTotal)}원</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <p className="text-[11px] text-slate-400">결제 건수</p>
+                <p className="mt-0.5 text-lg font-extrabold">{ko(payItems.length)}건</p>
+              </div>
+            </div>
+
+            <p className="px-5 pb-2 text-xs font-semibold text-slate-300">결제·충전 내역</p>
+            <div className="flex-1 overflow-y-auto px-5 pb-5">
+              {payItems.length === 0 ? (
+                <p className="py-10 text-center text-sm text-slate-500">결제 내역이 없습니다</p>
+              ) : (
+                <ul className="space-y-2">
+                  {payItems.map((p, i) => (
+                    <li key={i} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-3">
+                      <span className={`grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg ${p.type === 'plan' ? 'bg-amber-500/15 text-amber-300' : 'bg-violet-500/15 text-violet-300'}`}>
+                        {p.type === 'plan' ? <Crown size={16} /> : <Coins size={16} />}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">{p.title}</p>
+                        <p className="text-[11px] text-slate-400">{fmtDate(p.at)}{p.memo ? ` · ${p.memo}` : ''}</p>
+                      </div>
+                      <span className="flex-shrink-0 text-sm font-bold text-sky-300">{ko(p.amountKrw)}원</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>

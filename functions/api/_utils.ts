@@ -625,6 +625,15 @@ export async function ensureSchema(db: D1Database) {
   await addMissingColumns(db, 'visits', {
     region: 'region TEXT', // 시/도 (더 정확한 위치)
   })
+  // 일회성 마이그레이션: 가입 축하 1000포인트 전액 회수 (관리자 제외 전 회원 포인트 0).
+  //  이후 포인트 지급은 중단됨. settings 플래그로 최초 1회만 실행.
+  try {
+    const flag: any = await db.prepare("SELECT value FROM settings WHERE key = 'points_recovered_v1'").first().catch(() => null)
+    if (!flag) {
+      await db.prepare("UPDATE users SET points = 0 WHERE (role IS NULL OR role != 'admin') AND points != 0").run().catch(() => {})
+      await db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('points_recovered_v1', ?)").bind(new Date().toISOString()).run().catch(() => {})
+    }
+  } catch { /* 마이그레이션 실패는 스키마 초기화를 막지 않음 */ }
 }
 
 async function addMissingColumns(db: D1Database, table: string, need: Record<string, string>) {
