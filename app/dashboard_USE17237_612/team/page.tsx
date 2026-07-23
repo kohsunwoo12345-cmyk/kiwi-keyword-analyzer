@@ -124,7 +124,7 @@ export default function TeamPage() {
               <div key={col} className="card p-3">
                 <div className="mb-3 flex items-center justify-between px-1">
                   <span className="text-sm font-semibold">{col}</span>
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-[var(--text-dim)]">
+                  <span className="rounded-full bg-[var(--panel-2)] px-2 py-0.5 text-xs text-[var(--text-dim)]">
                     {tasks.filter((t) => t.col === ci).length}
                   </span>
                 </div>
@@ -136,12 +136,12 @@ export default function TeamPage() {
                         <div className="mb-2 flex items-center justify-between">
                           <span
                             className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${
-                              TAG_COLORS[t.tag] || 'bg-slate-100 text-[var(--text-soft)]'
+                              TAG_COLORS[t.tag] || 'bg-[var(--panel-2)] text-[var(--text-soft)]'
                             }`}
                           >
                             {t.tag}
                           </span>
-                          <span className="grid h-6 w-6 place-items-center rounded-full bg-slate-100 text-[11px] font-semibold">
+                          <span className="grid h-6 w-6 place-items-center rounded-full bg-[var(--panel-2)] text-[11px] font-semibold">
                             {t.assignee[0]}
                           </span>
                         </div>
@@ -150,7 +150,7 @@ export default function TeamPage() {
                           <button
                             onClick={() => move(t.id, -1)}
                             disabled={ci === 0}
-                            className="grid h-6 w-6 place-items-center rounded-md text-[var(--text-dim)] hover:bg-slate-100 hover:text-[var(--text)] disabled:opacity-20"
+                            className="grid h-6 w-6 place-items-center rounded-md text-[var(--text-dim)] hover:bg-[var(--panel-2)] hover:text-[var(--text)] disabled:opacity-20"
                           >
                             <ChevronLeft size={15} />
                           </button>
@@ -158,7 +158,7 @@ export default function TeamPage() {
                           <button
                             onClick={() => move(t.id, 1)}
                             disabled={ci === 2}
-                            className="grid h-6 w-6 place-items-center rounded-md text-[var(--text-dim)] hover:bg-slate-100 hover:text-[var(--text)] disabled:opacity-20"
+                            className="grid h-6 w-6 place-items-center rounded-md text-[var(--text-dim)] hover:bg-[var(--panel-2)] hover:text-[var(--text)] disabled:opacity-20"
                           >
                             <ChevronRight size={15} />
                           </button>

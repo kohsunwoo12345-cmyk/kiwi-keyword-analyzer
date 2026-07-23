@@ -15,11 +15,11 @@ interface Note {
 }
 
 const PALETTE = [
-  { bg: 'bg-amber-50', border: 'border-amber-200', tape: 'bg-amber-200' },
-  { bg: 'bg-rose-50', border: 'border-rose-200', tape: 'bg-rose-200' },
-  { bg: 'bg-sky-50', border: 'border-sky-200', tape: 'bg-sky-200' },
-  { bg: 'bg-emerald-50', border: 'border-emerald-200', tape: 'bg-emerald-200' },
-  { bg: 'bg-violet-50', border: 'border-violet-200', tape: 'bg-violet-200' },
+  { bg: 'bg-amber-500/12', border: 'border-amber-200', tape: 'bg-amber-200' },
+  { bg: 'bg-rose-500/12', border: 'border-rose-200', tape: 'bg-rose-200' },
+  { bg: 'bg-sky-500/12', border: 'border-sky-200', tape: 'bg-sky-200' },
+  { bg: 'bg-emerald-500/12', border: 'border-emerald-200', tape: 'bg-emerald-200' },
+  { bg: 'bg-violet-500/12', border: 'border-violet-200', tape: 'bg-violet-200' },
 ]
 
 function now() {
