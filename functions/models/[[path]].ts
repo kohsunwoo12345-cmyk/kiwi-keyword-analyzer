@@ -3,12 +3,17 @@
 //  최초 요청 시 상류에서 받아 R2 에 캐시 → 이후엔 동일 출처(우리 서버)에서 즉시 서빙.
 import { resolveBucket } from '../api/_utils'
 
-// 허용된 상류 매핑 (화이트리스트 — 임의 URL 프록시 금지)
+// 허용된 상류 매핑 (화이트리스트 — 임의 URL 프록시 금지). 경로 접두 방식.
 const UPSTREAM: Record<string, string> = {
   hf: 'https://huggingface.co/',                                             // transformers.js 모델 가중치(Depth-Anything 등)
   ort: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/',          // onnxruntime-web wasm (transformers.js 백엔드)
   mpv: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm/', // MediaPipe tasks-vision wasm
   mpm: 'https://storage.googleapis.com/mediapipe-models/',                   // MediaPipe 모델(.task)
+}
+// 라이브러리(JS ESM) 단일 파일 매핑 — 브라우저가 우리 서버에서만 import 하도록.
+const LIBS: Record<string, string> = {
+  transformers: 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/+esm', // 자체 완결 ESM 번들
+  vision: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs',
 }
 
 function ctOf(p: string): string {
@@ -25,12 +30,23 @@ export const onRequestGet: PagesFunction = async ({ params, env, request }) => {
   const raw = (params as any).path
   const parts: string[] = Array.isArray(raw) ? raw : [String(raw || '')]
   const cat = parts[0]
-  const sub = parts.slice(1).map((s) => encodeURIComponent(decodeURIComponent(s))).join('/')
-  const base = UPSTREAM[cat]
-  if (!base || !sub) return new Response('not found', { status: 404 })
   const search = new URL(request.url).search || ''
-  const upstreamUrl = base + sub + search
-  const ct = ctOf(sub)
+  let upstreamUrl: string, ct: string, sub: string
+  if (cat === 'lib') {
+    // 라이브러리 ESM — 브라우저 import() 용. content-type 을 JS 로 강제.
+    const name = parts[1] || ''
+    const u = LIBS[name]
+    if (!u) return new Response('not found', { status: 404 })
+    upstreamUrl = u
+    ct = 'text/javascript'
+    sub = 'lib/' + name
+  } else {
+    sub = parts.slice(1).map((s) => encodeURIComponent(decodeURIComponent(s))).join('/')
+    const base = UPSTREAM[cat]
+    if (!base || !sub) return new Response('not found', { status: 404 })
+    upstreamUrl = base + sub + search
+    ct = ctOf(sub)
+  }
   const key = 'modelcache/' + cat + '/' + sub + (search ? '_' + btoa(search).replace(/[^a-zA-Z0-9]/g, '') : '')
   const cors = { 'access-control-allow-origin': '*', 'cross-origin-resource-policy': 'cross-origin' }
 
