@@ -8,7 +8,11 @@ import { Env, ensureSchema, resolveDB, requireAdminUser } from '../_utils'
 const FILES: string[] = [
   '/models/lib/transformers',
   '/models/lib/vision',
-  // Depth-Anything (transformers.js)
+  // Depth-Anything base (더 정밀) — 1순위
+  '/models/hf/Xenova/depth-anything-base-hf/resolve/main/config.json',
+  '/models/hf/Xenova/depth-anything-base-hf/resolve/main/preprocessor_config.json',
+  '/models/hf/Xenova/depth-anything-base-hf/resolve/main/onnx/model_quantized.onnx',
+  // Depth-Anything small — 폴백
   '/models/hf/Xenova/depth-anything-small-hf/resolve/main/config.json',
   '/models/hf/Xenova/depth-anything-small-hf/resolve/main/preprocessor_config.json',
   '/models/hf/Xenova/depth-anything-small-hf/resolve/main/onnx/model_quantized.onnx',

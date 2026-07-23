@@ -2928,7 +2928,9 @@ function ensureDepthModel(){
       mod.env.remoteHost=location.origin+'/models/hf';
       try{ mod.env.backends.onnx.wasm.wasmPaths=location.origin+'/models/ort/'; }catch(_){}
     }catch(_){}
-    return mod.pipeline('depth-estimation','Xenova/depth-anything-small-hf',{ quantized:true });
+    // 더 정밀한 base 모델 우선 → 실패 시 small 폴백. (self-host 라 큰 모델도 R2 캐시로 로드)
+    return mod.pipeline('depth-estimation','Xenova/depth-anything-base-hf',{ quantized:true })
+      .catch(function(){ return mod.pipeline('depth-estimation','Xenova/depth-anything-small-hf',{ quantized:true }); });
   }).then(function(p){ _depthModel=p; return p; }).catch(function(err){ _depthTry=null; throw err; });
   return _depthTry;
 }
