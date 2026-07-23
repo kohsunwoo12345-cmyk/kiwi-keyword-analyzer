@@ -108,7 +108,7 @@ export default function SmsComposePage() {
 
       <div className="space-y-6 p-6 lg:p-8">
         {toast && (
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700 animate-fade-in">
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-600 animate-fade-in">
             {toast}
           </div>
         )}
@@ -176,7 +176,7 @@ export default function SmsComposePage() {
                     <button
                       key={v}
                       onClick={() => insertVariable(v)}
-                      className="rounded-lg border border-indigo-500/30 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 transition-colors hover:bg-indigo-100"
+                      className="rounded-lg border border-indigo-500/30 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-100"
                     >
                       {v}
                     </button>

@@ -143,7 +143,7 @@ export default function VideoLibraryPage() {
               className={cn(
                 'rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors',
                 filter === f
-                  ? 'border-violet-500/30 bg-violet-500/12 text-purple-700'
+                  ? 'border-violet-500/30 bg-violet-500/12 text-violet-600'
                   : 'border-[var(--border)] bg-white text-[var(--text-soft)] hover:bg-[var(--panel-2)]',
               )}
             >
@@ -167,9 +167,9 @@ export default function VideoLibraryPage() {
                 {/* 상태 배지 */}
                 <div className="absolute left-3 top-3">
                   {v.status === '완료' ? (
-                    <Badge className="border-emerald-500/30 bg-emerald-500/12 text-emerald-700">완료</Badge>
+                    <Badge className="border-emerald-500/30 bg-emerald-500/12 text-emerald-600">완료</Badge>
                   ) : (
-                    <Badge className="border-amber-500/30 bg-amber-500/12 text-amber-700">
+                    <Badge className="border-amber-500/30 bg-amber-500/12 text-amber-600">
                       <Clock size={12} /> 생성중
                     </Badge>
                   )}

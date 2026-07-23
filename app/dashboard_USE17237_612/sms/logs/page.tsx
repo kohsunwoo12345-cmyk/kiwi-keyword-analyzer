@@ -11,9 +11,9 @@ import { smsLogs, type MsgLogStats, type SmsLogRow, type MsgTrendPoint } from '@
 const ACCENT = '#6366f1'
 
 const typeColor: Record<string, string> = {
-  SMS: 'border-indigo-500/30 bg-indigo-50 text-indigo-700',
-  LMS: 'border-sky-500/30 bg-sky-500/12 text-sky-700',
-  MMS: 'border-amber-500/30 bg-amber-500/12 text-amber-700',
+  SMS: 'border-indigo-500/30 bg-indigo-50 text-indigo-600',
+  LMS: 'border-sky-500/30 bg-sky-500/12 text-sky-600',
+  MMS: 'border-amber-500/30 bg-amber-500/12 text-amber-600',
 }
 function fmtDate(iso: string) {
   try { return new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) } catch { return iso }

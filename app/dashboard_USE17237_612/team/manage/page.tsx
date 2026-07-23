@@ -27,8 +27,8 @@ function roleLabel(role: string) {
 }
 function RoleBadge({ role }: { role: string }) {
   const map: Record<string, { cls: string; Icon: typeof Crown }> = {
-    owner: { cls: 'border-amber-500/30 bg-amber-500/12 text-amber-700', Icon: Crown },
-    admin: { cls: 'border-sky-500/30 bg-sky-500/12 text-sky-700', Icon: Shield },
+    owner: { cls: 'border-amber-500/30 bg-amber-500/12 text-amber-600', Icon: Crown },
+    admin: { cls: 'border-sky-500/30 bg-sky-500/12 text-sky-600', Icon: Shield },
     member: { cls: 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600', Icon: UserIcon },
   }
   const { cls, Icon } = map[role] || map.member
@@ -197,10 +197,10 @@ export default function TeamManagePage() {
             key={t.id}
             className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-sm shadow-lg ${
               t.kind === 'ok'
-                ? 'border-emerald-500/30 bg-emerald-500/12 text-emerald-800'
+                ? 'border-emerald-500/30 bg-emerald-500/12 text-emerald-600'
                 : t.kind === 'err'
-                  ? 'border-rose-500/30 bg-rose-500/12 text-rose-800'
-                  : 'border-sky-500/30 bg-sky-500/12 text-sky-800'
+                  ? 'border-rose-500/30 bg-rose-500/12 text-rose-600'
+                  : 'border-sky-500/30 bg-sky-500/12 text-sky-600'
             }`}
           >
             {t.kind === 'ok' ? <Check size={16} /> : t.kind === 'err' ? <AlertCircle size={16} /> : <Sparkles size={16} />}
@@ -260,11 +260,11 @@ export default function TeamManagePage() {
                 </button>
               </div>
               {needPlan && (
-                <div className="mt-3 flex flex-col gap-1 rounded-xl border border-amber-500/30 bg-amber-500/12 px-4 py-3 text-sm text-amber-800">
+                <div className="mt-3 flex flex-col gap-1 rounded-xl border border-amber-500/30 bg-amber-500/12 px-4 py-3 text-sm text-amber-600">
                   <div className="flex items-center gap-2 font-medium">
                     <Sparkles size={15} />팀 플랜이 필요합니다
                   </div>
-                  <p className="text-amber-700">
+                  <p className="text-amber-600">
                     팀 생성·초대 기능은 팀 플랜에서 이용할 수 있습니다.{' '}
                     <Link href="/dashboard_USE17237_612/team" className="font-semibold text-amber-900 underline underline-offset-2">
                       팀 플랜 안내 보기
@@ -280,7 +280,7 @@ export default function TeamManagePage() {
                 <div className="mb-3 flex items-center gap-2">
                   <Inbox size={17} className="text-sky-500" />
                   <h2 className="text-base font-semibold">받은 초대</h2>
-                  <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-xs font-medium text-sky-700">{invites.length}</span>
+                  <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-xs font-medium text-sky-600">{invites.length}</span>
                 </div>
                 <div className="space-y-2">
                   {invites.map((inv) => (
@@ -367,7 +367,7 @@ export default function TeamManagePage() {
                             key={m.id}
                             className="flex items-center gap-3 rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-3.5 py-2.5"
                           >
-                            <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-sky-500/15 text-sm font-semibold text-sky-700">
+                            <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-sky-500/15 text-sm font-semibold text-sky-600">
                               {(m.name || m.email || '?').slice(0, 1).toUpperCase()}
                             </span>
                             <div className="min-w-0 flex-1">
