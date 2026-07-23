@@ -2935,6 +2935,7 @@ function depthPreview(srcUrl){
       for(i=0;i<N;i++) lum[i]=0.299*p[i*4]+0.587*p[i*4+1]+0.114*p[i*4+2];
       // 세그멘테이션 불가 시 폴백 — 휘도 기반(약하지만 동작)
       function fallback(){
+        try{ toast(tr('깊이 모델을 불러오지 못해 근사 깊이맵으로 표시했어요. 인터넷 연결 확인 후 다시 시도하면 정밀 깊이가 나옵니다.')); }catch(_){}
         var g=lum.slice(), r=Math.max(1,Math.round(W/240)), t=new Float32Array(N),x,y,k,cnt,s,xx,yy;
         for(y=0;y<H;y++)for(x=0;x<W;x++){ s=0;cnt=0; for(k=-r;k<=r;k++){ xx=x+k; if(xx>=0&&xx<W){s+=g[y*W+xx];cnt++;} } t[y*W+x]=s/cnt; }
         for(x=0;x<W;x++)for(y=0;y<H;y++){ s=0;cnt=0; for(k=-r;k<=r;k++){ yy=y+k; if(yy>=0&&yy<H){s+=t[yy*W+x];cnt++;} } g[y*W+x]=s/cnt; }
