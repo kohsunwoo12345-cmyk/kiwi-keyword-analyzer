@@ -564,6 +564,56 @@ export async function addFriend(code: string): Promise<{ ok: boolean; error?: st
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
 
+/* ── 소셜: 친구 1:1(개인) 채팅 + 팀(단체) 채팅 목록 ── */
+export interface SocialFriend { id: string; name: string; email: string }
+export interface SocialTeam { id: string; name: string; memberCount: number }
+export interface SocialThread { friendId: string; name: string; email: string; lastText: string; lastFromMe: boolean; lastAt: string; unread: number }
+export interface SocialOverview {
+  ok: boolean; error?: string
+  meId?: string; meName?: string; meEmail?: string; myCode?: string
+  friends: SocialFriend[]; teams: SocialTeam[]; threads: SocialThread[]; totalUnread: number
+}
+export interface DmMessage { id: string; from_id: string; to_id: string; text: string; read_to: number; created_at: string }
+
+export async function socialOverview(): Promise<SocialOverview> {
+  try {
+    const r = await fetch('/api/social', { credentials: 'include', cache: 'no-store' })
+    const d = await r.json()
+    return {
+      ok: !!d.ok, error: d.error,
+      meId: d.meId, meName: d.meName, meEmail: d.meEmail, myCode: d.myCode,
+      friends: d.friends || [], teams: d.teams || [], threads: d.threads || [], totalUnread: d.totalUnread || 0,
+    }
+  } catch { return { ok: false, error: '네트워크 오류', friends: [], teams: [], threads: [], totalUnread: 0 } }
+}
+// 특정 친구와의 DM 메시지 (after 이후만, seen=1 이면 읽음 처리)
+export async function dmMessages(friendId: string, after = '', seen = false): Promise<{ ok: boolean; messages: DmMessage[]; meId?: string; error?: string }> {
+  try {
+    const q = `dm=${encodeURIComponent(friendId)}&after=${encodeURIComponent(after)}${seen ? '&seen=1' : ''}`
+    const r = await fetch('/api/social?' + q, { credentials: 'include', cache: 'no-store' })
+    const d = await r.json()
+    return { ok: !!d.ok, messages: d.messages || [], meId: d.meId, error: d.error }
+  } catch { return { ok: false, messages: [], error: '네트워크 오류' } }
+}
+export async function dmSend(toId: string, text: string): Promise<{ ok: boolean; id?: string; created_at?: string; error?: string }> {
+  return postJson('/api/social', { action: 'dm_send', toId, text })
+}
+export async function dmSeen(friendId: string): Promise<{ ok: boolean }> {
+  return postJson('/api/social', { action: 'dm_seen', friendId })
+}
+// 팀(단체) 채팅 메시지 — /api/team 재사용 (텍스트 전용 · 도크에서 사용)
+export interface TeamChatMsg { id: string; user_id: string; name: string; text: string; kind?: string; media_key?: string | null; media_name?: string | null; created_at: string }
+export async function teamMessages(teamId: string, after = ''): Promise<{ ok: boolean; messages: TeamChatMsg[]; meId?: string; error?: string }> {
+  try {
+    const r = await fetch(`/api/team?messages=${encodeURIComponent(teamId)}&after=${encodeURIComponent(after)}`, { credentials: 'include', cache: 'no-store' })
+    const d = await r.json()
+    return { ok: !!d.ok, messages: d.messages || [], meId: d.meId, error: d.error }
+  } catch { return { ok: false, messages: [], error: '네트워크 오류' } }
+}
+export async function teamSend(teamId: string, text: string): Promise<{ ok: boolean; error?: string }> {
+  return postJson('/api/team', { action: 'send', teamId, text })
+}
+
 /* ── 관리자: 가입/추천/결제 조회 ── */
 export interface ReferralRow { id: string; name: string; email: string; plan: string; videoPlan: string; paid: boolean; credits: number; referralCode: string; referredById: string; referredByName: string; friendCount: number; referredCount: number; company?: string; phone?: string; provider?: string; country?: string; postalCode?: string; address1?: string; address2?: string; addressDone?: boolean; createdAt: string; tosConsent?: number; privacyConsent?: number; marketingConsent?: number; aiConsent?: number; consentAt?: string }
 export interface AdminReferrals { ok: boolean; error?: string; totals?: { members: number; paid: number; unpaid: number; referred: number }; rows?: ReferralRow[] }
