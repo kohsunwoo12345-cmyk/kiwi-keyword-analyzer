@@ -6,7 +6,9 @@ import { resolveBucket } from '../api/_utils'
 // 허용된 상류 매핑 (화이트리스트 — 임의 URL 프록시 금지). 경로 접두 방식.
 const UPSTREAM: Record<string, string> = {
   hf: 'https://huggingface.co/',                                             // transformers.js 모델 가중치(Depth-Anything 등)
-  ort: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/',          // onnxruntime-web wasm (transformers.js 백엔드)
+  // ⚠ 반드시 transformers.js 가 번들한 ORT 와 '동일 버전'의 wasm 을 써야 한다. 별도 onnxruntime-web 패키지를
+  //   쓰면 ABI 불일치로 onnx 백엔드 init 실패 → 깊이 모델이 조용히 폴백된다. transformers 자체 dist 의 wasm 사용.
+  ort: 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/',      // transformers 번들 ORT wasm (버전 일치 보장)
   mpv: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm/', // MediaPipe tasks-vision wasm
   mpm: 'https://storage.googleapis.com/mediapipe-models/',                   // MediaPipe 모델(.task)
 }
