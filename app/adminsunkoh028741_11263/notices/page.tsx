@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Bell, Send, ImagePlus, Link2, RefreshCw, X, CheckCircle2, Circle, Users, Loader2, Eye, ChevronRight, Film, Clock, MoonStar } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel } from '@/components/ui'
+import { EmojiText } from '@/components/Emoji'
 import {
   adminNoticeList, adminNoticeSend, adminNoticeDetail, adminUsers,
   type AdminNoticeCampaign, type NoticeRecipient, type User,
@@ -307,7 +308,7 @@ export default function NoticesPage() {
                       <div className="flex gap-1.5">
                         {([['video', '🎬 영상 플랜'], ['marketer', '📣 마케팅 플랜']] as ['video' | 'marketer', string][]).map(([tk, l]) => (
                           <button key={tk} onClick={() => setTrack(tk)}
-                            className={cn('flex-1 rounded-lg border px-3 py-1.5 text-sm font-semibold', track === tk ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-slate-50')}>{l}</button>
+                            className={cn('flex-1 rounded-lg border px-3 py-1.5 text-sm font-semibold', track === tk ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-slate-50')}><EmojiText>{l}</EmojiText></button>
                         ))}
                       </div>
                     </div>
@@ -344,7 +345,7 @@ export default function NoticesPage() {
                 )}
               </div>
 
-              {msg && <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-[var(--text-soft)]">{msg}</div>}
+              {msg && <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-[var(--text-soft)]"><EmojiText>{msg}</EmojiText></div>}
 
               <button onClick={onSend} disabled={sending}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">
