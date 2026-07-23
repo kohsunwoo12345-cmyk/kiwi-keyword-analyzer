@@ -3227,6 +3227,24 @@ function posePreview(srcUrl){
 }
 /* ── 오픈포즈 관절 편집기 (확대 팝업 · 점 하나하나 드래그) ── */
 var _poseEditNode=null;
+// 데이터URL/URL 을 파일로 다운로드
+function dlDataUrl(url, name){
+  try{ var a=document.createElement('a'); a.href=url; a.download=name||'download.png'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); }
+  catch(_){ try{ window.open(url,'_blank'); }catch(__){} }
+}
+// 노드의 오픈포즈 스켈레톤을 PNG dataURL 로 렌더(현재 관절·점크기 반영)
+function poseSkeletonUrl(n){
+  if(!n||!n.w||!n.w.poseKP) return null;
+  var d=n.w.poseDim||{w:512,h:512};
+  return renderOpenPose(n.w.poseKP, d.w, d.h, n.w.poseDot||1).toDataURL('image/png');
+}
+// 모든 Pose 노드의 오픈포즈를 한 번에 저장
+function downloadAllPoses(){
+  var cnt=0;
+  ((state&&state.nodes)||[]).forEach(function(n){ if(n&&n.w&&n.w.poseKP){ var u=poseSkeletonUrl(n); if(u){ dlDataUrl(u,'openpose-'+n.id+'.png'); cnt++; } } });
+  toast(cnt? tr('오픈포즈 '+cnt+'개를 저장했어요') : tr('저장할 오픈포즈가 없어요 — 먼저 Pose 미리보기를 생성하세요'));
+  return cnt;
+}
 function openPoseEditor(n){
   if(!n||!n.w||!n.w.poseKP){ toast(tr('먼저 Pose 전처리 미리보기를 생성하세요')); return; }
   _poseEditNode=n;
@@ -3242,6 +3260,8 @@ function openPoseEditor(n){
         +'<button id="peAdd" class="wbtn" style="width:auto;padding:5px 10px;">'+tr('관절 추가')+'</button>'
         +'<button id="peTpl" class="wbtn" style="width:auto;padding:5px 10px;">'+tr('기본 포즈')+'</button>'
         +'<button id="peRe" class="wbtn" style="width:auto;padding:5px 10px;">'+tr('재인식')+'</button>'
+        +'<button id="peDl" class="wbtn" style="width:auto;padding:5px 10px;">'+ICON.dl+tr('저장')+'</button>'
+        +'<button id="peDlAll" class="wbtn" style="width:auto;padding:5px 10px;">'+ICON.dl+tr('모두 저장')+'</button>'
         +'<button id="peApply" class="wbtn" style="width:auto;padding:5px 12px;background:#1c6ee0;border-color:#1c6ee0;color:#fff;">'+tr('적용')+'</button>'
         +'<button id="peClose" class="wbtn" style="width:auto;padding:5px 10px;">'+tr('닫기')+'</button>'
       +'</div></div>'
@@ -3253,6 +3273,8 @@ function openPoseEditor(n){
   buildPoseSvg();
   document.getElementById('peClose').onclick=closePoseEditor;
   document.getElementById('peApply').onclick=applyPoseEditor;
+  document.getElementById('peDl').onclick=function(){ var u=poseSkeletonUrl(_poseEditNode); if(u){ dlDataUrl(u,'openpose-'+_poseEditNode.id+'.png'); toast(tr('오픈포즈를 저장했어요')); } };
+  document.getElementById('peDlAll').onclick=function(){ downloadAllPoses(); };
   document.getElementById('peDot').oninput=function(e){ _poseEditNode.w.poseDot=+e.target.value; buildPoseSvg(); };
   document.getElementById('peTpl').onclick=function(){ _poseEditNode.w.poseKP=centerPose(defaultPoseKP()); buildPoseSvg(); toast(tr('기본 포즈를 불러왔어요 — 관절점을 드래그해 맞추세요')); };
   document.getElementById('peAdd').onclick=openJointAdd;
@@ -3348,9 +3370,12 @@ function openImageLightbox(url, label){
   ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(2,6,16,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;';
   ov.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;width:100%;max-width:900px;margin-bottom:10px;">'
     +'<b style="color:#cfeeff;font-size:14px;">'+esc((label?label.toUpperCase()+' · ':'')+tr('전처리 미리보기'))+'</b>'
-    +'<button id="czClose" class="wbtn" style="width:auto;padding:6px 14px;">'+tr('닫기')+'</button></div>'
+    +'<div style="display:flex;gap:6px;">'
+      +'<button id="czDl" class="wbtn" style="width:auto;padding:6px 14px;">'+ICON.dl+tr('저장')+'</button>'
+      +'<button id="czClose" class="wbtn" style="width:auto;padding:6px 14px;">'+tr('닫기')+'</button></div></div>'
     +'<img src="'+esc(url)+'" alt="preview" style="max-width:92vw;max-height:80vh;border-radius:12px;background:#000;object-fit:contain;box-shadow:0 24px 70px rgba(0,0,0,.6);">';
   document.body.appendChild(ov);
+  document.getElementById('czDl').onclick=function(){ dlDataUrl(url, (label||'preview')+'.png'); toast(tr('저장했어요')); };
   document.getElementById('czClose').onclick=function(){ ov.remove(); };
   ov.addEventListener('mousedown',function(e){ if(e.target===ov) ov.remove(); });
 }
@@ -4452,7 +4477,8 @@ function widgetHTML(n,w){
       var editable=(type==='pose' && n.w.poseKP), attr, extraBadge;
       if(editable){ attr=' data-poseedit="'+n.id+'" style="aspect-ratio:1/1;margin-top:5px;cursor:zoom-in;" title="'+esc(tr('클릭해 관절점 편집·확대'))+'"'; extraBadge='<span class="badge" style="right:5px;left:auto;background:#3aa0ff;">'+tr('점 편집')+' ⤢</span>'; }
       else { attr=' data-cnzoom="'+n.id+'|'+type+'" style="aspect-ratio:1/1;margin-top:5px;cursor:zoom-in;" title="'+esc(tr('클릭해 크게 보기'))+'"'; extraBadge='<span class="badge" style="right:5px;left:auto;background:#3aa0ff;">⤢</span>'; }
-      return '<div class="wpreview"'+attr+'><span class="badge">'+tr('전처리 미리보기')+'</span>'+extraBadge+'<img src="'+esc(u)+'" alt="'+type+' preview" style="pointer-events:none;"></div>'; };
+      var dlBtn='<button class="wpvdl" data-cndl="'+n.id+'|'+type+'" title="'+esc(tr('저장'))+'" style="position:absolute;right:5px;bottom:5px;z-index:4;background:rgba(10,16,24,.85);border:1px solid #35505c;color:#cfeeff;border-radius:7px;padding:2px 7px;font-size:11px;line-height:1;cursor:pointer;">'+ICON.dl+'</button>';
+      return '<div class="wpreview"'+attr+'><span class="badge">'+tr('전처리 미리보기')+'</span>'+extraBadge+dlBtn+'<img src="'+esc(u)+'" alt="'+type+' preview" style="pointer-events:none;"></div>'; };
     var rows=list.map(function(c){
       var lb={canny:'Canny',depth:'Depth',pose:'Pose'}[c.type]||c.type;
       var sc=(c.strength==null?1:c.strength), s0=(c.start==null?0:c.start), s1=(c.end==null?1:c.end);
@@ -5120,6 +5146,8 @@ canvas.addEventListener('click',function(e){
       .catch(function(){ n2.w.cnPreviews[ptype]='ERR:'+(errMap[ptype]||'실패'); render(); });
     return;
   }
+  var _cdl=e.target.closest('[data-cndl]');
+  if(_cdl){ var dp=(_cdl.getAttribute('data-cndl')||'').split('|'); var du=n2.w.cnPreviews&&n2.w.cnPreviews[dp[1]]; if(du && String(du).indexOf('data:')===0){ dlDataUrl(du,(dp[1]||'preview')+'-'+n2.id+'.png'); toast(tr('저장했어요')); } return; }
   var _ped=e.target.closest('[data-poseedit]');
   if(_ped){ openPoseEditor(n2); return; }
   var _cz=e.target.closest('[data-cnzoom]');
