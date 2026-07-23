@@ -1,4 +1,5 @@
 import { Env, json, resolveDB, ensureSchema, getSessionUser, addNotification, ADMIN_EMAIL } from './_utils'
+import { signTcalShare } from './_tcal'
 
 // 팀 요금제 활성 여부(만료 이전 or 관리자)
 function teamPlanActive(u: any): boolean {
@@ -20,11 +21,29 @@ async function ensureTeamTables(db: D1Database) {
     // 마케팅 집행 캘린더: visibility = team(전체)·private(본인만)·user(특정 사용자에게 공유)
     db.prepare(`CREATE TABLE IF NOT EXISTS team_cal_events (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, owner_id TEXT NOT NULL, owner_name TEXT, d TEXT NOT NULL, title TEXT NOT NULL, color TEXT DEFAULT 'sky', memo TEXT, visibility TEXT DEFAULT 'team', target_user_id TEXT, created_at TEXT NOT NULL)`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_tce_team ON team_cal_events(team_id, d)`),
+    // 여러 개의 캘린더(보드) — 워크플로 상단 탭처럼 팀당 여러 캘린더 생성
+    db.prepare(`CREATE TABLE IF NOT EXISTS team_cal_boards (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, name TEXT NOT NULL, owner_id TEXT, created_at TEXT NOT NULL)`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_tcb_team ON team_cal_boards(team_id, created_at)`),
   ])
   // team_messages 미디어 첨부 컬럼(사진·영상) — 기존 테이블에 없으면 추가
   for (const col of ['kind TEXT', 'media_key TEXT', 'media_name TEXT']) {
     await db.prepare(`ALTER TABLE team_messages ADD COLUMN ${col}`).run().catch(() => {})
   }
+  // team_cal_events 에 board_id 컬럼(캘린더 소속) — 없으면 추가
+  await db.prepare(`ALTER TABLE team_cal_events ADD COLUMN board_id TEXT`).run().catch(() => {})
+}
+
+// 팀의 캘린더(보드) 목록 — 없으면 기본 캘린더 자동 생성 + 기존 미분류 일정 이관
+async function ensureBoards(db: D1Database, teamId: string, now: string) {
+  let rows = (await db.prepare('SELECT id, name, owner_id, created_at FROM team_cal_boards WHERE team_id = ? ORDER BY created_at ASC').bind(teamId).all()).results || []
+  if (!rows.length) {
+    const id = 'cb_' + crypto.randomUUID().slice(0, 16)
+    await db.prepare('INSERT INTO team_cal_boards (id, team_id, name, owner_id, created_at) VALUES (?, ?, ?, ?, ?)').bind(id, teamId, '기본 캘린더', '', now).run()
+    // 기존 board_id 없는 일정을 기본 캘린더로 이관
+    await db.prepare('UPDATE team_cal_events SET board_id = ? WHERE team_id = ? AND (board_id IS NULL OR board_id = ?)').bind(id, teamId, '').run().catch(() => {})
+    rows = (await db.prepare('SELECT id, name, owner_id, created_at FROM team_cal_boards WHERE team_id = ? ORDER BY created_at ASC').bind(teamId).all()).results || []
+  }
+  return rows as any[]
 }
 const uid = (p: string) => p + crypto.randomUUID().slice(0, 16)
 async function isMember(db: D1Database, teamId: string, userId: string) {
@@ -52,19 +71,31 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: true, messages: rows, meId: me.id })
   }
 
+  // 팀 캘린더(보드) 목록 — 워크플로 탭처럼 여러 캘린더
+  const boardsTeam = url.searchParams.get('boards')
+  if (boardsTeam) {
+    if (!(await isMember(db, boardsTeam, me.id))) return json({ ok: false, error: '팀 멤버가 아닙니다.' }, 403)
+    const boards = await ensureBoards(db, boardsTeam, new Date().toISOString())
+    return json({ ok: true, boards, meId: me.id })
+  }
+
   // 집행 캘린더 조회: 내게 보이는 이벤트만(팀 공유 + 내가 만든 것 + 내게 개별 공유된 것)
   const calTeam = url.searchParams.get('calendar')
   if (calTeam) {
     if (!(await isMember(db, calTeam, me.id))) return json({ ok: false, error: '팀 멤버가 아닙니다.' }, 403)
     const month = String(url.searchParams.get('month') || '') // 'YYYY-MM' 접두 필터(선택)
+    const boardId = String(url.searchParams.get('board') || '')
     const like = month ? month + '%' : '%'
+    const boardClause = boardId ? ' AND board_id = ?' : ''
+    const binds: any[] = [calTeam, like, me.id, me.id]
+    if (boardId) binds.push(boardId)
     const rows = (await db.prepare(
-      `SELECT id, owner_id, owner_name, d, title, color, memo, visibility, target_user_id, created_at
+      `SELECT id, owner_id, owner_name, d, title, color, memo, visibility, target_user_id, board_id, created_at
          FROM team_cal_events
         WHERE team_id = ? AND d LIKE ?
-          AND (visibility = 'team' OR owner_id = ? OR (visibility = 'user' AND target_user_id = ?))
+          AND (visibility = 'team' OR owner_id = ? OR (visibility = 'user' AND target_user_id = ?))${boardClause}
         ORDER BY d ASC, created_at ASC LIMIT 500`,
-    ).bind(calTeam, like, me.id, me.id).all()).results || []
+    ).bind(...binds).all()).results || []
     return json({ ok: true, events: rows, meId: me.id })
   }
 
@@ -210,9 +241,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     } else {
       target = ''
     }
+    // 소속 캘린더(보드) — 미지정 시 기본 캘린더로
+    let boardId = String(b.boardId || '').trim()
+    const boards = await ensureBoards(db, teamId, now)
+    if (!boardId || !boards.some((x: any) => x.id === boardId)) boardId = boards[0].id
     const id = uid('ce_')
-    await db.prepare('INSERT INTO team_cal_events (id, team_id, owner_id, owner_name, d, title, color, memo, visibility, target_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(id, teamId, me.id, me.name, d, title, color, memo, visibility, target || null, now).run()
+    await db.prepare('INSERT INTO team_cal_events (id, team_id, owner_id, owner_name, d, title, color, memo, visibility, target_user_id, board_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, teamId, me.id, me.name, d, title, color, memo, visibility, target || null, boardId, now).run()
     // 개별 공유는 대상자에게 알림
     if (visibility === 'user' && target) {
       await addNotification(db, target, '집행 일정이 공유되었어요 📅', `${me.name}님이 "${title}"(${d}) 일정을 공유했습니다.`).catch(() => {})
@@ -227,6 +262,43 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const r = await db.prepare('DELETE FROM team_cal_events WHERE id = ? AND owner_id = ?').bind(eventId, me.id).run()
     if (!(r.meta && r.meta.changes)) return json({ ok: false, error: '본인이 등록한 일정만 삭제할 수 있습니다.' }, 403)
     return json({ ok: true })
+  }
+
+  if (action === 'board_add') {
+    const teamId = String(b.teamId || '')
+    if (!(await isMember(db, teamId, me.id))) return json({ ok: false, error: '팀 멤버가 아닙니다.' }, 403)
+    const name = String(b.name || '').trim().slice(0, 40)
+    if (!name) return json({ ok: false, error: '캘린더 이름을 입력하세요.' }, 400)
+    await ensureBoards(db, teamId, now) // 기본 캘린더 보장
+    const cnt = Number((await db.prepare('SELECT COUNT(*) AS c FROM team_cal_boards WHERE team_id = ?').bind(teamId).first() as any)?.c) || 0
+    if (cnt >= 20) return json({ ok: false, error: '캘린더는 팀당 최대 20개까지 만들 수 있습니다.' }, 409)
+    const id = 'cb_' + crypto.randomUUID().slice(0, 16)
+    await db.prepare('INSERT INTO team_cal_boards (id, team_id, name, owner_id, created_at) VALUES (?, ?, ?, ?, ?)').bind(id, teamId, name, me.id, now).run()
+    return json({ ok: true, id, name })
+  }
+
+  if (action === 'board_del') {
+    const boardId = String(b.boardId || '')
+    if (!boardId) return json({ ok: false, error: 'boardId 필요' }, 400)
+    const board: any = await db.prepare('SELECT team_id FROM team_cal_boards WHERE id = ?').bind(boardId).first()
+    if (!board) return json({ ok: false, error: '캘린더를 찾을 수 없습니다.' }, 404)
+    if (!(await isMember(db, board.team_id, me.id))) return json({ ok: false, error: '팀 멤버가 아닙니다.' }, 403)
+    const cnt = Number((await db.prepare('SELECT COUNT(*) AS c FROM team_cal_boards WHERE team_id = ?').bind(board.team_id).first() as any)?.c) || 0
+    if (cnt <= 1) return json({ ok: false, error: '마지막 캘린더는 삭제할 수 없습니다.' }, 400)
+    await db.prepare('DELETE FROM team_cal_events WHERE board_id = ?').bind(boardId).run().catch(() => {})
+    await db.prepare('DELETE FROM team_cal_boards WHERE id = ?').bind(boardId).run()
+    return json({ ok: true })
+  }
+
+  if (action === 'cal_share') {
+    const boardId = String(b.boardId || '')
+    if (!boardId) return json({ ok: false, error: 'boardId 필요' }, 400)
+    const board: any = await db.prepare('SELECT team_id, name FROM team_cal_boards WHERE id = ?').bind(boardId).first()
+    if (!board) return json({ ok: false, error: '캘린더를 찾을 수 없습니다.' }, 404)
+    if (!(await isMember(db, board.team_id, me.id))) return json({ ok: false, error: '팀 멤버가 아닙니다.' }, 403)
+    const token = await signTcalShare(env, boardId)
+    const origin = new URL(request.url).origin
+    return json({ ok: true, token, url: `${origin}/tcal/${token}`, name: board.name })
   }
 
   return json({ ok: false, error: '알 수 없는 작업입니다.' }, 400)
