@@ -16,6 +16,7 @@ import {
   Copy,
   Check,
   X,
+  Contact,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button } from '@/components/ui'
@@ -65,6 +66,8 @@ interface CalEvent {
   memo: string
   visibility: Visibility
   target_user_id: string | null
+  target_group_id: string | null
+  target_group_name: string | null
   created_at: string
 }
 interface Board {
@@ -106,6 +109,9 @@ export default function TeamCalendarPage() {
   const [events, setEvents] = useState<CalEvent[]>([])
   const [loadingEvents, setLoadingEvents] = useState(false)
 
+  // target groups (엑셀 DB 타깃 그룹)
+  const [groups, setGroups] = useState<{ id: string; name: string; count: number }[]>([])
+
   // form state
   const [fDate, setFDate] = useState(todayISO())
   const [fTitle, setFTitle] = useState('')
@@ -113,6 +119,7 @@ export default function TeamCalendarPage() {
   const [fMemo, setFMemo] = useState('')
   const [fVis, setFVis] = useState<Visibility>('team')
   const [fTarget, setFTarget] = useState('')
+  const [fGroup, setFGroup] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
@@ -161,6 +168,14 @@ export default function TeamCalendarPage() {
   useEffect(() => {
     loadBoards()
   }, [loadBoards])
+
+  // load my target groups (엑셀 DB 그룹)
+  useEffect(() => {
+    fetch('/api/groups', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => { if (d.ok) setGroups(d.groups || []) })
+      .catch(() => {})
+  }, [])
 
   // 3) load events for selected team + board + month
   const loadEvents = useCallback(() => {
@@ -287,6 +302,7 @@ export default function TeamCalendarPage() {
           memo: fMemo.trim() || undefined,
           visibility: fVis,
           targetUserId: fVis === 'user' ? fTarget : undefined,
+          targetGroupId: fGroup || undefined,
         }),
       })
       const d = await res.json()
@@ -679,6 +695,23 @@ export default function TeamCalendarPage() {
                   )}
                 </div>
               )}
+              <div>
+                <label className="mb-1 block text-xs text-[var(--text-dim)]">타깃 그룹 (엑셀 DB · 선택)</label>
+                <select
+                  value={fGroup}
+                  onChange={(e) => setFGroup(e.target.value)}
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500"
+                >
+                  <option value="">— 그룹 없음 —</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name} ({g.count}명)</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-[var(--text-dim)]">
+                  이 일정의 발송 대상 그룹입니다. 문자·알림톡 발송 시 같은 그룹을 선택할 수 있어요.
+                  {' '}<a href="/dashboard_USE17237_612/team/groups" className="text-sky-500 hover:underline">그룹 만들기 →</a>
+                </p>
+              </div>
               {err && <p className="text-xs text-rose-500">{err}</p>}
               <Button
                 onClick={addEvent}
@@ -730,6 +763,11 @@ export default function TeamCalendarPage() {
                           <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${VIS[e.visibility]?.cls || ''}`}>
                             <Icon size={9} /> {VIS[e.visibility]?.badge}
                           </span>
+                          {e.target_group_name && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                              <Contact size={9} /> {e.target_group_name}
+                            </span>
+                          )}
                         </div>
                       </div>
                       {e.owner_id === meId && (
