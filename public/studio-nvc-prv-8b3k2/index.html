@@ -3006,6 +3006,78 @@ function depthPreview(srcUrl){
         try{ masks.forEach(function(m){ m.close&&m.close(); }); res.close&&res.close(); }catch(_){}
         ctx.putImageData(out,0,0); resolve(c.toDataURL('image/png'));
       }).catch(function(){ fallback(); }); }
+      // ── 0순위: 평평한 배경 인물사진(스튜디오 헤드샷 등)이면 우리 자체 실루엣 깊이 — 첨부 사진의
+      //    '그 인물 형태 그대로'를 그림자처럼 정확히 추출(모델 없이 오프라인 동작·항상 사진과 일치). ──
+      //    복잡한 배경이면 null 반환 → 실제 깊이 모델로 진행. (오탐 방지 게이트 엄격)
+      function trySilhouetteDepth(){
+        try{
+          // (1) 배경 평탄도 게이트: 네 모서리 패치가 균일해야 = 단색 배경. (피사체 어깨가 하단에 닿아도
+          //     오탐 안 함 — 인물사진에서 모서리는 거의 항상 배경.) 복잡 배경이면 모서리 편차가 커 걸러짐.
+          var xx,yy,ii,cs=Math.max(6,Math.round(Math.min(W,H)*0.10)), bx=[[0,0],[W-cs,0],[0,H-cs],[W-cs,H-cs]], cv=0,cv2=0,cn=0,bi,cxx,cyy;
+          for(bi=0;bi<4;bi++)for(cyy=bx[bi][1];cyy<bx[bi][1]+cs;cyy++)for(cxx=bx[bi][0];cxx<bx[bi][0]+cs;cxx++){ var lv=lum[cyy*W+cxx]; cv+=lv; cv2+=lv*lv; cn++; }
+          var cmean=cv/cn, cstd=Math.sqrt(Math.max(0,cv2/cn-cmean*cmean));
+          if(cstd>18) return null;
+          // (2) 배경색(모서리 평균 RGB) 기준 색거리로 전경 추출 — 닫힌 에지 불필요, 피사체 내부까지 견고.
+          var br=0,bgg=0,bb=0;
+          for(bi=0;bi<4;bi++)for(cyy=bx[bi][1];cyy<bx[bi][1]+cs;cyy++)for(cxx=bx[bi][0];cxx<bx[bi][0]+cs;cxx++){ var pp=(cyy*W+cxx)*4; br+=p[pp]; bgg+=p[pp+1]; bb+=p[pp+2]; }
+          br/=cn; bgg/=cn; bb/=cn;
+          var TH=Math.max(26, cstd*3.0), subj=new Uint8Array(N);
+          for(ii=0;ii<N;ii++){ var dr=p[ii*4]-br, dg=p[ii*4+1]-bgg, db=p[ii*4+2]-bb; if(Math.sqrt(dr*dr+dg*dg+db*db)>TH) subj[ii]=1; }
+          // (3) 다수결 스무딩(형태학적 닫기) — 배경색과 비슷한 하이라이트/작은 구멍 메우고 경계 매끈.
+          var rC=Math.max(1,Math.round(W/220)), one=new Float32Array(N), ones=new Float32Array(N);
+          for(ii=0;ii<N;ii++){ one[ii]=subj[ii]; ones[ii]=1; }
+          var cntF=_boxSum(one,W,H,rC), cntA=_boxSum(ones,W,H,rC), subj2=new Uint8Array(N);
+          for(ii=0;ii<N;ii++){ subj2[ii]=((cntF[ii]/(cntA[ii]||1))>0.5)?1:0; }
+          // (4) 최대 연결요소만 유지(그림자/작은 얼룩 제거)
+          var lbl=new Int32Array(N); for(ii=0;ii<N;ii++)lbl[ii]=-1; var best=-1,bestSz=0;
+          for(var s0=0;s0<N;s0++){ if(!subj2[s0]||lbl[s0]>=0)continue; var stk=[s0]; lbl[s0]=s0; var sz=0;
+            while(stk.length){ var q0=stk.pop(); sz++; var qx=q0%W, qy=(q0/W)|0;
+              if(qx>0&&subj2[q0-1]&&lbl[q0-1]<0){lbl[q0-1]=s0;stk.push(q0-1);} if(qx<W-1&&subj2[q0+1]&&lbl[q0+1]<0){lbl[q0+1]=s0;stk.push(q0+1);}
+              if(qy>0&&subj2[q0-W]&&lbl[q0-W]<0){lbl[q0-W]=s0;stk.push(q0-W);} if(qy<H-1&&subj2[q0+W]&&lbl[q0+W]<0){lbl[q0+W]=s0;stk.push(q0+W);} }
+            if(sz>bestSz){bestSz=sz;best=s0;} }
+          var keep=new Uint8Array(N); for(ii=0;ii<N;ii++) if(subj2[ii]&&lbl[ii]===best)keep[ii]=1; subj2=keep;
+          // (5) 내부 구멍 메우기(테두리서 도달 못한 배경 = 내부 구멍 → subject)
+          var reach=new Uint8Array(N), st2=[];
+          for(xx=0;xx<W;xx++){ if(!subj2[xx]){reach[xx]=1;st2.push(xx);} var bbb=(H-1)*W+xx; if(!subj2[bbb]){reach[bbb]=1;st2.push(bbb);} }
+          for(yy=0;yy<H;yy++){ if(!subj2[yy*W]){reach[yy*W]=1;st2.push(yy*W);} var rr2=yy*W+W-1; if(!subj2[rr2]){reach[rr2]=1;st2.push(rr2);} }
+          while(st2.length){ var j2=st2.pop(); var jx=j2%W, jy=(j2/W)|0;
+            if(jx>0&&!subj2[j2-1]&&!reach[j2-1]){reach[j2-1]=1;st2.push(j2-1);} if(jx<W-1&&!subj2[j2+1]&&!reach[j2+1]){reach[j2+1]=1;st2.push(j2+1);}
+            if(jy>0&&!subj2[j2-W]&&!reach[j2-W]){reach[j2-W]=1;st2.push(j2-W);} if(jy<H-1&&!subj2[j2+W]&&!reach[j2+W]){reach[j2+W]=1;st2.push(j2+W);} }
+          for(ii=0;ii<N;ii++) if(!subj2[ii]&&!reach[ii]) subj2[ii]=1;
+          // (6) 신뢰 게이트: 피사체 면적 비율이 합리적이어야(너무 작/큼 = 실패)
+          var area=0; for(ii=0;ii<N;ii++)area+=subj2[ii]; var frac=area/N;
+          if(frac<0.08||frac>0.85) return null;
+          // (7) 거리변환(챔퍼) → 내부 볼륨(가장자리→중심 갈수록 가까움)
+          var dist=new Float32Array(N), BIG=1e9;
+          for(ii=0;ii<N;ii++) dist[ii]=subj2[ii]?BIG:0;
+          for(yy=1;yy<H;yy++)for(xx=1;xx<W-1;xx++){ ii=yy*W+xx; if(!subj2[ii])continue; dist[ii]=Math.min(dist[ii],dist[ii-W]+1,dist[ii-1]+1,dist[ii-W-1]+1.4,dist[ii-W+1]+1.4); }
+          for(yy=H-2;yy>=0;yy--)for(xx=W-2;xx>=1;xx--){ ii=yy*W+xx; if(!subj2[ii])continue; dist[ii]=Math.min(dist[ii],dist[ii+W]+1,dist[ii+1]+1,dist[ii+W+1]+1.4,dist[ii+W-1]+1.4); }
+          var dmax=1; for(ii=0;ii<N;ii++) if(subj2[ii]&&dist[ii]<BIG&&dist[ii]>dmax)dmax=dist[ii];
+          // (8) 깊이 조립: 피사체=근거리 그림자(부드러운 가장자리 falloff + 약한 휘도 릴리프), 배경=원거리
+          var dep01=new Float32Array(N), gd01=new Float32Array(N);
+          for(ii=0;ii<N;ii++){
+            var py2=(ii/W)|0;
+            if(subj2[ii]){ var vol=Math.min(1,dist[ii]/(dmax*0.6)); var rel=Math.max(0,Math.min(1,lum[ii]/255));
+              dep01[ii]=0.70+0.16*vol+0.06*(rel-0.5); }
+            else { dep01[ii]=0.12-0.06*(py2/H); }
+            if(dep01[ii]<0)dep01[ii]=0; if(dep01[ii]>1)dep01[ii]=1;
+            gd01[ii]=lum[ii]/255;
+          }
+          // (9) 가이드 필터로 실루엣을 사진 실제 윤곽에 정밀 스냅(에지 게이팅)
+          var rrg=Math.max(2,Math.round(W/40)), qq=_guidedRefine(dep01,gd01,W,H,rrg,0.010), fin=new Float32Array(N), w2;
+          for(yy=0;yy<H;yy++)for(xx=0;xx<W;xx++){ ii=yy*W+xx;
+            var xl=xx>0?ii-1:ii, xr=xx<W-1?ii+1:ii, yu=yy>0?ii-W:ii, yd=yy<H-1?ii+W:ii;
+            var gm2=Math.abs(gd01[xr]-gd01[xl])+Math.abs(gd01[yd]-gd01[yu]);
+            w2=(gm2-0.08)/0.20; if(w2<0)w2=0; if(w2>1)w2=1; w2=w2*w2*(3-2*w2);
+            fin[ii]=w2*qq[ii]+(1-w2)*dep01[ii]; }
+          var of=ctx.createImageData(W,H), oo=of.data;
+          for(ii=0;ii<N;ii++){ var q3=fin[ii]; if(q3<0)q3=0; if(q3>1)q3=1; var g3=Math.round(q3*255); oo[ii*4]=oo[ii*4+1]=oo[ii*4+2]=g3; oo[ii*4+3]=255; }
+          ctx.putImageData(of,0,0);
+          return c.toDataURL('image/png');
+        }catch(_e){ return null; }
+      }
+      var _silh=trySilhouetteDepth();
+      if(_silh){ try{ toast(tr('깔끔한 배경을 감지해 인물 형태를 그대로 추출했어요.')); }catch(_){} resolve(_silh); return; }
       // 1순위: 실제 단안 깊이 모델(Depth-Anything) — 레퍼런스와 동일한 부드러운 깊이맵
       if(!_depthModel){ try{ toast(tr('깊이 모델 로딩 중… (최초 1회 다운로드, 잠시만 기다려주세요)')); }catch(_){} }
       ensureDepthModel().then(function(dep){
