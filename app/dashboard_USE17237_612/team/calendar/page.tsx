@@ -27,17 +27,17 @@ type ColorKey = 'violet' | 'sky' | 'emerald' | 'amber' | 'rose'
 type Visibility = 'team' | 'private' | 'user'
 
 const COLORS: Record<ColorKey, { label: string; dot: string; pill: string }> = {
-  violet: { label: '기획', dot: 'bg-violet-500', pill: 'border-violet-200 bg-violet-500/12 text-violet-700' },
-  sky: { label: '광고', dot: 'bg-sky-500', pill: 'border-sky-200 bg-sky-500/12 text-sky-700' },
-  emerald: { label: '콘텐츠', dot: 'bg-emerald-500', pill: 'border-emerald-200 bg-emerald-500/12 text-emerald-700' },
-  amber: { label: '마감', dot: 'bg-amber-500', pill: 'border-amber-200 bg-amber-500/12 text-amber-700' },
-  rose: { label: '회의', dot: 'bg-rose-500', pill: 'border-rose-200 bg-rose-500/12 text-rose-700' },
+  violet: { label: '기획', dot: 'bg-violet-500', pill: 'border-violet-500/30 bg-violet-500/12 text-violet-700' },
+  sky: { label: '광고', dot: 'bg-sky-500', pill: 'border-sky-500/30 bg-sky-500/12 text-sky-700' },
+  emerald: { label: '콘텐츠', dot: 'bg-emerald-500', pill: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-700' },
+  amber: { label: '마감', dot: 'bg-amber-500', pill: 'border-amber-500/30 bg-amber-500/12 text-amber-700' },
+  rose: { label: '회의', dot: 'bg-rose-500', pill: 'border-rose-500/30 bg-rose-500/12 text-rose-700' },
 }
 
 const VIS: Record<Visibility, { label: string; badge: string; cls: string; icon: typeof Globe }> = {
-  team: { label: '공유(전체)', badge: '공유(전체)', cls: 'border-sky-200 bg-sky-500/12 text-sky-700', icon: Globe },
-  private: { label: '나만', badge: '나만', cls: 'border-slate-200 bg-[var(--panel-2)] text-slate-600', icon: Lock },
-  user: { label: '개별공유', badge: '개별공유', cls: 'border-amber-200 bg-amber-500/12 text-amber-700', icon: UserRound },
+  team: { label: '공유(전체)', badge: '공유(전체)', cls: 'border-sky-500/30 bg-sky-500/12 text-sky-700', icon: Globe },
+  private: { label: '나만', badge: '나만', cls: 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600', icon: Lock },
+  user: { label: '개별공유', badge: '개별공유', cls: 'border-amber-500/30 bg-amber-500/12 text-amber-700', icon: UserRound },
 }
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
@@ -764,7 +764,7 @@ export default function TeamCalendarPage() {
                             <Icon size={9} /> {VIS[e.visibility]?.badge}
                           </span>
                           {e.target_group_name && (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
                               <Contact size={9} /> {e.target_group_name}
                             </span>
                           )}

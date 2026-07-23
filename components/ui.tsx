@@ -15,8 +15,8 @@ const btnBase =
 const btnVariants: Record<BtnVariant, string> = {
   primary:
     'brand-gradient text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:brightness-[1.05]',
-  soft: 'bg-indigo-500/12 text-blue-700 border border-blue-100 hover:bg-indigo-500/15',
-  outline: 'border border-[var(--border)] bg-[var(--panel)] text-[var(--text)] hover:border-blue-400/60 hover:bg-[var(--panel-2)]',
+  soft: 'bg-indigo-500/12 text-indigo-600 border border-indigo-500/25 hover:bg-indigo-500/15',
+  outline: 'border border-[var(--border)] bg-[var(--panel)] text-[var(--text)] hover:border-indigo-400/60 hover:bg-[var(--panel-2)]',
   ghost: 'text-[var(--text-soft)] hover:text-[var(--text)] hover:bg-[var(--panel-2)]',
 }
 const btnSizes: Record<BtnSize, string> = {

@@ -404,10 +404,10 @@ export default function TargetGroupsPage() {
             key={t.id}
             className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-sm shadow-lg ${
               t.kind === 'ok'
-                ? 'border-emerald-200 bg-emerald-500/12 text-emerald-800'
+                ? 'border-emerald-500/30 bg-emerald-500/12 text-emerald-800'
                 : t.kind === 'err'
-                  ? 'border-rose-200 bg-rose-500/12 text-rose-800'
-                  : 'border-sky-200 bg-sky-500/12 text-sky-800'
+                  ? 'border-rose-500/30 bg-rose-500/12 text-rose-800'
+                  : 'border-sky-500/30 bg-sky-500/12 text-sky-800'
             }`}
           >
             {t.kind === 'ok' ? <Check size={16} /> : t.kind === 'err' ? <AlertCircle size={16} /> : <FileSpreadsheet size={16} />}

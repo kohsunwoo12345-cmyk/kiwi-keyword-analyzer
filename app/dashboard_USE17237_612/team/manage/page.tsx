@@ -27,9 +27,9 @@ function roleLabel(role: string) {
 }
 function RoleBadge({ role }: { role: string }) {
   const map: Record<string, { cls: string; Icon: typeof Crown }> = {
-    owner: { cls: 'border-amber-200 bg-amber-500/12 text-amber-700', Icon: Crown },
-    admin: { cls: 'border-sky-200 bg-sky-500/12 text-sky-700', Icon: Shield },
-    member: { cls: 'border-slate-200 bg-[var(--panel-2)] text-slate-600', Icon: UserIcon },
+    owner: { cls: 'border-amber-500/30 bg-amber-500/12 text-amber-700', Icon: Crown },
+    admin: { cls: 'border-sky-500/30 bg-sky-500/12 text-sky-700', Icon: Shield },
+    member: { cls: 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600', Icon: UserIcon },
   }
   const { cls, Icon } = map[role] || map.member
   return (
@@ -197,10 +197,10 @@ export default function TeamManagePage() {
             key={t.id}
             className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-sm shadow-lg ${
               t.kind === 'ok'
-                ? 'border-emerald-200 bg-emerald-500/12 text-emerald-800'
+                ? 'border-emerald-500/30 bg-emerald-500/12 text-emerald-800'
                 : t.kind === 'err'
-                  ? 'border-rose-200 bg-rose-500/12 text-rose-800'
-                  : 'border-sky-200 bg-sky-500/12 text-sky-800'
+                  ? 'border-rose-500/30 bg-rose-500/12 text-rose-800'
+                  : 'border-sky-500/30 bg-sky-500/12 text-sky-800'
             }`}
           >
             {t.kind === 'ok' ? <Check size={16} /> : t.kind === 'err' ? <AlertCircle size={16} /> : <Sparkles size={16} />}
@@ -260,7 +260,7 @@ export default function TeamManagePage() {
                 </button>
               </div>
               {needPlan && (
-                <div className="mt-3 flex flex-col gap-1 rounded-xl border border-amber-200 bg-amber-500/12 px-4 py-3 text-sm text-amber-800">
+                <div className="mt-3 flex flex-col gap-1 rounded-xl border border-amber-500/30 bg-amber-500/12 px-4 py-3 text-sm text-amber-800">
                   <div className="flex items-center gap-2 font-medium">
                     <Sparkles size={15} />팀 플랜이 필요합니다
                   </div>

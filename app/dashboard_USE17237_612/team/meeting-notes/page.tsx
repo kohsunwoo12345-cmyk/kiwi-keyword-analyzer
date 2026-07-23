@@ -132,7 +132,7 @@ export default function MeetingNotesPage() {
                 setCreating(false)
               }}
               className={`card w-full p-4 text-left transition-all ${
-                selectedId === m.id && !creating ? 'ring-2 ring-sky-400' : 'hover:border-sky-300'
+                selectedId === m.id && !creating ? 'ring-2 ring-sky-400' : 'hover:border-sky-500/40'
               }`}
             >
               <p className="font-semibold leading-snug">{m.title}</p>
@@ -196,7 +196,7 @@ export default function MeetingNotesPage() {
               <p className="mt-1 text-sm text-[var(--text-dim)]">{selected.date}</p>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {selected.attendees.map((a) => (
-                  <Badge key={a} className="border-sky-200 bg-sky-500/12 text-sky-700">
+                  <Badge key={a} className="border-sky-500/30 bg-sky-500/12 text-sky-700">
                     {a}
                   </Badge>
                 ))}

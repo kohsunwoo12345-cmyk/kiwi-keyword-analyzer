@@ -60,12 +60,12 @@ function ko(n: number) {
 
 /* ---------- request status meta ---------- */
 const STATUS_META: Record<string, { label: string; badge: string }> = {
-  pending: { label: '대기중', badge: 'border-amber-200 bg-amber-500/12 text-amber-700' },
-  approved: { label: '승인됨', badge: 'border-emerald-200 bg-emerald-500/12 text-emerald-700' },
-  rejected: { label: '반려됨', badge: 'border-rose-200 bg-rose-500/12 text-rose-700' },
+  pending: { label: '대기중', badge: 'border-amber-500/30 bg-amber-500/12 text-amber-700' },
+  approved: { label: '승인됨', badge: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-700' },
+  rejected: { label: '반려됨', badge: 'border-rose-500/30 bg-rose-500/12 text-rose-700' },
 }
 function statusMeta(s: string) {
-  return STATUS_META[s] || { label: s || '-', badge: 'border-slate-200 bg-[var(--panel-2)] text-slate-600' }
+  return STATUS_META[s] || { label: s || '-', badge: 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600' }
 }
 
 interface CreditReqRow {
@@ -259,8 +259,8 @@ export default function CreditsPage() {
 
   const badgeStyle = (badge?: string) =>
     badge === '추천'
-      ? 'border-violet-200 bg-violet-500/12 text-violet-700'
-      : 'border-amber-200 bg-amber-500/12 text-amber-700'
+      ? 'border-violet-500/30 bg-violet-500/12 text-violet-700'
+      : 'border-amber-500/30 bg-amber-500/12 text-amber-700'
 
   return (
     <div className="animate-fade-in">
@@ -334,7 +334,7 @@ export default function CreditsPage() {
                       'relative flex flex-col rounded-2xl border p-4 text-left transition-all',
                       active
                         ? 'border-amber-400 bg-amber-500/12 ring-2 ring-amber-400/40'
-                        : 'border-[var(--border)] hover:border-amber-300 hover:bg-amber-50/40',
+                        : 'border-[var(--border)] hover:border-amber-500/40 hover:bg-amber-50/40',
                     )}
                   >
                     {pkg.badge && (
@@ -374,7 +374,7 @@ export default function CreditsPage() {
                   'relative flex flex-col rounded-2xl border p-4 text-left transition-all',
                   selected === 'custom'
                     ? 'border-amber-400 bg-amber-500/12 ring-2 ring-amber-400/40'
-                    : 'border-dashed border-[var(--border)] hover:border-amber-300 hover:bg-amber-50/40',
+                    : 'border-dashed border-[var(--border)] hover:border-amber-500/40 hover:bg-amber-50/40',
                 )}
               >
                 <span className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--panel-2)] text-[var(--text-dim)]">
@@ -397,12 +397,12 @@ export default function CreditsPage() {
             </div>
 
             {okMsg && (
-              <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700">
+              <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700">
                 <Check size={15} /> 충전 신청이 접수되었습니다. 관리자 승인 후 크레딧이 지급됩니다.
               </div>
             )}
             {errMsg && (
-              <div className="mt-4 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-700">
+              <div className="mt-4 flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-700">
                 <AlertCircle size={15} /> {errMsg}
               </div>
             )}
@@ -410,7 +410,7 @@ export default function CreditsPage() {
             {/* 결제 방식 선택: 즉시 카드결제 vs 승인 충전 */}
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {/* 카드로 즉시 충전 (Toss) */}
-              <div className="flex flex-col rounded-2xl border border-amber-300 bg-amber-50/50 p-4">
+              <div className="flex flex-col rounded-2xl border border-amber-500/40 bg-amber-50/50 p-4">
                 <div className="flex items-start gap-3">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-amber-500 text-white">
                     <Zap size={17} />
@@ -418,7 +418,7 @@ export default function CreditsPage() {
                   <div>
                     <p className="flex items-center gap-1.5 text-sm font-semibold">
                       카드로 즉시 충전
-                      <span className="rounded-full border border-amber-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-amber-600">
+                      <span className="rounded-full border border-amber-500/30 bg-white px-1.5 py-0.5 text-[10px] font-bold text-amber-600">
                         Toss
                       </span>
                     </p>
@@ -463,22 +463,22 @@ export default function CreditsPage() {
 
             {/* 카드 결제(Toss) 피드백 */}
             {confirming && (
-              <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-500/12 px-3 py-2.5 text-sm text-amber-700">
+              <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/12 px-3 py-2.5 text-sm text-amber-700">
                 <Clock size={15} /> 결제를 확인하는 중입니다...
               </div>
             )}
             {paySuccess !== null && (
-              <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-500/15 px-3 py-2.5 text-sm font-semibold text-emerald-700">
+              <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm font-semibold text-emerald-700">
                 <Check size={15} /> {ko(paySuccess)} 크레딧이 충전되었습니다.
               </div>
             )}
             {payInfo && (
-              <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-500/12 px-3 py-2.5 text-sm text-amber-700">
+              <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/12 px-3 py-2.5 text-sm text-amber-700">
                 <AlertCircle size={15} /> {payInfo}
               </div>
             )}
             {payErr && (
-              <div className="mt-4 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-700">
+              <div className="mt-4 flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-700">
                 <AlertCircle size={15} /> {payErr}
               </div>
             )}

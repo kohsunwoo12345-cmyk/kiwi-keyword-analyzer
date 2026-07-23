@@ -79,43 +79,43 @@ const PLAN_META: Record<
   { badge: string; perks: string[] }
 > = {
   '없음': {
-    badge: 'border-slate-200 bg-[var(--panel-2)] text-slate-600',
+    badge: 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600',
     perks: ['가입된 플랜이 없습니다', '플랜에 가입하고 더 많은 기능을 이용하세요'],
   },
   Plus: {
-    badge: 'border-sky-200 bg-sky-500/12 text-sky-700',
+    badge: 'border-sky-500/30 bg-sky-500/12 text-sky-700',
     perks: ['기본 기능 이용', '월 표준 사용량', '이메일 지원'],
   },
   Pro: {
-    badge: 'border-violet-200 bg-violet-500/12 text-violet-700',
+    badge: 'border-violet-500/30 bg-violet-500/12 text-violet-700',
     perks: ['확장 사용량', '우선 지원', '고급 기능 이용'],
   },
   Max: {
-    badge: 'border-amber-200 bg-amber-500/12 text-amber-700',
+    badge: 'border-amber-500/30 bg-amber-500/12 text-amber-700',
     perks: ['모든 Pro 기능', '최대 사용량', '전담 매니저', '최우선 지원'],
   },
 }
 
 /* ---------- request/sender status meta ---------- */
 const STATUS_META: Record<string, { label: string; badge: string }> = {
-  pending: { label: '대기', badge: 'border-amber-200 bg-amber-500/12 text-amber-700' },
-  approved: { label: '승인', badge: 'border-emerald-200 bg-emerald-500/12 text-emerald-700' },
-  rejected: { label: '거절', badge: 'border-rose-200 bg-rose-500/12 text-rose-700' },
+  pending: { label: '대기', badge: 'border-amber-500/30 bg-amber-500/12 text-amber-700' },
+  approved: { label: '승인', badge: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-700' },
+  rejected: { label: '거절', badge: 'border-rose-500/30 bg-rose-500/12 text-rose-700' },
 }
 function statusMeta(s: string) {
-  return STATUS_META[s] || { label: s || '-', badge: 'border-slate-200 bg-[var(--panel-2)] text-slate-600' }
+  return STATUS_META[s] || { label: s || '-', badge: 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600' }
 }
 
 const ALL_PLANS = ['Plus', 'Pro', 'Max'] as const
 type PlanTier = (typeof ALL_PLANS)[number]
 
 const TRACK_META: Record<PlanTrack, { label: string; short: string; icon: typeof Megaphone; badge: string }> = {
-  marketer: { label: '마케터 전용', short: '마케터', icon: Megaphone, badge: 'border-violet-200 bg-violet-500/12 text-violet-700' },
-  video: { label: 'AI 영상 제작', short: '영상', icon: Video, badge: 'border-fuchsia-200 bg-fuchsia-500/12 text-fuchsia-700' },
+  marketer: { label: '마케터 전용', short: '마케터', icon: Megaphone, badge: 'border-violet-500/30 bg-violet-500/12 text-violet-700' },
+  video: { label: 'AI 영상 제작', short: '영상', icon: Video, badge: 'border-fuchsia-500/30 bg-fuchsia-500/12 text-fuchsia-700' },
 }
 
 function trackMeta(t: string) {
-  return TRACK_META[t as PlanTrack] || { label: t || '-', short: t || '-', icon: Megaphone, badge: 'border-slate-200 bg-[var(--panel-2)] text-slate-600' }
+  return TRACK_META[t as PlanTrack] || { label: t || '-', short: t || '-', icon: Megaphone, badge: 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600' }
 }
 
 function planLabel(plan: string) {
@@ -127,19 +127,19 @@ const ACT_META: Record<
   string,
   { label: string; badge: string; icon: typeof LogIn }
 > = {
-  login: { label: '로그인', badge: 'border-sky-200 bg-sky-500/12 text-sky-700', icon: LogIn },
-  password: { label: '비밀번호', badge: 'border-rose-200 bg-rose-500/12 text-rose-700', icon: KeyRound },
-  point: { label: '포인트', badge: 'border-emerald-200 bg-emerald-500/12 text-emerald-700', icon: Coins },
-  credit: { label: '크레딧', badge: 'border-violet-200 bg-violet-500/12 text-violet-700', icon: Wallet },
-  plan: { label: '플랜', badge: 'border-amber-200 bg-amber-500/12 text-amber-700', icon: Crown },
-  notify: { label: '알림', badge: 'border-fuchsia-200 bg-fuchsia-500/12 text-fuchsia-700', icon: Bell },
-  signup: { label: '가입', badge: 'border-green-200 bg-emerald-500/12 text-green-700', icon: Sparkles },
+  login: { label: '로그인', badge: 'border-sky-500/30 bg-sky-500/12 text-sky-700', icon: LogIn },
+  password: { label: '비밀번호', badge: 'border-rose-500/30 bg-rose-500/12 text-rose-700', icon: KeyRound },
+  point: { label: '포인트', badge: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-700', icon: Coins },
+  credit: { label: '크레딧', badge: 'border-violet-500/30 bg-violet-500/12 text-violet-700', icon: Wallet },
+  plan: { label: '플랜', badge: 'border-amber-500/30 bg-amber-500/12 text-amber-700', icon: Crown },
+  notify: { label: '알림', badge: 'border-fuchsia-500/30 bg-fuchsia-500/12 text-fuchsia-700', icon: Bell },
+  signup: { label: '가입', badge: 'border-emerald-500/30 bg-emerald-500/12 text-green-700', icon: Sparkles },
 }
 function actMeta(type: string) {
   return (
     ACT_META[type] || {
       label: type || '활동',
-      badge: 'border-slate-200 bg-[var(--panel-2)] text-slate-600',
+      badge: 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600',
       icon: Activity,
     }
   )
@@ -205,9 +205,9 @@ function RefUserList({ rows, empty }: { rows: RefUser[]; empty: string }) {
             <p className="truncate text-xs text-[var(--text-dim)]">{u.email}</p>
           </div>
           {u.paid ? (
-            <Badge className="border-emerald-200 bg-emerald-500/12 text-emerald-700">결제완료</Badge>
+            <Badge className="border-emerald-500/30 bg-emerald-500/12 text-emerald-700">결제완료</Badge>
           ) : (
-            <Badge className="border-slate-200 bg-[var(--panel-2)] text-slate-500">미결제</Badge>
+            <Badge className="border-[var(--border)] bg-[var(--panel-2)] text-slate-500">미결제</Badge>
           )}
         </li>
       ))}
@@ -601,11 +601,11 @@ export default function ProfilePage() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-xl font-bold tracking-tight">{user.name}</h2>
-                      <Badge className={PLAN_META[user.plan]?.badge || 'border-slate-200 bg-[var(--panel-2)] text-slate-600'}>
+                      <Badge className={PLAN_META[user.plan]?.badge || 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600'}>
                         <Crown size={12} /> {planLabel(user.plan)}
                       </Badge>
                       {user.role === 'admin' && (
-                        <Badge className="border-slate-300 bg-slate-900 text-white">
+                        <Badge className="border-[var(--border)] bg-slate-900 text-white">
                           <ShieldCheck size={12} /> 관리자
                         </Badge>
                       )}
@@ -720,8 +720,8 @@ export default function ProfilePage() {
                         <div
                           className={`mt-3 flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm ${
                             friendMsg.ok
-                              ? 'border-emerald-200 bg-emerald-500/15 text-emerald-700'
-                              : 'border-rose-200 bg-rose-500/12 text-rose-700'
+                              ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-700'
+                              : 'border-rose-500/30 bg-rose-500/12 text-rose-700'
                           }`}
                         >
                           {friendMsg.ok ? <Check size={15} /> : <AlertCircle size={15} />} {friendMsg.text}
@@ -794,12 +794,12 @@ export default function ProfilePage() {
                   </div>
 
                   {pwOk && (
-                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700">
+                    <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700">
                       <Check size={15} /> 비밀번호가 변경되었습니다
                     </div>
                   )}
                   {pwErr && (
-                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-700">
+                    <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-700">
                       <AlertCircle size={15} /> {pwErr}
                     </div>
                   )}
@@ -824,7 +824,7 @@ export default function ProfilePage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xl font-bold tracking-tight">{planLabel(plan)}</span>
-                          <Badge className={PLAN_META[plan]?.badge || 'border-slate-200 bg-[var(--panel-2)] text-slate-600'}>
+                          <Badge className={PLAN_META[plan]?.badge || 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600'}>
                             <Crown size={12} /> {planLabel(plan)}
                           </Badge>
                         </div>
@@ -849,7 +849,7 @@ export default function ProfilePage() {
                   })}
                 </div>
                 {user.videoPlan === 'Max' && (
-                  <p className="mt-4 flex items-center gap-1.5 rounded-xl border border-fuchsia-200 bg-fuchsia-500/12 px-3.5 py-2.5 text-xs text-fuchsia-700">
+                  <p className="mt-4 flex items-center gap-1.5 rounded-xl border border-fuchsia-500/30 bg-fuchsia-500/12 px-3.5 py-2.5 text-xs text-fuchsia-700">
                     <Video size={14} className="flex-shrink-0" /> AI 영상 Max 가입자는 홈에서 노드 스튜디오로 자동 이동합니다.
                   </p>
                 )}
@@ -880,8 +880,8 @@ export default function ProfilePage() {
                             onClick={() => setPlanTrack(t)}
                             className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors ${
                               active
-                                ? 'border-violet-300 bg-violet-500/12 text-violet-700'
-                                : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-violet-300'
+                                ? 'border-violet-500/40 bg-violet-500/12 text-violet-700'
+                                : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-violet-500/40'
                             }`}
                           >
                             <TIcon size={15} /> {tm.label}
@@ -893,7 +893,7 @@ export default function ProfilePage() {
 
                   <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm">
                     <span className="text-[var(--text-soft)]">현재 {TRACK_META[planTrack].label}</span>
-                    <Badge className={PLAN_META[curTier]?.badge || 'border-slate-200 bg-[var(--panel-2)] text-slate-600'}>
+                    <Badge className={PLAN_META[curTier]?.badge || 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600'}>
                       <Crown size={12} /> {planLabel(curTier)}
                     </Badge>
                   </div>
@@ -914,8 +914,8 @@ export default function ProfilePage() {
                               isCurrent
                                 ? 'cursor-not-allowed border-[var(--border-soft)] bg-[var(--panel-2)] text-[var(--text-dim)]'
                                 : active
-                                ? 'border-violet-300 bg-violet-500/12 text-violet-700'
-                                : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-violet-300'
+                                ? 'border-violet-500/40 bg-violet-500/12 text-violet-700'
+                                : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-violet-500/40'
                             }`}
                           >
                             {p}
@@ -939,12 +939,12 @@ export default function ProfilePage() {
                   </div>
 
                   {planOk && (
-                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700">
+                    <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700">
                       <Check size={15} /> 신청이 접수되었습니다. 관리자 승인 후 반영됩니다.
                     </div>
                   )}
                   {planErr && (
-                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-700">
+                    <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-700">
                       <AlertCircle size={15} /> {planErr}
                     </div>
                   )}
@@ -964,7 +964,7 @@ export default function ProfilePage() {
                 </form>
 
                 {toast && (
-                  <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700 animate-fade-in">
+                  <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700 animate-fade-in">
                     <Check size={15} /> {toast}
                   </div>
                 )}
@@ -1038,12 +1038,12 @@ export default function ProfilePage() {
                   </div>
 
                   {senderOk && (
-                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700">
+                    <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700">
                       <Check size={15} /> 발신번호가 접수되었습니다. 관리자 승인 후 사용할 수 있어요.
                     </div>
                   )}
                   {senderErr && (
-                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-700">
+                    <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-700">
                       <AlertCircle size={15} /> {senderErr}
                     </div>
                   )}
@@ -1109,8 +1109,8 @@ export default function ProfilePage() {
                             }}
                             className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                               active
-                                ? 'border-amber-300 bg-amber-500/12 text-amber-600'
-                                : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-amber-300 hover:text-amber-600'
+                                ? 'border-amber-500/40 bg-amber-500/12 text-amber-600'
+                                : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-amber-500/40 hover:text-amber-600'
                             }`}
                           >
                             +{ko(pkg.credits)} / {pkg.price.toLocaleString()}원
@@ -1143,12 +1143,12 @@ export default function ProfilePage() {
                   </div>
 
                   {creditOk && (
-                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700">
+                    <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700">
                       <Check size={15} /> 신청이 접수되었습니다. 관리자 승인 후 충전됩니다.
                     </div>
                   )}
                   {creditErr && (
-                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-700">
+                    <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-700">
                       <AlertCircle size={15} /> {creditErr}
                     </div>
                   )}
@@ -1214,7 +1214,7 @@ export default function ProfilePage() {
             >
               <button
                 onClick={() => setPayOpen(true)}
-                className="flex w-full items-center justify-between rounded-xl border border-[var(--border-soft)] bg-white px-4 py-3.5 text-left transition-colors hover:border-sky-300 hover:bg-sky-50/40"
+                className="flex w-full items-center justify-between rounded-xl border border-[var(--border-soft)] bg-white px-4 py-3.5 text-left transition-colors hover:border-sky-500/40 hover:bg-sky-50/40"
               >
                 <div>
                   <p className="text-sm font-semibold">플랜·크레딧 결제 내역 보기</p>
@@ -1249,7 +1249,7 @@ export default function ProfilePage() {
                       <li
                         key={n.id || i}
                         className={`flex items-start gap-3 rounded-xl border px-3.5 py-3 ${
-                          isUnread ? 'border-violet-200 bg-violet-50/50' : 'border-[var(--border-soft)] bg-white'
+                          isUnread ? 'border-violet-500/30 bg-violet-50/50' : 'border-[var(--border-soft)] bg-white'
                         }`}
                       >
                         <span
@@ -1318,7 +1318,7 @@ export default function ProfilePage() {
                   계정 삭제
                 </button>
               ) : (
-                <div className="mx-auto max-w-md rounded-xl border border-rose-200 bg-rose-50/40 p-4 text-left">
+                <div className="mx-auto max-w-md rounded-xl border border-rose-500/30 bg-rose-50/40 p-4 text-left">
                   <p className="flex items-center gap-1.5 text-sm font-semibold text-rose-600">
                     <Trash2 size={14} /> 계정 삭제
                   </p>
@@ -1347,7 +1347,7 @@ export default function ProfilePage() {
                       />
                     )}
                     {delErr && (
-                      <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-500/12 px-3 py-2 text-xs text-rose-700">
+                      <div className="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/12 px-3 py-2 text-xs text-rose-700">
                         <AlertCircle size={13} /> {delErr}
                       </div>
                     )}

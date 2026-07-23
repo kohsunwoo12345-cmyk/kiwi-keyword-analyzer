@@ -36,7 +36,7 @@ function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
         className={cn(
           'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all',
           homeActive
-            ? 'bg-gradient-to-r from-blue-50 to-transparent text-blue-700'
+            ? 'bg-gradient-to-r from-indigo-500/12 to-transparent text-indigo-600'
             : 'text-[var(--text-soft)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]',
         )}
       >
@@ -73,7 +73,7 @@ function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
         <Link
           href="/activate"
           onClick={onNavigate}
-          className="mt-4 flex items-center gap-2.5 rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-sm font-semibold text-blue-600 transition hover:bg-blue-500/15"
+          className="mt-4 flex items-center gap-2.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-2.5 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-500/15"
         >
           <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg brand-gradient text-white">
             <Sparkles size={14} />
@@ -146,11 +146,11 @@ function CategoryBlock({
                 className={cn(
                   'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-all',
                   active
-                    ? 'bg-indigo-500/12 text-blue-700'
+                    ? 'bg-indigo-500/12 text-indigo-600'
                     : 'text-[var(--text-soft)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]',
                 )}
               >
-                <ItIcon size={14} className={active ? 'text-blue-600' : 'text-[var(--text-dim)]'} />
+                <ItIcon size={14} className={active ? 'text-indigo-600' : 'text-[var(--text-dim)]'} />
                 <span className="truncate">{it.title}</span>
               </Link>
             )

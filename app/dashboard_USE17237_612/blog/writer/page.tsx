@@ -250,7 +250,7 @@ export default function BlogWriterPage() {
             )}
 
             {note && !loading && (
-              <div className="mb-3 rounded-xl border border-amber-200 bg-amber-500/12 px-3 py-2 text-xs text-amber-700">
+              <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/12 px-3 py-2 text-xs text-amber-700">
                 {note}
               </div>
             )}
@@ -290,7 +290,7 @@ export default function BlogWriterPage() {
                 {/* 추천 해시태그 */}
                 <div className="flex flex-wrap gap-2">
                   {result.tags.map((t) => (
-                    <Badge key={t} className="border-green-200 bg-emerald-500/12 text-green-700">
+                    <Badge key={t} className="border-emerald-500/30 bg-emerald-500/12 text-green-700">
                       #{t}
                     </Badge>
                   ))}
@@ -309,7 +309,7 @@ export default function BlogWriterPage() {
                 </div>
 
                 {copied && (
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700">
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700">
                     본문이 클립보드에 복사되었습니다.
                   </div>
                 )}
@@ -346,8 +346,8 @@ export default function BlogWriterPage() {
                       <Badge
                         className={cn(
                           d.platform === '네이버 블로그'
-                            ? 'border-green-200 bg-emerald-500/12 text-green-700'
-                            : 'border-amber-200 bg-amber-500/12 text-amber-700',
+                            ? 'border-emerald-500/30 bg-emerald-500/12 text-green-700'
+                            : 'border-amber-500/30 bg-amber-500/12 text-amber-700',
                         )}
                       >
                         {d.platform}
