@@ -275,8 +275,9 @@ export default function CreditsPage() {
       <div className="space-y-6 p-6 lg:p-8">
         {/* 1. Stat row */}
         <div className="grid gap-4 sm:grid-cols-3">
-          <div className="card hover-lift p-5">
-            <div className="flex items-start justify-between">
+          <div className="card hover-lift relative overflow-hidden p-5">
+            <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-amber-500/12 blur-3xl" />
+            <div className="relative flex items-start justify-between">
               <span className="text-sm text-[var(--text-soft)]">보유 크레딧</span>
               <span
                 className="grid h-9 w-9 place-items-center rounded-lg"
@@ -285,7 +286,7 @@ export default function CreditsPage() {
                 <Wallet size={17} />
               </span>
             </div>
-            <div className="mt-3 flex items-end justify-between">
+            <div className="relative mt-3 flex items-end justify-between">
               <span className="text-2xl font-bold tracking-tight">
                 {ready && user ? (
                   <Counter to={user.credits} />
@@ -376,7 +377,7 @@ export default function CreditsPage() {
                     : 'border-dashed border-[var(--border)] hover:border-amber-300 hover:bg-amber-50/40',
                 )}
               >
-                <span className="grid h-9 w-9 place-items-center rounded-lg bg-slate-100 text-slate-500">
+                <span className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--panel-2)] text-[var(--text-dim)]">
                   <Plus size={17} />
                 </span>
                 <p className="mt-3 text-sm font-semibold">직접 입력</p>
@@ -439,7 +440,7 @@ export default function CreditsPage() {
               {/* 충전 신청 (관리자 승인) */}
               <div className="flex flex-col rounded-2xl border border-[var(--border)] p-4">
                 <div className="flex items-start gap-3">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-500">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[var(--panel-2)] text-[var(--text-dim)]">
                     <Clock size={17} />
                   </span>
                   <div>
@@ -543,7 +544,7 @@ export default function CreditsPage() {
                       {requests.map((r, i) => {
                         const m = statusMeta(r.status)
                         return (
-                          <tr key={i} className="border-b border-[var(--border-soft)] hover:bg-slate-50">
+                          <tr key={i} className="border-b border-[var(--border-soft)] hover:bg-[var(--panel-2)]">
                             <td className="py-2.5 pr-3 whitespace-nowrap text-[var(--text-soft)]">
                               {fmtDate(r.created_at)}
                             </td>
@@ -593,7 +594,7 @@ export default function CreditsPage() {
                     {creditTx.map((t, i) => {
                       const plus = t.amount >= 0
                       return (
-                        <tr key={i} className="border-b border-[var(--border-soft)] hover:bg-slate-50">
+                        <tr key={i} className="border-b border-[var(--border-soft)] hover:bg-[var(--panel-2)]">
                           <td className="py-2.5 pr-3 whitespace-nowrap text-[var(--text-soft)]">
                             {fmtDate(t.created_at)}
                           </td>

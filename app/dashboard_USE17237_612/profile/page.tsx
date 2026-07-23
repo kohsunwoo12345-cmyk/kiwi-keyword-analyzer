@@ -165,7 +165,7 @@ function TxTable({ rows }: { rows: Tx[] }) {
           {rows.map((t, i) => {
             const plus = t.amount >= 0
             return (
-              <tr key={i} className="border-b border-[var(--border-soft)] hover:bg-slate-50">
+              <tr key={i} className="border-b border-[var(--border-soft)] hover:bg-[var(--panel-2)]">
                 <td className="py-2.5 pr-3 whitespace-nowrap text-[var(--text-soft)]">{fmtDate(t.created_at)}</td>
                 <td className="py-2.5 pr-3">{t.memo || '-'}</td>
                 <td
@@ -590,8 +590,10 @@ export default function ProfilePage() {
         ) : (
           <>
             {/* 1. 프로필 카드 */}
-            <div className="card p-6">
-              <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="card relative overflow-hidden p-6">
+              <div className="pointer-events-none absolute inset-0 opacity-[0.05] [background-image:linear-gradient(var(--text)_1px,transparent_1px),linear-gradient(90deg,var(--text)_1px,transparent_1px)] [background-size:26px_26px]" />
+              <div className="pointer-events-none absolute -right-20 -top-20 h-52 w-52 rounded-full bg-indigo-500/12 blur-3xl" />
+              <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-center gap-4">
                   <span className="grid h-16 w-16 flex-shrink-0 place-items-center rounded-full brand-gradient text-2xl font-bold text-white">
                     {(user.name || '?')[0]}
@@ -1282,7 +1284,7 @@ export default function ProfilePage() {
                     return (
                       <li
                         key={i}
-                        className="flex items-center gap-3 rounded-xl px-2 py-2.5 hover:bg-slate-50"
+                        className="flex items-center gap-3 rounded-xl px-2 py-2.5 hover:bg-[var(--panel-2)]"
                       >
                         <span className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg border ${m.badge}`}>
                           <Icon size={15} />
@@ -1353,7 +1355,7 @@ export default function ProfilePage() {
                       <button
                         type="button"
                         onClick={() => { setDelOpen(false); setDelPw(''); setDelEmail(''); setDelErr(null) }}
-                        className="flex-1 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-soft)] transition-colors hover:bg-slate-50"
+                        className="flex-1 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-soft)] transition-colors hover:bg-[var(--panel-2)]"
                       >
                         취소
                       </button>
@@ -1394,7 +1396,7 @@ export default function ProfilePage() {
                 type="button"
                 disabled={cancelBusy}
                 onClick={() => setCancelTrack(null)}
-                className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2 text-sm font-medium text-[var(--text-soft)] transition-colors hover:bg-slate-50 disabled:opacity-60"
+                className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2 text-sm font-medium text-[var(--text-soft)] transition-colors hover:bg-[var(--panel-2)] disabled:opacity-60"
               >
                 유지하기
               </button>
