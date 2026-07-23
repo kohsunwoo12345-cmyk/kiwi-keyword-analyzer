@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   X, Send, Users, UserPlus, Copy, Check, ChevronLeft, Search, Loader2, MessageCircle,
-  Settings, Camera, Pencil,
+  Settings, Camera, Pencil, Plus,
 } from 'lucide-react'
 import {
   useAuth, socialOverview, dmMessages, dmSend, dmSeen, teamMessages, teamSend, addFriend,
-  setChatProfile, setFriendAlias, uploadChatAvatar,
-  type SocialFriend, type SocialTeam, type SocialThread, type SocialPartner,
+  setChatProfile, setFriendAlias, uploadChatAvatar, uploadDmMedia, uploadTeamMedia,
+  type SocialFriend, type SocialTeam, type SocialThread, type SocialPartner, type ChatMediaOpts,
 } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -94,7 +94,7 @@ async function toAvatarBlob(file: File): Promise<{ blob: Blob; type: string }> {
 }
 
 // 통합 메시지 표현
-interface UiMsg { id: string; mine: boolean; name: string; text: string; at: string; unread?: boolean; avatar?: string }
+interface UiMsg { id: string; mine: boolean; name: string; text: string; at: string; unread?: boolean; avatar?: string; kind?: string; mediaUrl?: string; mediaName?: string }
 type Active = { type: 'dm'; id: string; name: string } | { type: 'team'; id: string; name: string }
 type View = 'list' | 'chat' | 'settings' | 'profile'
 
@@ -119,6 +119,7 @@ export function ChatDock() {
   const [messages, setMessages] = useState<UiMsg[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [loadingMsgs, setLoadingMsgs] = useState(false)
 
   const [friendQuery, setFriendQuery] = useState('')
@@ -182,6 +183,7 @@ export function ChatDock() {
             setMessages(d.messages.map((m) => ({
               id: m.id, mine: m.from_id === mid, name: cur.name, text: m.text, at: m.created_at,
               unread: m.from_id === mid && m.read_to === 0,
+              kind: m.kind || 'text', mediaUrl: m.media_key ? '/api/media/' + m.media_key : '', mediaName: m.media_name || '',
             })))
           }
         } else {
@@ -194,7 +196,10 @@ export function ChatDock() {
               const fresh = d.messages.filter((m) => !seen.has(m.id))
               if (!fresh.length) return prev
               afterRef.current = fresh[fresh.length - 1].created_at
-              return [...prev, ...fresh.map((m) => ({ id: m.id, mine: m.user_id === mid, name: m.name || '멤버', text: m.text, at: m.created_at }))]
+              return [...prev, ...fresh.map((m) => ({
+                id: m.id, mine: m.user_id === mid, name: m.name || '멤버', text: m.text, at: m.created_at,
+                kind: m.kind || 'text', mediaUrl: m.media_key ? '/api/media/' + m.media_key : '', mediaName: m.media_name || '',
+              }))]
             })
           }
         }
@@ -238,9 +243,33 @@ export function ChatDock() {
     setInput('')
     try {
       const res = cur.type === 'dm' ? await dmSend(cur.id, text) : await teamSend(cur.id, text)
-      if (!res.ok) { setMessages((prev) => prev.filter((m) => m.id !== tempId)); setInput(text); alert(res.error || '전송에 실패했습니다.') }
+      if (res.ok) { if (res.id) setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, id: res.id! } : m))) }
+      else { setMessages((prev) => prev.filter((m) => m.id !== tempId)); setInput(text); alert(res.error || '전송에 실패했습니다.') }
     } catch { setMessages((prev) => prev.filter((m) => m.id !== tempId)); setInput(text); alert('네트워크 오류가 발생했습니다.') }
     setSending(false)
+  }
+
+  // 사진·영상 첨부 (개인/단체 공용)
+  async function onAttach(file: File) {
+    const cur = active
+    if (!cur || uploading) return
+    setUploading(true)
+    try {
+      const up = cur.type === 'dm' ? await uploadDmMedia(cur.id, file) : await uploadTeamMedia(cur.id, file)
+      if (!up.ok || !up.key || !up.kind) { alert(up.error || '업로드에 실패했습니다.'); setUploading(false); return }
+      const caption = input.trim()
+      const media: ChatMediaOpts = { kind: up.kind, mediaKey: up.key, mediaName: up.name }
+      const tempId = 'tmp_' + Date.now()
+      setMessages((prev) => [...prev, {
+        id: tempId, mine: true, name: meName || '나', text: caption, at: new Date().toISOString(),
+        unread: cur.type === 'dm', kind: up.kind, mediaUrl: '/api/media/' + up.key, mediaName: up.name || '',
+      }])
+      setInput('')
+      const res = cur.type === 'dm' ? await dmSend(cur.id, caption, media) : await teamSend(cur.id, caption, media)
+      if (res.ok) { if (res.id) setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, id: res.id! } : m))) }
+      else { setMessages((prev) => prev.filter((m) => m.id !== tempId)); alert(res.error || '전송에 실패했습니다.') }
+    } catch { alert('업로드 중 오류가 발생했습니다.') }
+    setUploading(false)
   }
 
   async function onAddFriend() {
@@ -356,6 +385,7 @@ export function ChatDock() {
             <ChatView
               messages={messages} loading={loadingMsgs} isTeam={active.type === 'team'}
               input={input} setInput={setInput} onSend={onSend} sending={sending} endRef={endRef}
+              onAttach={onAttach} uploading={uploading}
             />
           ) : view === 'settings' ? (
             <div className="flex-1 overflow-y-auto bg-[var(--bg)] p-5">
@@ -532,14 +562,47 @@ export function ChatDock() {
   )
 }
 
-/* 대화 화면 — 날짜 구분선 + 연속 메시지 그룹핑 + 읽음 표시 */
+/* 채팅 말풍선 안쪽 — 텍스트/사진/영상 */
+function Bubble({ m }: { m: UiMsg }) {
+  const hasCaption = !!m.text
+  if (m.kind === 'image' && m.mediaUrl) {
+    return (
+      <div className={cn('flex flex-col gap-1', m.mine ? 'items-end' : 'items-start')}>
+        <a href={m.mediaUrl} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-2xl border border-[var(--border)]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={m.mediaUrl} alt={m.mediaName || '사진'} className="max-h-56 max-w-[220px] cursor-pointer object-cover" />
+        </a>
+        {hasCaption && <span className={cn('whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm', m.mine ? 'bg-blue-500 text-white' : 'border border-[var(--border)] bg-[var(--bg-soft)] text-[var(--text)]')}>{m.text}</span>}
+      </div>
+    )
+  }
+  if (m.kind === 'video' && m.mediaUrl) {
+    return (
+      <div className={cn('flex flex-col gap-1', m.mine ? 'items-end' : 'items-start')}>
+        <video src={m.mediaUrl} controls playsInline className="max-h-60 max-w-[240px] rounded-2xl border border-[var(--border)] bg-black" />
+        {hasCaption && <span className={cn('whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm', m.mine ? 'bg-blue-500 text-white' : 'border border-[var(--border)] bg-[var(--bg-soft)] text-[var(--text)]')}>{m.text}</span>}
+      </div>
+    )
+  }
+  return (
+    <div className={cn('whitespace-pre-wrap break-words px-3 py-2 text-sm leading-relaxed shadow-sm',
+      m.mine ? 'rounded-2xl rounded-tr-md bg-blue-500 text-white' : 'rounded-2xl rounded-tl-md border border-[var(--border)] bg-[var(--bg-soft)] text-[var(--text)]')}>
+      {m.text}
+    </div>
+  )
+}
+
+/* 대화 화면 — 날짜 구분선 + 연속 메시지 그룹핑 + 읽음 표시 + 사진/영상 첨부 */
 function ChatView({
-  messages, loading, isTeam, input, setInput, onSend, sending, endRef,
+  messages, loading, isTeam, input, setInput, onSend, sending, endRef, onAttach, uploading,
 }: {
   messages: UiMsg[]; loading: boolean; isTeam: boolean
   input: string; setInput: (v: string) => void; onSend: () => void; sending: boolean
   endRef: React.RefObject<HTMLDivElement>
+  onAttach: (f: File) => void; uploading: boolean
 }) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const busy = sending || uploading
   return (
     <>
       <div className="flex-1 space-y-1 overflow-y-auto bg-[var(--bg)] p-3">
@@ -553,7 +616,6 @@ function ChatView({
           messages.map((m, i) => {
             const prev = messages[i - 1]
             const showDay = !prev || dayKey(prev.at) !== dayKey(m.at)
-            // 같은 사람이 연속으로 보낸 경우 아바타/이름 생략(그룹핑)
             const grouped = !!prev && !showDay && prev.mine === m.mine && (isTeam ? prev.name === m.name : true)
             return (
               <div key={m.id}>
@@ -571,10 +633,7 @@ function ChatView({
                         {m.mine && m.unread && <span className="mb-0.5 text-[10px] font-bold text-amber-500">1</span>}
                         <span className="text-[10px] text-[var(--text-dim)]">{fmtTime(m.at)}</span>
                       </div>
-                      <div className={cn('whitespace-pre-wrap break-words px-3 py-2 text-sm leading-relaxed shadow-sm',
-                        m.mine ? 'rounded-2xl rounded-tr-md bg-blue-500 text-white' : 'rounded-2xl rounded-tl-md bg-[var(--bg-soft)] text-[var(--text)] border border-[var(--border)]')}>
-                        {m.text}
-                      </div>
+                      <Bubble m={m} />
                     </div>
                   </div>
                 </div>
@@ -585,10 +644,16 @@ function ChatView({
         <div ref={endRef} />
       </div>
       <div className="flex items-center gap-2 border-t border-[var(--border)] bg-[var(--bg-soft)] p-2.5">
+        <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; e.currentTarget.value = ''; if (f) onAttach(f) }} />
+        <button onClick={() => fileRef.current?.click()} disabled={busy} title="사진·영상 첨부"
+          className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full border border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] transition hover:border-blue-500 hover:text-blue-500 disabled:opacity-50" aria-label="첨부">
+          {uploading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={18} />}
+        </button>
         <input value={input} onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend() } }}
           placeholder="메시지 입력…" className="flex-1 rounded-full border border-[var(--border)] bg-[var(--panel-2)] px-4 py-2 text-sm outline-none focus:border-blue-500" />
-        <button onClick={onSend} disabled={sending || !input.trim()}
+        <button onClick={onSend} disabled={busy || !input.trim()}
           className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-blue-500 text-white transition hover:brightness-105 disabled:opacity-50" aria-label="보내기">
           {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
         </button>

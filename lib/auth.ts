@@ -574,7 +574,8 @@ export interface SocialOverview {
   meId?: string; meName?: string; meEmail?: string; myCode?: string; myAvatar?: string; myStatus?: string
   friends: SocialFriend[]; teams: SocialTeam[]; threads: SocialThread[]; totalUnread: number
 }
-export interface DmMessage { id: string; from_id: string; to_id: string; text: string; read_to: number; created_at: string }
+export interface DmMessage { id: string; from_id: string; to_id: string; text: string; kind?: string; media_key?: string | null; media_name?: string | null; read_to: number; created_at: string }
+export interface ChatMediaOpts { kind: 'image' | 'video'; mediaKey: string; mediaName?: string }
 
 export async function socialOverview(): Promise<SocialOverview> {
   try {
@@ -596,8 +597,17 @@ export async function dmMessages(friendId: string, after = '', seen = false): Pr
     return { ok: !!d.ok, messages: d.messages || [], meId: d.meId, partner: d.partner, error: d.error }
   } catch { return { ok: false, messages: [], error: '네트워크 오류' } }
 }
-export async function dmSend(toId: string, text: string): Promise<{ ok: boolean; id?: string; created_at?: string; error?: string }> {
-  return postJson('/api/social', { action: 'dm_send', toId, text })
+export async function dmSend(toId: string, text: string, media?: ChatMediaOpts): Promise<{ ok: boolean; id?: string; created_at?: string; error?: string }> {
+  return postJson('/api/social', { action: 'dm_send', toId, text, ...(media ? { kind: media.kind, mediaKey: media.mediaKey, mediaName: media.mediaName || '' } : {}) })
+}
+// 개인(DM) 채팅 사진/영상 업로드 → { kind, key, name }
+export async function uploadDmMedia(toId: string, file: File): Promise<{ ok: boolean; kind?: 'image' | 'video'; key?: string; name?: string; error?: string }> {
+  try {
+    const fd = new FormData(); fd.append('toId', toId); fd.append('file', file)
+    const r = await fetch('/api/social/upload', { method: 'POST', credentials: 'include', body: fd })
+    const d = await r.json().catch(() => ({}))
+    return { ok: !!d.ok, kind: d.kind, key: d.key, name: d.name, error: d.error }
+  } catch { return { ok: false, error: '네트워크 오류' } }
 }
 export async function dmSeen(friendId: string): Promise<{ ok: boolean }> {
   return postJson('/api/social', { action: 'dm_seen', friendId })
@@ -629,8 +639,17 @@ export async function teamMessages(teamId: string, after = ''): Promise<{ ok: bo
     return { ok: !!d.ok, messages: d.messages || [], meId: d.meId, error: d.error }
   } catch { return { ok: false, messages: [], error: '네트워크 오류' } }
 }
-export async function teamSend(teamId: string, text: string): Promise<{ ok: boolean; error?: string }> {
-  return postJson('/api/team', { action: 'send', teamId, text })
+export async function teamSend(teamId: string, text: string, media?: ChatMediaOpts): Promise<{ ok: boolean; id?: string; error?: string }> {
+  return postJson('/api/team', { action: 'send', teamId, text, ...(media ? { kind: media.kind, mediaKey: media.mediaKey, mediaName: media.mediaName || '' } : {}) })
+}
+// 팀(단체) 채팅 사진/영상 업로드 → { kind, key, name }
+export async function uploadTeamMedia(teamId: string, file: File): Promise<{ ok: boolean; kind?: 'image' | 'video'; key?: string; name?: string; error?: string }> {
+  try {
+    const fd = new FormData(); fd.append('teamId', teamId); fd.append('file', file)
+    const r = await fetch('/api/team/upload', { method: 'POST', credentials: 'include', body: fd })
+    const d = await r.json().catch(() => ({}))
+    return { ok: !!d.ok, kind: d.kind, key: d.key, name: d.name, error: d.error }
+  } catch { return { ok: false, error: '네트워크 오류' } }
 }
 
 /* ── 관리자: 가입/추천/결제 조회 ── */

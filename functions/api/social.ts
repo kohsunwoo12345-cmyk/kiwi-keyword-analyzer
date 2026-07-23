@@ -30,6 +30,10 @@ async function ensureSocialTables(db: D1Database) {
   ).run().catch(() => {})
   await db.prepare('CREATE INDEX IF NOT EXISTS idx_dm_conv ON dm_messages(conv_id, created_at)').run().catch(() => {})
   await db.prepare('CREATE INDEX IF NOT EXISTS idx_dm_to ON dm_messages(to_id, read_to)').run().catch(() => {})
+  // 미디어 첨부(사진·영상) 컬럼 — 없으면 추가
+  await db.prepare('ALTER TABLE dm_messages ADD COLUMN kind TEXT').run().catch(() => {})
+  await db.prepare('ALTER TABLE dm_messages ADD COLUMN media_key TEXT').run().catch(() => {})
+  await db.prepare('ALTER TABLE dm_messages ADD COLUMN media_name TEXT').run().catch(() => {})
   // 친구 별명(내가 보는 이름만 바꿈) — owner 가 friend 를 부르는 별명
   await db.prepare(
     `CREATE TABLE IF NOT EXISTS friend_aliases (
@@ -71,7 +75,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       await db.prepare('UPDATE dm_messages SET read_to = 1 WHERE conv_id = ? AND to_id = ? AND read_to = 0').bind(cid, me.id).run().catch(() => {})
     }
     const rows = (await db.prepare(
-      'SELECT id, from_id, to_id, text, read_to, created_at FROM dm_messages WHERE conv_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 300',
+      'SELECT id, from_id, to_id, text, kind, media_key, media_name, read_to, created_at FROM dm_messages WHERE conv_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 300',
     ).bind(cid, after).all()).results || []
     // 상대 프로필(사진·상태·별명) — 대화 헤더/프로필 카드용
     const fr: any = await db.prepare('SELECT id, name, email, chat_avatar, chat_status FROM users WHERE id = ?').bind(dm).first().catch(() => null)
@@ -102,16 +106,17 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   for (const fr of friends) {
     const cid = convId(me.id, fr.id)
     const last: any = await db.prepare(
-      'SELECT text, from_id, created_at FROM dm_messages WHERE conv_id = ? ORDER BY created_at DESC LIMIT 1',
+      'SELECT text, kind, from_id, created_at FROM dm_messages WHERE conv_id = ? ORDER BY created_at DESC LIMIT 1',
     ).bind(cid).first().catch(() => null)
     if (!last) continue
     const unreadRow: any = await db.prepare(
       'SELECT COUNT(*) AS c FROM dm_messages WHERE conv_id = ? AND to_id = ? AND read_to = 0',
     ).bind(cid, me.id).first().catch(() => ({ c: 0 }))
+    const preview = last.text || (last.kind === 'image' ? '사진' : last.kind === 'video' ? '동영상' : '')
     threads.push({
       friendId: fr.id, name: aliasMap[fr.id] || fr.name, realName: fr.name, alias: aliasMap[fr.id] || '',
       email: fr.email, avatar: fr.chat_avatar || '',
-      lastText: last.text, lastFromMe: last.from_id === me.id, lastAt: last.created_at,
+      lastText: preview, lastFromMe: last.from_id === me.id, lastAt: last.created_at,
       unread: Number(unreadRow?.c) || 0,
     })
   }
@@ -148,16 +153,23 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (action === 'dm_send') {
     const toId = String(b.toId || '').trim()
     const text = String(b.text || '').trim().slice(0, 2000)
-    if (!toId || !text) return json({ ok: false, error: '보낼 내용을 입력하세요.' }, 400)
+    const kind = ['image', 'video'].includes(String(b.kind)) ? String(b.kind) : 'text'
+    const mediaKey = String(b.mediaKey || '').slice(0, 300)
+    const mediaName = String(b.mediaName || '').slice(0, 120)
     if (toId === me.id) return json({ ok: false, error: '본인에게는 보낼 수 없습니다.' }, 400)
+    if (!toId) return json({ ok: false, error: '대상이 없습니다.' }, 400)
+    // 텍스트 메시지는 내용 필수, 미디어 메시지는 media_key 필수(캡션은 선택)
+    if (kind === 'text' && !text) return json({ ok: false, error: '보낼 내용을 입력하세요.' }, 400)
+    if (kind !== 'text' && !mediaKey) return json({ ok: false, error: '첨부 파일이 없습니다.' }, 400)
     if (!(await areFriends(db, me.id, toId))) return json({ ok: false, error: '친구만 대화할 수 있습니다.' }, 403)
     const cid = convId(me.id, toId)
     const id = uid('dm_')
     await db.prepare(
-      'INSERT INTO dm_messages (id, conv_id, from_id, to_id, text, read_to, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)',
-    ).bind(id, cid, me.id, toId, text, now).run()
+      'INSERT INTO dm_messages (id, conv_id, from_id, to_id, text, kind, media_key, media_name, read_to, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)',
+    ).bind(id, cid, me.id, toId, text, kind, kind === 'text' ? null : mediaKey, kind === 'text' ? null : mediaName, now).run()
     // 상대에게 알림(과도 방지: 실패해도 무시)
-    await addNotification(db, toId, `${me.name}님의 메시지 💬`, text.slice(0, 60)).catch(() => {})
+    const preview = text || (kind === 'image' ? '사진을 보냈어요' : kind === 'video' ? '동영상을 보냈어요' : '')
+    await addNotification(db, toId, `${me.name}님의 메시지 💬`, preview.slice(0, 60)).catch(() => {})
     return json({ ok: true, id, created_at: now })
   }
 
