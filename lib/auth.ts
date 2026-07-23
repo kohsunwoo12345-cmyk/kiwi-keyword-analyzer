@@ -1203,6 +1203,26 @@ export async function adminApprovals(): Promise<{
     return { ok: false, error: '네트워크 오류', planRequests: [], senderNumbers: [], pointRequests: [], creditRequests: [], teamOrders: [], signups: [], contacts: [], leads: [] }
   }
 }
+/* ───────── 관리자: 회원 채팅 기록 조회 (단체/개인) ───────── */
+export interface AdminChatTeam { id: string; name: string; memberCount: number; msgCount: number; lastText: string; lastAt: string }
+export interface AdminChatDm { id: string; name: string; participants: { id: string; name: string }[]; msgCount: number; lastText: string; lastAt: string }
+export interface AdminChatMsg { id: string; userId: string; name: string; text: string; kind: string; mediaUrl: string; mediaName: string; createdAt: string }
+export interface AdminChatConversation { type: 'team' | 'dm'; id: string; name: string; createdAt?: string; members?: { id: string; name: string; email?: string; role?: string }[] }
+export async function adminChatList(): Promise<{ ok: boolean; teams: AdminChatTeam[]; dms: AdminChatDm[]; error?: string }> {
+  try {
+    const r = await fetch('/api/admin/chats', { credentials: 'include', cache: 'no-store' })
+    const d = await r.json()
+    return { ok: !!d.ok, teams: d.teams || [], dms: d.dms || [], error: d.error }
+  } catch { return { ok: false, teams: [], dms: [], error: '네트워크 오류' } }
+}
+export async function adminChatMessages(type: 'team' | 'dm', id: string): Promise<{ ok: boolean; conversation?: AdminChatConversation; messages: AdminChatMsg[]; error?: string }> {
+  try {
+    const r = await fetch(`/api/admin/chats?type=${type}&id=${encodeURIComponent(id)}`, { credentials: 'include', cache: 'no-store' })
+    const d = await r.json()
+    return { ok: !!d.ok, conversation: d.conversation, messages: d.messages || [], error: d.error }
+  } catch { return { ok: false, messages: [], error: '네트워크 오류' } }
+}
+
 export async function adminApprovalAction(
   type: 'plan' | 'sender' | 'point' | 'credit' | 'team',
   id: string,
