@@ -573,6 +573,8 @@ body {
 }
 .dash-shell.site-dark ::-webkit-scrollbar-thumb { background: #2a2e39; }
 .dash-shell.site-dark ::-webkit-scrollbar-thumb:hover { background: #363b49; }
+/* 다크 모드에서 BYGENCY 워드마크를 흰색으로 (라이트는 기존 네이비 유지) */
+.dash-shell.site-dark .brand-wordmark { color: #ffffff; }
 
 /* 라이트: 정제된 밝은 톤(스튜디오 감성 유지) */
 .dash-shell.site-light {
