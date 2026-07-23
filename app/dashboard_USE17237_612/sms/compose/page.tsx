@@ -108,7 +108,7 @@ export default function SmsComposePage() {
 
       <div className="space-y-6 p-6 lg:p-8">
         {toast && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2.5 text-sm text-emerald-700 animate-fade-in">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700 animate-fade-in">
             {toast}
           </div>
         )}
@@ -197,7 +197,7 @@ export default function SmsComposePage() {
           {/* Preview */}
           <Panel title="미리보기">
             <div className="flex justify-center py-2">
-              <div className="w-full max-w-[280px] rounded-[2.2rem] border border-[var(--border)] bg-slate-50 p-3 shadow-sm">
+              <div className="w-full max-w-[280px] rounded-[2.2rem] border border-[var(--border)] bg-[var(--panel-2)] p-3 shadow-sm">
                 <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-300" />
                 <div className="rounded-2xl bg-white p-4">
                   <div className="mb-2 flex items-center gap-2">
@@ -217,7 +217,7 @@ export default function SmsComposePage() {
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5">
               {VARIABLES.map((v) => (
-                <Badge key={v} className="border-[var(--border)] bg-slate-50 text-[var(--text-soft)]">
+                <Badge key={v} className="border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)]">
                   {v} → {SAMPLE[v]}
                 </Badge>
               ))}

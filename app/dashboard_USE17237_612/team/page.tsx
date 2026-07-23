@@ -17,10 +17,10 @@ interface Task {
 
 const COLS = ['할 일', '진행 중', '완료']
 const TAG_COLORS: Record<string, string> = {
-  광고: 'bg-fuchsia-100 text-fuchsia-700',
-  콘텐츠: 'bg-violet-100 text-violet-700',
-  분석: 'bg-sky-100 text-sky-700',
-  디자인: 'bg-amber-100 text-amber-700',
+  광고: 'bg-fuchsia-500/15 text-fuchsia-700',
+  콘텐츠: 'bg-violet-500/15 text-violet-700',
+  분석: 'bg-sky-500/15 text-sky-700',
+  디자인: 'bg-amber-500/15 text-amber-700',
 }
 
 const SEED: Task[] = [

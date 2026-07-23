@@ -79,43 +79,43 @@ const PLAN_META: Record<
   { badge: string; perks: string[] }
 > = {
   '없음': {
-    badge: 'border-slate-200 bg-slate-50 text-slate-600',
+    badge: 'border-slate-200 bg-[var(--panel-2)] text-slate-600',
     perks: ['가입된 플랜이 없습니다', '플랜에 가입하고 더 많은 기능을 이용하세요'],
   },
   Plus: {
-    badge: 'border-sky-200 bg-sky-50 text-sky-700',
+    badge: 'border-sky-200 bg-sky-500/12 text-sky-700',
     perks: ['기본 기능 이용', '월 표준 사용량', '이메일 지원'],
   },
   Pro: {
-    badge: 'border-violet-200 bg-violet-50 text-violet-700',
+    badge: 'border-violet-200 bg-violet-500/12 text-violet-700',
     perks: ['확장 사용량', '우선 지원', '고급 기능 이용'],
   },
   Max: {
-    badge: 'border-amber-200 bg-amber-50 text-amber-700',
+    badge: 'border-amber-200 bg-amber-500/12 text-amber-700',
     perks: ['모든 Pro 기능', '최대 사용량', '전담 매니저', '최우선 지원'],
   },
 }
 
 /* ---------- request/sender status meta ---------- */
 const STATUS_META: Record<string, { label: string; badge: string }> = {
-  pending: { label: '대기', badge: 'border-amber-200 bg-amber-50 text-amber-700' },
-  approved: { label: '승인', badge: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
-  rejected: { label: '거절', badge: 'border-rose-200 bg-rose-50 text-rose-700' },
+  pending: { label: '대기', badge: 'border-amber-200 bg-amber-500/12 text-amber-700' },
+  approved: { label: '승인', badge: 'border-emerald-200 bg-emerald-500/12 text-emerald-700' },
+  rejected: { label: '거절', badge: 'border-rose-200 bg-rose-500/12 text-rose-700' },
 }
 function statusMeta(s: string) {
-  return STATUS_META[s] || { label: s || '-', badge: 'border-slate-200 bg-slate-50 text-slate-600' }
+  return STATUS_META[s] || { label: s || '-', badge: 'border-slate-200 bg-[var(--panel-2)] text-slate-600' }
 }
 
 const ALL_PLANS = ['Plus', 'Pro', 'Max'] as const
 type PlanTier = (typeof ALL_PLANS)[number]
 
 const TRACK_META: Record<PlanTrack, { label: string; short: string; icon: typeof Megaphone; badge: string }> = {
-  marketer: { label: '마케터 전용', short: '마케터', icon: Megaphone, badge: 'border-violet-200 bg-violet-50 text-violet-700' },
-  video: { label: 'AI 영상 제작', short: '영상', icon: Video, badge: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700' },
+  marketer: { label: '마케터 전용', short: '마케터', icon: Megaphone, badge: 'border-violet-200 bg-violet-500/12 text-violet-700' },
+  video: { label: 'AI 영상 제작', short: '영상', icon: Video, badge: 'border-fuchsia-200 bg-fuchsia-500/12 text-fuchsia-700' },
 }
 
 function trackMeta(t: string) {
-  return TRACK_META[t as PlanTrack] || { label: t || '-', short: t || '-', icon: Megaphone, badge: 'border-slate-200 bg-slate-50 text-slate-600' }
+  return TRACK_META[t as PlanTrack] || { label: t || '-', short: t || '-', icon: Megaphone, badge: 'border-slate-200 bg-[var(--panel-2)] text-slate-600' }
 }
 
 function planLabel(plan: string) {
@@ -127,19 +127,19 @@ const ACT_META: Record<
   string,
   { label: string; badge: string; icon: typeof LogIn }
 > = {
-  login: { label: '로그인', badge: 'border-sky-200 bg-sky-50 text-sky-700', icon: LogIn },
-  password: { label: '비밀번호', badge: 'border-rose-200 bg-rose-50 text-rose-700', icon: KeyRound },
-  point: { label: '포인트', badge: 'border-emerald-200 bg-emerald-50 text-emerald-700', icon: Coins },
-  credit: { label: '크레딧', badge: 'border-violet-200 bg-violet-50 text-violet-700', icon: Wallet },
-  plan: { label: '플랜', badge: 'border-amber-200 bg-amber-50 text-amber-700', icon: Crown },
-  notify: { label: '알림', badge: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700', icon: Bell },
-  signup: { label: '가입', badge: 'border-green-200 bg-green-50 text-green-700', icon: Sparkles },
+  login: { label: '로그인', badge: 'border-sky-200 bg-sky-500/12 text-sky-700', icon: LogIn },
+  password: { label: '비밀번호', badge: 'border-rose-200 bg-rose-500/12 text-rose-700', icon: KeyRound },
+  point: { label: '포인트', badge: 'border-emerald-200 bg-emerald-500/12 text-emerald-700', icon: Coins },
+  credit: { label: '크레딧', badge: 'border-violet-200 bg-violet-500/12 text-violet-700', icon: Wallet },
+  plan: { label: '플랜', badge: 'border-amber-200 bg-amber-500/12 text-amber-700', icon: Crown },
+  notify: { label: '알림', badge: 'border-fuchsia-200 bg-fuchsia-500/12 text-fuchsia-700', icon: Bell },
+  signup: { label: '가입', badge: 'border-green-200 bg-emerald-500/12 text-green-700', icon: Sparkles },
 }
 function actMeta(type: string) {
   return (
     ACT_META[type] || {
       label: type || '활동',
-      badge: 'border-slate-200 bg-slate-50 text-slate-600',
+      badge: 'border-slate-200 bg-[var(--panel-2)] text-slate-600',
       icon: Activity,
     }
   )
@@ -205,9 +205,9 @@ function RefUserList({ rows, empty }: { rows: RefUser[]; empty: string }) {
             <p className="truncate text-xs text-[var(--text-dim)]">{u.email}</p>
           </div>
           {u.paid ? (
-            <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">결제완료</Badge>
+            <Badge className="border-emerald-200 bg-emerald-500/12 text-emerald-700">결제완료</Badge>
           ) : (
-            <Badge className="border-slate-200 bg-slate-50 text-slate-500">미결제</Badge>
+            <Badge className="border-slate-200 bg-[var(--panel-2)] text-slate-500">미결제</Badge>
           )}
         </li>
       ))}
@@ -576,7 +576,7 @@ export default function ProfilePage() {
           </div>
         ) : !ok || !user ? (
           <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
-            <span className="grid h-14 w-14 place-items-center rounded-2xl bg-violet-50 text-violet-600">
+            <span className="grid h-14 w-14 place-items-center rounded-2xl bg-violet-500/12 text-violet-600">
               <Lock size={26} />
             </span>
             <div>
@@ -601,7 +601,7 @@ export default function ProfilePage() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-xl font-bold tracking-tight">{user.name}</h2>
-                      <Badge className={PLAN_META[user.plan]?.badge || 'border-slate-200 bg-slate-50 text-slate-600'}>
+                      <Badge className={PLAN_META[user.plan]?.badge || 'border-slate-200 bg-[var(--panel-2)] text-slate-600'}>
                         <Crown size={12} /> {planLabel(user.plan)}
                       </Badge>
                       {user.role === 'admin' && (
@@ -626,7 +626,7 @@ export default function ProfilePage() {
                   <div className="card-2 p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-[var(--text-soft)]">보유 포인트</span>
-                      <span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-50 text-emerald-600">
+                      <span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-500/12 text-emerald-600">
                         <Coins size={16} />
                       </span>
                     </div>
@@ -638,7 +638,7 @@ export default function ProfilePage() {
                   <div className="card-2 p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-[var(--text-soft)]">보유 크레딧</span>
-                      <span className="grid h-8 w-8 place-items-center rounded-lg bg-violet-50 text-violet-600">
+                      <span className="grid h-8 w-8 place-items-center rounded-lg bg-violet-500/12 text-violet-600">
                         <Wallet size={16} />
                       </span>
                     </div>
@@ -720,8 +720,8 @@ export default function ProfilePage() {
                         <div
                           className={`mt-3 flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm ${
                             friendMsg.ok
-                              ? 'border-emerald-200 bg-emerald-100 text-emerald-700'
-                              : 'border-rose-200 bg-rose-50 text-rose-700'
+                              ? 'border-emerald-200 bg-emerald-500/15 text-emerald-700'
+                              : 'border-rose-200 bg-rose-500/12 text-rose-700'
                           }`}
                         >
                           {friendMsg.ok ? <Check size={15} /> : <AlertCircle size={15} />} {friendMsg.text}
@@ -794,12 +794,12 @@ export default function ProfilePage() {
                   </div>
 
                   {pwOk && (
-                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2.5 text-sm text-emerald-700">
+                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700">
                       <Check size={15} /> 비밀번호가 변경되었습니다
                     </div>
                   )}
                   {pwErr && (
-                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
+                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-700">
                       <AlertCircle size={15} /> {pwErr}
                     </div>
                   )}
@@ -824,7 +824,7 @@ export default function ProfilePage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xl font-bold tracking-tight">{planLabel(plan)}</span>
-                          <Badge className={PLAN_META[plan]?.badge || 'border-slate-200 bg-slate-50 text-slate-600'}>
+                          <Badge className={PLAN_META[plan]?.badge || 'border-slate-200 bg-[var(--panel-2)] text-slate-600'}>
                             <Crown size={12} /> {planLabel(plan)}
                           </Badge>
                         </div>
@@ -849,7 +849,7 @@ export default function ProfilePage() {
                   })}
                 </div>
                 {user.videoPlan === 'Max' && (
-                  <p className="mt-4 flex items-center gap-1.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-3.5 py-2.5 text-xs text-fuchsia-700">
+                  <p className="mt-4 flex items-center gap-1.5 rounded-xl border border-fuchsia-200 bg-fuchsia-500/12 px-3.5 py-2.5 text-xs text-fuchsia-700">
                     <Video size={14} className="flex-shrink-0" /> AI 영상 Max 가입자는 홈에서 노드 스튜디오로 자동 이동합니다.
                   </p>
                 )}
@@ -880,7 +880,7 @@ export default function ProfilePage() {
                             onClick={() => setPlanTrack(t)}
                             className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors ${
                               active
-                                ? 'border-violet-300 bg-violet-50 text-violet-700'
+                                ? 'border-violet-300 bg-violet-500/12 text-violet-700'
                                 : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-violet-300'
                             }`}
                           >
@@ -893,7 +893,7 @@ export default function ProfilePage() {
 
                   <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm">
                     <span className="text-[var(--text-soft)]">현재 {TRACK_META[planTrack].label}</span>
-                    <Badge className={PLAN_META[curTier]?.badge || 'border-slate-200 bg-slate-50 text-slate-600'}>
+                    <Badge className={PLAN_META[curTier]?.badge || 'border-slate-200 bg-[var(--panel-2)] text-slate-600'}>
                       <Crown size={12} /> {planLabel(curTier)}
                     </Badge>
                   </div>
@@ -912,9 +912,9 @@ export default function ProfilePage() {
                             onClick={() => setToPlan(p)}
                             className={`rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors ${
                               isCurrent
-                                ? 'cursor-not-allowed border-[var(--border-soft)] bg-slate-50 text-[var(--text-dim)]'
+                                ? 'cursor-not-allowed border-[var(--border-soft)] bg-[var(--panel-2)] text-[var(--text-dim)]'
                                 : active
-                                ? 'border-violet-300 bg-violet-50 text-violet-700'
+                                ? 'border-violet-300 bg-violet-500/12 text-violet-700'
                                 : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-violet-300'
                             }`}
                           >
@@ -939,12 +939,12 @@ export default function ProfilePage() {
                   </div>
 
                   {planOk && (
-                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2.5 text-sm text-emerald-700">
+                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700">
                       <Check size={15} /> 신청이 접수되었습니다. 관리자 승인 후 반영됩니다.
                     </div>
                   )}
                   {planErr && (
-                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
+                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-700">
                       <AlertCircle size={15} /> {planErr}
                     </div>
                   )}
@@ -964,7 +964,7 @@ export default function ProfilePage() {
                 </form>
 
                 {toast && (
-                  <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2.5 text-sm text-emerald-700 animate-fade-in">
+                  <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700 animate-fade-in">
                     <Check size={15} /> {toast}
                   </div>
                 )}
@@ -1038,12 +1038,12 @@ export default function ProfilePage() {
                   </div>
 
                   {senderOk && (
-                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2.5 text-sm text-emerald-700">
+                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700">
                       <Check size={15} /> 발신번호가 접수되었습니다. 관리자 승인 후 사용할 수 있어요.
                     </div>
                   )}
                   {senderErr && (
-                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
+                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-700">
                       <AlertCircle size={15} /> {senderErr}
                     </div>
                   )}
@@ -1109,7 +1109,7 @@ export default function ProfilePage() {
                             }}
                             className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                               active
-                                ? 'border-amber-300 bg-amber-50 text-amber-600'
+                                ? 'border-amber-300 bg-amber-500/12 text-amber-600'
                                 : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-amber-300 hover:text-amber-600'
                             }`}
                           >
@@ -1143,12 +1143,12 @@ export default function ProfilePage() {
                   </div>
 
                   {creditOk && (
-                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2.5 text-sm text-emerald-700">
+                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700">
                       <Check size={15} /> 신청이 접수되었습니다. 관리자 승인 후 충전됩니다.
                     </div>
                   )}
                   {creditErr && (
-                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
+                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-700">
                       <AlertCircle size={15} /> {creditErr}
                     </div>
                   )}
@@ -1347,7 +1347,7 @@ export default function ProfilePage() {
                       />
                     )}
                     {delErr && (
-                      <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                      <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-500/12 px-3 py-2 text-xs text-rose-700">
                         <AlertCircle size={13} /> {delErr}
                       </div>
                     )}

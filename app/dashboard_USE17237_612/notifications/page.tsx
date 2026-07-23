@@ -63,7 +63,7 @@ export default function NotificationsPage() {
                           {n.body && <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-[var(--text-soft)]">{n.body}</p>}
                         </div>
                         {n.read
-                          ? <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-600"><CheckCircle2 size={12} /> 읽음</span>
+                          ? <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-[11px] font-semibold text-emerald-600"><CheckCircle2 size={12} /> 읽음</span>
                           : <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-indigo-500/12 px-2 py-0.5 text-[11px] font-semibold text-indigo-600"><Circle size={12} /> 새 알림</span>}
                       </div>
                       <div className="mt-2 flex items-center gap-3 text-[11px] text-[var(--text-dim)]">

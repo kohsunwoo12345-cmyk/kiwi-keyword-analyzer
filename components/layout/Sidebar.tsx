@@ -37,13 +37,13 @@ function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
           'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all',
           homeActive
             ? 'bg-gradient-to-r from-blue-50 to-transparent text-blue-700'
-            : 'text-[var(--text-soft)] hover:bg-slate-100 hover:text-[var(--text)]',
+            : 'text-[var(--text-soft)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]',
         )}
       >
         <span
           className={cn(
             'grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg',
-            homeActive ? 'brand-gradient text-white' : 'bg-slate-100 text-[var(--text-dim)]',
+            homeActive ? 'brand-gradient text-white' : 'bg-[var(--panel-2)] text-[var(--text-dim)]',
           )}
         >
           <HomeIcon size={15} />
@@ -107,7 +107,7 @@ function CategoryBlock({
         onClick={onToggle}
         className={cn(
           'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
-          hasActive ? 'text-[var(--text)]' : 'text-[var(--text-soft)] hover:bg-slate-100 hover:text-[var(--text)]',
+          hasActive ? 'text-[var(--text)]' : 'text-[var(--text-soft)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]',
         )}
       >
         <span
@@ -121,7 +121,7 @@ function CategoryBlock({
           <span
             className={cn(
               'rounded px-1.5 py-0.5 text-[9px] font-bold',
-              cat.badge === 'HOT' ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600',
+              cat.badge === 'HOT' ? 'bg-rose-500/15 text-rose-600' : 'bg-emerald-500/15 text-emerald-600',
             )}
           >
             {cat.badge}
@@ -146,8 +146,8 @@ function CategoryBlock({
                 className={cn(
                   'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-all',
                   active
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-[var(--text-soft)] hover:bg-slate-100 hover:text-[var(--text)]',
+                    ? 'bg-indigo-500/12 text-blue-700'
+                    : 'text-[var(--text-soft)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]',
                 )}
               >
                 <ItIcon size={14} className={active ? 'text-blue-600' : 'text-[var(--text-dim)]'} />
