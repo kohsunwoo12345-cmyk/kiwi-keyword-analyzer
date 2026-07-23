@@ -1,19 +1,25 @@
 'use client'
 
-import { useState } from 'react'
-import { Calendar, Plus } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  Calendar,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Users,
+  Trash2,
+  Globe,
+  Lock,
+  UserRound,
+} from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Panel, Button, Badge } from '@/components/ui'
-import { useLocalStorage } from '@/lib/useLocalStorage'
+import { Panel, Button } from '@/components/ui'
 
-interface CalEvent {
-  id: string
-  day: number // 1~31
-  title: string
-  color: ColorKey
-}
+const ACCENT = '#0ea5e9'
 
 type ColorKey = 'violet' | 'sky' | 'emerald' | 'amber' | 'rose'
+type Visibility = 'team' | 'private' | 'user'
 
 const COLORS: Record<ColorKey, { label: string; dot: string; pill: string }> = {
   violet: { label: '기획', dot: 'bg-violet-500', pill: 'border-violet-200 bg-violet-50 text-violet-700' },
@@ -23,62 +29,301 @@ const COLORS: Record<ColorKey, { label: string; dot: string; pill: string }> = {
   rose: { label: '회의', dot: 'bg-rose-500', pill: 'border-rose-200 bg-rose-50 text-rose-700' },
 }
 
-const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
-const TODAY = 12
-const FIRST_OFFSET = 3 // 2026년 7월 1일 = 수요일 (일=0 기준 3칸 비움)
-const DAYS_IN_MONTH = 31
+const VIS: Record<Visibility, { label: string; badge: string; cls: string; icon: typeof Globe }> = {
+  team: { label: '공유(전체)', badge: '공유(전체)', cls: 'border-sky-200 bg-sky-50 text-sky-700', icon: Globe },
+  private: { label: '나만', badge: '나만', cls: 'border-slate-200 bg-slate-50 text-slate-600', icon: Lock },
+  user: { label: '개별공유', badge: '개별공유', cls: 'border-amber-200 bg-amber-50 text-amber-700', icon: UserRound },
+}
 
-const SEED: CalEvent[] = [
-  { id: 'e1', day: 3, title: '월간 마케팅 전략 회의', color: 'rose' },
-  { id: 'e2', day: 14, title: '여름 세일 캠페인 시작', color: 'sky' },
-  { id: 'e3', day: 18, title: '블로그 콘텐츠 마감', color: 'amber' },
-  { id: 'e4', day: 22, title: '유튜브 숏폼 3편 업로드', color: 'emerald' },
-  { id: 'e5', day: 28, title: '8월 광고 예산 기획', color: 'violet' },
-]
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
+const MANAGE_HREF = '/dashboard_USE17237_612/team/manage'
+
+interface Member {
+  id: string
+  name: string
+  email: string
+  role: string
+}
+interface Team {
+  id: string
+  name: string
+  ownerId: string
+  role: string
+  members: Member[]
+}
+interface CalEvent {
+  id: string
+  owner_id: string
+  owner_name: string
+  d: string
+  title: string
+  color: ColorKey
+  memo: string
+  visibility: Visibility
+  target_user_id: string | null
+  created_at: string
+}
+
+function ymStr(y: number, m: number) {
+  return `${y}-${String(m).padStart(2, '0')}`
+}
+function todayISO() {
+  const p = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }) // YYYY-MM-DD
+  return p
+}
 
 export default function TeamCalendarPage() {
-  const [events, setEvents] = useLocalStorage<CalEvent[]>('bivience_events', SEED)
-  const [title, setTitle] = useState('')
-  const [day, setDay] = useState(15)
-  const [color, setColor] = useState<ColorKey>('sky')
+  const now = new Date()
+  const [loadingTeams, setLoadingTeams] = useState(true)
+  const [teams, setTeams] = useState<Team[]>([])
+  const [meId, setMeId] = useState('')
+  const [teamId, setTeamId] = useState('')
 
+  const [ym, setYm] = useState({ y: now.getFullYear(), m: now.getMonth() + 1 })
+  const [events, setEvents] = useState<CalEvent[]>([])
+  const [loadingEvents, setLoadingEvents] = useState(false)
+
+  // form state
+  const [fDate, setFDate] = useState(todayISO())
+  const [fTitle, setFTitle] = useState('')
+  const [fColor, setFColor] = useState<ColorKey>('sky')
+  const [fMemo, setFMemo] = useState('')
+  const [fVis, setFVis] = useState<Visibility>('team')
+  const [fTarget, setFTarget] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  const monthKey = ymStr(ym.y, ym.m)
+  const team = useMemo(() => teams.find((t) => t.id === teamId) || null, [teams, teamId])
+  const otherMembers = useMemo(
+    () => (team ? team.members.filter((m) => m.id !== meId) : []),
+    [team, meId],
+  )
+
+  // 1) load my teams
+  useEffect(() => {
+    let alive = true
+    fetch('/api/team', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive) return
+        if (d.ok) {
+          setTeams(d.teams || [])
+          setMeId(d.meId || '')
+          if ((d.teams || []).length) setTeamId(d.teams[0].id)
+        }
+        setLoadingTeams(false)
+      })
+      .catch(() => alive && setLoadingTeams(false))
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  // 3) load events for selected team + month
+  const loadEvents = useCallback(() => {
+    if (!teamId) return
+    setLoadingEvents(true)
+    fetch(`/api/team?calendar=${encodeURIComponent(teamId)}&month=${monthKey}`, {
+      credentials: 'include',
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.ok) setEvents(d.events || [])
+      })
+      .catch(() => {})
+      .finally(() => setLoadingEvents(false))
+  }, [teamId, monthKey])
+
+  useEffect(() => {
+    loadEvents()
+  }, [loadEvents])
+
+  // keep target member valid when team/members change
+  useEffect(() => {
+    if (fVis === 'user' && fTarget && !otherMembers.some((m) => m.id === fTarget)) setFTarget('')
+  }, [otherMembers, fVis, fTarget])
+
+  function shiftMonth(dir: -1 | 1) {
+    setYm((p) => {
+      let m = p.m + dir
+      let y = p.y
+      if (m < 1) { m = 12; y-- }
+      if (m > 12) { m = 1; y++ }
+      return { y, m }
+    })
+  }
+
+  function goToday() {
+    const n = new Date()
+    setYm({ y: n.getFullYear(), m: n.getMonth() + 1 })
+  }
+
+  // calendar grid
+  const firstOffset = new Date(ym.y, ym.m - 1, 1).getDay()
+  const daysInMonth = new Date(ym.y, ym.m, 0).getDate()
   const cells: (number | null)[] = [
-    ...Array.from({ length: FIRST_OFFSET }, () => null),
-    ...Array.from({ length: DAYS_IN_MONTH }, (_, i) => i + 1),
+    ...Array.from({ length: firstOffset }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ]
   while (cells.length % 7 !== 0) cells.push(null)
 
+  const iso = todayISO()
+  const dayStr = (d: number) => `${monthKey}-${String(d).padStart(2, '0')}`
   function eventsOn(d: number) {
-    return events.filter((e) => e.day === d)
+    const key = dayStr(d)
+    return events.filter((e) => e.d === key)
   }
 
-  function addEvent() {
-    if (!title.trim()) return
-    setEvents((prev) => [
-      ...prev,
-      { id: 'n' + Math.random().toString(36).slice(2, 7), day, title: title.trim(), color },
-    ])
-    setTitle('')
+  async function addEvent() {
+    setErr('')
+    if (!teamId) return
+    if (!fTitle.trim()) { setErr('제목을 입력하세요.'); return }
+    if (!fDate) { setErr('날짜를 선택하세요.'); return }
+    if (fVis === 'user' && !fTarget) { setErr('공유할 팀원을 선택하세요.'); return }
+    setSaving(true)
+    try {
+      const res = await fetch('/api/team', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'cal_add',
+          teamId,
+          d: fDate,
+          title: fTitle.trim(),
+          color: fColor,
+          memo: fMemo.trim() || undefined,
+          visibility: fVis,
+          targetUserId: fVis === 'user' ? fTarget : undefined,
+        }),
+      })
+      const d = await res.json()
+      if (!d.ok) { setErr(d.error || '일정 추가에 실패했습니다.'); return }
+      setFTitle('')
+      setFMemo('')
+      loadEvents()
+    } catch {
+      setErr('네트워크 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const upcoming = [...events].sort((a, b) => a.day - b.day).filter((e) => e.day >= TODAY)
+  async function delEvent(eventId: string) {
+    try {
+      const res = await fetch('/api/team', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cal_del', eventId }),
+      })
+      const d = await res.json()
+      if (d.ok) loadEvents()
+    } catch {
+      /* noop */
+    }
+  }
+
+  const monthEvents = useMemo(
+    () => [...events].sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0)),
+    [events],
+  )
+
+  // ---------- render ----------
+  if (loadingTeams) {
+    return (
+      <div className="animate-fade-in">
+        <PageHeader icon={Calendar} eyebrow="TEAM" title="집행 캘린더" desc="팀의 마케팅 집행 일정을 함께 관리하세요." accent={ACCENT} />
+        <div className="flex items-center justify-center py-24 text-[var(--text-dim)]">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> 불러오는 중...
+        </div>
+      </div>
+    )
+  }
+
+  if (!teams.length) {
+    return (
+      <div className="animate-fade-in">
+        <PageHeader icon={Calendar} eyebrow="TEAM" title="집행 캘린더" desc="팀의 마케팅 집행 일정을 함께 관리하세요." accent={ACCENT} />
+        <div className="p-6 lg:p-8">
+          <div className="card flex flex-col items-center justify-center gap-4 p-12 text-center">
+            <span className="grid h-14 w-14 place-items-center rounded-2xl" style={{ background: `${ACCENT}18`, color: ACCENT }}>
+              <Users size={26} />
+            </span>
+            <div>
+              <p className="text-lg font-semibold">아직 소속된 팀이 없습니다</p>
+              <p className="mt-1 text-sm text-[var(--text-soft)]">먼저 팀을 만들거나 초대를 수락하세요.</p>
+            </div>
+            <Button href={MANAGE_HREF} className="!bg-gradient-to-br !from-sky-500 !to-blue-500">
+              <Users size={16} /> 팀 관리로 이동
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="animate-fade-in">
       <PageHeader
         icon={Calendar}
-        eyebrow="팀 협업"
-        title="캘린더"
-        desc="팀의 캠페인 일정과 마감을 한눈에 관리하세요."
-        accent="#0ea5e9"
+        eyebrow="TEAM"
+        title="집행 캘린더"
+        desc="팀의 마케팅 집행 일정과 마감을 한눈에 관리하세요."
+        accent={ACCENT}
+        action={
+          teams.length > 1 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {teams.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTeamId(t.id)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    t.id === teamId
+                      ? 'border-sky-500 bg-sky-500 text-white'
+                      : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-sky-400'
+                  }`}
+                >
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          ) : undefined
+        }
       />
 
       <div className="grid gap-6 p-6 lg:grid-cols-[1fr_360px] lg:p-8">
         {/* Calendar grid */}
         <Panel
-          title="2026년 7월"
+          title={
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => shiftMonth(-1)}
+                className="grid h-7 w-7 place-items-center rounded-lg text-[var(--text-dim)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]"
+                aria-label="이전 달"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="min-w-[110px] text-center">{ym.y}년 {ym.m}월</span>
+              <button
+                onClick={() => shiftMonth(1)}
+                className="grid h-7 w-7 place-items-center rounded-lg text-[var(--text-dim)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]"
+                aria-label="다음 달"
+              >
+                <ChevronRight size={16} />
+              </button>
+              <button
+                onClick={goToday}
+                className="ml-1 rounded-lg border border-[var(--border)] px-2 py-1 text-[11px] text-[var(--text-soft)] hover:border-sky-400"
+              >
+                오늘
+              </button>
+              {loadingEvents && <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--text-dim)]" />}
+            </div>
+          }
           action={
-            <div className="flex flex-wrap gap-1.5">
+            <div className="hidden flex-wrap gap-1.5 sm:flex">
               {(Object.keys(COLORS) as ColorKey[]).map((k) => (
                 <span
                   key={k}
@@ -114,7 +359,7 @@ export default function TeamCalendarPage() {
                   <>
                     <div
                       className={`mb-1 inline-grid h-6 w-6 place-items-center rounded-full text-xs font-semibold ${
-                        d === TODAY
+                        dayStr(d) === iso
                           ? 'bg-sky-500 text-white'
                           : i % 7 === 0
                           ? 'text-rose-500'
@@ -129,10 +374,19 @@ export default function TeamCalendarPage() {
                       {eventsOn(d).map((e) => (
                         <div
                           key={e.id}
-                          className={`truncate rounded-md border px-1.5 py-0.5 text-[11px] leading-tight ${COLORS[e.color].pill}`}
-                          title={e.title}
+                          className={`group flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-tight ${COLORS[e.color]?.pill || COLORS.sky.pill}`}
+                          title={`${e.title}${e.memo ? '\n' + e.memo : ''}\n· ${e.owner_name} / ${VIS[e.visibility]?.label || ''}`}
                         >
-                          {e.title}
+                          <span className="truncate">{e.title}</span>
+                          {e.owner_id === meId && (
+                            <button
+                              onClick={() => delEvent(e.id)}
+                              className="ml-auto hidden shrink-0 text-current/70 hover:text-rose-600 group-hover:block"
+                              aria-label="일정 삭제"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -145,72 +399,162 @@ export default function TeamCalendarPage() {
 
         {/* Side panel */}
         <div className="space-y-6">
-          <Panel title="다가오는 일정">
-            {upcoming.length === 0 ? (
-              <p className="text-sm text-[var(--text-dim)]">예정된 일정이 없습니다.</p>
-            ) : (
-              <div className="space-y-2.5">
-                {upcoming.map((e) => (
-                  <div key={e.id} className="card-2 flex items-center gap-3 p-3">
-                    <div className="flex flex-col items-center">
-                      <span className={`grid h-9 w-9 place-items-center rounded-lg text-sm font-bold text-white ${COLORS[e.color].dot}`}>
-                        {e.day}
-                      </span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{e.title}</p>
-                      <span className="text-xs text-[var(--text-dim)]">7월 {e.day}일</span>
-                    </div>
-                    <Badge className={COLORS[e.color].pill}>{COLORS[e.color].label}</Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Panel>
-
-          <Panel title="새 일정">
+          <Panel title="새 집행 일정">
             <div className="space-y-3">
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addEvent()}
-                placeholder="일정 제목"
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500"
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-xs text-[var(--text-dim)]">날짜</label>
-                  <select
-                    value={day}
-                    onChange={(e) => setDay(Number(e.target.value))}
-                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500"
-                  >
-                    {Array.from({ length: DAYS_IN_MONTH }, (_, i) => i + 1).map((d) => (
-                      <option key={d} value={d}>
-                        7월 {d}일
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-[var(--text-dim)]">분류</label>
-                  <select
-                    value={color}
-                    onChange={(e) => setColor(e.target.value as ColorKey)}
-                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500"
-                  >
-                    {(Object.keys(COLORS) as ColorKey[]).map((k) => (
-                      <option key={k} value={k}>
-                        {COLORS[k].label}
-                      </option>
-                    ))}
-                  </select>
+              <div>
+                <label className="mb-1 block text-xs text-[var(--text-dim)]">날짜</label>
+                <input
+                  type="date"
+                  value={fDate}
+                  onChange={(e) => setFDate(e.target.value)}
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-[var(--text-dim)]">제목</label>
+                <input
+                  value={fTitle}
+                  onChange={(e) => setFTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addEvent()}
+                  placeholder="예: 여름 세일 광고 집행"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-[var(--text-dim)]">색상 (분류)</label>
+                <select
+                  value={fColor}
+                  onChange={(e) => setFColor(e.target.value as ColorKey)}
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500"
+                >
+                  {(Object.keys(COLORS) as ColorKey[]).map((k) => (
+                    <option key={k} value={k}>
+                      {COLORS[k].label} ({k})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-[var(--text-dim)]">메모 (선택)</label>
+                <textarea
+                  value={fMemo}
+                  onChange={(e) => setFMemo(e.target.value)}
+                  rows={2}
+                  placeholder="세부 내용이나 링크"
+                  className="w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-[var(--text-dim)]">공유 범위</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(['team', 'private', 'user'] as Visibility[]).map((v) => {
+                    const Icon = VIS[v].icon
+                    const on = fVis === v
+                    return (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setFVis(v)}
+                        className={`flex flex-col items-center gap-1 rounded-xl border px-2 py-2 text-[11px] font-medium transition-colors ${
+                          on
+                            ? 'border-sky-500 bg-sky-50 text-sky-700'
+                            : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-sky-400'
+                        }`}
+                      >
+                        <Icon size={15} />
+                        {v === 'team' ? '팀 전체' : v === 'private' ? '나만 보기' : '특정 팀원'}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
-              <Button onClick={addEvent} className="w-full !bg-gradient-to-br !from-sky-500 !to-blue-500">
-                <Plus size={16} /> 일정 추가
+              {fVis === 'user' && (
+                <div>
+                  <label className="mb-1 block text-xs text-[var(--text-dim)]">공유할 팀원</label>
+                  <select
+                    value={fTarget}
+                    onChange={(e) => setFTarget(e.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500"
+                  >
+                    <option value="">— 팀원 선택 —</option>
+                    {otherMembers.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.email})
+                      </option>
+                    ))}
+                  </select>
+                  {otherMembers.length === 0 && (
+                    <p className="mt-1 text-[11px] text-[var(--text-dim)]">공유할 팀원이 없습니다. 팀원을 초대하세요.</p>
+                  )}
+                </div>
+              )}
+              {err && <p className="text-xs text-rose-500">{err}</p>}
+              <Button
+                onClick={addEvent}
+                disabled={saving}
+                className="w-full !bg-gradient-to-br !from-sky-500 !to-blue-500"
+              >
+                {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} 일정 추가
               </Button>
             </div>
+          </Panel>
+
+          <Panel title="공유 범위 안내">
+            <div className="space-y-2">
+              {(['team', 'private', 'user'] as Visibility[]).map((v) => {
+                const Icon = VIS[v].icon
+                return (
+                  <div key={v} className="flex items-center gap-2 text-xs text-[var(--text-soft)]">
+                    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-medium ${VIS[v].cls}`}>
+                      <Icon size={11} /> {VIS[v].badge}
+                    </span>
+                    <span className="text-[var(--text-dim)]">
+                      {v === 'team' ? '팀원 모두에게 보입니다' : v === 'private' ? '나에게만 보입니다' : '지정한 팀원과 나에게만'}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </Panel>
+
+          <Panel title={`${ym.m}월 일정 (${monthEvents.length})`}>
+            {monthEvents.length === 0 ? (
+              <p className="text-sm text-[var(--text-dim)]">이 달에 등록된 일정이 없습니다.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {monthEvents.map((e) => {
+                  const Icon = VIS[e.visibility]?.icon || Globe
+                  const dd = Number(e.d.split('-')[2])
+                  return (
+                    <div key={e.id} className="card-2 flex items-center gap-3 p-3">
+                      <span
+                        className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg text-sm font-bold text-white ${COLORS[e.color]?.dot || COLORS.sky.dot}`}
+                      >
+                        {dd}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{e.title}</p>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                          <span className="text-[11px] text-[var(--text-dim)]">{e.owner_name}</span>
+                          <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${VIS[e.visibility]?.cls || ''}`}>
+                            <Icon size={9} /> {VIS[e.visibility]?.badge}
+                          </span>
+                        </div>
+                      </div>
+                      {e.owner_id === meId && (
+                        <button
+                          onClick={() => delEvent(e.id)}
+                          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[var(--text-dim)] hover:bg-rose-50 hover:text-rose-500"
+                          aria-label="일정 삭제"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </Panel>
         </div>
       </div>
