@@ -116,7 +116,7 @@ export const youtubeUnifiedPage = `<!DOCTYPE html>
   <aside class="sidebar" id="sidebar">
     <div class="sb-header">
       <div class="sb-logo">
-        <div class="sb-logo-icon">▶️</div>
+        <div class="sb-logo-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="#ffffff" aria-label="YouTube"><path d="M8 5v14l11-7z"/></svg></div>
         <div>
           <div class="sb-logo-text">YouTube</div>
           <div class="sb-logo-sub">마케팅 분석 도구</div>
