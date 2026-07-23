@@ -2988,15 +2988,20 @@ function depthPreview(srcUrl){
       ensureDepthModel().then(function(dep){
         return dep(c.toDataURL('image/png')).then(function(out){
           var dmp=out&&out.depth; if(!dmp||!dmp.data){ return segFallback(); }
-          var dw=dmp.width, dh=dmp.height, ch=dmp.channels||1, np=dw*dh, j;
-          // 모델 출력은 대비가 낮게 나올 수 있어 전체 다이내믹레인지로 재정규화(min~max→0~255)
-          //  + 약한 감마로 가까운 면을 또렷하게 → 레퍼런스처럼 선명한 깊이맵
-          var dmn=1e9, dmx=-1e9;
+          var dw=dmp.width, dh=dmp.height, ch=dmp.channels||1, np=dw*dh, j, kk;
+          // 아웃라이어에 강건한 백분위(2%~98%) 정규화 — 극단값 몇 픽셀에 대비가 눌리지 않고 피사체가
+          //  풀 컨트라스트로 나온다(min/max 정규화의 대비 압축 방지). + 약한 감마로 가까운 면 또렷.
+          var dmn=1e30, dmx=-1e30;
           for(j=0;j<np;j++){ var vv=dmp.data[j*ch]; if(vv<dmn)dmn=vv; if(vv>dmx)dmx=vv; }
-          var drng=(dmx-dmn)||1;
+          var span=(dmx-dmn)||1, HB=1024, dh2=new Int32Array(HB);
+          for(j=0;j<np;j++){ dh2[Math.min(HB-1,Math.max(0,((dmp.data[j*ch]-dmn)/span*(HB-1))|0))]++; }
+          var loN=Math.floor(np*0.02), hiN=Math.floor(np*0.98), acc=0, bLo=0, bHi=HB-1;
+          for(kk=0;kk<HB;kk++){ acc+=dh2[kk]; if(acc>=loN){ bLo=kk; break; } }
+          acc=0; for(kk=0;kk<HB;kk++){ acc+=dh2[kk]; if(acc>=hiN){ bHi=kk; break; } }
+          var vLo=dmn+(bLo/(HB-1))*span, vHi=dmn+(bHi/(HB-1))*span, vr=(vHi-vLo)||1;
           var tmp=document.createElement('canvas'); tmp.width=dw; tmp.height=dh; var tctx=tmp.getContext('2d');
           var idata=tctx.createImageData(dw,dh), od=idata.data;
-          for(j=0;j<np;j++){ var nv=(dmp.data[j*ch]-dmn)/drng; nv=Math.pow(nv,0.85); var v=Math.round(nv*255); od[j*4]=od[j*4+1]=od[j*4+2]=v; od[j*4+3]=255; }
+          for(j=0;j<np;j++){ var nv=(dmp.data[j*ch]-vLo)/vr; if(nv<0)nv=0; if(nv>1)nv=1; nv=Math.pow(nv,0.85); var v=Math.round(nv*255); od[j*4]=od[j*4+1]=od[j*4+2]=v; od[j*4+3]=255; }
           tctx.putImageData(idata,0,0); ctx.clearRect(0,0,W,H); ctx.drawImage(tmp,0,0,W,H);
           resolve(c.toDataURL('image/png'));
         });
