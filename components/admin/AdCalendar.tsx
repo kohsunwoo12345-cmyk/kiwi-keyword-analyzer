@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import {
   Plus, X, Share2, ChevronLeft, ChevronRight, Link2, TrendingUp, Receipt, Trophy,
 } from 'lucide-react'
+import { EmojiText } from '@/components/Emoji'
 
 // ── 공용 광고 집행/전개 캘린더 뷰 (광고주 모달·전개 캘린더 페이지 공용) ──
 // bucketId = 광고주 id 또는 "_cal_<calendarId>" · 이벤트는 /api/ad-campaigns 에 저장됨.
@@ -202,7 +203,7 @@ export function AdCalendar({ bucketId, title, subtitle, onToast, shareKind = 'ad
 }
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="mb-3"><label className="mb-1 block text-xs font-semibold text-slate-600">{label}</label>{children}</div>
+  return <div className="mb-3"><label className="mb-1 block text-xs font-semibold text-slate-600"><EmojiText>{label}</EmojiText></label>{children}</div>
 }
 
 export function Modal({ title, onClose, maxW, children }: { title: string; onClose: () => void; maxW: string; children: React.ReactNode }) {

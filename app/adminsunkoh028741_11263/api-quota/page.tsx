@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Gauge, RefreshCw, ExternalLink, Pencil, Check, X, CreditCard, Wifi, WifiOff, Stethoscope, CheckCircle2, XCircle, MinusCircle, Loader2 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel } from '@/components/ui'
+import { Emoji, EmojiText } from '@/components/Emoji'
 import { adminApiBalance, adminApiBalanceSet, adminSelfTest, type ApiProviderBalance, type SelfTestItem } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -75,9 +76,9 @@ export default function ApiQuotaPage() {
         <Panel className="mb-4" title={<span className="flex items-center gap-2"><Stethoscope size={16} className="text-violet-500" /> 생성 자가진단 {test?.summary && <span className="text-xs font-normal text-[var(--text-dim)]">· 성공 {test.summary.testedOk} · 실패 {test.summary.testedFail}</span>}</span>}>
           {test?.diag && (
             <div className={cn('mb-2 rounded-lg px-3 py-2 text-xs font-semibold', test.diag.openaiRelayConfigured ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>
-              OpenAI 릴레이: {test.diag.openaiRelayConfigured
+              OpenAI 릴레이: <EmojiText>{test.diag.openaiRelayConfigured
                 ? `✔ 적용됨 (경유: ${test.diag.openaiBaseHost})`
-                : `✘ 미적용 — 현재 직접 호출(${test.diag.openaiBaseHost}). OPENAI_RELAY_URL 이 배포에 안 잡힘 → Production 스코프 설정 + 재배포 필요`}
+                : `✘ 미적용 — 현재 직접 호출(${test.diag.openaiBaseHost}). OPENAI_RELAY_URL 이 배포에 안 잡힘 → Production 스코프 설정 + 재배포 필요`}</EmojiText>
             </div>
           )}
           {testing && !test ? (
@@ -166,7 +167,7 @@ export default function ApiQuotaPage() {
                 <div className="mt-2 border-t border-[var(--border-soft)] pt-1.5 text-[10px] text-[var(--text-dim)]">
                   {!p.keyConfigured ? <span className="text-rose-600">환경변수에 API 키를 설정하세요</span>
                     : p.source === 'live' ? `API 실시간 잔액 · 최근30일 소비 $${p.spent30Usd.toFixed(2)}`
-                    : <>이 앱 소비: 최근30일 ${p.spent30Usd.toFixed(2)} · 누적 ${p.spentUsd.toFixed(2)}{p.remainEstUsd == null ? ' · ✏️로 기준잔액 입력 시 남음 추정' : ''}
+                    : <>이 앱 소비: 최근30일 ${p.spent30Usd.toFixed(2)} · 누적 ${p.spentUsd.toFixed(2)}<EmojiText>{p.remainEstUsd == null ? ' · ✏️로 기준잔액 입력 시 남음 추정' : ''}</EmojiText>
                         {p.fetchError && <span className="block text-[var(--text-dim)]">· 실시간 잔액/검증은 일시 불가(키는 설정됨 · 릴레이·지역 제한 가능)</span>}</>}
                 </div>
               </>
@@ -180,7 +181,7 @@ export default function ApiQuotaPage() {
 
       <p className="mt-4 text-xs leading-relaxed text-[var(--text-dim)]">
         · <b>연동됨</b>: 환경변수에 API 키가 설정된 제공사. 가능한 경우 실제 API 를 호출해 <b>검증</b>까지 표시합니다(OpenAI·xAI·Google·Runway·Luma·ElevenLabs).<br />
-        · <b>잔액 실시간</b>: 잔액 조회 API 를 제공하는 곳만 자동 표시(Runway=크레딧, Luma=USD, ElevenLabs=문자 잔여). 그 외 제공사는 각사가 잔액 API 를 제공하지 않아 ✏️ 로 수동 입력합니다.<br />
+        · <b>잔액 실시간</b>: 잔액 조회 API 를 제공하는 곳만 자동 표시(Runway=크레딧, Luma=USD, ElevenLabs=문자 잔여). 그 외 제공사는 각사가 잔액 API 를 제공하지 않아 <Emoji e="✏️" /> 로 수동 입력합니다.<br />
         · <b>키 오류</b>는 잘못된 키·권한 문제, <b>키 없음</b>은 환경변수 미설정입니다. 충전 버튼은 각사 결제 페이지로 이동합니다.
       </p>
     </div>

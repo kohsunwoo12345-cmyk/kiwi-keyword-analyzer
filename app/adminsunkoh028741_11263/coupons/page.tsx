@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Ticket, Plus, RefreshCw, Power, Trash2, Percent, BadgePercent, Users, Coins, Loader2 } from 'lucide-react'
 import { MktCanvas, MktHeader, MktPanel, MktStat, MktButton, MktTag, mktTable } from '@/components/marketing/node'
 import { Reveal } from '@/components/motion'
+import { EmojiText } from '@/components/Emoji'
 import { adminCoupons, adminCouponCreate, adminCouponAction, type Coupon, type CouponRedemption } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -153,7 +154,7 @@ export default function AdminCouponsPage() {
                   </div>
                 </div>
 
-                {msg && <div className={cn('rounded-lg px-3 py-2 text-sm font-semibold', msg.ok ? 'bg-[#10b981]/15 text-[#8fe6b8]' : 'bg-[#ff9b9b]/12 text-[#ff9b9b]')}>{msg.text}</div>}
+                {msg && <div className={cn('rounded-lg px-3 py-2 text-sm font-semibold', msg.ok ? 'bg-[#10b981]/15 text-[#8fe6b8]' : 'bg-[#ff9b9b]/12 text-[#ff9b9b]')}><EmojiText>{msg.text}</EmojiText></div>}
                 <MktButton variant="solid" className="w-full" disabled={busy} onClick={create}>
                   {busy ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} 쿠폰 생성
                 </MktButton>

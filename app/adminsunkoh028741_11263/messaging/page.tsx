@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Send, Phone, Plus, RefreshCw, Check, X, Trash2, Loader2, MessageCircle, ShieldCheck, KeyRound, Mail } from 'lucide-react'
 import { MktCanvas, MktHeader, MktPanel, MktButton } from '@/components/marketing/node'
+import { EmojiText } from '@/components/Emoji'
 import { adminSenders, adminSenderAdd, adminSenderAction, kakaoChannels, kakaoChannelAuth, kakaoChannelAdd, kakaoCategories, adminSendEmail, type AdminSender, type KakaoChannel } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -55,7 +56,7 @@ function SenderSection() {
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="이름표(선택)" className="input w-28" />
         <MktButton onClick={add} disabled={busy}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} 등록</MktButton>
       </div>
-      {msg && <div className="mb-3 rounded-lg bg-white/[0.03] px-3 py-2 text-sm font-semibold text-[var(--mkt-text-soft)]">{msg}</div>}
+      {msg && <div className="mb-3 rounded-lg bg-white/[0.03] px-3 py-2 text-sm font-semibold text-[var(--mkt-text-soft)]"><EmojiText>{msg}</EmojiText></div>}
       {senders.length === 0 ? (
         <div className="py-8 text-center text-sm text-[var(--mkt-text-dim)]">{loading ? '불러오는 중…' : '등록된 발신번호가 없습니다.'}</div>
       ) : (
@@ -157,7 +158,7 @@ function KakaoSection() {
           </div>
         )}
       </div>
-      {msg && <div className="mt-3 rounded-lg bg-white/[0.03] px-3 py-2 text-sm font-semibold text-[var(--mkt-text-soft)]">{msg}</div>}
+      {msg && <div className="mt-3 rounded-lg bg-white/[0.03] px-3 py-2 text-sm font-semibold text-[var(--mkt-text-soft)]"><EmojiText>{msg}</EmojiText></div>}
     </MktPanel>
   )
 }
@@ -211,7 +212,7 @@ function EmailSection() {
       )}
       <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="이메일 제목" className="input mb-2 w-full" />
       <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={5} placeholder="이메일 내용. {이름} 은 회원 이름으로 치환됩니다." className="input w-full resize-none" />
-      {msg && <div className="mt-3 rounded-lg bg-white/[0.03] px-3 py-2 text-sm font-semibold text-[var(--mkt-text-soft)]">{msg}</div>}
+      {msg && <div className="mt-3 rounded-lg bg-white/[0.03] px-3 py-2 text-sm font-semibold text-[var(--mkt-text-soft)]"><EmojiText>{msg}</EmojiText></div>}
       <div className="mt-3 flex justify-end">
         <MktButton onClick={send} disabled={busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} 이메일 발송</MktButton>
       </div>

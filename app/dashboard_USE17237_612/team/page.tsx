@@ -4,6 +4,7 @@ import { useRef, useState, useEffect } from 'react'
 import { Users, Bot, Send, Plus, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button } from '@/components/ui'
+import { EmojiText } from '@/components/Emoji'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 
 interface Task {
@@ -194,7 +195,7 @@ export default function TeamPage() {
                       : 'bg-[var(--panel-2)] text-[var(--text-soft)]'
                   }`}
                 >
-                  {m.text}
+                  <EmojiText>{m.text}</EmojiText>
                 </div>
               </div>
             ))}

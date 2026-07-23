@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Zap, Plus, RefreshCw, MessageSquare, Mail, Send, Clock, Loader2, ArrowRight, Target, Users, Calendar, FlaskConical } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel } from '@/components/ui'
+import { EmojiText } from '@/components/Emoji'
 import { autoResponses, createAutoResponse, funnelGroups, crmPreview, crmSend, type AutoResponseRule, type FunnelGroup, type CrmPreview, type CrmCampaignRow } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -116,7 +117,7 @@ export default function AutomationPage() {
             )}
             <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={4} placeholder="발송할 메시지 내용을 입력하세요. (예: 신청 감사합니다! 곧 담당자가 연락드릴게요.)" className="input w-full resize-none" />
 
-            {msg && <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-[var(--text-soft)]">{msg}</div>}
+            {msg && <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-[var(--text-soft)]"><EmojiText>{msg}</EmojiText></div>}
 
             <button onClick={addRule} disabled={saving} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60">
               {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} 자동화 규칙 추가
@@ -234,7 +235,7 @@ function CrmCampaign() {
             <label className="mb-1 block text-xs font-bold text-[var(--text-dim)]"><Calendar size={12} className="mr-1 inline" /> 예약 발송 (한국시간, 비우면 즉시)</label>
             <input type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} className="input w-full" />
           </div>
-          {msg && <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-[var(--text-soft)]">{msg}</div>}
+          {msg && <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-[var(--text-soft)]"><EmojiText>{msg}</EmojiText></div>}
           <div className="flex gap-2">
             <div className="flex flex-1 gap-2">
               {isEmailCh
