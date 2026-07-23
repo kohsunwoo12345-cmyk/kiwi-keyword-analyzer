@@ -12,8 +12,8 @@ const ACCENT = '#6366f1'
 
 const typeColor: Record<string, string> = {
   SMS: 'border-indigo-200 bg-indigo-50 text-indigo-700',
-  LMS: 'border-sky-200 bg-sky-50 text-sky-700',
-  MMS: 'border-amber-200 bg-amber-50 text-amber-700',
+  LMS: 'border-sky-200 bg-sky-500/12 text-sky-700',
+  MMS: 'border-amber-200 bg-amber-500/12 text-amber-700',
 }
 function fmtDate(iso: string) {
   try { return new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) } catch { return iso }
@@ -120,7 +120,7 @@ export default function SmsLogsPage() {
                   </thead>
                   <tbody>
                     {logs.map((r) => (
-                      <tr key={r.id} className="border-b border-[var(--border-soft)] hover:bg-slate-50">
+                      <tr key={r.id} className="border-b border-[var(--border-soft)] hover:bg-[var(--panel-2)]">
                         <td className="whitespace-nowrap px-3 py-3 text-[var(--text-soft)]">{fmtDate(r.createdAt)}</td>
                         <td className="px-3 py-3"><Badge className={typeColor[r.type] || typeColor.SMS}>{r.type}</Badge></td>
                         <td className="max-w-[280px] truncate px-3 py-3 text-[var(--text-soft)]" title={r.text}>{r.text || '—'}</td>

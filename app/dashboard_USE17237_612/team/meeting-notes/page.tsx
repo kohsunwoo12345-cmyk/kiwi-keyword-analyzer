@@ -196,7 +196,7 @@ export default function MeetingNotesPage() {
               <p className="mt-1 text-sm text-[var(--text-dim)]">{selected.date}</p>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {selected.attendees.map((a) => (
-                  <Badge key={a} className="border-sky-200 bg-sky-50 text-sky-700">
+                  <Badge key={a} className="border-sky-200 bg-sky-500/12 text-sky-700">
                     {a}
                   </Badge>
                 ))}
@@ -221,7 +221,7 @@ export default function MeetingNotesPage() {
                   <h3 className="mb-2 text-sm font-semibold text-[var(--text-soft)]">결정사항</h3>
                   <ul className="space-y-1.5">
                     {selected.decisions.map((d, i) => (
-                      <li key={i} className="flex gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                      <li key={i} className="flex gap-2 rounded-lg bg-emerald-500/12 px-3 py-2 text-sm text-emerald-700">
                         <Check size={16} className="mt-0.5 flex-shrink-0" />
                         <span>{d}</span>
                       </li>
@@ -242,7 +242,7 @@ export default function MeetingNotesPage() {
                       <button
                         key={a.id}
                         onClick={() => toggleAction(selected.id, a.id)}
-                        className="flex w-full items-center gap-3 rounded-lg border border-[var(--border-soft)] px-3 py-2.5 text-left text-sm hover:bg-slate-50"
+                        className="flex w-full items-center gap-3 rounded-lg border border-[var(--border-soft)] px-3 py-2.5 text-left text-sm hover:bg-[var(--panel-2)]"
                       >
                         <span
                           className={`grid h-5 w-5 flex-shrink-0 place-items-center rounded-md border transition-colors ${

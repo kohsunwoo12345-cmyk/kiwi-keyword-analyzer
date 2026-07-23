@@ -256,7 +256,7 @@ export default function TeamChatPage() {
         />
         <div className="p-6 lg:p-8">
           <div className="card grid place-items-center gap-4 p-12 text-center">
-            <span className="grid h-16 w-16 place-items-center rounded-2xl bg-sky-50 text-sky-500">
+            <span className="grid h-16 w-16 place-items-center rounded-2xl bg-sky-500/12 text-sky-500">
               <Users size={30} />
             </span>
             <div>
@@ -438,7 +438,7 @@ export default function TeamChatPage() {
           {/* 작성 영역 */}
           <div className="border-t border-[var(--border)] p-3">
             {err && (
-              <p className="mb-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{err}</p>
+              <p className="mb-2 rounded-lg bg-rose-500/12 px-3 py-2 text-xs text-rose-600">{err}</p>
             )}
             <div className="flex gap-2">
               <input

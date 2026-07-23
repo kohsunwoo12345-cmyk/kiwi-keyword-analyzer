@@ -22,10 +22,10 @@ function mapStatus(s: string): '승인' | '검수중' | '등록됨' | '반려' {
   return '검수중'
 }
 const statusMeta: Record<string, { badge: string; icon: typeof Check }> = {
-  승인: { badge: 'border-emerald-200 bg-emerald-50 text-emerald-700', icon: Check },
-  검수중: { badge: 'border-amber-200 bg-amber-50 text-amber-700', icon: Clock },
-  등록됨: { badge: 'border-sky-200 bg-sky-50 text-sky-700', icon: Clock },
-  반려: { badge: 'border-rose-200 bg-rose-50 text-rose-700', icon: AlertCircle },
+  승인: { badge: 'border-emerald-200 bg-emerald-500/12 text-emerald-700', icon: Check },
+  검수중: { badge: 'border-amber-200 bg-amber-500/12 text-amber-700', icon: Clock },
+  등록됨: { badge: 'border-sky-200 bg-sky-500/12 text-sky-700', icon: Clock },
+  반려: { badge: 'border-rose-200 bg-rose-500/12 text-rose-700', icon: AlertCircle },
 }
 
 export default function AlimtalkTemplatesPage() {
@@ -133,7 +133,7 @@ export default function AlimtalkTemplatesPage() {
 
       <div className="space-y-6 p-6 lg:p-8">
         {msg && (
-          <div className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-sm ${msg.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+          <div className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-sm ${msg.ok ? 'border-emerald-200 bg-emerald-500/12 text-emerald-700' : 'border-rose-200 bg-rose-500/12 text-rose-700'}`}>
             {msg.ok ? <Check size={16} /> : <AlertCircle size={16} />} {msg.text}
           </div>
         )}
@@ -148,7 +148,7 @@ export default function AlimtalkTemplatesPage() {
                     <p className="text-sm font-semibold">{c.channelName || c.searchId || '채널'}</p>
                     <p className="text-xs text-[var(--text-dim)]">senderkey: <span className="font-mono">{c.channelId.slice(0, 14)}…</span>{c.phoneNumber ? ` · ${c.phoneNumber}` : ''}</p>
                   </div>
-                  <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700"><Check size={12} /> 사용중</Badge>
+                  <Badge className="border-emerald-200 bg-emerald-500/12 text-emerald-700"><Check size={12} /> 사용중</Badge>
                 </div>
               ))}
               <button onClick={() => setRegStep(regStep === 0 ? 1 : 0)} className="text-xs font-medium text-amber-600 hover:underline">+ 채널 추가 등록</button>

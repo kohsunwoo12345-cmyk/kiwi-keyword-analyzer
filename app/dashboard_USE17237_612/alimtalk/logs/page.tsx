@@ -90,7 +90,7 @@ export default function AlimtalkLogsPage() {
                     </thead>
                     <tbody>
                       {byTemplate.map((r) => (
-                        <tr key={r.template} className="border-b border-[var(--border-soft)] hover:bg-slate-50">
+                        <tr key={r.template} className="border-b border-[var(--border-soft)] hover:bg-[var(--panel-2)]">
                           <td className="max-w-[240px] truncate px-3 py-3 font-medium" title={r.template}>{r.template}</td>
                           <td className="px-3 py-3 text-[var(--text-soft)]">{formatNumber(r.recipients)}</td>
                           <td className="px-3 py-3 font-semibold text-emerald-600">{formatNumber(r.sent)}</td>
@@ -132,7 +132,7 @@ export default function AlimtalkLogsPage() {
                   </thead>
                   <tbody>
                     {logs.map((r) => (
-                      <tr key={r.id} className="border-b border-[var(--border-soft)] hover:bg-slate-50">
+                      <tr key={r.id} className="border-b border-[var(--border-soft)] hover:bg-[var(--panel-2)]">
                         <td className="whitespace-nowrap px-3 py-3 text-[var(--text-soft)]">{fmtDate(r.createdAt)}</td>
                         <td className="max-w-[160px] truncate px-3 py-3 text-[var(--text-soft)]" title={r.templateId}>{r.templateId || '—'}</td>
                         <td className="max-w-[260px] truncate px-3 py-3 text-[var(--text-soft)]" title={r.text}>{r.text || '—'}</td>

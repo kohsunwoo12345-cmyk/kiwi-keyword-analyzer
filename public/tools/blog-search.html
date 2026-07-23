@@ -9,39 +9,39 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:'Pretendard',-apple-system,sans-serif;background:#f0f4f8;color:#1e293b;min-height:100vh;}
+    body{font-family:'Inter','Pretendard','Noto Sans KR',-apple-system,sans-serif;background:#f0f4f8;color:#1e293b;min-height:100vh;}
     .wrap{display:flex;min-height:100vh;}
     .sidebar{width:248px;height:100vh;background:#fff;border-right:1px solid #e2e8f0;position:fixed;top:0;left:0;z-index:50;display:flex;flex-direction:column;overflow:hidden;transition:transform .25s;box-shadow:2px 0 8px rgba(0,0,0,.06);}
     .main-area{margin-left:248px;flex:1;display:flex;flex-direction:column;}
     .sb-header{padding:20px 18px 16px;border-bottom:1px solid #f1f5f9;}
     .sb-logo{display:flex;align-items:center;gap:10px;}
-    .sb-logo-icon{width:38px;height:38px;background:linear-gradient(135deg,#3b82f6,#6366f1);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+    .sb-logo-icon{width:38px;height:38px;background:linear-gradient(135deg,#6366f1,#4f46e5);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
     .sb-logo-text{font-size:16px;font-weight:900;color:#1e293b;line-height:1.2;}
     .sb-logo-sub{font-size:11px;color:#94a3b8;font-weight:400;}
     .sb-nav{padding:12px 0;flex:1;overflow-y:auto;}
     .sb-group{padding:6px 14px 4px;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.8px;text-transform:uppercase;}
     .sb-item{display:flex;align-items:center;gap:10px;padding:10px 16px;margin:2px 8px;border-radius:10px;cursor:pointer;transition:all .18s;font-size:14px;font-weight:500;color:#64748b;text-decoration:none;}
-    .sb-item:hover{background:#f1f5f9;color:#3b82f6;}
-    .sb-item.active{background:linear-gradient(135deg,#eff6ff,#eef2ff);color:#3b82f6;font-weight:700;}
+    .sb-item:hover{background:#f1f5f9;color:#6366f1;}
+    .sb-item.active{background:linear-gradient(135deg,#eff6ff,#eef2ff);color:#6366f1;font-weight:700;}
     .sb-icon{width:22px;height:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
     .sb-icon svg{width:18px;height:18px;stroke:#64748b;transition:stroke .18s;}
-    .sb-item:hover .sb-icon svg,.sb-item.active .sb-icon svg{stroke:#3b82f6;}
-    .sb-badge{margin-left:auto;background:#3b82f6;color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:20px;}
+    .sb-item:hover .sb-icon svg,.sb-item.active .sb-icon svg{stroke:#6366f1;}
+    .sb-badge{margin-left:auto;background:#6366f1;color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:20px;}
     .sb-footer{padding:16px;border-top:1px solid #f1f5f9;}
     .topbar{background:#fff;border-bottom:1px solid #e2e8f0;padding:14px 24px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:40;box-shadow:0 1px 4px rgba(0,0,0,.05);}
     .topbar-title{font-size:18px;font-weight:800;color:#1e293b;white-space:nowrap;}
     .global-search{flex:1;max-width:420px;display:flex;align-items:center;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;overflow:hidden;transition:border-color .2s;}
-    .global-search:focus-within{border-color:#3b82f6;background:#fff;}
+    .global-search:focus-within{border-color:#6366f1;background:#fff;}
     .global-search input{flex:1;padding:9px 14px;background:transparent;border:none;outline:none;font-size:14px;color:#1e293b;}
-    .global-search button{padding:9px 16px;background:#3b82f6;color:#fff;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:background .2s;}
-    .global-search button:hover{background:#2563eb;}
+    .global-search button{padding:9px 16px;background:#6366f1;color:#fff;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:background .2s;}
+    .global-search button:hover{background:#4f46e5;}
     .hamburger{display:none;background:none;border:none;cursor:pointer;padding:6px;color:#64748b;}
     .content{padding:24px;flex:1;}
     .card{background:#fff;border-radius:16px;padding:24px;box-shadow:0 1px 4px rgba(0,0,0,.06);border:1px solid #f1f5f9;margin-bottom:20px;}
     .card-sm{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #f1f5f9;}
     .section-header{display:flex;align-items:center;gap:10px;margin-bottom:20px;}
     .section-header h2{font-size:20px;font-weight:800;color:#1e293b;}
-    .section-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#eff6ff;color:#3b82f6;}
+    .section-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:#eff6ff;color:#6366f1;}
     .score-ring-wrap{position:relative;width:120px;height:120px;flex-shrink:0;}
     .score-ring-wrap svg{position:absolute;top:0;left:0;transform:rotate(-90deg);}
     .score-ring-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
@@ -54,8 +54,8 @@
     .prog-bar{height:100%;border-radius:4px;transition:width .6s ease;}
     .prog-val{font-size:12px;font-weight:700;color:#1e293b;width:36px;text-align:right;}
     .inp{width:100%;padding:11px 16px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;outline:none;transition:border-color .2s;background:#fff;color:#1e293b;}
-    .inp:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.1);}
-    .btn-primary{background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;border:none;padding:11px 24px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .2s;white-space:nowrap;}
+    .inp:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.1);}
+    .btn-primary{background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none;padding:11px 24px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .2s;white-space:nowrap;}
     .btn-primary:hover{opacity:.88;}
     .btn-secondary{background:#f1f5f9;color:#475569;border:none;padding:11px 20px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:background .2s;}
     .btn-secondary:hover{background:#e2e8f0;}
@@ -77,14 +77,14 @@
     .stat-item{background:#f8fafc;border-radius:12px;padding:14px;border:1px solid #f1f5f9;text-align:center;}
     .stat-val{font-size:24px;font-weight:900;color:#1e293b;}
     .stat-lbl{font-size:11px;color:#94a3b8;margin-top:3px;}
-    .spinner{width:40px;height:40px;border:3px solid #e2e8f0;border-top-color:#3b82f6;border-radius:50%;animation:spin .8s linear infinite;margin:30px auto;}
+    .spinner{width:40px;height:40px;border:3px solid #e2e8f0;border-top-color:#6366f1;border-radius:50%;animation:spin .8s linear infinite;margin:30px auto;}
     @keyframes spin{to{transform:rotate(360deg);}}
     .loading-area{text-align:center;padding:40px;color:#94a3b8;}
     .data-table{width:100%;border-collapse:collapse;}
     .data-table th{text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:#94a3b8;border-bottom:2px solid #f1f5f9;text-transform:uppercase;letter-spacing:.5px;}
     .data-table td{padding:12px 14px;border-bottom:1px solid #f8fafc;font-size:13px;color:#334155;}
     .data-table tr:hover td{background:#f8faff;}
-    .hero-section{background:linear-gradient(135deg,#3b82f6 0%,#6366f1 50%,#8b5cf6 100%);padding:40px 24px;color:#fff;margin:-24px -24px 24px;}
+    .hero-section{background:linear-gradient(135deg,#6366f1 0%,#6366f1 50%,#8b5cf6 100%);padding:40px 24px;color:#fff;margin:-24px -24px 24px;}
     .hero-title{font-size:28px;font-weight:900;margin-bottom:8px;}
     .hero-sub{font-size:15px;opacity:.85;margin-bottom:24px;}
     .hero-search{display:flex;background:rgba(255,255,255,.15);backdrop-filter:blur(10px);border:1.5px solid rgba(255,255,255,.3);border-radius:14px;overflow:hidden;max-width:560px;}
@@ -106,9 +106,9 @@
     }
     .tool-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;margin-bottom:24px;}
     .tool-card{background:#fff;border:1.5px solid #f1f5f9;border-radius:14px;padding:18px;cursor:pointer;transition:all .2s;text-align:center;}
-    .tool-card:hover{border-color:#bfdbfe;transform:translateY(-3px);box-shadow:0 8px 20px rgba(59,130,246,.12);}
+    .tool-card:hover{border-color:#bfdbfe;transform:translateY(-3px);box-shadow:0 8px 20px rgba(99,102,241,.12);}
     .tool-icon{width:36px;height:36px;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;}
-    .tool-icon svg{width:28px;height:28px;stroke:#3b82f6;}
+    .tool-icon svg{width:28px;height:28px;stroke:#6366f1;}
     .tool-name{font-size:13px;font-weight:700;color:#1e293b;}
     .tool-desc{font-size:11px;color:#94a3b8;margin-top:3px;}
     .evidence-item{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f8fafc;border-radius:10px;margin-bottom:8px;}
@@ -136,10 +136,10 @@
     .brt-login-gate{display:none;flex-direction:column;align-items:center;justify-content:center;padding:60px 24px;text-align:center;}
     .brt-login-gate.show{display:flex;}
     .brt-gate-icon{width:72px;height:72px;background:linear-gradient(135deg,#eff6ff,#eef2ff);border-radius:20px;display:flex;align-items:center;justify-content:center;margin-bottom:20px;}
-    .brt-gate-icon svg{width:36px;height:36px;stroke:#3b82f6;}
+    .brt-gate-icon svg{width:36px;height:36px;stroke:#6366f1;}
     .brt-gate-title{font-size:20px;font-weight:800;color:#1e293b;margin-bottom:8px;}
     .brt-gate-sub{font-size:14px;color:#64748b;line-height:1.6;margin-bottom:24px;}
-    .brt-gate-btn{background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;border:none;padding:13px 32px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block;transition:opacity .2s;}
+    .brt-gate-btn{background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none;padding:13px 32px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block;transition:opacity .2s;}
     .brt-gate-btn:hover{opacity:.88;}
     .brt-main-content{display:none;}
     .brt-main-content.show{display:block;}
@@ -318,7 +318,7 @@
               <div class="score-ring-wrap">
                 <svg width="120" height="120" viewBox="0 0 120 120">
                   <circle cx="60" cy="60" r="52" fill="none" stroke="#e2e8f0" stroke-width="10"/>
-                  <circle id="scoreRingCrank" cx="60" cy="60" r="52" fill="none" stroke="#3b82f6" stroke-width="10" stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="326.7"/>
+                  <circle id="scoreRingCrank" cx="60" cy="60" r="52" fill="none" stroke="#6366f1" stroke-width="10" stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="326.7"/>
                 </svg>
                 <div class="score-ring-inner"><div class="score-num" id="scoreNumCrank">0</div><div class="score-label">SEO 점수</div></div>
               </div>
@@ -333,7 +333,7 @@
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;" class="resp-2col">
             <div class="card">
               <div style="font-size:15px;font-weight:700;color:#1e293b;margin-bottom:14px;">세부 지표</div>
-              <div class="prog-row"><span class="prog-label">콘텐츠 품질</span><div class="prog-bar-bg"><div class="prog-bar" id="barQ" style="background:#3b82f6;width:0%"></div></div><span class="prog-val" id="valQ">0</span></div>
+              <div class="prog-row"><span class="prog-label">콘텐츠 품질</span><div class="prog-bar-bg"><div class="prog-bar" id="barQ" style="background:#6366f1;width:0%"></div></div><span class="prog-val" id="valQ">0</span></div>
               <div class="prog-row"><span class="prog-label">권위도</span><div class="prog-bar-bg"><div class="prog-bar" id="barA" style="background:#6366f1;width:0%"></div></div><span class="prog-val" id="valA">0</span></div>
               <div class="prog-row"><span class="prog-label">참여도</span><div class="prog-bar-bg"><div class="prog-bar" id="barE" style="background:#8b5cf6;width:0%"></div></div><span class="prog-val" id="valE">0</span></div>
               <div class="prog-row"><span class="prog-label">키워드 최적화</span><div class="prog-bar-bg"><div class="prog-bar" id="barKw" style="background:#06b6d4;width:0%"></div></div><span class="prog-val" id="valKw">0</span></div>
@@ -401,7 +401,7 @@
                 <div id="postTitle" style="font-size:18px;font-weight:900;color:#1e293b;margin-bottom:6px;line-height:1.4;">-</div>
                 <div style="font-size:13px;color:#64748b;display:flex;gap:16px;flex-wrap:wrap;">
                   <span>작성일: <strong id="postDate">-</strong></span>
-                  <span><a id="postUrlLink" href="#" target="_blank" style="color:#3b82f6;font-size:12px;">원문 보기</a></span>
+                  <span><a id="postUrlLink" href="#" target="_blank" style="color:#6366f1;font-size:12px;">원문 보기</a></span>
                 </div>
               </div>
               <div style="text-align:center;min-width:120px;">
@@ -429,7 +429,7 @@
             <div style="font-size:15px;font-weight:700;color:#1e293b;margin-bottom:14px;">SEO 세부 점수</div>
             <div style="margin-bottom:10px;">
               <div style="display:flex;justify-content:space-between;font-size:12px;color:#64748b;margin-bottom:4px;"><span>종합 SEO 점수</span><span id="postSeoNum">0</span></div>
-              <div style="background:#f1f5f9;border-radius:8px;height:10px;"><div id="postSeoBar" style="background:#3b82f6;height:100%;border-radius:8px;transition:width .6s;width:0%;"></div></div>
+              <div style="background:#f1f5f9;border-radius:8px;height:10px;"><div id="postSeoBar" style="background:#6366f1;height:100%;border-radius:8px;transition:width .6s;width:0%;"></div></div>
             </div>
           </div>
         </div>
@@ -478,10 +478,10 @@
           <div id="brtUsageBar" class="card" style="background:linear-gradient(135deg,#eff6ff,#f0fdf4);border:none;padding:14px 18px;margin-bottom:0;">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
               <span style="font-size:13px;font-weight:700;color:#1e293b;">이번 달 추적 등록</span>
-              <span id="brtUsageText" style="font-size:13px;font-weight:700;color:#3b82f6;">확인 중...</span>
+              <span id="brtUsageText" style="font-size:13px;font-weight:700;color:#6366f1;">확인 중...</span>
             </div>
             <div style="margin-top:8px;height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;">
-              <div id="brtUsageBar2" style="height:100%;background:linear-gradient(90deg,#3b82f6,#6366f1);border-radius:3px;width:0%;transition:width .4s;"></div>
+              <div id="brtUsageBar2" style="height:100%;background:linear-gradient(90deg,#6366f1,#4f46e5);border-radius:3px;width:0%;transition:width .4s;"></div>
             </div>
             <p id="brtUsageNote" style="font-size:11px;color:#64748b;margin-top:6px;">일반 사용자: 월 15회 / 관리자: 무제한</p>
           </div>
@@ -507,8 +507,8 @@
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
               <div style="font-size:15px;font-weight:700;color:#1e293b;">추적 중인 목록</div>
               <div style="display:flex;gap:8px;align-items:center;">
-                <button id="brtCheckBtn" onclick="checkMyRanks()" style="font-size:12px;color:#fff;background:#3b82f6;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-weight:600;">순위 지금 확인</button>
-                <button onclick="loadBrtList()" style="font-size:12px;color:#3b82f6;background:none;border:none;cursor:pointer;font-weight:600;">↺ 새로고침</button>
+                <button id="brtCheckBtn" onclick="checkMyRanks()" style="font-size:12px;color:#fff;background:#6366f1;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-weight:600;">순위 지금 확인</button>
+                <button onclick="loadBrtList()" style="font-size:12px;color:#6366f1;background:none;border:none;cursor:pointer;font-weight:600;">↺ 새로고침</button>
               </div>
             </div>
             <div id="brtLoading" style="text-align:center;padding:20px;color:#94a3b8;display:none;"><div class="spinner" style="margin:0 auto 8px;"></div>불러오는 중...</div>
@@ -666,7 +666,7 @@
         <div class="card">
           <div style="font-size:15px;font-weight:700;color:#1e293b;margin-bottom:14px;">📈 점수 계산 방식</div>
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;">
-            <div class="card-sm"><div style="font-size:12px;font-weight:700;color:#3b82f6;margin-bottom:6px;">① 활동성 (0~35점)</div><div style="font-size:12px;color:#64748b;">포스팅 빈도 + 최근 활동성<br>2일 이하 간격 = 35점 만점</div></div>
+            <div class="card-sm"><div style="font-size:12px;font-weight:700;color:#6366f1;margin-bottom:6px;">① 활동성 (0~35점)</div><div style="font-size:12px;color:#64748b;">포스팅 빈도 + 최근 활동성<br>2일 이하 간격 = 35점 만점</div></div>
             <div class="card-sm"><div style="font-size:12px;font-weight:700;color:#6366f1;margin-bottom:6px;">② 콘텐츠 품질 (0~30점)</div><div style="font-size:12px;color:#64748b;">글자수 + 이미지 포함 여부<br>3000자+ = 최대점수</div></div>
             <div class="card-sm"><div style="font-size:12px;font-weight:700;color:#8b5cf6;margin-bottom:6px;">③ 주제 집중도 (0~25점)</div><div style="font-size:12px;color:#64748b;">카테고리 수 (적을수록 높음)<br>1~2개 카테고리 = 최대점수</div></div>
             <div class="card-sm"><div style="font-size:12px;font-weight:700;color:#10b981;margin-bottom:6px;">④ 기초 점수 (0~10점)</div><div style="font-size:12px;color:#64748b;">블로그 존재 여부<br>RSS 포스트 존재 = 5점</div></div>
@@ -732,7 +732,7 @@ function renderScore(d){
   function setBar(id,vid,val){setTimeout(function(){document.getElementById(id).style.width=Math.min(100,val)+'%';},200);document.getElementById(vid).textContent=val;}
   setBar('barQ','valQ',d.quality_score||0);setBar('barA','valA',d.authority_score||0);setBar('barE','valE',d.engagement_score||0);setBar('barKw','valKw',d.keyword_optimization||0);setBar('barAct','valAct',d.c_rank||0);
   if(radarChartInst)radarChartInst.destroy();
-  radarChartInst=new Chart(document.getElementById('radarChart'),{type:'radar',data:{labels:['콘텐츠','권위도','참여도','키워드','활동성'],datasets:[{label:'내 블로그',data:[d.quality_score||0,d.authority_score||0,d.engagement_score||0,d.keyword_optimization||0,d.c_rank||0],backgroundColor:'rgba(59,130,246,.15)',borderColor:'#3b82f6',pointBackgroundColor:'#3b82f6',borderWidth:2}]},options:{scales:{r:{min:0,max:100,ticks:{font:{size:10}},grid:{color:'#f1f5f9'}}},plugins:{legend:{display:false}}}});
+  radarChartInst=new Chart(document.getElementById('radarChart'),{type:'radar',data:{labels:['콘텐츠','권위도','참여도','키워드','활동성'],datasets:[{label:'내 블로그',data:[d.quality_score||0,d.authority_score||0,d.engagement_score||0,d.keyword_optimization||0,d.c_rank||0],backgroundColor:'rgba(99,102,241,.15)',borderColor:'#6366f1',pointBackgroundColor:'#6366f1',borderWidth:2}]},options:{scales:{r:{min:0,max:100,ticks:{font:{size:10}},grid:{color:'#f1f5f9'}}},plugins:{legend:{display:false}}}});
   nextGradeTarget(score);
   var gap=d.posting_gap_days||14;var cat=d.category_diversity||0;var ins=[];
   if(gap<=2)ins.push('📈 포스팅 빈도가 매우 높습니다 ('+gap+'일 간격). 최고 등급 달성에 유리합니다.');
@@ -850,7 +850,7 @@ function analyzePost(){
 
     // 개선 제안 - 등급에 따른 체계적 표시
     var sugs=d.suggestions||[];
-    var sugColors={'🔴':['#fff1f2','#ef4444'],'⚠️':['#fffbeb','#f59e0b'],'✅':['#f0fdf4','#10b981'],'💡':['#eff6ff','#3b82f6']};
+    var sugColors={'🔴':['#fff1f2','#ef4444'],'⚠️':['#fffbeb','#f59e0b'],'✅':['#f0fdf4','#10b981'],'💡':['#eff6ff','#6366f1']};
     document.getElementById('postSuggestions').innerHTML=sugs.map(function(s,i){
       var icon=i<2&&seoScore<50?'🔴':seoScore<70?'⚠️':'✅';
       var colors=sugColors[icon]||['#f8fafc','#64748b'];
@@ -881,7 +881,7 @@ function makeCompCard(d,label){var g=getGrade(d.blenp_score||0);return '<div sty
 function renderComp(my,rv){
   document.getElementById('compMyCard').innerHTML=makeCompCard(my,'내 블로그');document.getElementById('compRivalCard').innerHTML=makeCompCard(rv,'경쟁 블로그');
   if(compRadarInst)compRadarInst.destroy();
-  compRadarInst=new Chart(document.getElementById('compRadarChart'),{type:'radar',data:{labels:['콘텐츠','권위도','참여도','키워드','활동성'],datasets:[{label:'내 블로그',data:[my.quality_score||0,my.authority_score||0,my.engagement_score||0,my.keyword_optimization||0,my.c_rank||0],backgroundColor:'rgba(59,130,246,.15)',borderColor:'#3b82f6',borderWidth:2,pointBackgroundColor:'#3b82f6'},{label:'경쟁 블로그',data:[rv.quality_score||0,rv.authority_score||0,rv.engagement_score||0,rv.keyword_optimization||0,rv.c_rank||0],backgroundColor:'rgba(239,68,68,.1)',borderColor:'#ef4444',borderWidth:2,pointBackgroundColor:'#ef4444'}]},options:{scales:{r:{min:0,max:100,ticks:{font:{size:10}},grid:{color:'#f1f5f9'}}},plugins:{legend:{position:'top'}}}});
+  compRadarInst=new Chart(document.getElementById('compRadarChart'),{type:'radar',data:{labels:['콘텐츠','권위도','참여도','키워드','활동성'],datasets:[{label:'내 블로그',data:[my.quality_score||0,my.authority_score||0,my.engagement_score||0,my.keyword_optimization||0,my.c_rank||0],backgroundColor:'rgba(99,102,241,.15)',borderColor:'#6366f1',borderWidth:2,pointBackgroundColor:'#6366f1'},{label:'경쟁 블로그',data:[rv.quality_score||0,rv.authority_score||0,rv.engagement_score||0,rv.keyword_optimization||0,rv.c_rank||0],backgroundColor:'rgba(239,68,68,.1)',borderColor:'#ef4444',borderWidth:2,pointBackgroundColor:'#ef4444'}]},options:{scales:{r:{min:0,max:100,ticks:{font:{size:10}},grid:{color:'#f1f5f9'}}},plugins:{legend:{position:'top'}}}});
   var ms=my.blenp_score||0;var rs=rv.blenp_score||0;var w=ms>=rs?'내 블로그':'경쟁 블로그';var df=Math.abs(ms-rs);
   document.getElementById('compInsight').innerHTML='📊 <strong>'+esc(w)+'</strong>가 '+df+'점 앞서 있습니다. '+(ms>=rs?'경쟁우위를 유지하면서 콘텐츠 품질을 높이면 격차를 더 벌릴 수 있습니다.':'포스팅 빈도를 늘리고 주제 집중도를 높이면 역전 가능합니다.');
 }
@@ -931,7 +931,7 @@ function renderKwRank(d){
   listEl.innerHTML=blogs.map(function(b,bi){
     var rc=b.rank===1?'top1':b.rank===2?'top2':b.rank===3?'top3':'';
     var thumbHtml=b.thumbnail?'<div style="flex-shrink:0;width:80px;height:60px;border-radius:8px;overflow:hidden;background:#f1f5f9;margin-right:12px;"><img src="'+esc(b.thumbnail)+'" style="width:100%;height:100%;object-fit:cover;" onerror="hideImgParent(this)"/></div>':'';
-    var rssInfo=b.rss_posts>0?'<span style="font-size:11px;background:#eff6ff;color:#3b82f6;padding:2px 8px;border-radius:10px;">📊 RSS '+b.rss_posts+'개 포스트</span>':'';
+    var rssInfo=b.rss_posts>0?'<span style="font-size:11px;background:#eff6ff;color:#6366f1;padding:2px 8px;border-radius:10px;">📊 RSS '+b.rss_posts+'개 포스트</span>':'';
     var gapInfo=b.posting_gap>0&&b.posting_gap<99?'<span style="font-size:11px;background:#f0fdf4;color:#15803d;padding:2px 8px;border-radius:10px;">📅 '+b.posting_gap+'일 간격</span>':'';
     // 지수 출처 배지: 실측 vs 추정
     var blenpSrcInfo=b.data_source==='naver_rss_real'
@@ -954,11 +954,11 @@ function renderKwRank(d){
       ? topKwDetail.map(function(kd){
           var sz=kd.count>=5?13:kd.count>=3?12:11;
           var bg=kd.count>=5?'#dbeafe':kd.count>=3?'#eff6ff':'#f8fafc';
-          var co=kd.count>=5?'#1d4ed8':kd.count>=3?'#3b82f6':'#64748b';
+          var co=kd.count>=5?'#1d4ed8':kd.count>=3?'#6366f1':'#64748b';
           var fw=kd.count>=3?700:500;
           return '<span style="font-size:'+sz+'px;background:'+bg+';color:'+co+';padding:3px 9px;border-radius:12px;font-weight:'+fw+';">'+esc(kd.word)+'<span style="font-size:10px;opacity:.7;margin-left:3px;">'+kd.count+'</span></span>';
         }).join('')
-      : allKws.map(function(w){return '<span style="font-size:11px;background:#eff6ff;color:#3b82f6;padding:2px 8px;border-radius:10px;">'+esc(w)+'</span>';}).join('');
+      : allKws.map(function(w){return '<span style="font-size:11px;background:#eff6ff;color:#6366f1;padding:2px 8px;border-radius:10px;">'+esc(w)+'</span>';}).join('');
     var descHtml=b.description?'<div style="margin-top:10px;"><div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px;">📄 포스트 요약</div><div style="font-size:12px;color:#475569;line-height:1.6;background:#f8fafc;border-radius:8px;padding:10px;">'+esc(b.description)+'</div></div>':'';
     var detailHtml='<div id="'+detailId+'" style="display:none;margin-top:14px;padding-top:14px;border-top:1px dashed #e2e8f0;"><div style="margin-bottom:10px;"><div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px;">📌 이 포스트에서 자주 쓴 키워드 ('+allKws.length+'개)</div><div style="display:flex;flex-wrap:wrap;gap:6px;">'+kwTagsHtml+'</div></div>'+descHtml+'</div>';
     var arrowBtn='<button class="kwd-toggle-btn" data-target="'+detailId+'" style="background:none;border:1px solid #e2e8f0;border-radius:8px;padding:4px 10px;cursor:pointer;font-size:12px;color:#64748b;display:inline-flex;align-items:center;gap:4px;margin-top:6px;">▶ 상세 키워드 보기</button>';
@@ -972,7 +972,7 @@ function renderKwRank(d){
         '<div style="flex:1;min-width:0;">'+
           '<a href="'+esc(b.link)+'" target="_blank" style="font-size:14px;font-weight:700;color:#1e293b;text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:3px;">'+esc(b.title||'(제목 없음)')+'</a>'+
           '<div style="font-size:11px;color:#94a3b8;margin-bottom:8px;">'+
-            '<a href="'+esc(b.blogger_url||'https://blog.naver.com/'+b.blogger_id)+'" target="_blank" style="color:#3b82f6;font-weight:600;text-decoration:none;">@'+esc(b.blogger_name||b.blogger_id)+'</a>'+
+            '<a href="'+esc(b.blogger_url||'https://blog.naver.com/'+b.blogger_id)+'" target="_blank" style="color:#6366f1;font-weight:600;text-decoration:none;">@'+esc(b.blogger_name||b.blogger_id)+'</a>'+
             ' · '+esc(b.post_date)+
           '</div>'+
           '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:4px;">'+
@@ -1006,7 +1006,7 @@ function renderKwRank(d){
       var isHidden=el.style.display==='none'||el.style.display==='';
       el.style.display=isHidden?'block':'none';
       btn.style.background=isHidden?'#eff6ff':'none';
-      btn.style.color=isHidden?'#3b82f6':'#64748b';
+      btn.style.color=isHidden?'#6366f1':'#64748b';
       btn.style.borderColor=isHidden?'#bfdbfe':'#e2e8f0';
       btn.textContent=isHidden?'▼ 키워드 숨기기':'▶ 상세 키워드 보기';
     });
@@ -1021,7 +1021,7 @@ function renderKwRank(d){
   });
   var sw=Object.entries(aw).sort(function(a,b){return b[1]-a[1];}).slice(0,25);
   var mx=sw[0]?sw[0][1]:1;
-  document.getElementById('kwRankWordFreq').innerHTML=sw.map(function(p){var sz=11+Math.round((p[1]/mx)*12);var op=0.5+p[1]/mx*0.5;var fw=p[1]>mx/2?700:500;return '<span style="font-size:'+sz+'px;color:rgba(59,130,246,'+op+');background:rgba(59,130,246,0.08);padding:4px 10px;border-radius:20px;font-weight:'+fw+';">'+esc(p[0])+'</span>';}).join('')||'<span style="color:#94a3b8;font-size:13px;">단어 데이터 없음</span>';
+  document.getElementById('kwRankWordFreq').innerHTML=sw.map(function(p){var sz=11+Math.round((p[1]/mx)*12);var op=0.5+p[1]/mx*0.5;var fw=p[1]>mx/2?700:500;return '<span style="font-size:'+sz+'px;color:rgba(99,102,241,'+op+');background:rgba(99,102,241,0.08);padding:4px 10px;border-radius:20px;font-weight:'+fw+';">'+esc(p[0])+'</span>';}).join('')||'<span style="color:#94a3b8;font-size:13px;">단어 데이터 없음</span>';
   var ac=d.avg_char_count||0;var ab=d.avg_blenp_score||50;var ai=d.avg_image_count||0;
   var charBench=ac?((ac+500).toLocaleString()+'자+'):'확인 불가';
   var charBenchSub=ac?'실제 본문 평균 + 여유분':'실제 본문 수집 후 표시';
@@ -1108,7 +1108,7 @@ function renderKw(results,banner,trend,payload){
   if(kwChartInst)kwChartInst.destroy();
   var labels=(trend.labels||[]).map(function(l){return String(l).slice(5);});
   var tsets=(trend.datasets||[]).map(function(ds,i){
-    var color=ds.color||['#2563eb','#7c3aed','#059669','#f97316','#dc2626'][i%5];
+    var color=ds.color||['#4f46e5','#7c3aed','#059669','#f97316','#dc2626'][i%5];
     return {label:ds.keyword||ds.label,data:ds.data||[],borderColor:color,backgroundColor:color+'22',tension:.35,fill:false,pointRadius:2,borderWidth:2};
   });
   kwChartInst=new Chart(document.getElementById('kwChart'),{
@@ -1179,9 +1179,9 @@ function renderRank(d,blogId,kw){
   var myRank=d.rank||0;
   var topCount=d.top_blogs?d.top_blogs.length:0;
   var srcBadge=(d.data_source==='naver_api'||d.data_source==='naver_api_real')?'<span style="font-size:10px;background:#dcfce7;color:#15803d;padding:2px 6px;border-radius:8px;font-weight:700;margin-left:8px;">✅ 네이버 API</span>':
-    (d.data_source==='html_crawl'||d.data_source==='html_crawl_real')?'<span style="font-size:10px;background:#eff6ff;color:#3b82f6;padding:2px 6px;border-radius:8px;font-weight:700;margin-left:8px;">🔍 실제 크롤링</span>':
+    (d.data_source==='html_crawl'||d.data_source==='html_crawl_real')?'<span style="font-size:10px;background:#eff6ff;color:#6366f1;padding:2px 6px;border-radius:8px;font-weight:700;margin-left:8px;">🔍 실제 크롤링</span>':
     '<span style="font-size:10px;background:#f1f5f9;color:#64748b;padding:2px 6px;border-radius:8px;font-weight:700;margin-left:8px;">추정</span>';
-  var blenpInfo=d.blenp_score>0?'<div style="font-size:12px;color:#64748b;margin-top:6px;">내 블로그 지수: <strong style="color:#3b82f6;">'+d.blenp_score+'점</strong></div>':'';
+  var blenpInfo=d.blenp_score>0?'<div style="font-size:12px;color:#64748b;margin-top:6px;">내 블로그 지수: <strong style="color:#6366f1;">'+d.blenp_score+'점</strong></div>':'';
   var notFoundNote=!d.found&&topCount>0?'<div style="font-size:11px;color:#f59e0b;margin-top:6px;background:#fef3c7;padding:6px 10px;border-radius:8px;">⚠️ 상위 '+topCount+'개 블로그에서 @'+esc(blogId)+' 미발견<br>블로그 ID가 정확한지 확인하거나, 해당 키워드 포스팅이 필요합니다.</div>':'';
   document.getElementById('rankSummary').innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">'
     +'<div><div style="font-size:12px;color:#94a3b8;">키워드</div>'
@@ -1191,8 +1191,8 @@ function renderRank(d,blogId,kw){
     +'<div style="font-size:11px;color:#94a3b8;margin-top:4px;">'+esc(d.message||'')+'</div></div>'
     +'<div style="text-align:center;padding:16px;background:'+(d.found?'#eff6ff':'#fff1f2')+';border-radius:16px;min-width:100px;">'
     +'<div style="font-size:11px;color:#94a3b8;margin-bottom:4px;">현재 순위</div>'
-    +'<div style="font-size:44px;font-weight:900;color:'+(d.found?'#3b82f6':'#ef4444')+';line-height:1;">'+(myRank||'미진입')+'</div>'
-    +(d.found?'<div style="font-size:11px;color:#3b82f6;font-weight:700;margin-top:4px;">🎯 순위 확인됨</div>'
+    +'<div style="font-size:44px;font-weight:900;color:'+(d.found?'#6366f1':'#ef4444')+';line-height:1;">'+(myRank||'미진입')+'</div>'
+    +(d.found?'<div style="font-size:11px;color:#6366f1;font-weight:700;margin-top:4px;">🎯 순위 확인됨</div>'
       :'<div style="font-size:11px;color:#ef4444;font-weight:700;margin-top:4px;">상위 '+topCount+'위권 밖</div>')
     +'</div></div>';
   var blogs=d.top_blogs||[];
@@ -1207,9 +1207,9 @@ function renderRank(d,blogId,kw){
   document.getElementById('rankList').innerHTML=blogs.slice(0,20).map(function(b){
     var isMine=(b.blogger_id||'').toLowerCase()===blogId.toLowerCase()||(b.link||'').toLowerCase().includes(blogId.toLowerCase());
     var rc=b.rank===1?'top1':b.rank===2?'top2':b.rank===3?'top3':'';
-    var gradeHtml=b.grade?'<div class="grade-badge" style="font-size:11px;padding:3px 8px;background:'+(b.grade_color||'#3b82f6')+'22;color:'+(b.grade_color||'#3b82f6')+';margin-bottom:2px;">'+esc(b.grade||'')+'</div>':'';
+    var gradeHtml=b.grade?'<div class="grade-badge" style="font-size:11px;padding:3px 8px;background:'+(b.grade_color||'#6366f1')+'22;color:'+(b.grade_color||'#6366f1')+';margin-bottom:2px;">'+esc(b.grade||'')+'</div>':'';
     var scoreHtml=b.blenp_score?'<div style="font-size:13px;font-weight:700;">'+b.blenp_score+'점</div>':'';
-    return '<div class="rank-row" style="'+(isMine?'border:2px solid #3b82f6;background:#eff6ff;':'')+'"><div class="rank-num '+rc+'">'+b.rank+'</div>'
+    return '<div class="rank-row" style="'+(isMine?'border:2px solid #6366f1;background:#eff6ff;':'')+'"><div class="rank-num '+rc+'">'+b.rank+'</div>'
       +'<div style="flex:1;min-width:0;"><a href="'+(b.link||'#')+'" target="_blank" style="font-size:13px;font-weight:600;color:'+(isMine?'#1d4ed8':'#1e293b')+';text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;">'+esc(b.title||b.blogger_id||'')+'</a>'
       +'<div style="font-size:11px;color:#94a3b8;margin-top:2px;">@'+esc(b.blogger_id||'')+(b.post_date?' · '+esc(b.post_date):'')+'</div></div>'
       +'<div style="text-align:right;">'+gradeHtml+scoreHtml+(isMine?'<div style="font-size:11px;font-weight:700;color:#1d4ed8;background:#dbeafe;padding:2px 8px;border-radius:10px;margin-top:2px;">🎯 내 블로그</div>':'')+'</div></div>';
@@ -1253,8 +1253,8 @@ function initBrtPanel(){
       if(note)note.textContent='관리자 계정: 제한 없이 사용 가능';
     } else {
       var pct=Math.min(100,Math.round(used/limit*100));
-      if(usageText){usageText.textContent=used+'회 / '+limit+'회 사용';usageText.style.color=pct>=100?'#ef4444':pct>=80?'#f59e0b':'#3b82f6';}
-      if(bar){bar.style.width=pct+'%';bar.style.background=pct>=100?'#ef4444':pct>=80?'linear-gradient(90deg,#f59e0b,#ef4444)':'linear-gradient(90deg,#3b82f6,#6366f1)';}
+      if(usageText){usageText.textContent=used+'회 / '+limit+'회 사용';usageText.style.color=pct>=100?'#ef4444':pct>=80?'#f59e0b':'#6366f1';}
+      if(bar){bar.style.width=pct+'%';bar.style.background=pct>=100?'#ef4444':pct>=80?'linear-gradient(90deg,#f59e0b,#ef4444)':'linear-gradient(90deg,#6366f1,#4f46e5)';}
       if(note)note.textContent=pct>=100?'⛔ 이번 달 한도에 도마했습니다. 다음 달에 이용 가능합니다.':'일반 사용자: 월 '+limit+'회 / 관리자: 무제한';
     }
     loadBrtList();
@@ -1278,8 +1278,8 @@ function loadBrtUsage(){
       if(note)note.textContent='관리자 계정: 제한 없이 사용 가능';
     } else {
       var pct=Math.min(100,Math.round(used/limit*100));
-      if(usageText){usageText.textContent=used+'회 / '+limit+'회 사용';usageText.style.color=pct>=100?'#ef4444':pct>=80?'#f59e0b':'#3b82f6';}
-      if(bar){bar.style.width=pct+'%';bar.style.background=pct>=100?'#ef4444':pct>=80?'linear-gradient(90deg,#f59e0b,#ef4444)':'linear-gradient(90deg,#3b82f6,#6366f1)';}
+      if(usageText){usageText.textContent=used+'회 / '+limit+'회 사용';usageText.style.color=pct>=100?'#ef4444':pct>=80?'#f59e0b':'#6366f1';}
+      if(bar){bar.style.width=pct+'%';bar.style.background=pct>=100?'#ef4444':pct>=80?'linear-gradient(90deg,#f59e0b,#ef4444)':'linear-gradient(90deg,#6366f1,#4f46e5)';}
       if(note)note.textContent=pct>=100?'⛔ 이번 달 한도에 도마했습니다. 다음 달에 이용 가능합니다.':'일반 사용자: 월 '+limit+'회 / 관리자: 무제한';
     }
   }).catch(function(){});
@@ -1306,10 +1306,10 @@ function loadBrtList(){
     }
     listEl.innerHTML=d.items.map(function(item){
       var rankHtml=item.latest_rank
-        ? '<span style="font-size:18px;font-weight:900;color:'+(item.latest_rank<=3?'#f59e0b':item.latest_rank<=10?'#3b82f6':'#64748b')+';">'+item.latest_rank+'위</span>'
+        ? '<span style="font-size:18px;font-weight:900;color:'+(item.latest_rank<=3?'#f59e0b':item.latest_rank<=10?'#6366f1':'#64748b')+';">'+item.latest_rank+'위</span>'
         : (item.last_checked_date
             ? '<span style="font-size:13px;color:#f59e0b;font-weight:700;">100위권 밖</span>'
-            : '<span style="font-size:13px;color:#94a3b8;font-weight:600;">미확인 <button onclick="checkMyRanks()" style="font-size:11px;background:#3b82f6;color:#fff;border:none;border-radius:4px;padding:2px 6px;cursor:pointer;margin-left:4px;">지금 확인</button></span>');
+            : '<span style="font-size:13px;color:#94a3b8;font-weight:600;">미확인 <button onclick="checkMyRanks()" style="font-size:11px;background:#6366f1;color:#fff;border:none;border-radius:4px;padding:2px 6px;cursor:pointer;margin-left:4px;">지금 확인</button></span>');
       var trendHtml='';
       if(item.prev_rank&&item.latest_rank){
         var diff=item.prev_rank-item.latest_rank;
@@ -1323,7 +1323,7 @@ function loadBrtList(){
         histHtml+=item.history.slice(0,7).map(function(h){
           return '<div style="text-align:center;background:#f8fafc;border-radius:6px;padding:4px 8px;">'
             +'<div style="font-size:10px;color:#94a3b8;">'+h.date+'</div>'
-            +'<div style="font-size:13px;font-weight:700;color:'+(h.rank&&h.rank<=10?'#3b82f6':'#64748b')+';">'+(h.rank?h.rank+'위':'?')+'</div>'
+            +'<div style="font-size:13px;font-weight:700;color:'+(h.rank&&h.rank<=10?'#6366f1':'#64748b')+';">'+(h.rank?h.rank+'위':'?')+'</div>'
             +'</div>';
         }).join('');
         histHtml+='</div></div>';
@@ -1357,7 +1357,7 @@ function addBrtTrack(){
   var msgEl=document.getElementById('brtAddMsg');
   if(!urlVal){alert('블로그 URL을 입력해주세요.');return;}
   if(!kwVal){alert('키워드를 입력해주세요.');return;}
-  if(msgEl){msgEl.style.display='block';msgEl.style.color='#3b82f6';msgEl.textContent='등록 중...';}
+  if(msgEl){msgEl.style.display='block';msgEl.style.color='#6366f1';msgEl.textContent='등록 중...';}
   fetch('/api/blog-rank-track/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({blog_url:urlVal,keyword:kwVal})})
   .then(function(r){return r.json();}).then(function(d){
     if(msgEl){msgEl.style.display='block';}

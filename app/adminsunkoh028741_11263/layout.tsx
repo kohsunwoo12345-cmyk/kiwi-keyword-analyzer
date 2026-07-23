@@ -86,6 +86,7 @@ const NAV_GROUPS: NavGroup[] = [
       { title: '로그 기록', href: `${ADMIN_BASE}/logs`, icon: ScrollText },
       { title: '접속 통계', href: `${ADMIN_BASE}/stats`, icon: BarChart3 },
       { title: '고객센터', href: `${ADMIN_BASE}/support`, icon: MessageCircle, badge: 'support' },
+      { title: '회원 채팅 기록', href: `${ADMIN_BASE}/chats`, icon: MessagesSquare },
       { title: '이메일 발송 기록', href: `${ADMIN_BASE}/emails`, icon: Mail },
       { title: '환영인사 메일', href: `${ADMIN_BASE}/emails?kind=welcome`, icon: PartyPopper },
       { title: '회원가입정보', href: `${ADMIN_BASE}/referrals`, icon: IdCard },
