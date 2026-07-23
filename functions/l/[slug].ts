@@ -25,7 +25,7 @@ export const onRequestGet: PagesFunction<any> = async ({ params, env }) => {
   const page: any = await db.prepare('SELECT * FROM landing_pages WHERE slug = ? AND published = 1').bind(slug).first()
   if (!page) {
     return new Response(
-      `<!doctype html><meta charset="utf-8"><title>페이지 없음</title><body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#0a0f1e;color:#e5e7eb"><div style="text-align:center"><h1>페이지를 찾을 수 없습니다</h1><p style="color:#94a3b8">비공개 상태이거나 삭제된 랜딩페이지입니다.</p></div></body>`,
+      `<!doctype html><meta charset="utf-8"><title>페이지 없음</title><body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#0a0f1e;color:#e5e7eb"><div style="text-align:center"><h1>페이지를 찾을 수 없습니다</h1><p style="color:#94a3b8">비공개 상태이거나 삭제된 랜딩페이지입니다.</p></div><script src="/emoji-parser.js" defer></script></body>`,
       { status: 404, headers: { 'content-type': 'text/html; charset=utf-8' } },
     )
   }
@@ -88,7 +88,7 @@ f.addEventListener('submit',async function(e){e.preventDefault();b.disabled=true
  }catch(err){b.disabled=false;b.textContent=${JSON.stringify(page.cta || '신청하기')};alert('네트워크 오류');}
 });
 </script>
-</body></html>`
+<script src="/emoji-parser.js" defer></script></body></html>`
 
   return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } })
 }

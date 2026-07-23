@@ -49,7 +49,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       setTimeout(function(){ window.close(); }, 2500);
     }
   </script>
-</body>
+<script src="/emoji-parser.js" defer></script></body>
 </html>`,
       { headers: { 'content-type': 'text/html; charset=utf-8' } },
     )
