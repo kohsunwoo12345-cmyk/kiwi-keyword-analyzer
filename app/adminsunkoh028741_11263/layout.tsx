@@ -54,7 +54,7 @@ import {
   Database,
 } from 'lucide-react'
 import { Logo } from '@/components/Brand'
-import { adminSupportCount, adminPendingCounts } from '@/lib/auth'
+import { adminSupportCount, adminPendingCounts, adminAccessLockGet } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 // 보안을 위한 난독화된 관리자 경로 (추측 불가)
@@ -265,10 +265,58 @@ function SidebarFooter() {
   )
 }
 
+// 클라이언트 라우팅으로 관리자 경로에 진입해도 잠금이 걸려 있으면 화면 자체를 차단한다.
+// (서버 미들웨어는 문서 요청·모든 관리자 API 를 이미 차단 — 이 가드는 SPA 내부 이동까지 막는 보강)
+// /access(잠금 관리·복구 페이지)는 항상 통과시켜 잠긴 상태에서도 해제할 수 있게 한다.
+function AdminAccessGuard({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+  const isRecovery = !!pathname && pathname.startsWith(`${ADMIN_BASE}/access`)
+  const [state, setState] = useState<'checking' | 'allowed' | 'blocked'>('checking')
+  useEffect(() => {
+    let alive = true
+    adminAccessLockGet()
+      .then((d) => {
+        if (!alive) return
+        // 확정적으로 "잠금 ON + 현재 IP·기기 모두 미허용"일 때만 차단. 그 외(허용/미활성/오류)는 통과(fail-open)
+        setState(d.ok && d.enabled && !d.currentIpAllowed && !d.thisDeviceRegistered ? 'blocked' : 'allowed')
+      })
+      .catch(() => alive && setState('allowed'))
+    return () => { alive = false }
+  }, [])
+
+  if (isRecovery) return <>{children}</>
+  if (state === 'checking') {
+    return (
+      <div className="grid min-h-screen place-items-center bg-[var(--bg)] text-[var(--text-dim)]">
+        <span className="inline-flex items-center gap-2 text-sm"><span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--border)] border-t-violet-500" /> 접근 권한 확인 중…</span>
+      </div>
+    )
+  }
+  if (state === 'blocked') {
+    return (
+      <div className="grid min-h-screen place-items-center bg-[#0c0e13] p-6 text-center text-slate-200">
+        <div className="max-w-md">
+          <span className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white"><Lock size={30} /></span>
+          <h1 className="text-xl font-bold">관리자 접근이 제한되었습니다</h1>
+          <p className="mt-2.5 text-sm leading-relaxed text-slate-400">
+            이 관리자 콘솔은 허용된 IP 주소 또는 등록된 기기에서만 접근할 수 있습니다.
+            등록된 기기에서 다시 시도하거나 관리자에게 문의해 주세요.
+          </p>
+          <Link href="/" className="mt-6 inline-flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-white/5">
+            <ArrowLeft size={15} /> 사이트로 돌아가기
+          </Link>
+        </div>
+      </div>
+    )
+  }
+  return <>{children}</>
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
+    <AdminAccessGuard>
     <div className="min-h-screen bg-[var(--bg)] lg:flex">
       {/* mobile top bar */}
       <div className="glass sticky top-0 z-40 flex items-center justify-between border-b border-[var(--border)] px-4 py-3 lg:hidden">
@@ -323,5 +371,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* main */}
       <main className="min-w-0 flex-1">{children}</main>
     </div>
+    </AdminAccessGuard>
   )
 }

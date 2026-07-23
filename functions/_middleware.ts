@@ -44,9 +44,11 @@ export const onRequest: PagesFunction<any> = async (context) => {
         }
       }
       // 2-b) 관리자 콘솔 접근 잠금 — 활성화 시 허용 IP/기기만 관리자 접근 가능
-      //   · 관리자 잠금 관리 API(/api/admin/access-lock)는 예외로 두어 잠금을 해제/복구할 수 있게 한다
-      //     (엔드포인트 자체가 requireAdminUser 로 보호됨 — 로그인한 관리자만 접근).
-      if ((path.startsWith(ADMIN_BASE) || path.startsWith(ADMIN_API)) && !path.startsWith(ADMIN_API + 'access-lock')) {
+      //   · 잠금 관리 API(/api/admin/access-lock)와 관리 페이지(/access)는 예외로 두어
+      //     잠긴 상태에서도 로그인한 관리자가 잠금을 해제/복구할 수 있게 한다
+      //     (API·페이지 모두 로그인 관리자 기준으로 데이터가 보호됨).
+      const isLockMgmt = path.startsWith(ADMIN_API + 'access-lock') || path.startsWith(ADMIN_BASE + '/access')
+      if ((path.startsWith(ADMIN_BASE) || path.startsWith(ADMIN_API)) && !isLockMgmt) {
         if (await isAdminLockEnabled(db)) {
           const devTok = parseCookies(request)[ADMIN_DEVICE_COOKIE] || ''
           if (!(await isAdminAccessAllowed(db, ip, devTok))) {
