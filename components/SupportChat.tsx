@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { MessageCircle, X, Send, Headset, Check } from 'lucide-react'
 import { chatSend, chatThread, type ChatMsg } from '@/lib/auth'
 import { useI18n } from '@/lib/i18n'
+import { EmojiText } from '@/components/Emoji'
 import { cn } from '@/lib/utils'
 
 const CONV_KEY = 'bg_chat_conv'
@@ -160,7 +161,7 @@ export function SupportChat() {
               </span>
               <div>
                 <div className="max-w-[248px] rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.05] px-3.5 py-2.5 text-[13.5px] leading-relaxed text-slate-100">
-                  {t('hello')}
+                  <EmojiText>{t('hello')}</EmojiText>
                 </div>
                 <span className="ml-1 mt-1 block text-[10px] text-slate-500">{t('agent')}</span>
               </div>

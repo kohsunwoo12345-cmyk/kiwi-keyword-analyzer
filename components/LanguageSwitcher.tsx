@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Globe, Check, ChevronDown } from 'lucide-react'
 import { LANGS, useI18n } from '@/lib/i18n'
+import { Emoji } from '@/components/Emoji'
 import { cn } from '@/lib/utils'
 
 /**
@@ -78,7 +79,7 @@ export function LanguageSwitcher({
                       : 'text-[var(--text-soft)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]',
                 )}
               >
-                <span className="text-base leading-none">{l.flag}</span>
+                <span className="text-base leading-none"><Emoji e={l.flag} label={l.label} /></span>
                 <span className="flex-1 text-left">{l.native}</span>
                 {active && <Check size={14} className={dark ? 'text-blue-300' : 'text-blue-600'} />}
               </button>
