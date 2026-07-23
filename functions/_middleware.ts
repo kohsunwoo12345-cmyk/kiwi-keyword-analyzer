@@ -1,4 +1,8 @@
-import { resolveDB, clientIp, geoFrom, isBlocked, isWhitelistMode, isWhitelisted, logSecurity, json, countRecentSuspicious, autoBlockIp } from './api/_utils'
+import { resolveDB, clientIp, geoFrom, isBlocked, isWhitelistMode, isWhitelisted, logSecurity, json, countRecentSuspicious, autoBlockIp, isAdminLockEnabled, isAdminAccessAllowed, parseCookies, ADMIN_DEVICE_COOKIE } from './api/_utils'
+
+// 관리자 콘솔 경로 (난독화된 base) + 관리자 API
+const ADMIN_BASE = '/adminsunkoh028741_11263'
+const ADMIN_API = '/api/admin/'
 
 // 정적 자산은 건너뜀(성능). 문서/‑API 요청만 보안 검사.
 const ASSET_RE = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|webp|ico|woff2?|ttf|map|txt|xml|json)$/i
@@ -37,6 +41,18 @@ export const onRequest: PagesFunction<any> = async (context) => {
         if (!(await isWhitelisted(db, ip))) {
           await logSecurity(db, { ip, method: request.method, path, status: 403, severity: 'high', detail: '화이트리스트 모드 차단', country: geo.country, city: geo.city, ua })
           return blockedResponse(path, true)
+        }
+      }
+      // 2-b) 관리자 콘솔 접근 잠금 — 활성화 시 허용 IP/기기만 관리자 접근 가능
+      //   · 관리자 잠금 관리 API(/api/admin/access-lock)는 예외로 두어 잠금을 해제/복구할 수 있게 한다
+      //     (엔드포인트 자체가 requireAdminUser 로 보호됨 — 로그인한 관리자만 접근).
+      if ((path.startsWith(ADMIN_BASE) || path.startsWith(ADMIN_API)) && !path.startsWith(ADMIN_API + 'access-lock')) {
+        if (await isAdminLockEnabled(db)) {
+          const devTok = parseCookies(request)[ADMIN_DEVICE_COOKIE] || ''
+          if (!(await isAdminAccessAllowed(db, ip, devTok))) {
+            await logSecurity(db, { ip, method: request.method, path, status: 403, severity: 'high', detail: '관리자 접근 잠금 차단(허용 IP/기기 아님)', country: geo.country, city: geo.city, ua }).catch(() => {})
+            return adminBlockedResponse(path)
+          }
         }
       }
     } catch {
@@ -104,6 +120,25 @@ function withSecurityHeaders(res: Response, path: string): Response {
   } catch {
     return res
   }
+}
+
+// 관리자 콘솔 접근 잠금 차단 응답
+function adminBlockedResponse(path: string) {
+  if (path.startsWith('/api/')) return json({ ok: false, error: '관리자 접근이 제한되었습니다. 허용된 IP 또는 기기에서만 접근할 수 있습니다.', adminLocked: true }, 403)
+  return new Response(
+    `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>관리자 접근 제한</title>
+     <style>body{margin:0;height:100vh;display:grid;place-items:center;font-family:'Inter','Noto Sans KR',system-ui,sans-serif;background:#0c0e13;color:#e6e9f2}
+     .b{text-align:center;max-width:440px;padding:36px}
+     .m{width:60px;height:60px;margin:0 auto 18px;border-radius:16px;background:linear-gradient(135deg,#6366f1,#4f46e5);display:grid;place-items:center}
+     .m svg{width:30px;height:30px;stroke:#fff;fill:none;stroke-width:2}
+     h1{font-size:21px;margin:0 0 10px;font-weight:800}p{color:#9aa4b2;line-height:1.7;font-size:14px;margin:0}</style></head>
+     <body><div class="b">
+       <div class="m"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+       <h1>관리자 접근이 제한되었습니다</h1>
+       <p>이 관리자 콘솔은 허용된 IP 주소 또는 등록된 기기에서만 접근할 수 있습니다.<br>접근이 필요하면 등록된 기기에서 다시 시도하거나 관리자에게 문의해 주세요.</p>
+     </div></body></html>`,
+    { status: 403, headers: { 'content-type': 'text/html; charset=utf-8' } },
+  )
 }
 
 function blockedResponse(path: string, whitelist = false) {

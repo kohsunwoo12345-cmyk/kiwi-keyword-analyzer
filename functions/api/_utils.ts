@@ -962,6 +962,43 @@ export async function isWhitelisted(db: D1Database, ip: string): Promise<boolean
   return !!row
 }
 
+/* ── 관리자 콘솔 접근 잠금 (허용 IP/기기만 관리자 접근) ── */
+export const ADMIN_DEVICE_COOKIE = 'bygency_admdev'
+// 허용목록 테이블 보장 (kind='ip'|'device', value=IP 또는 기기토큰)
+export async function ensureAdminAclTable(db: D1Database) {
+  await db.prepare(
+    `CREATE TABLE IF NOT EXISTS admin_acl (
+       id TEXT PRIMARY KEY,
+       kind TEXT NOT NULL,
+       value TEXT NOT NULL,
+       label TEXT,
+       created_at TEXT NOT NULL
+     )`,
+  ).run().catch(() => {})
+  await db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_acl_kv ON admin_acl(kind, value)').run().catch(() => {})
+}
+// 관리자 접근 잠금 활성화 여부 (기본 off)
+export async function isAdminLockEnabled(db: D1Database): Promise<boolean> {
+  return (await getSetting(db, 'admin_lock_enabled')) === 'on'
+}
+// 현재 IP 또는 기기 토큰이 허용목록에 있는지
+export async function isAdminAccessAllowed(db: D1Database, ip: string, deviceToken: string): Promise<boolean> {
+  try {
+    if (ip && ip !== 'unknown') {
+      const r = await db.prepare("SELECT 1 FROM admin_acl WHERE kind='ip' AND value = ?").bind(ip).first()
+      if (r) return true
+    }
+    if (deviceToken && deviceToken.length >= 16) {
+      const r = await db.prepare("SELECT 1 FROM admin_acl WHERE kind='device' AND value = ?").bind(deviceToken).first()
+      if (r) return true
+    }
+  } catch { /* 테이블 없음 = 허용목록 비어있음 */ }
+  return false
+}
+export function newAdminDeviceToken(): string {
+  return 'adv_' + crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '').slice(0, 8)
+}
+
 /* ── 로그인 실패 (브루트포스) ── */
 export async function recordLoginFailure(db: D1Database, email: string, ip: string, ua: string, country = '') {
   try {

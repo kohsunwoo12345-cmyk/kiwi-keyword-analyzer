@@ -1203,6 +1203,32 @@ export async function adminApprovals(): Promise<{
     return { ok: false, error: '네트워크 오류', planRequests: [], senderNumbers: [], pointRequests: [], creditRequests: [], teamOrders: [], signups: [], contacts: [], leads: [] }
   }
 }
+/* ───────── 관리자: 콘솔 접근 잠금 (허용 IP/기기) ───────── */
+export interface AdminAclIp { id: string; value: string; label: string; createdAt: string }
+export interface AdminAclDevice { id: string; label: string; createdAt: string; isThis: boolean }
+export interface AdminAccessLock {
+  ok: boolean; error?: string
+  enabled: boolean; currentIp: string; currentIpAllowed: boolean; thisDeviceRegistered: boolean
+  ips: AdminAclIp[]; devices: AdminAclDevice[]
+}
+export async function adminAccessLockGet(): Promise<AdminAccessLock> {
+  try {
+    const r = await fetch('/api/admin/access-lock', { credentials: 'include', cache: 'no-store' })
+    const d = await r.json()
+    return {
+      ok: !!d.ok, error: d.error,
+      enabled: !!d.enabled, currentIp: d.currentIp || '', currentIpAllowed: !!d.currentIpAllowed,
+      thisDeviceRegistered: !!d.thisDeviceRegistered, ips: d.ips || [], devices: d.devices || [],
+    }
+  } catch { return { ok: false, error: '네트워크 오류', enabled: false, currentIp: '', currentIpAllowed: false, thisDeviceRegistered: false, ips: [], devices: [] } }
+}
+export async function adminAccessLockAction(payload: {
+  action: 'enable' | 'disable' | 'add_ip' | 'remove_ip' | 'register_device' | 'remove_device'
+  ip?: string; label?: string; value?: string
+}): Promise<{ ok: boolean; error?: string; enabled?: boolean }> {
+  return postJson('/api/admin/access-lock', payload)
+}
+
 /* ───────── 관리자: 회원 채팅 기록 조회 (단체/개인) ───────── */
 export interface AdminChatTeam { id: string; name: string; memberCount: number; msgCount: number; lastText: string; lastAt: string }
 export interface AdminChatDm { id: string; name: string; participants: { id: string; name: string }[]; msgCount: number; lastText: string; lastAt: string }
