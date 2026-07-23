@@ -2883,11 +2883,20 @@ function cannyPreview(srcUrl){
         for(y=1;y<H-1;y++)for(x=1;x<W-1;x++){ if(edge[y*W+x]!==2)continue; var nb=0;
           for(ky=-1;ky<=1;ky++)for(kx=-1;kx<=1;kx++){ if(!kx&&!ky)continue; if(edge[(y+ky)*W+(x+kx)]===2)nb++; }
           if(nb>=1) fin[y*W+x]=1; }
-        // 스마트 갭 브릿지 — 빈 픽셀의 마주보는 두 방향(상↔하/좌↔우/대각↔대각)에 각각 엣지가 있을 때만 채운다.
-        //  = 진짜 끊긴 틈만 잇고, 선을 따라 나란한 픽셀은 채우지 않아 1px 두께가 유지된다.
-        var br=fin.slice(), OPP=[[-1,-1,1,1],[0,-1,0,1],[1,-1,-1,1],[-1,0,1,0]];
-        for(y=1;y<H-1;y++)for(x=1;x<W-1;x++){ if(fin[y*W+x])continue;
-          for(var t=0;t<4;t++){ if(fin[(y+OPP[t][1])*W+(x+OPP[t][0])] && fin[(y+OPP[t][3])*W+(x+OPP[t][2])]){ br[y*W+x]=1; break; } } }
+        // 노이즈 추정(라플라시안 중앙값) — 평탄 그래픽(로고·텍스트)이면 낮음, 사진이면 높음.
+        var _lv=[], _st=Math.max(2,Math.round(W/320)), _cx,_cy;
+        for(_cy=2;_cy<H-2;_cy+=_st)for(_cx=2;_cx<W-2;_cx+=_st){ _lv.push(Math.abs(4*g[_cy*W+_cx]-g[(_cy-1)*W+_cx]-g[(_cy+1)*W+_cx]-g[_cy*W+_cx-1]-g[_cy*W+_cx+1])); }
+        _lv.sort(function(a,b){return a-b;});
+        var _noise=_lv.length?_lv[Math.floor(_lv.length*0.5)]:0;
+        // 스마트 갭 브릿지 — 빈 픽셀의 마주보는 두 방향에 각각 엣지가 있을 때만 채워 끊긴 틈을 잇는다.
+        //  단, 평탄 그래픽(로고·글자)은 선이 이미 연결돼 있고 글자 안쪽 구멍(카운터)을 메워 뭉개므로 생략.
+        //  노이즈 있는 사진에서만 적용해 끊김을 보정한다.
+        var br;
+        if(_noise>=6){
+          br=fin.slice(); var OPP=[[-1,-1,1,1],[0,-1,0,1],[1,-1,-1,1],[-1,0,1,0]];
+          for(y=1;y<H-1;y++)for(x=1;x<W-1;x++){ if(fin[y*W+x])continue;
+            for(var t=0;t<4;t++){ if(fin[(y+OPP[t][1])*W+(x+OPP[t][0])] && fin[(y+OPP[t][3])*W+(x+OPP[t][2])]){ br[y*W+x]=1; break; } } }
+        } else { br=fin; }   // 평탄 그래픽 = 브릿지 생략 → 글자 카운터 등 미세 디테일 보존
         var out=ctx.createImageData(W,H), o=out.data;
         for(i=0;i<N;i++){ var v=br[i]?255:0; o[i*4]=o[i*4+1]=o[i*4+2]=v; o[i*4+3]=255; }
         ctx.putImageData(out,0,0); resolve(c.toDataURL('image/png'));
