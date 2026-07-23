@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { FileText, ArrowUpRight } from 'lucide-react'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
+import { useT, type Dict } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 export const LEGAL_DOCS = [
@@ -14,6 +15,17 @@ export const LEGAL_DOCS = [
   { href: '/legal/dpa', label: '개인정보처리위탁 특약' },
   { href: '/legal/regional', label: '지역별 적용 부속서' },
 ]
+
+const M: Dict = {
+  '이용약관': { en: 'Terms of Service', ja: '利用規約', zh: '服务条款' },
+  '개인정보처리방침': { en: 'Privacy Policy', ja: 'プライバシーポリシー', zh: '隐私政策' },
+  '쿠키정책': { en: 'Cookie Policy', ja: 'Cookieポリシー', zh: 'Cookie 政策' },
+  '개인정보처리위탁 특약': { en: 'Data Processing Addendum', ja: '個人情報取扱委託特約', zh: '个人信息处理委托特别条款' },
+  '지역별 적용 부속서': { en: 'Regional Annex', ja: '地域別適用附属書', zh: '地区适用附录' },
+  '문서 목록': { en: 'Documents', ja: '文書一覧', zh: '文档列表' },
+  '시행일': { en: 'Effective date', ja: '施行日', zh: '生效日期' },
+  '문의: 개인정보 보호책임자': { en: 'Contact: Data Protection Officer', ja: 'お問い合わせ: 個人情報保護責任者', zh: '联系: 个人信息保护负责人' },
+}
 
 export function LegalShell({
   title,
@@ -25,6 +37,7 @@ export function LegalShell({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
+  const t = useT(M)
   return (
     <div className="site-dark min-h-screen overflow-x-clip">
       <Navbar />
@@ -40,7 +53,7 @@ export function LegalShell({
           <h1 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{title}</h1>
           {effective && (
             <p className="mt-4 text-sm text-slate-400">
-              시행일: <span className="font-medium text-slate-200">{effective}</span>
+              {t('시행일')}: <span className="font-medium text-slate-200">{effective}</span>
             </p>
           )}
         </div>
@@ -52,7 +65,7 @@ export function LegalShell({
           {/* side nav */}
           <aside className="lg:sticky lg:top-24 lg:self-start">
             <p className="mb-3 px-1 text-[11px] font-bold uppercase tracking-widest text-[var(--text-dim)]">
-              문서 목록
+              {t('문서 목록')}
             </p>
             <nav className="flex flex-col gap-1">
               {LEGAL_DOCS.map((d) => {
@@ -68,13 +81,13 @@ export function LegalShell({
                         : 'text-[var(--text-soft)] hover:bg-white/[0.05] hover:text-[var(--text)]',
                     )}
                   >
-                    {d.label}
+                    {t(d.label)}
                   </Link>
                 )
               })}
             </nav>
             <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.03] p-3.5 text-xs leading-relaxed text-[var(--text-soft)]">
-              문의: 개인정보 보호책임자
+              {t('문의: 개인정보 보호책임자')}
               <br />
               <a href="mailto:ceo@nextbygency.com" className="font-medium text-blue-300 hover:underline">
                 ceo@nextbygency.com
@@ -96,7 +109,7 @@ export function LegalShell({
                   href={d.href}
                   className="group flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3.5 text-sm font-medium text-[var(--text-soft)] transition-colors hover:border-blue-400/40 hover:text-[var(--text)]"
                 >
-                  {d.label}
+                  {t(d.label)}
                   <ArrowUpRight size={16} className="text-blue-300 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                 </Link>
               ))}
