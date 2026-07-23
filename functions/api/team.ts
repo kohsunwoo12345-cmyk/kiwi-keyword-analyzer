@@ -17,7 +17,14 @@ async function ensureTeamTables(db: D1Database) {
     // 노드 공유: 발신자→각 수신자별 1행. received=1 이면 수신자 워크플로에 저장 완료.
     db.prepare(`CREATE TABLE IF NOT EXISTS team_shares (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, from_user_id TEXT NOT NULL, from_name TEXT, to_user_id TEXT NOT NULL, name TEXT, graph TEXT NOT NULL, node_count INTEGER DEFAULT 0, received INTEGER DEFAULT 0, created_at TEXT NOT NULL)`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_ts_to ON team_shares(to_user_id, received)`),
+    // 마케팅 집행 캘린더: visibility = team(전체)·private(본인만)·user(특정 사용자에게 공유)
+    db.prepare(`CREATE TABLE IF NOT EXISTS team_cal_events (id TEXT PRIMARY KEY, team_id TEXT NOT NULL, owner_id TEXT NOT NULL, owner_name TEXT, d TEXT NOT NULL, title TEXT NOT NULL, color TEXT DEFAULT 'sky', memo TEXT, visibility TEXT DEFAULT 'team', target_user_id TEXT, created_at TEXT NOT NULL)`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_tce_team ON team_cal_events(team_id, d)`),
   ])
+  // team_messages 미디어 첨부 컬럼(사진·영상) — 기존 테이블에 없으면 추가
+  for (const col of ['kind TEXT', 'media_key TEXT', 'media_name TEXT']) {
+    await db.prepare(`ALTER TABLE team_messages ADD COLUMN ${col}`).run().catch(() => {})
+  }
 }
 const uid = (p: string) => p + crypto.randomUUID().slice(0, 16)
 async function isMember(db: D1Database, teamId: string, userId: string) {
@@ -40,9 +47,25 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     if (!(await isMember(db, msgTeam, me.id))) return json({ ok: false, error: '팀 멤버가 아닙니다.' }, 403)
     const after = url.searchParams.get('after') || ''
     const rows = (await db.prepare(
-      'SELECT id, user_id, name, text, created_at FROM team_messages WHERE team_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 200',
+      'SELECT id, user_id, name, text, kind, media_key, media_name, created_at FROM team_messages WHERE team_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 200',
     ).bind(msgTeam, after).all()).results || []
     return json({ ok: true, messages: rows, meId: me.id })
+  }
+
+  // 집행 캘린더 조회: 내게 보이는 이벤트만(팀 공유 + 내가 만든 것 + 내게 개별 공유된 것)
+  const calTeam = url.searchParams.get('calendar')
+  if (calTeam) {
+    if (!(await isMember(db, calTeam, me.id))) return json({ ok: false, error: '팀 멤버가 아닙니다.' }, 403)
+    const month = String(url.searchParams.get('month') || '') // 'YYYY-MM' 접두 필터(선택)
+    const like = month ? month + '%' : '%'
+    const rows = (await db.prepare(
+      `SELECT id, owner_id, owner_name, d, title, color, memo, visibility, target_user_id, created_at
+         FROM team_cal_events
+        WHERE team_id = ? AND d LIKE ?
+          AND (visibility = 'team' OR owner_id = ? OR (visibility = 'user' AND target_user_id = ?))
+        ORDER BY d ASC, created_at ASC LIMIT 500`,
+    ).bind(calTeam, like, me.id, me.id).all()).results || []
+    return json({ ok: true, events: rows, meId: me.id })
   }
 
   const teamRows = (await db.prepare(
@@ -158,11 +181,52 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (action === 'send') {
     const teamId = String(b.teamId || '')
     const text = String(b.text || '').trim().slice(0, 2000)
-    if (!teamId || !text) return json({ ok: false, error: '메시지를 입력하세요.' }, 400)
+    const kind = ['image', 'video'].includes(String(b.kind)) ? String(b.kind) : 'text'
+    const mediaKey = String(b.mediaKey || '').slice(0, 200)
+    const mediaName = String(b.mediaName || '').slice(0, 120)
     if (!(await isMember(db, teamId, me.id))) return json({ ok: false, error: '팀 멤버가 아닙니다.' }, 403)
+    // 미디어 메시지는 텍스트가 없어도 되지만, 유효한 media_key 가 필요
+    if (kind === 'text' && !text) return json({ ok: false, error: '메시지를 입력하세요.' }, 400)
+    if (kind !== 'text' && !mediaKey) return json({ ok: false, error: '첨부 파일이 없습니다.' }, 400)
     const id = uid('msg_')
-    await db.prepare('INSERT INTO team_messages (id, team_id, user_id, name, text, created_at) VALUES (?, ?, ?, ?, ?, ?)').bind(id, teamId, me.id, me.name, text, now).run()
-    return json({ ok: true, id, created_at: now })
+    await db.prepare('INSERT INTO team_messages (id, team_id, user_id, name, text, kind, media_key, media_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, teamId, me.id, me.name, text, kind, kind === 'text' ? null : mediaKey, kind === 'text' ? null : mediaName, now).run()
+    return json({ ok: true, id, created_at: now, kind, media_key: kind === 'text' ? null : mediaKey })
+  }
+
+  if (action === 'cal_add') {
+    const teamId = String(b.teamId || '')
+    if (!(await isMember(db, teamId, me.id))) return json({ ok: false, error: '팀 멤버가 아닙니다.' }, 403)
+    const title = String(b.title || '').trim().slice(0, 120)
+    const d = String(b.d || '').trim().slice(0, 10) // YYYY-MM-DD
+    if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return json({ ok: false, error: '일정 제목과 날짜를 입력하세요.' }, 400)
+    const color = ['violet', 'sky', 'emerald', 'amber', 'rose'].includes(String(b.color)) ? String(b.color) : 'sky'
+    const memo = String(b.memo || '').slice(0, 500)
+    let visibility = ['team', 'private', 'user'].includes(String(b.visibility)) ? String(b.visibility) : 'team'
+    let target = String(b.targetUserId || '').trim()
+    if (visibility === 'user') {
+      if (!target) return json({ ok: false, error: '공유할 팀원을 선택하세요.' }, 400)
+      if (!(await isMember(db, teamId, target))) return json({ ok: false, error: '해당 팀원이 이 팀에 없습니다.' }, 400)
+    } else {
+      target = ''
+    }
+    const id = uid('ce_')
+    await db.prepare('INSERT INTO team_cal_events (id, team_id, owner_id, owner_name, d, title, color, memo, visibility, target_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, teamId, me.id, me.name, d, title, color, memo, visibility, target || null, now).run()
+    // 개별 공유는 대상자에게 알림
+    if (visibility === 'user' && target) {
+      await addNotification(db, target, '집행 일정이 공유되었어요 📅', `${me.name}님이 "${title}"(${d}) 일정을 공유했습니다.`).catch(() => {})
+    }
+    return json({ ok: true, id })
+  }
+
+  if (action === 'cal_del') {
+    const eventId = String(b.eventId || '')
+    if (!eventId) return json({ ok: false, error: 'eventId 필요' }, 400)
+    // 본인이 만든 일정만 삭제
+    const r = await db.prepare('DELETE FROM team_cal_events WHERE id = ? AND owner_id = ?').bind(eventId, me.id).run()
+    if (!(r.meta && r.meta.changes)) return json({ ok: false, error: '본인이 등록한 일정만 삭제할 수 있습니다.' }, 403)
+    return json({ ok: true })
   }
 
   return json({ ok: false, error: '알 수 없는 작업입니다.' }, 400)
