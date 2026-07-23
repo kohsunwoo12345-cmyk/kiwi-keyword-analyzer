@@ -2831,7 +2831,7 @@ function cannyPreview(srcUrl){
       try{
         // 고해상도(≤768) grayscale → 가우시안 → Sobel → 비최대억제(NMS) → 이중임계+히스테리시스
         // = ComfyUI/OpenCV Canny 처럼 1px 두께의 선명한 엣지맵 (기존 Sobel 단일임계는 굵고 뭉개짐)
-        var W=Math.min(1024, img.naturalWidth||1024), sc=W/(img.naturalWidth||W), H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
+        var W=Math.min(1280, img.naturalWidth||1280), sc=W/(img.naturalWidth||W), H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
         var c=document.createElement('canvas'); c.width=W; c.height=H;
         var ctx=c.getContext('2d'); ctx.drawImage(img,0,0,W,H);
         var p=ctx.getImageData(0,0,W,H).data, N=W*H, g=new Float32Array(N), i,x,y,kx,ky,xx,yy;
@@ -2929,7 +2929,7 @@ function depthPreview(srcUrl){
   return new Promise(function(resolve,reject){
     var img=new Image(); img.crossOrigin='anonymous';
     img.onload=function(){
-      var W=Math.min(512, img.naturalWidth||512), sc=W/(img.naturalWidth||W), H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
+      var W=Math.min(768, img.naturalWidth||768), sc=W/(img.naturalWidth||W), H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
       var c=document.createElement('canvas'); c.width=W; c.height=H; var ctx=c.getContext('2d'); ctx.drawImage(img,0,0,W,H);
       var p=ctx.getImageData(0,0,W,H).data, N=W*H, lum=new Float32Array(N), i;
       for(i=0;i<N;i++) lum[i]=0.299*p[i*4]+0.587*p[i*4+1]+0.114*p[i*4+2];
