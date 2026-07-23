@@ -230,6 +230,17 @@ export const smsPage = `    <!DOCTYPE html>
                         <!-- 학생 명단 엑셀 다운로드 + 업로드 -->
                         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                             <h3 class="text-sm font-semibold text-gray-900 mb-3">📊 학생 명단</h3>
+                            <!-- 타깃 그룹 불러오기 -->
+                            <div class="mb-3 p-3 bg-sky-50 rounded-lg border border-sky-200">
+                                <p class="text-xs font-semibold text-sky-700 mb-2">🎯 타깃 그룹에서 불러오기</p>
+                                <div class="flex gap-2">
+                                    <select id="groupSelect" class="flex-1 px-3 py-2 border border-sky-300 rounded-lg text-sm bg-white">
+                                        <option value="">그룹 선택…</option>
+                                    </select>
+                                    <button onclick="addGroupToReceivers()" class="px-3 py-2 bg-sky-600 text-white text-sm font-semibold rounded-lg hover:bg-sky-700 transition whitespace-nowrap">불러오기</button>
+                                </div>
+                                <p class="text-xs text-sky-600 mt-1.5">엑셀 DB로 저장한 타깃 그룹을 수신자로 추가합니다. <a href="/dashboard_USE17237_612/team/groups" target="_top" class="underline">그룹 관리</a></p>
+                            </div>
                             <!-- 발송 대상 선택 -->
                             <div class="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
                                 <p class="text-xs font-semibold text-gray-600 mb-2">발송 대상 선택</p>
@@ -1198,12 +1209,34 @@ export const smsPage = `    <!DOCTYPE html>
                 }
             }
 
+            // 타깃 그룹(엑셀 DB) 불러오기
+            function loadGroupsIntoSelect() {
+                fetch('/api/groups', { credentials: 'include' }).then(function(r){return r.json();}).then(function(d){
+                    if (!d.ok) return; var sel = document.getElementById('groupSelect'); if (!sel) return;
+                    sel.innerHTML = '<option value="">그룹 선택…</option>' + (d.groups || []).map(function(g){
+                        return '<option value="' + g.id + '">' + String(g.name || '').replace(/</g, '&lt;') + ' (' + g.count + '명)</option>';
+                    }).join('');
+                }).catch(function(){});
+            }
+            function addGroupToReceivers() {
+                var sel = document.getElementById('groupSelect');
+                if (!sel || !sel.value) { alert('타깃 그룹을 선택하세요.'); return; }
+                fetch('/api/groups?members=' + encodeURIComponent(sel.value), { credentials: 'include' }).then(function(r){return r.json();}).then(function(d){
+                    if (!d.ok) { alert(d.error || '불러오기 실패'); return; }
+                    var added = 0, existing = {}; receivers.forEach(function(r){ existing[r.phone] = 1; });
+                    (d.members || []).forEach(function(m){ var p = String(m.phone || '').replace(/[^0-9]/g, ''); if (p.length < 10 || existing[p]) return; existing[p] = 1; receivers.push({ name: m.name || formatPhoneNumber(p), phone: p }); added++; });
+                    renderReceivers(); if (typeof updateCost === 'function') updateCost();
+                    alert(added + '명을 수신자에 추가했습니다.');
+                }).catch(function(){ alert('네트워크 오류가 발생했습니다.'); });
+            }
+
             // 페이지 로드
             (async () => {
                 await checkAuth();
                 if (currentUserId) {
                     await loadSenders();
                     await loadTemplates();
+                    loadGroupsIntoSelect();
                 }
             })();
 

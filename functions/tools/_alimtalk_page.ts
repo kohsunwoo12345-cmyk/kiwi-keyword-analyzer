@@ -281,6 +281,17 @@ export const alimtalkPage = `<!DOCTYPE html>
             <i class="fas fa-check-circle text-green-500 text-base"></i>
             <span id="alimtalkUploadCount"></span>
           </div>
+          <!-- 타깃 그룹 불러오기 -->
+          <div class="mt-3 p-3 bg-sky-50 rounded-xl border border-sky-200">
+            <p class="text-xs font-semibold text-sky-700 mb-2">🎯 타깃 그룹에서 불러오기</p>
+            <div class="flex gap-2">
+              <select id="alimtalkGroupSelect" class="flex-1 px-3 py-2 border border-sky-300 rounded-lg text-sm bg-white">
+                <option value="">그룹 선택…</option>
+              </select>
+              <button onclick="loadAlimtalkGroup()" class="px-3 py-2 bg-sky-600 text-white text-sm font-semibold rounded-lg hover:bg-sky-700 transition whitespace-nowrap">불러오기</button>
+            </div>
+            <p class="text-xs text-sky-600 mt-1.5">엑셀 DB로 저장한 타깃 그룹을 수신자로 불러옵니다. <a href="/dashboard_USE17237_612/team/groups" target="_top" class="underline">그룹 관리</a></p>
+          </div>
         </div>
       </div>
 
@@ -1101,9 +1112,36 @@ export const alimtalkPage = `<!DOCTYPE html>
     }
   };
 
+  /* ──── 타깃 그룹(엑셀 DB) ──── */
+  function loadAlimtalkGroupsIntoSelect() {
+    fetch('/api/groups', { credentials: 'include' }).then(function(r){return r.json();}).then(function(d){
+      if (!d.ok) return; var sel = document.getElementById('alimtalkGroupSelect'); if (!sel) return;
+      sel.innerHTML = '<option value="">그룹 선택…</option>' + (d.groups || []).map(function(g){
+        return '<option value="' + g.id + '">' + String(g.name || '').replace(/</g, '&lt;') + ' (' + g.count + '명)</option>';
+      }).join('');
+    }).catch(function(){});
+  }
+  window.loadAlimtalkGroup = function() {
+    var sel = document.getElementById('alimtalkGroupSelect');
+    if (!sel || !sel.value) { alert('타깃 그룹을 선택하세요.'); return; }
+    fetch('/api/groups?members=' + encodeURIComponent(sel.value), { credentials: 'include' }).then(function(r){return r.json();}).then(function(d){
+      if (!d.ok) { alert(d.error || '불러오기 실패'); return; }
+      var rows = [];
+      (d.members || []).forEach(function(m){ var p = String(m.phone || '').replace(/[^0-9]/g, ''); if (p.length >= 9) rows.push({ name: m.name || p, phone: p, landing: '' }); });
+      if (!rows.length) { alert('유효한 연락처가 없습니다.'); return; }
+      uploadedRecipientRows = rows;
+      var infoEl = document.getElementById('alimtalkUploadInfo');
+      document.getElementById('alimtalkUploadCount').textContent = rows.length + '명 수신자 불러옴 (타깃 그룹)';
+      if (infoEl) infoEl.classList.remove('hidden');
+      if (typeof setSendMode === 'function') setSendMode('manual');
+      alert(rows.length + '명을 수신자로 불러왔습니다. (수동 발송 모드)');
+    }).catch(function(){ alert('네트워크 오류가 발생했습니다.'); });
+  };
+
   /* ──── 초기화 ──── */
   loadUserChannels();
   loadStudents();
+  loadAlimtalkGroupsIntoSelect();
   setSendMode('student');
 })();
 ` + '</script>' + `
