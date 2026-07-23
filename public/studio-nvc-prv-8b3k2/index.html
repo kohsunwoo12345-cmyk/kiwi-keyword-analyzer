@@ -1835,7 +1835,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 'use strict';
 var STUDIO_BUILD_TAG='2026-07-13-v56';   // 서버 health.build 와 정확히 같아야 최신(캐시/배포지연 아님)
 // (검증용) ?cnexport=1 접속 시 전처리 함수만 window 로 노출 — 순수 이미지 함수라 보안 영향 없음
-try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine }; }catch(_e){} },0); } }catch(_e){}
+try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
   function s(inner,vb){ return '<svg class="ico" viewBox="'+(vb||'0 0 24 24')+'" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+inner+'</svg>'; }
@@ -3030,6 +3030,12 @@ function depthPreview(srcUrl){
           //    평탄/텍스처 내부는 모델 깊이를 그대로 유지 → 형태 흐트러짐(텍스처가 깊이로 새는 것) 0, 경계만 또렷. ──
           var up=ctx.getImageData(0,0,W,H), ud=up.data, dep01=new Float32Array(N), gd01=new Float32Array(N);
           for(i=0;i<N;i++){ dep01[i]=ud[i*4]/255; gd01[i]=lum[i]/255; }
+          // ── 내부 릴리프 강화(로컬 대비): 얼굴·몸의 미세 깊이차(코·턱·가슴 등)가 밋밋한 흰 덩어리로 뭉치지
+          //    않고 드러나게. 대형 반경 언샤프 — 실루엣(대구조)은 유지하고 중간주파 릴리프만 증폭. ──
+          var bigR=Math.max(4,Math.round(W/14)), one=new Float32Array(N);
+          for(i=0;i<N;i++) one[i]=1;
+          var _cnt=_boxSum(one,W,H,bigR), _sum=_boxSum(dep01,W,H,bigR), amt=0.6;
+          for(i=0;i<N;i++){ var mean=_sum[i]/(_cnt[i]||1), e=dep01[i]+amt*(dep01[i]-mean); if(e<0)e=0; if(e>1)e=1; dep01[i]=e; }
           //   eps 를 크게(0.010) → 대비 큰 실제 경계만 전이, 미세 텍스처(저대비)는 무시. 반경은 W/40.
           var rr=Math.max(2,Math.round(W/40)), q=_guidedRefine(dep01,gd01,W,H,rr,0.010);
           var fin=new Float32Array(N), yy, xx, idx, gx, gy, gm, w2;
