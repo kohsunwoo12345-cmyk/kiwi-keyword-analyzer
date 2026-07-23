@@ -12,7 +12,7 @@ const ACCENT = '#0ea5e9'
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const inputClass =
-  'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-violet-500'
+  'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500'
 
 function parseEmails(raw: string): string[] {
   return raw
@@ -94,8 +94,8 @@ export default function EmailSendPage() {
           <div
             className={`rounded-xl border px-3 py-2.5 text-sm animate-fade-in ${
               toastError
-                ? 'border-rose-200 bg-rose-50 text-rose-700'
-                : 'border-emerald-200 bg-emerald-100 text-emerald-700'
+                ? 'border-rose-500/30 bg-rose-500/12 text-rose-600'
+                : 'border-emerald-500/30 bg-emerald-500/12 text-emerald-600'
             }`}
           >
             {toast}

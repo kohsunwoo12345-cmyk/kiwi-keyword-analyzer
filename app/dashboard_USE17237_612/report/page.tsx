@@ -108,7 +108,7 @@ export default function ReportPage() {
             <Panel title="최근 거래 내역">
               <div className="max-h-[360px] overflow-auto">
                 <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-white">
+                  <thead className="sticky top-0 bg-[var(--bg-soft)]">
                     <tr className="border-b border-[var(--border-soft)] text-left text-xs text-[var(--text-dim)]">
                       <th className="pb-2 font-medium">일시</th>
                       <th className="pb-2 font-medium">종류</th>
@@ -119,7 +119,7 @@ export default function ReportPage() {
                     {tx.map((t, i) => (
                       <tr key={i} className="border-b border-[var(--border-soft)] last:border-0">
                         <td className="py-2.5 text-[var(--text-soft)]">{fmtDate(t.created_at)}</td>
-                        <td className="py-2.5"><Badge className="border-slate-200 bg-slate-50 text-slate-600">{KIND_LABEL[t.kind] || t.kind}</Badge></td>
+                        <td className="py-2.5"><Badge className="border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)]">{KIND_LABEL[t.kind] || t.kind}</Badge></td>
                         <td className={`py-2.5 text-right font-semibold ${t.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                           {t.amount >= 0 ? '+' : ''}{t.amount.toLocaleString()}
                         </td>
@@ -136,8 +136,8 @@ export default function ReportPage() {
             <Panel title="최근 활동">
               <div className="max-h-[360px] space-y-1 overflow-auto">
                 {activity.map((a, i) => (
-                  <div key={i} className="flex items-start gap-3 rounded-xl p-2.5 hover:bg-slate-50">
-                    <span className="mt-0.5 grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-slate-100 text-[var(--text-dim)]">
+                  <div key={i} className="flex items-start gap-3 rounded-xl p-2.5 hover:bg-[var(--panel-2)]">
+                    <span className="mt-0.5 grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-[var(--panel-2)] text-[var(--text-dim)]">
                       <Activity size={14} />
                     </span>
                     <div className="min-w-0 flex-1">
