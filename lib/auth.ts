@@ -1290,6 +1290,14 @@ export async function adminNoticeSend(payload: {
 }): Promise<{ ok: boolean; campaignId?: string; audience?: number; error?: string }> {
   return postJson('/api/admin/notices', payload)
 }
+// 관리자: 알림 삭제 = 발송 취소 (전송 기록·읽음·방문자 이벤트·스누즈 모두 제거)
+export async function adminNoticeDelete(id: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const r = await fetch('/api/admin/notices?id=' + encodeURIComponent(id), { method: 'DELETE', credentials: 'include' })
+    const d = await r.json().catch(() => ({}))
+    return { ok: !!d.ok, error: d.error }
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
 
 /* ───────── 관리자: 노드 스튜디오 감사 ───────── */
 export interface StudioUserRow { userId: string; name: string; email: string; plan: string; nodeCount: number; docCount: number; updatedAt: string | null; creditsUsed: number; genCount: number }
