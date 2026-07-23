@@ -50,6 +50,7 @@ import {
   Contact,
   CalendarRange,
   MessagesSquare,
+  Database,
 } from 'lucide-react'
 import { Logo } from '@/components/Brand'
 import { adminSupportCount, adminPendingCounts } from '@/lib/auth'
@@ -110,6 +111,7 @@ const NAV_GROUPS: NavGroup[] = [
       { title: '전개 캘린더', href: `${ADMIN_BASE}/calendar`, icon: CalendarRange },
       { title: '광고 성과', href: `${ADMIN_BASE}/ad-performance`, icon: TrendingUp },
       { title: '팀 연락 내역', href: `${ADMIN_BASE}/team-comms`, icon: MessagesSquare },
+      { title: '랜딩 DB·페이지', href: `${ADMIN_BASE}/landing-db`, icon: Database },
       { title: '퍼널 분석', href: '/tools/funnel-landing-analytics.html', icon: LineChart },
       { title: '쿠폰·할인코드', href: `${ADMIN_BASE}/coupons`, icon: Ticket },
       { title: '발송 설정', href: `${ADMIN_BASE}/messaging`, icon: Send },

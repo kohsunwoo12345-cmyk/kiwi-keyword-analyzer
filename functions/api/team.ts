@@ -31,6 +31,8 @@ async function ensureTeamTables(db: D1Database) {
   }
   // team_cal_events 에 board_id 컬럼(캘린더 소속) — 없으면 추가
   await db.prepare(`ALTER TABLE team_cal_events ADD COLUMN board_id TEXT`).run().catch(() => {})
+  // 타깃 그룹 연결 — 일정에 발송 대상(타깃 그룹) 지정
+  await db.prepare(`ALTER TABLE team_cal_events ADD COLUMN target_group_id TEXT`).run().catch(() => {})
 }
 
 // 팀의 캘린더(보드) 목록 — 없으면 기본 캘린더 자동 생성 + 기존 미분류 일정 이관
@@ -90,11 +92,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const binds: any[] = [calTeam, like, me.id, me.id]
     if (boardId) binds.push(boardId)
     const rows = (await db.prepare(
-      `SELECT id, owner_id, owner_name, d, title, color, memo, visibility, target_user_id, board_id, created_at
-         FROM team_cal_events
-        WHERE team_id = ? AND d LIKE ?
-          AND (visibility = 'team' OR owner_id = ? OR (visibility = 'user' AND target_user_id = ?))${boardClause}
-        ORDER BY d ASC, created_at ASC LIMIT 500`,
+      `SELECT e.id, e.owner_id, e.owner_name, e.d, e.title, e.color, e.memo, e.visibility, e.target_user_id, e.board_id, e.target_group_id, e.created_at,
+              g.name AS target_group_name
+         FROM team_cal_events e
+         LEFT JOIN contact_groups g ON g.id = e.target_group_id
+        WHERE e.team_id = ? AND e.d LIKE ?
+          AND (e.visibility = 'team' OR e.owner_id = ? OR (e.visibility = 'user' AND e.target_user_id = ?))${boardClause ? boardClause.replace('board_id', 'e.board_id') : ''}
+        ORDER BY e.d ASC, e.created_at ASC LIMIT 500`,
     ).bind(...binds).all()).results || []
     return json({ ok: true, events: rows, meId: me.id })
   }
@@ -245,9 +249,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     let boardId = String(b.boardId || '').trim()
     const boards = await ensureBoards(db, teamId, now)
     if (!boardId || !boards.some((x: any) => x.id === boardId)) boardId = boards[0].id
+    // 타깃 그룹(발송 대상) — 본인 소유 그룹만 연결
+    let groupId = String(b.targetGroupId || '').trim()
+    if (groupId) {
+      const g = await db.prepare('SELECT id FROM contact_groups WHERE id = ? AND user_id = ?').bind(groupId, me.id).first().catch(() => null)
+      if (!g) groupId = ''
+    }
     const id = uid('ce_')
-    await db.prepare('INSERT INTO team_cal_events (id, team_id, owner_id, owner_name, d, title, color, memo, visibility, target_user_id, board_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(id, teamId, me.id, me.name, d, title, color, memo, visibility, target || null, boardId, now).run()
+    await db.prepare('INSERT INTO team_cal_events (id, team_id, owner_id, owner_name, d, title, color, memo, visibility, target_user_id, board_id, target_group_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, teamId, me.id, me.name, d, title, color, memo, visibility, target || null, boardId, groupId || null, now).run()
     // 개별 공유는 대상자에게 알림
     if (visibility === 'user' && target) {
       await addNotification(db, target, '집행 일정이 공유되었어요 📅', `${me.name}님이 "${title}"(${d}) 일정을 공유했습니다.`).catch(() => {})
