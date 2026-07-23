@@ -166,7 +166,10 @@ html {
 body {
   color: var(--text);
   background: var(--bg);
+  /* 노드 스튜디오와 동일한 폰트 스택 (Inter + Noto Sans KR → 시스템 한글 폰트 폴백) */
+  font-family: var(--font-inter), 'Inter', 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   /* 한국어 줄바꿈: 단어(어절) 단위로만 끊어 '만들고'가 '만/들고'처럼 쪼개지지 않게 */
   word-break: keep-all;
   overflow-wrap: break-word;
@@ -528,6 +531,89 @@ body {
 .dash-shell.site-dark .border-slate-200,
 .dash-shell.site-dark .border-slate-300 { border-color: var(--border) !important; }
 .dash-shell.site-dark .from-violet-50 { --tw-gradient-from: rgba(139, 92, 246, 0.13) var(--tw-gradient-from-position) !important; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   대시보드 리뉴얼 — 노드 스튜디오 톤앤매너 매칭 (.dash-shell 스코프 한정)
+   · 공개 마케팅 사이트(.site-* 단독)에는 영향 없음.
+   · 스튜디오의 플랫 프리미엄 팔레트(#0f1117/#14161d/#23262f)와 인디고 포인트,
+     타이트한 라운드(10~14px), 하드한 hairline 보더로 통일. 라이트/다크 모두 매칭.
+   ═══════════════════════════════════════════════════════════════════════ */
+/* 포인트 컬러 — 스튜디오 인디고→블루 */
+.dash-shell.site-dark,
+.dash-shell.site-light {
+  --brand: #6366f1;
+  --brand-2: #3b82f6;
+  --brand-3: #818cf8;
+}
+
+/* 다크: 스튜디오 팔레트 + 배경 글로우를 은은하게 평탄화 */
+.dash-shell.site-dark {
+  --bg: #0c0e13;
+  --bg-soft: #0f1117;
+  --panel: #14161d;
+  --panel-2: #191b22;
+  --border: #23262f;
+  --border-soft: #1e2029;
+  --text: #e6e9f2;
+  --text-soft: #aeb4c4;
+  --text-dim: #7c8296;
+  background-color: #0c0e13;
+  background-image: radial-gradient(65% 42% at 50% -12%, rgba(99, 102, 241, 0.10), transparent 60%);
+  background-attachment: fixed;
+}
+.dash-shell.site-dark .card {
+  background: linear-gradient(180deg, #16181f, #131519);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 32px -20px rgba(0, 0, 0, 0.85);
+}
+.dash-shell.site-dark .card-2 { background: var(--panel-2); border: 1px solid var(--border); }
+.dash-shell.site-dark .hover-lift:hover {
+  border-color: rgba(129, 140, 248, 0.5);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 20px 44px -24px rgba(79, 70, 229, 0.5);
+}
+.dash-shell.site-dark ::-webkit-scrollbar-thumb { background: #2a2e39; }
+.dash-shell.site-dark ::-webkit-scrollbar-thumb:hover { background: #363b49; }
+
+/* 라이트: 정제된 밝은 톤(스튜디오 감성 유지) */
+.dash-shell.site-light {
+  --bg: #f6f7fb;
+  --bg-soft: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #f4f6fa;
+  --border: #e7e9f0;
+  --border-soft: #eef0f6;
+  --text: #14161f;
+  --text-soft: #586172;
+  --text-dim: #97a0b2;
+}
+.dash-shell.site-light .hover-lift:hover {
+  border-color: #c7cbf5;
+  box-shadow: 0 16px 36px -14px rgba(79, 70, 229, 0.22);
+}
+
+/* 공통 컴포넌트 미세 조정 — 라운드/보더/포인트 그라디언트 */
+.dash-shell .card { border-radius: 14px; }
+.dash-shell .card-2 { border-radius: 11px; }
+.dash-shell .brand-gradient { background: linear-gradient(135deg, #818cf8 0%, #6366f1 45%, #3b82f6 100%); }
+.dash-shell .hover-lift { transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, border-color 0.22s ease; }
+.dash-shell .hover-lift:hover { transform: translateY(-2px); }
+
+/* 폼 인풋 — 노드 스튜디오 스타일 (기존 .input 정의가 없어 신규 추가) */
+.input {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.4;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.input::placeholder { color: var(--text-dim); }
+.input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.16); }
+.input:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* 히어로 배경 사진 벽 — 세로 스크롤(위/아래) 무한 루프 */
 @keyframes heroWallUp { from { transform: translateY(0); } to { transform: translateY(-50%); } }

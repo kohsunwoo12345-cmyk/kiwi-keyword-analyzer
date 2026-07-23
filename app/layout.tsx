@@ -9,7 +9,7 @@ import { LanguageProvider } from '@/lib/i18n'
 import { JsonLd } from '@/components/seo/JsonLd'
 import { orgLd, websiteLd, SITE_URL, KEYWORDS } from '@/lib/seo'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -70,7 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <JsonLd data={[orgLd(), websiteLd()]} />
       </head>
-      <body className={inter.className}>
+      <body className={inter.variable}>
         <LanguageProvider>
           <VisitTracker />
           <EmojiParser />
