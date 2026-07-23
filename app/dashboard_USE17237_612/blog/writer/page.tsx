@@ -233,7 +233,7 @@ export default function BlogWriterPage() {
           >
             {!result && !loading && (
               <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-                <span className="grid h-14 w-14 place-items-center rounded-2xl bg-green-50 text-green-600">
+                <span className="grid h-14 w-14 place-items-center rounded-2xl bg-emerald-500/12 text-green-600">
                   <Sparkles size={26} />
                 </span>
                 <p className="text-sm text-[var(--text-dim)]">
@@ -290,7 +290,7 @@ export default function BlogWriterPage() {
                 {/* 추천 해시태그 */}
                 <div className="flex flex-wrap gap-2">
                   {result.tags.map((t) => (
-                    <Badge key={t} className="border-green-200 bg-green-50 text-green-700">
+                    <Badge key={t} className="border-green-200 bg-emerald-500/12 text-green-700">
                       #{t}
                     </Badge>
                   ))}
@@ -309,7 +309,7 @@ export default function BlogWriterPage() {
                 </div>
 
                 {copied && (
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2.5 text-sm text-emerald-700">
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-700">
                     본문이 클립보드에 복사되었습니다.
                   </div>
                 )}
@@ -346,7 +346,7 @@ export default function BlogWriterPage() {
                       <Badge
                         className={cn(
                           d.platform === '네이버 블로그'
-                            ? 'border-green-200 bg-green-50 text-green-700'
+                            ? 'border-green-200 bg-emerald-500/12 text-green-700'
                             : 'border-amber-200 bg-amber-500/12 text-amber-700',
                         )}
                       >

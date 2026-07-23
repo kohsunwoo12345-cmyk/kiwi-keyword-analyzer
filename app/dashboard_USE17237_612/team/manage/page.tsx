@@ -29,7 +29,7 @@ function RoleBadge({ role }: { role: string }) {
   const map: Record<string, { cls: string; Icon: typeof Crown }> = {
     owner: { cls: 'border-amber-200 bg-amber-500/12 text-amber-700', Icon: Crown },
     admin: { cls: 'border-sky-200 bg-sky-500/12 text-sky-700', Icon: Shield },
-    member: { cls: 'border-slate-200 bg-slate-50 text-slate-600', Icon: UserIcon },
+    member: { cls: 'border-slate-200 bg-[var(--panel-2)] text-slate-600', Icon: UserIcon },
   }
   const { cls, Icon } = map[role] || map.member
   return (
@@ -280,7 +280,7 @@ export default function TeamManagePage() {
                 <div className="mb-3 flex items-center gap-2">
                   <Inbox size={17} className="text-sky-500" />
                   <h2 className="text-base font-semibold">받은 초대</h2>
-                  <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">{invites.length}</span>
+                  <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-xs font-medium text-sky-700">{invites.length}</span>
                 </div>
                 <div className="space-y-2">
                   {invites.map((inv) => (
@@ -367,7 +367,7 @@ export default function TeamManagePage() {
                             key={m.id}
                             className="flex items-center gap-3 rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-3.5 py-2.5"
                           >
-                            <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-sky-100 text-sm font-semibold text-sky-700">
+                            <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-sky-500/15 text-sm font-semibold text-sky-700">
                               {(m.name || m.email || '?').slice(0, 1).toUpperCase()}
                             </span>
                             <div className="min-w-0 flex-1">

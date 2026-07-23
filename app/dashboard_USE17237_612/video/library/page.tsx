@@ -143,7 +143,7 @@ export default function VideoLibraryPage() {
               className={cn(
                 'rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors',
                 filter === f
-                  ? 'border-purple-200 bg-purple-50 text-purple-700'
+                  ? 'border-purple-200 bg-violet-500/12 text-purple-700'
                   : 'border-[var(--border)] bg-white text-[var(--text-soft)] hover:bg-[var(--panel-2)]',
               )}
             >

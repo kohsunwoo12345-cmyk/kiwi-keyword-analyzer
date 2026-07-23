@@ -160,7 +160,7 @@ export default function EmailSendPage() {
           {/* Preview */}
           <Panel title="미리보기">
             <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-sm">
-              <div className="flex items-center gap-2.5 border-b border-[var(--border)] bg-slate-50 px-4 py-3">
+              <div className="flex items-center gap-2.5 border-b border-[var(--border)] bg-[var(--panel-2)] px-4 py-3">
                 <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-sky-500 to-cyan-500 text-white">
                   <Inbox size={16} />
                 </span>

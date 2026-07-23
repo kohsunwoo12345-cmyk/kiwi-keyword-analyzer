@@ -36,7 +36,7 @@ const COLORS: Record<ColorKey, { label: string; dot: string; pill: string }> = {
 
 const VIS: Record<Visibility, { label: string; badge: string; cls: string; icon: typeof Globe }> = {
   team: { label: '공유(전체)', badge: '공유(전체)', cls: 'border-sky-200 bg-sky-500/12 text-sky-700', icon: Globe },
-  private: { label: '나만', badge: '나만', cls: 'border-slate-200 bg-slate-50 text-slate-600', icon: Lock },
+  private: { label: '나만', badge: '나만', cls: 'border-slate-200 bg-[var(--panel-2)] text-slate-600', icon: Lock },
   user: { label: '개별공유', badge: '개별공유', cls: 'border-amber-200 bg-amber-500/12 text-amber-700', icon: UserRound },
 }
 
