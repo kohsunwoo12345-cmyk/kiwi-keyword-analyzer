@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { EmojiText } from '@/components/Emoji'
 
 export function PageHeader({
   icon: Icon,
@@ -29,7 +30,7 @@ export function PageHeader({
           <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: accent }}>
             {eyebrow}
           </p>
-          <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+          <h1 className="text-2xl font-bold tracking-tight"><EmojiText>{title}</EmojiText></h1>
           <p className="mt-0.5 text-sm text-[var(--text-soft)]">{desc}</p>
         </div>
       </div>
