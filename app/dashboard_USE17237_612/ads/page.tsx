@@ -77,7 +77,7 @@ export default function AdsPage() {
               </thead>
               <tbody>
                 {adCampaigns.map((c) => (
-                  <tr key={c.name} className="border-b border-[var(--border-soft)] hover:bg-slate-50">
+                  <tr key={c.name} className="border-b border-[var(--border-soft)] transition-colors hover:bg-[var(--panel-2)]">
                     <td className="px-3 py-3 font-medium">{c.name}</td>
                     <td className="px-3 py-3">
                       <span
@@ -103,8 +103,8 @@ export default function AdsPage() {
                       <Badge
                         className={
                           c.status === '운영중'
-                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                            : 'border-amber-200 bg-amber-50 text-amber-700'
+                            ? 'border-emerald-500/30 bg-emerald-500/12 text-emerald-600'
+                            : 'border-amber-500/30 bg-amber-500/12 text-amber-600'
                         }
                       >
                         {c.status}
