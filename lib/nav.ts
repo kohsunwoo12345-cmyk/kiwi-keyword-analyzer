@@ -22,6 +22,7 @@ import {
   Wallet,
   CreditCard,
   Bell,
+  Users,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -139,7 +140,8 @@ export const NAV_CATEGORIES: NavCategory[] = [
     accent: '#0ea5e9',
     badge: 'NEW',
     items: [
-      { title: '캘린더', href: '/dashboard_USE17237_612/team/calendar', icon: Calendar },
+      { title: '팀 관리·초대', href: '/dashboard_USE17237_612/team/manage', icon: Users },
+      { title: '집행 캘린더', href: '/dashboard_USE17237_612/team/calendar', icon: Calendar },
       { title: '팀 채팅', href: '/dashboard_USE17237_612/team/chat', icon: MessageCircle },
       { title: '회의록', href: '/dashboard_USE17237_612/team/meeting-notes', icon: ClipboardList },
       { title: '메모', href: '/dashboard_USE17237_612/team/notes', icon: StickyNote },
