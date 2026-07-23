@@ -2919,7 +2919,13 @@ var _depthModel=null,_depthTry=null;
 function ensureDepthModel(){
   if(_depthModel) return Promise.resolve(_depthModel);
   if(_depthTry) return _depthTry;
-  _depthTry=import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2').then(function(mod){
+  // transformers.js 를 여러 CDN 에서 순차 시도 → 한 CDN 이 느리거나 막혀도 실제 모델 로드 성공률↑
+  function _loadTf(){
+    return import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2')
+      .catch(function(){ return import('https://unpkg.com/@xenova/transformers@2.17.2'); })
+      .catch(function(){ return import('https://esm.run/@xenova/transformers@2.17.2'); });
+  }
+  _depthTry=_loadTf().then(function(mod){
     try{ mod.env.allowLocalModels=false; mod.env.useBrowserCache=true; }catch(_){}
     return mod.pipeline('depth-estimation','Xenova/depth-anything-small-hf',{ quantized:true });
   }).then(function(p){ _depthModel=p; return p; }).catch(function(err){ _depthTry=null; throw err; });
@@ -2990,15 +2996,21 @@ var _poseLM=null, _poseTry=null;
 function ensurePoseLM(){
   if(_poseLM) return Promise.resolve(_poseLM);
   if(_poseTry) return _poseTry;
-  var V='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
-  _poseTry=import(V+'/vision_bundle.mjs').then(function(m){
-    return m.FilesetResolver.forVisionTasks(V+'/wasm').then(function(fr){
-      return m.PoseLandmarker.createFromOptions(fr,{
-        baseOptions:{ modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task' },
-        runningMode:'IMAGE', numPoses:1,
-        minPoseDetectionConfidence:0.3, minPosePresenceConfidence:0.3, minTrackingConfidence:0.3 });  // 한 명만 · heavy(최고 정확도) · 낮은 임계로 인식률↑
-    });
-  }).then(function(lm){ _poseLM=lm; return lm; }).catch(function(err){ _poseTry=null; throw err; });
+  // MediaPipe tasks-vision 을 여러 CDN 에서 순차 시도 → 로드 실패로 템플릿 폴백되는 일 최소화
+  var HOSTS=['https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14','https://unpkg.com/@mediapipe/tasks-vision@0.10.14','https://esm.run/@mediapipe/tasks-vision@0.10.14'];
+  function tryHost(i){
+    if(i>=HOSTS.length) return Promise.reject(new Error('vision load fail'));
+    var V=HOSTS[i];
+    return import(V+'/vision_bundle.mjs').then(function(m){
+      return m.FilesetResolver.forVisionTasks(V+'/wasm').then(function(fr){
+        return m.PoseLandmarker.createFromOptions(fr,{
+          baseOptions:{ modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task' },
+          runningMode:'IMAGE', numPoses:1,
+          minPoseDetectionConfidence:0.25, minPosePresenceConfidence:0.25, minTrackingConfidence:0.25 });  // 한 명만 · heavy(최고 정확도) · 낮은 임계로 인식률↑
+      });
+    }).catch(function(){ return tryHost(i+1); });
+  }
+  _poseTry=tryHost(0).then(function(lm){ _poseLM=lm; return lm; }).catch(function(err){ _poseTry=null; throw err; });
   return _poseTry;
 }
 // ── OpenPose(COCO-18) 관절·뼈대·색상 (표준 렌더) ──
@@ -3061,8 +3073,19 @@ function posePreview(srcUrl){
       W=Math.min(768, img.naturalWidth||768); var sc=W/(img.naturalWidth||W); H=Math.max(1,Math.round((img.naturalHeight||W)*sc));
       var c=document.createElement('canvas'); c.width=W; c.height=H; var ctx=c.getContext('2d'); ctx.drawImage(img,0,0,W,H);
       ensurePoseLM().then(function(lm){
-        var res; try{ res=lm.detect(c); }catch(e){ return templateResult(); }
+        var res; try{ res=lm.detect(c); }catch(e){ res=null; }
         var lms=(res&&res.landmarks)||[];
+        if(!lms.length){
+          // 2차 시도 — 대비·밝기를 높인 사본으로 재검출(어둡거나 저대비 사진에서 인식률↑)
+          try{
+            var c2=document.createElement('canvas'); c2.width=W; c2.height=H; var x2=c2.getContext('2d');
+            x2.drawImage(c,0,0); var id=x2.getImageData(0,0,W,H), d=id.data, k;
+            for(k=0;k<d.length;k+=4){ for(var ch=0;ch<3;ch++){ var v=d[k+ch]/255; v=(v-0.5)*1.35+0.5+0.06; d[k+ch]=Math.max(0,Math.min(255,Math.round(v*255))); } }
+            x2.putImageData(id,0,0);
+            var res2; try{ res2=lm.detect(c2); }catch(_e){ res2=null; }
+            lms=(res2&&res2.landmarks)||[];
+          }catch(_e2){}
+        }
         if(!lms.length) return templateResult();
         var kp=centerPose(mpToOpenPose(lms[0]));   // 첫 번째(가장 큰) 한 명만 → 정중앙 정렬
         resolve({ url:renderOpenPose(kp,W,H,1).toDataURL('image/png'), kps:kp, w:W, h:H, template:false });
