@@ -7,7 +7,7 @@ import { PageTransition } from '@/components/dash/PageTransition'
 import {
   LayoutDashboard,
   Users,
-  Activity,
+  CreditCard,
   Settings,
   Shield,
   ShieldAlert,
@@ -61,7 +61,7 @@ import { cn } from '@/lib/utils'
 // 보안을 위한 난독화된 관리자 경로 (추측 불가)
 export const ADMIN_BASE = '/adminsunkoh028741_11263'
 
-type NavItem = { title: string; href: string; icon: typeof LayoutDashboard; exactHref?: string; badge?: 'approvals' | 'support' }
+type NavItem = { title: string; href: string; icon: typeof LayoutDashboard; exactHref?: string; badge?: 'approvals' | 'support' | 'credits' }
 type NavGroup = { label: string; items: NavItem[] }
 
 // 영상 관련 관리 페이지 — 영상 대시보드(/video)에 카드로도 모아 보여준다.
@@ -81,11 +81,11 @@ const NAV_GROUPS: NavGroup[] = [
       { title: '관리자 대시보드', href: ADMIN_BASE, icon: LayoutDashboard },
       { title: '회원 관리', href: `${ADMIN_BASE}/users`, icon: Users },
       { title: '알림', href: `${ADMIN_BASE}/notices`, icon: Bell },
-      { title: '실시간 모니터링', href: `${ADMIN_BASE}/users`, icon: Activity, exactHref: `${ADMIN_BASE}/users#live` },
       { title: '보안', href: `${ADMIN_BASE}/security`, icon: ShieldAlert },
       { title: '관리자 접근 제한', href: `${ADMIN_BASE}/access`, icon: Lock },
       { title: '해킹 위험', href: `${ADMIN_BASE}/security-risk`, icon: Shield },
       { title: '승인 관리', href: `${ADMIN_BASE}/approvals`, icon: BadgeCheck, badge: 'approvals' },
+      { title: '크레딧 충전 승인', href: `${ADMIN_BASE}/credit-approvals`, icon: CreditCard, badge: 'credits' },
       { title: '로그 기록', href: `${ADMIN_BASE}/logs`, icon: ScrollText },
       { title: '접속 통계', href: `${ADMIN_BASE}/stats`, icon: BarChart3 },
       { title: '고객센터', href: `${ADMIN_BASE}/support`, icon: MessageCircle, badge: 'support' },
@@ -134,6 +134,7 @@ function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
   const [supportUnread, setSupportUnread] = useState(0)
   const [pendingApprovals, setPendingApprovals] = useState(0)
+  const [pendingCredits, setPendingCredits] = useState(0)
   const [query, setQuery] = useState('')
   const q = query.trim().toLowerCase()
   const match = (title: string) => !q || title.toLowerCase().includes(q)
@@ -141,7 +142,7 @@ function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
     let alive = true
     const load = () => {
       adminSupportCount().then((n) => { if (alive) setSupportUnread(n) })
-      adminPendingCounts().then((p) => { if (alive) setPendingApprovals(p.approvals) })
+      adminPendingCounts().then((p) => { if (alive) { setPendingApprovals(p.approvals); setPendingCredits(p.credits) } })
     }
     load()
     const iv = setInterval(load, 20000)
@@ -150,7 +151,7 @@ function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
   const renderItem = (it: NavItem) => {
     const Icon = it.icon
     const bt = it.badge
-    const badgeCount = bt === 'support' ? supportUnread : bt === 'approvals' ? pendingApprovals : 0
+    const badgeCount = bt === 'support' ? supportUnread : bt === 'approvals' ? pendingApprovals : bt === 'credits' ? pendingCredits : 0
     const active =
       it.href !== '#' &&
       (pathname === it.href || (it.href !== ADMIN_BASE && pathname.startsWith(it.href)))
