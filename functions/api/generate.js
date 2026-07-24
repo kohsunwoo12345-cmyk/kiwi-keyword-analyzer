@@ -202,16 +202,17 @@ export function buildXaiPayload(b) {
     response_format: "url"
   };
 }
-// Grok(xAI) 영상 생성 페이로드. 모델/엔드포인트는 env 로 덮어쓰기 가능(제공사 스펙 확정 시 값만 교체).
+// Grok(xAI) 영상 생성 페이로드 — 공식 스펙: POST /v1/videos/generations, model grok-imagine-video-1.5,
+//  image:{url}(image-to-video, 공개 URL 만), duration. 모델명은 GROK_VIDEO_MODEL env 로 덮어쓰기 가능.
 export function buildXaiVideoPayload(b, env) {
-  return {
-    model: (env && pick(env, ["GROK_VIDEO_MODEL", "grok_video_model"])) || "grok-imagine-video",
+  const img = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
+  const p = {
+    model: (env && pick(env, ["GROK_VIDEO_MODEL", "grok_video_model"])) || "grok-imagine-video-1.5",
     prompt: [b.prompt, b.negative ? ("피해야 할 것: " + b.negative) : ""].filter(Boolean).join("\n").slice(0, 1000),
-    n: 1,
-    response_format: "url",
-    duration: Math.max(1, Math.min(20, Number(b.seconds) || 6)),
-    image: b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || undefined
+    duration: Math.max(1, Math.min(20, Number(b.seconds) || 6))
   };
+  if (img && /^https?:\/\//.test(String(img))) p.image = { url: String(img) };  // data:URL 은 불가(공개 URL 필요)
+  return p;
 }
 /* Seedance 모델명(프론트 표시명) → BytePlus ModelArk 모델 ID
    ※ 콘솔에서 실제 ID가 바뀌면 노드의 "Seedance 모델 ID 직접입력" 또는
@@ -1219,6 +1220,21 @@ async function handle(context) {
       return json({ status: j.status || "RUNNING" });
     }
 
+    if (provider === "xai") {
+      // Grok 영상 폴링 — GET /v1/videos/{request_id} → status "done" 이면 video.url
+      const task = u.searchParams.get("task");
+      if (!task || !k.xai) return json({ status: "failed", error: "no task/key" }, 400);
+      const r = await fetchT("https://api.x.ai/v1/videos/" + encodeURIComponent(task), {
+        headers: { "Authorization": "Bearer " + k.xai }
+      });
+      const j = await r.json().catch(() => ({}));
+      const st = String(j.status || "").toLowerCase();
+      const url = (j.video && j.video.url) || (j.data && j.data[0] && j.data[0].url) || null;
+      if ((st === "done" || st === "completed" || st === "succeeded") && url) return json({ url, kind: "video" });
+      if (st === "failed" || st === "error") return json({ status: "failed", error: (j.error && (j.error.message || j.error)) || "grok video failed" });
+      return json({ status: st || "processing" });
+    }
+
     if (provider === "google") {
       const sop = u.searchParams.get("sop");
       if (sop) { // 서비스 계정 오퍼레이션 폴링
@@ -1661,19 +1677,30 @@ async function handle(context) {
   if (provider === "xai") {
     if (!k.xai) return json({ error: "Grok 연동이 설정되지 않았습니다" }, 500);
     const isVideo = b.kind === "video" || /영상/.test(String(b.model || ""));
-    const ep = isVideo
-      ? (pick(env, ["GROK_VIDEO_ENDPOINT", "grok_video_endpoint"]) || "https://api.x.ai/v1/videos/generations")
-      : "https://api.x.ai/v1/images/generations";
-    const r = await fetchT(ep, {
+    if (isVideo) {
+      // 영상: 비동기 — 생성 태스크 POST → request_id 받아 폴링 statusUrl 반환
+      const ep = pick(env, ["GROK_VIDEO_ENDPOINT", "grok_video_endpoint"]) || "https://api.x.ai/v1/videos/generations";
+      const r = await fetchT(ep, {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + k.xai, "Content-Type": "application/json" },
+        body: JSON.stringify(buildXaiVideoPayload(b, env))
+      });
+      const j = await r.json().catch(() => ({}));
+      const direct = (j.video && j.video.url) || (j.data && j.data[0] && j.data[0].url) || null;   // 혹시 즉시 URL
+      if (direct) return json({ url: direct, kind: "video" });
+      const id = j.request_id || j.id || null;
+      if (r.ok && id) return json({ statusUrl: "/api/generate?provider=xai&task=" + encodeURIComponent(id), kind: "video" });
+      return json({ error: "Grok 영상 HTTP " + r.status + ": " + String(JSON.stringify(j.error || j)).slice(0, 220) }, 502);
+    }
+    const r = await fetchT("https://api.x.ai/v1/images/generations", {
       method: "POST",
       headers: { "Authorization": "Bearer " + k.xai, "Content-Type": "application/json" },
-      body: JSON.stringify(isVideo ? buildXaiVideoPayload(b, env) : buildXaiPayload(b))
+      body: JSON.stringify(buildXaiPayload(b))
     });
     const j = await r.json().catch(() => ({}));
-    // 동기 URL 응답 지원(여러 필드명 대응). 비동기 태스크 응답이면 안내와 함께 실패.
-    const url = j.data?.[0]?.url || j.data?.[0]?.video_url || j.data?.[0]?.video || j.url || j.video_url || null;
-    if (!r.ok || !url) return json({ error: "Grok " + (isVideo ? "영상 " : "") + "HTTP " + r.status + ": " + String(JSON.stringify(j.error || j)).slice(0, 220) }, 502);
-    return json({ url, kind: isVideo ? "video" : "image" });
+    const url = j.data?.[0]?.url || null;
+    if (!r.ok || !url) return json({ error: "Grok HTTP " + r.status + ": " + String(JSON.stringify(j.error || j)).slice(0, 220) }, 502);
+    return json({ url, kind: "image" });
   }
 
   if (provider === "google") {
