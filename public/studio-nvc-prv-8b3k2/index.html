@@ -3645,21 +3645,24 @@ function _srCanvas(pipe, srcCanvas, factor){
   }
   return next();
 }
-// 이미지 업스케일: SR 시도 → 목표 배율로 맞춤. 실패 시 리샘플러 폴백.
-function upscaleImageURL(src,scale){
+// 이미지 업스케일: SR 시도 → 목표 배율/해상도로 맞춤. 실패 시 리샘플러 폴백.
+//  opts.longTarget(px) 지정 시 긴 변을 그 크기(예: 5120=5K)로 맞춤 — x4 모델·풀해상 입력으로 실제 5K 디테일.
+function upscaleImageURL(src,scale,opts){
   return new Promise(function(resolve,reject){
     var img=new Image(); img.crossOrigin='anonymous';
     img.onload=function(){
-      var iw=img.naturalWidth||512, ih=img.naturalHeight||512, factor=scale>=4?4:2;
+      var iw=img.naturalWidth||512, ih=img.naturalHeight||512;
+      var factor=(opts&&opts.factor)||(scale>=4?4:2), effScale=scale;
+      if(opts&&opts.longTarget){ effScale=Math.max(1, Math.min(8, opts.longTarget/Math.max(iw,ih))); factor=4; }
       var srcC=document.createElement('canvas'); srcC.width=iw; srcC.height=ih; srcC.getContext('2d').drawImage(img,0,0);
       try{ toast(tr('초해상 모델 로딩 중… (최초 1회 다운로드)')); }catch(_){}
       ensureUpscaleModel(factor).then(function(pipe){
         return _srCanvas(pipe, srcC, factor).then(function(srC){
-          var tw=Math.round(iw*scale), th=Math.round(ih*scale), o=srC;
+          var tw=Math.round(iw*effScale), th=Math.round(ih*effScale), o=srC;
           if(srC.width!==tw||srC.height!==th){ var fc=document.createElement('canvas'); fc.width=tw; fc.height=th; var fx=fc.getContext('2d'); fx.imageSmoothingEnabled=true; fx.imageSmoothingQuality='high'; fx.drawImage(srC,0,0,tw,th); o=fc; }
           resolve({ url:o.toDataURL('image/png'), kind:'image', dim:tw+'×'+th });
         });
-      }).catch(function(){ resolve(_upscaleImageResample(src,scale)); });   // 모델 불가 → 리샘플 폴백
+      }).catch(function(){ resolve(_upscaleImageResample(src, effScale)); });   // 모델 불가 → 리샘플 폴백(동일 목표 배율)
     };
     img.onerror=function(){ reject(new Error('이미지 로드 실패')); };
     img.src=sameOriginMedia(src);
@@ -3669,10 +3672,10 @@ function upscaleImageURL(src,scale){
 //  프레임마다 모델 추론이라 실시간보다 느림 → 최대 5분(300초)까지. 장시간에도 안 죽도록:
 //  프레임별 워치독(멈춘 프레임은 리샘플로 대체·건너뜀), 청크 주기적 flush(메모리), 긴 영상 비트레이트↓.
 //  모델 불가 시 기존 실시간 리샘플로 폴백.
-function upscaleVideoURL(src,scale,onProg){
+function upscaleVideoURL(src,scale,onProg,opts){
   return new Promise(function(resolve,reject){
     if(typeof MediaRecorder==='undefined'){ reject(new Error('이 브라우저는 영상 업스케일 미지원')); return; }
-    var factor=scale>=4?4:2;
+    var factor=(opts&&opts.factor)||(scale>=4?4:2);
     var v=document.createElement('video'); v.crossOrigin='anonymous'; v.muted=true; v.playsInline=true; v.preload='auto';
     var settled=false;
     function fallback(){ if(settled)return; settled=true; _upscaleVideoResample(src,scale,onProg).then(resolve,reject); }
@@ -3683,9 +3686,11 @@ function upscaleVideoURL(src,scale,onProg){
         if(settled)return;
         if(clip>60){ try{ toast(tr('긴 영상 업스케일: 프레임마다 초해상 처리라 오래 걸립니다(수십 분+). 탭을 켜둔 채 기다려주세요.')); }catch(_){} }
         var iw=v.videoWidth||1280, ih=v.videoHeight||720;
-        var CAP=640, sc=Math.min(1, CAP/Math.max(iw,ih)), sw=Math.max(1,Math.round(iw*sc)), sh=Math.max(1,Math.round(ih*sc));
+        var effScale=scale, CAP=(opts&&opts.cap)||640;
+        if(opts&&opts.longTarget){ effScale=Math.max(1, Math.min(8, opts.longTarget/Math.max(iw,ih))); factor=4; CAP=Math.max(CAP,1440); }   // 5K: 풀해상 입력·x4
+        var sc=Math.min(1, CAP/Math.max(iw,ih)), sw=Math.max(1,Math.round(iw*sc)), sh=Math.max(1,Math.round(ih*sc));
         var frameC=document.createElement('canvas'); frameC.width=sw; frameC.height=sh; var fctx=frameC.getContext('2d');
-        var tw=Math.round(iw*scale), th=Math.round(ih*scale);
+        var tw=Math.round(iw*effScale), th=Math.round(ih*effScale);
         var out=document.createElement('canvas'); out.width=tw; out.height=th; var octx=out.getContext('2d'); octx.imageSmoothingEnabled=true; octx.imageSmoothingQuality='high';
         var stream=out.captureStream(0), track=stream.getVideoTracks()[0];
         var mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].filter(function(m){return MediaRecorder.isTypeSupported(m);})[0]||'video/webm';
@@ -4720,7 +4725,8 @@ function widgetHTML(n,w){
     } else {
       ctrl='<div class="up-row"><span class="up-seg">'+
         '<button class="up-x'+(sc==2?' on':'')+'" data-upscaleset="2">2×</button>'+
-        '<button class="up-x'+(sc==4?' on':'')+'" data-upscaleset="4">4×</button></span>'+
+        '<button class="up-x'+(sc==4?' on':'')+'" data-upscaleset="4">4×</button>'+
+        '<button class="up-x'+(sc==5?' on':'')+'" data-upscaleset="5" title="긴 변 5120px(5K) 목표 · 풀해상 초해상">5K</button></span>'+
         '<button class="wbtn up-go" data-upscale>'+ICON.sparkle+' 화질 업스케일</button></div>'+
         (up?'<div class="refcnt">'+ICON.check+' 업스케일 '+sc+'× 완료 · '+esc(n.w.upDim||'')+' · <a href="#" data-upreset>원본으로</a></div>':'');
     }
@@ -5309,12 +5315,14 @@ canvas.addEventListener('click',function(e){
   }
   if(e.target.closest('[data-upscale]')){
     if(!n2.w.vid||n2.w.upscaling)return;
-    var uScale=n2.w.upScale||2;
+    var uSet=n2.w.upScale||2, is5k=(uSet===5), uScale=is5k?4:uSet;
+    var uOpts=is5k?{ longTarget:5120 }:null;   // 5K: 긴 변 5120px 목표(x4·풀해상 초해상)
     var uIsImg = n2.w.kind==='image' || /^data:image\//i.test(n2.w.vid) || /\.(png|jpe?g|webp|gif)(\?|$)/i.test(n2.w.vid);
+    if(is5k && !uIsImg){ try{ toast('5K 영상 업스케일: 매우 오래 걸리고(수 시간+) 브라우저가 5K 인코딩을 못 하면 자동으로 낮춰집니다.'); }catch(_){} }
     n2.w.upscaling=true; n2.w.upPct=0; render();
     toast(uIsImg?'이미지 업스케일 중…':'영상 업스케일 중… (길이만큼 소요)');
     function uProg(pp){ n2.w.upPct=pp; var hh=document.getElementById('nd-'+n2.id); if(hh){ var bar=hh.querySelector('.up-prog i'); if(bar)bar.style.width=Math.round(pp*100)+'%'; var msg=hh.querySelector('.up-msg'); if(msg)msg.textContent='업스케일 처리 중… '+Math.round(pp*100)+'% (프레임별 초해상 · 길수록 오래)'; } }
-    var uJob = uIsImg ? upscaleImageURL(n2.w.vid,uScale) : upscaleVideoURL(n2.w.vid,uScale,uProg);
+    var uJob = uIsImg ? upscaleImageURL(n2.w.vid,uScale,uOpts) : upscaleVideoURL(n2.w.vid,uScale,uProg,uOpts);
     uJob.then(function(res){ n2.w.upscaling=false; n2.w.upscaled=res.url; n2.w.upKind=res.kind; n2.w.upDim=res.dim; render(); toast('업스케일 완료 · '+res.dim); })
         .catch(function(err){ n2.w.upscaling=false; render(); toast('업스케일 실패: '+String(err&&err.message||err).slice(0,70)); });
     return;
