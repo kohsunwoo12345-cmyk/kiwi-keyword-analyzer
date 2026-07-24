@@ -3645,6 +3645,76 @@ function _srCanvas(pipe, srcCanvas, factor){
   }
   return next();
 }
+/* ── Real-ESRGAN (raw ONNX · onnxruntime-web) — 실사 업스케일 최상급. 우리 /models 에서 self-host. ── */
+//  실제 가중치 repo 는 라이브 warm-models 로 확인/확정(아래 URL). 로드 실패 시 Swin2SR→리샘플로 자동 폴백.
+var ESRGAN_URL='/models/hf/onnx-community/real-esrgan-x4plus/resolve/main/onnx/model.onnx';
+var _ortMod=null,_ortTry=null,_esrSess=null,_esrTry=null;
+function ensureOrt(){
+  if(_ortMod) return Promise.resolve(_ortMod);
+  if(_ortTry) return _ortTry;
+  _ortTry=import(location.origin+'/models/lib/ortweb').then(function(ort){
+    try{ ort.env.wasm.wasmPaths=location.origin+'/models/ort/'; }catch(_){}
+    _ortMod=ort; return ort;
+  }).catch(function(e){ _ortTry=null; throw e; });
+  return _ortTry;
+}
+function ensureEsrgan(){
+  if(_esrSess) return Promise.resolve(_esrSess);
+  if(_esrTry) return _esrTry;
+  _esrTry=ensureOrt().then(function(ort){
+    return ort.InferenceSession.create(location.origin+ESRGAN_URL, { executionProviders:['wasm'], graphOptimizationLevel:'all' });
+  }).then(function(s){ _esrSess=s; return s; }).catch(function(e){ _esrTry=null; throw e; });
+  return _esrTry;
+}
+function _c255(v){ v=v*255; return v<0?0:v>255?255:v; }
+// 타일 캔버스 → Real-ESRGAN(×4) → 출력 캔버스. NCHW float[0,1] 입출력.
+function _esrRunTile(sess, cv){
+  var ort=_ortMod; if(!ort) return Promise.resolve(null);
+  var w=cv.width, h=cv.height, id=cv.getContext('2d').getImageData(0,0,w,h).data, n=w*h;
+  var data=new Float32Array(3*n);
+  for(var p=0;p<n;p++){ data[p]=id[p*4]/255; data[n+p]=id[p*4+1]/255; data[2*n+p]=id[p*4+2]/255; }   // CHW(RGB)
+  var t; try{ t=new ort.Tensor('float32', data, [1,3,h,w]); }catch(e){ return Promise.resolve(null); }
+  var feeds={}; feeds[sess.inputNames[0]]=t;
+  return sess.run(feeds).then(function(res){
+    var o=res[sess.outputNames[0]], od=o.data, dm=o.dims, oh=dm[2], ow=dm[3], on=ow*oh;
+    var oc=document.createElement('canvas'); oc.width=ow; oc.height=oh; var octx=oc.getContext('2d'), im=octx.createImageData(ow,oh), a=im.data;
+    for(var q=0;q<on;q++){ a[q*4]=_c255(od[q]); a[q*4+1]=_c255(od[on+q]); a[q*4+2]=_c255(od[2*on+q]); a[q*4+3]=255; }
+    octx.putImageData(im,0,0); return oc;
+  }).catch(function(){ return null; });
+}
+// 통합 초해상 러너: Real-ESRGAN(최상) → Swin2SR → (둘 다 불가 시 상위에서 리샘플). runner={factor,tile,run}
+function getUpscaler(factor){
+  return ensureEsrgan().then(function(sess){
+    return { factor:4, tile:128, run:function(cv){ return _esrRunTile(sess, cv); } };
+  }).catch(function(){
+    return ensureUpscaleModel(factor).then(function(pipe){
+      return { factor:(factor>=4?4:2), tile:256, run:function(cv){ return pipe(cv.toDataURL('image/png')).then(function(res){ return (res&&res.toCanvas)?res.toCanvas():null; }); } };
+    });
+  });
+}
+// 러너로 캔버스를 타일 SR → 출력 캔버스(runner.factor 배).
+function _srCanvas2(runner, srcCanvas){
+  var factor=runner.factor, W=srcCanvas.width, H=srcCanvas.height;
+  var out=document.createElement('canvas'); out.width=W*factor; out.height=H*factor; var octx=out.getContext('2d');
+  var TILE=runner.tile||256, PAD=16, CORE=TILE-2*PAD;
+  var jobs=[]; for(var cy=0;cy<H;cy+=CORE)for(var cx=0;cx<W;cx+=CORE) jobs.push([cx,cy]);
+  var i=0;
+  function next(){
+    if(i>=jobs.length) return Promise.resolve(out);
+    var cx=jobs[i][0], cy=jobs[i][1]; i++;
+    var coreW=Math.min(CORE,W-cx), coreH=Math.min(CORE,H-cy);
+    var wx=Math.max(0, Math.min(cx-PAD, Math.max(0,W-TILE))); if(W<=TILE) wx=0;
+    var wy=Math.max(0, Math.min(cy-PAD, Math.max(0,H-TILE))); if(H<=TILE) wy=0;
+    var ww=Math.min(TILE, W-wx), wh=Math.min(TILE, H-wy);
+    var cv=_srCanvas._cv||(_srCanvas._cv=document.createElement('canvas')); cv.width=ww; cv.height=wh;
+    cv.getContext('2d').drawImage(srcCanvas, wx,wy,ww,wh, 0,0,ww,wh);
+    return runner.run(cv).then(function(rc){
+      if(rc) octx.drawImage(rc, (cx-wx)*factor,(cy-wy)*factor, coreW*factor, coreH*factor, cx*factor, cy*factor, coreW*factor, coreH*factor);
+      return next();
+    });
+  }
+  return next();
+}
 // 이미지 업스케일: SR 시도 → 목표 배율/해상도로 맞춤. 실패 시 리샘플러 폴백.
 //  opts.longTarget(px) 지정 시 긴 변을 그 크기(예: 5120=5K)로 맞춤 — x4 모델·풀해상 입력으로 실제 5K 디테일.
 function upscaleImageURL(src,scale,opts){
@@ -3656,8 +3726,8 @@ function upscaleImageURL(src,scale,opts){
       if(opts&&opts.longTarget){ effScale=Math.max(1, Math.min(8, opts.longTarget/Math.max(iw,ih))); factor=4; }
       var srcC=document.createElement('canvas'); srcC.width=iw; srcC.height=ih; srcC.getContext('2d').drawImage(img,0,0);
       try{ toast(tr('초해상 모델 로딩 중… (최초 1회 다운로드)')); }catch(_){}
-      ensureUpscaleModel(factor).then(function(pipe){
-        return _srCanvas(pipe, srcC, factor).then(function(srC){
+      getUpscaler(factor).then(function(runner){
+        return _srCanvas2(runner, srcC).then(function(srC){
           var tw=Math.round(iw*effScale), th=Math.round(ih*effScale), o=srC;
           if(srC.width!==tw||srC.height!==th){ var fc=document.createElement('canvas'); fc.width=tw; fc.height=th; var fx=fc.getContext('2d'); fx.imageSmoothingEnabled=true; fx.imageSmoothingQuality='high'; fx.drawImage(srC,0,0,tw,th); o=fc; }
           resolve({ url:o.toDataURL('image/png'), kind:'image', dim:tw+'×'+th });
@@ -3682,7 +3752,7 @@ function upscaleVideoURL(src,scale,onProg,opts){
     v.addEventListener('loadedmetadata',function(){
       var dur=v.duration||0, MAXSEC=300, clip=Math.min(dur||MAXSEC, MAXSEC), FPS=15;   // 최대 5분
       try{ toast(tr('초해상 모델 로딩 중… (최초 1회 다운로드)')); }catch(_){}
-      ensureUpscaleModel(factor).then(function(pipe){
+      getUpscaler(factor).then(function(runner){
         if(settled)return;
         if(clip>60){ try{ toast(tr('긴 영상 업스케일: 프레임마다 초해상 처리라 오래 걸립니다(수십 분+). 탭을 켜둔 채 기다려주세요.')); }catch(_){} }
         var iw=v.videoWidth||1280, ih=v.videoHeight||720;
@@ -3702,7 +3772,7 @@ function upscaleVideoURL(src,scale,onProg,opts){
         var total=Math.max(1, Math.round(clip*FPS)), idx=0;
         function seekTo(t){ return new Promise(function(res){ var done2=false; function on(){ if(done2)return; done2=true; v.removeEventListener('seeked',on); res(); } v.addEventListener('seeked',on); setTimeout(on,8000); try{ v.currentTime=Math.min(t, Math.max(0,(dur||clip)-0.02)); }catch(e){ on(); } }); }
         // 프레임 워치독: SR 이 90초 넘으면 null(→ 리샘플 대체) 로 넘겨 절대 멈추지 않게.
-        function srFrame(){ return new Promise(function(res){ var to=setTimeout(function(){ res(null); },90000); _srCanvas(pipe, frameC, factor).then(function(c){ clearTimeout(to); res(c); }, function(){ clearTimeout(to); res(null); }); }); }
+        function srFrame(){ return new Promise(function(res){ var to=setTimeout(function(){ res(null); },90000); _srCanvas2(runner, frameC).then(function(c){ clearTimeout(to); res(c); }, function(){ clearTimeout(to); res(null); }); }); }
         function step(){
           if(settled)return;
           if(idx>=total){ setTimeout(function(){ try{rec.stop();}catch(e){} },200); return; }

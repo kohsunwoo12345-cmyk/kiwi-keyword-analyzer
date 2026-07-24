@@ -16,6 +16,7 @@ const UPSTREAM: Record<string, string> = {
 const LIBS: Record<string, string> = {
   transformers: 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/+esm', // 자체 완결 ESM 번들
   vision: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs',
+  ortweb: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/+esm',            // Real-ESRGAN 등 raw ONNX 실행용 (wasm 은 /models/ort 와 버전 일치)
 }
 
 function ctOf(p: string): string {
