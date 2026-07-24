@@ -4497,14 +4497,16 @@ function renameDoc(id){
 var _autoT=null;
 function autosave(){
   if(ADMIN_LOAD_UID) return;   // 관리자가 남의 워크플로우 열람 중엔 내 계정에 저장하지 않음
+  var booting=_booting;   // 호출 시점 기준으로 고정(타이머 발화 시점에 reconcile 가 플래그를 바꿔도 부팅 로드는 푸시 금지)
+  if(!_applyingRemote && !booting){ _editSeq++; _dirtySinceSync=true; }   // 실제 사용자 편집만 표시(원격 반영·부팅 로드 제외)
   clearTimeout(_autoT);
   _autoT=setTimeout(function(){
     saveActiveIntoDoc();
     if(IDB.ok && STUDIO_DOCS.length){
-      var payload={ v:2, activeId:activeDocId, docs:STUDIO_DOCS.map(function(d){ return {id:d.id,name:d.name,data:d.data}; }) };
+      var payload={ v:2, activeId:activeDocId, syncedAt:_srvSyncedAt, docs:STUDIO_DOCS.map(function(d){ return {id:d.id,name:d.name,data:d.data}; }) };
       IDB.set('kv',payload,nsKey('docs')).catch(function(){ try{ localStorage.setItem(nsKey('nvNodeStudio'), JSON.stringify(docSnap())); }catch(e){} });
     } else { try{ localStorage.setItem(nsKey('nvNodeStudio'), JSON.stringify(docSnap())); }catch(e){} }
-    serverSaveSoon();
+    if(!booting) serverSaveSoon();   // 부팅 로드에서 시작된 autosave 는 서버 푸시 보류 — reconcile 가 서버↔로컬을 먼저 조정
   }, 300);
 }
 function saveViewSoon(){ autosave(); }
@@ -4559,15 +4561,25 @@ function showAdminBanner(uid){
   });
   document.getElementById('admWfClose').addEventListener('click',function(){ try{ location.href=location.pathname; }catch(e){} });
 }
+// 실시간 동기화 상태
 var _srvT=null, _srvBusy=false;
+var _srvSyncedAt=null;     // 현재 캔버스가 대응하는 서버 updated_at(ISO)
+var _dirtySinceSync=false; // 서버에 아직 반영되지 않은 로컬 편집 존재
+var _applyingRemote=false; // 원격본을 캔버스에 반영하는 중(편집 표시 억제용)
+var _editSeq=0;            // 편집 시퀀스(푸시 중 새 편집 감지)
+var _wfPollT=null;         // 실시간 동기화 폴링 타이머
+var _booting=true;         // 부팅 중(프로그램적 로드) — 이때의 autosave 는 편집·서버푸시로 치지 않음
 function serverSaveSoon(){
   if(UID==='guest'||ADMIN_LOAD_UID) return;   // 로그인 계정만, 관리자 열람 중엔 저장 안함
   clearTimeout(_srvT);
   _srvT=setTimeout(function(){
     if(_srvBusy)return; _srvBusy=true;
+    var mySeq=_editSeq;
     try{
       fetch('/api/studio/workflow',{ method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ data:serverPayload() }) })
-        .then(function(){ _srvBusy=false; }).catch(function(){ _srvBusy=false; });
+        .then(function(r){ return r.ok?r.json():null; })
+        .then(function(d){ if(d&&d.updatedAt) _srvSyncedAt=d.updatedAt; if(_editSeq===mySeq) _dirtySinceSync=false; _srvBusy=false; })
+        .catch(function(){ _srvBusy=false; });
     }catch(e){ _srvBusy=false; }
   }, 4000);
 }
@@ -4575,24 +4587,67 @@ function serverSaveSoon(){
 function flushSave(){
   if(ADMIN_LOAD_UID) return;   // 관리자 열람 중엔 내 계정으로 저장 안함
   try{ saveActiveIntoDoc();
-    if(IDB.ok&&STUDIO_DOCS.length){ IDB.set('kv',{ v:2, activeId:activeDocId, docs:STUDIO_DOCS.map(function(d){ return {id:d.id,name:d.name,data:d.data}; }) },nsKey('docs')); }
+    if(IDB.ok&&STUDIO_DOCS.length){ IDB.set('kv',{ v:2, activeId:activeDocId, syncedAt:_srvSyncedAt, docs:STUDIO_DOCS.map(function(d){ return {id:d.id,name:d.name,data:d.data}; }) },nsKey('docs')); }
   }catch(e){}
   try{ if(UID!=='guest' && navigator.sendBeacon){ navigator.sendBeacon('/api/studio/workflow', new Blob([JSON.stringify({ data:serverPayload() })],{type:'application/json'})); } }catch(e){}
 }
 document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='hidden') flushSave(); });
 window.addEventListener('pagehide',flushSave);
-// 로컬에 저장된 워크플로우가 없을 때(새 기기·캐시삭제) 서버에 보관된 워크플로우를 복원
-function reconcileServerWorkflow(){
-  if(UID==='guest'||ADMIN_LOAD_UID) return;
-  fetch('/api/studio/workflow',{ credentials:'include', cache:'no-store' }).then(function(r){ return r.ok?r.json():null; }).then(function(d){
-    if(!d||!d.ok||!d.data||!d.data.docs||!d.data.docs.length) return;
-    if(!_bootedFresh) return;   // 로컬에 이미 작업이 있으면 덮어쓰지 않음
-    STUDIO_DOCS=d.data.docs.map(function(x){ return { id:x.id||newDocId(), name:x.name||'워크플로우', data:x.data }; });
-    activeDocId=d.data.activeId; if(!activeDoc()) activeDocId=STUDIO_DOCS[0].id;
+/* 서버 워크플로우를 현재 캔버스에 반영(원격 → 로컬). 편집 표시를 건드리지 않도록 _applyingRemote 로 가드.
+   현재 보고 있던 탭이 그대로 있으면 유지해 화면 튐을 줄인다. */
+function applyServerDocs(data, updatedAt, quiet){
+  if(!data||!data.docs||!data.docs.length) return false;
+  var keep=activeDocId;
+  _applyingRemote=true;
+  try{
+    STUDIO_DOCS=data.docs.map(function(x){ return { id:x.id||newDocId(), name:x.name||'워크플로우', data:x.data }; });
+    activeDocId=(keep && STUDIO_DOCS.some(function(d){return d.id===keep;})) ? keep : data.activeId;
+    if(!activeDoc()) activeDocId=STUDIO_DOCS[0].id;
     _bootedFresh=false;
-    loadDocIntoState(activeDoc()); renderTabs(); autosave();
-    try{ toast('계정에 저장된 워크플로우를 불러왔어요'); }catch(e){}
-  }).catch(function(){});
+    loadDocIntoState(activeDoc()); renderTabs();
+    _srvSyncedAt=updatedAt||_srvSyncedAt; _dirtySinceSync=false;
+    // 로컬 IDB 기준선(syncedAt 포함) 갱신 — 다음 부팅에서도 이 기준으로 비교
+    if(IDB.ok && STUDIO_DOCS.length){ try{ IDB.set('kv',{ v:2, activeId:activeDocId, syncedAt:_srvSyncedAt, docs:STUDIO_DOCS.map(function(d){ return {id:d.id,name:d.name,data:d.data}; }) },nsKey('docs')); }catch(e){} }
+  } finally { _applyingRemote=false; }
+  if(!quiet){ try{ toast('다른 기기의 변경사항을 반영했어요'); }catch(e){} }
+  return true;
+}
+/* 부팅 시 서버↔로컬 조정(타임스탬프 기준) 후 실시간 동기화 폴링 시작.
+   - 로컬이 비었으면 서버본 복원
+   - 서버가 우리 기준선보다 최신(다른 기기에서 변경)이면 반영
+   - 로컬이 최신/동일이면 유지(다음 편집 시 자동 푸시) */
+function reconcileServerWorkflow(){
+  if(UID==='guest'||ADMIN_LOAD_UID){ _booting=false; return; }
+  fetch('/api/studio/workflow',{ credentials:'include', cache:'no-store' }).then(function(r){ return r.ok?r.json():null; }).then(function(d){
+    var applied=false;
+    if(d&&d.ok&&d.data&&d.data.docs&&d.data.docs.length){
+      var srvAt=d.updatedAt||'';
+      if(_bootedFresh){ applyServerDocs(d.data, srvAt, true); applied=true; }                        // 로컬 비어있음 → 서버본 복원
+      else if(srvAt && srvAt>(_srvSyncedAt||'')){ applyServerDocs(d.data, srvAt, false); applied=true; } // 서버가 더 최신 → 반영
+      else { _srvSyncedAt=_srvSyncedAt||srvAt; }                                                      // 로컬이 최신/동일 → 유지
+    }
+    _booting=false;
+    if(!applied){ _dirtySinceSync=false; serverSaveSoon(); }   // 로컬이 최신이거나 서버가 비어있음 → 로컬을 서버에 시딩(다른 기기 동기화용)
+    startWorkflowSync();
+  }).catch(function(){ _booting=false; startWorkflowSync(); });
+}
+/* 실시간 동기화: 5초마다 서버 updated_at 확인.
+   - 이 기기가 편집 중(_dirtySinceSync)이면 당겨오지 않음 → 내 저장이 우선(마지막 저장 우선, 편집 유실 방지)
+   - 편집 중이 아니고 서버가 더 최신이면 전체 페이로드를 당겨와 캔버스에 반영 */
+function startWorkflowSync(){
+  if(_wfPollT||UID==='guest'||ADMIN_LOAD_UID) return;
+  _wfPollT=setInterval(function(){
+    if(UID==='guest'||ADMIN_LOAD_UID||document.hidden||_dirtySinceSync) return;
+    fetch('/api/studio/workflow?meta=1',{ credentials:'include', cache:'no-store' })
+      .then(function(r){ return r.ok?r.json():null; })
+      .then(function(d){
+        var srvAt=d&&d.updatedAt; if(!srvAt||!(srvAt>(_srvSyncedAt||''))) return;
+        fetch('/api/studio/workflow',{ credentials:'include', cache:'no-store' })
+          .then(function(r){ return r.ok?r.json():null; })
+          .then(function(f){ if(f&&f.ok&&f.data&&!_dirtySinceSync) applyServerDocs(f.data, f.updatedAt||srvAt, false); })
+          .catch(function(){});
+      }).catch(function(){});
+  }, 5000);
 }
 
 var MAX_NODES=0;   // 요금제별 최대 노드 수 (0=무제한). /api/me 에서 설정.
@@ -6196,9 +6251,7 @@ document.getElementById('btnLoad').addEventListener('click',openFlowModal);
   fetch('/api/studio/workflow',{ credentials:'include', cache:'no-store' }).then(function(r){ return r.ok?r.json():null; }).then(function(d){
     if(!d||!d.ok||!d.data||!d.data.docs||!d.data.docs.length){ toast('계정에 저장된 워크플로우가 없습니다'); return; }
     if(!confirm('계정에 저장된 워크플로우를 불러올까요? 현재 화면 작업은 대체됩니다.')) return;
-    STUDIO_DOCS=d.data.docs.map(function(x){ return { id:x.id||newDocId(), name:x.name||'워크플로우', data:x.data }; });
-    activeDocId=d.data.activeId; if(!activeDoc())activeDocId=STUDIO_DOCS[0].id;
-    loadDocIntoState(activeDoc()); renderTabs(); autosave(); toast('계정에 저장된 워크플로우를 불러왔어요');
+    applyServerDocs(d.data, d.updatedAt, true); toast('계정에 저장된 워크플로우를 불러왔어요');
   }).catch(function(){ toast('불러오기 실패'); });
 }); })();
 document.getElementById('flowClose').addEventListener('click',function(){ flowModal.classList.remove('show'); });
@@ -6282,6 +6335,8 @@ function loadImageDefault(){
 
 /* ════════ 시작 (멀티 워크플로우 탭 복원) ════════ */
 function boot(){
+  _booting=true;   // 부팅 로드 동안 서버 푸시·편집표시 보류(reconcile 가 서버↔로컬 조정 후 해제)
+  setTimeout(function(){ _booting=false; }, 12000);   // 안전장치: reconcile 미도달 시에도 최대 12초 뒤 정상화
   // 관리자: ?loadWorkflow=<userId> 로 진입하면 그 사용자의 워크플로우를 불러온다(내 계정 자동저장은 끔)
   try{ var _lw=new URLSearchParams(location.search).get('loadWorkflow');
     if(_lw){ ADMIN_LOAD_UID=_lw;
@@ -6293,6 +6348,7 @@ function boot(){
     if(payload && payload.docs && payload.docs.length){
       STUDIO_DOCS=payload.docs.map(function(d){ return {id:d.id||newDocId(), name:d.name||'워크플로우', data:d.data}; });
       activeDocId=payload.activeId;
+      _srvSyncedAt=payload.syncedAt||_srvSyncedAt;   // 마지막 서버 동기화 기준선 복원(다른 기기 변경 비교용)
       if(!activeDoc()) activeDocId=STUDIO_DOCS[0].id;
       loadDocIntoState(activeDoc()); renderTabs(); return true;
     }

@@ -17,6 +17,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   await ensureTable(db)
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, needLogin: true }, 401)
+  // 실시간 동기화 폴링용 경량 응답 — 타임스탬프만(대용량 페이로드 전송 생략)
+  const url = new URL(request.url)
+  if (url.searchParams.get('meta')) {
+    const m: any = await db.prepare('SELECT updated_at FROM studio_workflows WHERE user_id = ?').bind(me.id).first().catch(() => null)
+    return json({ ok: true, updatedAt: (m && m.updated_at) || null })
+  }
   const row: any = await db.prepare('SELECT payload, updated_at FROM studio_workflows WHERE user_id = ?').bind(me.id).first().catch(() => null)
   let data: any = null
   try { data = row && row.payload ? JSON.parse(row.payload) : null } catch { data = null }
