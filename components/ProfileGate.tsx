@@ -34,11 +34,31 @@ export function ProfileGate({ children }: { children: React.ReactNode }) {
   const profileOk = ready && !!user && !!user.addressComplete
   const hasPlan = !!user && (user.role === 'admin' || user.hasPlan === 1)
 
+  // 플랜 종류: 마케팅(plan) / 영상(videoPlan)
+  const admin = !!user && user.role === 'admin'
+  const hasMarketing = !!user && !!user.plan && user.plan !== '없음'
+  const hasVideo = !!user && !!user.videoPlan && user.videoPlan !== '없음'
+  // 영상 플랜만 보유(마케팅 없음) → 일반(마케팅) 대시보드 사용 불가 → 영상 스튜디오(#chat)로 이동
+  const videoOnly = ready && !!user && !admin && hasVideo && !hasMarketing
+
   useEffect(() => {
     if (!ready) return
     if (!user) { router.replace('/login'); return }
-    if (!user.addressComplete) { router.replace('/complete-profile') }
-  }, [ready, user, router])
+    if (!user.addressComplete) { router.replace('/complete-profile'); return }
+    if (videoOnly) { window.location.href = '/studio-nvc-prv-8b3k2/#chat' }
+  }, [ready, user, router, videoOnly])
+
+  // 영상 전용 회원: 대시보드를 렌더하지 않고 스튜디오로 이동 중 표시
+  if (videoOnly) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-[var(--bg)] px-6">
+        <div className="flex flex-col items-center text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+          <p className="mt-4 text-sm text-[var(--text-soft)]">영상 스튜디오로 이동 중…</p>
+        </div>
+      </div>
+    )
+  }
 
   if (profileOk) {
     // 플랜이 있으면 전체 허용. 없으면 홈/프로필만 허용.
@@ -61,7 +81,7 @@ export function ProfileGate({ children }: { children: React.ReactNode }) {
           <Link href={HOME} className="mt-2.5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm font-semibold text-[var(--text-soft)] transition hover:bg-white/5">
             대시보드 홈으로
           </Link>
-          <a href="/studio-nvc-prv-8b3k2/" className="mt-2.5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm font-semibold text-[var(--text-soft)] transition hover:bg-white/5">
+          <a href="/studio-nvc-prv-8b3k2/#chat" className="mt-2.5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm font-semibold text-[var(--text-soft)] transition hover:bg-white/5">
             <Clapperboard size={15} /> 노드형 영상 스튜디오
           </a>
         </div>

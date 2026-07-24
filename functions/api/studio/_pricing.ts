@@ -181,7 +181,8 @@ const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100
 /** 서버 권위 과금 계산 — 스튜디오 recordCost 공식과 동일. usdKrw 는 그날의 환율.
  *  markupOverride: 회원별 관리자 지정 배수(원가=1). 지정 시 기본 마크업 대신 사용하며 최소 1배로 강제.
  *  크레딧 = 실제비용(원) × 배수 ÷ 50 을 소수 2자리로 차감(예: 2.5원→0.05, 57원→1.14). */
-export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, markupOverride?: number): ChargeResult {
+export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, markupOverride?: number, creditKrw: number = CREDIT_KRW): ChargeResult {
+  const basis = creditKrw && creditKrw > 0 ? creditKrw : CREDIT_KRW // 1크레딧당 원(회원 단가). 기본 50, 충전단가(65 등) 전달 시 그 값 기준
   const rate = usdKrw && usdKrw > 0 ? usdKrw : USD_KRW
   const model = String(input.model || '')
   const m = MODEL_COST[model]
@@ -203,9 +204,9 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
   const defaultMarkup = isSeed20 || isImg ? 2.5 : 3.0
   const markup = markupOverride && markupOverride > 0 ? Math.max(1, markupOverride) : defaultMarkup
   const priceKrw = costKrw * markup
-  // 정확 비례 소수 크레딧 (올림 없음, 최소 1 없음)
-  const credits = round2(priceKrw / CREDIT_KRW)
-  const revenueKrw = round2(credits * CREDIT_KRW)
+  // 정확 비례 소수 크레딧 (올림 없음, 최소 1 없음). 1크레딧=basis원 → 1배·원가 6500원·65원기준 = 100크레딧
+  const credits = round2(priceKrw / basis)
+  const revenueKrw = round2(credits * basis)
   return {
     model,
     provider: m ? m.prov : String((input as any).provider || ''),

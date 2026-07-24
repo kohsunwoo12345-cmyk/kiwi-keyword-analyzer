@@ -59,8 +59,8 @@ export function MemberPricing() {
       }
     >
       <p className="mb-3 text-xs text-[var(--text-dim)]">
-        회원별 AI 과금 배수(원가=×1, 1배 미만 불가)를 정하면, 실제 API 비용 × 환율 × 배수를 <b>50원=1크레딧</b> 기준
-        소수 크레딧으로 차감합니다. (예: 실제 2.5원 → 0.05크레딧, 57원 → 1.14크레딧)
+        회원별 AI 과금 배수(원가=×1, 1배 미만 불가)를 정하면, 실제 API 비용 × 환율 × 배수를 <b>회원 1크레딧 단가(기본 65원)</b> 기준
+        소수 크레딧으로 차감합니다. (예: ×1·원가 6,500원 → 100크레딧, ×2 → 200크레딧)
       </p>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] text-sm">

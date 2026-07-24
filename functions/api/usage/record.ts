@@ -1,5 +1,6 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity, resolveBucket } from '../_utils'
 import { computeCharge, ensureAiUsage, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from '../studio/_pricing'
+import { creditPriceFor } from '../payments/prepare'
 
 function b64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64)
@@ -61,6 +62,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const memberMarkup = me ? Number(me.credit_markup) || 0 : 0 // 회원별 전체 배수(원가=1). 0=미설정
   // 회원×모델 override > 회원 전체 배수 > 전역 모델 배수 > 기본값
   const markup = me ? await resolveMarkup(db, me.id, model, memberMarkup) : (memberMarkup || undefined)
+  const creditKrw = await creditPriceFor(db, me)   // 회원 1크레딧 단가(원). 차감/매출 기준
   const c = computeCharge(
     {
       model,
@@ -71,6 +73,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     },
     rate,
     markup,
+    creditKrw,
   )
 
   // 레퍼런스 이미지 추가당 가산: 1장 추가마다 +surPct%. (회원별/전역 설정)
@@ -109,7 +112,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
   }
 
-  const revenueKrw = charged * 50 // 실제 차감 크레딧 기준 매출
+  const revenueKrw = Math.round(charged * creditKrw) // 실제 차감 크레딧 × 1크레딧 단가(원) = 매출
 
   // 생성 콘텐츠 아카이브 — 프롬프트/레퍼런스/결과. 실패해도 기록/차감은 유지.
   const prompt = String(b.prompt || '').slice(0, 4000)

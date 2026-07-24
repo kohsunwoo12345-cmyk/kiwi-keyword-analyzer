@@ -96,7 +96,7 @@ export default function DashboardHome() {
         {/* 노드형 영상 스튜디오 바로가기 — AI 영상 플랜 구독자(또는 관리자)에게만 노출 */}
         {(user?.role === 'admin' || (!!user?.videoPlan && user.videoPlan !== '없음')) && (
           <a
-            href="/studio-nvc-prv-8b3k2/"
+            href="/studio-nvc-prv-8b3k2/#chat"
             className="card hover-lift group relative flex items-center justify-between gap-4 overflow-hidden p-5"
           >
             <div className="pointer-events-none absolute inset-0 opacity-[0.06] [background-image:linear-gradient(var(--text)_1px,transparent_1px),linear-gradient(90deg,var(--text)_1px,transparent_1px)] [background-size:26px_26px]" />

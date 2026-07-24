@@ -1,5 +1,6 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB } from '../_utils'
 import { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from './_pricing'
+import { creditPriceFor } from '../payments/prepare'
 
 // POST /api/studio/precheck { model, units?, kind?, res?, audio? }
 //  → 생성 전 크레딧 사전 확인. 부족하면 402 {needPlan:true} 로 응답해 플랜 유도.
@@ -14,7 +15,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const rate = await getUsdKrw(db)
   const model = String(b.model || '')
   const markup = await resolveMarkup(db, me.id, model, Number(me.credit_markup) || 0)
-  const c = computeCharge({ model, units: Number(b.units) || 0, kind: b.kind, res: b.res, audio: !!b.audio }, rate, markup)
+  const creditKrw = await creditPriceFor(db, me)   // 회원 1크레딧 단가(원). 차감 기준
+  const c = computeCharge({ model, units: Number(b.units) || 0, kind: b.kind, res: b.res, audio: !!b.audio }, rate, markup, creditKrw)
   const surPct = await resolveRefSurcharge(db, me.id)
   const refMult = 1 + (surPct / 100) * Math.max(0, Number(b.refs) || 0)
   const cnCount = Math.max(0, Number(b.cn) || 0)

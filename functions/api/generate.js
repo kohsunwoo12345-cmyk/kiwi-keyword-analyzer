@@ -10,6 +10,7 @@
 import { getSessionUser, resolveDB } from "./_utils";
 import { getUserByApiKey, enforceRateLimit, ensureApiKeysSchema } from "./_apikeys";
 import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from "./studio/_pricing";
+import { creditPriceFor } from "./payments/prepare";
 
 const RUNWAY_VER = "2024-11-06";
 
@@ -674,7 +675,8 @@ async function handle(context) {
           if (mdl && MODEL_COST[mdl]) {
             const rate = await getUsdKrw(db);
             const mk = await resolveMarkup(db, me.id, mdl, Number(me.credit_markup) || 0);
-            const cc = computeCharge({ model: mdl, units: Number(pbody.seconds) || 8, res: pbody.res || "1080p", audio: !!pbody.generateAudio }, rate, mk);
+            const ckw = await creditPriceFor(db, me);
+            const cc = computeCharge({ model: mdl, units: Number(pbody.seconds) || 8, res: pbody.res || "1080p", audio: !!pbody.generateAudio }, rate, mk, ckw);
             const surPct = await resolveRefSurcharge(db, me.id);
             const refMult = 1 + (surPct / 100) * Math.max(0, Number(pbody.refCount) || 0);
             const cnCount = Math.max(0, (pbody.controlnets && pbody.controlnets.length) || Number(pbody.cn) || 0);
