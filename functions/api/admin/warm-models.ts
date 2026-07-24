@@ -9,8 +9,11 @@ const FILES: string[] = [
   '/models/lib/transformers',
   '/models/lib/vision',
   '/models/lib/ortweb',   // onnxruntime-web (Real-ESRGAN raw ONNX 실행용)
-  // Real-ESRGAN x4plus (실사 업스케일 최상급) — repo 접근 확인용. 실패 시 Swin2SR 로 자동 폴백.
+  // Real-ESRGAN x4 후보 repo — 하나라도 OK 면 그걸 자동 사용. 모두 실패해도 Swin2SR 로 자동 폴백.
   '/models/hf/onnx-community/real-esrgan-x4plus/resolve/main/onnx/model.onnx',
+  '/models/hf/Xenova/real-esrgan-x4plus/resolve/main/onnx/model.onnx',
+  '/models/hf/onnx-community/Real-ESRGAN_x4plus/resolve/main/onnx/model.onnx',
+  '/models/hf/Xenova/4x-UltraSharp/resolve/main/onnx/model.onnx',
   // Depth-Anything V2 base 양자화 — 1순위. (fp32 model.onnx 는 ≈380MB로 Worker 프록시 한도 초과·미사용)
   '/models/hf/onnx-community/depth-anything-v2-base/resolve/main/config.json',
   '/models/hf/onnx-community/depth-anything-v2-base/resolve/main/preprocessor_config.json',

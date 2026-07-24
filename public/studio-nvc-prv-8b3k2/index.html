@@ -3647,7 +3647,13 @@ function _srCanvas(pipe, srcCanvas, factor){
 }
 /* ── Real-ESRGAN (raw ONNX · onnxruntime-web) — 실사 업스케일 최상급. 우리 /models 에서 self-host. ── */
 //  실제 가중치 repo 는 라이브 warm-models 로 확인/확정(아래 URL). 로드 실패 시 Swin2SR→리샘플로 자동 폴백.
-var ESRGAN_URL='/models/hf/onnx-community/real-esrgan-x4plus/resolve/main/onnx/model.onnx';
+// 후보 repo 를 순서대로 시도 — 되는 첫 모델을 사용(사용자가 URL 확인할 필요 없이 자동 선택). 모두 실패 시 Swin2SR 로.
+var ESRGAN_URLS=[
+  '/models/hf/onnx-community/real-esrgan-x4plus/resolve/main/onnx/model.onnx',
+  '/models/hf/Xenova/real-esrgan-x4plus/resolve/main/onnx/model.onnx',
+  '/models/hf/onnx-community/Real-ESRGAN_x4plus/resolve/main/onnx/model.onnx',
+  '/models/hf/Xenova/4x-UltraSharp/resolve/main/onnx/model.onnx'
+];
 var _ortMod=null,_ortTry=null,_esrSess=null,_esrTry=null;
 function ensureOrt(){
   if(_ortMod) return Promise.resolve(_ortMod);
@@ -3662,7 +3668,14 @@ function ensureEsrgan(){
   if(_esrSess) return Promise.resolve(_esrSess);
   if(_esrTry) return _esrTry;
   _esrTry=ensureOrt().then(function(ort){
-    return ort.InferenceSession.create(location.origin+ESRGAN_URL, { executionProviders:['wasm'], graphOptimizationLevel:'all' });
+    var idx=0;
+    function tryNext(){
+      if(idx>=ESRGAN_URLS.length) return Promise.reject(new Error('no esrgan model'));
+      var u=ESRGAN_URLS[idx++];
+      return ort.InferenceSession.create(location.origin+u, { executionProviders:['wasm'], graphOptimizationLevel:'all' })
+        .catch(function(){ return tryNext(); });   // 이 후보 실패 → 다음 후보
+    }
+    return tryNext();
   }).then(function(s){ _esrSess=s; return s; }).catch(function(e){ _esrTry=null; throw e; });
   return _esrTry;
 }
