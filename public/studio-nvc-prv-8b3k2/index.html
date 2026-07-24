@@ -1835,7 +1835,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 'use strict';
 var STUDIO_BUILD_TAG='2026-07-13-v56';   // 서버 health.build 와 정확히 같아야 최신(캐시/배포지연 아님)
 // (검증용) ?cnexport=1 접속 시 전처리 함수만 window 로 노출 — 순수 이미지 함수라 보안 영향 없음
-try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum }; }catch(_e){} },0); } }catch(_e){}
+try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum, upscaleImageURL:upscaleImageURL }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
   function s(inner,vb){ return '<svg class="ico" viewBox="'+(vb||'0 0 24 24')+'" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+inner+'</svg>'; }
@@ -3600,7 +3600,112 @@ function generateImageNode(n){
       showGenError(n.w.imgError, providerOf(n.w.model), n.w.model); render(); });
 }
 
-/* ══════ 자체 업스케일러 (외부 API·모델 없음): 고품질 리샘플 + 샤프닝 ══════ */
+/* ══════ 자체 초해상(SR) 업스케일러 — 우리 서버(/models) self-host Swin2SR(ONNX) 를 브라우저에서 실행.
+   외부 CDN 런타임 의존 0. 실제 디테일을 복원(리샘플과 다름). 모델 로드 실패 시 기존 리샘플러로 폴백. ══════ */
+var _upModels={}, _upTry={};
+function ensureUpscaleModel(factor){
+  var f = factor>=4?4:2;
+  if(_upModels[f]) return Promise.resolve(_upModels[f]);
+  if(_upTry[f]) return _upTry[f];
+  // 배율에 맞는 Swin2SR 모델(우리 /models/hf 프록시로 로드)
+  var id = f>=4 ? 'Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr' : 'Xenova/swin2SR-classical-sr-x2-64';
+  _upTry[f]=import(location.origin+'/models/lib/transformers').then(function(mod){
+    try{
+      mod.env.allowLocalModels=false; mod.env.useBrowserCache=true;
+      mod.env.remotePathTemplate='{model}/resolve/{revision}/';
+      mod.env.remoteHost=location.origin+'/models/hf';
+      try{ mod.env.backends.onnx.wasm.wasmPaths=location.origin+'/models/ort/'; }catch(_){}
+    }catch(_){}
+    function mk(q){ return mod.pipeline('image-to-image', id, { quantized:q }); }
+    return mk(true).catch(function(){ return mk(false); });
+  }).then(function(p){ _upModels[f]=p; return p; }).catch(function(err){ _upTry[f]=null; throw err; });
+  return _upTry[f];
+}
+// 캔버스를 타일 단위로 SR(factor 배) → 출력 캔버스 반환. 타일 경계는 PAD 만큼 겹쳐 잘라 이음매 최소화.
+function _srCanvas(pipe, srcCanvas, factor){
+  var W=srcCanvas.width, H=srcCanvas.height;
+  var out=document.createElement('canvas'); out.width=W*factor; out.height=H*factor; var octx=out.getContext('2d');
+  var TILE=256, PAD=16, CORE=TILE-2*PAD;   // 입력 타일 224 + 상하좌우 16 여백
+  var jobs=[]; for(var cy=0;cy<H;cy+=CORE)for(var cx=0;cx<W;cx+=CORE) jobs.push([cx,cy]);
+  var i=0;
+  function next(){
+    if(i>=jobs.length) return Promise.resolve(out);
+    var cx=jobs[i][0], cy=jobs[i][1]; i++;
+    var coreW=Math.min(CORE,W-cx), coreH=Math.min(CORE,H-cy);
+    var wx=Math.max(0, Math.min(cx-PAD, Math.max(0,W-TILE))); if(W<=TILE) wx=0;
+    var wy=Math.max(0, Math.min(cy-PAD, Math.max(0,H-TILE))); if(H<=TILE) wy=0;
+    var ww=Math.min(TILE, W-wx), wh=Math.min(TILE, H-wy);
+    var cv=document.createElement('canvas'); cv.width=ww; cv.height=wh;
+    cv.getContext('2d').drawImage(srcCanvas, wx,wy,ww,wh, 0,0,ww,wh);
+    return pipe(cv.toDataURL('image/png')).then(function(res){
+      var rc = (res && res.toCanvas) ? res.toCanvas() : null;
+      if(rc) octx.drawImage(rc, (cx-wx)*factor,(cy-wy)*factor, coreW*factor, coreH*factor, cx*factor, cy*factor, coreW*factor, coreH*factor);
+      return next();
+    });
+  }
+  return next();
+}
+// 이미지 업스케일: SR 시도 → 목표 배율로 맞춤. 실패 시 리샘플러 폴백.
+function upscaleImageURL(src,scale){
+  return new Promise(function(resolve,reject){
+    var img=new Image(); img.crossOrigin='anonymous';
+    img.onload=function(){
+      var iw=img.naturalWidth||512, ih=img.naturalHeight||512, factor=scale>=4?4:2;
+      var srcC=document.createElement('canvas'); srcC.width=iw; srcC.height=ih; srcC.getContext('2d').drawImage(img,0,0);
+      try{ toast(tr('초해상 모델 로딩 중… (최초 1회 다운로드)')); }catch(_){}
+      ensureUpscaleModel(factor).then(function(pipe){
+        return _srCanvas(pipe, srcC, factor).then(function(srC){
+          var tw=Math.round(iw*scale), th=Math.round(ih*scale), o=srC;
+          if(srC.width!==tw||srC.height!==th){ var fc=document.createElement('canvas'); fc.width=tw; fc.height=th; var fx=fc.getContext('2d'); fx.imageSmoothingEnabled=true; fx.imageSmoothingQuality='high'; fx.drawImage(srC,0,0,tw,th); o=fc; }
+          resolve({ url:o.toDataURL('image/png'), kind:'image', dim:tw+'×'+th });
+        });
+      }).catch(function(){ resolve(_upscaleImageResample(src,scale)); });   // 모델 불가 → 리샘플 폴백
+    };
+    img.onerror=function(){ reject(new Error('이미지 로드 실패')); };
+    img.src=sameOriginMedia(src);
+  });
+}
+// 영상 업스케일(짧은 클립): 프레임을 하나씩 시킹 → SR → 수동 프레임 인코딩(captureStream(0)+requestFrame).
+//  프레임마다 모델 추론이라 실시간보다 느림 → 최대 12초로 제한. 모델 불가 시 기존 실시간 리샘플로 폴백.
+function upscaleVideoURL(src,scale,onProg){
+  return new Promise(function(resolve,reject){
+    if(typeof MediaRecorder==='undefined'){ reject(new Error('이 브라우저는 영상 업스케일 미지원')); return; }
+    var factor=scale>=4?4:2;
+    var v=document.createElement('video'); v.crossOrigin='anonymous'; v.muted=true; v.playsInline=true; v.preload='auto';
+    var settled=false;
+    function fallback(){ if(settled)return; settled=true; _upscaleVideoResample(src,scale,onProg).then(resolve,reject); }
+    v.addEventListener('loadedmetadata',function(){
+      var dur=v.duration||0, MAXSEC=12, clip=Math.min(dur||MAXSEC, MAXSEC), FPS=15;
+      try{ toast(tr('초해상 모델 로딩 중… (최초 1회 다운로드)')); }catch(_){}
+      ensureUpscaleModel(factor).then(function(pipe){
+        if(settled)return;
+        var iw=v.videoWidth||1280, ih=v.videoHeight||720;
+        var CAP=640, sc=Math.min(1, CAP/Math.max(iw,ih)), sw=Math.max(1,Math.round(iw*sc)), sh=Math.max(1,Math.round(ih*sc));
+        var frameC=document.createElement('canvas'); frameC.width=sw; frameC.height=sh; var fctx=frameC.getContext('2d');
+        var tw=Math.round(iw*scale), th=Math.round(ih*scale);
+        var out=document.createElement('canvas'); out.width=tw; out.height=th; var octx=out.getContext('2d'); octx.imageSmoothingEnabled=true; octx.imageSmoothingQuality='high';
+        var stream=out.captureStream(0), track=stream.getVideoTracks()[0];
+        var mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].filter(function(m){return MediaRecorder.isTypeSupported(m);})[0]||'video/webm';
+        var rec; try{ rec=new MediaRecorder(stream,{ mimeType:mime, videoBitsPerSecond:Math.min(24000000,Math.round(tw*th*FPS*0.12)) }); }catch(e){ return fallback(); }
+        var chunks=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size)chunks.push(e.data); };
+        rec.onstop=function(){ if(settled)return; settled=true; resolve({ url:URL.createObjectURL(new Blob(chunks,{type:'video/webm'})), kind:'video', dim:tw+'×'+th }); };
+        try{ rec.start(); }catch(e){ return fallback(); }
+        var total=Math.max(1, Math.round(clip*FPS)), idx=0;
+        function seekTo(t){ return new Promise(function(res){ function on(){ v.removeEventListener('seeked',on); res(); } v.addEventListener('seeked',on); try{ v.currentTime=Math.min(t, Math.max(0,(dur||clip)-0.02)); }catch(e){ res(); } }); }
+        function step(){
+          if(idx>=total){ setTimeout(function(){ try{rec.stop();}catch(e){} },150); return; }
+          seekTo(idx/FPS).then(function(){ try{ fctx.drawImage(v,0,0,sw,sh); }catch(e){} return _srCanvas(pipe, frameC, factor); })
+            .then(function(srC){ octx.clearRect(0,0,tw,th); octx.drawImage(srC,0,0,tw,th); try{ track.requestFrame(); }catch(e){} idx++; if(onProg)onProg(idx/total); setTimeout(step,0); })
+            .catch(function(){ idx++; if(onProg)onProg(idx/total); setTimeout(step,0); });
+        }
+        step();
+      }).catch(function(){ fallback(); });   // 모델 불가 → 실시간 리샘플 폴백
+    });
+    v.addEventListener('error',function(){ if(!settled){ settled=true; reject(new Error('영상 로드 실패')); } });
+    v.src=sameOriginMedia(src);
+  });
+}
+/* ══════ 리샘플 폴백(외부 API·모델 없음): 고품질 리샘플 + 샤프닝 ══════ */
 function _unsharp(ctx,w,h,amount){
   if(!amount)return;
   try{
@@ -3619,7 +3724,7 @@ function _unsharp(ctx,w,h,amount){
     ctx.putImageData(out,0,0);
   }catch(e){}
 }
-function upscaleImageURL(src,scale){
+function _upscaleImageResample(src,scale){
   return new Promise(function(resolve,reject){
     var img=new Image(); img.crossOrigin='anonymous';
     img.onload=function(){
@@ -3634,7 +3739,7 @@ function upscaleImageURL(src,scale){
     img.src=sameOriginMedia(src);
   });
 }
-function upscaleVideoURL(src,scale,onProg){
+function _upscaleVideoResample(src,scale,onProg){
   return new Promise(function(resolve,reject){
     if(typeof MediaRecorder==='undefined'){ reject(new Error('이 브라우저는 영상 업스케일 미지원')); return; }
     var v=document.createElement('video'); v.crossOrigin='anonymous'; v.muted=true; v.playsInline=true; v.preload='auto';

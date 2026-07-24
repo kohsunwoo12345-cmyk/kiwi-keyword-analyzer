@@ -33,6 +33,13 @@ const FILES: string[] = [
   // MediaPipe 모델
   '/models/mpm/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task',
   '/models/mpm/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite',
+  // 초해상(SR) 업스케일 — Swin2SR (x2 = 2×, x4 = 4×). transformers.js image-to-image.
+  '/models/hf/Xenova/swin2SR-classical-sr-x2-64/resolve/main/config.json',
+  '/models/hf/Xenova/swin2SR-classical-sr-x2-64/resolve/main/preprocessor_config.json',
+  '/models/hf/Xenova/swin2SR-classical-sr-x2-64/resolve/main/onnx/model_quantized.onnx',
+  '/models/hf/Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr/resolve/main/config.json',
+  '/models/hf/Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr/resolve/main/preprocessor_config.json',
+  '/models/hf/Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr/resolve/main/onnx/model_quantized.onnx',
 ]
 
 function esc(s: any) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => (({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as any)[c])) }
