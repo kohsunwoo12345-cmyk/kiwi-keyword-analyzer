@@ -1950,6 +1950,8 @@ var MODELS = [
  ['이미지','Flux 1.1 Pro Ultra'],['이미지','Flux 1.1 Pro'],['이미지','Flux Pro'],['이미지','Flux Dev'],
  ['이미지','Grok Imagine']
 ];
+// 영상 제작 노드 전용 목록(영상 모델만) — 카테고리가 '영상'으로 시작하는 항목
+var VIDEO_MODELS = MODELS.filter(function(m){ return /^영상/.test(m[0]); });
 // 이미지 생성 노드 전용 목록(이미지 모델만)
 var IMG_MODELS = [
  ['이미지 (텍스트·편집)','Nano Banana'],
@@ -3556,7 +3558,8 @@ function generateImageNode(n){
   if(n.type==='img3d' && !raw.length){ toast('3D로 변환할 레퍼런스 이미지를 연결하거나 직접 업로드하세요'); return; }  // 3D 변환은 레퍼런스 필수
   var limit=modelRefLimit(n.w.model);
   var isFlux=/^Flux/.test(n.w.model||'') && !/Kontext/.test(n.w.model||'');
-  var cnList=(n.w.cnList&&n.w.cnList.length)?n.w.cnList.slice():[];   // ControlNet 스택 — 이제 모든 이미지 모델에서 사용 가능
+  var cnList=(n.w.cnList&&n.w.cnList.length)?n.w.cnList.slice():[];   // ControlNet 스택 (이미지 생성 전용)
+  if(n.type==='model') cnList=[];   // 영상 제작 블럭은 ControlNet 미사용(영상엔 적용 불가)
   if(cnList.length && !raw.length){ toast('ControlNet은 레퍼런스 이미지가 필요합니다 — ref 포트에 이미지를 연결하세요'); return; }
   // ── 합산 레퍼런스 한도 = 연결/업로드 레퍼런스 + 컨트롤넷 맵 ──
   //  Flux 는 fal 네이티브 ControlNet(레퍼런스를 제어원으로 재사용)이라 추가 장수 0.
@@ -3899,17 +3902,16 @@ var DEFS = {
              outs:[['out','선택한 모델 → 로더','MODEL']],
              widgets:[{k:'model',t:'combo',label:'model',opts:'MODELS',def:'Seedance 2.0'},
                       {k:'pickinfo',t:'pickinfo'}] },
- model:    { cat:'모델', title:'AI 모델 로더', hd:'#2c2440',
+ model:    { cat:'모델', title:'AI 영상 제작', hd:'#2c2440',
              ins:[['modelsel','모델 선택 (선택)','MODEL'],
                   ['prompt','프롬프트','TEXT'],['negative','네거티브','TEXT'],
                   ['ref','이미지 레퍼런스','IMAGE'],
                   ['vidref','영상 레퍼런스','*'],
                   ['first','첫 프레임','IMAGE'],['last','마지막 프레임','IMAGE']],
              outs:[['out','생성물','GEN']],
-             widgets:[{k:'model',t:'combo',label:'model',opts:'MODELS',def:'Seedance 2.0'},
+             widgets:[{k:'model',t:'combo',label:'model',opts:'VIDEO_MODELS',def:'Seedance 2.0'},
                       {k:'seedModel',t:'seedid'},
                       {k:'seedOpts',t:'seedopts'},
-                      {k:'fluxctrl',t:'fluxctrl'},
                       {k:'addref',t:'addrefbtns'},
                       {k:'cfg',t:'slider',label:'cfg',min:0,max:100,def:70,
                         tip:'<b>CFG (프롬프트 충실도)</b> — 프롬프트를 얼마나 강하게 따를지 정합니다. 낮으면 자유롭고 자연스럽게, 높으면 지시를 강하게 따릅니다(너무 높으면 부자연·과채도). 보통 60~80 권장. 모델마다 반영 정도가 달라 일부 모델은 이 값을 무시합니다.'},
@@ -5329,6 +5331,7 @@ canvas.addEventListener('click',function(e){
     var combo=e.target.closest('[data-combo]'), k=combo.dataset.combo;
     var wdef=DEFS[n2.type].widgets.find(function(w){return w.k===k;});
     var opts=wdef.opts==='MODELS'?MODELS.map(function(m){return m[1];})
+            :wdef.opts==='VIDEO_MODELS'?VIDEO_MODELS.map(function(m){return m[1];})
             :wdef.opts==='IMG_MODELS'?IMG_MODELS.map(function(m){return m[1];})
             :wdef.opts==='PROMPT_MODELS'?PROMPT_MODELS.map(function(m){return m[1];})
             :wdef.opts==='STYLE3D'?STYLE3D_OPTS:wdef.opts;
@@ -5475,11 +5478,11 @@ function ddFilter(q){
 }
 function openDD(anchor,n,k){
   var wdef=DEFS[n.type].widgets.find(function(w){return w.k===k;});
-  var isModelList=(wdef.opts==='MODELS' || wdef.opts==='IMG_MODELS' || wdef.opts==='PROMPT_MODELS');
+  var isModelList=(wdef.opts==='MODELS' || wdef.opts==='VIDEO_MODELS' || wdef.opts==='IMG_MODELS' || wdef.opts==='PROMPT_MODELS');
   var html='';
   if(isModelList){
     html+='<input class="dd-search" type="text" placeholder="Search" spellcheck="false" autocomplete="off" style="position:sticky;top:0;z-index:1;display:block;width:calc(100% - 12px);margin:6px;padding:6px 9px;border-radius:7px;border:1px solid #34363e;background:#151517;color:#e6e6ea;font-size:11px;outline:none;font-family:inherit;box-sizing:border-box;">';
-    var list=wdef.opts==='IMG_MODELS'?IMG_MODELS:wdef.opts==='PROMPT_MODELS'?PROMPT_MODELS:MODELS, cat='';
+    var list=wdef.opts==='IMG_MODELS'?IMG_MODELS:wdef.opts==='VIDEO_MODELS'?VIDEO_MODELS:wdef.opts==='PROMPT_MODELS'?PROMPT_MODELS:MODELS, cat='';
     list.forEach(function(m){ if(m[0]!==cat){cat=m[0];html+='<div class="dh">'+cat+'</div>';} html+='<div class="di" data-v="'+esc(m[1])+'">'+esc(m[1])+'</div>'; });
   } else { var arr=(wdef.opts==='STYLE3D')?STYLE3D_OPTS:wdef.opts; arr.forEach(function(o){ html+='<div class="di" data-v="'+esc(o)+'">'+esc(o)+'</div>'; }); }
   dd.innerHTML=html;
