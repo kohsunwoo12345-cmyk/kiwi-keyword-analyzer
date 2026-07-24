@@ -5155,6 +5155,22 @@ window.addEventListener('mouseup',function(e){
         snapshot(); refExceedToast(connect.toFixed.node, connect.toFixed.port);
       }
     }
+    // ── 입력 포트에서 선을 끌어 빈 곳에 놓으면: 그 포트에 맞는 소스 노드를 자동 생성·연결 ──
+    //   (이미지 레퍼런스 포트→이미지 레퍼런스 노드, 네거티브→네거티브 프롬프트, 프롬프트→프롬프트 …)
+    if(connect.toFixed&&!pout&&!pin){
+      var SRC_FOR={ modelsel:'modelpick', prompt:'prompt', negative:'negative', ref:'imageref', vidref:'videoref', first:'imageref', last:'imageref' };
+      var srcType=SRC_FOR[connect.toFixed.port];
+      var fixN2=state.nodes.find(function(x){return x.id===connect.toFixed.node;});
+      if(srcType&&DEFS[srcType]&&fixN2&&portAllowed(fixN2,connect.toFixed.port)){
+        var wd=screenToWorld(e.clientX,e.clientY);
+        var nn=addNode(srcType, Math.round(wd.x-240), Math.round(wd.y-36), true);
+        var outT=DEFS[srcType].outs[0][2], lt3=(connect.type==='*'?outT:connect.type);
+        if(connect.toFixed.port!=='ref'&&connect.toFixed.port!=='clips')
+          state.links=state.links.filter(function(l){return !(l.to===connect.toFixed.node&&l.toPort===connect.toFixed.port);});
+        state.links.push({from:nn.id,fromPort:'out',to:connect.toFixed.node,toPort:connect.toFixed.port,type:lt3});
+        snapshot(); toast(DEFS[srcType].title+' 자동 생성·연결');
+      }
+    }
     connect.el.remove(); connect=null; render();
   }
   if(boxSel){
