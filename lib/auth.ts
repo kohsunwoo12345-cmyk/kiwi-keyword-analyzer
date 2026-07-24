@@ -11,6 +11,8 @@ export interface User {
   phone?: string
   plan: '없음' | 'Plus' | 'Pro' | 'Max'        // 마케터 전용 플랜
   videoPlan: '없음' | 'Plus' | 'Pro' | 'Max'   // 노드형 AI 영상 제작 플랜
+  planUntil?: string       // 마케터 플랜 만료일(ISO). 빈값=무기한. 지나면 만료로 간주
+  videoPlanUntil?: string  // AI 영상 플랜 만료일(ISO). 빈값=무기한
   role: 'user' | 'admin'
   status: 'active' | 'suspended'
   points: number
