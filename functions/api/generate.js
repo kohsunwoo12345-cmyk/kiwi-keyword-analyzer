@@ -166,11 +166,16 @@ async function fetchT(url, opts, ms) {
 }
 
 /* ── 페이로드 빌더 (dryRun 검증도 이 함수를 그대로 사용) ── */
+// Runway 표시명 → API 모델 ID (Gen-3/Gen-4 모두 image_to_video 엔드포인트 공용)
+const RUNWAY_MODELS = {
+  "Runway Gen-4": "gen4_turbo",
+  "Runway Gen-3 Alpha Turbo": "gen3a_turbo",
+};
 export function buildRunwayPayload(b) {
   const ratioMap = { "16:9": "1280:720", "9:16": "720:1280", "1:1": "960:960", "4:5": "832:1104" };
   const img = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
   return {
-    model: "gen4_turbo",
+    model: RUNWAY_MODELS[b.model] || "gen4_turbo",
     promptImage: img,
     promptText: (b.prompt || "").slice(0, 1000),
     ratio: ratioMap[b.ratio] || "1280:720",
@@ -195,6 +200,17 @@ export function buildXaiPayload(b) {
     prompt: [b.prompt, b.negative ? ("피해야 할 것: " + b.negative) : ""].filter(Boolean).join("\n").slice(0, 1000),
     n: 1,
     response_format: "url"
+  };
+}
+// Grok(xAI) 영상 생성 페이로드. 모델/엔드포인트는 env 로 덮어쓰기 가능(제공사 스펙 확정 시 값만 교체).
+export function buildXaiVideoPayload(b, env) {
+  return {
+    model: (env && pick(env, ["GROK_VIDEO_MODEL", "grok_video_model"])) || "grok-imagine-video",
+    prompt: [b.prompt, b.negative ? ("피해야 할 것: " + b.negative) : ""].filter(Boolean).join("\n").slice(0, 1000),
+    n: 1,
+    response_format: "url",
+    duration: Math.max(1, Math.min(20, Number(b.seconds) || 6)),
+    image: b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || undefined
   };
 }
 /* Seedance 모델명(프론트 표시명) → BytePlus ModelArk 모델 ID
@@ -1644,15 +1660,20 @@ async function handle(context) {
 
   if (provider === "xai") {
     if (!k.xai) return json({ error: "Grok 연동이 설정되지 않았습니다" }, 500);
-    const r = await fetchT("https://api.x.ai/v1/images/generations", {
+    const isVideo = b.kind === "video" || /영상/.test(String(b.model || ""));
+    const ep = isVideo
+      ? (pick(env, ["GROK_VIDEO_ENDPOINT", "grok_video_endpoint"]) || "https://api.x.ai/v1/videos/generations")
+      : "https://api.x.ai/v1/images/generations";
+    const r = await fetchT(ep, {
       method: "POST",
       headers: { "Authorization": "Bearer " + k.xai, "Content-Type": "application/json" },
-      body: JSON.stringify(buildXaiPayload(b))
+      body: JSON.stringify(isVideo ? buildXaiVideoPayload(b, env) : buildXaiPayload(b))
     });
     const j = await r.json().catch(() => ({}));
-    const url = j.data?.[0]?.url || null;
-    if (!r.ok || !url) return json({ error: "Grok HTTP " + r.status + ": " + String(JSON.stringify(j.error || j)).slice(0, 220) }, 502);
-    return json({ url, kind: "image" });
+    // 동기 URL 응답 지원(여러 필드명 대응). 비동기 태스크 응답이면 안내와 함께 실패.
+    const url = j.data?.[0]?.url || j.data?.[0]?.video_url || j.data?.[0]?.video || j.url || j.video_url || null;
+    if (!r.ok || !url) return json({ error: "Grok " + (isVideo ? "영상 " : "") + "HTTP " + r.status + ": " + String(JSON.stringify(j.error || j)).slice(0, 220) }, 502);
+    return json({ url, kind: isVideo ? "video" : "image" });
   }
 
   if (provider === "google") {

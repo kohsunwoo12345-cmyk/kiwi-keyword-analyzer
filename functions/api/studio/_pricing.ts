@@ -110,6 +110,8 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   '모션 전이 (원본 움직임 유지·Motion Transfer)': { u: 'sec', usd: 0.12, prov: 'motion' },
   'Google Veo 3.1': { u: 'sec', usd: 0.40, audio: 0.35, prov: 'google' },
   'Runway Gen-4': { u: 'sec', usd: 0.05, prov: 'runway' },
+  'Runway Gen-3 Alpha Turbo': { u: 'sec', usd: 0.05, prov: 'runway' },
+  'Grok Imagine (영상)': { u: 'sec', usd: 0.10, prov: 'xai' },
   'Seedance 2.0': { u: 'sec', usd: 0.062, audio: 0.02, prov: 'seedance' },
   'Seedance 2.0 Fast': { u: 'sec', usd: 0.036, audio: 0.02, prov: 'seedance' },
   'Seedance 2.0 Mini': { u: 'sec', usd: 0.028, audio: 0.02, prov: 'seedance' },
