@@ -2,7 +2,8 @@
 
 import { cn } from '@/lib/utils'
 
-const ALL = Array.from({ length: 20 }, (_, i) => `/images/showcase/${i + 1}.webp`)
+// 히어로 배경 전용 축소본(≈380px). 어둡게 깔리는 장식 배경이라 저용량으로 충분 — 모바일 로딩 대폭 절감.
+const ALL = Array.from({ length: 20 }, (_, i) => `/images/showcase/hero/${i + 1}.webp`)
 
 /** 세로로 흐르는 사진 열 — 열마다 속도·방향이 달라 자연스럽게 움직인다. */
 const COLS = [
