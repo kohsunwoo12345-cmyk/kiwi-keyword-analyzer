@@ -203,6 +203,7 @@ export function buildXaiPayload(b) {
 const SEEDANCE_IDS = {
   "Seedance 2.0":                "dreamina-seedance-2-0-260128",
   "Seedance 2.0 Fast":           "dreamina-seedance-2-0-fast-260128",
+  "Seedance 2.0 Mini":           "dreamina-seedance-2-0-mini-260128",  // ID 는 콘솔값으로 언제든 덮어쓰기(SEEDANCE_MODEL_ID/노드 직접입력)
   "Seedance 1.5 Pro":            "seedance-1-5-pro",
   "Seedance 1.0 Pro":            "seedance-1-0-pro-250528",
   "Seedance 1.0 Pro Fast":       "seedance-1-0-pro-fast",
@@ -287,6 +288,8 @@ const ARK_HOSTS = {
 /* ── Flux (Black Forest Labs) 이미지 생성 ── */
 const FLUX_BASE = "https://api.bfl.ai/v1/";
 const FLUX_ENDPOINTS = {
+  "Flux 2 Flex":        "flux-2-flex",
+  "Flux 2 Dev":         "flux-2-dev",
   "Flux 1.1 Pro Ultra": "flux-pro-1.1-ultra",
   "Flux 1.1 Pro":       "flux-pro-1.1",
   "Flux Pro":           "flux-pro",
@@ -356,6 +359,10 @@ const FAL_IMG_SIZE = { "1:1": "square_hd", "16:9": "landscape_16_9", "9:16": "po
 
 /* ── Kling (클링) fal.ai 폴백용 엔드포인트. 텍스트→영상 / 이미지→영상 (진짜 V2V는 Runway Aleph 사용) ── */
 const KLING_FAL = {
+  "Kling 3.0 Pro (텍스트→영상)": "fal-ai/kling-video/v3/pro/text-to-video",
+  "Kling 3.0 Pro (이미지→영상)": "fal-ai/kling-video/v3/pro/image-to-video",
+  "Kling 3.0 Fast (텍스트→영상)": "fal-ai/kling-video/v3/standard/text-to-video",
+  "Kling 3.0 Fast (이미지→영상)": "fal-ai/kling-video/v3/standard/image-to-video",
   "Kling 2.1 Master (텍스트→영상)": "fal-ai/kling-video/v2.1/master/text-to-video",
   "Kling 2.1 Master (이미지→영상)": "fal-ai/kling-video/v2.1/master/image-to-video",
   "Kling 2.0 Master (텍스트→영상)": "fal-ai/kling-video/v2/master/text-to-video",
@@ -405,6 +412,10 @@ async function klingAuth(cr) {
 }
 // 표시 이름 → 공식 API 스펙 (model_name / mode / 엔드포인트)
 const KLING_API = {
+  "Kling 3.0 Pro (텍스트→영상)": { m: "kling-v3-master", mode: "pro", ep: "text2video" },
+  "Kling 3.0 Pro (이미지→영상)": { m: "kling-v3-master", mode: "pro", ep: "image2video" },
+  "Kling 3.0 Fast (텍스트→영상)": { m: "kling-v3-master", mode: "std", ep: "text2video" },
+  "Kling 3.0 Fast (이미지→영상)": { m: "kling-v3-master", mode: "std", ep: "image2video" },
   "Kling 2.1 Master (텍스트→영상)": { m: "kling-v2-1-master", mode: "pro", ep: "text2video" },
   "Kling 2.1 Master (이미지→영상)": { m: "kling-v2-1-master", mode: "pro", ep: "image2video" },
   "Kling 2.0 Master (텍스트→영상)": { m: "kling-v2-master", mode: "pro", ep: "text2video" },
