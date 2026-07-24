@@ -3635,7 +3635,7 @@ function _srCanvas(pipe, srcCanvas, factor){
     var wx=Math.max(0, Math.min(cx-PAD, Math.max(0,W-TILE))); if(W<=TILE) wx=0;
     var wy=Math.max(0, Math.min(cy-PAD, Math.max(0,H-TILE))); if(H<=TILE) wy=0;
     var ww=Math.min(TILE, W-wx), wh=Math.min(TILE, H-wy);
-    var cv=document.createElement('canvas'); cv.width=ww; cv.height=wh;
+    var cv=_srCanvas._cv||(_srCanvas._cv=document.createElement('canvas')); cv.width=ww; cv.height=wh;  // 스크래치 재사용(장시간 GC 부담↓)
     cv.getContext('2d').drawImage(srcCanvas, wx,wy,ww,wh, 0,0,ww,wh);
     return pipe(cv.toDataURL('image/png')).then(function(res){
       var rc = (res && res.toCanvas) ? res.toCanvas() : null;
@@ -3665,8 +3665,10 @@ function upscaleImageURL(src,scale){
     img.src=sameOriginMedia(src);
   });
 }
-// 영상 업스케일(짧은 클립): 프레임을 하나씩 시킹 → SR → 수동 프레임 인코딩(captureStream(0)+requestFrame).
-//  프레임마다 모델 추론이라 실시간보다 느림 → 최대 12초로 제한. 모델 불가 시 기존 실시간 리샘플로 폴백.
+// 영상 업스케일: 프레임을 하나씩 시킹 → SR → 수동 프레임 인코딩(captureStream(0)+requestFrame).
+//  프레임마다 모델 추론이라 실시간보다 느림 → 최대 5분(300초)까지. 장시간에도 안 죽도록:
+//  프레임별 워치독(멈춘 프레임은 리샘플로 대체·건너뜀), 청크 주기적 flush(메모리), 긴 영상 비트레이트↓.
+//  모델 불가 시 기존 실시간 리샘플로 폴백.
 function upscaleVideoURL(src,scale,onProg){
   return new Promise(function(resolve,reject){
     if(typeof MediaRecorder==='undefined'){ reject(new Error('이 브라우저는 영상 업스케일 미지원')); return; }
@@ -3675,10 +3677,11 @@ function upscaleVideoURL(src,scale,onProg){
     var settled=false;
     function fallback(){ if(settled)return; settled=true; _upscaleVideoResample(src,scale,onProg).then(resolve,reject); }
     v.addEventListener('loadedmetadata',function(){
-      var dur=v.duration||0, MAXSEC=12, clip=Math.min(dur||MAXSEC, MAXSEC), FPS=15;
+      var dur=v.duration||0, MAXSEC=300, clip=Math.min(dur||MAXSEC, MAXSEC), FPS=15;   // 최대 5분
       try{ toast(tr('초해상 모델 로딩 중… (최초 1회 다운로드)')); }catch(_){}
       ensureUpscaleModel(factor).then(function(pipe){
         if(settled)return;
+        if(clip>60){ try{ toast(tr('긴 영상 업스케일: 프레임마다 초해상 처리라 오래 걸립니다(수십 분+). 탭을 켜둔 채 기다려주세요.')); }catch(_){} }
         var iw=v.videoWidth||1280, ih=v.videoHeight||720;
         var CAP=640, sc=Math.min(1, CAP/Math.max(iw,ih)), sw=Math.max(1,Math.round(iw*sc)), sh=Math.max(1,Math.round(ih*sc));
         var frameC=document.createElement('canvas'); frameC.width=sw; frameC.height=sh; var fctx=frameC.getContext('2d');
@@ -3686,16 +3689,25 @@ function upscaleVideoURL(src,scale,onProg){
         var out=document.createElement('canvas'); out.width=tw; out.height=th; var octx=out.getContext('2d'); octx.imageSmoothingEnabled=true; octx.imageSmoothingQuality='high';
         var stream=out.captureStream(0), track=stream.getVideoTracks()[0];
         var mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].filter(function(m){return MediaRecorder.isTypeSupported(m);})[0]||'video/webm';
-        var rec; try{ rec=new MediaRecorder(stream,{ mimeType:mime, videoBitsPerSecond:Math.min(24000000,Math.round(tw*th*FPS*0.12)) }); }catch(e){ return fallback(); }
+        var vbps=Math.min(clip>60?10000000:24000000, Math.round(tw*th*FPS*0.10));   // 긴 영상은 비트레이트↓ (메모리·용량 안전)
+        var rec; try{ rec=new MediaRecorder(stream,{ mimeType:mime, videoBitsPerSecond:vbps }); }catch(e){ return fallback(); }
         var chunks=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size)chunks.push(e.data); };
         rec.onstop=function(){ if(settled)return; settled=true; resolve({ url:URL.createObjectURL(new Blob(chunks,{type:'video/webm'})), kind:'video', dim:tw+'×'+th }); };
-        try{ rec.start(); }catch(e){ return fallback(); }
+        try{ rec.start(2000); }catch(e){ try{ rec.start(); }catch(e2){ return fallback(); } }   // 2초마다 청크 flush
         var total=Math.max(1, Math.round(clip*FPS)), idx=0;
-        function seekTo(t){ return new Promise(function(res){ function on(){ v.removeEventListener('seeked',on); res(); } v.addEventListener('seeked',on); try{ v.currentTime=Math.min(t, Math.max(0,(dur||clip)-0.02)); }catch(e){ res(); } }); }
+        function seekTo(t){ return new Promise(function(res){ var done2=false; function on(){ if(done2)return; done2=true; v.removeEventListener('seeked',on); res(); } v.addEventListener('seeked',on); setTimeout(on,8000); try{ v.currentTime=Math.min(t, Math.max(0,(dur||clip)-0.02)); }catch(e){ on(); } }); }
+        // 프레임 워치독: SR 이 90초 넘으면 null(→ 리샘플 대체) 로 넘겨 절대 멈추지 않게.
+        function srFrame(){ return new Promise(function(res){ var to=setTimeout(function(){ res(null); },90000); _srCanvas(pipe, frameC, factor).then(function(c){ clearTimeout(to); res(c); }, function(){ clearTimeout(to); res(null); }); }); }
         function step(){
-          if(idx>=total){ setTimeout(function(){ try{rec.stop();}catch(e){} },150); return; }
-          seekTo(idx/FPS).then(function(){ try{ fctx.drawImage(v,0,0,sw,sh); }catch(e){} return _srCanvas(pipe, frameC, factor); })
-            .then(function(srC){ octx.clearRect(0,0,tw,th); octx.drawImage(srC,0,0,tw,th); try{ track.requestFrame(); }catch(e){} idx++; if(onProg)onProg(idx/total); setTimeout(step,0); })
+          if(settled)return;
+          if(idx>=total){ setTimeout(function(){ try{rec.stop();}catch(e){} },200); return; }
+          seekTo(idx/FPS).then(function(){ try{ fctx.drawImage(v,0,0,sw,sh); }catch(e){} return srFrame(); })
+            .then(function(srC){
+              octx.clearRect(0,0,tw,th);
+              if(srC){ octx.drawImage(srC,0,0,tw,th); } else { try{ octx.drawImage(v,0,0,tw,th); }catch(e){} }  // 실패 프레임은 리샘플로 채움
+              try{ track.requestFrame(); }catch(e){}
+              idx++; if(onProg)onProg(idx/total); setTimeout(step,0);
+            })
             .catch(function(){ idx++; if(onProg)onProg(idx/total); setTimeout(step,0); });
         }
         step();
@@ -5301,7 +5313,7 @@ canvas.addEventListener('click',function(e){
     var uIsImg = n2.w.kind==='image' || /^data:image\//i.test(n2.w.vid) || /\.(png|jpe?g|webp|gif)(\?|$)/i.test(n2.w.vid);
     n2.w.upscaling=true; n2.w.upPct=0; render();
     toast(uIsImg?'이미지 업스케일 중…':'영상 업스케일 중… (길이만큼 소요)');
-    function uProg(pp){ n2.w.upPct=pp; var hh=document.getElementById('nd-'+n2.id); if(hh){ var bar=hh.querySelector('.up-prog i'); if(bar)bar.style.width=Math.round(pp*100)+'%'; var msg=hh.querySelector('.up-msg'); if(msg)msg.textContent='업스케일 처리 중… '+Math.round(pp*100)+'% (영상은 실시간 처리)'; } }
+    function uProg(pp){ n2.w.upPct=pp; var hh=document.getElementById('nd-'+n2.id); if(hh){ var bar=hh.querySelector('.up-prog i'); if(bar)bar.style.width=Math.round(pp*100)+'%'; var msg=hh.querySelector('.up-msg'); if(msg)msg.textContent='업스케일 처리 중… '+Math.round(pp*100)+'% (프레임별 초해상 · 길수록 오래)'; } }
     var uJob = uIsImg ? upscaleImageURL(n2.w.vid,uScale) : upscaleVideoURL(n2.w.vid,uScale,uProg);
     uJob.then(function(res){ n2.w.upscaling=false; n2.w.upscaled=res.url; n2.w.upKind=res.kind; n2.w.upDim=res.dim; render(); toast('업스케일 완료 · '+res.dim); })
         .catch(function(err){ n2.w.upscaling=false; render(); toast('업스케일 실패: '+String(err&&err.message||err).slice(0,70)); });
