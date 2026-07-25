@@ -1104,7 +1104,7 @@ async function handle(context) {
         const hasImg = !!(j.data && j.data[0] && (j.data[0].b64_json || j.data[0].url));
         return json({ diag: "gptedit", model: modelId, endpoint: "/v1/images/edits", usable: r.ok && hasImg, httpStatus: r.status, hasImage: hasImg, tookMs: Date.now() - t0,
           error: r.ok ? null : String((j.error && j.error.message) || JSON.stringify(j)).slice(0, 300),
-          note: (r.ok && hasImg) ? "이 모델은 OpenAI 편집(edits)을 직접 지원 → 레퍼런스 편집도 이 모델 그대로 사용 가능." : "이 모델의 편집이 거부되면 앱은 자동으로 gpt-image-1.5 로 재시도합니다." });
+          note: (r.ok && hasImg) ? "이 모델은 OpenAI 편집(edits)을 직접 지원 → 레퍼런스 편집도 이 모델 그대로 사용 가능." : "실패 시 error 문구 확인(사이즈는 16의 배수·비율 1:3~3:1 이어야 함). 앱은 같은 모델로 1024x1024 재시도합니다." });
       } catch (e) {
         return json({ diag: "gptedit", model: modelId, usable: false, error: String((e && e.message) || e).slice(0, 200), tookMs: Date.now() - t0 });
       }
@@ -2053,22 +2053,26 @@ async function handle(context) {
         for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
         blobs.push(new Blob([buf], { type: m[1] }));
       }
-      const postEdit = (model) => {
+      // OpenAI 공식 규격: gpt-image-2 편집 사이즈는 W×H(둘 다 16의 배수), 비율 1:3~3:1, 최대 3840x2160.
+      const okSize = (s) => {
+        const m = /^(\d+)x(\d+)$/.exec(s || ""); if (!m) return "1024x1024";
+        let w = Math.round(+m[1] / 16) * 16, h = Math.round(+m[2] / 16) * 16;
+        w = Math.max(256, Math.min(3840, w)); h = Math.max(256, Math.min(2160, h));
+        if (w / h > 3) w = Math.round((h * 3) / 16) * 16;
+        if (h / w > 3) h = Math.round((w * 3) / 16) * 16;
+        return w + "x" + h;
+      };
+      const postEdit = (model, size) => {
         const fd = new FormData();
-        fd.append("model", model); fd.append("prompt", p.prompt); fd.append("size", p.size); fd.append("n", "1");
+        fd.append("model", model); fd.append("prompt", p.prompt); fd.append("size", size); fd.append("n", "1");
         blobs.forEach((bl, i) => fd.append("image", bl, "img" + i + ".png"));
         return fetchT(openaiBase(env) + "/v1/images/edits", { method: "POST", headers: { "Authorization": "Bearer " + k.openai }, body: fd }, 120000);
       };
-      // 선택한 모델(예: gpt-image-2) 그대로 GPT_API_KEY 로 편집 시도.
-      r = await postEdit(p.model);
-      // OpenAI 가 그 모델의 편집을 아직 안 받으면(모델 미지원 오류) 하드 실패 대신 편집 가능한 최신 모델로 1회 재시도.
-      if (!r.ok && p.model !== "gpt-image-1.5") {
-        const je = await r.clone().json().catch(() => ({}));
-        const emsg = String((je.error && (je.error.message || je.error.code)) || "").toLowerCase();
-        if (r.status === 404 || /model|unsupported|not\s*support|does not|invalid.*model|not\s*allowed/.test(emsg)) {
-          r = await postEdit("gpt-image-1.5");
-        }
-      }
+      // 선택한 모델(예: gpt-image-2) 그대로 GPT_API_KEY 로 편집 — 모델 다운그레이드 없음(항상 2.0 유지).
+      const editSize = okSize(p.size);
+      r = await postEdit(p.model, editSize);
+      // 실패 시 '같은 모델'로 안전 사이즈(1024x1024)로 1회만 재시도 — 사이즈/속도(타임아웃) 이슈 완화, 모델은 유지.
+      if (!r.ok && editSize !== "1024x1024") r = await postEdit(p.model, "1024x1024");
     } else {   // 생성 (images/generations)
       r = await fetchT(openaiBase(env) + "/v1/images/generations", {
         method: "POST", headers: { "Authorization": "Bearer " + k.openai, "Content-Type": "application/json" },
