@@ -220,7 +220,7 @@ export function buildXaiVideoPayload(b, env) {
 export const SEEDANCE_IDS = {
   "Seedance 2.0":                "dreamina-seedance-2-0-260128",
   "Seedance 2.0 Fast":           "dreamina-seedance-2-0-fast-260128",
-  "Seedance 2.0 Mini":           "dreamina-seedance-2-0-mini-260128",  // ID 는 콘솔값으로 언제든 덮어쓰기(SEEDANCE_MODEL_ID/노드 직접입력)
+  "Seedance 2.0 Mini":           "dreamina-seedance-2-0-mini-260615",  // 콘솔 실제 ID(회원 제공)
   "Seedance 1.5 Pro":            "seedance-1-5-pro",
   "Seedance 1.0 Pro":            "seedance-1-0-pro-250528",
   "Seedance 1.0 Pro Fast":       "seedance-1-0-pro-fast",
@@ -313,10 +313,11 @@ const ARK_HOSTS = {
    → 콘솔에서 ID 체계가 바뀌어도 코드 수정 없이 스스로 맞춘다. */
 export const SEEDREAM_IDS = {
   // 콘솔(BytePlus 인터내셔널) 실제 카드명: Dola-Seedream-5.0-pro/lite, ByteDance-Seedream-4.5 → 해당 접두사 후보를 최우선.
-  "Seedream 5.0 Pro":               ["dola-seedream-5-0-pro", "seedream-5-0-pro", "doubao-seedream-5-0-pro"],
-  "Seedream 5.0 Pro (레퍼런스 편집)":  ["dola-seedream-5-0-pro", "seedream-5-0-pro", "doubao-seedream-5-0-pro"],
-  "Seedream 5.0 Lite":              ["dola-seedream-5-0-lite", "seedream-5-0-lite", "doubao-seedream-5-0-lite"],
-  "Seedream 5.0 Lite (레퍼런스 편집)": ["dola-seedream-5-0-lite", "seedream-5-0-lite", "doubao-seedream-5-0-lite"],
+  // 콘솔 실제 Model ID(회원 제공): Pro=dola-seedream-5-0-pro-260628, Lite=seedream-5-0-260128
+  "Seedream 5.0 Pro":               ["dola-seedream-5-0-pro-260628", "dola-seedream-5-0-pro", "seedream-5-0-pro"],
+  "Seedream 5.0 Pro (레퍼런스 편집)":  ["dola-seedream-5-0-pro-260628", "dola-seedream-5-0-pro", "seedream-5-0-pro"],
+  "Seedream 5.0 Lite":              ["seedream-5-0-260128", "dola-seedream-5-0-lite", "seedream-5-0-lite"],
+  "Seedream 5.0 Lite (레퍼런스 편집)": ["seedream-5-0-260128", "dola-seedream-5-0-lite", "seedream-5-0-lite"],
   "Seedream 4.5":                   ["seedream-4-5-251128", "bytedance-seedream-4-5", "seedream-4-5", "doubao-seedream-4-5-251128"],
   "Seedream 4.5 (레퍼런스 편집)":     ["seedream-4-5-251128", "bytedance-seedream-4-5", "seedream-4-5", "doubao-seedream-4-5-251128"],
   "Seedream 4.0":                   ["seedream-4-0-250828", "doubao-seedream-4-0-250828"],
