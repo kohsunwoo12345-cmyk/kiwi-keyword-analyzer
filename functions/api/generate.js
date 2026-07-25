@@ -312,12 +312,13 @@ const ARK_HOSTS = {
    요구하는 경우가 있어, "모델 없음(404/InvalidParameter)" 응답이면 다음 후보로 자동 재시도한다.
    → 콘솔에서 ID 체계가 바뀌어도 코드 수정 없이 스스로 맞춘다. */
 export const SEEDREAM_IDS = {
-  "Seedream 5.0 Pro":               ["seedream-5-0-pro", "doubao-seedream-5-0-pro"],
-  "Seedream 5.0 Pro (레퍼런스 편집)":  ["seedream-5-0-pro", "doubao-seedream-5-0-pro"],
-  "Seedream 5.0 Lite":              ["seedream-5-0-lite", "doubao-seedream-5-0-lite"],
-  "Seedream 5.0 Lite (레퍼런스 편집)": ["seedream-5-0-lite", "doubao-seedream-5-0-lite"],
-  "Seedream 4.5":                   ["seedream-4-5-251128", "seedream-4-5", "doubao-seedream-4-5-251128"],
-  "Seedream 4.5 (레퍼런스 편집)":     ["seedream-4-5-251128", "seedream-4-5", "doubao-seedream-4-5-251128"],
+  // 콘솔(BytePlus 인터내셔널) 실제 카드명: Dola-Seedream-5.0-pro/lite, ByteDance-Seedream-4.5 → 해당 접두사 후보를 최우선.
+  "Seedream 5.0 Pro":               ["dola-seedream-5-0-pro", "seedream-5-0-pro", "doubao-seedream-5-0-pro"],
+  "Seedream 5.0 Pro (레퍼런스 편집)":  ["dola-seedream-5-0-pro", "seedream-5-0-pro", "doubao-seedream-5-0-pro"],
+  "Seedream 5.0 Lite":              ["dola-seedream-5-0-lite", "seedream-5-0-lite", "doubao-seedream-5-0-lite"],
+  "Seedream 5.0 Lite (레퍼런스 편집)": ["dola-seedream-5-0-lite", "seedream-5-0-lite", "doubao-seedream-5-0-lite"],
+  "Seedream 4.5":                   ["seedream-4-5-251128", "bytedance-seedream-4-5", "seedream-4-5", "doubao-seedream-4-5-251128"],
+  "Seedream 4.5 (레퍼런스 편집)":     ["seedream-4-5-251128", "bytedance-seedream-4-5", "seedream-4-5", "doubao-seedream-4-5-251128"],
   "Seedream 4.0":                   ["seedream-4-0-250828", "doubao-seedream-4-0-250828"],
   "Seedream 4.0 (레퍼런스 편집)":     ["seedream-4-0-250828", "doubao-seedream-4-0-250828"],
   "Seedream 3.0":                   ["seedream-3-0-t2i-250415", "doubao-seedream-3-0-t2i-250415"],
