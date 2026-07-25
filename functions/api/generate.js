@@ -915,23 +915,27 @@ async function handle(context) {
       }
       return json({ ...out, usable: false, note: "모두 실패. studio_key error가 'API key not valid'면 VEO_API_KEY 값 무효, vertex가 되면 그쪽으로 붙이면 됨." });
     }
-    // 진단: GPT_API_KEY(OpenAI)로 gpt-image-1 이미지 생성이 되는지 실제 호출.
-    //   /api/generate?diag=gptimage
+    // 진단: GPT_API_KEY(OpenAI)로 이미지 생성이 되는지 실제 호출.
+    //   /api/generate?diag=gptimage                 → 기본 gpt-image-1
+    //   /api/generate?diag=gptimage&model=GPT Image 2 → 실제 고른 모델로 테스트(friendly 이름 또는 raw id)
     if (u.searchParams.get("diag") === "gptimage") {
       if (!k.openai) return json({ diag: "gptimage", usable: false, error: "GPT_API_KEY 미설정" });
       const prompt = u.searchParams.get("prompt") || "A photorealistic red apple on a wooden table, soft studio lighting";
+      const reqModel = u.searchParams.get("model") || "";
+      const modelId = OPENAI_IMG_ID[reqModel] || reqModel || "gpt-image-1";   // friendly 이름이면 매핑, 아니면 raw
       const t0 = Date.now();
       try {
         const r = await fetchT(openaiBase(env) + "/v1/images/generations", {
           method: "POST", headers: { "Authorization": "Bearer " + k.openai, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "gpt-image-1", prompt, size: "1024x1024", n: 1 }) }, 60000);
+          body: JSON.stringify({ model: modelId, prompt, size: "1024x1024", n: 1 }) }, 120000);
         const j = await r.json().catch(() => ({}));
         const hasImg = !!(j.data && j.data[0] && (j.data[0].b64_json || j.data[0].url));
-        return json({ diag: "gptimage", usable: r.ok && hasImg, httpStatus: r.status, hasImage: hasImg, tookMs: Date.now() - t0, relay: openaiBase(env) !== "https://api.openai.com",
+        return json({ diag: "gptimage", model: modelId, usable: r.ok && hasImg, httpStatus: r.status, hasImage: hasImg, tookMs: Date.now() - t0, relay: openaiBase(env) !== "https://api.openai.com",
           error: r.ok ? null : String((j.error && j.error.message) || JSON.stringify(j)).slice(0, 240),
-          note: (!r.ok && r.status === 403) ? "403이면 보통 OpenAI 조직 인증(Verify Organization) 필요 — platform.openai.com/settings/organization 에서 인증 후 gpt-image-1 사용 가능." : undefined });
+          note: (!r.ok && r.status === 403) ? "403이면 보통 OpenAI 조직 인증(Verify Organization) 필요 — platform.openai.com/settings/organization 에서 인증." : undefined });
       } catch (e) {
-        return json({ diag: "gptimage", usable: false, error: String((e && e.message) || e).slice(0, 200), tookMs: Date.now() - t0 });
+        return json({ diag: "gptimage", model: modelId, usable: false, error: String((e && e.message) || e).slice(0, 200), tookMs: Date.now() - t0,
+          note: "timeout/네트워크면 그 모델이 릴레이·Cloudflare 시간제한을 넘겼을 가능성(gpt-image-2 는 느림)." });
       }
     }
     // 진단: Gemini Omni Flash(영상) 가 Vertex 서비스계정으로 되는지 + 응답 형식 확인.
