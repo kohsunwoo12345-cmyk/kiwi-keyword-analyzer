@@ -921,6 +921,61 @@ async function handle(context) {
                       error: String((e && e.message) || e).slice(0, 300) });
       }
     }
+    // 진단(씨드림 전체): 등록된 모든 Seedream 이미지 모델을 실제로 한 번씩 생성해 개별 성공/실패 보고.
+    //   /api/generate?diag=seedream-all      (관리자 · 모델당 ~$0.03 · 편집모델은 샘플 이미지로 검증)
+    if (u.searchParams.get("diag") === "seedream-all") {
+      if (!k.seedance) return json({ diag: "seedream-all", error: "Seedream 키(=Seedance_API_KEY) 가 서버에 없음" });
+      const sample = "https://ark-doc.tos-ap-southeast-1.bytepluses.com/doc_image/r2v_tea_pic1.jpg";
+      const seen = {}, items = [];
+      for (const name of Object.keys(SEEDREAM_IDS)) {
+        const id = SEEDREAM_IDS[name];
+        if (seen[id]) continue; seen[id] = 1;
+        const isEdit = /edit|i2i/.test(id);
+        const body = { model: id, prompt: "a photorealistic red apple on a wooden table, soft studio light",
+                       size: "1024x1024", response_format: "url", watermark: false };
+        if (isEdit) body.image = /seedream-4/.test(id) ? [sample] : sample;
+        const t0 = Date.now();
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + "/images/generations", {
+            method: "POST", headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify(body) }, 60000);
+          const j = await r.json().catch(() => ({}));
+          const url = j && j.data && j.data[0] && j.data[0].url;
+          items.push({ model: id, ok: r.ok && !!url, httpStatus: r.status, tookMs: Date.now() - t0, imageUrl: url || null,
+                       error: url ? null : String((j.error && (j.error.message || j.error.code)) || JSON.stringify(j)).slice(0, 180) });
+        } catch (e) {
+          items.push({ model: id, ok: false, tookMs: Date.now() - t0, error: String((e && e.message) || e).slice(0, 180) });
+        }
+      }
+      return json({ diag: "seedream-all", okCount: items.filter(x => x.ok).length, total: items.length, items });
+    }
+    // 진단(씨댄스 전체): 등록된 모든 Seedance 영상 모델 검증.
+    //   /api/generate?diag=seedance-all          (기본=무과금 구조검증: 모델ID 매핑만)
+    //   /api/generate?diag=seedance-all&real=1   (실제 제출 — 완료 시 모델당 영상 과금 발생)
+    if (u.searchParams.get("diag") === "seedance-all") {
+      if (!k.seedance) return json({ diag: "seedance-all", error: "Seedance 키가 서버에 없음" });
+      const real = u.searchParams.get("real") === "1";
+      const seen = {}, items = [];
+      for (const name of Object.keys(SEEDANCE_IDS)) {
+        const id = seedanceModelId({ model: name }, env);
+        if (seen[id]) continue; seen[id] = 1;
+        if (!real) { items.push({ model: id, name, submitted: false, note: "구조검증(무과금)" }); continue; }
+        const payload = buildSeedancePayload({ model: name, prompt: "A cinematic photorealistic product shot, smooth camera move.", seconds: 5, ratio: "16:9" }, env);
+        const t0 = Date.now();
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+            method: "POST", headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify(payload) }, 22000);
+          const j = await r.json().catch(() => ({}));
+          items.push({ model: id, name, submitted: r.ok && !!j.id, httpStatus: r.status, tookMs: Date.now() - t0, taskId: j.id || null,
+                       error: j.id ? null : String((j.error && (j.error.message || j.error.code)) || JSON.stringify(j)).slice(0, 180) });
+        } catch (e) {
+          items.push({ model: id, name, submitted: false, tookMs: Date.now() - t0, error: String((e && e.message) || e).slice(0, 180) });
+        }
+      }
+      return json({ diag: "seedance-all", real, okCount: items.filter(x => real ? x.submitted : true).length, total: items.length,
+                    note: real ? "제출 성공 = 모델ID·키·형식 정상(완료 시 영상 과금)" : "무과금 구조검증 · 실제 제출은 &real=1", items });
+    }
     // 진단: 실제 이미지 생성이 되는지 끝까지(제출→폴링→이미지 URL) 확인.
     //   /api/generate?diag=flux                 (기본 Flux 1.1 Pro)
     //   /api/generate?diag=flux&model=Flux 1.1 Pro Ultra&prompt=...
