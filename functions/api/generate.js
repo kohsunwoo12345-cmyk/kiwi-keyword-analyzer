@@ -1109,6 +1109,46 @@ async function handle(context) {
         return json({ diag: "gptedit", model: modelId, usable: false, error: String((e && e.message) || e).slice(0, 200), tookMs: Date.now() - t0 });
       }
     }
+    // 진단(전체 이미지 모델): 스튜디오에 노출된 "모든 이미지 모델"을 실제 생성 경로 그대로 호출해
+    // 모델별 성공/실패를 한 번에 보고한다. 노드에 넣기 전 "무엇이 진짜 되는지" 확정하는 용도.
+    //   /api/generate?diag=images-all               (전체)
+    //   /api/generate?diag=images-all&only=seedream (특정 제공사만)
+    //   ※ 실제 생성이므로 모델당 이미지 1장 비용이 발생합니다.
+    if (u.searchParams.get("diag") === "images-all") {
+      const only = (u.searchParams.get("only") || "").trim();
+      const prompt = u.searchParams.get("prompt") || "a photorealistic red apple on a wooden table, soft studio lighting";
+      // [표시명, provider] — MODEL_COST(u:'img') 와 같은 집합을 코드 한 곳에서 관리
+      const IMG_MODELS_DIAG = [
+        ...Object.keys(SEEDREAM_IDS).map(n => [n, "seedream"]),
+        ...Object.keys(FLUX_ENDPOINTS).map(n => [n, "flux"]),
+        ...Object.keys(OPENAI_IMG_ID).map(n => [n, "openai"]),
+        ["Nano Banana", "nanobanana"],
+        ["Grok Imagine", "xai"]
+      ].filter(([n, p]) => !only || p === only);
+
+      const items = [];
+      for (const [name, prov] of IMG_MODELS_DIAG) {
+        const t0 = Date.now();
+        try {
+          // 실제 생성과 동일한 본문으로 자기 자신(POST)을 호출 → 라우팅·페이로드·키까지 그대로 검증
+          const rr = await fetchT(new URL("/api/generate", u.origin).toString(), {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "cookie": request.headers.get("cookie") || "" },
+            body: JSON.stringify({ provider: prov, model: name, prompt, ratio: "1:1" })
+          }, 120000);
+          const jj = await rr.json().catch(() => ({}));
+          if (jj.url) { items.push({ model: name, provider: prov, ok: true, tookMs: Date.now() - t0, kind: jj.kind || "image" }); continue; }
+          if (jj.statusUrl) { items.push({ model: name, provider: prov, ok: true, async: true, tookMs: Date.now() - t0, note: "비동기 제출 성공(폴링 필요)" }); continue; }
+          items.push({ model: name, provider: prov, ok: false, httpStatus: rr.status, tookMs: Date.now() - t0,
+                       error: String(jj.error || JSON.stringify(jj)).slice(0, 200) });
+        } catch (e) {
+          items.push({ model: name, provider: prov, ok: false, tookMs: Date.now() - t0, error: String((e && e.message) || e).slice(0, 200) });
+        }
+      }
+      const okCount = items.filter(x => x.ok).length;
+      return json({ diag: "images-all", only: only || "(전체)", okCount, failCount: items.length - okCount, total: items.length,
+                    fails: items.filter(x => !x.ok).map(x => x.model), items });
+    }
     // 진단: Gemini Omni Flash(영상) 가 Vertex 서비스계정으로 되는지 + 응답 형식 확인.
     //   /api/generate?diag=geminiomni   (모델 override: &model=gemini-omni-flash)
     if (u.searchParams.get("diag") === "geminiomni") {
