@@ -343,9 +343,17 @@ const SEEDREAM_SIZES = {
   "4:5": "1632x2048",  "5:4": "2048x1632",  "4:3": "2048x1536",
   "3:4": "1536x2048",  "3:2": "2048x1360",  "2:3": "1360x2048"
 };
+// Seedream 4.5/5.0 는 최소 3,686,400px(2560x1440급) 이상을 요구(작으면 400) → 비율 유지한 채 픽셀 수를 끌어올린다.
+function seedreamMinSize(size, modelId) {
+  if (!/seedream-(4-5|5-0)/.test(String(modelId || ""))) return size;
+  const m = /^(\d+)x(\d+)$/.exec(size || ""); if (!m) return "2048x2048";
+  let w = +m[1], h = +m[2]; const MIN = 3686400;
+  if (w * h < MIN) { const s = Math.sqrt(MIN / (w * h)) * 1.03; w = Math.round(w * s); h = Math.round(h * s); }
+  return w + "x" + h;
+}
 export function buildSeedreamPayload(b, env, modelOverride) {
   const model = modelOverride || seedreamModelId(b, env);
-  const size = SEEDREAM_SIZES[b && b.ratio] || "2048x1152";
+  const size = seedreamMinSize(SEEDREAM_SIZES[b && b.ratio] || "2048x1152", model);
   const body = {
     model,
     prompt: String((b && b.prompt) || "").slice(0, 1500),
