@@ -430,6 +430,45 @@ export async function adminUserActivity(userId?: string): Promise<{ ok: boolean;
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
 
+export interface AiModelRow {
+  model: string
+  modelId: string
+  provider: string
+  providerLabel: string
+  kind: 'image' | 'video'
+  unit: 'img' | 'sec'
+  usd: number
+  audioUsd: number
+  credits: number
+  keyConfigured: boolean
+  isPipeline: boolean
+  idUnverified: boolean
+  status: 'live' | 'unverified' | 'nokey'
+}
+export interface AiModelsResp {
+  ok: boolean
+  error?: string
+  usdKrw?: number
+  summary?: { total: number; live: number; unverified: number; nokey: number; image: number; video: number }
+  providers?: { id: string; label: string; keyConfigured: boolean; count: number }[]
+  models?: AiModelRow[]
+}
+/** 연동된 AI 모델 전체 목록 (관리자 AI 목록 페이지) */
+export async function adminAiModels(): Promise<AiModelsResp> {
+  try {
+    const r = await fetch('/api/admin/ai-models', { credentials: 'include' })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
+
+/** 이미지 모델 실시간 검증 — 실제 생성 경로로 호출해 모델별 성공/실패 반환 */
+export async function adminVerifyImageModels(only?: string): Promise<any> {
+  try {
+    const r = await fetch(`/api/generate?diag=images-all${only ? `&only=${encodeURIComponent(only)}` : ''}`, { credentials: 'include' })
+    return await r.json()
+  } catch { return { error: '네트워크 오류' } }
+}
+
 export async function adminAiGenerations(opts: { limit?: number; offset?: number; kind?: string; q?: string; days?: number } = {}): Promise<AiGenerationsResp> {
   try {
     const p = new URLSearchParams()
