@@ -308,6 +308,14 @@ const ARK_HOSTS = {
    ※ 콘솔에서 실제 모델 ID 가 바뀌면 노드의 "Seedream 모델 ID 직접입력"(b.seedreamModel) 또는
      SEEDREAM_MODEL_ID 환경변수로 언제든 덮어쓸 수 있다(코드 수정 불필요). */
 const SEEDREAM_IDS = {
+  // 최신 세대 — 5.0 은 base ID(seedream-5-0-pro/lite)가 곧 모델 ID(공식). 4.5 는 seedream-4-5.
+  //  ※ 콘솔에서 날짜접미사(예: -2509xx) 형태를 요구하면 노드 "직접입력" 또는 SEEDREAM_MODEL_ID 로 교정.
+  "Seedream 5.0 Pro":              "seedream-5-0-pro",
+  "Seedream 5.0 Pro (레퍼런스 편집)": "seedream-5-0-pro",
+  "Seedream 5.0 Lite":             "seedream-5-0-lite",
+  "Seedream 5.0 Lite (레퍼런스 편집)":"seedream-5-0-lite",
+  "Seedream 4.5":                  "seedream-4-5",
+  "Seedream 4.5 (레퍼런스 편집)":    "seedream-4-5",
   "Seedream 4.0":                 "seedream-4-0-250828",
   "Seedream 4.0 (레퍼런스 편집)":   "seedream-4-0-250828",
   "Seedream 3.0":                 "seedream-3-0-t2i-250415",
