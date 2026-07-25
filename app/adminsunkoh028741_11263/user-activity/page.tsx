@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { History, Search, X, Activity, Coins, Crown, Users, Share2, Sparkles, LogIn, RefreshCw } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button, Badge } from '@/components/ui'
@@ -102,24 +103,52 @@ function TimelineDrawer({ user, onClose }: { user: UserActivityUser; onClose: ()
   const [events, setEvents] = useState<ActivityEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('')
+  const [mounted, setMounted] = useState(false)
+  const [closing, setClosing] = useState(false)
+
+  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
     setLoading(true)
     adminUserActivity(user.id).then((r) => { if (r.ok) setEvents(r.events || []); setLoading(false) })
   }, [user.id])
 
+  // 드로어가 열려 있는 동안 배경 스크롤 잠금 (레이아웃 흔들림 방지)
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
+  // 닫기: 슬라이드-아웃 애니메이션을 재생한 뒤 실제로 언마운트
+  const handleClose = useCallback(() => {
+    setClosing(true)
+    window.setTimeout(onClose, 240)
+  }, [onClose])
+
+  // ESC 로 닫기
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [handleClose])
+
   const cats = ['', 'share', 'gen', 'tx', 'team', 'activity']
   const shown = filter ? events.filter((e) => e.cat === filter) : events
 
-  return (
-    <div className="fixed inset-0 z-[120] flex justify-end bg-black/40" onClick={onClose}>
-      <div className="flex h-full w-full max-w-xl flex-col bg-[var(--panel)] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+  // document.body 로 포털 — 관리자 페이지 전환 래퍼(.dash-page-slide)의 transform 컨테이닝 블록에서
+  // 벗어나 항상 뷰포트 기준으로 고정된다(하단 레이아웃 벌어짐 방지).
+  if (!mounted) return null
+
+  return createPortal(
+    <div className={cn('fixed inset-0 z-[120] flex justify-end bg-black/40 drawer-backdrop', closing && 'closing')} onClick={handleClose}>
+      <div className={cn('drawer-panel flex h-full w-full max-w-xl flex-col bg-[var(--panel)] shadow-2xl', closing && 'closing')} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
           <div className="min-w-0">
             <div className="truncate text-base font-bold">{user.name || '-'}</div>
             <div className="truncate text-xs text-[var(--text-dim)]">{user.email}</div>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-[var(--text-soft)] hover:bg-slate-100"><X size={18} /></button>
+          <button onClick={handleClose} className="rounded-lg p-1.5 text-[var(--text-soft)] hover:bg-slate-100"><X size={18} /></button>
         </div>
 
         <div className="flex flex-wrap gap-1.5 border-b border-[var(--border-soft)] px-5 py-3">
@@ -165,6 +194,7 @@ function TimelineDrawer({ user, onClose }: { user: UserActivityUser; onClose: ()
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

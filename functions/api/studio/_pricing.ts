@@ -139,6 +139,11 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   'Kling 1.6 Pro (이미지→영상)': { u: 'sec', usd: 0.049, prov: 'kling' },
   'Kling 1.6 Standard (이미지→영상)': { u: 'sec', usd: 0.028, prov: 'kling' },
   'Grok Imagine': { u: 'img', usd: 0.07, prov: 'xai' },
+  // ── Seedream (씨드림) — ByteDance ModelArk 이미지 (씨댄스와 같은 키 공유) ──
+  'Seedream 4.0': { u: 'img', usd: 0.03, prov: 'seedream' },
+  'Seedream 4.0 (레퍼런스 편집)': { u: 'img', usd: 0.03, prov: 'seedream' },
+  'Seedream 3.0': { u: 'img', usd: 0.03, prov: 'seedream' },
+  'SeedEdit 3.0 (레퍼런스 편집)': { u: 'img', usd: 0.03, prov: 'seedream' },
   'Nano Banana': { u: 'img', usd: 0.039, prov: 'nanobanana' },
   'GPT Image 2': { u: 'img', usd: 0.08, prov: 'openai' },
   'GPT Image 1.5': { u: 'img', usd: 0.06, prov: 'openai' },
@@ -158,7 +163,7 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
 }
 
 export const PROV_LABEL: Record<string, string> = {
-  google: 'Google Veo', runway: 'Runway', runway_aleph: 'Runway Aleph', v2v_auto: 'V2V 자동', motion: '모션 전이', seedance: 'Seedance',
+  google: 'Google Veo', runway: 'Runway', runway_aleph: 'Runway Aleph', v2v_auto: 'V2V 자동', motion: '모션 전이', seedance: 'Seedance', seedream: 'Seedream',
   hailuo: 'MiniMax Hailuo', luma: 'Luma', xai: 'Grok', flux: 'Flux', falcontrol: 'fal ControlNet',
   nanobanana: 'Nano Banana', openai: 'GPT Image', kling: 'Kling', narrate: '나레이션', lipsync: '립싱크',
 }

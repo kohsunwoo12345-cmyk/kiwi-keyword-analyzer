@@ -302,6 +302,57 @@ const ARK_HOSTS = {
   vc: "https://ark.cn-beijing.volces.com/api/v3"          // Volcengine (중국)
 };
 
+/* ── Seedream (씨드림) — ByteDance/BytePlus ModelArk 이미지 생성 ──
+   ※ 씨댄스(Seedance)와 동일한 ByteDance ModelArk API 다. 그래서 별도 키가 아니라
+     Seedance_API_KEY(= ByteDance 키)를 그대로 공유해서 인증한다.
+   ※ 콘솔에서 실제 모델 ID 가 바뀌면 노드의 "Seedream 모델 ID 직접입력"(b.seedreamModel) 또는
+     SEEDREAM_MODEL_ID 환경변수로 언제든 덮어쓸 수 있다(코드 수정 불필요). */
+const SEEDREAM_IDS = {
+  "Seedream 4.0":                 "seedream-4-0-250828",
+  "Seedream 4.0 (레퍼런스 편집)":   "seedream-4-0-250828",
+  "Seedream 3.0":                 "seedream-3-0-t2i-250415",
+  "SeedEdit 3.0 (레퍼런스 편집)":   "seededit-3-0-i2i-250628"
+};
+export function seedreamModelId(b, env) {
+  const custom = b && typeof b.seedreamModel === "string" && b.seedreamModel.trim();
+  if (custom) return custom;                       // 노드에서 직접 입력한 모델 ID 최우선
+  const override = env && pick(env, ["SEEDREAM_MODEL_ID", "seedream_model_id"]);
+  return override || SEEDREAM_IDS[b && b.model] || "seedream-4-0-250828";
+}
+// 비율 → ModelArk 이미지 크기(WxH, 각 변 512~2048). 기본 16:9.
+const SEEDREAM_SIZES = {
+  "16:9": "2048x1152", "9:16": "1152x2048", "1:1": "2048x2048",
+  "4:5": "1632x2048",  "5:4": "2048x1632",  "4:3": "2048x1536",
+  "3:4": "1536x2048",  "3:2": "2048x1360",  "2:3": "1360x2048"
+};
+export function buildSeedreamPayload(b, env) {
+  const model = seedreamModelId(b, env);
+  const size = SEEDREAM_SIZES[b && b.ratio] || "2048x1152";
+  const body = {
+    model,
+    prompt: String((b && b.prompt) || "").slice(0, 1500),
+    size,
+    response_format: "url",
+    watermark: b && b.watermark === true    // 기본 워터마크 없음
+  };
+  // 레퍼런스 편집(i2i) — 레퍼런스 이미지가 있으면 image 필드로 첨부.
+  //  · Seedream 4.0: 다중 레퍼런스 배열 지원  · SeedEdit 3.0: 단일 이미지
+  const refs = [];
+  const seen = {};
+  const push = (v) => { if (v && !seen[v] && (seen[v] = 1)) refs.push(v); };
+  if (Array.isArray(b && b.refImages)) b.refImages.forEach(push);
+  push(b && b.firstFrame); push(b && b.refImage);
+  if (refs.length) {
+    if (/seedream-4/.test(model)) {
+      body.image = refs.slice(0, 6);                 // 4.0 다중 레퍼런스
+      body.sequential_image_generation = "disabled"; // 1장만 생성
+    } else {
+      body.image = refs[0];                          // seededit 등 단일 레퍼런스
+    }
+  }
+  return body;
+}
+
 /* ── Flux (Black Forest Labs) 이미지 생성 ── */
 const FLUX_BASE = "https://api.bfl.ai/v1/";
 const FLUX_ENDPOINTS = {
@@ -739,6 +790,7 @@ async function handle(context) {
         xai:      !!k.xai,
         google:   !!(k.google || gcpCreds(env)),
         seedance: !!k.seedance,
+        seedream: !!k.seedance,   // 씨드림 = ByteDance ModelArk 이미지, 씨댄스와 같은 키 공유
         flux:     !!k.flux,
         hailuo:   !!k.hailuo,
         luma:     !!k.luma,
@@ -755,7 +807,9 @@ async function handle(context) {
         narrateReady: !!(k.fal && pick(env, ["Text_to_Speech", "OpenAI_Text_to_speech", "ElevenLabs_API_KEY", "OPENAI_API_KEY"])), // TTS+병합
         // 스튜디오가 실제로 쓰는 Seedance 모델 결정값 진단 (모델ID는 비밀 아님)
         seedanceModelOverride: pick(env, ["SEEDANCE_MODEL_ID", "seedance_model_id"]) || null,
-        seedance20Maps: SEEDANCE_IDS["Seedance 2.0"]
+        seedance20Maps: SEEDANCE_IDS["Seedance 2.0"],
+        seedreamModelOverride: pick(env, ["SEEDREAM_MODEL_ID", "seedream_model_id"]) || null,
+        seedream40Maps: SEEDREAM_IDS["Seedream 4.0"]
       });
     }
     // (보안) 키 값/환경변수 조회 엔드포인트는 제거됨 — API 키는 어떤 응답에도 절대 노출하지 않습니다.
@@ -840,6 +894,87 @@ async function handle(context) {
         return json({ diag: "seedance2", model, tookMs: Date.now() - started,
                       error: String((e && e.message) || e).slice(0, 300) });
       }
+    }
+    // 진단(씨드림): 사장님 키로 ByteDance ModelArk 이미지 생성을 실제로 호출해 이미지 URL 까지 확인.
+    //   /api/generate?diag=seedream                          (기본 Seedream 4.0)
+    //   /api/generate?diag=seedream&model=seedream-3-0-t2i-250415&prompt=...
+    if (u.searchParams.get("diag") === "seedream") {
+      if (!k.seedance) return json({ diag: "seedream", error: "Seedream 키(=Seedance_API_KEY) 가 서버에 없음" });
+      const model = u.searchParams.get("model") || "seedream-4-0-250828";
+      const prompt = u.searchParams.get("prompt") || "a photorealistic red apple on a wooden table, soft studio lighting, high detail";
+      const payload = { model, prompt, size: "1024x1024", response_format: "url", watermark: false };
+      const started = Date.now();
+      try {
+        const r = await fetchT(ARK_HOSTS.bp + "/images/generations", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        }, 60000);
+        const text = await r.text();
+        let j = null; try { j = JSON.parse(text); } catch { /* 비JSON */ }
+        const url = j && j.data && j.data[0] && j.data[0].url;
+        return json({ diag: "seedream", model, httpStatus: r.status, ok: r.ok && !!url,
+                      tookMs: Date.now() - started, imageUrl: url || null,
+                      response: url ? undefined : (j || String(text).slice(0, 600)) });
+      } catch (e) {
+        return json({ diag: "seedream", model, tookMs: Date.now() - started,
+                      error: String((e && e.message) || e).slice(0, 300) });
+      }
+    }
+    // 진단(씨드림 전체): 등록된 모든 Seedream 이미지 모델을 실제로 한 번씩 생성해 개별 성공/실패 보고.
+    //   /api/generate?diag=seedream-all      (관리자 · 모델당 ~$0.03 · 편집모델은 샘플 이미지로 검증)
+    if (u.searchParams.get("diag") === "seedream-all") {
+      if (!k.seedance) return json({ diag: "seedream-all", error: "Seedream 키(=Seedance_API_KEY) 가 서버에 없음" });
+      const sample = "https://ark-doc.tos-ap-southeast-1.bytepluses.com/doc_image/r2v_tea_pic1.jpg";
+      const seen = {}, items = [];
+      for (const name of Object.keys(SEEDREAM_IDS)) {
+        const id = SEEDREAM_IDS[name];
+        if (seen[id]) continue; seen[id] = 1;
+        const isEdit = /edit|i2i/.test(id);
+        const body = { model: id, prompt: "a photorealistic red apple on a wooden table, soft studio light",
+                       size: "1024x1024", response_format: "url", watermark: false };
+        if (isEdit) body.image = /seedream-4/.test(id) ? [sample] : sample;
+        const t0 = Date.now();
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + "/images/generations", {
+            method: "POST", headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify(body) }, 60000);
+          const j = await r.json().catch(() => ({}));
+          const url = j && j.data && j.data[0] && j.data[0].url;
+          items.push({ model: id, ok: r.ok && !!url, httpStatus: r.status, tookMs: Date.now() - t0, imageUrl: url || null,
+                       error: url ? null : String((j.error && (j.error.message || j.error.code)) || JSON.stringify(j)).slice(0, 180) });
+        } catch (e) {
+          items.push({ model: id, ok: false, tookMs: Date.now() - t0, error: String((e && e.message) || e).slice(0, 180) });
+        }
+      }
+      return json({ diag: "seedream-all", okCount: items.filter(x => x.ok).length, total: items.length, items });
+    }
+    // 진단(씨댄스 전체): 등록된 모든 Seedance 영상 모델 검증.
+    //   /api/generate?diag=seedance-all          (기본=무과금 구조검증: 모델ID 매핑만)
+    //   /api/generate?diag=seedance-all&real=1   (실제 제출 — 완료 시 모델당 영상 과금 발생)
+    if (u.searchParams.get("diag") === "seedance-all") {
+      if (!k.seedance) return json({ diag: "seedance-all", error: "Seedance 키가 서버에 없음" });
+      const real = u.searchParams.get("real") === "1";
+      const seen = {}, items = [];
+      for (const name of Object.keys(SEEDANCE_IDS)) {
+        const id = seedanceModelId({ model: name }, env);
+        if (seen[id]) continue; seen[id] = 1;
+        if (!real) { items.push({ model: id, name, submitted: false, note: "구조검증(무과금)" }); continue; }
+        const payload = buildSeedancePayload({ model: name, prompt: "A cinematic photorealistic product shot, smooth camera move.", seconds: 5, ratio: "16:9" }, env);
+        const t0 = Date.now();
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+            method: "POST", headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify(payload) }, 22000);
+          const j = await r.json().catch(() => ({}));
+          items.push({ model: id, name, submitted: r.ok && !!j.id, httpStatus: r.status, tookMs: Date.now() - t0, taskId: j.id || null,
+                       error: j.id ? null : String((j.error && (j.error.message || j.error.code)) || JSON.stringify(j)).slice(0, 180) });
+        } catch (e) {
+          items.push({ model: id, name, submitted: false, tookMs: Date.now() - t0, error: String((e && e.message) || e).slice(0, 180) });
+        }
+      }
+      return json({ diag: "seedance-all", real, okCount: items.filter(x => real ? x.submitted : true).length, total: items.length,
+                    note: real ? "제출 성공 = 모델ID·키·형식 정상(완료 시 영상 과금)" : "무과금 구조검증 · 실제 제출은 &real=1", items });
     }
     // 진단: 실제 이미지 생성이 되는지 끝까지(제출→폴링→이미지 URL) 확인.
     //   /api/generate?diag=flux                 (기본 Flux 1.1 Pro)
@@ -1438,6 +1573,7 @@ async function handle(context) {
                   : provider === "xai"    ? buildXaiPayload(b)
                   : provider === "google" ? buildVeoPayload(b)
                   : provider === "seedance" ? buildSeedancePayload(b, env)
+                  : provider === "seedream" ? buildSeedreamPayload(b, env)
                   : provider === "flux"     ? buildFluxPayload(b)
                   : provider === "falcontrol" ? buildFalControlPayload(b)
                   : provider === "nanobanana" ? buildNanoPayload(b)
@@ -1779,6 +1915,35 @@ async function handle(context) {
       if (r.status !== 401 && r.status !== 403 && r.status !== 404) break;
     }
     return json({ error: "Seedance " + tag + ": " + String(lastErr).slice(0, 220) }, 502);
+  }
+
+  if (provider === "seedream") {
+    // 씨드림 = ByteDance ModelArk 이미지 생성. 씨댄스와 같은 키(Seedance_API_KEY) 공유.
+    if (!k.seedance) return json({ error: "Seedream(ByteDance) 연동이 설정되지 않았습니다 — Seedance_API_KEY 를 등록하세요." }, 500);
+    const body = buildSeedreamPayload(b, env);
+    const hosts = pick(env, ["SEEDANCE_USE_CN", "seedance_use_cn"]) ? ["bp", "vc"] : ["bp"];
+    const tag = "[m:" + body.model + (body.image ? " ref:" + (Array.isArray(body.image) ? body.image.length : 1) : "") + "]";
+    let lastErr = null;
+    for (const hostId of hosts) {
+      let r, j; const t0 = Date.now();
+      try {
+        r = await fetchT(ARK_HOSTS[hostId] + "/images/generations", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        }, 60000);
+        j = await r.json().catch(() => ({}));
+      } catch (e) {
+        lastErr = hostId + " 호출 실패(" + (Date.now() - t0) + "ms): " + String((e && e.message) || e).slice(0, 140);
+        continue;
+      }
+      const d0 = r.ok && j.data && j.data[0];
+      if (d0 && d0.url) return json({ url: d0.url, kind: "image" });
+      if (d0 && d0.b64_json) return json({ url: "data:image/png;base64," + d0.b64_json, kind: "image" });
+      lastErr = "HTTP " + r.status + " " + ((j.error && (j.error.message || j.error.code)) || String(JSON.stringify(j)).slice(0, 160));
+      if (r.status !== 401 && r.status !== 403 && r.status !== 404) break;
+    }
+    return json({ error: "Seedream " + tag + ": " + String(lastErr).slice(0, 220) }, 502);
   }
 
   if (provider === "flux") {
