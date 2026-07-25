@@ -824,6 +824,8 @@ async function handle(context) {
         luma:     !!k.luma,
         fal:      !!k.fal,
         kling:    !!(klingCreds(env) || k.fal),
+        klingOfficial: !!klingCreds(env),   // true=클링 공식 API, false=공식키 없음(→ fal 폴백으로 감)
+        klingRoute: klingCreds(env) ? "official" : (k.fal ? "fal-fallback" : "none"),
         v2vAuto:  !!(k.runway || k.seedance || k.fal),
         motion:   !!k.fal,
         nanobanana: !!(gcpCreds(env) || k.google),
