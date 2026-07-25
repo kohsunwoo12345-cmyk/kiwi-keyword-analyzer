@@ -7,7 +7,7 @@
 //      ?provider=google&file=URI  → Veo 결과 파일 스트리밍(키 서버측 유지)
 // 키는 Cloudflare Pages 환경변수에서만 읽으며 절대 응답에 포함되지 않습니다.
 
-import { getSessionUser, resolveDB } from "./_utils";
+import { getSessionUser, resolveDB, getUserByMcpToken } from "./_utils";
 import { getUserByApiKey, enforceRateLimit, ensureApiKeysSchema } from "./_apikeys";
 import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from "./studio/_pricing";
 import { creditPriceFor } from "./payments/prepare";
@@ -745,7 +745,7 @@ async function handle(context) {
 
   // ── 인증·크레딧 게이트 (익명 호출로 유료 제공사 API 소진하는 denial-of-wallet 차단) ──
   //  · POST(실제 생성) 및 제공사 호출을 유발하는 GET(submit/media/file/op/task) 은 로그인 필수.
-  //  · 세션 쿠키(스튜디오) 또는 회원 MCP 토큰(Claude MCP) 모두 getSessionUser 로 인증됨.
+  //  · 세션 쿠키(스튜디오) · 회원 API키(bg_live_) · 회원 개인 MCP 토큰(bgm_) · 전역 MCP 토큰 순으로 인증.
   //  · ?health 진단(제공사 설정 여부 불리언)만 예외로 허용.
   const method = request.method;
   const gateGet = method === "GET" && ["submit", "media", "file", "op", "task"].some((p) => u.searchParams.has(p));
@@ -756,6 +756,16 @@ async function handle(context) {
       // 회원 API 키(bg_live_) 인증 — 노드형 AI 영상 플랜 사용자의 직접 API 호출
       const ak = await getUserByApiKey(db, request.headers.get("Authorization"));
       if (ak) me = ak.user;
+    }
+    if (!me && db) {
+      // 회원 개인 MCP 토큰(bgm_) 인증 — Claude MCP 커넥터가 /api/mcp 를 거쳐 내부 호출할 때 사용.
+      //  (API 키는 bg_live_ 접두사만 인정하므로 bgm_ 토큰은 위 게이트를 통과하지 못한다.
+      //   이 분기가 없으면 회원이 개인 MCP 토큰으로 연결했을 때 모든 생성이 401 "로그인이 필요합니다" 로 실패한다.)
+      const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+      if (bearer) {
+        const mu = await getUserByMcpToken(db, bearer);
+        if (mu) me = mu;
+      }
     }
     if (!me) {
       // 전역 MCP 토큰(관리자 폴백) 도 허용 — 상수시간 비교
