@@ -1077,6 +1077,30 @@ async function handle(context) {
           note: "timeout/네트워크면 그 모델이 릴레이·Cloudflare 시간제한을 넘겼을 가능성(gpt-image-2 는 느림)." });
       }
     }
+    // 진단: 레퍼런스 편집(/v1/images/edits)이 특정 모델로 실제 되는지 확인 (128x128 테스트 이미지 첨부).
+    //   /api/generate?diag=gptedit&model=GPT Image 2   ← gpt-image-2 편집 지원 여부를 회원 키로 확정
+    if (u.searchParams.get("diag") === "gptedit") {
+      if (!k.openai) return json({ diag: "gptedit", usable: false, error: "GPT_API_KEY 미설정" });
+      const reqModel = u.searchParams.get("model") || "GPT Image 2";
+      const modelId = OPENAI_IMG_ID[reqModel] || reqModel || "gpt-image-2";
+      const TEST_PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAIAAABMXPacAAAACXBIWXMAAAPoAAAD6AG1e1JrAAABv0lEQVR4nO3VSREDQRADwQVWIAx7YBmGHp0RQlC6vveL3g7Ch/6bRpABMaDLLdSAGNA8hhrQHIQJ6qZ8QAxoHkMNaA7CBHVTPiAGNI+hBjQHYYK6KR8QA5rHUAOagzBB3ZQPiAHNY6gBzUGYoG7KB8SA5jHUgOYgTFA35QNiQPMYakBzECaom/IBMaB5DDWgOQgT1E35gBjQPIYa0ByECeqmfEAMaB5DDWgOwgR1Uz4gBjSPoQY0B2GCuikfEAOax1ADmoMwQd2UD4gBzWOoAc1BmKBuygfEgOYx1IDmIExQN+UDYkDzGGpAcxAmqJvyATGgeQw1oDkIE9RN+YAY0DyGGtAchAnqpnxADGgeQw1oDsIEdVM+IAY0j6EGNAdhgropHxADmsdQA5qDMEHdlA+IAc1jqAHNQZigbsoHxIDmMdSA5iBMUDflA2JA8xhqQHMQJqib8gExoHkMNaA5CBPUTfmAGNA8hhrQHIQJ6qZ8QAxoHkMNaA7CBHVTPiAGNI+hBjQHYYK6KR8QA5rHUAOagzBB3ZQPiAHNY6gBzUGYoG7KB8SA5jHUgOYgTFA35QNiQPMYakBzECaoOYuJ/j1tBPzAsgH8AAAAAElFTkSuQmCC";
+      const bin = atob(TEST_PNG_B64); const buf = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      const t0 = Date.now();
+      try {
+        const fd = new FormData();
+        fd.append("model", modelId); fd.append("prompt", "Turn the background into a sunset sky."); fd.append("size", "1024x1024"); fd.append("n", "1");
+        fd.append("image", new Blob([buf], { type: "image/png" }), "test.png");
+        const r = await fetchT(openaiBase(env) + "/v1/images/edits", { method: "POST", headers: { "Authorization": "Bearer " + k.openai }, body: fd }, 120000);
+        const j = await r.json().catch(() => ({}));
+        const hasImg = !!(j.data && j.data[0] && (j.data[0].b64_json || j.data[0].url));
+        return json({ diag: "gptedit", model: modelId, endpoint: "/v1/images/edits", usable: r.ok && hasImg, httpStatus: r.status, hasImage: hasImg, tookMs: Date.now() - t0,
+          error: r.ok ? null : String((j.error && j.error.message) || JSON.stringify(j)).slice(0, 300),
+          note: (r.ok && hasImg) ? "이 모델은 OpenAI 편집(edits)을 직접 지원 → 레퍼런스 편집도 이 모델 그대로 사용 가능." : "이 모델의 편집이 거부되면 앱은 자동으로 gpt-image-1.5 로 재시도합니다." });
+      } catch (e) {
+        return json({ diag: "gptedit", model: modelId, usable: false, error: String((e && e.message) || e).slice(0, 200), tookMs: Date.now() - t0 });
+      }
+    }
     // 진단: Gemini Omni Flash(영상) 가 Vertex 서비스계정으로 되는지 + 응답 형식 확인.
     //   /api/generate?diag=geminiomni   (모델 override: &model=gemini-omni-flash)
     if (u.searchParams.get("diag") === "geminiomni") {
@@ -2012,22 +2036,31 @@ async function handle(context) {
     const p = buildOpenAIImagePayload(b);
     const oaRefs = await collectRefDataUris(b, 12);   // 레퍼런스 최대 12장
     let r;
-    if (oaRefs.length) {   // 편집 (images/edits · multipart) — 여러 장 image[] 로 첨부
-      const fd = new FormData();
-      // OpenAI /v1/images/edits 는 gpt-image-1.5 / gpt-image-1 / gpt-image-1-mini 만 지원.
-      // gpt-image-2 등 편집 미지원 모델을 레퍼런스와 함께 쓰면 거부(서버 오류)되므로 편집 가능한 최상위 모델로 대체.
-      const EDIT_OK = { "gpt-image-1.5": 1, "gpt-image-1": 1, "gpt-image-1-mini": 1 };
-      const editModel = EDIT_OK[p.model] ? p.model : "gpt-image-1.5";
-      fd.append("model", editModel); fd.append("prompt", p.prompt); fd.append("size", p.size); fd.append("n", "1");
-      let added = 0;
+    if (oaRefs.length) {   // 편집 (images/edits · multipart)
+      // 첨부 이미지들을 blob 파트로 준비 (여러 장은 image 필드를 '반복' — 현행 OpenAI 규격, image[] 아님)
+      const blobs = [];
       for (const ref of oaRefs) {
         const m = /^data:(image\/[^;]+);base64,(.+)$/.exec(ref); if (!m) continue;
         const bin = atob(m[2]); const buf = new Uint8Array(bin.length);
         for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-        fd.append(oaRefs.length > 1 ? "image[]" : "image", new Blob([buf], { type: m[1] }), "img" + added + ".png");
-        added++;
+        blobs.push(new Blob([buf], { type: m[1] }));
       }
-      r = await fetchT(openaiBase(env) + "/v1/images/edits", { method: "POST", headers: { "Authorization": "Bearer " + k.openai }, body: fd }, 120000);
+      const postEdit = (model) => {
+        const fd = new FormData();
+        fd.append("model", model); fd.append("prompt", p.prompt); fd.append("size", p.size); fd.append("n", "1");
+        blobs.forEach((bl, i) => fd.append("image", bl, "img" + i + ".png"));
+        return fetchT(openaiBase(env) + "/v1/images/edits", { method: "POST", headers: { "Authorization": "Bearer " + k.openai }, body: fd }, 120000);
+      };
+      // 선택한 모델(예: gpt-image-2) 그대로 GPT_API_KEY 로 편집 시도.
+      r = await postEdit(p.model);
+      // OpenAI 가 그 모델의 편집을 아직 안 받으면(모델 미지원 오류) 하드 실패 대신 편집 가능한 최신 모델로 1회 재시도.
+      if (!r.ok && p.model !== "gpt-image-1.5") {
+        const je = await r.clone().json().catch(() => ({}));
+        const emsg = String((je.error && (je.error.message || je.error.code)) || "").toLowerCase();
+        if (r.status === 404 || /model|unsupported|not\s*support|does not|invalid.*model|not\s*allowed/.test(emsg)) {
+          r = await postEdit("gpt-image-1.5");
+        }
+      }
     } else {   // 생성 (images/generations)
       r = await fetchT(openaiBase(env) + "/v1/images/generations", {
         method: "POST", headers: { "Authorization": "Bearer " + k.openai, "Content-Type": "application/json" },
