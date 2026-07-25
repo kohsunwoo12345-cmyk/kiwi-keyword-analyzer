@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Mail, RefreshCw, CheckCircle2, XCircle, Search, Eye, X, Send, Clock } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { StatCard, Panel, Badge, Button } from '@/components/ui'
+import { StatCard, Panel, Badge, Button, Overlay } from '@/components/ui'
 import { Reveal } from '@/components/motion'
 import { adminEmailLog, type EmailLogRow } from '@/lib/auth'
 import { cn } from '@/lib/utils'
@@ -205,7 +205,7 @@ export default function AdminEmailsPage() {
 
       {/* 내용 미리보기 모달 */}
       {preview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <Overlay className="fixed inset-0 z-50 flex items-center justify-center p-4" variant="center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setPreview(null)} />
           <div className="relative flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
@@ -231,7 +231,7 @@ export default function AdminEmailsPage() {
               )}
             </div>
           </div>
-        </div>
+        </Overlay>
       )}
     </div>
   )

@@ -5,6 +5,7 @@ import {
   Plus, X, Share2, ChevronLeft, ChevronRight, Link2, TrendingUp, Receipt, Trophy,
 } from 'lucide-react'
 import { EmojiText } from '@/components/Emoji'
+import { Overlay } from '@/components/ui'
 
 // ── 공용 광고 집행/전개 캘린더 뷰 (광고주 모달·전개 캘린더 페이지 공용) ──
 // bucketId = 광고주 id 또는 "_cal_<calendarId>" · 이벤트는 /api/ad-campaigns 에 저장됨.
@@ -208,7 +209,7 @@ export function Field({ label, children }: { label: string; children: React.Reac
 
 export function Modal({ title, onClose, maxW, children }: { title: string; onClose: () => void; maxW: string; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-[1300] flex items-center justify-center overflow-y-auto bg-slate-900/55 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+    <Overlay className="fixed inset-0 z-[1300] flex items-center justify-center overflow-y-auto bg-slate-900/55 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }} variant="center" onClose={onClose}>
       <div className={`w-full ${maxW} rounded-2xl bg-white shadow-2xl`}>
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <span className="text-base font-extrabold text-slate-900">{title}</span>
@@ -216,7 +217,7 @@ export function Modal({ title, onClose, maxW, children }: { title: string; onClo
         </div>
         <div className="px-5 py-4">{children}</div>
       </div>
-    </div>
+    </Overlay>
   )
 }
 

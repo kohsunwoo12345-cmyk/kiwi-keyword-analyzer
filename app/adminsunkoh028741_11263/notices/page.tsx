@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Bell, Send, ImagePlus, Link2, RefreshCw, X, CheckCircle2, Circle, Users, Loader2, Eye, ChevronRight, Film, Clock, MoonStar, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Panel } from '@/components/ui'
+import { Panel, Overlay } from '@/components/ui'
 import { EmojiText } from '@/components/Emoji'
 import {
   adminNoticeList, adminNoticeSend, adminNoticeDetail, adminNoticeDelete, adminUsers,
@@ -448,7 +448,7 @@ export default function NoticesPage() {
 
       {/* ── 상세 모달: 회원별 읽음/안읽음 ── */}
       {openId && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4" onClick={() => setOpenId(null)}>
+        <Overlay className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4" onClick={() => setOpenId(null)} variant="center" onClose={() => setOpenId(null)}>
           <div className="max-h-[85vh] w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
               <div className="flex items-center gap-2 font-bold"><Eye size={16} /> {detail?.campaign?.title || '읽음 현황'}</div>
@@ -587,7 +587,7 @@ export default function NoticesPage() {
               )}
             </div>
           </div>
-        </div>
+        </Overlay>
       )}
     </div>
   )

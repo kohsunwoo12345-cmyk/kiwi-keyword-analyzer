@@ -827,17 +827,34 @@ img.bg-emoji {
 }
 
 /* ---- 상세 슬라이드 드로어 (관리자 상세 패널 공용) ---- */
-@keyframes drawerSlideIn  { from { transform: translateX(100%); } to { transform: translateX(0); } }
-@keyframes drawerSlideOut { from { transform: translateX(0); }    to { transform: translateX(100%); } }
+@keyframes drawerSlideIn  { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes drawerSlideOut { from { transform: none; }             to { transform: translateX(100%); } }
 @keyframes drawerFadeIn   { from { opacity: 0; } to { opacity: 1; } }
 @keyframes drawerFadeOut  { from { opacity: 1; } to { opacity: 0; } }
 .drawer-backdrop         { animation: drawerFadeIn 0.24s ease-out both; }
 .drawer-backdrop.closing { animation: drawerFadeOut 0.22s ease-in both; }
-.drawer-panel            { animation: drawerSlideIn 0.32s cubic-bezier(0.22, 0.61, 0.36, 1) both; will-change: transform; }
+.drawer-panel            { animation: drawerSlideIn 0.32s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
 .drawer-panel.closing    { animation: drawerSlideOut 0.24s cubic-bezier(0.4, 0, 1, 1) both; }
 @media (prefers-reduced-motion: reduce) {
   .drawer-backdrop, .drawer-backdrop.closing,
   .drawer-panel, .drawer-panel.closing { animation: none; }
+}
+
+/* ---- Overlay 공용 등장 애니메이션 (components/ui.tsx <Overlay/>) ----
+   .overlay-slide : 우측 상세 패널이 밖에서 미끄러져 들어옴 (배경은 페이드)
+   .overlay-center: 가운데 모달이 살짝 확대되며 페이드 인 */
+@keyframes overlayBackdropIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes overlayPanelIn    { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes overlayCenterIn   { from { opacity: 0; transform: translateY(8px) scale(0.985); }
+                               to   { opacity: 1; transform: none; } }
+.overlay-slide  { animation: overlayBackdropIn 0.24s ease-out both; }
+/* 첫 번째 자식 = 실제 패널. 배경(백드롭)이 따로 있는 구조도 있어 :last-child 로 패널을 잡는다. */
+.overlay-slide > :last-child { animation: overlayPanelIn 0.32s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.overlay-center { animation: overlayBackdropIn 0.2s ease-out both; }
+.overlay-center > :last-child { animation: overlayCenterIn 0.24s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .overlay-slide, .overlay-slide > :last-child,
+  .overlay-center, .overlay-center > :last-child { animation: none; }
 }
 /* ============================================================
    관리자 콘솔 톤 매칭 — .mkt-canvas 를 라이트로 재테마.
@@ -935,3 +952,8 @@ img.bg-emoji {
 }
 .mkt-canvas .mkt-btn.ghost:hover { border-color: #7c3aed; color: #7c3aed; background: rgba(124, 58, 237, 0.05); }
 .mkt-canvas .mkt-port { border-color: #e8eaf1; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05); }
+
+/* ---- 모바일 내비 서랍 (관리자/대시보드 레이아웃) ---- */
+@keyframes navDrawerIn { from { transform: translateX(-100%); } to { transform: none; } }
+.nav-drawer { animation: navDrawerIn 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) { .nav-drawer { animation: none; } }

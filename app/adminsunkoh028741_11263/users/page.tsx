@@ -33,7 +33,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { StatCard, Panel, Badge, Button } from '@/components/ui'
+import { StatCard, Panel, Badge, Button, Overlay } from '@/components/ui'
 import { Reveal } from '@/components/motion'
 import { ADMIN_BASE } from '../layout'
 import {
@@ -886,7 +886,7 @@ export default function AdminUsersPage() {
 
       {/* 감시 드로어 */}
       {drawerUser && (
-        <div className="fixed inset-0 z-50 flex justify-end">
+        <Overlay className="fixed inset-0 z-50 flex justify-end" variant="slide" onClose={() => setDrawerId(null)}>
           <div className="absolute inset-0 bg-black/30" onClick={() => setDrawerId(null)} />
           <aside className="relative flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-[var(--border)] bg-white shadow-2xl">
             {(() => {
@@ -1297,7 +1297,7 @@ export default function AdminUsersPage() {
               )
             })()}
           </aside>
-        </div>
+        </Overlay>
       )}
 
       {/* toast */}

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Coins, Search, RefreshCw, X, Wallet, Gauge, Check, AlertCircle } from 'lucide-react'
-import { Panel, Button } from '@/components/ui'
+import { Panel, Button, Overlay } from '@/components/ui'
 import { adminUsers, adminAction, type User } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -165,7 +165,7 @@ function PricingModal({ member, onClose, onSaved }: { member: User; onClose: () 
   const inp = 'w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2 text-sm outline-none focus:border-violet-400'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <Overlay className="fixed inset-0 z-50 flex items-center justify-center p-4" variant="center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3.5">
@@ -243,6 +243,6 @@ function PricingModal({ member, onClose, onSaved }: { member: User; onClose: () 
           </div>
         </div>
       </div>
-    </div>
+    </Overlay>
   )
 }

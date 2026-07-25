@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, ArrowRight, AlertCircle, X, KeyRound, CheckCircle2, Loader2 } from 'lucide-react'
 import { Logo } from '@/components/Brand'
-import { Button } from '@/components/ui'
+import { Button, Overlay } from '@/components/ui'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { GoogleAuthButton, OrDivider } from '@/components/GoogleAuthButton'
 import { login, requestPasswordReset, resetPassword } from '@/lib/auth'
@@ -328,7 +328,7 @@ function ForgotPasswordModal({
     'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-3 text-sm outline-none transition-colors focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 placeholder:text-[var(--text-dim)]'
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-5">
+    <Overlay className="fixed inset-0 z-50 grid place-items-center p-5" variant="center" onClose={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-md animate-fade-up rounded-2xl border border-white/10 bg-[#0b1120] p-7 shadow-2xl">
         <button
@@ -442,6 +442,6 @@ function ForgotPasswordModal({
           </>
         )}
       </div>
-    </div>
+    </Overlay>
   )
 }

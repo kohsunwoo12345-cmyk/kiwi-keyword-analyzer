@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { MessagesSquare, Users, User, RefreshCw, X, Search, Loader2, Image as ImageIcon, Film, MessageCircle } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Panel } from '@/components/ui'
+import { Panel, Overlay } from '@/components/ui'
 import {
   adminChatList, adminChatMessages,
   type AdminChatTeam, type AdminChatDm, type AdminChatMsg, type AdminChatConversation,
@@ -168,7 +168,7 @@ export default function AdminChatsPage() {
 
       {/* 상세 모달 */}
       {open && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4" onClick={() => setOpen(null)}>
+        <Overlay className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4" onClick={() => setOpen(null)} variant="center" onClose={() => setOpen(null)}>
           <div className="flex max-h-[86vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-[var(--bg-soft)] shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
               <div className="flex min-w-0 items-center gap-2 font-bold">
@@ -229,7 +229,7 @@ export default function AdminChatsPage() {
               <span>총 {num(messages.length)} 메시지 · 한국시간(KST)</span>
             </div>
           </div>
-        </div>
+        </Overlay>
       )}
     </div>
   )

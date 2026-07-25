@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Gift, X, Copy, Check, Link2, Sparkles, Users } from 'lucide-react'
 import { accountReferral } from '@/lib/auth'
+import { Overlay } from '@/components/ui'
 
 const DISMISS_KEY = 'bg_event_referral_dismissed_v1'
 
@@ -73,7 +74,7 @@ export function EventBanner() {
 
       {/* 이벤트 모달 */}
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <Overlay className="fixed inset-0 z-50 flex items-center justify-center p-4" variant="center" onClose={dismiss}>
           <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={dismiss} />
           <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
             {/* 헤더 */}
@@ -152,7 +153,7 @@ export function EventBanner() {
               </div>
             </div>
           </div>
-        </div>
+        </Overlay>
       )}
     </>
   )

@@ -337,7 +337,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {mobileOpen && (
         <div className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={() => setMobileOpen(false)}>
           <aside
-            className="flex h-full w-72 flex-col overflow-y-auto border-r border-[var(--border)] bg-white"
+            className="nav-drawer flex h-full w-72 flex-col overflow-y-auto border-r border-[var(--border)] bg-white"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="border-b border-[var(--border)] bg-[#0a1730] px-4 py-4">

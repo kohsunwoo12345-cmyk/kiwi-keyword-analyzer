@@ -19,7 +19,7 @@ import {
   Contact,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Panel, Button } from '@/components/ui'
+import { Panel, Button, Overlay } from '@/components/ui'
 
 const ACCENT = '#0ea5e9'
 
@@ -461,10 +461,10 @@ export default function TeamCalendarPage() {
 
       {/* Share link modal */}
       {shareUrl && (
-        <div
+        <Overlay
           className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50 p-4"
           onClick={() => setShareUrl('')}
-        >
+         variant="center" onClose={() => setShareUrl('')}>
           <div className="card w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
             <div className="mb-1 flex items-center gap-2">
               <span className="grid h-9 w-9 place-items-center rounded-xl bg-sky-500/15 text-sky-500"><Share2 size={17} /></span>
@@ -497,7 +497,7 @@ export default function TeamCalendarPage() {
               <button onClick={() => setShareUrl('')} className="text-sm text-[var(--text-dim)] hover:text-[var(--text)]">닫기</button>
             </div>
           </div>
-        </div>
+        </Overlay>
       )}
 
       <div className="grid gap-6 p-6 lg:grid-cols-[1fr_360px] lg:p-8">

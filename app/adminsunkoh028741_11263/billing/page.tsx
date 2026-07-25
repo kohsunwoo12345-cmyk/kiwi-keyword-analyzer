@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Receipt, FileText, BadgeDollarSign, RotateCcw, Repeat, RefreshCw, X, Loader2, CreditCard, Wallet, type LucideIcon } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { StatCard, Panel, Badge, Button } from '@/components/ui'
+import { StatCard, Panel, Badge, Button, Overlay } from '@/components/ui'
 import { Reveal } from '@/components/motion'
 import { adminBilling, adminBillingAction, type BillingBundle, type PaymentRow } from '@/lib/auth'
 import { cn } from '@/lib/utils'
@@ -222,7 +222,7 @@ function ActionModal({ m, busy, onClose, onSubmit }: { m: { kind: 'tax' | 'recei
     else await onSubmit('refund-create', { paymentId: m.pay.id, amount: Number(f.amount), reason: f.reason })
   }
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <Overlay className="fixed inset-0 z-50 flex items-center justify-center p-4" variant="center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative w-full max-w-md rounded-2xl border border-[var(--border)] bg-white p-5 shadow-2xl">
         <div className="mb-3 flex items-center justify-between">
@@ -259,7 +259,7 @@ function ActionModal({ m, busy, onClose, onSubmit }: { m: { kind: 'tax' | 'recei
           </Button>
         </div>
       </div>
-    </div>
+    </Overlay>
   )
 }
 

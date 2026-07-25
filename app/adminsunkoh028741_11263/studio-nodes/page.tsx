@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Boxes, RefreshCw, Search, ExternalLink, X, Layers, Activity, Coins, FileText, Loader2, Cpu } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Panel } from '@/components/ui'
+import { Panel, Overlay } from '@/components/ui'
 import { adminStudioNodes, adminStudioNodeDetail, type StudioUserRow } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -93,7 +93,7 @@ export default function StudioNodesPage() {
 
       {/* 상세 모달 */}
       {openId && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4" onClick={() => setOpenId(null)}>
+        <Overlay className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4" onClick={() => setOpenId(null)} variant="center" onClose={() => setOpenId(null)}>
           <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
               <div className="flex items-center gap-2 font-bold">
@@ -182,7 +182,7 @@ export default function StudioNodesPage() {
               )}
             </div>
           </div>
-        </div>
+        </Overlay>
       )}
     </div>
   )

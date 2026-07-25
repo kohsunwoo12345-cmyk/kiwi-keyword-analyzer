@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Users, CheckCircle2, Plus, Search, Download, CalendarDays, Pencil, Trash2, ExternalLink, X } from 'lucide-react'
 import { AdCalendar, Modal, Field, kstYmd } from '@/components/admin/AdCalendar'
+import { Overlay } from '@/components/ui'
 
 // ── 광고주 관리 (넥스트바이전시 관리자 대시보드 이식 · DB는 우리 웹에서 동작) ──
 
@@ -203,7 +204,7 @@ export default function AdvertisersPage() {
 
       {/* 광고 집행 캘린더 모달 */}
       {calAdv && (
-        <div className="fixed inset-0 z-[1200] flex items-start justify-center overflow-y-auto bg-slate-900/55 p-4 sm:p-6" onClick={(e) => { if (e.target === e.currentTarget) setCalAdv(null) }}>
+        <Overlay className="fixed inset-0 z-[1200] flex items-start justify-center overflow-y-auto bg-slate-900/55 p-4 sm:p-6" onClick={(e) => { if (e.target === e.currentTarget) setCalAdv(null) }} variant="center" onClose={() => setCalAdv(null)}>
           <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
               <span className="text-base font-extrabold text-slate-900">광고 집행 캘린더</span>
@@ -219,7 +220,7 @@ export default function AdvertisersPage() {
               />
             </div>
           </div>
-        </div>
+        </Overlay>
       )}
 
       {toast && <div className="fixed bottom-6 left-1/2 z-[2000] -translate-x-1/2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg">{toast}</div>}

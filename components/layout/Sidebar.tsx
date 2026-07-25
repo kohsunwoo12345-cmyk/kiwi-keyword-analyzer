@@ -184,7 +184,7 @@ export function Sidebar() {
       {mobileOpen && (
         <div className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={() => setMobileOpen(false)}>
           <aside
-            className="h-full w-72 overflow-y-auto border-r border-[var(--border)] bg-[var(--bg-soft)] p-4"
+            className="nav-drawer h-full w-72 overflow-y-auto border-r border-[var(--border)] bg-[var(--bg-soft)] p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <SidebarBody onNavigate={() => setMobileOpen(false)} />

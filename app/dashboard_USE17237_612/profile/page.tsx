@@ -32,7 +32,7 @@ import {
   X,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Panel, Button, Badge } from '@/components/ui'
+import { Panel, Button, Badge, Overlay } from '@/components/ui'
 import {
   accountOverview,
   changePassword,
@@ -1377,10 +1377,10 @@ export default function ProfilePage() {
 
       {/* 구독 취소 확인 */}
       {cancelTrack && (
-        <div
+        <Overlay
           className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 px-4"
           onClick={() => !cancelBusy && setCancelTrack(null)}
-        >
+         variant="center" onClose={() => !cancelBusy && setCancelTrack(null)}>
           <div
             className="w-full max-w-sm rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
@@ -1410,15 +1410,15 @@ export default function ProfilePage() {
               </button>
             </div>
           </div>
-        </div>
+        </Overlay>
       )}
 
       {/* 결제 내역 팝업 — 노드형(스튜디오) 프로필 스타일 · 한국어 전용 */}
       {payOpen && (
-        <div
+        <Overlay
           className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
           onClick={() => setPayOpen(false)}
-        >
+         variant="center" onClose={() => setPayOpen(false)}>
           <div
             className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0e1626] text-slate-100 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
@@ -1471,7 +1471,7 @@ export default function ProfilePage() {
               )}
             </div>
           </div>
-        </div>
+        </Overlay>
       )}
     </div>
   )
