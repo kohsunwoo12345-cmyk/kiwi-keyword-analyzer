@@ -923,14 +923,18 @@ async function handle(context) {
       const prompt = u.searchParams.get("prompt") || "A photorealistic red apple on a wooden table, soft studio lighting";
       const reqModel = u.searchParams.get("model") || "";
       const modelId = OPENAI_IMG_ID[reqModel] || reqModel || "gpt-image-1";   // friendly 이름이면 매핑, 아니면 raw
+      const size = u.searchParams.get("size") || "1024x1024";   // 실제 경로 재현용(16:9=1536x1024)
+      const quality = u.searchParams.get("quality") || "";       // low|medium|high — 미지정 시 OpenAI 기본(느림)
+      const body = { model: modelId, prompt, size, n: 1 };
+      if (quality) body.quality = quality;
       const t0 = Date.now();
       try {
         const r = await fetchT(openaiBase(env) + "/v1/images/generations", {
           method: "POST", headers: { "Authorization": "Bearer " + k.openai, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: modelId, prompt, size: "1024x1024", n: 1 }) }, 120000);
+          body: JSON.stringify(body) }, 120000);
         const j = await r.json().catch(() => ({}));
         const hasImg = !!(j.data && j.data[0] && (j.data[0].b64_json || j.data[0].url));
-        return json({ diag: "gptimage", model: modelId, usable: r.ok && hasImg, httpStatus: r.status, hasImage: hasImg, tookMs: Date.now() - t0, relay: openaiBase(env) !== "https://api.openai.com",
+        return json({ diag: "gptimage", model: modelId, size, quality: quality || "(default)", usable: r.ok && hasImg, httpStatus: r.status, hasImage: hasImg, tookMs: Date.now() - t0, relay: openaiBase(env) !== "https://api.openai.com",
           error: r.ok ? null : String((j.error && j.error.message) || JSON.stringify(j)).slice(0, 240),
           note: (!r.ok && r.status === 403) ? "403이면 보통 OpenAI 조직 인증(Verify Organization) 필요 — platform.openai.com/settings/organization 에서 인증." : undefined });
       } catch (e) {
