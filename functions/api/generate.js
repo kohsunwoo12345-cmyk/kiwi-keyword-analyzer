@@ -1849,7 +1849,11 @@ async function handle(context) {
     let r;
     if (oaRefs.length) {   // 편집 (images/edits · multipart) — 여러 장 image[] 로 첨부
       const fd = new FormData();
-      fd.append("model", p.model); fd.append("prompt", p.prompt); fd.append("size", p.size); fd.append("n", "1");
+      // OpenAI /v1/images/edits 는 gpt-image-1.5 / gpt-image-1 / gpt-image-1-mini 만 지원.
+      // gpt-image-2 등 편집 미지원 모델을 레퍼런스와 함께 쓰면 거부(서버 오류)되므로 편집 가능한 최상위 모델로 대체.
+      const EDIT_OK = { "gpt-image-1.5": 1, "gpt-image-1": 1, "gpt-image-1-mini": 1 };
+      const editModel = EDIT_OK[p.model] ? p.model : "gpt-image-1.5";
+      fd.append("model", editModel); fd.append("prompt", p.prompt); fd.append("size", p.size); fd.append("n", "1");
       let added = 0;
       for (const ref of oaRefs) {
         const m = /^data:(image\/[^;]+);base64,(.+)$/.exec(ref); if (!m) continue;
