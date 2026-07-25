@@ -504,6 +504,15 @@ body {
   .orbit-item { transform: translate(-50%, -50%) rotate(var(--a, 0deg)) translateX(var(--r)) rotate(calc(-1 * var(--a, 0deg))); }
 }
 
+/* 모바일 성능: 계속 도는 장식용 앰비언트 애니메이션(큰 blur 글로우의 drift/aurora/bob/float)은
+   보이는 효과 대비 GPU 부담이 커서 발열·스로틀링(지속 렉)을 유발한다. 소형 화면에선 정지시켜
+   배터리·발열을 줄인다. 구조적 모션(포토월·마퀴·핑)은 유지. */
+@media (max-width: 640px) {
+  .animate-drift, .animate-drift-slow, .animate-aurora, .animate-bob, .animate-float {
+    animation: none !important;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    대시보드 테마 (라이트/다크 전환)
    .dash-shell 에 .site-light 또는 .site-dark 클래스를 부여하면 토큰이 재매핑되고,

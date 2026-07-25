@@ -820,8 +820,10 @@ export default function Home() {
 
       {/* ===== HERO ===== */}
       <section className="relative overflow-hidden pt-36 pb-24 text-white sm:pt-40 sm:pb-28">
-        {/* 배경: AI 제작 사진이 흐르는 프리미엄 포토월 */}
-        <HeroPhotoWall />
+        {/* 배경: AI 제작 사진이 흐르는 프리미엄 포토월 — 장식이므로 유휴 시점에 마운트(초기 렉 완화) */}
+        <LazyMount minHeight={0}>
+          <HeroPhotoWall />
+        </LazyMount>
 
         <div className="relative z-10 mx-auto max-w-4xl px-5 text-center">
           <div className="flex justify-center animate-fade-up">

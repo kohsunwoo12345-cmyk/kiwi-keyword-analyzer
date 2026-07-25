@@ -10,7 +10,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 export function LazyMount({
   children,
   minHeight = 400,
-  rootMargin = '300px',
+  rootMargin = '200px',
 }: {
   children: ReactNode
   minHeight?: number
@@ -27,11 +27,17 @@ export function LazyMount({
       setShow(true)
       return
     }
+    // 교차 시 즉시 마운트하지 않고 유휴(idle) 시점에 마운트 → 초기 하이드레이션/스크롤과 겹치는
+    // 롱태스크(모바일 렉)를 분산시킨다. requestIdleCallback 미지원 시 setTimeout 폴백.
+    const ric: (cb: () => void) => void =
+      typeof (window as any).requestIdleCallback === 'function'
+        ? (cb) => (window as any).requestIdleCallback(cb, { timeout: 800 })
+        : (cb) => setTimeout(cb, 200)
     const io = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) {
-          setShow(true)
           io.disconnect()
+          ric(() => setShow(true))
         }
       },
       { rootMargin },
