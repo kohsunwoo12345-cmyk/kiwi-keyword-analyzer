@@ -82,7 +82,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     { id: 'xai', name: 'xAI Grok', covers: 'Grok Imagine', keys: ['Grok_API_KEY', 'GROK_API_KEY', 'grok_api_key'],
       run: async (key) => { const r = await tfetch('https://api.x.ai/v1/api-key', { headers: { Authorization: `Bearer ${key}` } }); return { ok: r.ok, status: r.status, msg: r.ok ? '정상' : await errText(r) } } },
     // 실시간 검증 엔드포인트가 없는 제공사 — 키 설정 여부만 확인
-    { id: 'seedance', name: 'Seedance', covers: 'Seedance 1.0/2.0', keys: ['Seedance_API_KEY', 'SEEDANCE_API_KEY', 'seedance_api_key', 'Fal_API_KEY', 'FAL_API_KEY', 'FAL_KEY'] },
+    { id: 'seedance', name: 'Seedance (ByteDance)', covers: 'Seedance 1.0/2.0 (영상)', keys: ['Seedance_API_KEY', 'SEEDANCE_API_KEY', 'seedance_api_key', 'Fal_API_KEY', 'FAL_API_KEY', 'FAL_KEY'] },
+    // Seedream = ByteDance ModelArk 이미지. 씨댄스와 같은 키 공유. ModelArk 는 무료 인증 확인용 엔드포인트가
+    // 없어(=씨댄스와 동일) 키 설정 여부만 표시. 실제 생성 검증은 /api/generate?diag=seedream (관리자) 로 온디맨드 확인.
+    { id: 'seedream', name: 'Seedream (ByteDance)', covers: 'Seedream 4.0/3.0 · SeedEdit (이미지) · diag=seedream 로 실검증', keys: ['Seedance_API_KEY', 'SEEDANCE_API_KEY', 'seedance_api_key'] },
     { id: 'kling', name: 'Kling', covers: 'Kling 2.1/2.0/1.6', keys: ['KLING_ACCESS_KEY', 'Kling_API_KEY', 'KLING_API_KEY', 'Fal_API_KEY', 'FAL_API_KEY', 'FAL_KEY'] },
     { id: 'hailuo', name: 'Hailuo (MiniMax)', covers: 'Hailuo 02 · Director', keys: ['Hailuo_API_KEY', 'HAILUO_API_KEY', 'hailuo_api_key', 'MINIMAX_API_KEY'] },
     { id: 'flux', name: 'Flux (BFL)', covers: 'Flux Pro · Kontext', keys: ['FLUX_API_KEY', 'flux_api_key', 'BFL_API_KEY'] },

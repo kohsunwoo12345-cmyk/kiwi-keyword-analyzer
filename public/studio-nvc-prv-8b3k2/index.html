@@ -1944,8 +1944,11 @@ var MODELS = [
  ['영상 · Kling','Kling 1.6 Standard (이미지→영상)'],
  ['이미지 (레퍼런스 편집·I2I)','Flux Kontext Max (레퍼런스 편집)'],
  ['이미지 (레퍼런스 편집·I2I)','Flux Kontext Pro (레퍼런스 편집)'],
+ ['이미지 (레퍼런스 편집·I2I)','Seedream 4.0 (레퍼런스 편집)'],
+ ['이미지 (레퍼런스 편집·I2I)','SeedEdit 3.0 (레퍼런스 편집)'],
  ['이미지 (텍스트·편집)','Nano Banana'],
  ['이미지 (텍스트·편집)','GPT Image 2'],['이미지 (텍스트·편집)','GPT Image 1.5'],['이미지 (텍스트·편집)','GPT Image'],['이미지 (텍스트·편집)','GPT Image Mini'],
+ ['이미지','Seedream 4.0'],['이미지','Seedream 3.0'],
  ['이미지','Flux 2 Flex'],['이미지','Flux 2 Dev'],
  ['이미지','Flux 1.1 Pro Ultra'],['이미지','Flux 1.1 Pro'],['이미지','Flux Pro'],['이미지','Flux Dev'],
  ['이미지','Grok Imagine']
@@ -1958,6 +1961,9 @@ var IMG_MODELS = [
  ['이미지 (텍스트·편집)','GPT Image 2'],['이미지 (텍스트·편집)','GPT Image 1.5'],['이미지 (텍스트·편집)','GPT Image'],['이미지 (텍스트·편집)','GPT Image Mini'],
  ['이미지 (레퍼런스 편집·I2I)','Flux Kontext Max (레퍼런스 편집)'],
  ['이미지 (레퍼런스 편집·I2I)','Flux Kontext Pro (레퍼런스 편집)'],
+ ['이미지 (레퍼런스 편집·I2I)','Seedream 4.0 (레퍼런스 편집)'],
+ ['이미지 (레퍼런스 편집·I2I)','SeedEdit 3.0 (레퍼런스 편집)'],
+ ['이미지','Seedream 4.0'],['이미지','Seedream 3.0'],
  ['이미지','Flux 2 Flex'],['이미지','Flux 2 Dev'],
  ['이미지','Flux 1.1 Pro Ultra'],['이미지','Flux 1.1 Pro'],['이미지','Flux Pro'],['이미지','Flux Dev'],
  ['이미지','Grok Imagine']
@@ -2040,6 +2046,10 @@ var MODEL_COST = {
   'Kling 1.6 Pro (이미지→영상)':       { u:'sec', usd:0.049, prov:'kling' },
   'Kling 1.6 Standard (이미지→영상)':  { u:'sec', usd:0.028, prov:'kling' },
   'Grok Imagine':                    { u:'img', usd:0.07,  prov:'xai' },
+  'Seedream 4.0':                    { u:'img', usd:0.03,  prov:'seedream' },
+  'Seedream 4.0 (레퍼런스 편집)':      { u:'img', usd:0.03,  prov:'seedream' },
+  'Seedream 3.0':                    { u:'img', usd:0.03,  prov:'seedream' },
+  'SeedEdit 3.0 (레퍼런스 편집)':      { u:'img', usd:0.03,  prov:'seedream' },
   'Nano Banana':                     { u:'img', usd:0.039, prov:'nanobanana' },
   'GPT Image 2':                     { u:'img', usd:0.08,  prov:'openai' },
   'GPT Image 1.5':                   { u:'img', usd:0.06,  prov:'openai' },
@@ -2052,7 +2062,7 @@ var MODEL_COST = {
 };
 // 제공사 집계 라벨
 var PROV_LABEL = { google:'Google Veo', runway:'Runway', runway_aleph:'Runway Aleph', v2v_auto:'V2V 자동', motion:'모션 전이', narrate:'나레이션', lipsync:'립싱크',
-  seedance:'Seedance', hailuo:'MiniMax Hailuo', luma:'Luma', xai:'Grok', flux:'Flux',
+  seedance:'Seedance', seedream:'Seedream', hailuo:'MiniMax Hailuo', luma:'Luma', xai:'Grok', flux:'Flux',
   falcontrol:'fal ControlNet', nanobanana:'Nano Banana', openai:'GPT Image', kling:'Kling' };
 // 구버전 recordCost(provider,...) 호환용 — 제공사 대표 단가
 var COST_RATES = { google:{unit:'sec'}, runway:{unit:'sec'}, runway_aleph:{unit:'sec'},
@@ -2244,7 +2254,7 @@ function updateLibChip(){ loadGallery().then(function(list){ var c=document.getE
 var PROVIDERS = [
   { id:'google',   name:'Google Veo',   models:'Google Veo 3 (영상)' },
   { id:'runway',   name:'Runway',       models:'Runway Gen-4 (이미지→영상)' },
-  { id:'seedance', name:'Seedance',     models:'Seedance 1.0 Pro · Lite T2V/I2V (영상)' },
+  { id:'seedance', name:'Seedance (ByteDance)', models:'Seedance 1.0/2.0 (영상) · Seedream 4.0/3.0·SeedEdit (이미지) — 같은 ByteDance 키 공유' },
   { id:'xai',      name:'xAI Grok',     models:'Grok Imagine (이미지)' },
   { id:'flux',     name:'Flux (BFL)',   models:'Flux 1.1 Pro Ultra/Pro · Dev (이미지)' },
   { id:'hailuo',   name:'Hailuo (MiniMax)', models:'Hailuo 02 · T2V/I2V-01 Director (영상)' },
@@ -2265,6 +2275,9 @@ var MODEL_PROVIDER = {
   'Seedance 1.0 Lite (이미지→영상)':'seedance',
   'Seedance 1.0':'seedance',   // 구버전 표시명 호환
   'Grok Imagine':'xai','Grok Imagine (영상)':'xai',
+  // Seedream(씨드림) — ByteDance ModelArk 이미지. 서버가 Seedance 키(=ByteDance)로 호출.
+  'Seedream 4.0':'seedream','Seedream 4.0 (레퍼런스 편집)':'seedream',
+  'Seedream 3.0':'seedream','SeedEdit 3.0 (레퍼런스 편집)':'seedream',
   'Flux 2 Flex':'flux','Flux 2 Dev':'flux',
   'Nano Banana':'nanobanana',
   'GPT Image 2':'openai','GPT Image 1.5':'openai','GPT Image':'openai','GPT Image Mini':'openai',

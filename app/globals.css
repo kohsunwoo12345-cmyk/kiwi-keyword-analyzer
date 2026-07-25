@@ -814,12 +814,30 @@ img.bg-emoji {
   to   { opacity: 1; transform: translateX(0); }
 }
 .dash-page-slide {
-  animation: dashPageSlideIn 0.30s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  /* fill-mode: backwards (NOT both) — 애니메이션이 끝난 뒤 transform 을 남기지 않는다.
+     both/forwards 로 translateX(0) 이 잔류하면 이 래퍼가 position:fixed 자식의 '컨테이닝 블록'이
+     되어(transform 이 non-none 이면 fixed 가 뷰포트가 아닌 이 요소 기준으로 잡힘), 상세 드로어
+     (fixed inset-0)가 뷰포트가 아니라 '스크롤된 콘텐츠 전체 높이'만큼 늘어나 하단 레이아웃이 벌어졌다.
+     will-change:transform 도 같은 컨테이닝 블록을 만들므로 제거한다. */
+  animation: dashPageSlideIn 0.30s cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
   overflow-x: clip;
-  will-change: transform, opacity;
 }
 @media (prefers-reduced-motion: reduce) {
   .dash-page-slide { animation: none; }
+}
+
+/* ---- 상세 슬라이드 드로어 (관리자 상세 패널 공용) ---- */
+@keyframes drawerSlideIn  { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes drawerSlideOut { from { transform: translateX(0); }    to { transform: translateX(100%); } }
+@keyframes drawerFadeIn   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes drawerFadeOut  { from { opacity: 1; } to { opacity: 0; } }
+.drawer-backdrop         { animation: drawerFadeIn 0.24s ease-out both; }
+.drawer-backdrop.closing { animation: drawerFadeOut 0.22s ease-in both; }
+.drawer-panel            { animation: drawerSlideIn 0.32s cubic-bezier(0.22, 0.61, 0.36, 1) both; will-change: transform; }
+.drawer-panel.closing    { animation: drawerSlideOut 0.24s cubic-bezier(0.4, 0, 1, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .drawer-backdrop, .drawer-backdrop.closing,
+  .drawer-panel, .drawer-panel.closing { animation: none; }
 }
 /* ============================================================
    관리자 콘솔 톤 매칭 — .mkt-canvas 를 라이트로 재테마.
