@@ -1101,8 +1101,11 @@ async function handle(context) {
         fd.append("image", new Blob([buf], { type: "image/png" }), "test.png");
         const r = await fetchT(openaiBase(env) + "/v1/images/edits", { method: "POST", headers: { "Authorization": "Bearer " + k.openai }, body: fd }, 120000);
         const j = await r.json().catch(() => ({}));
-        const hasImg = !!(j.data && j.data[0] && (j.data[0].b64_json || j.data[0].url));
-        return json({ diag: "gptedit", model: modelId, endpoint: "/v1/images/edits", usable: r.ok && hasImg, httpStatus: r.status, hasImage: hasImg, tookMs: Date.now() - t0,
+        const d0 = j.data && j.data[0];
+        const hasImg = !!(d0 && (d0.b64_json || d0.url));
+        const outBytes = d0 && d0.b64_json ? Math.round(d0.b64_json.length * 3 / 4) : (d0 && d0.url ? -1 : 0);   // 결과 이미지 실제 용량(에코 아님 증명)
+        const usedModel = (j.model || j.usage && j.usage.model) || modelId;
+        return json({ diag: "gptedit", model: modelId, usedModel, endpoint: "/v1/images/edits", usable: r.ok && hasImg, httpStatus: r.status, hasImage: hasImg, outBytes, tookMs: Date.now() - t0,
           error: r.ok ? null : String((j.error && j.error.message) || JSON.stringify(j)).slice(0, 300),
           note: (r.ok && hasImg) ? "이 모델은 OpenAI 편집(edits)을 직접 지원 → 레퍼런스 편집도 이 모델 그대로 사용 가능." : "실패 시 error 문구 확인(사이즈는 16의 배수·비율 1:3~3:1 이어야 함). 앱은 같은 모델로 1024x1024 재시도합니다." });
       } catch (e) {
