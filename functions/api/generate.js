@@ -963,7 +963,8 @@ async function handle(context) {
         let done = null;
         for (const mid of seedreamModelIds(probe, env)) {
           const body = buildSeedreamPayload(probe, env, mid);
-          body.size = "1024x1024";   // 진단은 최소 크기로(비용·시간 절감)
+          // 진단은 최소 크기로(비용·시간 절감). 단 4.5/5.0 은 최소 3,686,400px 요건이 있어 축소하면 400 → 그대로 둠.
+          if (!/seedream-(4-5|5-0)/.test(mid)) body.size = "1024x1024";
           try {
             const r = await fetchT(ARK_HOSTS.bp + "/images/generations", {
               method: "POST", headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
