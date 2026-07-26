@@ -544,17 +544,19 @@ body.create-open #btnQueue{ display:none !important; }
 .in-label.io-off{ opacity:.4; text-decoration:line-through; }
 
 /* 위젯 (ComfyUI 필 스타일) */
-/* ── 영상 길이·비율 선택 (노드 내장) — 라벨 위, 칩은 줄바꿈 그리드 ── */
-.vo-block{ margin:6px 0 2px; }
-.vo-label{ font-size:10px; font-weight:700; letter-spacing:.5px; color:#868c9c; margin:0 2px 5px 10px; text-transform:uppercase; }
-.vo-label b{ color:#aeb6c8; font-weight:700; }
-.vo-chips{ display:flex; flex-wrap:wrap; gap:4px; padding:0 8px; }
-.vo-chip{ flex:0 0 auto; min-width:40px; padding:5px 9px; font-size:10.5px; line-height:1; border-radius:8px;
-  background:#1b1d27; border:1px solid #2a2d38; color:#c9cdd8; cursor:pointer; font-family:inherit;
-  transition:border-color .12s, background .12s, color .12s; text-align:center; }
-.vo-chip:hover{ border-color:#3d4152; color:#fff; }
-.vo-chip.on{ background:rgba(111,108,255,.16); border-color:#6f6cff; color:#d6d9ff; font-weight:700;
-  box-shadow:0 0 0 1px rgba(111,108,255,.25) inset; }
+/* ── 영상 길이·비율 선택 (노드 내장) — 라벨 달린 드롭다운 ── */
+.vo-row{ display:flex; flex-wrap:wrap; gap:5px; margin:6px 0 2px; }
+.vo-sel{ flex:1 1 84px; min-width:0; display:flex; align-items:center; gap:6px;
+  background:#1b1d27; border:1px solid #2a2d38; border-radius:9px; padding:5px 8px 5px 9px;
+  transition:border-color .12s; cursor:pointer; }
+.vo-sel:hover{ border-color:#3d4152; }
+.vo-sel:focus-within{ border-color:#6f6cff; box-shadow:0 0 0 1px rgba(111,108,255,.25); }
+.vo-sel .vo-k{ flex:0 0 auto; font-size:9.5px; font-weight:700; letter-spacing:.5px; color:#868c9c; text-transform:uppercase; }
+.vo-sel select{ flex:1 1 auto; min-width:0; background:transparent; border:none; outline:none;
+  color:#d6d9e4; font-size:11px; font-weight:600; font-family:inherit; cursor:pointer;
+  appearance:none; -webkit-appearance:none; padding:0; }
+.vo-sel select option{ background:#1b1d27; color:#d6d9e4; }
+.vo-sel .vo-caret{ flex:0 0 auto; font-size:8px; color:#6f7484; pointer-events:none; font-weight:400; }
 .widget{ display:flex; align-items:center; height:24px; border-radius:12px;
   background:#222; border:1px solid #1a1a1a; font-size:11px; color:#ccc; overflow:hidden; }
 .widget .arr{ width:24px; text-align:center; color:#767c8c; cursor:pointer; user-select:none; flex:0 0 auto; font-size:10px; }
@@ -5172,24 +5174,24 @@ function widgetHTML(n,w){
     if(!n.w.text) return '<div class="wpreview"><span class="empty">생성된 프롬프트가 여기 표시됩니다<br>[프롬프트 생성]을 누르세요</span></div>';
     return '<textarea class="wtext" data-w="text" style="min-height:78px;">'+esc(n.w.text)+'</textarea>';
   }
-  if(w.t==='vidopts'){   // 영상 노드 내장 설정 — 그 모델이 실제로 받는 길이·비율만 버튼으로 노출
+  if(w.t==='vidopts'){   // 영상 노드 내장 설정 — 그 모델이 실제로 받는 길이·비율만 드롭다운으로 노출
     var vo=videoModelOpts(effModel(n));
     if(!vo.secs.length && !vo.ratios.length)
       return '<div class="refcnt">길이·비율은 원본 영상을 따릅니다 (이 모델은 지정 불가)</div>';
     var vs=inputNodeOf(n.id,'video')||upstream(n.id,'video');
     if(vs) return '<div class="refcnt">영상 설정 노드가 연결됨 — 길이·비율은 그 노드 값을 따릅니다</div>';
-    var curS=effVideoSec(n), curR=effVideoRatio(n), h='';
+    var curS=effVideoSec(n), curR=effVideoRatio(n), h='<div class="vo-row">';
     if(vo.secs.length){
-      h+='<div class="vo-block"><div class="vo-label">길이 · <b>'+curS+'초</b></div><div class="vo-chips">';
-      vo.secs.forEach(function(s){ h+='<button class="vo-chip'+(s===curS?' on':'')+'" data-vsec="'+s+'">'+s+'초</button>'; });
-      h+='</div></div>';
+      h+='<label class="vo-sel"><span class="vo-k">길이</span><select data-vsec>';
+      vo.secs.forEach(function(s){ h+='<option value="'+s+'"'+(s===curS?' selected':'')+'>'+s+'초</option>'; });
+      h+='</select><span class="vo-caret">▼</span></label>';
     }
     if(vo.ratios.length){
-      h+='<div class="vo-block"><div class="vo-label">비율 · <b>'+curR+'</b></div><div class="vo-chips">';
-      vo.ratios.forEach(function(r){ h+='<button class="vo-chip'+(r===curR?' on':'')+'" data-vratio="'+r+'">'+r+'</button>'; });
-      h+='</div></div>';
+      h+='<label class="vo-sel"><span class="vo-k">비율</span><select data-vratio>';
+      vo.ratios.forEach(function(r){ h+='<option value="'+r+'"'+(r===curR?' selected':'')+'>'+r+'</option>'; });
+      h+='</select><span class="vo-caret">▼</span></label>';
     }
-    return h;
+    return h+'</div>';
   }
   if(w.t==='addrefbtns'){   // 모델 로더: +래퍼런스 → 레퍼런스 노드를 생성·연결 (모델이 지원하는 것만 노출)
     var rc=videoModelCaps(effModel(n)), btns='';
@@ -5750,6 +5752,9 @@ canvas.addEventListener('input',function(e){
 canvas.addEventListener('change',function(e){
   var host=e.target.closest('.node'); if(!host)return;
   var n=state.nodes.find(function(x){return x.id===host.dataset.node;}); if(!n)return;
+  // 영상 노드 내장 설정(길이·비율) 드롭다운
+  if(e.target.hasAttribute('data-vsec')){ n.w.vsec=+e.target.value; snapshot(); render(); return; }
+  if(e.target.hasAttribute('data-vratio')){ n.w.vratio=e.target.value; snapshot(); render(); return; }
   var kk=e.target.dataset.w;   // 체크박스(오디오/워터마크 등)는 change 로 확실히 반영
   if(kk!=null && e.target.type==='checkbox'){ n.w[kk]=e.target.checked; autosave(); return; }
   if(e.target.hasAttribute('data-file')){
@@ -5901,11 +5906,8 @@ canvas.addEventListener('click',function(e){
   if(e.target.closest('[data-upscaleset]')){
     n2.w.upScale=+e.target.getAttribute('data-upscaleset'); render(); return;
   }
-  // 영상 노드 내장 설정(길이·비율) — 모델이 받는 값만 버튼으로 떠 있다
-  var _vsb=e.target.closest('[data-vsec]');
-  if(_vsb){ n2.w.vsec=+_vsb.getAttribute('data-vsec'); snapshot(); render(); return; }
-  var _vrb=e.target.closest('[data-vratio]');
-  if(_vrb){ n2.w.vratio=_vrb.getAttribute('data-vratio'); snapshot(); render(); return; }
+  // 영상 길이·비율 드롭다운: 선택은 change 에서 처리 — 클릭은 네이티브 목록만 연다
+  if(e.target.closest('[data-vsec],[data-vratio]')) return;
   if(e.target.closest('[data-upreset]')){
     e.preventDefault();
     if(n2.w.upscaled&&String(n2.w.upscaled).indexOf('blob:')===0){ try{URL.revokeObjectURL(n2.w.upscaled);}catch(_){} }
