@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   Plug, Copy, Check, Terminal, Globe, Code2, Cpu, Coins, ShieldCheck,
   Video, Image as ImageIcon, ListChecks, ArrowRight, ExternalLink, KeyRound,
+  Zap,
 } from 'lucide-react'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
@@ -189,7 +190,7 @@ export default function McpDocsPage() {
 
   const nav = [
     ['overview', t('개요')], ['oneclick', t('원클릭 연결')], ['token', t('토큰 방식(대안)')], ['connect', t('연결 방법')],
-    ['tools', t('도구(Tools)')], ['examples', t('요청 예시')], ['credits', t('크레딧·과금')], ['errors', t('오류')],
+    ['tools', t('도구(Tools)')], ['examples', t('요청 예시')], ['ads', t('광고 집행 연계')], ['credits', t('크레딧·과금')], ['errors', t('오류')],
   ]
 
   return (
@@ -397,6 +398,31 @@ export default function McpDocsPage() {
       "arguments": { "prompt":"노을 지는 해변", "model":"nanobanana" } }
   }'`}</Code>
             <p className="text-[13px] text-[var(--text-soft)]">{t('연결 상태만 빠르게 보려면 브라우저로 내 주소를 열어 ')}<code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[12px] text-slate-200">{`{ "status": "ok", "authenticated": true, "credits": … }`}</code>{t(' 가 보이면 정상입니다.')}</p>
+          </section>
+
+          {/* 광고 집행 연계 (Meta Ads MCP 조합) */}
+          <section>
+            <Anchor id="ads" />
+            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><Zap size={20} className="text-violet-400" /> {t('5. 광고 집행까지 — Meta Ads MCP 조합')}</h2>
+            <p className="text-[14.5px] leading-relaxed text-[var(--text-soft)]">
+              {t('Meta(페이스북·인스타그램)의 공식 광고 MCP를 함께 연결하면, 별도 개발 없이 Claude 대화 하나로 ')}
+              <b className="text-slate-200">{t('소재 생성 → 캠페인 생성 → 집행')}</b>{t('까지 이어집니다. BYGENCY가 생성한 영상 URL은 영구 보관본(R2)이라 광고 소재로 바로 전달됩니다.')}
+            </p>
+            <div className="mt-4 rounded-xl border border-[var(--border-soft)] bg-white/[.02] p-4">
+              <ol className="list-decimal space-y-1.5 pl-5 text-[13.5px] leading-relaxed text-[var(--text-soft)]">
+                <li>{t('Claude 커넥터에 두 개를 나란히 추가:')}
+                  <div className="mt-1.5 space-y-1 font-mono text-[12px]">
+                    <div className="rounded bg-[#0b0f1a] px-2.5 py-1.5 text-slate-200">① {base} <span className="text-[var(--text-dim)]">— {t('생성 (BYGENCY)')}</span></div>
+                    <div className="rounded bg-[#0b0f1a] px-2.5 py-1.5 text-slate-200">② https://mcp.meta.com/ads/{'<'}{t('비즈니스ID')}{'>'} <span className="text-[var(--text-dim)]">— {t('집행 (Meta 공식)')}</span></div>
+                  </div>
+                </li>
+                <li>{t('둘 다 각자 로그인·승인(OAuth). Meta 쪽은 개발자 앱 등록·심사가 필요 없습니다.')}</li>
+                <li>{t('대화 한 줄:')} <code className="rounded bg-white/5 px-1.5 py-0.5 text-[12px] text-slate-200">{t('"씨댄스 2.0으로 이 제품 9:16 광고 영상 만들고, Meta에 캠페인 만들어서 일시정지 상태로 올려줘"')}</code></li>
+              </ol>
+            </div>
+            <p className="mt-3 text-[13px] leading-relaxed text-[var(--text-dim)]">
+              {t('⚠️ 집행은 실제 광고비가 나갑니다. 항상 ')}<b className="text-amber-300">{t('일시정지(paused) 상태로 생성')}</b>{t('하게 지시하고, Meta 광고 관리자에서 검토 후 직접 켜세요. BYGENCY MCP도 같은 원칙을 Claude에 안내합니다.')}
+            </p>
           </section>
 
           {/* 크레딧 */}

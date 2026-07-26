@@ -234,6 +234,33 @@ async function callGenerateGET(env, origin, statusUrl, token) {
   const res = await generateApi({ request: req, env });
   return res.json();
 }
+/* 제공사 CDN 영상 URL(수 시간~수일 내 만료)을 R2 로 재호스팅해 "영구 URL" 로 교체.
+   광고 소재 업로드(Meta Ads MCP 등)·보관함 재사용에 필요. 실패하면 원본 URL 을 그대로 반환(안전 폴백). */
+async function rehostVideoUrl(env, origin, url) {
+  try {
+    url = String(url || "");
+    if (!/^https?:\/\//.test(url)) return url;
+    if (url.indexOf(origin + "/api/media/") === 0) return url;   // 이미 우리 R2
+    const bucket = mcpR2(env); if (!bucket) return url;
+    const r = await fetch(url);
+    if (!r.ok || !r.body) return url;
+    const ct = r.headers.get("content-type") || "video/mp4";
+    if (!/video|octet-stream|mp4|webm/i.test(ct)) return url;
+    const len = Number(r.headers.get("content-length") || 0);
+    if (len > 200 * 1024 * 1024) return url;                      // 200MB 초과는 원본 유지
+    const ext = /webm/i.test(ct) ? ".webm" : ".mp4";
+    const key = "u/" + crypto.randomUUID() + ext;
+    if (len > 0) {
+      await bucket.put(key, r.body, { httpMetadata: { contentType: ct } });
+    } else {
+      const buf = await r.arrayBuffer();
+      if (buf.byteLength > 100 * 1024 * 1024) return url;
+      await bucket.put(key, buf, { httpMetadata: { contentType: ct } });
+    }
+    return origin + "/api/media/" + key;
+  } catch { return url; }
+}
+
 /* base64 data URL 을 R2 에 올려 공개 URL 로 반환 (없거나 실패하면 null → 원본 data URL 유지) */
 function mcpR2(env) {
   for (const n of ["MEDIA", "BUCKET", "R2", "R2_BUCKET", "STORAGE", "ASSETS", "media", "bucket", "r2", "storage", "UPLOADS"]) {
@@ -377,7 +404,10 @@ async function runTool(name, args, env, origin, ctx) {
     let charged = null;
     if (me && db && est) charged = await commitCharge(db, me, est, seconds);
     const extra = charged == null ? {} : { credits_charged: charged, credits_remaining: me ? me.credits : undefined };
-    if (j.url) return Object.assign({ status: "succeeded", video_url: j.url, kind: j.kind || "video" }, extra);
+    if (j.url) {
+      const durable = await rehostVideoUrl(env, origin, String(j.url).charAt(0) === "/" ? origin + j.url : j.url);
+      return Object.assign({ status: "succeeded", video_url: durable, kind: j.kind || "video" }, extra);
+    }
     if (j.statusUrl) return Object.assign({
       status: "generating",
       task: j.statusUrl,
@@ -399,8 +429,11 @@ async function runTool(name, args, env, origin, ctx) {
                  note: "영상 생성 완료 (약 " + mb + "MB). base64 대용량이라 URL로 제공할 수 없습니다. " +
                        "다운로드하려면 노드 스튜디오(https://nextbygency.com/studio-nvc-prv-8b3k2/)에서 같은 프롬프트로 실행하거나, runway/seedance 모델을 사용하세요(CDN URL 제공)." };
       }
-      const abs = String(j.url).charAt(0) === "/" ? origin + j.url : j.url;
-      return { status: "succeeded", video_url: abs, kind: j.kind || "video" };
+      let abs = String(j.url).charAt(0) === "/" ? origin + j.url : j.url;
+      const durable = await rehostVideoUrl(env, origin, abs);   // 제공사 CDN 만료 대비 영구 URL
+      return { status: "succeeded", video_url: durable, kind: j.kind || "video",
+               durable: durable !== abs || durable.indexOf("/api/media/") >= 0,
+               note: "이 URL은 영구 보관본입니다. Meta Ads MCP 등 광고 도구에 소재로 바로 전달할 수 있습니다." };
     }
     return { status: (j.status || "RUNNING").toLowerCase(), note: "아직 생성 중입니다. 15~30초 후 다시 확인하세요." };
   }
@@ -433,7 +466,10 @@ async function handleRpc(msg, env, origin, ctx) {
           "check_video_status로 완료를 확인하세요(1~5분 소요). generate_image는 즉시 이미지 URL을 반환합니다. " +
           "생성 1건마다 연결된 본인 BYGENCY 계정" + (acct ? "(" + acct + ", 잔여 " + bal + "크레딧)" : "") +
           "에서 크레딧이 차감됩니다. 크레딧이 부족하면 생성이 거부됩니다(nextbygency.com/pricing 에서 충전). " +
-          "실제 생성은 과금이 발생하므로 사용자의 명시적 요청이 있을 때만 실행하고, 테스트는 dry_run:true를 사용하세요."
+          "실제 생성은 과금이 발생하므로 사용자의 명시적 요청이 있을 때만 실행하고, 테스트는 dry_run:true를 사용하세요. " +
+          "광고 집행: Meta Ads MCP(mcp.meta.com/ads) 커넥터가 함께 연결되어 있으면, 여기서 생성한 video_url/image_url 을 " +
+          "그 커넥터의 소재 업로드·캠페인 도구에 그대로 전달해 '생성→집행'을 한 대화에서 끝낼 수 있습니다. " +
+          "광고 집행 시에는 반드시 캠페인을 일시정지(paused) 상태로 만들어 사용자가 검토 후 켜게 하세요."
       });
     }
     if (method === "ping") return rpcResult(id, {});
