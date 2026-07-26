@@ -1723,7 +1723,12 @@ async function handle(context) {
                   : provider === "nanobanana" ? buildNanoPayload(b)
                   : provider === "openai"   ? buildOpenAIImagePayload(b)
                   : provider === "hailuo"   ? buildHailuoPayload(b)
-                  : provider === "luma"     ? buildLumaPayload(b) : null;
+                  : provider === "luma"     ? buildLumaPayload(b)
+                  // Kling 은 제출 직전 klingApiSpec 으로 엔드포인트/모드를 정하므로 그 결정값을 미리보기로 제공
+                  : provider === "kling"    ? (() => { const s = klingApiSpec(b);
+                      return { model: s.m, mode: s.mode, endpoint: "/v1/videos/" + s.ep,
+                               prompt: (b.prompt || "").slice(0, 200), duration: (Number(b.seconds) || 5) <= 6 ? 5 : 10,
+                               aspect_ratio: b.ratio || "16:9" }; })() : null;
     return json({ dryRun: true, provider, payload,
                   note: "No provider API was called." });
   }

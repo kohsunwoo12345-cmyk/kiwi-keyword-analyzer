@@ -9,29 +9,66 @@
 //         --header "Authorization: Bearer <토큰>"
 //
 // 제공 도구: generate_video / check_video_status / generate_image / list_models
+// 모델 목록은 스튜디오 단가표(studio/_pricing MODEL_COST)에서 자동 생성 — 스튜디오와 항상 동일.
 // 키는 Cloudflare 환경변수에서만 읽으며 응답에 절대 포함되지 않습니다.
 
 import { onRequest as generateApi } from "../generate.js";
 import { resolveDB, ensureSchema, getUserByMcpToken } from "../_utils";
-import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage } from "../studio/_pricing";
+import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage, MODEL_COST, PROV_LABEL } from "../studio/_pricing";
 
-const SERVER_INFO = { name: "bygency-studio", version: "1.0.0" };
+const SERVER_INFO = { name: "bygency-studio", version: "1.1.0" };
 
-// MCP 모델 → 스튜디오 과금 모델명 매핑 (본인 계정 크레딧 차감용)
-const CHARGE_MAP = {
-  veo: { model: "Google Veo 3.1", kind: "video" },
-  runway: { model: "Runway Gen-4", kind: "video" },
-  seedance: { model: "Seedance 1.0 Pro", kind: "video" },
-  nanobanana: { model: "Nano Banana", kind: "image" },
-  gpt: { model: "GPT Image", kind: "image" },
-  grok: { model: "Grok Imagine", kind: "image" },
+/* ── 모델 카탈로그: 스튜디오 단가표(MODEL_COST)에서 그대로 생성 ──
+   노드 스튜디오에서 쓸 수 있는 모델 = MCP 로 쓸 수 있는 모델 이 되도록 단일 소스로 묶는다.
+   (예전에는 veo/runway/seedance 3종만 하드코딩되어 있어 씨드림·Flux·Kling 등을 Claude 로 부를 수 없었고,
+    게다가 body 에 model 을 싣지 않아 씨댄스가 항상 1.0 Pro 로 고정되었다.) */
+const slug = (s) => String(s).toLowerCase()
+  .replace(/\([^)]*\)/g, " ")            // 괄호 설명 제거
+  .replace(/[^a-z0-9가-힣]+/g, "-")
+  .replace(/^-+|-+$/g, "");
+
+const CATALOG = Object.keys(MODEL_COST).map((name) => {
+  const m = MODEL_COST[name];
+  return {
+    name,                                  // 스튜디오 표시명 = /api/generate 의 model 값
+    id: slug(name),                        // 짧은 식별자(선택적으로 사용 가능)
+    provider: m.prov,
+    providerLabel: PROV_LABEL[m.prov] || m.prov,
+    kind: m.u === "img" ? "image" : "video",
+    unit: m.u,
+    usd: m.usd,
+    audioUsd: m.audio || 0,
+  };
+});
+const VIDEO_CATALOG = CATALOG.filter((x) => x.kind === "video");
+const IMAGE_CATALOG = CATALOG.filter((x) => x.kind === "image");
+
+// 예전 MCP 가 쓰던 짧은 이름 → 표시명 (기존 커넥터 호환)
+const LEGACY_ALIAS = {
+  veo: "Google Veo 3.1", runway: "Runway Gen-4", seedance: "Seedance 1.0 Pro",
+  nanobanana: "Nano Banana", nano: "Nano Banana",
+  gpt: "GPT Image", gptimage: "GPT Image", openai: "GPT Image",
+  grok: "Grok Imagine", xai: "Grok Imagine",
 };
 
-async function estimateMcp(db, me, mcpModel, units, res, audio) {
-  const map = CHARGE_MAP[mcpModel]; if (!map) return null;
+/** 입력(표시명·슬러그·구버전 별칭)을 카탈로그 항목으로 해석 */
+function resolveModel(input, kind) {
+  const raw = String(input || "").trim();
+  if (!raw) return null;
+  const pool = kind === "image" ? IMAGE_CATALOG : kind === "video" ? VIDEO_CATALOG : CATALOG;
+  const alias = LEGACY_ALIAS[raw.toLowerCase()];
+  const want = alias || raw;
+  return pool.find((x) => x.name === want)
+      || pool.find((x) => x.name.toLowerCase() === want.toLowerCase())
+      || pool.find((x) => x.id === slug(want))
+      || null;
+}
+
+async function estimateMcp(db, me, modelName, units, res, audio) {
+  const c = CATALOG.find((x) => x.name === modelName); if (!c) return null;
   const rate = await getUsdKrw(db);
-  const markup = await resolveMarkup(db, me.id, map.model, Number(me.credit_markup) || 0);
-  return computeCharge({ model: map.model, units: units || 0, kind: map.kind, res, audio: !!audio }, rate, markup);
+  const markup = await resolveMarkup(db, me.id, modelName, Number(me.credit_markup) || 0);
+  return computeCharge({ model: modelName, units: units || 0, kind: c.kind, res, audio: !!audio }, rate, markup);
 }
 // 크레딧 차감 + 사용/거래 기록 (스튜디오 usage/record 와 동일 규칙)
 async function commitCharge(db, me, c, units) {
@@ -63,21 +100,26 @@ const TOOLS = [
   {
     name: "generate_video",
     description:
-      "AI 영상 생성을 시작합니다 (Veo / Runway / Seedance). 실제 생성이 시작되며 과금이 발생할 수 있습니다. " +
+      "AI 영상 생성을 시작합니다. 스튜디오에 연결된 모든 영상 모델(Veo·Runway·씨댄스·Kling·Hailuo·Luma 등)을 사용할 수 있습니다. " +
+      "실제 생성이 시작되며 과금이 발생할 수 있습니다. " +
       "즉시 완성되지 않고 task 토큰을 반환하므로, 이후 check_video_status 도구로 완료될 때까지 (보통 1~5분, 15~30초 간격) 상태를 확인하세요. " +
-      "runway는 first_frame_url 또는 reference_image_url이 반드시 필요합니다(이미지에서 영상 생성). " +
+      "Runway 계열은 first_frame_url 또는 reference_image_url이 반드시 필요합니다(이미지에서 영상 생성). " +
       "이어지는 영상(체이닝)을 만들려면 앞 영상의 마지막 장면 이미지를 first_frame_url로 넣으세요.",
     inputSchema: {
       type: "object",
       properties: {
-        model: { type: "string", enum: ["veo", "runway", "seedance"],
-                 description: "veo=Google Veo 3(텍스트→영상, 5~8초), runway=Runway Gen-4 Turbo(이미지→영상 필수, 5/10초), seedance=Seedance 1.0 Pro(텍스트/이미지→영상, 5/10초)" },
+        model: { type: "string", enum: VIDEO_CATALOG.map((x) => x.name),
+                 description: "영상 모델 표시명. 예: 'Seedance 2.0', 'Google Veo 3.1', 'Kling 2.1 Master (이미지→영상)'. "
+                   + "구버전 별칭(veo/runway/seedance)도 계속 동작합니다. 목록은 list_models 로 확인하세요." },
         prompt: { type: "string", description: "영상 내용 프롬프트 (한국어/영어)" },
         negative_prompt: { type: "string", description: "피해야 할 요소 (선택)" },
-        first_frame_url: { type: "string", description: "첫 프레임 이미지 URL 또는 data URI (선택, runway는 필수)" },
+        first_frame_url: { type: "string", description: "첫 프레임 이미지 URL 또는 data URI (선택, Runway 계열은 필수)" },
+        last_frame_url: { type: "string", description: "마지막 프레임 이미지 URL (선택, 씨댄스 1.x 등 지원 모델)" },
         reference_image_url: { type: "string", description: "레퍼런스 이미지 URL 또는 data URI (선택)" },
-        seconds: { type: "number", description: "영상 길이(초). veo 5~8, runway/seedance 5 또는 10. 기본 8" },
+        source_video_url: { type: "string", description: "원본 영상 URL (선택). V2V·모션 전이·립싱크 계열 모델에 필요" },
+        seconds: { type: "number", description: "영상 길이(초). 모델별 지원값이 다름(대개 5/8/10). 기본 8" },
         ratio: { type: "string", enum: ["16:9", "9:16", "1:1"], description: "화면 비율, 기본 16:9" },
+        generate_audio: { type: "boolean", description: "오디오 동시 생성 (씨댄스 2.0 등 지원 모델만, 기본 false)" },
         dry_run: { type: "boolean", description: "true면 실제 호출 없이 제공사로 보낼 페이로드만 미리보기 (과금 없음)" }
       },
       required: ["model", "prompt"]
@@ -99,15 +141,22 @@ const TOOLS = [
   {
     name: "generate_image",
     description:
-      "이미지를 생성합니다(model로 엔진 선택). 즉시 이미지 URL을 반환합니다(폴링 불필요). 과금이 발생할 수 있습니다. " +
+      "이미지를 생성합니다. 스튜디오에 연결된 모든 이미지 모델(씨드림·Flux·나노바나나·GPT Image·Grok 등)을 사용할 수 있습니다. " +
+      "즉시 이미지 URL을 반환합니다(폴링 불필요). 과금이 발생할 수 있습니다. " +
       "생성된 이미지를 generate_video의 first_frame_url로 넣어 이미지→영상 워크플로를 만들 수 있습니다.",
     inputSchema: {
       type: "object",
       properties: {
         prompt: { type: "string", description: "이미지 내용 프롬프트" },
-        model: { type: "string", enum: ["nanobanana", "gpt", "grok"], description: "nanobanana(=Gemini 2.5 Flash Image·기본), gpt(=OpenAI gpt-image-1), grok(=Grok Imagine). 모두 편집 지원(reference_image_url)" },
-        reference_image_url: { type: "string", description: "나노바나나 편집용 입력 이미지 URL 또는 data URL (선택)" },
-        negative_prompt: { type: "string", description: "피해야 할 요소 (선택)" }
+        model: { type: "string", enum: IMAGE_CATALOG.map((x) => x.name),
+                 description: "이미지 모델 표시명. 예: 'Seedream 4.0', 'Flux 1.1 Pro', 'Nano Banana', 'GPT Image 2'. "
+                   + "구버전 별칭(nanobanana/gpt/grok)도 계속 동작합니다. 미지정 시 Nano Banana." },
+        reference_image_url: { type: "string", description: "레퍼런스/편집용 입력 이미지 URL 또는 data URL (선택)" },
+        reference_image_urls: { type: "array", items: { type: "string" },
+                 description: "레퍼런스 이미지 여러 장 (선택). 씨드림 4.x/5.0·나노바나나 등 다중 레퍼런스 지원 모델용" },
+        ratio: { type: "string", enum: ["16:9", "9:16", "1:1", "4:5", "3:4", "4:3"], description: "화면 비율(지원 모델만), 기본 16:9" },
+        negative_prompt: { type: "string", description: "피해야 할 요소 (선택)" },
+        dry_run: { type: "boolean", description: "true면 실제 호출 없이 페이로드만 미리보기 (과금 없음)" }
       },
       required: ["prompt"]
     }
@@ -119,19 +168,27 @@ const TOOLS = [
   }
 ];
 
-const MODEL_INFO = {
-  video: [
-    { id: "veo", name: "Google Veo 3", input: "텍스트(+첫 프레임 이미지 선택)", duration: "5~8초", ratio: "16:9, 9:16", note: "가장 사실적인 화질. 결과가 base64로 반환되어 MCP에서는 크기 정보만 제공될 수 있음" },
-    { id: "runway", name: "Runway Gen-4 Turbo", input: "이미지 필수(첫 프레임 또는 레퍼런스)", duration: "5초 또는 10초", ratio: "16:9, 9:16, 1:1", note: "이미지→영상 특화. CDN URL로 결과 제공" },
-    { id: "seedance", name: "Seedance 1.0 Pro", input: "텍스트(+첫/마지막 프레임 이미지 선택)", duration: "5초 또는 10초", ratio: "16:9, 9:16, 1:1", note: "빠른 생성. CDN URL로 결과 제공" }
-  ],
-  image: [
-    { id: "nanobanana", name: "Nano Banana (Gemini 2.5 Flash Image)", input: "텍스트(+편집용 입력 이미지 선택)", note: "generate_image 도구(model:nanobanana). 텍스트→이미지 및 이미지 편집. 즉시 URL 반환" },
-    { id: "gpt", name: "GPT Image (OpenAI gpt-image-1)", input: "텍스트(+편집용 입력 이미지 선택)", note: "generate_image 도구(model:gpt). 미국 릴레이 경유. 생성 15~40초" },
-    { id: "grok", name: "Grok Imagine", input: "텍스트", note: "generate_image 도구(model:grok). 즉시 URL 반환" }
-  ],
-  tip: "이어지는 영상: 영상1 완료 → 마지막 장면 이미지를 영상2의 first_frame_url로 전달. 노드 스튜디오(https://nextbygency.com/studio-nvc-prv-8b3k2/)에서는 노드 연결로 자동화됩니다."
-};
+/* list_models 응답 — 카탈로그에서 생성(스튜디오와 항상 동일) */
+function modelInfo() {
+  const row = (x) => ({
+    model: x.name,                       // generate_video / generate_image 의 model 에 그대로 넣는 값
+    provider: x.providerLabel,
+    price: x.unit === "img" ? `$${x.usd}/장` : `$${x.usd}/초${x.audioUsd ? ` (+$${x.audioUsd}/초 오디오)` : ""}`,
+  });
+  return {
+    video: VIDEO_CATALOG.map(row),
+    image: IMAGE_CATALOG.map(row),
+    usage: "generate_video / generate_image 의 model 에는 위 'model' 값을 그대로 넣으세요. "
+         + "구버전 별칭(veo·runway·seedance·nanobanana·gpt·grok)도 계속 동작합니다.",
+    notes: [
+      "Runway 계열은 first_frame_url(또는 reference_image_url)이 필수입니다.",
+      "V2V·모션 전이·립싱크 계열은 source_video_url 이 필요합니다.",
+      "씨댄스 2.0 은 generate_audio:true 로 오디오 동시 생성이 가능합니다.",
+      "씨드림 4.x/5.0 은 reference_image_urls 로 다중 레퍼런스를 지원합니다.",
+    ],
+    tip: "이어지는 영상: 영상1 완료 → 마지막 장면 이미지를 영상2의 first_frame_url로 전달. 노드 스튜디오(https://nextbygency.com/studio-nvc-prv-8b3k2/)에서는 노드 연결로 자동화됩니다.",
+  };
+}
 
 /* ── 내부 헬퍼: 기존 /api/generate 핸들러 재사용 ── */
 async function callGeneratePOST(env, origin, body, token) {
@@ -178,61 +235,74 @@ async function runTool(name, args, env, origin, ctx) {
   // /api/generate 인증 게이트 통과용 토큰: 회원 개인 MCP 토큰 우선, 없으면 전역 MCP 토큰(관리자 폴백)
   const genTok = (me && me.mcp_token) ? me.mcp_token : (env.MCP_AUTH_TOKEN || env.mcp_auth_token || "");
 
-  if (name === "list_models") return MODEL_INFO;
+  if (name === "list_models") return modelInfo();
 
   if (name === "generate_image") {
     if (!args.prompt) throw new Error("prompt는 필수입니다");
-    const imgMap = { nanobanana: "nanobanana", nano: "nanobanana", gpt: "openai", gptimage: "openai", openai: "openai", grok: "xai", xai: "xai" };
-    const modelKey = String(args.model || "nanobanana").toLowerCase();
-    const provider = imgMap[modelKey] || "nanobanana";
+    const c = resolveModel(args.model || "Nano Banana", "image");
+    if (!c) throw new Error("알 수 없는 이미지 모델: " + args.model + " — list_models 로 사용 가능한 model 값을 확인하세요.");
     // 크레딧 사전 확인(로그인 토큰 사용자) — 부족하면 생성 자체를 막음
     let est = null;
-    if (me && db) {
-      est = await estimateMcp(db, me, CHARGE_MAP[modelKey] ? modelKey : (provider === "openai" ? "gpt" : provider === "xai" ? "grok" : "nanobanana"), 1);
+    if (me && db && !args.dry_run) {
+      est = await estimateMcp(db, me, c.name, 1);
       if (est && (Number(me.credits) || 0) < est.credits)
         throw new Error("크레딧이 부족합니다. 필요 " + est.credits + "크레딧 · 보유 " + (Number(me.credits) || 0) + "크레딧. nextbygency.com/pricing 에서 충전하세요.");
     }
-    const ref = args.reference_image_url || null;
+    // 레퍼런스: 단일/다중 모두 수용 (씨드림 4.x·5.0 등은 다중 레퍼런스 지원)
+    const refs = [];
+    if (Array.isArray(args.reference_image_urls)) for (const u of args.reference_image_urls) if (u) refs.push(String(u));
+    if (args.reference_image_url && refs.indexOf(String(args.reference_image_url)) < 0) refs.unshift(String(args.reference_image_url));
     const j = await callGeneratePOST(env, origin, {
-      provider, prompt: args.prompt, negative: args.negative_prompt || "",
-      refImage: ref, refImages: ref ? [ref] : []
+      provider: c.provider,
+      model: c.name,                       // ★ 제공사 내부 모델ID 결정에 필수 (없으면 기본 모델로 고정됨)
+      prompt: args.prompt, negative: args.negative_prompt || "",
+      ratio: args.ratio || "16:9",
+      refImage: refs[0] || null, refImages: refs,
+      refCount: refs.length,
+      dryRun: !!args.dry_run
     }, genTok);
     if (j.error) throw new Error(j.error);
+    if (j.dryRun) return { dry_run: true, model: c.name, provider: j.provider, payload: j.payload, note: j.note };
     let url = j.url;
-    // 나노바나나는 base64 data URL 을 반환 → MCP 응답 폭증 방지 위해 R2 에 올려 공개 URL 로 교체
+    // 나노바나나 등은 base64 data URL 을 반환 → MCP 응답 폭증 방지 위해 R2 에 올려 공개 URL 로 교체
     if (url && url.startsWith("data:")) { const hosted = await hostDataUrl(env, origin, url); if (hosted) url = hosted; }
     let charged = null;
     if (me && db && est) charged = await commitCharge(db, me, est, 1);
-    return { status: "succeeded", image_url: url, model: provider === "nanobanana" ? "nanobanana" : provider === "openai" ? "gpt" : "grok",
+    return { status: "succeeded", image_url: url, model: c.name, provider: c.providerLabel,
       credits_charged: charged == null ? undefined : charged, credits_remaining: me ? me.credits : undefined };
   }
 
   if (name === "generate_video") {
-    const providerMap = { veo: "google", runway: "runway", seedance: "seedance" };
-    const provider = providerMap[args.model];
-    if (!provider) throw new Error("model은 veo/runway/seedance 중 하나여야 합니다");
+    const c = resolveModel(args.model, "video");
+    if (!c) throw new Error("알 수 없는 영상 모델: " + args.model + " — list_models 로 사용 가능한 model 값을 확인하세요.");
     if (!args.prompt) throw new Error("prompt는 필수입니다");
     const seconds = args.seconds || 8;
     // 크레딧 사전 확인 (dry_run 은 과금 없음)
     let est = null;
     if (me && db && !args.dry_run) {
-      est = await estimateMcp(db, me, args.model, seconds, "1080p");
+      est = await estimateMcp(db, me, c.name, seconds, "1080p", !!args.generate_audio);
       if (est && (Number(me.credits) || 0) < est.credits)
         throw new Error("크레딧이 부족합니다. 필요 " + est.credits + "크레딧 · 보유 " + (Number(me.credits) || 0) + "크레딧. nextbygency.com/pricing 에서 충전하세요.");
     }
+    const ref = args.reference_image_url || null;
     const body = {
-      provider,
+      provider: c.provider,
+      model: c.name,                       // ★ 제공사 내부 모델ID 결정에 필수 (없으면 기본 모델로 고정됨)
       prompt: args.prompt,
       negative: args.negative_prompt || "",
       firstFrame: args.first_frame_url || null,
-      refImage: args.reference_image_url || null,
+      lastFrame: args.last_frame_url || null,
+      refImage: ref,
+      refImages: ref ? [ref] : [],
+      srcVideo: args.source_video_url || null,   // V2V·모션 전이·립싱크 계열
       seconds,
       ratio: args.ratio || "16:9",
+      generateAudio: !!args.generate_audio,
       dryRun: !!args.dry_run
     };
     const j = await callGeneratePOST(env, origin, body, genTok);
     if (j.error) throw new Error(j.error);
-    if (j.dryRun) return { dry_run: true, provider: j.provider, payload: j.payload, note: j.note };
+    if (j.dryRun) return { dry_run: true, model: c.name, provider: j.provider, payload: j.payload, note: j.note };
     // 생성이 시작/완료되면(=과금 발생) 이 시점에 크레딧 차감. check_video_status 는 추가 차감 없음.
     let charged = null;
     if (me && db && est) charged = await commitCharge(db, me, est, seconds);
