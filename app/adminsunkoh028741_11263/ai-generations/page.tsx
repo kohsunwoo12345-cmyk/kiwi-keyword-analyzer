@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Images, RefreshCw, Download, Search, Film, Image as ImageIcon, User, Clock } from 'lucide-react'
+import { Images, RefreshCw, Download, Search, Film, Image as ImageIcon, User, Clock, Sparkles } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button } from '@/components/ui'
 import { adminAiGenerations, type AiGenerationRow } from '@/lib/auth'
@@ -45,25 +45,33 @@ function csvDownload(rows: AiGenerationRow[]) {
   URL.revokeObjectURL(url)
 }
 
-const KIND_TABS: { key: string; label: string }[] = [
+/** 탭: kind(이미지·영상) 또는 prov(업스케일) 중 하나로 필터 */
+const KIND_TABS: { key: string; label: string; kind?: string; prov?: string }[] = [
   { key: '', label: '전체' },
-  { key: 'image', label: '이미지' },
-  { key: 'video', label: '영상' },
+  { key: 'image', label: '이미지', kind: 'image' },
+  { key: 'video', label: '영상', kind: 'video' },
+  { key: 'upscale', label: '업스케일', prov: 'upscale' },
 ]
+
+/** 업스케일 기록인지 — 브라우저 초해상 · fal Topaz 4K 모두 provider=upscale */
+function isUpscale(r: AiGenerationRow): boolean {
+  return r.provider === 'upscale' || /업스케일/.test(r.model || '')
+}
 
 export default function AdminAiGenerationsPage() {
   const [items, setItems] = useState<AiGenerationRow[]>([])
   const [total, setTotal] = useState(0)
   const [todayRate, setTodayRate] = useState<number | null>(null)
-  const [kind, setKind] = useState('')
+  const [tab, setTab] = useState('')
   const [q, setQ] = useState('')
   const [qInput, setQInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [offset, setOffset] = useState(0)
 
-  const load = useCallback(async (reset: boolean, nextOffset: number, useKind: string, useQ: string) => {
+  const load = useCallback(async (reset: boolean, nextOffset: number, useTab: string, useQ: string) => {
+    const t = KIND_TABS.find((x) => x.key === useTab)
     setLoading(true)
-    const r = await adminAiGenerations({ limit: PAGE, offset: nextOffset, kind: useKind, q: useQ, days: 3650 })
+    const r = await adminAiGenerations({ limit: PAGE, offset: nextOffset, kind: t?.kind || '', prov: t?.prov || '', q: useQ, days: 3650 })
     setLoading(false)
     if (!r.ok) return
     setTodayRate(r.todayRate ?? null)
@@ -72,7 +80,7 @@ export default function AdminAiGenerationsPage() {
     setOffset(nextOffset + (r.items?.length || 0))
   }, [])
 
-  useEffect(() => { load(true, 0, kind, q) }, [load, kind, q])
+  useEffect(() => { load(true, 0, tab, q) }, [load, tab, q])
 
   const runSearch = () => setQ(qInput.trim())
 
@@ -89,10 +97,10 @@ export default function AdminAiGenerationsPage() {
           {KIND_TABS.map((t) => (
             <button
               key={t.key}
-              onClick={() => setKind(t.key)}
+              onClick={() => setTab(t.key)}
               className={cn(
                 'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-                kind === t.key ? 'bg-violet-600 text-white' : 'text-[var(--text-soft)] hover:text-[var(--text)]',
+                tab === t.key ? 'bg-violet-600 text-white' : 'text-[var(--text-soft)] hover:text-[var(--text)]',
               )}
             >
               {t.label}
@@ -110,7 +118,7 @@ export default function AdminAiGenerationsPage() {
           />
           <button onClick={runSearch} className="text-xs font-semibold text-violet-500 hover:text-violet-400">검색</button>
         </div>
-        <Button variant="soft" size="sm" onClick={() => load(true, 0, kind, q)}>
+        <Button variant="soft" size="sm" onClick={() => load(true, 0, tab, q)}>
           <RefreshCw size={14} /> 새로고침
         </Button>
         <Button variant="soft" size="sm" onClick={() => csvDownload(items)} disabled={!items.length}>
@@ -134,7 +142,7 @@ export default function AdminAiGenerationsPage() {
 
       {offset < total && (
         <div className="mt-6 text-center">
-          <Button variant="soft" onClick={() => load(false, offset, kind, q)} disabled={loading}>
+          <Button variant="soft" onClick={() => load(false, offset, tab, q)} disabled={loading}>
             {loading ? '불러오는 중…' : `더 보기 (${total - offset}건 남음)`}
           </Button>
         </div>
@@ -145,6 +153,7 @@ export default function AdminAiGenerationsPage() {
 
 function GenCard({ r }: { r: AiGenerationRow }) {
   const isVideo = looksVideo(r.resultUrl, r.resultKind || r.kind)
+  const up = isUpscale(r)
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)]">
       {/* 결과 미디어 */}
@@ -158,9 +167,16 @@ function GenCard({ r }: { r: AiGenerationRow }) {
         ) : (
           <div className="flex h-full w-full items-center justify-center text-xs text-white/50">미리보기 없음 (아카이브 안 됨)</div>
         )}
-        <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
-          {isVideo ? <Film size={11} /> : <ImageIcon size={11} />} {isVideo ? '영상' : '이미지'}
-        </span>
+        <div className="absolute left-2 top-2 flex items-center gap-1">
+          <span className="flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
+            {isVideo ? <Film size={11} /> : <ImageIcon size={11} />} {isVideo ? '영상' : '이미지'}
+          </span>
+          {up && (
+            <span className="flex items-center gap-1 rounded-full bg-violet-600/90 px-2 py-0.5 text-[10px] font-semibold text-white">
+              <Sparkles size={11} /> 업스케일
+            </span>
+          )}
+        </div>
         {r.resultUrl && (
           <a
             href={dlHref(r.resultUrl)}
@@ -190,7 +206,7 @@ function GenCard({ r }: { r: AiGenerationRow }) {
         {/* 프롬프트 */}
         {r.prompt ? (
           <div className="rounded-lg border border-[var(--border-soft)] bg-[var(--panel-2)] px-2.5 py-2 text-xs leading-relaxed text-[var(--text-soft)]">
-            <span className="mr-1 font-semibold text-[var(--text-dim)]">프롬프트</span>
+            <span className="mr-1 font-semibold text-[var(--text-dim)]">{up ? '업스케일 정보' : '프롬프트'}</span>
             <span className="whitespace-pre-wrap break-words">{r.prompt}</span>
           </div>
         ) : null}
@@ -198,11 +214,15 @@ function GenCard({ r }: { r: AiGenerationRow }) {
         {/* 레퍼런스 */}
         {r.refs && r.refs.length > 0 && (
           <div>
-            <div className="mb-1 text-[10px] font-semibold text-[var(--text-dim)]">레퍼런스 {r.refs.length}</div>
+            <div className="mb-1 text-[10px] font-semibold text-[var(--text-dim)]">{up ? '원본 (업스케일 전)' : `레퍼런스 ${r.refs.length}`}</div>
             <div className="flex flex-wrap gap-1.5">
               {r.refs.map((u, i) => (
-                <a key={i} href={u} target="_blank" rel="noopener" className="block h-12 w-12 overflow-hidden rounded-md border border-[var(--border-soft)] bg-black/20">
-                  <img src={u} alt="" loading="lazy" className="h-full w-full object-cover" onError={(e) => ((e.currentTarget.style.display = 'none'))} />
+                <a key={i} href={u} target="_blank" rel="noopener" className={cn('block overflow-hidden rounded-md border border-[var(--border-soft)] bg-black/20', up ? 'h-20 w-20' : 'h-12 w-12')}>
+                  {looksVideo(u, '') ? (
+                    <video src={u} muted preload="metadata" className="h-full w-full object-cover" />
+                  ) : (
+                    <img src={u} alt="" loading="lazy" className="h-full w-full object-cover" onError={(e) => ((e.currentTarget.style.display = 'none'))} />
+                  )}
                 </a>
               ))}
             </div>

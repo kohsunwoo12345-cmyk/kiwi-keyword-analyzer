@@ -469,12 +469,13 @@ export async function adminVerifyImageModels(only?: string): Promise<any> {
   } catch { return { error: '네트워크 오류' } }
 }
 
-export async function adminAiGenerations(opts: { limit?: number; offset?: number; kind?: string; q?: string; days?: number } = {}): Promise<AiGenerationsResp> {
+export async function adminAiGenerations(opts: { limit?: number; offset?: number; kind?: string; prov?: string; q?: string; days?: number } = {}): Promise<AiGenerationsResp> {
   try {
     const p = new URLSearchParams()
     if (opts.limit != null) p.set('limit', String(opts.limit))
     if (opts.offset != null) p.set('offset', String(opts.offset))
     if (opts.kind) p.set('kind', opts.kind)
+    if (opts.prov) p.set('prov', opts.prov)
     if (opts.q) p.set('q', opts.q)
     if (opts.days != null) p.set('days', String(opts.days))
     const r = await fetch(`/api/admin/ai-generations?${p.toString()}`, { credentials: 'include' })

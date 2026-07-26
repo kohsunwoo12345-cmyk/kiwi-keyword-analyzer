@@ -15,6 +15,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') || 60)))
   const offset = Math.max(0, Number(url.searchParams.get('offset') || 0))
   const kind = String(url.searchParams.get('kind') || '') // '', image, video
+  const prov = String(url.searchParams.get('prov') || '').trim() // 제공사 필터 (예: upscale = 화질 업스케일)
   const q = String(url.searchParams.get('q') || '').trim()
   const days = Math.min(3650, Math.max(1, Number(url.searchParams.get('days') || 365)))
   const since = new Date(Date.now() - days * 86400000).toISOString()
@@ -22,6 +23,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const where: string[] = ['created_at > ?']
   const binds: any[] = [since]
   if (kind === 'image' || kind === 'video') { where.push('kind = ?'); binds.push(kind) }
+  // 업스케일 탭: provider 가 upscale 이거나 모델명에 "업스케일" 이 들어간 기록(구버전 기록 포함)
+  if (prov === 'upscale') { where.push("(provider = 'upscale' OR model LIKE '%업스케일%')") }
+  else if (prov) { where.push('provider = ?'); binds.push(prov) }
   if (q) { where.push('(email LIKE ? OR name LIKE ? OR model LIKE ? OR prompt LIKE ?)'); const like = `%${q}%`; binds.push(like, like, like, like) }
   const whereSql = where.join(' AND ')
 
