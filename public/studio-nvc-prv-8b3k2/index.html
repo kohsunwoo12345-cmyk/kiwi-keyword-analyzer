@@ -2526,10 +2526,43 @@ function cnMapsForVideo(model, n, refList){
     return refList.concat(add).slice(0,lim);
   }).catch(function(){ return refList; });
 }
+/* ── 이미지 모델별 지원 비율 (제공사 문서 기준, 모델 단위) ──
+   Seedream=크기(px)로 환산해 다양한 비율 지원 / Flux Kontext·1.1 Ultra=aspect_ratio 필드
+   / Flux 그 외=width·height 프리셋 / GPT Image=1024·1536 조합 / Nano Banana·Grok=필드 없음(프롬프트로 전달) */
+var IMG_MODEL_RATIOS = {
+  'Seedream 5.0 Pro':['1:1','16:9','9:16','4:3','3:4','4:5','3:2','2:3'],
+  'Seedream 5.0 Pro (레퍼런스 편집)':['1:1','16:9','9:16','4:3','3:4','4:5','3:2','2:3'],
+  'Seedream 5.0 Lite':['1:1','16:9','9:16','4:3','3:4','4:5','3:2','2:3'],
+  'Seedream 5.0 Lite (레퍼런스 편집)':['1:1','16:9','9:16','4:3','3:4','4:5','3:2','2:3'],
+  'Seedream 4.5':['1:1','16:9','9:16','4:3','3:4','4:5','3:2','2:3'],
+  'Seedream 4.5 (레퍼런스 편집)':['1:1','16:9','9:16','4:3','3:4','4:5','3:2','2:3'],
+  'Seedream 4.0':['1:1','16:9','9:16','4:3','3:4','4:5','3:2','2:3'],
+  'Seedream 4.0 (레퍼런스 편집)':['1:1','16:9','9:16','4:3','3:4','4:5','3:2','2:3'],
+  'Flux Kontext Max (레퍼런스 편집)':['1:1','16:9','9:16','4:3','3:4'],
+  'Flux Kontext Pro (레퍼런스 편집)':['1:1','16:9','9:16','4:3','3:4'],
+  'Flux 1.1 Pro Ultra':['1:1','16:9','9:16','4:3','3:4'],
+  'Flux 2 Flex':['1:1','16:9','9:16','4:5'],  'Flux 2 Dev':['1:1','16:9','9:16','4:5'],
+  'Flux 1.1 Pro':['1:1','16:9','9:16','4:5'], 'Flux Pro':['1:1','16:9','9:16','4:5'],
+  'Flux Dev':['1:1','16:9','9:16','4:5'],
+  // GPT Image 는 1024x1024 / 1536x1024 / 1024x1536 → 1:1·3:2·2:3 에 해당
+  'GPT Image 2':['1:1','3:2','2:3'],'GPT Image 1.5':['1:1','3:2','2:3'],
+  'GPT Image':['1:1','3:2','2:3'],'GPT Image Mini':['1:1','3:2','2:3'],
+  // 비율 필드가 없어 프롬프트 문구로 전달되는 모델 — 선택지는 흔한 3종만
+  'Nano Banana':['1:1','16:9','9:16'], 'Grok Imagine':['1:1','16:9','9:16']
+};
+function imgModelRatios(model){ return IMG_MODEL_RATIOS[String(model||'').trim()] || ['1:1','16:9','9:16','4:5']; }
 /* 이미지 모델별 레퍼런스 최대 장수 — 실제 API가 다중 이미지를 받는 모델만 12장, 나머지는 1장 */
 var MODEL_REF_LIMIT = {
+  // 모델 단위 실제 한도. Seedream 은 문서상 레퍼런스 14장(총 레퍼런스+출력 15장 이내),
+  //  5.0 Pro 만 10장 — 서버 페이로드도 같은 값으로 자른다. 예전엔 표에 없어 전부 1장으로 막혔다.
+  'Seedream 5.0 Pro':10,'Seedream 5.0 Pro (레퍼런스 편집)':10,
+  'Seedream 5.0 Lite':14,'Seedream 5.0 Lite (레퍼런스 편집)':14,
+  'Seedream 4.5':14,'Seedream 4.5 (레퍼런스 편집)':14,
+  'Seedream 4.0':14,'Seedream 4.0 (레퍼런스 편집)':14,
   'Nano Banana':12, 'GPT Image 2':12,'GPT Image 1.5':12,'GPT Image':12,'GPT Image Mini':12,
+  // Kontext 는 입력 이미지 1장 편집 모델, Flux 2·1.x 는 순수 생성(레퍼런스 미사용), Grok 은 image_url 1장
   'Flux Kontext Max (레퍼런스 편집)':1,'Flux Kontext Pro (레퍼런스 편집)':1,
+  'Flux 2 Flex':1,'Flux 2 Dev':1,
   'Flux 1.1 Pro Ultra':1,'Flux 1.1 Pro':1,'Flux Pro':1,'Flux Dev':1,'Grok Imagine':1
 };
 function modelRefLimit(model){ var v=MODEL_REF_LIMIT[model]; return v==null?1:v; }
@@ -2602,6 +2635,13 @@ function portAllowed(node, port){
   return true;
 }
 /* 모델이 바뀌어 더 이상 지원하지 않는 입력(사진·영상·프레임·오디오) 연결을 정리 */
+/* 모델을 바꿨을 때, 새 모델이 지원하지 않는 비율이 남아 있으면 지원값으로 옮긴다.
+   (예: 4:5 로 두고 GPT Image 로 바꾸면 그 모델엔 없는 값이라 그대로 두면 안 된다) */
+function snapImgRatio(n){
+  if(!n||n.type!=='imagegen') return;
+  var allow=imgModelRatios(n.w.model);
+  if(allow.indexOf(n.w.ratio)<0) n.w.ratio=allow[0];
+}
 function pruneModelPorts(){
   var before=state.links.length;
   state.links=state.links.filter(function(l){
@@ -5881,7 +5921,7 @@ canvas.addEventListener('click',function(e){
             :wdef.opts==='STYLE3D'?STYLE3D_OPTS:wdef.opts;
     var i=opts.indexOf(String(n2.w[k])); i=(i+(+cyc.dataset.cyc)+opts.length)%opts.length;
     n2.w[k]=opts[i]; combo.querySelector('.wvalue').textContent=opts[i]; autosave();
-    if(k==='model'){ pruneModelPorts(); render(); }   // 모델 변경 → 미지원 포트 정리 + 재렌더
+    if(k==='model'){ snapImgRatio(node); pruneModelPorts(); render(); }   // 모델 변경 → 비율·포트 정리 + 재렌더
     else if(k==='nmode')render();   // 음성 방식(해설·립싱크) 안내 반영
     return;
   }
@@ -6074,7 +6114,9 @@ function openDD(anchor,n,k){
     html+='<input class="dd-search" type="text" placeholder="Search" spellcheck="false" autocomplete="off" style="position:sticky;top:0;z-index:1;display:block;width:calc(100% - 12px);margin:6px;padding:6px 9px;border-radius:7px;border:1px solid #34363e;background:#151517;color:#e6e6ea;font-size:11px;outline:none;font-family:inherit;box-sizing:border-box;">';
     var list=wdef.opts==='IMG_MODELS'?IMG_MODELS:wdef.opts==='VIDEO_MODELS'?VIDEO_MODELS:wdef.opts==='PROMPT_MODELS'?PROMPT_MODELS:MODELS, cat='';
     list.forEach(function(m){ if(m[0]!==cat){cat=m[0];html+='<div class="dh">'+cat+'</div>';} html+='<div class="di" data-v="'+esc(m[1])+'">'+esc(m[1])+'</div>'; });
-  } else { var arr=(wdef.opts==='STYLE3D')?STYLE3D_OPTS:wdef.opts; arr.forEach(function(o){ html+='<div class="di" data-v="'+esc(o)+'">'+esc(o)+'</div>'; }); }
+  } else { var arr=(wdef.opts==='STYLE3D')?STYLE3D_OPTS:wdef.opts;
+    if(k==='ratio' && n.type==='imagegen') arr=imgModelRatios(n.w.model);   // 모델이 실제로 지원하는 비율만
+    arr.forEach(function(o){ html+='<div class="di" data-v="'+esc(o)+'">'+esc(o)+'</div>'; }); }
   dd.innerHTML=html;
   var r=anchor.getBoundingClientRect();
   dd.style.left=Math.min(r.left,innerWidth-230)+'px'; dd.style.top=Math.min(r.bottom+4,innerHeight-300)+'px';
@@ -6090,7 +6132,7 @@ dd.addEventListener('click',function(e){
   var wasModel=(k==='model'||k==='nmode');
   node.w[k]=di.dataset.v; anchor.querySelector('.wvalue').textContent=di.dataset.v;
   autosave(); hideDD();
-  if(k==='model') pruneModelPorts();   // 모델 변경 → 미지원 포트(V2V) 연결 정리
+  if(k==='model'){ snapImgRatio(n); pruneModelPorts(); }   // 모델 변경 → 비율·미지원 포트 정리
   if(wasModel) render();               // 모델별 옵션(seedopts/fluxctrl 등) 즉시 반영
 });
 
