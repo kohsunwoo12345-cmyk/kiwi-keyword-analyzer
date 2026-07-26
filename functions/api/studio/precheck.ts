@@ -25,7 +25,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const need = Math.round(c.credits * refMult * cnMult * 100) / 100
   const balance = Number(me.credits) || 0
 
-  if (balance < need) {
+  // 관리자는 잔액 게이트 면제 — /api/generate·/api/v1/generate 와 동일한 기준.
+  //  (usage/record 는 잔액이 음수가 되어도 원가를 전액 차감하므로, 이 우회가 없으면
+  //   관리자만 스튜디오에서 "요금제 페이지로 이동" 팝업에 막힐 수 있다.)
+  const isAdmin = me.role === 'admin'
+
+  if (!isAdmin && balance < need) {
     return json(
       {
         ok: false,
