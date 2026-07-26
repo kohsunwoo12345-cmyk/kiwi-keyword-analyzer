@@ -2156,7 +2156,7 @@ window.addEventListener('pagehide',function(){ try{ if(_actQ.length && navigator
 (function(){
   var modal=document.getElementById('costModal'), body=document.getElementById('costBody');
   function two(x){ return (x<10?'0':'')+x; }
-  function tstr(ms){ var d=new Date(ms); return two(d.getMonth()+1)+'/'+two(d.getDate())+' '+two(d.getHours())+':'+two(d.getMinutes()); }
+  function tstr(ms){ var d=new Date(Number(ms)||0); if(!Number(ms)||isNaN(d.getTime())) return ''; return two(d.getMonth()+1)+'/'+two(d.getDate())+' '+two(d.getHours())+':'+two(d.getMinutes()); }
   function ic(isImg){ return '<span class="cbi">'+(isImg?ICON.image:ICON.video)+'</span>'; }
   function renderCost(){
     var total=costTotal();
@@ -2207,11 +2207,16 @@ function updateLibChip(){ loadGallery().then(function(list){ var c=document.getE
   var modal=document.getElementById('libModal'), body=document.getElementById('libBody');
   var cntEl=document.getElementById('libCount'), curTab='all';
   function two(x){ return (x<10?'0':'')+x; }
-  function tstr(ms){ var d=new Date(ms); return two(d.getMonth()+1)+'/'+two(d.getDate())+' '+two(d.getHours())+':'+two(d.getMinutes()); }
+  function tstr(ms){ var d=new Date(Number(ms)||0); if(!Number(ms)||isNaN(d.getTime())) return ''; return two(d.getMonth()+1)+'/'+two(d.getDate())+' '+two(d.getHours())+':'+two(d.getMinutes()); }
   function card(g){
-    var isImg=g.kind==='image', src=g.data||g.url, pos=g.poster||src;
-    var expiredPh = "this.outerHTML='<div style=\\'display:grid;place-items:center;height:100%;min-height:90px;color:#8b8fa3;font-size:11px;text-align:center;padding:8px;\\'>원본 만료<br>다시 생성해 주세요</div>'";
-    var media = isImg ? '<img src="'+esc(src)+'" alt="" onerror="'+expiredPh+'">'
+    g=g||{};
+    var isImg=g.kind==='image', src=g.data||g.url||'', pos=g.poster||src;
+    // 재생 불가가 확실한 원본(값 없음 · 세션이 끝나면 죽는 blob: URL)은 바로 자리표시 카드
+    var dead = !src || /^blob:/i.test(String(src));
+    var phDiv = '<div style="display:grid;place-items:center;height:100%;color:#8b8fa3;font-size:11px;text-align:center;padding:8px;">원본 만료<br>다시 생성해 주세요</div>';
+    var expiredPh = "this.outerHTML=&quot;"+phDiv.replace(/"/g,"'")+"&quot;";
+    var media = dead ? phDiv
+              : isImg ? '<img src="'+esc(src)+'" alt="" onerror="'+expiredPh+'">'
               : '<video src="'+esc(src)+'" poster="'+esc(pos||POSTER)+'" muted loop playsinline preload="metadata" onerror="'+expiredPh+'"></video>';
     var badge='<span class="lib-badge">'+(isImg?ICON.image:ICON.video)+(isImg?'이미지':(g.sec?g.sec+'초':'영상'))+'</span>';
     return '<div class="lib-item" data-gid="'+esc(g.id)+'">'+
@@ -2229,7 +2234,16 @@ function updateLibChip(){ loadGallery().then(function(list){ var c=document.getE
       var el=document.getElementById('libChip'); if(el)el.textContent=list.length;
       var f = curTab==='all'? list : list.filter(function(g){ return g.kind===curTab; });
       if(!f.length){ body.innerHTML='<div class="lib-empty">아직 보관된 '+(curTab==='all'?'생성물':curTab==='video'?'영상':'이미지')+'이 없습니다.<br>모델 노드로 이미지·영상을 생성하면 여기에 자동으로 모입니다.</div>'; return; }
-      body.innerHTML='<div class="lib-grid">'+f.map(card).join('')+'</div>';
+      // 카드 1장이 깨진 데이터여도 목록 전체가 사라지지 않게 개별 격리
+      var html='';
+      f.forEach(function(g){
+        try{ html+=card(g); }
+        catch(err){ try{ console.error('보관함 카드 렌더 실패', g&&g.id, err); }catch(_e){}
+          html+='<div class="lib-item"><div class="lib-thumb"><div style="display:grid;place-items:center;height:100%;color:#8b8fa3;font-size:11px;text-align:center;padding:8px;">항목 손상<br>표시할 수 없음</div></div>'+
+                '<div class="lib-meta"><b>손상된 항목</b></div>'+
+                '<div class="lib-acts"><button class="del" data-gdel title="삭제">'+ICON.trash+'</button></div></div>'; }
+      });
+      body.innerHTML='<div class="lib-grid">'+html+'</div>';
     });
   }
   function downloadItem(g){
