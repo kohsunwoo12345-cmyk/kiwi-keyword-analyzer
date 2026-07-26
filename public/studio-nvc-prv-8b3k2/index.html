@@ -4882,8 +4882,17 @@ function widgetHTML(n,w){
   }
   if(w.t==='combo'){
     var disp=(w.label?'<span class="wlabel" style="padding-left:4px;">'+esc(w.label)+':</span>':'');
-    return '<div class="widget" data-combo="'+w.k+'"><span class="arr" data-cyc="-1">'+ICON.chevL+'</span>'+disp+
+    var combo='<div class="widget" data-combo="'+w.k+'"><span class="arr" data-cyc="-1">'+ICON.chevL+'</span>'+disp+
       '<span class="wvalue" data-open>'+esc(v)+'</span><span class="arr" data-cyc="1">'+ICON.chevR+'</span></div>';
+    // 모델 선택 노드가 연결돼 있으면 이 콤보 값은 무시되고 그 노드의 모델로 생성된다.
+    // 표시 모델과 실제 생성 모델이 달라지는 상황이라, 실효 모델을 노드에 그대로 적어 준다.
+    if(n.type==='model' && w.k==='model'){
+      var _mp=inputNodeOf(n.id,'modelsel');
+      var _eff=_mp&&_mp.w&&_mp.w.model;
+      if(_eff && _eff!==v)
+        combo+='<div class="refcnt" style="color:#ffcf7f;">모델 선택 노드가 지정: <b>'+esc(_eff)+'</b> — 위 선택 대신 이 모델로 생성됩니다</div>';
+    }
+    return combo;
   }
   if(w.t==='slider'){
     var slHtml='<div class="widget"><span class="wlabel" style="padding-left:10px;">'+esc(w.label)+'</span>'+
@@ -4899,9 +4908,14 @@ function widgetHTML(n,w){
   }
   if(w.t==='seedid'){   // Seedance 모델일 때만 노출되는 커스텀 모델 ID 입력
     if(!/^Seedance/.test(n.w.model||'')) return '';
+    // 값이 채워져 있으면 위의 모델 선택을 통째로 무시하고 이 ID 로 호출된다 → 눈에 띄게 경고.
+    var _sid=String(v||'').trim();
     return '<div class="seedid-wrap"><span class="seedid-lb">모델 ID 직접 입력 (선택)</span>'+
       '<input class="seedid-in" data-w="'+w.k+'" spellcheck="false" placeholder="예: seedance-1-0-pro-250528 · 비우면 기본값" value="'+esc(v||'')+'">'+
-      '<span class="seedid-hint">BytePlus 콘솔의 최신 모델 ID를 붙여넣으면 그 모델로 호출됩니다</span></div>';
+      (_sid
+        ? '<span class="seedid-hint" style="color:#ffcf7f;">이 ID 로 호출됩니다 — 위 모델 선택은 무시됩니다. 되돌리려면 비우세요.</span>'
+        : '<span class="seedid-hint">BytePlus 콘솔의 최신 모델 ID를 붙여넣으면 그 모델로 호출됩니다</span>')+
+      '</div>';
   }
   if(w.t==='seedopts'){   // Seedance 전용 옵션(오디오·워터마크·오디오 레퍼런스)
     if(!/^Seedance/.test(n.w.model||'')) return '';
