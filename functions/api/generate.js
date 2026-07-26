@@ -248,12 +248,14 @@ export const SEEDANCE_IDS = {
   "Seedance 2.0":                ["dreamina-seedance-2-0-260615", "dreamina-seedance-2-0-260128", "dreamina-seedance-2-0"],
   "Seedance 2.0 Fast":           ["dreamina-seedance-2-0-fast-260615", "dreamina-seedance-2-0-fast-260128", "dreamina-seedance-2-0-fast"],
   "Seedance 2.0 Mini":           ["dreamina-seedance-2-0-mini-260615"],  // 콘솔 실제 ID(회원 제공·확인됨)
-  "Seedance 1.5 Pro":            "seedance-1-5-pro",
-  "Seedance 1.0 Pro":            "seedance-1-0-pro-250528",
-  "Seedance 1.0 Pro Fast":       "seedance-1-0-pro-fast",
-  "Seedance 1.0 Lite (텍스트→영상)": "seedance-1-0-lite-t2v-250428",
-  "Seedance 1.0 Lite (이미지→영상)": "seedance-1-0-lite-i2v-250428",
-  "Seedance 1.0":                "seedance-1-0-pro-250528"  // 구버전 표시명 호환
+  // 1.x 도 콘솔 표기가 카드마다 달라(ByteDance-Seedance-1.5-pro 등) 404 가 났던 이력이 있어
+  // Seedream 과 같은 접두사 후보(bytedance-/doubao-)를 함께 시도한다. 첫 후보가 되면 나머지는 호출되지 않는다.
+  "Seedance 1.5 Pro":            ["seedance-1-5-pro", "bytedance-seedance-1-5-pro", "doubao-seedance-1-5-pro"],
+  "Seedance 1.0 Pro":            ["seedance-1-0-pro-250528", "bytedance-seedance-1-0-pro", "doubao-seedance-1-0-pro-250528"],
+  "Seedance 1.0 Pro Fast":       ["seedance-1-0-pro-fast", "seedance-1-0-pro-fast-250528", "bytedance-seedance-1-0-pro-fast", "doubao-seedance-1-0-pro-fast"],
+  "Seedance 1.0 Lite (텍스트→영상)": ["seedance-1-0-lite-t2v-250428", "bytedance-seedance-1-0-lite-t2v", "doubao-seedance-1-0-lite-t2v-250428"],
+  "Seedance 1.0 Lite (이미지→영상)": ["seedance-1-0-lite-i2v-250428", "bytedance-seedance-1-0-lite-i2v", "doubao-seedance-1-0-lite-i2v-250428"],
+  "Seedance 1.0":                ["seedance-1-0-pro-250528", "bytedance-seedance-1-0-pro"]  // 구버전 표시명 호환
 };
 /* 이 모델에 시도할 ID 후보들(우선순위 순). 직접입력·환경변수가 있으면 그것만 사용. */
 export function seedanceModelIds(b, env) {
