@@ -2893,7 +2893,7 @@ async function generateWithAPI(params){
   //   probe=HTTP200 → POST 처리 자체는 정상 → 원인은 제공사(bp) 호출 단계
   //   probe=HTTP502 → POST 처리 자체가 죽음 → 제공사 무관, 서버 함수/본문 문제
   var probe='?';
-  try{ var pr=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},
+  try{ var pr=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
         body:JSON.stringify(Object.assign({},params,{dryRun:true}))}); probe='HTTP'+pr.status; }
   catch(_p){ probe='ERR'; }
   // 진단은 잘리기 쉬운 앞쪽에 핵심(probe/우회/본문크기)을 먼저 둔다
