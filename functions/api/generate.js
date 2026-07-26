@@ -1115,6 +1115,32 @@ async function handle(context) {
         return json({ diag: "seedream3", model, endpoint, error: String((e && e.message) || e).slice(0, 200), tookMs: Date.now() - t0 });
       }
     }
+    // 계정에 실제로 열려 있는 모델 목록을 제공사에 직접 물어본다(무과금).
+    //   /api/generate?diag=ark-models
+    //  "미개통이라 404"인지 "우리가 쓴 ID 가 틀려서 404"인지를 추측 없이 가른다.
+    //  ModelArk 는 OpenAI 호환 계열이라 목록 경로가 배포마다 다를 수 있어 후보를 순회한다.
+    if (u.searchParams.get("diag") === "ark-models") {
+      if (!k.seedance) return json({ diag: "ark-models", error: "Seedance_API_KEY 미설정" });
+      const paths = ["/models", "/models?page_size=200", "/foundation_models", "/endpoints"];
+      const out = await Promise.all(paths.map(async (p) => {
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + p, {
+            headers: { "Authorization": "Bearer " + k.seedance }
+          }, 15000);
+          const text = await r.text();
+          let j = null; try { j = JSON.parse(text); } catch { /* 비JSON */ }
+          // 응답 형태가 제각각이라, 문자열 중 모델ID 처럼 보이는 것만 훑어 모은다.
+          const ids = [...new Set(String(text).match(/[a-z0-9]+(?:-[a-z0-9]+){2,}/gi) || [])]
+            .filter(s => /seedance|seedream|seededit|doubao|dreamina|dola/i.test(s));
+          return { path: p, httpStatus: r.status, ok: r.ok, modelIds: ids.slice(0, 120),
+                   raw: ids.length ? undefined : String(text).slice(0, 200) };
+        } catch (e) { return { path: p, error: String((e && e.message) || e).slice(0, 120) }; }
+      }));
+      const hit = out.find(x => x.ok && x.modelIds && x.modelIds.length);
+      return json({ diag: "ark-models",
+        note: "계정에서 조회되는 모델 ID 목록. 여기 있는데 404 면 권한/미개통, 아예 없으면 그 ID 자체가 없는 것.",
+        found: hit ? hit.modelIds : null, tried: out });
+    }
     // 초고속 존재확인(무과금): 각 Seedance 모델을 content 없이 제출 → 404/NotFound=ID없음, 그 외=존재(파라미터만 반려·태스크 미생성).
     //   /api/generate?diag=seedance-check
     if (u.searchParams.get("diag") === "seedance-check") {
