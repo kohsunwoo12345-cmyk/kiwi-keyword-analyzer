@@ -1098,6 +1098,29 @@ async function handle(context) {
         return json({ diag: "seedream3", model, endpoint, error: String((e && e.message) || e).slice(0, 200), tookMs: Date.now() - t0 });
       }
     }
+    // 초고속 존재확인(무과금): 각 Seedance 모델을 content 없이 제출 → 404/NotFound=ID없음, 그 외=존재(파라미터만 반려·태스크 미생성).
+    //   /api/generate?diag=seedance-check
+    if (u.searchParams.get("diag") === "seedance-check") {
+      if (!k.seedance) return json({ diag: "seedance-check", error: "Seedance_API_KEY 미설정" });
+      const items = await Promise.all(Object.keys(SEEDANCE_IDS).map(async (name) => {
+        const id = SEEDANCE_IDS[name];
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+            method: "POST", headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: id, content: [] }) }, 15000);
+          const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch { /* 비JSON */ }
+          const missing = seedreamModelMissing(r.status, j);
+          const taskId = j && (j.id || (j.data && j.data.id));
+          if (taskId) return { model: name, id, exists: true, httpStatus: r.status, taskId };   // 실제 제출됨(존재 확정)
+          return { model: name, id, exists: !missing, httpStatus: r.status,
+                   err: String((j && j.error && (j.error.message || j.error.code)) || text).slice(0, 140) };
+        } catch (e) { return { model: name, id, exists: false, error: String((e && e.message) || e).slice(0, 100) }; }
+      }));
+      return json({ diag: "seedance-check",
+        note: "404/NotFound=ID 없음/미개통. 그 외(400 등)=존재(ID정상, 파라미터만 반려). content 비워 보내 태스크 미생성(무과금).",
+        exists: items.filter(x => x.exists).map(x => x.model + " → " + x.id),
+        missing: items.filter(x => !x.exists).map(x => x.model + " → " + x.id), items });
+    }
     // 진단(씨댄스 전체): 등록된 모든 Seedance 영상 모델 검증.
     //   /api/generate?diag=seedance-all          (기본=무과금 구조검증: 모델ID 매핑만)
     //   /api/generate?diag=seedance-all&real=1   (실제 제출 — 완료 시 모델당 영상 과금 발생)
