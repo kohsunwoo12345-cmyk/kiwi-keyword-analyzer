@@ -2180,9 +2180,18 @@ async function handle(context) {
     const tag = "[m:" + candidates[0] + "]";
     let lastErr = null;
     const tried = [];   // 후보별 결과를 모아 에러에 실어 준다(어느 ID 에서 무엇이 났는지 보이게)
+    // 후보를 여러 개 시도하면 최악의 경우 (후보수 × 개별 타임아웃) 만큼 걸려 함수 자체가
+    // 플랫폼 타임아웃(502)에 걸릴 수 있다. 전체 예산을 두고, 남은 시간에 맞춰 개별 타임아웃을 줄인다.
+    const BUDGET_MS = 30000;
+    const started = Date.now();
     outer:
     for (const hostId of hosts) {
       for (const mid of candidates) {
+        const leftMs = BUDGET_MS - (Date.now() - started);
+        if (leftMs < 4000) {   // 남은 시간이 너무 적으면 새 후보를 시작하지 않는다
+          if (tried.length) { tried.push("(시간부족·중단)"); }
+          break outer;
+        }
         const payload = buildSeedancePayload(b, env, mid);
         // 스튜디오가 실제로 보낸 값을 에러에 그대로 실어, 노드에 원인이 보이게 한다.
         const imgN = payload.content.filter(c => c.type === "image_url").length;
@@ -2195,7 +2204,7 @@ async function handle(context) {
             method: "POST",
             headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
             body: JSON.stringify(payload)
-          }, 22000);
+          }, Math.min(22000, leftMs));
           j = await r.json().catch(() => ({}));
         } catch (e) {
           lastErr = hostId + " 제출 실패(" + (Date.now() - t0) + "ms): " + String((e && e.message) || e).slice(0, 140);
