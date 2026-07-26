@@ -820,7 +820,7 @@ async function handle(context) {
 
   /* ══ GET: 상태 폴링 / 파일 프록시 ══ */
   if (request.method === "GET") {
-    if (u.searchParams.get("health")) { // 제공사 키 설정 여부 점검 (키 값은 절대 노출 안 함)
+    if (u.searchParams.has("health")) { // 제공사 키 설정 여부 점검 (키 값은 절대 노출 안 함) — ?health 또는 ?health=1 모두 허용
       return json({
         version:  "2026-07-13-v56 (remove-keys-page)", // 이 필드가 보이면 최신 코드가 프로덕션에 반영된 것
         build:    "2026-07-13-v56",                      // 스튜디오 STUDIO_BUILD 와 정확히 일치해야 최신
@@ -966,9 +966,9 @@ async function handle(context) {
     if (u.searchParams.get("diag") === "seedream-all") {
       if (!k.seedance) return json({ diag: "seedream-all", error: "Seedream 키(=Seedance_API_KEY) 가 서버에 없음" });
       const sample = "https://ark-doc.tos-ap-southeast-1.bytepluses.com/doc_image/r2v_tea_pic1.jpg";
-      const items = [];
       // 표시명 단위로 검증 — 실제 생성과 똑같이 후보 ID 를 순서대로 시도해 "실제로 먹히는 ID"를 찾는다.
-      for (const name of Object.keys(SEEDREAM_IDS)) {
+      //  ※ 모델별로 병렬 실행 → 전체 소요 = 가장 느린 1개(≈8초). (순차면 합계로 100초 넘어 타임아웃)
+      const items = await Promise.all(Object.keys(SEEDREAM_IDS).map(async (name) => {
         const isEdit = /편집/.test(name);
         const probe = { model: name, prompt: "a photorealistic red apple on a wooden table, soft studio light", ratio: "1:1" };
         if (isEdit) probe.refImages = [sample];
@@ -992,10 +992,10 @@ async function handle(context) {
             tried.push({ modelId: mid, error: String((e && e.message) || e).slice(0, 180) });
           }
         }
-        items.push(done
+        return done
           ? { model: name, ok: true, modelId: done.modelId, tookMs: Date.now() - t0, imageUrl: done.imageUrl }
-          : { model: name, ok: false, tookMs: Date.now() - t0, tried });
-      }
+          : { model: name, ok: false, tookMs: Date.now() - t0, tried };
+      }));
       const okCount = items.filter(x => x.ok).length;
       return json({ diag: "seedream-all", okCount, failCount: items.length - okCount, total: items.length,
                     works: items.filter(x => x.ok).map(x => x.model + " → " + x.modelId),
