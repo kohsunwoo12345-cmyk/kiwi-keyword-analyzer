@@ -1001,6 +1001,31 @@ async function handle(context) {
                     works: items.filter(x => x.ok).map(x => x.model + " → " + x.modelId),
                     fails: items.filter(x => !x.ok).map(x => x.model), items });
     }
+    // 초고속 존재확인(무과금·1초 내): 일부러 너무 작은 size 로 보내 '검증 단계'에서 즉시 반려시킨다.
+    //  → 404/모델없음 = ID 틀림/미개통,  그 외(400 param 등) = 모델 존재(ID 정상). 실제 생성은 안 함.
+    //   /api/generate?diag=seedream-check
+    if (u.searchParams.get("diag") === "seedream-check") {
+      if (!k.seedance) return json({ diag: "seedream-check", error: "Seedream 키(=Seedance_API_KEY) 가 서버에 없음" });
+      const items = await Promise.all(Object.keys(SEEDREAM_IDS).map(async (name) => {
+        const probe = { model: name, prompt: "t", ratio: "1:1" };
+        const tried = [];
+        for (const mid of seedreamModelIds(probe, env)) {
+          try {
+            const r = await fetchT(ARK_HOSTS.bp + "/images/generations", {
+              method: "POST", headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+              body: JSON.stringify({ model: mid, prompt: "t", size: "64x64", response_format: "url" }) }, 15000);
+            const j = await r.json().catch(() => ({}));
+            if (!seedreamModelMissing(r.status, j)) return { model: name, exists: true, modelId: mid, httpStatus: r.status };
+            tried.push({ modelId: mid, httpStatus: r.status });
+          } catch (e) { tried.push({ modelId: mid, error: String((e && e.message) || e).slice(0, 80) }); }
+        }
+        return { model: name, exists: false, tried };
+      }));
+      return json({ diag: "seedream-check",
+        note: "400/param=존재(ID정상), 404=없음/미개통. 실제 생성 안 함(무과금·빠름).",
+        exists: items.filter(x => x.exists).map(x => x.model + " → " + x.modelId),
+        missing: items.filter(x => !x.exists).map(x => x.model), items });
+    }
     // 진단(씨댄스 전체): 등록된 모든 Seedance 영상 모델 검증.
     //   /api/generate?diag=seedance-all          (기본=무과금 구조검증: 모델ID 매핑만)
     //   /api/generate?diag=seedance-all&real=1   (실제 제출 — 완료 시 모델당 영상 과금 발생)
