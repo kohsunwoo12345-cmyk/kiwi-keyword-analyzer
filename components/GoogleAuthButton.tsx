@@ -59,6 +59,11 @@ export function GoogleAuthConsent({
     params.set('tos', '1')
     params.set('privacy', '1')
     params.set('mkt', mkt ? '1' : '0')
+    // 로그인 후 복귀 경로 유지 (MCP OAuth 승인 화면 등)
+    try {
+      const nx = new URLSearchParams(window.location.search).get('next') || ''
+      if (nx.startsWith('/') && !nx.startsWith('//')) params.set('next', nx)
+    } catch { /* noop */ }
     window.location.href = `/api/auth/google/start?${params.toString()}`
   }
 

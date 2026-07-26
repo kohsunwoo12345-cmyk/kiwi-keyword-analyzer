@@ -16,7 +16,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   // CSRF 방지용 state (+ 추천인 코드 + 동의 플래그 동봉)
   const state = crypto.randomUUID().replace(/-/g, '')
-  const statePayload = `${state}.${encodeURIComponent(ref)}.${consent}`
+  // 로그인 후 복귀 경로(next) 동봉 — Claude MCP OAuth 승인 화면 복귀에 사용.
+  // 오픈 리다이렉터 방지: 같은 사이트 상대경로만 허용.
+  const rawNext = url.searchParams.get('next') || ''
+  const nextPath = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext.slice(0, 300) : ''
+  const statePayload = `${state}.${encodeURIComponent(ref)}.${consent}.${encodeURIComponent(nextPath)}`
 
   const auth = new URL('https://accounts.google.com/o/oauth2/v2/auth')
   auth.searchParams.set('client_id', clientId)

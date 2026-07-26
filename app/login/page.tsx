@@ -102,7 +102,16 @@ export default function LoginPage() {
         setLoading(false)
         return
       }
-      router.push(res.user.role === 'admin' ? '/adminsunkoh028741_11263' : '/dashboard_USE17237_612')
+      // ?next= 가 있으면 그 경로로 복귀 (Claude MCP OAuth 승인 화면 등).
+      // 오픈 리다이렉터 방지: 같은 사이트의 상대경로(//, 스킴 제외)만 허용.
+      let dest = res.user.role === 'admin' ? '/adminsunkoh028741_11263' : '/dashboard_USE17237_612'
+      try {
+        const nx = new URLSearchParams(window.location.search).get('next') || ''
+        if (nx.startsWith('/') && !nx.startsWith('//') && !/^\/\\/.test(nx)) dest = nx
+      } catch { /* noop */ }
+      // OAuth 승인 등 Functions 라우트는 Next 라우터로 못 가므로 전체 이동
+      if (dest.startsWith('/api/')) window.location.assign(dest)
+      else router.push(dest)
     })()
   }
 

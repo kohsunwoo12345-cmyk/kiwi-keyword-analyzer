@@ -28,7 +28,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     // state 검증 (+ 추천인 코드 복원)
     const cookies = parseCookies(request)
     const saved = cookies['g_oauth'] || ''
-    const [savedState, refEnc, consentEnc] = saved.split('.')
+    const [savedState, refEnc, consentEnc, nextEnc] = saved.split('.')
     if (!savedState || savedState !== state) return redirect(request, '/login?error=state', [clearState])
     const ref = decodeURIComponent(refEnc || '').trim().toUpperCase()
     // 동의 플래그: 3자리 "tos privacy marketing" (예: "111")
@@ -118,7 +118,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const isAdmin = u.email === ADMIN_EMAIL || u.role === 'admin'
     const consentOk = isAdmin || (Number(u.tos_consent) === 1 && Number(u.privacy_consent) === 1)
     const addressComplete = isAdmin || !!(u.country && u.company && u.phone && u.address1)
-    const dest = isAdmin ? ADMIN : consentOk && addressComplete ? DASH : '/complete-profile'
+    let dest = isAdmin ? ADMIN : consentOk && addressComplete ? DASH : '/complete-profile'
+    // next 가 있으면 우선 복귀(가입 마무리가 필요한 경우는 제외 — 그 흐름을 먼저 끝내야 함)
+    try {
+      const nx = decodeURIComponent(nextEnc || '')
+      if (nx.startsWith('/') && !nx.startsWith('//') && dest !== '/complete-profile') dest = nx
+    } catch { /* noop */ }
 
     return redirect(request, dest, [sessionCookie(token), clearState])
   } catch {
