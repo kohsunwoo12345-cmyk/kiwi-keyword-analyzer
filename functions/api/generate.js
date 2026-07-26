@@ -242,12 +242,14 @@ export function buildXaiVideoPayload(b, env) {
    ※ 콘솔에서 실제 ID가 바뀌면 노드의 "Seedance 모델 ID 직접입력" 또는
      SEEDANCE_MODEL_ID 환경변수로 언제든 덮어쓸 수 있습니다. */
 export const SEEDANCE_IDS = {
-  // 콘솔 실제 ID(회원 제공): Mini=dreamina-seedance-2-0-mini-260615.
-  // 2.0 패밀리는 보통 같은 날짜로 함께 개통되므로 Mini와 같은 260615 를 최우선 후보로,
-  // 그다음 예전 추정치(260128)·접미사 없는 형태 순으로 자동 재시도한다(콘솔 표기 차이 흡수).
-  "Seedance 2.0":                ["dreamina-seedance-2-0-260615", "dreamina-seedance-2-0-260128", "dreamina-seedance-2-0"],
-  "Seedance 2.0 Fast":           ["dreamina-seedance-2-0-fast-260615", "dreamina-seedance-2-0-fast-260128", "dreamina-seedance-2-0-fast"],
-  "Seedance 2.0 Mini":           ["dreamina-seedance-2-0-mini-260615"],  // 콘솔 실제 ID(회원 제공·확인됨)
+  // 날짜 접미사는 "그 변형의 출시일"이지 패밀리 공용값이 아니다(공식 문서 확인):
+  //   base·fast = 260128, mini = 260615(2026-06-15 출시).
+  // 또한 공식 문서상 BytePlus/ModelArk 에 표기된 2.0 은 mini 뿐이고,
+  // base·fast 는 Volcengine(중국) 쪽에 doubao- 접두사로 문서화돼 있다.
+  // → dreamina-(BytePlus) 우선, 안 되면 doubao-(Volcengine 표기), 마지막으로 접미사 없는 형태.
+  "Seedance 2.0":                ["dreamina-seedance-2-0-260128", "doubao-seedance-2-0-260128", "dreamina-seedance-2-0"],
+  "Seedance 2.0 Fast":           ["dreamina-seedance-2-0-fast-260128", "doubao-seedance-2-0-fast-260128", "dreamina-seedance-2-0-fast"],
+  "Seedance 2.0 Mini":           ["dreamina-seedance-2-0-mini-260615", "doubao-seedance-2-0-mini-260615"],  // 첫 ID 는 실제 작동 확인됨
   // 1.x 도 콘솔 표기가 카드마다 달라(ByteDance-Seedance-1.5-pro 등) 404 가 났던 이력이 있어
   // Seedream 과 같은 접두사 후보(bytedance-/doubao-)를 함께 시도한다. 첫 후보가 되면 나머지는 호출되지 않는다.
   "Seedance 1.5 Pro":            ["seedance-1-5-pro", "bytedance-seedance-1-5-pro", "doubao-seedance-1-5-pro"],
