@@ -4929,6 +4929,9 @@ function reconcileServerWorkflow(){
 function startWorkflowSync(){
   if(_wfPollT||UID==='guest'||ADMIN_LOAD_UID) return;
   _wfPollT=setInterval(function(){
+    // 생성이 진행 중이면 원격본을 덮어쓰지 않는다 — loadDocIntoState 가 노드를 새 객체로
+    //  갈아끼우면 진행 중이던 생성의 결과가 갈 곳을 잃는다(느린 모델일수록 확실히 겹친다).
+    if(_activeRuns>0||running) return;
     if(UID==='guest'||ADMIN_LOAD_UID||document.hidden||_dirtySinceSync) return;
     fetch('/api/studio/workflow?meta=1',{ credentials:'include', cache:'no-store' })
       .then(function(r){ return r.ok?r.json():null; })
@@ -6219,6 +6222,11 @@ function clearExec(){
   document.querySelectorAll('.node.exec').forEach(function(x){x.classList.remove('exec');});
   document.querySelectorAll('#edges path.exec').forEach(function(x){x.classList.remove('exec');});
 }
+/* 동기화(applyServerDocs→loadDocIntoState)는 state.nodes 를 통째로 새 객체로 교체한다.
+   생성은 수 분이 걸리므로, 시작할 때 잡아둔 노드 참조는 끝날 때쯤 이미 떨어져 나간 객체일 수 있다.
+   그 객체에 결과를 써도 화면엔 반영되지 않는다 → 결과를 쓸 때는 항상 id 로 다시 찾는다. */
+function liveNode(id){ return (state.nodes||[]).find(function(x){ return x.id===id; })||null; }
+function liveNodes(ids){ return (ids||[]).map(liveNode).filter(Boolean); }
 /* 출력 블럭이 없으면 만들어 연결한다. 결과를 받을 노드가 없으면 생성물이 갈 곳이 없어
    "생성은 됐는데 아무것도 안 보이는" 상태가 된다 → 실행 시 자동으로 하나 붙여 준다. */
 function ensureOutputFor(n){
@@ -6329,6 +6337,7 @@ function runQueue(onlyId){
             // 출력 블럭이 없으면 자동으로 만들어 연결한다 — 결과를 받을 곳이 없어
             // 생성이 조용히 사라지는 일을 막는다.
             if(!outs.length){ outs=[ensureOutputFor(n)]; }
+            var outIds=outs.map(function(o){ return o.id; });   // 참조가 아니라 id 로 들고 간다
             // 모델 선택 노드가 연결돼 있으면 그 모델을 사용(없으면 로더 자체 콤보)
             var mpk=inputNodeOf(id,'modelsel');
             var chosenModel=(mpk&&mpk.w&&mpk.w.model)?mpk.w.model:n.w.model;
@@ -6428,28 +6437,31 @@ function runQueue(onlyId){
             }); }).then(function(res){
               if(!res || res.error){   // 실제 생성 실패 — 데모로 감추지 않고 원인 표시
                 var msg=(res&&res.error)||'생성 실패';
-                outs.forEach(function(o){ o.w.generating=false; o.w.error=msg; });
+                liveNodes(outIds).forEach(function(o){ o.w.generating=false; o.w.error=msg; });
                 var info=showGenError(msg, (res&&res.provider)||providerOf(chosenModel), chosenModel);   // 원인 해설 팝업
                 toast((info&&info.title)||('생성 실패: '+String(msg).slice(0,80)));
                 render(); step(); return;
               }
               // ① 결과를 먼저 화면에 반영 — 어떤 부수작업이 실패해도 "생성 중" 이 남지 않게 한다.
-              outs.forEach(function(o){
+              var _live=liveNodes(outIds);
+              if(!_live.length){ var _mn=liveNode(id); if(_mn) _live=[ensureOutputFor(_mn)]; }   // 동기화로 사라졌으면 다시 만든다
+              _live.forEach(function(o){
                 var vs=upstream(o.id,'video');
                 o.w.generating=false; o.w.error=null;
                 o.w.vid=res.url; o.w.kind=res.kind||'video'; o.w.poster=res.poster||null; o.w.model=chosenModel; o.w.sec=vs?vs.w.sec:8;
               });
-              n.w.seed=Math.floor(Math.random()*9e14);
+              var _mn2=liveNode(id); if(_mn2){ _mn2.w.seed=Math.floor(Math.random()*9e14); _mn2.w.pendingUrl=null; }
               render();
               // ② 부수작업(과금 기록·보관함 저장)은 각각 격리 — 실패해도 UI 에 영향 없음
               try{ if(res.url && res.type!=='error')
                 recordCost(res.type||providerOf(chosenModel), chosenModel, vSet?vSet.w.sec:8, res.kind, vSet?vSet.w.res:'1080p', n.w.seedAudio===true, 0, basePrompt, [].concat(refList||[], srcVid?[srcVid]:[]), res.url); }catch(_e){}
               try{ saveToGallery(res.url, res.kind||'video', chosenModel, vSet?vSet.w.sec:8, res.poster); }catch(_e){}
               var el2=document.getElementById('nd-'+id); if(el2)el2.classList.add('exec');
-              Promise.all(outs.map(extractLastFrame)).then(function(){ render(); step(); });
+              Promise.all(liveNodes(outIds).map(extractLastFrame)).then(function(){ render(); step(); });
             }).catch(function(e){
               var em=String(e&&e.message||e||'오류');
-              outs.forEach(function(o){ o.w.generating=false; o.w.error=em; });
+              liveNodes(outIds).forEach(function(o){ o.w.generating=false; o.w.error=em; });
+              var _mn3=liveNode(id); if(_mn3) _mn3.w.pendingUrl=null;
               render();                                        // 스피너 해제를 무조건 먼저
               try{ var info=showGenError(em, providerOf(chosenModel), chosenModel);
                    toast((info&&info.title)||'생성 오류'); }catch(_e){ try{toast('생성 오류: '+em.slice(0,80));}catch(__e){} }
