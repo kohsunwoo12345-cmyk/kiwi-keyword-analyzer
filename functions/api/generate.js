@@ -247,17 +247,17 @@ export const SEEDANCE_IDS = {
   // 또한 공식 문서상 BytePlus/ModelArk 에 표기된 2.0 은 mini 뿐이고,
   // base·fast 는 Volcengine(중국) 쪽에 doubao- 접두사로 문서화돼 있다.
   // → dreamina-(BytePlus) 우선, 안 되면 doubao-(Volcengine 표기), 마지막으로 접미사 없는 형태.
-  "Seedance 2.0":                ["dreamina-seedance-2-0-260128", "doubao-seedance-2-0-260128", "dreamina-seedance-2-0"],
-  "Seedance 2.0 Fast":           ["dreamina-seedance-2-0-fast-260128", "doubao-seedance-2-0-fast-260128", "dreamina-seedance-2-0-fast"],
-  "Seedance 2.0 Mini":           ["dreamina-seedance-2-0-mini-260615", "doubao-seedance-2-0-mini-260615"],  // 첫 ID 는 실제 작동 확인됨
-  // 1.x 도 콘솔 표기가 카드마다 달라(ByteDance-Seedance-1.5-pro 등) 404 가 났던 이력이 있어
-  // Seedream 과 같은 접두사 후보(bytedance-/doubao-)를 함께 시도한다. 첫 후보가 되면 나머지는 호출되지 않는다.
-  "Seedance 1.5 Pro":            ["seedance-1-5-pro", "bytedance-seedance-1-5-pro", "doubao-seedance-1-5-pro"],
-  "Seedance 1.0 Pro":            ["seedance-1-0-pro-250528", "bytedance-seedance-1-0-pro", "doubao-seedance-1-0-pro-250528"],
-  "Seedance 1.0 Pro Fast":       ["seedance-1-0-pro-fast", "seedance-1-0-pro-fast-250528", "bytedance-seedance-1-0-pro-fast", "doubao-seedance-1-0-pro-fast"],
-  "Seedance 1.0 Lite (텍스트→영상)": ["seedance-1-0-lite-t2v-250428", "bytedance-seedance-1-0-lite-t2v", "doubao-seedance-1-0-lite-t2v-250428"],
-  "Seedance 1.0 Lite (이미지→영상)": ["seedance-1-0-lite-i2v-250428", "bytedance-seedance-1-0-lite-i2v", "doubao-seedance-1-0-lite-i2v-250428"],
-  "Seedance 1.0":                ["seedance-1-0-pro-250528", "bytedance-seedance-1-0-pro"]  // 구버전 표시명 호환
+  "Seedance 2.0":                ["dreamina-seedance-2-0-260128", "dreamina-seedance-2-0"],
+  "Seedance 2.0 Fast":           ["dreamina-seedance-2-0-fast-260128", "dreamina-seedance-2-0-fast"],
+  "Seedance 2.0 Mini":           ["dreamina-seedance-2-0-mini-260615", "dreamina-seedance-2-0-mini"],  // 첫 ID 는 실제 작동 확인됨
+  // ↓ 1.x 는 계정 모델 목록(diag=ark-models)에서 확인한 실제 ID. 추측이던 무접미사 형태는 뒤로 뺀다.
+  //   1.5 Pro 와 1.0 Pro Fast 는 날짜 접미사가 빠져 404 였던 것(미개통이 아니었음).
+  "Seedance 1.5 Pro":            ["seedance-1-5-pro-251215", "seedance-1-5-pro"],
+  "Seedance 1.0 Pro":            ["seedance-1-0-pro-250528", "seedance-1-0-pro"],
+  "Seedance 1.0 Pro Fast":       ["seedance-1-0-pro-fast-251015", "seedance-1-0-pro-fast"],
+  "Seedance 1.0 Lite (텍스트→영상)": ["seedance-1-0-lite-t2v-250428", "seedance-1-0-lite-t2v"],
+  "Seedance 1.0 Lite (이미지→영상)": ["seedance-1-0-lite-i2v-250428", "seedance-1-0-lite-i2v"],
+  "Seedance 1.0":                ["seedance-1-0-pro-250528", "seedance-1-0-pro"]  // 구버전 표시명 호환
 };
 /* 이 모델에 시도할 ID 후보들(우선순위 순). 직접입력·환경변수가 있으면 그것만 사용. */
 export function seedanceModelIds(b, env) {
@@ -355,16 +355,17 @@ const ARK_HOSTS = {
 export const SEEDREAM_IDS = {
   // 콘솔(BytePlus 인터내셔널) 실제 카드명: Dola-Seedream-5.0-pro/lite, ByteDance-Seedream-4.5 → 해당 접두사 후보를 최우선.
   // 콘솔 실제 Model ID(회원 제공): Pro=dola-seedream-5-0-pro-260628, Lite=seedream-5-0-260128
-  "Seedream 5.0 Pro":               ["dola-seedream-5-0-pro-260628", "dola-seedream-5-0-pro", "seedream-5-0-pro"],
-  "Seedream 5.0 Pro (레퍼런스 편집)":  ["dola-seedream-5-0-pro-260628", "dola-seedream-5-0-pro", "seedream-5-0-pro"],
-  "Seedream 5.0 Lite":              ["seedream-5-0-260128", "dola-seedream-5-0-lite", "seedream-5-0-lite"],
-  "Seedream 5.0 Lite (레퍼런스 편집)": ["seedream-5-0-260128", "dola-seedream-5-0-lite", "seedream-5-0-lite"],
-  "Seedream 4.5":                   ["seedream-4-5-251128", "bytedance-seedream-4-5", "seedream-4-5", "doubao-seedream-4-5-251128"],
-  "Seedream 4.5 (레퍼런스 편집)":     ["seedream-4-5-251128", "bytedance-seedream-4-5", "seedream-4-5", "doubao-seedream-4-5-251128"],
-  "Seedream 4.0":                   ["seedream-4-0-250828", "doubao-seedream-4-0-250828"],
-  "Seedream 4.0 (레퍼런스 편집)":     ["seedream-4-0-250828", "doubao-seedream-4-0-250828"],
-  "Seedream 3.0":                   ["seedream-3-0-t2i-250415", "doubao-seedream-3-0-t2i-250415"],
-  "SeedEdit 3.0 (레퍼런스 편집)":     ["seededit-3-0-i2i-250628", "doubao-seededit-3-0-i2i-250628"]
+  // ↓ 전부 계정 모델 목록(diag=ark-models)에서 확인한 실제 ID. 무접미사 별칭을 예비 후보로 둔다.
+  "Seedream 5.0 Pro":               ["dola-seedream-5-0-pro-260628", "dola-seedream-5-0-pro"],
+  "Seedream 5.0 Pro (레퍼런스 편집)":  ["dola-seedream-5-0-pro-260628", "dola-seedream-5-0-pro"],
+  "Seedream 5.0 Lite":              ["seedream-5-0-260128", "seedream-5-0"],
+  "Seedream 5.0 Lite (레퍼런스 편집)": ["seedream-5-0-260128", "seedream-5-0"],
+  "Seedream 4.5":                   ["seedream-4-5-251128", "seedream-4-5"],
+  "Seedream 4.5 (레퍼런스 편집)":     ["seedream-4-5-251128", "seedream-4-5"],
+  "Seedream 4.0":                   ["seedream-4-0-250828", "seedream-4-0"],
+  "Seedream 4.0 (레퍼런스 편집)":     ["seedream-4-0-250828", "seedream-4-0"],
+  "Seedream 3.0":                   ["seedream-3-0-t2i-250415", "seedream-3-0-t2i"],
+  "SeedEdit 3.0 (레퍼런스 편집)":     ["seededit-3-0-i2i-250628", "seededit-3-0-i2i"]
 };
 /* 이 모델에 시도할 ID 후보들(우선순위 순). 직접입력·환경변수가 있으면 그것만 사용. */
 export function seedreamModelIds(b, env) {
