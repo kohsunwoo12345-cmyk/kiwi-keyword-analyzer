@@ -2429,22 +2429,22 @@ function linkedSetting(id, type){
 function videoModelOpts(model){
   var m=String(model||'');
   if(/Seedance 2\./.test(m))
-    return { secs:[4,5,6,8,10,12,15], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], audio:true, watermark:true };
+    return { secs:[4,5,6,8,10,12,15], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], audio:true, watermark:true, neg:true, cfg:false, seed:false };
   if(/Seedance 1\./.test(m))
-    return { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false };
+    return { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:false, seed:false };
   if(/^Kling/.test(m))
-    return { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false };
+    return { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:true, seed:false };
   if(/Runway Gen/.test(m))
-    return { secs:[5,10], ratios:['16:9','9:16'], audio:false, watermark:false };
+    return { secs:[5,10], ratios:['16:9','9:16'], audio:false, watermark:false, neg:false, cfg:false, seed:true };
   if(/Luma/.test(m))
-    return { secs:[5,9], ratios:['16:9','9:16','1:1'], audio:false, watermark:false };
+    return { secs:[5,9], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:false, cfg:false, seed:false };
   if(/Hailuo|MiniMax/.test(m))
-    return { secs:[6,10], ratios:['16:9','9:16'], audio:false, watermark:false };
+    return { secs:[6,10], ratios:['16:9','9:16'], audio:false, watermark:false, neg:false, cfg:false, seed:false };
   if(/Veo/.test(m))
-    return { secs:[8], ratios:['16:9','9:16'], audio:false, watermark:false };
+    return { secs:[8], ratios:['16:9','9:16'], audio:false, watermark:false, neg:true, cfg:false, seed:false };
   if(/V2V 자동|모션 전이|Runway Aleph|업스케일 4K/.test(m))
-    return { secs:[], ratios:[], audio:false, watermark:false };   // 원본 영상 길이·비율을 따라감
-  return { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false };
+    return { secs:[], ratios:[], audio:false, watermark:false, neg:false, cfg:false, seed:false };   // 원본 영상 길이·비율을 따라감
+  return { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:false, seed:false };
 }
 /* 이 노드에 실제로 적용될 길이·비율 — 영상 설정 노드가 연결돼 있으면 그 값이 우선 */
 function effVideoSec(n){
@@ -4179,7 +4179,6 @@ var DEFS = {
                         tip:'<b>카메라 모션 프리셋</b> — 크래시 줌·돌리·360 오빗·불릿타임·FPV 드론 등 시네마틱 카메라 워크를 버튼 하나로 적용합니다. 선택하면 카메라 지시문이 프롬프트에 자동으로 더해집니다.'},
                       {k:'tpl',t:'combo',label:'바이럴 템플릿',opts:VIRAL_TPL_OPTS,def:'없음',
                         tip:'<b>바이럴 효과 템플릿</b> — AI 허그·제품 히어로샷·폭발 등장 등 인기 효과를 원클릭으로. 프롬프트가 비어 있으면 템플릿 프롬프트를 그대로 쓰고, 있으면 스타일로 덧붙입니다. 카메라 무빙도 자동 설정됩니다.'},
-                      {k:'seedModel',t:'seedid'},
                       {k:'seedOpts',t:'seedopts'},
                       {k:'vidOpts',t:'vidopts'},
                       {k:'addref',t:'addrefbtns'},
@@ -5050,6 +5049,12 @@ function widgetHTML(n,w){
     }
     return combo;
   }
+  // 실제 전송 본문 감사 결과, 모델이 무시하는 옵션은 노드에 띄우지 않는다.
+  if(n.type==='model' && (w.k==='cfg'||w.k==='seed')){
+    var _vo=videoModelOpts(effModel(n));
+    if(w.k==='cfg' && !_vo.cfg) return '';
+    if(w.k==='seed' && !_vo.seed) return '';
+  }
   if(w.t==='slider'){
     var slHtml='<div class="widget"><span class="wlabel" style="padding-left:10px;">'+esc(w.label)+'</span>'+
       '<input type="range" min="'+w.min+'" max="'+w.max+'" value="'+v+'" data-w="'+w.k+'">'+
@@ -5062,17 +5067,7 @@ function widgetHTML(n,w){
       '<span class="dicebtn" data-dice title="랜덤 시드">'+ICON.dice+'</span></div>';
     return w.tip?'<div class="wtiprow">'+sdHtml+'<span class="whelp">i<span class="wtip">'+w.tip+'</span></span></div>':sdHtml;
   }
-  if(w.t==='seedid'){   // Seedance 모델일 때만 노출되는 커스텀 모델 ID 입력
-    if(!/^Seedance/.test(n.w.model||'')) return '';
-    // 값이 채워져 있으면 위의 모델 선택을 통째로 무시하고 이 ID 로 호출된다 → 눈에 띄게 경고.
-    var _sid=String(v||'').trim();
-    return '<div class="seedid-wrap"><span class="seedid-lb">모델 ID 직접 입력 (선택)</span>'+
-      '<input class="seedid-in" data-w="'+w.k+'" spellcheck="false" placeholder="예: seedance-1-0-pro-250528 · 비우면 기본값" value="'+esc(v||'')+'">'+
-      (_sid
-        ? '<span class="seedid-hint" style="color:#ffcf7f;">이 ID 로 호출됩니다 — 위 모델 선택은 무시됩니다. 되돌리려면 비우세요.</span>'
-        : '<span class="seedid-hint">BytePlus 콘솔의 최신 모델 ID를 붙여넣으면 그 모델로 호출됩니다</span>')+
-      '</div>';
-  }
+  if(w.t==='seedid') return '';   // 모델 ID 직접 입력 제거 — 드롭다운을 몰래 무시해 혼선을 만들었다
   if(w.t==='seedopts'){   // Seedance 전용 옵션(오디오·워터마크·오디오 레퍼런스)
     var _sm=(n.type==='model'?effModel(n):n.w.model)||'';
     if(!/^Seedance/.test(_sm)) return '';

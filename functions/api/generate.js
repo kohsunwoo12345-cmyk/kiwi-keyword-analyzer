@@ -590,8 +590,13 @@ function buildKlingApiPayload(b, spec) {
   const dur = (Number(b.seconds) > 7 ? "10" : "5");
   const p = { model_name: spec.m, prompt: String(b.prompt || "").slice(0, 2500), mode: spec.mode, duration: dur };
   if (b.negative) p.negative_prompt = String(b.negative).slice(0, 2500);
-  const cfg = Number(b.cfg);
-  if (Number.isFinite(cfg) && cfg >= 0 && cfg <= 1) p.cfg_scale = cfg;   // Kling cfg_scale 범위 0~1
+  // 노드의 CFG 슬라이더는 0~100 인데 Kling 은 0~1 만 받는다.
+  //  예전엔 0~1 만 통과시켜, 슬라이더 값(기본 70)이 매번 조용히 버려졌다 → 0~100 을 0~1 로 환산.
+  const cfgRaw = Number(b.cfg);
+  if (Number.isFinite(cfgRaw)) {
+    const cfg = cfgRaw > 1 ? cfgRaw / 100 : cfgRaw;
+    if (cfg >= 0 && cfg <= 1) p.cfg_scale = Math.round(cfg * 100) / 100;
+  }
   if (spec.ep === "image2video") {
     const img = _stripDataUri(b.firstFrame || b.refImage || b.image_url);
     if (img) p.image = img;                       // URL 또는 순수 base64
