@@ -837,6 +837,8 @@ async function handle(context) {
         klingOfficial: !!klingCreds(env),   // true=클링 공식 API, false=공식키 없음(→ fal 폴백으로 감)
         klingRoute: klingCreds(env) ? "official" : (k.fal ? "fal-fallback" : "none"),
         v2vAuto:  !!(k.runway || k.seedance || k.fal),
+        // 배포된 ByteDance 키 지문(값 노출 없이 회원 콘솔 키와 동일한지 대조용)
+        seedanceKeyId: k.seedance ? (String(k.seedance).slice(0, 8) + "…" + String(k.seedance).slice(-4)) : null,
         motion:   !!k.fal,
         nanobanana: !!(gcpCreds(env) || k.google),
         openai:   !!k.openai,
