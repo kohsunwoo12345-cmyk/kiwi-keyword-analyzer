@@ -2406,7 +2406,9 @@ function videoModelCaps(model){
   // 텍스트 전용(T2V) — 레퍼런스 없음(순수 텍스트→영상)
   if(/\(텍스트→영상\)|T2V-01 Director/.test(m)) return c;
   // 이미지→영상 · 첫 프레임만(마지막 프레임/키프레임 미지원) — Gen-4·Grok·MiniMax I2V·Hailuo 02
-  if(/Runway Gen-4|Grok Imagine|I2V-01 Director|Hailuo 02/.test(m)){ c.ref=true; c.first=true; return c; }
+  // Grok 영상은 실제 전송 본문이 {model,prompt,duration} 뿐 — 이미지를 아예 안 싣는다(텍스트 전용).
+  if(/Grok Imagine/.test(m)) return c;
+  if(/Runway Gen-4|I2V-01 Director|Hailuo 02/.test(m)){ c.ref=true; c.first=true; return c; }
   // 그 외 이미지→영상 — 첫·마지막 프레임(키프레임) 지원
   //  Veo 3.1 · Runway Gen-3 Alpha Turbo · Seedance 1.5/1.0 Pro·Fast·Lite(이미지) · Luma Ray · Kling(이미지→영상)
   c.ref=true; c.first=true; c.last=true; return c;
@@ -2444,6 +2446,8 @@ function videoModelOpts(model){
     return { secs:[5,9], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:false, cfg:false, seed:false };
   if(/Hailuo|MiniMax/.test(m))
     return { secs:[6,10], ratios:['16:9','9:16'], audio:false, watermark:false, neg:false, cfg:false, seed:false };
+  if(/Grok Imagine/.test(m))
+    return { secs:[5,8,10], ratios:[], audio:false, watermark:false, neg:true, cfg:false, seed:false };   // 비율 미전송
   if(/Veo/.test(m))
     return { secs:[8], ratios:['16:9','9:16'], audio:false, watermark:false, neg:true, cfg:false, seed:false };
   if(/V2V 자동|모션 전이|Runway Aleph|업스케일 4K/.test(m))
