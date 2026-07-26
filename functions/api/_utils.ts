@@ -1242,21 +1242,50 @@ export async function ensureMcpToken(db: D1Database, userId: string, regenerate 
   return tok
 }
 
+/** 관리자 계정 최소 보유 크레딧 — 내부 운영·테스트용(사실상 무제한) */
+export const ADMIN_CREDIT_FLOOR = 10_000_000_000
+
+/**
+ * 관리자 계정의 크레딧을 항상 ADMIN_CREDIT_FLOOR 이상으로 유지한다.
+ * 관리자 판정 기준은 requireAdminUser 와 동일(ADMIN_EMAIL 또는 role='admin').
+ *
+ * transactions 에는 기록하지 않는다 — 100억짜리 지급 내역이 들어가면
+ * 크레딧 지급 리포트(credit-grants)·정산·매출 집계가 통째로 왜곡되기 때문.
+ * 잔액이 이미 충분하면 아무 행도 바뀌지 않는다(멱등).
+ */
+export async function ensureAdminCredits(db: D1Database) {
+  try {
+    await db
+      .prepare(
+        `UPDATE users SET credits = ?
+         WHERE (email = ? OR role = 'admin') AND (credits IS NULL OR credits < ?)`,
+      )
+      .bind(ADMIN_CREDIT_FLOOR, ADMIN_EMAIL, ADMIN_CREDIT_FLOOR)
+      .run()
+  } catch {
+    /* 크레딧 보정 실패가 관리자 기능 자체를 막지 않도록 무시 */
+  }
+}
+
 /** 관리자 계정이 없고 ADMIN_PASSWORD 환경변수가 설정된 경우에만 생성 (하드코딩 비밀번호 없음) */
 export async function seedAdmin(db: D1Database, env: Env) {
   const pw = adminPassword(env)
-  if (!pw) return
-  const row = await db.prepare('SELECT id FROM users WHERE email = ?').bind(ADMIN_EMAIL).first()
-  if (row) return
-  const now = new Date().toISOString()
-  const ph = await hashPassword(pw)
-  await db
-    .prepare(
-      `INSERT OR IGNORE INTO users (id, name, email, password_hash, company, plan, role, status, created_at, last_active)
-       VALUES ('admin_root', '관리자', ?, ?, '(주)넥스트 바이전시', 'Business', 'admin', 'active', ?, ?)`,
-    )
-    .bind(ADMIN_EMAIL, ph, now, now)
-    .run()
+  if (pw) {
+    const row = await db.prepare('SELECT id FROM users WHERE email = ?').bind(ADMIN_EMAIL).first()
+    if (!row) {
+      const now = new Date().toISOString()
+      const ph = await hashPassword(pw)
+      await db
+        .prepare(
+          `INSERT OR IGNORE INTO users (id, name, email, password_hash, company, plan, role, status, created_at, last_active)
+           VALUES ('admin_root', '관리자', ?, ?, '(주)넥스트 바이전시', 'Business', 'admin', 'active', ?, ?)`,
+        )
+        .bind(ADMIN_EMAIL, ph, now, now)
+        .run()
+    }
+  }
+  // 계정 생성 여부·ADMIN_PASSWORD 설정 여부와 무관하게 관리자 크레딧은 항상 채워둔다
+  await ensureAdminCredits(db)
 }
 
 export async function createSession(
