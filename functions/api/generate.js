@@ -284,17 +284,25 @@ export function buildSeedancePayload(b, env, forceModel) {
     //    명시해야 참조가 정확히 걸린다(태그 없이 첨부만 하면 모델이 무시할 수 있음).
     // Seedance 2.0 공식 허용 길이는 4~15초 — 3초는 무효값이라 거절당하고, 15초는 보낼 수도 없었다.
     const dur = Math.min(Math.max(Math.round(Number(b.seconds) || 5), 4), 15);
-    // 레퍼런스 이미지 수집(3D 프레임 + 배경/참고 사진). 공식 한도 9장, 중복 제거.
-    let refs = (Array.isArray(b.refImages) && b.refImages.length) ? b.refImages.slice()
-             : [first, b.lastFrame];
-    if (first && refs.indexOf(first) < 0) refs.unshift(first);
-    // 2.0 의 reference_image 는 공개 URL 과 base64 를 모두 받는다(공식: data:image/<소문자>;base64,…).
+    // 2.0 의 이미지는 공개 URL 과 base64 를 모두 받는다(공식: data:image/<소문자>;base64,…).
     //  base64 인라인을 쓰는 이유: URL 로 주면 제공사가 우리 R2 를 가져오느라 제출이 길어져
     //  타임아웃 → 502 로 이어진다(영상 레퍼런스만 URL 전용이라 어쩔 수 없이 URL).
     //  형식이 어긋난 값(대문자 포맷·data:가 아닌 스킴)은 제출 자체를 깨뜨리므로 여기서 거른다.
     const okImg = (s) => /^https?:\/\//.test(s) || /^data:image\/[a-z0-9.+-]+;base64,/.test(s);
+    // ── 역할 분리 ──
+    //  2.0 은 "이미지→영상"(first_frame/last_frame 사이를 보간)과 "레퍼런스→영상"
+    //  (reference_image 로 정체성·구도 유지)이 서로 다른 모드다. 첫 프레임까지 전부
+    //  reference_image 로 보내면 의도한 i2v 가 아니라 무거운 레퍼런스 모드로 흘러간다.
+    //  (같은 이미지를 first_frame 으로 보내는 1.x 경로는 정상 동작한다.)
+    //  first 는 1.x 용으로 refImages[0] 까지 폴백하지만, 2.0 에서는 그 폴백을 쓰지 않는다.
+    //  "첫 프레임 포트에 실제로 연결한 경우"에만 i2v 이고, 레퍼런스만 붙였다면 레퍼런스 모드여야 한다.
+    const firstF = b.firstFrame && okImg(b.firstFrame) ? b.firstFrame : null;
+    const lastF  = b.lastFrame && okImg(b.lastFrame) ? b.lastFrame : null;
+    // 스튜디오는 firstFrame 을 refImages[0] 과 겹쳐 보내므로, 프레임으로 쓴 것은 레퍼런스에서 뺀다.
+    let refs = (Array.isArray(b.refImages) ? b.refImages.slice() : []);
     const seenI = {};
-    refs = refs.filter(u => u && okImg(u) && !seenI[u] && (seenI[u] = 1)).slice(0, 9);
+    refs = refs.filter(u => u && okImg(u) && u !== firstF && u !== lastF
+                            && !seenI[u] && (seenI[u] = 1)).slice(0, 9);
     // 영상 레퍼런스(공개 URL 전용, 최대 3) — 단일 srcVideo + 선택적 refVideos 배열
     const vids = [], seenV = {};
     [b.srcVideo].concat(Array.isArray(b.refVideos) ? b.refVideos : [])
@@ -320,6 +328,9 @@ export function buildSeedancePayload(b, env, forceModel) {
       text = (text ? text + "\n\n" : "") + "[레퍼런스 바인딩: " + tags.join(", ") + " — " + hint.join(", ") + "]";
     }
     const content = [{ type: "text", text }];
+    // 첫/마지막 프레임은 전용 role 로. last_frame 은 공식적으로 first_frame 이 있을 때만 유효하다.
+    if (firstF) content.push({ type: "image_url", image_url: { url: firstF }, role: "first_frame" });
+    if (firstF && lastF) content.push({ type: "image_url", image_url: { url: lastF }, role: "last_frame" });
     for (const u of refs)    content.push({ type: "image_url", image_url: { url: u }, role: "reference_image" });
     for (const u of useVids) content.push({ type: "video_url", video_url: { url: u }, role: "reference_video" });
     for (const u of useAuds) content.push({ type: "audio_url", audio_url: { url: u }, role: "reference_audio" });

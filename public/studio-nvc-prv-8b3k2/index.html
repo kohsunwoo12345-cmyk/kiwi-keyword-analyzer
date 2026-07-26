@@ -6191,7 +6191,10 @@ function runQueue(onlyId){
               negative: ng?ng.w.text:'',
               refImage: ffImg,
               refImages: refList,
-              firstFrame: ffImg,
+              // 첫 프레임은 "첫 프레임 포트(또는 영상 프레임)"에 실제로 연결된 것만 넘긴다.
+              //  ffImg 는 없으면 레퍼런스 첫 장으로 폴백하는데, 그걸 그대로 firstFrame 으로 보내면
+              //  레퍼런스만 붙인 요청이 이미지→영상 모드로 바뀐다(Seedance 2.0 은 두 모드가 다름).
+              firstFrame: threeD || null,
               lastFrame: lfImg,
               srcVideo: srcVid,
               seconds: vSet?vSet.w.sec:8,
