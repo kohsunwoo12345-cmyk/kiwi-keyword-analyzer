@@ -1121,6 +1121,28 @@ async function handle(context) {
         exists: items.filter(x => x.exists).map(x => x.model + " → " + x.id),
         missing: items.filter(x => !x.exists).map(x => x.model + " → " + x.id), items });
     }
+    // 단일 Seedance 모델을 '실제 생성과 동일한 본문'으로 실제 제출 → task_id 또는 전체 에러 반환(증거용).
+    //   /api/generate?diag=seedancesub                       (기본 Seedance 2.0 Mini · 텍스트→영상 · 5초)
+    //   /api/generate?diag=seedancesub&model=Seedance 2.0    (다른 모델)
+    if (u.searchParams.get("diag") === "seedancesub") {
+      if (!k.seedance) return json({ diag: "seedancesub", error: "Seedance_API_KEY 미설정" });
+      const name = u.searchParams.get("model") || "Seedance 2.0 Mini";
+      const body = buildSeedancePayload({ model: name, prompt: "a cat walking in a sunny garden, cinematic, smooth camera", ratio: "16:9", seconds: 5 }, env);
+      const endpoint = ARK_HOSTS.bp + "/contents/generations/tasks";
+      const t0 = Date.now();
+      try {
+        const r = await fetchT(endpoint, {
+          method: "POST", headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+          body: JSON.stringify(body) }, 30000);
+        const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch { /* 비JSON */ }
+        const taskId = j && (j.id || (j.data && j.data.id));
+        return json({ diag: "seedancesub", model: name, sentModel: body.model, httpStatus: r.status,
+          ok: r.ok && !!taskId, taskId: taskId || null, tookMs: Date.now() - t0,
+          raw: taskId ? undefined : String(text).slice(0, 700), sentBody: body });
+      } catch (e) {
+        return json({ diag: "seedancesub", model: name, error: String((e && e.message) || e).slice(0, 200), sentBody: body });
+      }
+    }
     // 진단(씨댄스 전체): 등록된 모든 Seedance 영상 모델 검증.
     //   /api/generate?diag=seedance-all          (기본=무과금 구조검증: 모델ID 매핑만)
     //   /api/generate?diag=seedance-all&real=1   (실제 제출 — 완료 시 모델당 영상 과금 발생)
