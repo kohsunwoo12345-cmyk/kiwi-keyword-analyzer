@@ -2210,8 +2210,9 @@ function updateLibChip(){ loadGallery().then(function(list){ var c=document.getE
   function tstr(ms){ var d=new Date(ms); return two(d.getMonth()+1)+'/'+two(d.getDate())+' '+two(d.getHours())+':'+two(d.getMinutes()); }
   function card(g){
     var isImg=g.kind==='image', src=g.data||g.url, pos=g.poster||src;
-    var media = isImg ? '<img src="'+esc(src)+'" alt="">'
-              : '<video src="'+esc(src)+'" poster="'+esc(pos||POSTER)+'" muted loop playsinline preload="metadata"></video>';
+    var expiredPh = "this.outerHTML='<div style=\\'display:grid;place-items:center;height:100%;min-height:90px;color:#8b8fa3;font-size:11px;text-align:center;padding:8px;\\'>원본 만료<br>다시 생성해 주세요</div>'";
+    var media = isImg ? '<img src="'+esc(src)+'" alt="" onerror="'+expiredPh+'">'
+              : '<video src="'+esc(src)+'" poster="'+esc(pos||POSTER)+'" muted loop playsinline preload="metadata" onerror="'+expiredPh+'"></video>';
     var badge='<span class="lib-badge">'+(isImg?ICON.image:ICON.video)+(isImg?'이미지':(g.sec?g.sec+'초':'영상'))+'</span>';
     return '<div class="lib-item" data-gid="'+esc(g.id)+'">'+
       '<div class="lib-thumb">'+badge+media+'</div>'+
@@ -2492,13 +2493,20 @@ function pruneModelPorts(){
 /* 비동기 job 폴링 헬퍼 (대부분의 영상 API 는 생성요청→상태폴링 구조) */
 function wait(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
 async function pollJob(url, headers, pick, tries){
-  tries=tries||90;
+  tries=tries||200;                        // 3초 간격 × 200회 ≈ 10분 (긴 영상 생성 대응)
+  var misses=0;                            // 일시적 네트워크/JSON 오류는 최대 10회 용인 후 재시도
   for(var i=0;i<tries;i++){
-    var r=await fetch(url,{headers:headers||{}}); var j=await r.json();
+    var j=null;
+    try{
+      var r=await fetch(url,{headers:headers||{},credentials:'include',cache:'no-store'});
+      j=await r.json();
+    }catch(_e){ misses++; if(misses>10) throw new Error('네트워크가 불안정해 상태 확인에 실패했습니다. 결과는 보관함에 저장되니 잠시 후 확인하세요.'); await wait(3000); continue; }
+    misses=0;
+    if(j&&j.needLogin) throw new Error('로그인이 만료되었습니다. 새로고침 후 다시 로그인해 주세요. (완료된 결과는 보관함에 남습니다)');
     var done=pick(j); if(done) return done;
     await wait(3000);
   }
-  throw new Error('timeout');
+  throw new Error('생성이 너무 오래 걸립니다(10분 초과). 완료되면 보관함에 저장되니 잠시 후 보관함을 확인하세요.');
 }
 
 /* ── (권장) 통합 생성 프록시 ─────────────────────────────────────────────
@@ -3755,13 +3763,15 @@ function generateImageNode(n){
         var info=showGenError(n.w.imgError, (res&&res.provider)||providerOf(n.w.model), n.w.model);
         toast((info&&info.title)||('이미지 생성 실패: '+String(n.w.imgError).slice(0,80))); render(); return; }
       n.w.img=res.url; n.w.imgKind=res.kind||'image';
-      if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image', null, false, refCountUsed, prompt, refUsedList, res.url, cnChargeCount);   // 레퍼런스 장수 + ControlNet 가산(fal 전용)
-      saveToGallery(res.url, 'image', n.w.model, 0, null);
-      if(res.url && res.type!=='error') autoRefFromResult(n, res.url);   // 생성 결과를 이미지 레퍼런스에 자동 투입
-      toast('이미지 생성 완료'); snapshot(); render();
+      render();                                                // ① 결과 먼저 표시 (부수작업 실패와 무관)
+      try{ if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image', null, false, refCountUsed, prompt, refUsedList, res.url, cnChargeCount); }catch(_e){}
+      try{ saveToGallery(res.url, 'image', n.w.model, 0, null); }catch(_e){}
+      try{ if(res.url && res.type!=='error') autoRefFromResult(n, res.url); }catch(_e){}
+      toast('이미지 생성 완료'); try{ snapshot(); }catch(_e){} render();
     })
     .catch(function(e){ n.w.imgGenerating=false; n.w.imgError=String(e&&e.message||e);
-      showGenError(n.w.imgError, providerOf(n.w.model), n.w.model); render(); });
+      render();
+      try{ showGenError(n.w.imgError, providerOf(n.w.model), n.w.model); }catch(_e){ try{toast('이미지 생성 실패: '+String(n.w.imgError).slice(0,80));}catch(__e){} } });
 }
 
 /* ══════ 자체 초해상(SR) 업스케일러 — 우리 서버(/models) self-host Swin2SR(ONNX) 를 브라우저에서 실행.
@@ -6313,23 +6323,27 @@ function runQueue(onlyId){
                 toast((info&&info.title)||('생성 실패: '+String(msg).slice(0,80)));
                 render(); step(); return;
               }
-              if(res.url && res.type!=='error')   // 실제 결과(URL)가 나온 성공 건은 모두 기록 — 모델 기준 제공사(시댄스 누락 방지)
-                recordCost(res.type||providerOf(chosenModel), chosenModel, vSet?vSet.w.sec:8, res.kind, vSet?vSet.w.res:'1080p', n.w.seedAudio===true, 0, basePrompt, [].concat(refList||[], srcVid?[srcVid]:[]), res.url);
+              // ① 결과를 먼저 화면에 반영 — 어떤 부수작업이 실패해도 "생성 중" 이 남지 않게 한다.
               outs.forEach(function(o){
                 var vs=upstream(o.id,'video');
                 o.w.generating=false; o.w.error=null;
                 o.w.vid=res.url; o.w.kind=res.kind||'video'; o.w.poster=res.poster||null; o.w.model=chosenModel; o.w.sec=vs?vs.w.sec:8;
               });
-              saveToGallery(res.url, res.kind||'video', chosenModel, vSet?vSet.w.sec:8, res.poster);  // 보관함 자동 저장
               n.w.seed=Math.floor(Math.random()*9e14);
               render();
+              // ② 부수작업(과금 기록·보관함 저장)은 각각 격리 — 실패해도 UI 에 영향 없음
+              try{ if(res.url && res.type!=='error')
+                recordCost(res.type||providerOf(chosenModel), chosenModel, vSet?vSet.w.sec:8, res.kind, vSet?vSet.w.res:'1080p', n.w.seedAudio===true, 0, basePrompt, [].concat(refList||[], srcVid?[srcVid]:[]), res.url); }catch(_e){}
+              try{ saveToGallery(res.url, res.kind||'video', chosenModel, vSet?vSet.w.sec:8, res.poster); }catch(_e){}
               var el2=document.getElementById('nd-'+id); if(el2)el2.classList.add('exec');
               Promise.all(outs.map(extractLastFrame)).then(function(){ render(); step(); });
             }).catch(function(e){
               var em=String(e&&e.message||e||'오류');
               outs.forEach(function(o){ o.w.generating=false; o.w.error=em; });
-              var info=showGenError(em, providerOf(chosenModel), chosenModel);
-              toast((info&&info.title)||'생성 오류'); render(); step();
+              render();                                        // 스피너 해제를 무조건 먼저
+              try{ var info=showGenError(em, providerOf(chosenModel), chosenModel);
+                   toast((info&&info.title)||'생성 오류'); }catch(_e){ try{toast('생성 오류: '+em.slice(0,80));}catch(__e){} }
+              step();
             });
             return;
           }
