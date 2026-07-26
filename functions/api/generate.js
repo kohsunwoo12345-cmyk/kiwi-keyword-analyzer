@@ -647,6 +647,12 @@ function buildMotionPayload(b) {
     video_url: b.srcVideo || null,
   };
   if (b.negative) p.negative_prompt = String(b.negative).slice(0, 2000);
+  // 외형 레퍼런스 — VACE 는 ref_image_url 로 "적용할 외형"을 받는다. 이걸 안 보내면
+  //  노드의 이미지 레퍼런스 포트가 열려 있어도 실제로는 아무 영향이 없다.
+  //  fal 이 직접 가져가므로 공개 URL 만 유효(base64 불가).
+  const refImg = [b.firstFrame, (b.refImages && b.refImages[0]), b.refImage]
+    .find((v) => v && /^https?:\/\//.test(String(v)));
+  if (refImg) p.ref_image_url = String(refImg);
   // 스타일 반영 강도(0=원본 최대 보존, 1=스타일 최대) — 모델이 지원하면 사용
   const st = Number(b.v2vStrength);
   if (Number.isFinite(st)) p.strength = Math.max(0, Math.min(1, st));
