@@ -1752,7 +1752,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
       <button class="lib-tab" data-libtab="video">영상</button>
       <button class="lib-tab" data-libtab="image">이미지</button>
     </div>
-    <div class="api-body" id="libBody"></div>
+    <div class="api-body" id="galBody"></div>
     <div class="api-foot">
       <span class="api-note" id="libCount">0개 보관됨</span>
       <button class="api-ghost" id="libReset">보관함 비우기</button>
@@ -2217,7 +2217,9 @@ window.addEventListener('pagehide',function(){ try{ if(_actQ.length && navigator
 /* ════════ 보관함(갤러리) 모달 ════════ */
 function updateLibChip(){ loadGallery().then(function(list){ var c=document.getElementById('libChip'); if(c)c.textContent=list.length; }); }
 (function(){
-  var modal=document.getElementById('libModal'), body=document.getElementById('libBody');
+  // ⚠ 보관함 본문은 id=galBody — 노드 라이브러리 패널(.lib-body#libBody)과 id 가 겹쳐
+  //   getElementById 가 그쪽(첫 번째)을 돌려주는 바람에 카드가 숨은 패널에 그려지던 버그가 있었다.
+  var modal=document.getElementById('libModal'), body=document.getElementById('galBody');
   var cntEl=document.getElementById('libCount'), curTab='all';
   function two(x){ return (x<10?'0':'')+x; }
   function tstr(ms){ var d=new Date(Number(ms)||0); if(!Number(ms)||isNaN(d.getTime())) return ''; return two(d.getMonth()+1)+'/'+two(d.getDate())+' '+two(d.getHours())+':'+two(d.getMinutes()); }
@@ -2243,10 +2245,12 @@ function updateLibChip(){ loadGallery().then(function(list){ var c=document.getE
   }
   function renderLib(){
     loadGallery().then(function(list){
-      if(cntEl)cntEl.textContent=list.length+'개 보관됨';
+      if(cntEl)cntEl.textContent=list.length+'개 보관됨 · 계정 '+(loadGallery.srvN||0)+' · 이 브라우저 '+(loadGallery.locN||0);
       var el=document.getElementById('libChip'); if(el)el.textContent=list.length;
+      var notice=srvGalNotice();
+      var noticeHtml=notice?'<div class="lib-notice" style="margin:0 0 10px;padding:8px 12px;border:1px solid #4a3b22;background:#221c12;color:#e8b76a;font-size:11.5px;border-radius:9px;line-height:1.5;">'+esc(notice)+'</div>':'';
       var f = curTab==='all'? list : list.filter(function(g){ return g.kind===curTab; });
-      if(!f.length){ body.innerHTML='<div class="lib-empty">아직 보관된 '+(curTab==='all'?'생성물':curTab==='video'?'영상':'이미지')+'이 없습니다.<br>모델 노드로 이미지·영상을 생성하면 여기에 자동으로 모입니다.</div>'; return; }
+      if(!f.length){ body.innerHTML=noticeHtml+'<div class="lib-empty">아직 보관된 '+(curTab==='all'?'생성물':curTab==='video'?'영상':'이미지')+'이 없습니다.<br>모델 노드로 이미지·영상을 생성하면 여기에 자동으로 모입니다.</div>'; return; }
       // 카드 1장이 깨진 데이터여도 목록 전체가 사라지지 않게 개별 격리
       var html='';
       f.forEach(function(g){
@@ -2256,7 +2260,7 @@ function updateLibChip(){ loadGallery().then(function(list){ var c=document.getE
                 '<div class="lib-meta"><b>손상된 항목</b></div>'+
                 '<div class="lib-acts"><button class="del" data-gdel title="삭제">'+ICON.trash+'</button></div></div>'; }
       });
-      body.innerHTML='<div class="lib-grid">'+html+'</div>';
+      body.innerHTML=noticeHtml+'<div class="lib-grid">'+html+'</div>';
     });
   }
   function downloadItem(g){
@@ -4647,13 +4651,30 @@ function inlineGraphMedia(nodes){
 /* ════════ 보관함(갤러리) — 생성한 이미지·영상을 계정별로 모아 저장 ════════ */
 function galId(){ return 'g-'+Date.now()+'-'+Math.floor(Math.random()*1e6); }
 /* 서버 보관함(계정 생성 아카이브) 캐시 — 열 때마다 새로 받고, 그 사이엔 캐시 사용 */
-var _srvGallery=null;
+var _srvGallery=null, _srvGalErr='';   // _srvGalErr: ''=정상 · login · stale(API 미배포) · http<code> · net
 function fetchServerGallery(force){
   if(_srvGallery && !force) return Promise.resolve(_srvGallery);
   return fetch('/api/studio/gallery',{credentials:'include',cache:'no-store'})
-    .then(function(r){ return r.json(); })
-    .then(function(d){ _srvGallery=(d&&d.ok&&d.items)||[]; return _srvGallery; })
-    .catch(function(){ return _srvGallery||[]; });
+    .then(function(r){
+      return r.json()
+        .then(function(d){ return {st:r.status, d:d}; })
+        .catch(function(){ return {st:r.status, d:null}; });   // 404 는 HTML 이 와서 json 파싱 실패
+    })
+    .then(function(x){
+      if(x.d && x.d.ok){ _srvGalErr=''; _srvGallery=x.d.items||[]; }
+      else if(x.d && x.d.needLogin){ _srvGalErr='login'; }
+      else if(x.st===404 || x.st===405){ _srvGalErr='stale'; }
+      else { _srvGalErr='http'+x.st; }
+      return _srvGallery||[];
+    })
+    .catch(function(){ _srvGalErr='net'; return _srvGallery||[]; });
+}
+function srvGalNotice(){   // 서버 보관함 조회가 실패했으면 이유를 사람이 읽을 문장으로
+  if(_srvGalErr==='login') return '로그인하면 계정 보관함(다른 기기에서 만든 것 포함)이 함께 표시됩니다.';
+  if(_srvGalErr==='stale') return '서버 보관함 API가 아직 배포되지 않았습니다 — 최신 버전을 배포하면 계정 보관함이 표시됩니다.';
+  if(_srvGalErr==='net')   return '서버 보관함을 불러오지 못했습니다(네트워크). 지금은 이 브라우저 저장분만 표시 중입니다.';
+  if(_srvGalErr)           return '서버 보관함 조회 실패('+_srvGalErr+') — 이 브라우저 저장분만 표시 중입니다.';
+  return '';
 }
 function loadGallery(force){
   // ① 로컬(IndexedDB) — 현재 계정 + 과거 guest 시절 저장분(로그인 확인 전에 저장돼 숨겨지던 것) 복구
@@ -4663,6 +4684,7 @@ function loadGallery(force){
   // ② 서버(계정 아카이브) — 다른 기기/브라우저에서 만든 것까지. 실패해도 로컬만으로 동작.
   return Promise.all([localP, fetchServerGallery(force)]).then(function(rr){
     var loc=rr[0]||[], srv=rr[1]||[];
+    loadGallery.locN=loc.length; loadGallery.srvN=srv.length;   // 보관함 헤더의 출처 표시용
     var seen={}; var out=[];
     loc.forEach(function(g){ if(g.url)seen[g.url]=1; out.push(g); });
     srv.forEach(function(g){ if(g.url && !seen[g.url]){ seen[g.url]=1; out.push(g); } });
