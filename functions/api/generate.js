@@ -608,7 +608,12 @@ function klingApiSpec(b) {
 }
 function _stripDataUri(v) { return v ? String(v).replace(/^data:[^,]+,/, "") : ""; }
 function buildKlingApiPayload(b, spec) {
-  const dur = (Number(b.seconds) > 7 ? "10" : "5");
+  // Kling 3.0 만 3~15초를 받는다. 1.6/2.0/2.1 은 5·10초 두 값뿐이라 그쪽으로 스냅한다.
+  //  (예전엔 전 모델을 5/10 으로 고정해, 3.0 에서 15초를 골라도 10초로 잘렸다.)
+  const rawSec = Number(b.seconds) || 5;
+  const dur = /kling-v3/.test(String(spec.m || ""))
+    ? String(Math.min(Math.max(Math.round(rawSec), 3), 15))
+    : (rawSec > 7 ? "10" : "5");
   const p = { model_name: spec.m, prompt: String(b.prompt || "").slice(0, 2500), mode: spec.mode, duration: dur };
   if (b.negative) p.negative_prompt = String(b.negative).slice(0, 2500);
   // 노드의 CFG 슬라이더는 0~100 인데 Kling 은 0~1 만 받는다.

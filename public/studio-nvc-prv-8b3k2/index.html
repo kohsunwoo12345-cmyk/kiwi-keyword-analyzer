@@ -2430,26 +2430,59 @@ function linkedSetting(id, type){
 /* 영상 모델별 "실제 지정 가능한 설정" — 모델이 받지 않는 값을 노출하면 조용히 무시되거나 거절당한다.
    secs=허용 길이(초, 빈 배열이면 모델 고정), ratios=허용 비율, audio/watermark=2.0 계열 전용 옵션.
    근거: Seedance 2.0 은 공식 4~15초, 1.x 는 서버가 5/10 으로만 정규화. 그 외는 제공사 공통값. */
+/* ── 모델별 실제 지원 옵션 (제공사 개발문서 기준, 모델 단위) ──
+   secs=허용 길이(초), ratios=허용 비율, audio/watermark=전용 옵션,
+   neg=네거티브 반영, cfg=CFG 전달, seed=시드 전달. 빈 배열이면 그 설정을 노출하지 않는다. */
+var VIDEO_MODEL_SPEC = {
+  // Seedance 2.0 — 공식 4~15초, 비율 6종, 네이티브 오디오·워터마크 옵션
+  'Seedance 2.0':                { secs:[4,5,6,8,10,12,15], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], audio:true,  watermark:true,  neg:true, cfg:false, seed:false },
+  'Seedance 2.0 Fast':           { secs:[4,5,6,8,10,12,15], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], audio:true,  watermark:true,  neg:true, cfg:false, seed:false },
+  'Seedance 2.0 Mini':           { secs:[4,5,6,8,10,12,15], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], audio:true,  watermark:true,  neg:true, cfg:false, seed:false },
+  // Seedance 1.x — 서버가 5/10 으로만 정규화(--duration), 워터마크 옵션 없음
+  'Seedance 1.5 Pro':            { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:false, seed:false },
+  'Seedance 1.0 Pro':            { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:false, seed:false },
+  'Seedance 1.0 Pro Fast':       { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:false, seed:false },
+  'Seedance 1.0 Lite (텍스트→영상)': { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:false, seed:false },
+  'Seedance 1.0 Lite (이미지→영상)': { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:false, seed:false },
+  // Kling — 1.6/2.0/2.1 은 5·10초 고정, 3.0 만 3~15초. cfg_scale(0~1) 지원.
+  'Kling 3.0 Pro (텍스트→영상)':    { secs:[3,5,8,10,12,15], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 3.0 Pro (이미지→영상)':    { secs:[3,5,8,10,12,15], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 3.0 Fast (텍스트→영상)':   { secs:[3,5,8,10,12,15], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 3.0 Fast (이미지→영상)':   { secs:[3,5,8,10,12,15], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 2.1 Master (텍스트→영상)': { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 2.1 Master (이미지→영상)': { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 2.0 Master (텍스트→영상)': { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 2.0 Master (이미지→영상)': { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 1.6 Pro (텍스트→영상)':    { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 1.6 Pro (이미지→영상)':    { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 1.6 Standard (이미지→영상)':{ secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  // Runway — Gen-4/Gen-3 모두 5·10초. seed 전달, 네거티브 필드 없음.
+  'Runway Gen-4':                { secs:[5,10], ratios:['16:9','9:16'], audio:false, watermark:false, neg:false, cfg:false, seed:true },
+  'Runway Gen-3 Alpha Turbo':    { secs:[5,10], ratios:['16:9','9:16'], audio:false, watermark:false, neg:false, cfg:false, seed:true },
+  // Luma — Ray 2 계열 5·9초, 비율 5종. Ray 1.6 은 구세대로 5초 고정.
+  'Luma Ray 2':                  { secs:[5,9], ratios:['16:9','9:16','1:1','4:3','3:4'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
+  'Luma Ray Flash 2':            { secs:[5,9], ratios:['16:9','9:16','1:1','4:3','3:4'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
+  'Luma Ray 1.6':                { secs:[5],   ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
+  // MiniMax — Hailuo 02 는 6·10초(1080P 는 6초), 01 Director 계열은 6초 고정. 비율 필드 없음(프롬프트로 전달).
+  'MiniMax Hailuo 02':           { secs:[6,10], ratios:['16:9','9:16'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
+  'MiniMax T2V-01 Director':     { secs:[6],    ratios:['16:9','9:16'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
+  'MiniMax I2V-01 Director':     { secs:[6],    ratios:['16:9','9:16'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
+  // Google Veo 3.1 — 공식 4·6·8초, 비율 16:9·9:16
+  'Google Veo 3.1':              { secs:[4,6,8], ratios:['16:9','9:16'], audio:false, watermark:false, neg:true, cfg:false, seed:false },
+  // Grok — 비율 필드 없음(프롬프트로 전달), 이미지 소스는 공개 URL
+  'Grok Imagine (영상)':           { secs:[5,8,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:false, seed:false },
+  // V2V·업스케일 — 길이·비율은 원본 영상을 따름
+  'V2V 자동 (최고정확도·모델 자동선택)':      { secs:[], ratios:[], audio:false, watermark:false, neg:false, cfg:false, seed:false },
+  '모션 전이 (원본 움직임 유지·Motion Transfer)': { secs:[], ratios:[], audio:false, watermark:false, neg:false, cfg:false, seed:false },
+  'Runway Aleph (영상→실사 V2V)':   { secs:[], ratios:[], audio:false, watermark:false, neg:false, cfg:false, seed:false },
+  '업스케일 4K (영상 화질 향상)':      { secs:[], ratios:[], audio:false, watermark:false, neg:false, cfg:false, seed:false }
+};
 function videoModelOpts(model){
-  var m=String(model||'');
-  if(/Seedance 2\./.test(m))
-    return { secs:[4,5,6,8,10,12,15], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], audio:true, watermark:true, neg:true, cfg:false, seed:false };
-  if(/Seedance 1\./.test(m))
-    return { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:false, seed:false };
-  if(/^Kling/.test(m))
-    return { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:true, seed:false };
-  if(/Runway Gen/.test(m))
-    return { secs:[5,10], ratios:['16:9','9:16'], audio:false, watermark:false, neg:false, cfg:false, seed:true };
-  if(/Luma/.test(m))
-    return { secs:[5,9], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:false, cfg:false, seed:false };
-  if(/Hailuo|MiniMax/.test(m))
-    return { secs:[6,10], ratios:['16:9','9:16'], audio:false, watermark:false, neg:false, cfg:false, seed:false };
-  if(/Grok Imagine/.test(m))
-    return { secs:[5,8,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:false, seed:false };
-  if(/Veo/.test(m))
-    return { secs:[8], ratios:['16:9','9:16'], audio:false, watermark:false, neg:true, cfg:false, seed:false };
-  if(/V2V 자동|모션 전이|Runway Aleph|업스케일 4K/.test(m))
-    return { secs:[], ratios:[], audio:false, watermark:false, neg:false, cfg:false, seed:false };   // 원본 영상 길이·비율을 따라감
+  var m=String(model||'').trim();
+  // 제공사가 아니라 "모델 하나하나" 기준. 근거는 각 제공사 개발문서.
+  var T=VIDEO_MODEL_SPEC[m];
+  if(T) return T;
+  // 목록에 없는(구버전 표시명 등) 모델은 가장 보수적인 공통값
   return { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:true, cfg:false, seed:false };
 }
 /* 이 노드에 실제로 적용될 길이·비율 — 영상 설정 노드가 연결돼 있으면 그 값이 우선 */
@@ -4225,7 +4258,6 @@ var DEFS = {
              widgets:[{k:'sec',t:'slider',label:'길이(초)',min:1,max:60,def:8},
                       {k:'ar',t:'combo',label:'ratio',opts:['16:9','9:16','1:1','4:5'],def:'16:9'},
                       {k:'res',t:'combo',label:'res',opts:['720p','1080p','4K'],def:'1080p'},
-                      {k:'fps',t:'combo',label:'fps',opts:['24','30','60'],def:'30'},
 ] },   // 모션 강도 제거 — 어느 제공사 페이로드에도 실리지 않던 장식 설정
  output:   { cat:'출력', title:'출력 (영상·이미지)', hd:'#233a33', ins:[['in','생성물','*']],
              outs:[['out','결과 → 레퍼런스','IMAGE']],
@@ -6503,7 +6535,6 @@ function runQueue(onlyId){
               seconds: (effVideoSec(n)!=null?effVideoSec(n):(vSet?vSet.w.sec:8)),
               ratio: (effVideoRatio(n)||(vSet?vSet.w.ar:'16:9')),
               res: vSet?vSet.w.res:'1080p',
-              fps: vSet?vSet.w.fps:'30',
               seedanceModel: (n.w.seedModel||'').trim() || undefined,
               generateAudio: n.w.seedAudio===true,
               watermark: n.w.seedWatermark===true,
