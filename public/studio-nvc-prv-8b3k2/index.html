@@ -2815,21 +2815,9 @@ function hostMedia(src){
 /* 공개 URL이 필요한(또는 URL이 더 안전한) 제공사는 이미지도 R2 URL로 변환. Veo(google)만 base64 필요 → 제외 */
 var URL_PROVIDERS={ luma:1, runway:1, runway_aleph:1, hailuo:1, kling:1, v2v_auto:1 };
 async function resolveMediaForProvider(prov, params){
-  // ── Seedance 2.0 계열만 예외: 레퍼런스 이미지를 공개 URL(R2)로 보낸다 ──
-  //  1.x 는 first_frame/last_frame 에 base64 를 받지만(검증됨), 2.0 은 content[] 안의
-  //  image_url + role:reference_image 구조라 base64 를 넣으면 제출이 500 으로 실패한다.
-  //  (근거: 같은 키·같은 모델ID로 "텍스트만" 제출은 200/400ms 성공, 레퍼런스를 붙이면 500)
-  if(prov==='seedance' && /Seedance 2\./.test(String(params.model||''))){
-    var vk=['firstFrame','lastFrame','refImage'];
-    for(var v=0;v<vk.length;v++){ var vv=params[vk[v]];
-      if(vv && !/^https?:\/\//i.test(vv)){ var vu=await hostMedia(vv); if(vu) params[vk[v]]=vu; } }
-    if(Array.isArray(params.refImages)){
-      for(var q=0;q<params.refImages.length;q++){ var qv=params.refImages[q];
-        if(qv && !/^https?:\/\//i.test(qv)){ var qu=await hostMedia(qv); if(qu) params.refImages[q]=qu; } }
-    }
-    return params;
-  }
-  // Seedance 1.x 는 이미지를 "작은 base64 인라인"으로 보낸다. (검증: base64 제출 782ms 성공)
+  // Seedance 는 이미지를 "작은 base64 인라인"으로 보낸다. (검증: base64 제출 782ms 성공)
+  //  2.0 도 공식적으로 base64(data:image/<소문자>;base64,…)를 받는다 — R2 URL 로 바꿔 보냈더니
+  //  제공사가 그 URL 을 가져오느라 제출이 길어져 타임아웃 → Cloudflare 502 가 재발했다.
   //   → bp 가 우리 R2 를 fetch 하지 않으므로, 갓 올린 이미지의 fetch 지연으로 인한 502 가 사라짐.
   //   (영상 레퍼런스는 base64 가 불가하므로 R2 공개 URL 유지)
   if(prov==='seedance' || prov==='flux' || prov==='falcontrol' || prov==='nanobanana' || prov==='openai'){

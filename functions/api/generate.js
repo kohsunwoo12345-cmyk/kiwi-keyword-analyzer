@@ -288,12 +288,13 @@ export function buildSeedancePayload(b, env, forceModel) {
     let refs = (Array.isArray(b.refImages) && b.refImages.length) ? b.refImages.slice()
              : [first, b.lastFrame];
     if (first && refs.indexOf(first) < 0) refs.unshift(first);
-    // 2.0 의 reference_image 는 영상·오디오와 마찬가지로 "공개 URL 전용" — data:base64 를 넣으면
-    // 제출이 500 으로 실패한다(같은 모델·키로 텍스트만 제출은 200 성공, 레퍼런스만 붙이면 500).
-    // 스튜디오는 R2 URL 로 올려 보내지만, MCP·API 키 등 다른 경로에서 들어온 base64 는 여기서 걸러
-    // 전체 실패 대신 레퍼런스만 빠진 상태로 생성되게 한다(@태그도 남은 장수 기준으로만 붙는다).
+    // 2.0 의 reference_image 는 공개 URL 과 base64 를 모두 받는다(공식: data:image/<소문자>;base64,…).
+    //  base64 인라인을 쓰는 이유: URL 로 주면 제공사가 우리 R2 를 가져오느라 제출이 길어져
+    //  타임아웃 → 502 로 이어진다(영상 레퍼런스만 URL 전용이라 어쩔 수 없이 URL).
+    //  형식이 어긋난 값(대문자 포맷·data:가 아닌 스킴)은 제출 자체를 깨뜨리므로 여기서 거른다.
+    const okImg = (s) => /^https?:\/\//.test(s) || /^data:image\/[a-z0-9.+-]+;base64,/.test(s);
     const seenI = {};
-    refs = refs.filter(u => u && /^https?:\/\//.test(u) && !seenI[u] && (seenI[u] = 1)).slice(0, 9);
+    refs = refs.filter(u => u && okImg(u) && !seenI[u] && (seenI[u] = 1)).slice(0, 9);
     // 영상 레퍼런스(공개 URL 전용, 최대 3) — 단일 srcVideo + 선택적 refVideos 배열
     const vids = [], seenV = {};
     [b.srcVideo].concat(Array.isArray(b.refVideos) ? b.refVideos : [])
@@ -1122,6 +1123,9 @@ async function handle(context) {
       const edb = resolveDB(env);
       if (!edb) return json({ diag: "gen-errors", error: "DB 바인딩 없음" });
       try {
+        await edb.prepare(
+          `CREATE TABLE IF NOT EXISTS gen_errors (id TEXT PRIMARY KEY, provider TEXT, model TEXT,
+             err TEXT, shape TEXT, created_at TEXT)`).run();   // 없으면 만들어 "테이블 없음" 혼동 제거
         const rows = await edb.prepare(
           `SELECT provider, model, err, shape, created_at FROM gen_errors
            ORDER BY created_at DESC LIMIT 20`).all();
