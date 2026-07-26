@@ -282,7 +282,8 @@ export function buildSeedancePayload(b, env, forceModel) {
     //    URL 전용 — 영상은 base64 불가), 오디오 role:"reference_audio"(최대 3)
     //  · 공식 스펙은 프롬프트 안에서 @Image1/@Video1/@Audio1 태그로 각 자산을 어떻게 쓸지
     //    명시해야 참조가 정확히 걸린다(태그 없이 첨부만 하면 모델이 무시할 수 있음).
-    const dur = Math.min(Math.max(Number(b.seconds) || 5, 3), 12);
+    // Seedance 2.0 공식 허용 길이는 4~15초 — 3초는 무효값이라 거절당하고, 15초는 보낼 수도 없었다.
+    const dur = Math.min(Math.max(Math.round(Number(b.seconds) || 5), 4), 15);
     // 레퍼런스 이미지 수집(3D 프레임 + 배경/참고 사진). 공식 한도 9장, 중복 제거.
     let refs = (Array.isArray(b.refImages) && b.refImages.length) ? b.refImages.slice()
              : [first, b.lastFrame];
