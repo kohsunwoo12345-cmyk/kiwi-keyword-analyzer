@@ -2407,6 +2407,22 @@ function videoModelCaps(model){
   //  Veo 3.1 · Runway Gen-3 Alpha Turbo · Seedance 1.5/1.0 Pro·Fast·Lite(이미지) · Luma Ray · Kling(이미지→영상)
   c.ref=true; c.first=true; c.last=true; return c;
 }
+/* 영상 설정 노드는 모델의 "다음"(모델→영상설정→출력)에 붙는다. 그런데 조회는 upstream() 으로
+   상류만 뒤져서 한 번도 발견되지 않았고, 길이·비율·해상도·fps·모션이 전부 기본값으로 나갔다.
+   → 상류를 먼저 보고, 없으면 하류에서 찾는다. */
+function linkedSetting(id, type){
+  var up=upstream(id,type); if(up) return up;
+  var found=null, seen={};
+  (function walk(cur){
+    (state.links||[]).filter(function(l){ return l.from===cur; }).forEach(function(l){
+      if(found||seen[l.to]) return; seen[l.to]=1;
+      var n=(state.nodes||[]).find(function(x){ return x.id===l.to; });
+      if(n&&n.type===type){ found=n; return; }
+      walk(l.to);
+    });
+  })(id);
+  return found;
+}
 /* 영상 모델별 "실제 지정 가능한 설정" — 모델이 받지 않는 값을 노출하면 조용히 무시되거나 거절당한다.
    secs=허용 길이(초, 빈 배열이면 모델 고정), ratios=허용 비율, audio/watermark=2.0 계열 전용 옵션.
    근거: Seedance 2.0 은 공식 4~15초, 1.x 는 서버가 5/10 으로만 정규화. 그 외는 제공사 공통값. */
@@ -2432,7 +2448,7 @@ function videoModelOpts(model){
 }
 /* 이 노드에 실제로 적용될 길이·비율 — 영상 설정 노드가 연결돼 있으면 그 값이 우선 */
 function effVideoSec(n){
-  var vs=inputNodeOf(n.id,'video')||upstream(n.id,'video');
+  var vs=linkedSetting(n.id,'video');
   var opts=videoModelOpts(effModel(n));
   var raw=(vs&&vs.w&&vs.w.sec!=null)?Number(vs.w.sec):(n.w.vsec!=null?Number(n.w.vsec):null);
   if(!opts.secs.length) return null;                       // 길이 지정 불가 모델
@@ -2441,7 +2457,7 @@ function effVideoSec(n){
   return opts.secs.reduce(function(a,b){ return Math.abs(b-raw)<Math.abs(a-raw)?b:a; }, opts.secs[0]);
 }
 function effVideoRatio(n){
-  var vs=inputNodeOf(n.id,'video')||upstream(n.id,'video');
+  var vs=linkedSetting(n.id,'video');
   var opts=videoModelOpts(effModel(n));
   var raw=(vs&&vs.w&&vs.w.ar)||n.w.vratio||'16:9';
   if(!opts.ratios.length) return null;
@@ -4167,7 +4183,6 @@ var DEFS = {
                       {k:'seedOpts',t:'seedopts'},
                       {k:'vidOpts',t:'vidopts'},
                       {k:'addref',t:'addrefbtns'},
-                      {k:'fluxctrl',t:'fluxctrl'},
                       {k:'cfg',t:'slider',label:'cfg',min:0,max:100,def:70,
                         tip:'<b>CFG (프롬프트 충실도)</b> — 프롬프트를 얼마나 강하게 따를지 정합니다. 낮으면 자유롭고 자연스럽게, 높으면 지시를 강하게 따릅니다(너무 높으면 부자연·과채도). 보통 60~80 권장. 모델마다 반영 정도가 달라 일부 모델은 이 값을 무시합니다.'},
                       {k:'seed',t:'seed',def:156680208700286,
@@ -4917,6 +4932,38 @@ function applyServerDocs(data, updatedAt, quiet){
   if(!quiet){ try{ toast('다른 기기의 변경사항을 반영했어요'); }catch(e){} }
   return true;
 }
+/* 새로고침·재접속 시, 서버에서 아직 돌고 있는 생성을 이어받는다.
+   statusUrl 은 상대경로(/api/generate?...task=..)라 페이지가 바뀌어도 그대로 유효하다.
+   이게 없으면 느린 모델(Seedance 2.0 등)은 새로고침하는 순간 결과를 영영 못 받는다. */
+function resumePendingJobs(){
+  (state.nodes||[]).slice().forEach(function(n){
+    if(!n||!n.w||!n.w.pendingUrl) return;
+    var url=String(n.w.pendingUrl), nid=n.id, mdl=n.w.model||'';
+    var outs=downstreamOutputs(nid); if(!outs.length) outs=[ensureOutputFor(n)];
+    var outIds=outs.map(function(o){ return o.id; });
+    liveNodes(outIds).forEach(function(o){ o.w.generating=true; o.w.error=null; });
+    render(); toast('진행 중이던 생성을 이어서 확인합니다');
+    pollJob(url,{},function(st){
+      if(st.status==='failed'||st.error) return Promise.reject(new Error(st.error||'failed'));
+      return st.url? st : null;
+    }).then(function(out){
+      var mn=liveNode(nid); if(mn) mn.w.pendingUrl=null;
+      var live=liveNodes(outIds);
+      if(!live.length){ var m2=liveNode(nid); if(m2) live=[ensureOutputFor(m2)]; }
+      live.forEach(function(o){ o.w.generating=false; o.w.error=null;
+        o.w.vid=out.url; o.w.kind=out.kind||'video'; o.w.poster=out.poster||null; o.w.model=mdl; });
+      // 이어받은 생성도 정상 과금·보관함 저장 대상이다(원래 탭은 이미 사라졌으므로 이중과금 아님)
+      try{ recordCost(providerOf(mdl), mdl, 0, out.kind||'video', null, false, 0, '', [], out.url); }catch(_e){}
+      try{ saveToGallery(out.url, out.kind||'video', mdl, 0, out.poster||null); }catch(_e){}
+      try{ snapshot(); }catch(_e){}
+      render(); toast('생성이 완료됐어요');
+    }).catch(function(e){
+      var mn=liveNode(nid); if(mn) mn.w.pendingUrl=null;
+      liveNodes(outIds).forEach(function(o){ o.w.generating=false; o.w.error=String((e&&e.message)||e); });
+      render();
+    });
+  });
+}
 /* 부팅 시 서버↔로컬 조정(타임스탬프 기준) 후 실시간 동기화 폴링 시작.
    - 로컬이 비었으면 서버본 복원
    - 서버가 우리 기준선보다 최신(다른 기기에서 변경)이면 반영
@@ -4934,7 +4981,8 @@ function reconcileServerWorkflow(){
     _booting=false;
     if(!applied){ _dirtySinceSync=false; serverSaveSoon(); }   // 로컬이 최신이거나 서버가 비어있음 → 로컬을 서버에 시딩(다른 기기 동기화용)
     startWorkflowSync();
-  }).catch(function(){ _booting=false; startWorkflowSync(); });
+    try{ resumePendingJobs(); }catch(_e){}
+  }).catch(function(){ _booting=false; startWorkflowSync(); try{ resumePendingJobs(); }catch(_e){} });
 }
 /* 실시간 동기화: 5초마다 서버 updated_at 확인.
    - 이 기기가 편집 중(_dirtySinceSync)이면 당겨오지 않음 → 내 저장이 우선(마지막 저장 우선, 편집 유실 방지)
@@ -5178,7 +5226,7 @@ function widgetHTML(n,w){
     var vo=videoModelOpts(effModel(n));
     if(!vo.secs.length && !vo.ratios.length)
       return '<div class="refcnt">길이·비율은 원본 영상을 따릅니다 (이 모델은 지정 불가)</div>';
-    var vs=inputNodeOf(n.id,'video')||upstream(n.id,'video');
+    var vs=linkedSetting(n.id,'video');
     if(vs) return '<div class="refcnt">영상 설정 노드가 연결됨 — 길이·비율은 그 노드 값을 따릅니다</div>';
     var curS=effVideoSec(n), curR=effVideoRatio(n), h='<div class="vo-row">';
     if(vo.secs.length){
@@ -6390,7 +6438,7 @@ function runQueue(onlyId){
             refList = refList.slice(0,4);                       // 제공사 레퍼런스 이미지 한도
             var ffImg = threeD || refList[0] || null;
             var lfImg = imgsOf(lf)[0] || (vFrames.length>1?vFrames[vFrames.length-1]:null) || null;
-            var vSet=upstream(id,'video');
+            var vSet=linkedSetting(id,'video');
             // 백그라운드 프롬프트 보강 — 영상은 "프레임 단위"로 들어감을 명시하고, 배경 참고 사진을 명확히 구분·적용.
             var hasVideoRef = !!srcVid || vFrames.length>0;
             var hasBgPhoto = bgPhotos.length>0;
@@ -6419,7 +6467,7 @@ function runQueue(onlyId){
             var camSel=(n.w.camera&&n.w.camera!=='없음')?n.w.camera:(tplSel?tplSel.cam:undefined);
             // AUDIO 포트로 연결된 음악 노드 → 씨댄스 2.0 오디오 참조
             var audN=(inputNodesOf(n.id,'audio')||[]).filter(function(x){return x&&x.w&&x.w.audio;})[0];
-            cnMapsForVideo(chosenModel, n, refList).then(function(_rl){ refList=_rl;
+            Promise.resolve(refList).then(function(_rl){ refList=_rl;   // 영상은 ControlNet 미적용(이미지 노드 전용)
             return generateWithAPI({
               model:chosenModel,
               camera: camSel,
