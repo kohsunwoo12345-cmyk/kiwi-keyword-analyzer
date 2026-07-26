@@ -242,9 +242,12 @@ export function buildXaiVideoPayload(b, env) {
    ※ 콘솔에서 실제 ID가 바뀌면 노드의 "Seedance 모델 ID 직접입력" 또는
      SEEDANCE_MODEL_ID 환경변수로 언제든 덮어쓸 수 있습니다. */
 export const SEEDANCE_IDS = {
-  "Seedance 2.0":                "dreamina-seedance-2-0-260128",
-  "Seedance 2.0 Fast":           "dreamina-seedance-2-0-fast-260128",
-  "Seedance 2.0 Mini":           "dreamina-seedance-2-0-mini-260615",  // 콘솔 실제 ID(회원 제공)
+  // 콘솔 실제 ID(회원 제공): Mini=dreamina-seedance-2-0-mini-260615.
+  // 2.0 패밀리는 보통 같은 날짜로 함께 개통되므로 Mini와 같은 260615 를 최우선 후보로,
+  // 그다음 예전 추정치(260128)·접미사 없는 형태 순으로 자동 재시도한다(콘솔 표기 차이 흡수).
+  "Seedance 2.0":                ["dreamina-seedance-2-0-260615", "dreamina-seedance-2-0-260128", "dreamina-seedance-2-0"],
+  "Seedance 2.0 Fast":           ["dreamina-seedance-2-0-fast-260615", "dreamina-seedance-2-0-fast-260128", "dreamina-seedance-2-0-fast"],
+  "Seedance 2.0 Mini":           ["dreamina-seedance-2-0-mini-260615"],  // 콘솔 실제 ID(회원 제공·확인됨)
   "Seedance 1.5 Pro":            "seedance-1-5-pro",
   "Seedance 1.0 Pro":            "seedance-1-0-pro-250528",
   "Seedance 1.0 Pro Fast":       "seedance-1-0-pro-fast",
@@ -252,14 +255,18 @@ export const SEEDANCE_IDS = {
   "Seedance 1.0 Lite (이미지→영상)": "seedance-1-0-lite-i2v-250428",
   "Seedance 1.0":                "seedance-1-0-pro-250528"  // 구버전 표시명 호환
 };
-export function seedanceModelId(b, env) {
+/* 이 모델에 시도할 ID 후보들(우선순위 순). 직접입력·환경변수가 있으면 그것만 사용. */
+export function seedanceModelIds(b, env) {
   const custom = b && typeof b.seedanceModel === "string" && b.seedanceModel.trim();
-  if (custom) return custom;                       // 노드에서 직접 입력한 모델 ID 최우선
+  if (custom) return [custom];                     // 노드에서 직접 입력한 모델 ID 최우선
   const override = env && pick(env, ["SEEDANCE_MODEL_ID", "seedance_model_id"]);
-  return override || SEEDANCE_IDS[b.model] || "seedance-1-0-pro-250528";
+  if (override) return [override];
+  const v = SEEDANCE_IDS[b && b.model] || "seedance-1-0-pro-250528";
+  return Array.isArray(v) ? v.slice() : [v];
 }
-export function buildSeedancePayload(b, env) {
-  const model = seedanceModelId(b, env);
+export function seedanceModelId(b, env) { return seedanceModelIds(b, env)[0]; }
+export function buildSeedancePayload(b, env, forceModel) {
+  const model = forceModel || seedanceModelId(b, env);
   const ratio = b.ratio === "9:16" ? "9:16" : b.ratio === "1:1" ? "1:1" : "16:9";
   const first = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
   const isV2 = /seedance-2/.test(model);   // dreamina-seedance-2-0-* 계열
@@ -1102,8 +1109,8 @@ async function handle(context) {
     //   /api/generate?diag=seedance-check
     if (u.searchParams.get("diag") === "seedance-check") {
       if (!k.seedance) return json({ diag: "seedance-check", error: "Seedance_API_KEY 미설정" });
-      const items = await Promise.all(Object.keys(SEEDANCE_IDS).map(async (name) => {
-        const id = SEEDANCE_IDS[name];
+      // 각 표시명의 후보 ID를 전부 확인 → 어떤 후보가 실제로 존재하는지 드러난다.
+      const checkOne = async (id) => {
         try {
           const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
             method: "POST", headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
@@ -1111,10 +1118,18 @@ async function handle(context) {
           const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch { /* 비JSON */ }
           const missing = seedreamModelMissing(r.status, j);
           const taskId = j && (j.id || (j.data && j.data.id));
-          if (taskId) return { model: name, id, exists: true, httpStatus: r.status, taskId };   // 실제 제출됨(존재 확정)
-          return { model: name, id, exists: !missing, httpStatus: r.status,
+          if (taskId) return { id, exists: true, httpStatus: r.status, taskId };   // 실제 제출됨(존재 확정)
+          return { id, exists: !missing, httpStatus: r.status,
                    err: String((j && j.error && (j.error.message || j.error.code)) || text).slice(0, 140) };
-        } catch (e) { return { model: name, id, exists: false, error: String((e && e.message) || e).slice(0, 100) }; }
+        } catch (e) { return { id, exists: false, error: String((e && e.message) || e).slice(0, 100) }; }
+      };
+      const items = await Promise.all(Object.keys(SEEDANCE_IDS).map(async (name) => {
+        const ids = Array.isArray(SEEDANCE_IDS[name]) ? SEEDANCE_IDS[name] : [SEEDANCE_IDS[name]];
+        const tried = await Promise.all(ids.map(checkOne));
+        const hit = tried.find(x => x.exists) || tried[0];
+        return { model: name, id: hit.id, exists: tried.some(x => x.exists),
+                 httpStatus: hit.httpStatus, taskId: hit.taskId, err: hit.err,
+                 candidates: tried.map(x => x.id + (x.exists ? "✓" : "✗")) };
       }));
       return json({ diag: "seedance-check",
         note: "404/NotFound=ID 없음/미개통. 그 외(400 등)=존재(ID정상, 파라미터만 반려). content 비워 보내 태스크 미생성(무과금).",
@@ -2154,34 +2169,39 @@ async function handle(context) {
 
   if (provider === "seedance") {
     if (!k.seedance) return json({ error: "Seedance 연동이 설정되지 않았습니다" }, 500);
-    const payload = buildSeedancePayload(b, env);
     // 해외(bp) 호스트만 사용. 중국(vc) 호스트는 Cloudflare 글로벌 네트워크에서 무한정 멈춰(hang)
     // 플랫폼 502를 유발하므로 기본 제외. 필요하면 SEEDANCE_USE_CN=1 로 켤 수 있음.
     const hosts = pick(env, ["SEEDANCE_USE_CN", "seedance_use_cn"]) ? ["bp", "vc"] : ["bp"];
-    // 스튜디오가 실제로 보낸 값을 에러에 그대로 실어, 노드에 원인이 보이게 한다.
-    const imgN = payload.content.filter(c => c.type === "image_url").length;
-    const tag = "[m:" + payload.model + " img:" + imgN + "]";
+    const candidates = seedanceModelIds(b, env);   // 모델 ID 후보(콘솔 표기·날짜 차이 자동 흡수)
+    const tag = "[m:" + candidates[0] + "]";
     let lastErr = null;
+    outer:
     for (const hostId of hosts) {
-      let r, j; const t0 = Date.now();
-      try {
-        // fetchT 의 unhandled-rejection 차단으로 raw 502 는 사라졌으므로, bp 가 이미지
-        // 검증 등으로 제출이 느려도(태스크 ID 반환까지 십수 초) 안전하게 기다린다.
-        // 초과 시엔 crash 없이 읽을 수 있는 "시간 초과" JSON 이 노드에 표시된다.
-        r = await fetchT(ARK_HOSTS[hostId] + "/contents/generations/tasks", {
-          method: "POST",
-          headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        }, 22000);
-        j = await r.json().catch(() => ({}));
-      } catch (e) {
-        lastErr = hostId + " 제출 실패(" + (Date.now() - t0) + "ms): " + String((e && e.message) || e).slice(0, 140);
-        continue;
+      for (const mid of candidates) {
+        const payload = buildSeedancePayload(b, env, mid);
+        // 스튜디오가 실제로 보낸 값을 에러에 그대로 실어, 노드에 원인이 보이게 한다.
+        const imgN = payload.content.filter(c => c.type === "image_url").length;
+        let r, j; const t0 = Date.now();
+        try {
+          // fetchT 의 unhandled-rejection 차단으로 raw 502 는 사라졌으므로, bp 가 이미지
+          // 검증 등으로 제출이 느려도(태스크 ID 반환까지 십수 초) 안전하게 기다린다.
+          // 초과 시엔 crash 없이 읽을 수 있는 "시간 초과" JSON 이 노드에 표시된다.
+          r = await fetchT(ARK_HOSTS[hostId] + "/contents/generations/tasks", {
+            method: "POST",
+            headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          }, 22000);
+          j = await r.json().catch(() => ({}));
+        } catch (e) {
+          lastErr = hostId + " 제출 실패(" + (Date.now() - t0) + "ms): " + String((e && e.message) || e).slice(0, 140);
+          continue;   // 다음 후보/호스트로
+        }
+        if (r.ok && j.id)
+          return json({ statusUrl: "/api/generate?provider=seedance&host=" + hostId + "&task=" + encodeURIComponent(j.id), modelId: mid });
+        lastErr = "HTTP " + r.status + " [" + mid + " img:" + imgN + "] " + ((j.error && (j.error.message || j.error.code)) || String(JSON.stringify(j)).slice(0, 140));
+        // 모델 ID 자체가 없으면 다음 후보로, 그 외(검열·잔액·형식)는 후보를 바꿔도 동일하므로 중단
+        if (!seedreamModelMissing(r.status, j)) break outer;
       }
-      if (r.ok && j.id)
-        return json({ statusUrl: "/api/generate?provider=seedance&host=" + hostId + "&task=" + encodeURIComponent(j.id) });
-      lastErr = "HTTP " + r.status + " " + ((j.error && (j.error.message || j.error.code)) || String(JSON.stringify(j)).slice(0, 140));
-      if (r.status !== 401 && r.status !== 403 && r.status !== 404) break;
     }
     return json({ error: "Seedance " + tag + ": " + String(lastErr).slice(0, 220) }, 502);
   }
