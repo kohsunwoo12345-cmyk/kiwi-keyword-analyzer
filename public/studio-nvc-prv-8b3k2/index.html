@@ -6560,6 +6560,9 @@ function runQueue(onlyId){
             var camSel=(n.w.camera&&n.w.camera!=='없음')?n.w.camera:(tplSel?tplSel.cam:undefined);
             // AUDIO 포트로 연결된 음악 노드 → 씨댄스 2.0 오디오 참조
             var audN=(inputNodesOf(n.id,'audio')||[]).filter(function(x){return x&&x.w&&x.w.audio;})[0];
+            // 실제로 생성에 쓰는 길이 — 모델 허용값으로 스냅된 값이다.
+            //  과금도 반드시 같은 값을 써야 한다(설정 원본값으로 청구하면 8초 생성에 30초를 물린다).
+            var _effSec=(effVideoSec(n)!=null?effVideoSec(n):(vSet?vSet.w.sec:8));
             Promise.resolve(refList).then(function(_rl){ refList=_rl;   // 영상은 ControlNet 미적용(이미지 노드 전용)
             return generateWithAPI({
               model:chosenModel,
@@ -6574,7 +6577,7 @@ function runQueue(onlyId){
               firstFrame: threeD || null,
               lastFrame: lfImg,
               srcVideo: srcVid,
-              seconds: (effVideoSec(n)!=null?effVideoSec(n):(vSet?vSet.w.sec:8)),
+              seconds: _effSec,
               ratio: (effVideoRatio(n)||(vSet?vSet.w.ar:'16:9')),
               res: vSet?vSet.w.res:'1080p',
               seedanceModel: (n.w.seedModel||'').trim() || undefined,
@@ -6600,13 +6603,13 @@ function runQueue(onlyId){
               _live.forEach(function(o){
                 var vs=upstream(o.id,'video');
                 o.w.generating=false; o.w.error=null;
-                o.w.vid=res.url; o.w.kind=res.kind||'video'; o.w.poster=res.poster||null; o.w.model=chosenModel; o.w.sec=vs?vs.w.sec:8;
+                o.w.vid=res.url; o.w.kind=res.kind||'video'; o.w.poster=res.poster||null; o.w.model=chosenModel; o.w.sec=_effSec;
               });
               var _mn2=liveNode(id); if(_mn2){ _mn2.w.seed=Math.floor(Math.random()*9e14); _mn2.w.pendingUrl=null; }
               render();
               // ② 부수작업(과금 기록·보관함 저장)은 각각 격리 — 실패해도 UI 에 영향 없음
               try{ if(res.url && res.type!=='error')
-                recordCost(res.type||providerOf(chosenModel), chosenModel, vSet?vSet.w.sec:8, res.kind, vSet?vSet.w.res:'1080p', n.w.seedAudio===true, 0, basePrompt, [].concat(refList||[], srcVid?[srcVid]:[]), res.url); }catch(_e){}
+                recordCost(res.type||providerOf(chosenModel), chosenModel, _effSec, res.kind, vSet?vSet.w.res:'1080p', n.w.seedAudio===true, 0, basePrompt, [].concat(refList||[], srcVid?[srcVid]:[]), res.url); }catch(_e){}
               try{ saveToGallery(res.url, res.kind||'video', chosenModel, vSet?vSet.w.sec:8, res.poster); }catch(_e){}
               var el2=document.getElementById('nd-'+id); if(el2)el2.classList.add('exec');
               Promise.all(liveNodes(outIds).map(extractLastFrame)).then(function(){ render(); step(); });
