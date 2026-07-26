@@ -2380,6 +2380,46 @@ function videoModelCaps(model){
   //  Veo 3.1 · Runway Gen-3 Alpha Turbo · Seedance 1.5/1.0 Pro·Fast·Lite(이미지) · Luma Ray · Kling(이미지→영상)
   c.ref=true; c.first=true; c.last=true; return c;
 }
+/* 영상 모델별 "실제 지정 가능한 설정" — 모델이 받지 않는 값을 노출하면 조용히 무시되거나 거절당한다.
+   secs=허용 길이(초, 빈 배열이면 모델 고정), ratios=허용 비율, audio/watermark=2.0 계열 전용 옵션.
+   근거: Seedance 2.0 은 공식 4~15초, 1.x 는 서버가 5/10 으로만 정규화. 그 외는 제공사 공통값. */
+function videoModelOpts(model){
+  var m=String(model||'');
+  if(/Seedance 2\./.test(m))
+    return { secs:[4,5,6,8,10,12,15], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], audio:true, watermark:true };
+  if(/Seedance 1\./.test(m))
+    return { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false };
+  if(/^Kling/.test(m))
+    return { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false };
+  if(/Runway Gen/.test(m))
+    return { secs:[5,10], ratios:['16:9','9:16'], audio:false, watermark:false };
+  if(/Luma/.test(m))
+    return { secs:[5,9], ratios:['16:9','9:16','1:1'], audio:false, watermark:false };
+  if(/Hailuo|MiniMax/.test(m))
+    return { secs:[6,10], ratios:['16:9','9:16'], audio:false, watermark:false };
+  if(/Veo/.test(m))
+    return { secs:[8], ratios:['16:9','9:16'], audio:false, watermark:false };
+  if(/V2V 자동|모션 전이|Runway Aleph|업스케일 4K/.test(m))
+    return { secs:[], ratios:[], audio:false, watermark:false };   // 원본 영상 길이·비율을 따라감
+  return { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false };
+}
+/* 이 노드에 실제로 적용될 길이·비율 — 영상 설정 노드가 연결돼 있으면 그 값이 우선 */
+function effVideoSec(n){
+  var vs=inputNodeOf(n.id,'video')||upstream(n.id,'video');
+  var opts=videoModelOpts(effModel(n));
+  var raw=(vs&&vs.w&&vs.w.sec!=null)?Number(vs.w.sec):(n.w.vsec!=null?Number(n.w.vsec):null);
+  if(!opts.secs.length) return null;                       // 길이 지정 불가 모델
+  if(raw==null) return opts.secs.indexOf(5)>=0?5:opts.secs[0];
+  // 허용값 중 가장 가까운 값으로 스냅 — 모델이 안 받는 길이를 보내지 않는다
+  return opts.secs.reduce(function(a,b){ return Math.abs(b-raw)<Math.abs(a-raw)?b:a; }, opts.secs[0]);
+}
+function effVideoRatio(n){
+  var vs=inputNodeOf(n.id,'video')||upstream(n.id,'video');
+  var opts=videoModelOpts(effModel(n));
+  var raw=(vs&&vs.w&&vs.w.ar)||n.w.vratio||'16:9';
+  if(!opts.ratios.length) return null;
+  return opts.ratios.indexOf(raw)>=0?raw:opts.ratios[0];
+}
 /* 영상 노드용 ControlNet — Seedance 등 영상 모델의 API 에는 ControlNet 파라미터가 없다.
    그래서 이미지 노드가 쓰는 방식 그대로, 브라우저에서 만든 맵(Canny/Depth/Pose)을
    "이미지 레퍼런스"로 덧붙여 구도·포즈를 잡는다. Flux 계열만 fal 네이티브 controlnets 로 간다.
@@ -2493,7 +2533,8 @@ function pruneModelPorts(){
 /* 비동기 job 폴링 헬퍼 (대부분의 영상 API 는 생성요청→상태폴링 구조) */
 function wait(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
 async function pollJob(url, headers, pick, tries){
-  tries=tries||200;                        // 3초 간격 × 200회 ≈ 10분 (긴 영상 생성 대응)
+  // Seedance 2.0 기본형은 10분도 넘길 수 있어 3초 간격 × 400회 ≈ 20분까지 기다린다.
+  tries=tries||400;
   var misses=0;                            // 일시적 네트워크/JSON 오류는 최대 10회 용인 후 재시도
   for(var i=0;i<tries;i++){
     var j=null;
@@ -2521,6 +2562,8 @@ async function pollJob(url, headers, pick, tries){
      응답(비동기): { statusUrl:"https://.../status/123" }  ← GET 시 {url} 나올 때까지 폴링
    ───────────────────────────────────────────────────────────────────── */
 async function callProxy(params){
+  // __node 는 진행 상태를 기록하기 위한 로컬 참조 — 서버 본문에는 절대 싣지 않는다.
+  var _pnode=params.__node; if(_pnode) { params=Object.assign({},params); delete params.__node; }
   var base=(API_CONFIG.proxy||'/api/generate').replace(/\/$/,'');
   var _same=(base.charAt(0)==='/');   // 내부 /api/generate 는 세션 쿠키 포함, 외부 프록시는 미포함
   var r=await fetch(base,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(params),credentials:_same?'include':'same-origin'});
@@ -2528,10 +2571,13 @@ async function callProxy(params){
   if(!r.ok) throw new Error(j.error || ('HTTP '+r.status+(t?': '+String(t).replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,140):'')));
   if(j.url) return { url:j.url, kind:j.kind||'video', poster:j.poster||params.firstFrame||null, type:params.provider };
   if(j.statusUrl){
+    // 진행 중 작업을 노드 밖(전역)에 기록 — 새로고침해도 이어받을 수 있다.
+    if(_pnode){ _pnode.w.pendingUrl=j.statusUrl; try{ autosave(); }catch(_e){} }
     var out=await pollJob(j.statusUrl,{},function(s){
       if(s.status==='failed'||s.error) return Promise.reject(new Error(s.error||'failed'));
       return s.url? s : null;
     });
+    if(_pnode){ _pnode.w.pendingUrl=null; }
     return { url:out.url, kind:out.kind||'video', poster:out.poster||params.firstFrame||null, type:params.provider };
   }
   throw new Error(j.error||'proxy: 응답에 url 없음');
@@ -3764,6 +3810,13 @@ function generateImageNode(n){
         toast((info&&info.title)||('이미지 생성 실패: '+String(n.w.imgError).slice(0,80))); render(); return; }
       n.w.img=res.url; n.w.imgKind=res.kind||'image';
       render();                                                // ① 결과 먼저 표시 (부수작업 실패와 무관)
+      // 영상 노드와 동일하게, 출력 블럭이 없으면 자동으로 만들어 결과를 넣어 준다.
+      if(res.url && res.type!=='error'){
+        try{ var _on=ensureOutputFor(n);
+          _on.w.generating=false; _on.w.error=null;
+          _on.w.vid=res.url; _on.w.kind=res.kind||'image'; _on.w.lastImg=res.url; _on.w.model=n.w.model;
+        }catch(_e){}
+      }
       try{ if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image', null, false, refCountUsed, prompt, refUsedList, res.url, cnChargeCount); }catch(_e){}
       try{ saveToGallery(res.url, 'image', n.w.model, 0, null); }catch(_e){}
       try{ if(res.url && res.type!=='error') autoRefFromResult(n, res.url); }catch(_e){}
@@ -4085,6 +4138,7 @@ var DEFS = {
                         tip:'<b>바이럴 효과 템플릿</b> — AI 허그·제품 히어로샷·폭발 등장 등 인기 효과를 원클릭으로. 프롬프트가 비어 있으면 템플릿 프롬프트를 그대로 쓰고, 있으면 스타일로 덧붙입니다. 카메라 무빙도 자동 설정됩니다.'},
                       {k:'seedModel',t:'seedid'},
                       {k:'seedOpts',t:'seedopts'},
+                      {k:'vidOpts',t:'vidopts'},
                       {k:'addref',t:'addrefbtns'},
                       {k:'fluxctrl',t:'fluxctrl'},
                       {k:'cfg',t:'slider',label:'cfg',min:0,max:100,def:70,
@@ -4942,8 +4996,9 @@ function widgetHTML(n,w){
       '</div>';
   }
   if(w.t==='seedopts'){   // Seedance 전용 옵션(오디오·워터마크·오디오 레퍼런스)
-    if(!/^Seedance/.test(n.w.model||'')) return '';
-    var isV2=/2\.0/.test(n.w.model||'');   // 오디오/워터마크 필드는 2.0 계열만(서버 페이로드와 일치)
+    var _sm=(n.type==='model'?effModel(n):n.w.model)||'';
+    if(!/^Seedance/.test(_sm)) return '';
+    var isV2=!!videoModelOpts(_sm).audio;   // 오디오/워터마크를 실제로 받는 모델만(서버 페이로드와 일치)
     var au = n.w.seedAudio===true, wm = n.w.seedWatermark===true;
     var row=function(k,checked,label,hint){
       return '<label class="seedopt-row"><input type="checkbox" data-w="'+k+'"'+(checked?' checked':'')+'>'+
@@ -5088,6 +5143,25 @@ function widgetHTML(n,w){
     if(n.w.pgError) return '<div class="seedid-hint" style="color:#e6879a;padding:2px 2px 4px;">'+esc(String(n.w.pgError).slice(0,160))+'</div>';
     if(!n.w.text) return '<div class="wpreview"><span class="empty">생성된 프롬프트가 여기 표시됩니다<br>[프롬프트 생성]을 누르세요</span></div>';
     return '<textarea class="wtext" data-w="text" style="min-height:78px;">'+esc(n.w.text)+'</textarea>';
+  }
+  if(w.t==='vidopts'){   // 영상 노드 내장 설정 — 그 모델이 실제로 받는 길이·비율만 버튼으로 노출
+    var vo=videoModelOpts(effModel(n));
+    if(!vo.secs.length && !vo.ratios.length)
+      return '<div class="refcnt">길이·비율은 원본 영상을 따릅니다 (이 모델은 지정 불가)</div>';
+    var vs=inputNodeOf(n.id,'video')||upstream(n.id,'video');
+    if(vs) return '<div class="refcnt">영상 설정 노드가 연결됨 — 길이·비율은 그 노드 값을 따릅니다</div>';
+    var curS=effVideoSec(n), curR=effVideoRatio(n), h='';
+    if(vo.secs.length){
+      h+='<div class="up-row"><span class="wlabel" style="padding-left:10px;">길이</span><span class="up-seg">';
+      vo.secs.forEach(function(s){ h+='<button class="up-x'+(s===curS?' on':'')+'" data-vsec="'+s+'">'+s+'초</button>'; });
+      h+='</span></div>';
+    }
+    if(vo.ratios.length){
+      h+='<div class="up-row"><span class="wlabel" style="padding-left:10px;">비율</span><span class="up-seg">';
+      vo.ratios.forEach(function(r){ h+='<button class="up-x'+(r===curR?' on':'')+'" data-vratio="'+r+'">'+r+'</button>'; });
+      h+='</span></div>';
+    }
+    return h;
   }
   if(w.t==='addrefbtns'){   // 모델 로더: +래퍼런스 → 레퍼런스 노드를 생성·연결 (모델이 지원하는 것만 노출)
     var rc=videoModelCaps(effModel(n)), btns='';
@@ -5799,6 +5873,11 @@ canvas.addEventListener('click',function(e){
   if(e.target.closest('[data-upscaleset]')){
     n2.w.upScale=+e.target.getAttribute('data-upscaleset'); render(); return;
   }
+  // 영상 노드 내장 설정(길이·비율) — 모델이 받는 값만 버튼으로 떠 있다
+  var _vsb=e.target.closest('[data-vsec]');
+  if(_vsb){ n2.w.vsec=+_vsb.getAttribute('data-vsec'); snapshot(); render(); return; }
+  var _vrb=e.target.closest('[data-vratio]');
+  if(_vrb){ n2.w.vratio=_vrb.getAttribute('data-vratio'); snapshot(); render(); return; }
   if(e.target.closest('[data-upreset]')){
     e.preventDefault();
     if(n2.w.upscaled&&String(n2.w.upscaled).indexOf('blob:')===0){ try{URL.revokeObjectURL(n2.w.upscaled);}catch(_){} }
@@ -6126,6 +6205,19 @@ function clearExec(){
   document.querySelectorAll('.node.exec').forEach(function(x){x.classList.remove('exec');});
   document.querySelectorAll('#edges path.exec').forEach(function(x){x.classList.remove('exec');});
 }
+/* 출력 블럭이 없으면 만들어 연결한다. 결과를 받을 노드가 없으면 생성물이 갈 곳이 없어
+   "생성은 됐는데 아무것도 안 보이는" 상태가 된다 → 실행 시 자동으로 하나 붙여 준다. */
+function ensureOutputFor(n){
+  var ex=(state.links||[]).filter(function(l){ return l.from===n.id; })
+    .map(function(l){ return state.nodes.find(function(x){ return x.id===l.to; }); })
+    .filter(function(x){ return x && x.type==='output'; })[0];
+  if(ex) return ex;
+  var on=addNode('output', n.x + 340, n.y, false);
+  state.links.push({ from:n.id, fromPort:'out', to:on.id, toPort:'in', type:'GEN' });
+  snapshot(); render();
+  toast('출력 블럭을 자동으로 만들었어요');
+  return on;
+}
 /* 이 노드에 입력을 대는 상류 노드 전부(자기 자신 포함) */
 function ancestorsOf(id){
   var seen={}; seen[id]=1;
@@ -6220,6 +6312,9 @@ function runQueue(onlyId){
           }
           if(n.type==='model'){
             var outs=downstreamOutputs(id);
+            // 출력 블럭이 없으면 자동으로 만들어 연결한다 — 결과를 받을 곳이 없어
+            // 생성이 조용히 사라지는 일을 막는다.
+            if(!outs.length){ outs=[ensureOutputFor(n)]; }
             // 모델 선택 노드가 연결돼 있으면 그 모델을 사용(없으면 로더 자체 콤보)
             var mpk=inputNodeOf(id,'modelsel');
             var chosenModel=(mpk&&mpk.w&&mpk.w.model)?mpk.w.model:n.w.model;
@@ -6302,8 +6397,8 @@ function runQueue(onlyId){
               firstFrame: threeD || null,
               lastFrame: lfImg,
               srcVideo: srcVid,
-              seconds: vSet?vSet.w.sec:8,
-              ratio: vSet?vSet.w.ar:'16:9',
+              seconds: (effVideoSec(n)!=null?effVideoSec(n):(vSet?vSet.w.sec:8)),
+              ratio: (effVideoRatio(n)||(vSet?vSet.w.ar:'16:9')),
               res: vSet?vSet.w.res:'1080p',
               fps: vSet?vSet.w.fps:'30',
               motion: vSet?vSet.w.motion:'보통',
@@ -6314,7 +6409,8 @@ function runQueue(onlyId){
               // Flux(비-Kontext) 이미지 모델일 때만 ControlNet·LoRA 적용
               controlnets: (/^Flux/.test(chosenModel||'')&&!/Kontext/.test(chosenModel||'')&&n.w.cnList)?n.w.cnList.slice():[],
               cnSteps: (n.w.cnSteps==null?28:n.w.cnSteps), cnGuidance: (n.w.cnGuidance==null?3.5:n.w.cnGuidance),
-              cfg:n.w.cfg, seed:n.w.seed
+              cfg:n.w.cfg, seed:n.w.seed,
+              __node:n   // 진행 중 statusUrl 기록용(서버 전송에서는 제외됨)
             }); }).then(function(res){
               if(!res || res.error){   // 실제 생성 실패 — 데모로 감추지 않고 원인 표시
                 var msg=(res&&res.error)||'생성 실패';
