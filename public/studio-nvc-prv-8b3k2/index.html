@@ -544,6 +544,17 @@ body.create-open #btnQueue{ display:none !important; }
 .in-label.io-off{ opacity:.4; text-decoration:line-through; }
 
 /* 위젯 (ComfyUI 필 스타일) */
+/* ── 영상 길이·비율 선택 (노드 내장) — 라벨 위, 칩은 줄바꿈 그리드 ── */
+.vo-block{ margin:6px 0 2px; }
+.vo-label{ font-size:10px; font-weight:700; letter-spacing:.5px; color:#868c9c; margin:0 2px 5px 10px; text-transform:uppercase; }
+.vo-label b{ color:#aeb6c8; font-weight:700; }
+.vo-chips{ display:flex; flex-wrap:wrap; gap:4px; padding:0 8px; }
+.vo-chip{ flex:0 0 auto; min-width:40px; padding:5px 9px; font-size:10.5px; line-height:1; border-radius:8px;
+  background:#1b1d27; border:1px solid #2a2d38; color:#c9cdd8; cursor:pointer; font-family:inherit;
+  transition:border-color .12s, background .12s, color .12s; text-align:center; }
+.vo-chip:hover{ border-color:#3d4152; color:#fff; }
+.vo-chip.on{ background:rgba(111,108,255,.16); border-color:#6f6cff; color:#d6d9ff; font-weight:700;
+  box-shadow:0 0 0 1px rgba(111,108,255,.25) inset; }
 .widget{ display:flex; align-items:center; height:24px; border-radius:12px;
   background:#222; border:1px solid #1a1a1a; font-size:11px; color:#ccc; overflow:hidden; }
 .widget .arr{ width:24px; text-align:center; color:#767c8c; cursor:pointer; user-select:none; flex:0 0 auto; font-size:10px; }
@@ -5169,14 +5180,14 @@ function widgetHTML(n,w){
     if(vs) return '<div class="refcnt">영상 설정 노드가 연결됨 — 길이·비율은 그 노드 값을 따릅니다</div>';
     var curS=effVideoSec(n), curR=effVideoRatio(n), h='';
     if(vo.secs.length){
-      h+='<div class="up-row"><span class="wlabel" style="padding-left:10px;">길이</span><span class="up-seg">';
-      vo.secs.forEach(function(s){ h+='<button class="up-x'+(s===curS?' on':'')+'" data-vsec="'+s+'">'+s+'초</button>'; });
-      h+='</span></div>';
+      h+='<div class="vo-block"><div class="vo-label">길이 · <b>'+curS+'초</b></div><div class="vo-chips">';
+      vo.secs.forEach(function(s){ h+='<button class="vo-chip'+(s===curS?' on':'')+'" data-vsec="'+s+'">'+s+'초</button>'; });
+      h+='</div></div>';
     }
     if(vo.ratios.length){
-      h+='<div class="up-row"><span class="wlabel" style="padding-left:10px;">비율</span><span class="up-seg">';
-      vo.ratios.forEach(function(r){ h+='<button class="up-x'+(r===curR?' on':'')+'" data-vratio="'+r+'">'+r+'</button>'; });
-      h+='</span></div>';
+      h+='<div class="vo-block"><div class="vo-label">비율 · <b>'+curR+'</b></div><div class="vo-chips">';
+      vo.ratios.forEach(function(r){ h+='<button class="vo-chip'+(r===curR?' on':'')+'" data-vratio="'+r+'">'+r+'</button>'; });
+      h+='</div></div>';
     }
     return h;
   }
