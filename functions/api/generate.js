@@ -1028,6 +1028,29 @@ async function handle(context) {
         exists: items.filter(x => x.exists).map(x => x.model + " → " + x.modelId),
         missing: items.filter(x => !x.exists).map(x => x.model), items });
     }
+    // 단일 모델을 '공식 예제와 100% 동일한' 본문으로 실제 호출해 전체 응답을 그대로 반환(증거용).
+    //   /api/generate?diag=seedream3                          (기본 seedream-3-0-t2i-250415)
+    //   /api/generate?diag=seedream3&model=<정확한 모델ID>     (다른 ID 시험)
+    if (u.searchParams.get("diag") === "seedream3") {
+      if (!k.seedance) return json({ diag: "seedream3", error: "Seedance_API_KEY 미설정" });
+      const model = u.searchParams.get("model") || "seedream-3-0-t2i-250415";
+      const body = { model, prompt: "a red apple on a wooden table", response_format: "url", size: "1024x1024", guidance_scale: 3, watermark: true };
+      const endpoint = ARK_HOSTS.bp + "/images/generations";
+      const t0 = Date.now();
+      try {
+        const r = await fetchT(endpoint, {
+          method: "POST", headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+          body: JSON.stringify(body) }, 60000);
+        const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch { /* 비JSON */ }
+        const url = j && j.data && j.data[0] && j.data[0].url;
+        return json({ diag: "seedream3", model, endpoint,
+          keyId: String(k.seedance).slice(0, 8) + "…" + String(k.seedance).slice(-4),
+          httpStatus: r.status, ok: r.ok && !!url, imageUrl: url || null, tookMs: Date.now() - t0,
+          raw: url ? undefined : (j || String(text)).toString ? String(text).slice(0, 700) : j });
+      } catch (e) {
+        return json({ diag: "seedream3", model, endpoint, error: String((e && e.message) || e).slice(0, 200), tookMs: Date.now() - t0 });
+      }
+    }
     // 진단(씨댄스 전체): 등록된 모든 Seedance 영상 모델 검증.
     //   /api/generate?diag=seedance-all          (기본=무과금 구조검증: 모델ID 매핑만)
     //   /api/generate?diag=seedance-all&real=1   (실제 제출 — 완료 시 모델당 영상 과금 발생)
