@@ -315,7 +315,10 @@ export function buildSeedancePayload(b, env, forceModel) {
     const useAuds = auds.slice(0, 3);
 
     // ── @태그 바인딩: 사용자가 프롬프트에 직접 @태그를 쓰지 않았을 때만 자동으로 붙인다 ──
-    let text = (b.prompt || "").slice(0, 1500);
+    //  Seedance 에는 negative_prompt 필드가 없다 → 노드의 네거티브 입력이 그냥 버려지지 않도록
+    //  Luma 와 같은 방식으로 프롬프트 안에 "피해야 할 것"으로 접어 넣는다.
+    let text = [(b.prompt || ""), b.negative ? ("피해야 할 것: " + String(b.negative)) : ""]
+      .filter(Boolean).join("\n").slice(0, 1500);
     const tags = [];
     refs.forEach((_, i) => tags.push("@Image" + (i + 1)));
     useVids.forEach((_, i) => tags.push("@Video" + (i + 1)));
@@ -345,7 +348,8 @@ export function buildSeedancePayload(b, env, forceModel) {
   // ── Seedance 1.x 형식(텍스트에 --ratio/--duration, first/last_frame) ──
   const dur = (Number(b.seconds) || 8) <= 6 ? 5 : 10;
   const content = [{ type: "text",
-    text: (b.prompt || "").slice(0, 800) + " --ratio " + ratio + " --duration " + dur }];
+    text: [(b.prompt || ""), b.negative ? ("피해야 할 것: " + String(b.negative)) : ""]
+            .filter(Boolean).join("\n").slice(0, 800) + " --ratio " + ratio + " --duration " + dur }];
   if (first) content.push({ type: "image_url", image_url: { url: first }, role: "first_frame" });
   if (b.lastFrame) content.push({ type: "image_url", image_url: { url: b.lastFrame }, role: "last_frame" });
   return { model, content };

@@ -2781,11 +2781,15 @@ function hostMediaBlob(blob){
     .catch(function(){ return null; });
 }
 /* 이미지 data:URI 를 지정 최대변으로 축소한 작은 JPEG data:URI 로 변환.
-   업로드가 실패해도 이걸 그대로 쓰면 payload 가 작게 유지되어 502(본문 과대/URL 과대)를 막는다. */
+   업로드가 실패해도 이걸 그대로 쓰면 payload 가 작게 유지되어 502(본문 과대/URL 과대)를 막는다.
+   같은 출처(우리 R2)의 http(s) 이미지도 받아 base64 로 되돌린다 — 레퍼런스를 R2 URL 로 보관하면서도
+   Seedance 에는 계속 인라인 base64 로 보내기 위함(제공사가 우리 R2 를 가져가면 제출이 느려져 502). */
 function _downscaleDataURL(src, maxDim, q){
   return new Promise(function(resolve){
     try{
-      if(!/^data:image\//i.test(src)){ resolve(src); return; }
+      var sameOrigin = typeof src==='string' && (/^\//.test(src) ||
+        (/^https?:\/\//i.test(src) && src.indexOf(location.origin)===0));
+      if(!/^data:image\//i.test(src) && !sameOrigin){ resolve(src); return; }
       var img=new Image();
       img.onload=function(){
         try{
@@ -4657,7 +4661,12 @@ window.__nvExportGraph=function(){
   (g.nodes||[]).forEach(function(n){
     if(!n||!n.w)return; var w=n.w;
     ['img','vid','poster','upscaled','srcVideoUrl'].forEach(function(k){ if(isData(w[k]))w[k]=null; });
-    if(Array.isArray(w.imgs)) w.imgs=w.imgs.filter(function(u){ return !isData(u); });
+    // imgs 와 vids 는 같은 인덱스로 짝을 이룬다 — 한쪽만 걸러내면 영상 프레임 표시가 밀린다.
+    if(Array.isArray(w.imgs)){
+      var _keep=[], _vd=Array.isArray(w.vids)?w.vids:null;
+      w.imgs=w.imgs.filter(function(u,i){ var ok=!isData(u); if(ok)_keep.push(i); return ok; });
+      if(_vd) w.vids=_keep.map(function(i){ return _vd[i]; });
+    }
     if(w.cnPreview) w.cnPreview=null; if(w.cnPreviews) w.cnPreviews=null;   // 전처리 미리보기(재생성 가능) 는 전송 제외
     w.generating=false; w.upscaling=false; w.extracting=false;
   });
@@ -4718,7 +4727,12 @@ function stripGraphMedia(g){
   var isData=function(v){ return typeof v==='string' && v.indexOf('data:')===0; };
   (g&&g.nodes||[]).forEach(function(n){ if(!n||!n.w)return; var w=n.w;
     ['img','vid','poster','upscaled','srcVideoUrl'].forEach(function(k){ if(isData(w[k]))w[k]=null; });
-    if(Array.isArray(w.imgs)) w.imgs=w.imgs.filter(function(u){ return !isData(u); });
+    // imgs 와 vids 는 같은 인덱스로 짝을 이룬다 — 한쪽만 걸러내면 영상 프레임 표시가 밀린다.
+    if(Array.isArray(w.imgs)){
+      var _keep=[], _vd=Array.isArray(w.vids)?w.vids:null;
+      w.imgs=w.imgs.filter(function(u,i){ var ok=!isData(u); if(ok)_keep.push(i); return ok; });
+      if(_vd) w.vids=_keep.map(function(i){ return _vd[i]; });
+    }
     if(w.cnPreview) w.cnPreview=null; if(w.cnPreviews) w.cnPreviews=null;   // 전처리 미리보기(재생성 가능) 는 전송 제외
     w.generating=false; w.upscaling=false; w.extracting=false;
   });
@@ -5525,7 +5539,17 @@ function addOmniRefFile(n, file){
     var rd=new FileReader();
     rd.onload=function(){
       var data=rd.result;
-      if(isImg){ n.w.imgs.push(data); n.w.vids.push(null); resolve(true); return; }
+      if(isImg){
+        // 먼저 base64 로 즉시 표시(미리보기 지연 없음) → 그다음 R2 에 올려 URL 로 교체.
+        //  서버 자동저장은 data: 를 덜어내므로(stripGraphMedia), base64 로만 두면
+        //  새로고침해서 서버본을 받아온 순간 레퍼런스가 사라진 것처럼 보인다.
+        var _ix=n.w.imgs.length;
+        n.w.imgs.push(data); n.w.vids.push(null);
+        hostMediaBlob(file).then(function(url){
+          if(url && n.w.imgs[_ix]===data){ n.w.imgs[_ix]=url; snapshot(); render(); }
+        }).catch(function(){ /* 업로드 실패 시 base64 유지 — 이번 세션에서는 그대로 쓸 수 있다 */ });
+        resolve(true); return;
+      }
       var count=Math.max(1, parseInt(n.w.frameCount,10)||3);   // 영상 → 여러 프레임(첫→끝) 분리 입력
       // 원본 영상을 R2에 업로드 → Runway Aleph 등 진짜 V2V(영상→실사)에서 사용
       n.w.srcVideoUploading=true; render();
@@ -6104,12 +6128,28 @@ function ancestorsOf(id){
 }
 /* onlyId 를 주면 그 노드 하나만 생성한다(상류 준비 노드는 실행하되 다른 모델 노드는 건드리지 않음).
    생성은 건당 과금이라, 노드 하나 실행이 그래프 전체 생성으로 번지면 안 된다. */
-var _runScopes=[];
+var _runScopes=[], _activeRuns=0, _runningNodes={};
+/* 지금 실행 중인 노드들만 하이라이트를 정리한다 — 동시 실행 시 남의 표시를 지우면 안 된다 */
+function clearExecOne(id){
+  var el=document.getElementById('nd-'+id); if(el)el.classList.remove('exec');
+  state.links.forEach(function(l,idx){ if(l.from===id){
+    var p=edges.querySelector('path.link[data-idx="'+idx+'"]'); if(p)p.classList.remove('exec'); } });
+}
 function runQueue(onlyId){
-  _runScopes.push(onlyId);   // 실행 대상을 큐로 — 실행 중 다른 노드를 눌러도 첫 대상이 재실행되지 않는다
-  queue++; setQ();
-  if(running)return;
-  running=true;
+  // 노드 지정 실행끼리는 서로 독립이라 동시에 돌린다.
+  //  같은 노드를 두 번 돌리는 것만 막는다(중복 과금·결과 덮어쓰기 방지).
+  if(onlyId){
+    if(_runningNodes[onlyId]){ toast('이 노드는 이미 실행 중입니다'); return; }
+    _runningNodes[onlyId]=1;
+  } else {
+    // 전역 실행(그래프 전체)은 서로 겹치면 안 되므로 기존처럼 순차 대기
+    _runScopes.push(undefined);
+    queue++; setQ();
+    if(running) return;
+    running=true;
+  }
+  if(onlyId){ queue++; setQ(); }
+  _activeRuns++;
   var bar=document.getElementById('qbar'), fill=document.getElementById('qfill');
   bar.classList.add('show');
   function one(){
@@ -6118,7 +6158,7 @@ function runQueue(onlyId){
       var n=state.nodes.find(function(x){return x.id===id;});
       return n&&!n.bypass&&n.type!=='note'&&n.type!=='reroute';
     });
-    var scope=_runScopes.shift();
+    var scope=onlyId||_runScopes.shift();
     if(scope){
       var anc=ancestorsOf(scope);
       order=order.filter(function(id){
@@ -6128,24 +6168,35 @@ function runQueue(onlyId){
         return n && n.type!=='model';             // 상류의 다른 모델 노드는 재생성하지 않음(중복 과금 방지)
       });
     }
-    var i=0;
+    var i=0, prevId=null;
     function step(){
       if(i>=order.length){
-        clearExec();
-        if(queue>0){ one(); }
-        else{ running=false; bar.classList.remove('show'); fill.style.width='0'; toast('실행 완료'); }
+        if(prevId) clearExecOne(prevId);
+        if(onlyId){
+          delete _runningNodes[onlyId];
+          _activeRuns--;
+          if(_activeRuns<=0){ _activeRuns=0; bar.classList.remove('show'); fill.style.width='0'; }
+          toast('실행 완료');
+          return;
+        }
+        if(queue>0 && _runScopes.length){ one(); return; }
+        running=false; _activeRuns--;
+        if(_activeRuns<=0){ _activeRuns=0; bar.classList.remove('show'); fill.style.width='0'; }
+        toast('실행 완료');
         return;
       }
       var id=order[i++], n=state.nodes.find(function(x){return x.id===id;});
       var el=document.getElementById('nd-'+id);
-      clearExec();
+      if(prevId) clearExecOne(prevId);
+      prevId=id;
       if(el)el.classList.add('exec');
       state.links.forEach(function(l,idx){ if(l.from===id){ var p=edges.querySelector('path.link[data-idx="'+idx+'"]'); if(p)p.classList.add('exec'); } });
       var dur=n.type==='model'?1600:320, prog=el?el.querySelector('.node-prog'):null, t0=Date.now();
       var tm=setInterval(function(){
         var pct=Math.min(100,(Date.now()-t0)/dur*100);
         if(prog)prog.style.width=pct+'%';
-        fill.style.width=Math.round(((i-1)+pct/100)/order.length*100)+'%';
+        // 진행바는 하나뿐이라 동시 실행에서는 서로 덮어쓴다 → 단독 실행일 때만 진행률을 반영한다.
+        if(_activeRuns<=1) fill.style.width=Math.round(((i-1)+pct/100)/order.length*100)+'%';
         if(pct>=100){
           clearInterval(tm); if(prog)prog.style.width='0';
           if(n.type==='frame'){
