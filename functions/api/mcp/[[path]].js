@@ -236,7 +236,7 @@ async function callGenerateGET(env, origin, statusUrl, token) {
 }
 /* 제공사 CDN 영상 URL(수 시간~수일 내 만료)을 R2 로 재호스팅해 "영구 URL" 로 교체.
    광고 소재 업로드(Meta Ads MCP 등)·보관함 재사용에 필요. 실패하면 원본 URL 을 그대로 반환(안전 폴백). */
-async function rehostVideoUrl(env, origin, url) {
+export async function rehostVideoUrl(env, origin, url) {
   try {
     url = String(url || "");
     if (!/^https?:\/\//.test(url)) return url;
