@@ -2379,6 +2379,30 @@ function videoModelCaps(model){
   //  Veo 3.1 · Runway Gen-3 Alpha Turbo · Seedance 1.5/1.0 Pro·Fast·Lite(이미지) · Luma Ray · Kling(이미지→영상)
   c.ref=true; c.first=true; c.last=true; return c;
 }
+/* 영상 노드용 ControlNet — Seedance 등 영상 모델의 API 에는 ControlNet 파라미터가 없다.
+   그래서 이미지 노드가 쓰는 방식 그대로, 브라우저에서 만든 맵(Canny/Depth/Pose)을
+   "이미지 레퍼런스"로 덧붙여 구도·포즈를 잡는다. Flux 계열만 fal 네이티브 controlnets 로 간다.
+   → refList 를 그대로(또는 맵을 덧붙여) 돌려주는 Promise. */
+function cnMapsForVideo(model, n, refList){
+  var cnl=(n.w.cnList||[]).filter(function(c){ return c && c.type; });
+  if(!cnl.length) return Promise.resolve(refList);
+  if(/^Flux/.test(model||'')) return Promise.resolve(refList);      // Flux = 네이티브 경로라 손대지 않음
+  if(!videoModelCaps(model).ref) return Promise.resolve(refList);   // 레퍼런스를 못 받는 모델(T2V 등)
+  var src0=refList[0]; if(!src0) return Promise.resolve(refList);   // 맵을 뽑을 원본이 없음
+  var fnMap={canny:cannyPreview,depth:depthPreview,pose:posePreview};
+  return Promise.all(cnl.map(function(c){
+    var pre=n.w.cnPreviews&&n.w.cnPreviews[c.type];                 // 미리보기로 이미 만든 맵은 재사용
+    if(pre&&String(pre).indexOf('data:')===0) return Promise.resolve(pre);
+    return (fnMap[c.type]||cannyPreview)(src0)
+      .then(function(r){ return c.type==='pose'?(r&&r.url):r; })
+      .catch(function(){ return null; });
+  })).then(function(maps){
+    var add=maps.filter(Boolean);
+    if(!add.length) return refList;
+    var lim=/Seedance 2\./.test(model||'')?9:4;                     // 2.0 은 레퍼런스 9장, 그 외는 4장
+    return refList.concat(add).slice(0,lim);
+  }).catch(function(){ return refList; });
+}
 /* 이미지 모델별 레퍼런스 최대 장수 — 실제 API가 다중 이미지를 받는 모델만 12장, 나머지는 1장 */
 var MODEL_REF_LIMIT = {
   'Nano Banana':12, 'GPT Image 2':12,'GPT Image 1.5':12,'GPT Image':12,'GPT Image Mini':12,
@@ -4060,6 +4084,7 @@ var DEFS = {
                       {k:'seedModel',t:'seedid'},
                       {k:'seedOpts',t:'seedopts'},
                       {k:'addref',t:'addrefbtns'},
+                      {k:'fluxctrl',t:'fluxctrl'},
                       {k:'cfg',t:'slider',label:'cfg',min:0,max:100,def:70,
                         tip:'<b>CFG (프롬프트 충실도)</b> — 프롬프트를 얼마나 강하게 따를지 정합니다. 낮으면 자유롭고 자연스럽게, 높으면 지시를 강하게 따릅니다(너무 높으면 부자연·과채도). 보통 60~80 권장. 모델마다 반영 정도가 달라 일부 모델은 이 값을 무시합니다.'},
                       {k:'seed',t:'seed',def:156680208700286,
@@ -4879,8 +4904,10 @@ function widgetHTML(n,w){
     return html;
   }
   if(w.t==='fluxctrl'){   // ControlNet 다중 스택(Canny/Depth/Pose) — Flux=fal 네이티브, 그 외 모델=맵을 레퍼런스로 투입
-    var fm=n.w.model||'';
+    var fm=(n.type==='model'?effModel(n):n.w.model)||'';
     if(/Kontext/.test(fm)) return '';   // Kontext(I2I 편집)는 레퍼런스 1장 편집 모델 → 미지원
+    // 영상 노드: 맵을 "이미지 레퍼런스"로 넣는 방식이므로, 레퍼런스를 못 받는 모델(T2V 등)은 숨긴다.
+    if(n.type==='model' && !videoModelCaps(fm).ref) return '';
     if(!n.w.cnList) n.w.cnList = (n.w.controlnet ? [{type:n.w.controlnet, strength:(n.w.loraStrength==null?1:n.w.loraStrength), start:0, end:1}] : []);  // 예전 단일 → 마이그레이션
     var list=n.w.cnList;
     var steps=(n.w.cnSteps==null?28:n.w.cnSteps);
@@ -6137,7 +6164,8 @@ function runQueue(){
             var camSel=(n.w.camera&&n.w.camera!=='없음')?n.w.camera:(tplSel?tplSel.cam:undefined);
             // AUDIO 포트로 연결된 음악 노드 → 씨댄스 2.0 오디오 참조
             var audN=(inputNodesOf(n.id,'audio')||[]).filter(function(x){return x&&x.w&&x.w.audio;})[0];
-            generateWithAPI({
+            cnMapsForVideo(chosenModel, n, refList).then(function(_rl){ refList=_rl;
+            return generateWithAPI({
               model:chosenModel,
               camera: camSel,
               prompt: basePrompt,
@@ -6160,7 +6188,7 @@ function runQueue(){
               controlnets: (/^Flux/.test(chosenModel||'')&&!/Kontext/.test(chosenModel||'')&&n.w.cnList)?n.w.cnList.slice():[],
               cnSteps: (n.w.cnSteps==null?28:n.w.cnSteps), cnGuidance: (n.w.cnGuidance==null?3.5:n.w.cnGuidance),
               cfg:n.w.cfg, seed:n.w.seed
-            }).then(function(res){
+            }); }).then(function(res){
               if(!res || res.error){   // 실제 생성 실패 — 데모로 감추지 않고 원인 표시
                 var msg=(res&&res.error)||'생성 실패';
                 outs.forEach(function(o){ o.w.generating=false; o.w.error=msg; });
