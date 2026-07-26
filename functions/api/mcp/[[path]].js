@@ -18,6 +18,7 @@ import { onRequest as generateApi, CAMERA_PRESETS } from "../generate.js";
 import { resolveDB, ensureSchema, getUserByMcpToken } from "../_utils";
 import { getUserByAccessToken } from "../oauth/_oauth";
 import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage, MODEL_COST, PROV_LABEL } from "../studio/_pricing";
+import { findCharacter, listCharacters } from "../studio/characters";
 
 const SERVER_INFO = { name: "bygency-studio", version: "1.1.0" };
 
@@ -125,6 +126,7 @@ const TOOLS = [
         generate_audio: { type: "boolean", description: "오디오 동시 생성 (씨댄스 2.0 등 지원 모델만, 기본 false)" },
         camera: { type: "string", enum: Object.keys(CAMERA_PRESETS),
                   description: "카메라 모션 프리셋 (선택). 시네마틱 카메라 지시문을 프롬프트에 자동 주입 — 크래시 줌·돌리 인·360 오빗·불릿타임·FPV 드론 등" },
+        character: { type: "string", description: "저장된 캐릭터 이름 (선택). 계정의 캐릭터 라이브러리에서 레퍼런스 사진을 자동으로 불러와 인물 일관성을 유지합니다. list_characters 로 목록 확인" },
         dry_run: { type: "boolean", description: "true면 실제 호출 없이 제공사로 보낼 페이로드만 미리보기 (과금 없음)" }
       },
       required: ["model", "prompt"]
@@ -159,6 +161,7 @@ const TOOLS = [
         reference_image_url: { type: "string", description: "레퍼런스/편집용 입력 이미지 URL 또는 data URL (선택)" },
         reference_image_urls: { type: "array", items: { type: "string" },
                  description: "레퍼런스 이미지 여러 장 (선택). 씨드림 4.x/5.0·나노바나나 등 다중 레퍼런스 지원 모델용" },
+        character: { type: "string", description: "저장된 캐릭터 이름 (선택). 계정의 캐릭터 라이브러리에서 레퍼런스 사진을 자동으로 불러와 같은 인물로 생성합니다. list_characters 로 목록 확인" },
         ratio: { type: "string", enum: ["16:9", "9:16", "1:1", "4:5", "3:4", "4:3"], description: "화면 비율(지원 모델만), 기본 16:9" },
         negative_prompt: { type: "string", description: "피해야 할 요소 (선택)" },
         dry_run: { type: "boolean", description: "true면 실제 호출 없이 페이로드만 미리보기 (과금 없음)" }
@@ -180,6 +183,11 @@ const TOOLS = [
       },
       required: ["prompt"]
     }
+  },
+  {
+    name: "list_characters",
+    description: "계정에 저장된 캐릭터(일관된 인물 레퍼런스 묶음) 목록을 반환합니다. generate_image / generate_video 의 character 파라미터에 이름을 넣으면 그 인물로 생성됩니다.",
+    inputSchema: { type: "object", properties: {} }
   },
   {
     name: "list_models",
@@ -257,6 +265,13 @@ async function runTool(name, args, env, origin, ctx) {
 
   if (name === "list_models") return modelInfo();
 
+  if (name === "list_characters") {
+    if (!me || !db) throw new Error("회원 인증이 필요합니다.");
+    const chars = await listCharacters(db, me.id).catch(() => []);
+    return { characters: chars.map((c) => ({ name: c.name, images: c.images.length, note: c.note })),
+      usage: "generate_image / generate_video 의 character 에 이름을 넣으면 해당 인물 레퍼런스가 자동 적용됩니다. 캐릭터는 스튜디오의 [캐릭터] 노드에서 저장합니다." };
+  }
+
   if (name === "generate_music") {
     if (!args.prompt) throw new Error("prompt(음악 설명)는 필수입니다");
     const secs = Math.min(Math.max(Number(args.seconds) || 30, 10), 120);
@@ -295,6 +310,11 @@ async function runTool(name, args, env, origin, ctx) {
     const refs = [];
     if (Array.isArray(args.reference_image_urls)) for (const u of args.reference_image_urls) if (u) refs.push(String(u));
     if (args.reference_image_url && refs.indexOf(String(args.reference_image_url)) < 0) refs.unshift(String(args.reference_image_url));
+    if (args.character && me && db) {
+      const ch = await findCharacter(db, me.id, args.character);
+      if (!ch) throw new Error("캐릭터 '" + args.character + "' 를 찾을 수 없습니다. list_characters 로 목록을 확인하세요.");
+      for (const u of ch.images) if (refs.indexOf(u) < 0) refs.unshift(u);   // 캐릭터 레퍼런스를 최우선으로
+    }
     const j = await callGeneratePOST(env, origin, {
       provider: c.provider,
       model: c.name,                       // ★ 제공사 내부 모델ID 결정에 필수 (없으면 기본 모델로 고정됨)
@@ -327,7 +347,13 @@ async function runTool(name, args, env, origin, ctx) {
       if (est && (Number(me.credits) || 0) < est.credits)
         throw new Error("크레딧이 부족합니다. 필요 " + est.credits + "크레딧 · 보유 " + (Number(me.credits) || 0) + "크레딧. nextbygency.com/pricing 에서 충전하세요.");
     }
-    const ref = args.reference_image_url || null;
+    let vidRefs = args.reference_image_url ? [String(args.reference_image_url)] : [];
+    if (args.character && me && db) {
+      const ch = await findCharacter(db, me.id, args.character);
+      if (!ch) throw new Error("캐릭터 '" + args.character + "' 를 찾을 수 없습니다. list_characters 로 목록을 확인하세요.");
+      vidRefs = ch.images.concat(vidRefs.filter((u) => ch.images.indexOf(u) < 0));
+    }
+    const ref = vidRefs[0] || null;
     const body = {
       provider: c.provider,
       model: c.name,                       // ★ 제공사 내부 모델ID 결정에 필수 (없으면 기본 모델로 고정됨)
@@ -336,7 +362,7 @@ async function runTool(name, args, env, origin, ctx) {
       firstFrame: args.first_frame_url || null,
       lastFrame: args.last_frame_url || null,
       refImage: ref,
-      refImages: ref ? [ref] : [],
+      refImages: vidRefs,
       srcVideo: args.source_video_url || null,   // V2V·모션 전이·립싱크 계열
       seconds,
       ratio: args.ratio || "16:9",

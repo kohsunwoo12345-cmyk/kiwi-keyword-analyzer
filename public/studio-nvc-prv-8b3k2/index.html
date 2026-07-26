@@ -2344,6 +2344,19 @@ var VIRAL_TPL={
  '유령의 질주 (스피드런)':{p:'High-speed run through the scene, motion blur streaks, adrenaline pace, dynamic energy',cam:'FPV 드론'}};
 var VIRAL_TPL_OPTS=['없음'].concat(Object.keys(VIRAL_TPL));
 
+/* ── 캐릭터 라이브러리 (계정 서버 저장 · /api/studio/characters) ──
+   undefined=미로드, null=비로그인, []=없음 */
+window.CHAR_LIB=undefined;
+var _charLoading=false;
+function loadCharLib(force){
+  if(_charLoading) return; if(window.CHAR_LIB!==undefined && !force) return;
+  _charLoading=true;
+  fetch('/api/studio/characters',{credentials:'include',cache:'no-store'})
+    .then(function(r){return r.json();})
+    .then(function(d){ window.CHAR_LIB=(d&&d.ok)?(d.characters||[]):null; _charLoading=false; try{render();}catch(_e){} })
+    .catch(function(){ window.CHAR_LIB=null; _charLoading=false; try{render();}catch(_e){} });
+}
+
 /* ── 모델별 능력 게이팅 ──
    영상 레퍼런스(V2V)는 실제로 영상→영상을 지원하는 모델만 연결 허용.
    나머지 모델은 사진 레퍼런스·프롬프트만 연결되게 한다(vidref 차단). */
@@ -3980,6 +3993,10 @@ var DEFS = {
                       {k:'img',t:'image',omni:true}] },
  imageref: { cat:'입력', title:'이미지 레퍼런스', hd:'#1f3350', ins:[], outs:[['out','이미지','IMAGE']],
              widgets:[{k:'img',t:'image',imageOnly:true}] },
+ charref:  { cat:'입력', title:'캐릭터 (일관된 인물)', hd:'#33244a', ins:[],
+             outs:[['out','캐릭터 레퍼런스','IMAGE']],
+             widgets:[{k:'charlib',t:'charlib'},
+                      {k:'img',t:'image',imageOnly:true}] },
  videoref: { cat:'입력', title:'영상 레퍼런스', hd:'#1f3f33', ins:[], outs:[['out','영상','VIDEO']],
              widgets:[{k:'frameCount',t:'combo',label:'영상 프레임 수',opts:['1','3','5','8'],def:'3'},
                       {k:'img',t:'image',videoOnly:true}] },
@@ -4881,6 +4898,25 @@ function widgetHTML(n,w){
   }
   if(w.t==='narratebtn'){ var lipb=/립싱크/.test(n.w.nmode||''); return '<button class="wbtn" data-narrate>'+ICON.sparkle+' '+(lipb?'립싱크 생성':esc(w.label))+'</button>'; }
   if(w.t==='musicbtn') return '<button class="wbtn" data-music>'+ICON.sparkle+' '+(n.w.musicking?'생성 중…':esc(w.label))+'</button>';
+  if(w.t==='charlib'){
+    var lib=window.CHAR_LIB;
+    var h='<div class="refcnt" style="margin-bottom:4px;">사진을 올려 <b>이름으로 저장</b>하면 어떤 생성에서든 같은 인물을 유지합니다. 저장된 캐릭터는 Claude MCP 에서도 이름으로 부를 수 있습니다.</div>';
+    if(lib===undefined){ loadCharLib(); h+='<div class="refcnt">캐릭터 목록 불러오는 중…</div>'; }
+    else if(lib===null){ h+='<div class="refcnt" style="color:#f59e0b;">로그인하면 캐릭터를 계정에 저장할 수 있습니다.</div>'; }
+    else if(!lib.length){ h+='<div class="refcnt">저장된 캐릭터가 없습니다 — 아래에 사진을 올리고 이름을 붙여 저장하세요.</div>'; }
+    else {
+      h+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">'+lib.map(function(c){
+        return '<span style="display:inline-flex;align-items:center;gap:2px;">'
+          +'<button class="wbtn" style="width:auto;padding:4px 9px;font-size:11px;'+(n.w.charId===c.id?'border-color:#8b5cf6;color:#c4b5fd;':'')+'" data-charload="'+esc(c.id)+'">'+esc(c.name)+' ('+(c.images||[]).length+'장)</button>'
+          +'<button class="wbtn" style="width:auto;padding:4px 7px;font-size:11px;color:#f87171;" data-chardel="'+esc(c.id)+'" title="삭제">×</button></span>';
+      }).join('')+'</div>';
+    }
+    h+='<div style="display:flex;gap:5px;align-items:center;">'
+      +'<input class="ch-modelsel" data-charname placeholder="캐릭터 이름 (예: 지수)" value="'+esc(n.w.charName||'')+'" style="flex:1;padding:6px 9px;font-size:12px;" onclick="event.stopPropagation()">'
+      +'<button class="wbtn" style="width:auto;padding:6px 11px;font-size:11.5px;" data-charsave>'+((n.w.charSaving)?'저장 중…':'현재 사진 저장')+'</button></div>';
+    if(n.w.charMsg) h+='<div class="refcnt" style="margin-top:4px;color:#34d399;">'+esc(n.w.charMsg)+'</div>';
+    return h;
+  }
   if(w.t==='audioout'){
     if(n.w.musicking) return genLoader('음악 생성 중',60);
     if(n.w.merror) return '<div class="refcnt" style="color:#f87171;">'+esc(String(n.w.merror).slice(0,140))+'</div>';
@@ -5569,6 +5605,41 @@ canvas.addEventListener('click',function(e){
   }
   if(e.target.closest('[data-narrate]')){ narrateNode(n2); return; }
   if(e.target.closest('[data-music]')){ musicNode(n2); return; }
+  var chL=e.target.closest('[data-charload]');
+  if(chL){
+    var cid=chL.getAttribute('data-charload');
+    var cc=(window.CHAR_LIB||[]).find(function(x){return x.id===cid;});
+    if(cc){ n2.w.imgs=(cc.images||[]).slice(); n2.w.charId=cc.id; n2.w.charName=cc.name; n2.w.charMsg='캐릭터 "'+cc.name+'" 불러옴 — 이 노드를 레퍼런스로 연결하세요';
+      toast('캐릭터 "'+cc.name+'" 불러옴'); snapshot(); render(); }
+    return; }
+  var chD=e.target.closest('[data-chardel]');
+  if(chD){
+    var did=chD.getAttribute('data-chardel');
+    var dc=(window.CHAR_LIB||[]).find(function(x){return x.id===did;});
+    if(dc && confirm('캐릭터 "'+dc.name+'" 를 삭제할까요?')){
+      fetch('/api/studio/characters?id='+encodeURIComponent(did),{method:'DELETE',credentials:'include'})
+        .then(function(r){return r.json();})
+        .then(function(d){ if(d&&d.ok){ window.CHAR_LIB=d.characters||[]; toast('삭제했습니다'); } else toast((d&&d.error)||'삭제 실패'); render(); });
+    }
+    return; }
+  if(e.target.closest('[data-charsave]')){
+    var nmEl=host.querySelector('[data-charname]');
+    var nm=(nmEl&&nmEl.value||'').trim();
+    var urls=(n2.w.imgs||[]).filter(function(u){return /^https?:\/\//.test(u);});
+    if(!nm){ toast('캐릭터 이름을 입력하세요'); return; }
+    if(!urls.length){ toast('사진을 먼저 올려주세요 (업로드 완료된 사진만 저장됩니다)'); return; }
+    n2.w.charSaving=true; n2.w.charName=nm; render();
+    fetch('/api/studio/characters',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name:nm,images:urls})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        n2.w.charSaving=false;
+        if(d&&d.ok){ window.CHAR_LIB=d.characters||[]; n2.w.charId=d.id; n2.w.charMsg='"'+nm+'" 저장 완료 ('+urls.length+'장)'; toast('캐릭터 저장 완료'); }
+        else { n2.w.charMsg=null; toast((d&&d.error)||'저장 실패 — 로그인 상태를 확인하세요'); }
+        render(); snapshot();
+      })
+      .catch(function(){ n2.w.charSaving=false; toast('저장 실패 (네트워크)'); render(); });
+    return; }
   if(e.target.closest('[data-audiocopy]')){
     try{ navigator.clipboard.writeText(n2.w.audio||''); toast('음악 URL을 복사했습니다'); }catch(_e){ toast('복사 실패'); }
     return; }
