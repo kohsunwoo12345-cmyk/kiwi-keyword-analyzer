@@ -2172,7 +2172,9 @@ function recordUpscale(srcUrl, res, scaleLabel, srcModel, prompt){
     var model = isImg?UPSCALE_MODEL_IMG:UPSCALE_MODEL_VID;
     var units = isImg?1:Math.max(1, Math.round(Number(res.sec)||0)||1);
     var detail = '업스케일 '+(scaleLabel||'')+' · '+(res.engine||'초해상')+' · '+(res.srcDim||'?')+' → '+(res.dim||'?')+
-                 (srcModel?(' · 원본 모델 '+srcModel):'') + (prompt?('\n'+prompt):'');
+                 (srcModel?(' · 원본 모델 '+srcModel):'') +
+                 (res.fallback&&res.reason?('\n초해상 불가 사유: '+res.reason):'') +   // 관리자가 원인을 바로 본다
+                 (prompt?('\n'+prompt):'');
     // 원본이 이미 URL 이면 그대로 기록(재업로드 회피). data:/blob: 만 R2 로 올린다.
     var srcJob = /^(data|blob):/.test(String(srcUrl||'')) ? _upHost(srcUrl, 30000000) : Promise.resolve(srcUrl||'');
     Promise.all([ _upHost(res.url, 300000000), srcJob ]).then(function(u){
@@ -4035,10 +4037,11 @@ function _smokePattern(n){
 function _smokeTest(runner){
   var n=32, c=_smokePattern(n);
   return Promise.resolve().then(function(){ return runner.run(c); }).then(function(out){
-    if(!out || !out.width || !out.height) throw new Error(runner.engine+': 추론 결과 없음');
+    if(!out || !out.width || !out.height) throw new Error(runner.name+': 추론 결과 없음');
     var f=Math.round(out.width/n);
-    if(!(f>=2)) throw new Error(runner.engine+': 배율 이상('+out.width+'×'+out.height+')');
-    runner.factor=f;   // 선언값이 아니라 실제 출력 배율을 쓴다
+    if(!(f>=2)) throw new Error(runner.name+': 배율 이상('+out.width+'×'+out.height+')');
+    runner.factor=f;                                     // 선언값이 아니라 실제 출력 배율
+    runner.engine=runner.name+' x'+f+(runner.note||'');   // 이름표도 '측정된' 배율로 짓는다
     return runner;
   });
 }
@@ -4050,14 +4053,14 @@ function getUpscaler(factor, onStage){
   function esr(){
     stage('Real-ESRGAN');
     return ensureEsrgan().then(function(sess){
-      return _smokeTest({ factor:4, tile:128, engine:'Real-ESRGAN x4', run:function(cv){ return _esrRunTile(sess, cv); } })
+      return _smokeTest({ factor:4, tile:128, name:'Real-ESRGAN', run:function(cv){ return _esrRunTile(sess, cv); } })
         .catch(function(e){ _srRemember('esrgan','no:'+Date.now()); throw e; });   // 세션은 떴는데 추론이 깨진 경우도 기억
     });
   }
   function swin(){
     stage('Swin2SR');
     return ensureUpscaleModel(f).then(function(m){
-      return _smokeTest({ factor:f, tile:256, engine:'Swin2SR x'+f+(m.q==='int8'?'(양자화)':''),
+      return _smokeTest({ factor:f, tile:256, name:'Swin2SR', note:(m.q==='int8'?'(양자화)':''),
         run:function(cv){ return m.pipe(cv.toDataURL('image/png')).then(function(res){ return (res&&res.toCanvas)?res.toCanvas():null; }); } });
     });
   }

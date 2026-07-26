@@ -1,7 +1,8 @@
 // /models/<category>/<path> — ControlNet 전처리 모델 파일을 우리 서버에서 서빙(프록시+R2 캐시).
 //  외부 CDN(HuggingFace/Google/jsdelivr) 의존을 없애 브라우저에서 실제 모델이 '항상' 로드되게 한다.
 //  최초 요청 시 상류에서 받아 R2 에 캐시 → 이후엔 동일 출처(우리 서버)에서 즉시 서빙.
-import { resolveBucket } from '../api/_utils'
+import { resolveBucket, resolveDB } from '../api/_utils'
+import { modelKey, SELFHOST_KEY, WARM_UNTIL_KEY, LAST_UPSTREAM_KEY } from './_key'
 
 // 허용된 상류 매핑 (화이트리스트 — 임의 URL 프록시 금지). 경로 접두 방식.
 const UPSTREAM: Record<string, string> = {
@@ -59,10 +60,7 @@ export const onRequestGet: PagesFunction = async (ctx) => {
     upstreamUrl = base + sub + search
     ct = ctOf(sub)
   }
-  // 카테고리별 캐시 버전 — 상류 URL을 바꾼 카테고리는 버전을 올려 옛(잘못된) R2 캐시를 무효화한다.
-  //  ort: onnxruntime-web@1.14.0 → transformers 자체 dist wasm 으로 교체(v2). 기존 잘못된 wasm 재적재 강제.
-  const CACHE_VER: Record<string, string> = { ort: 'v2' }
-  const key = 'modelcache/' + cat + (CACHE_VER[cat] ? '@' + CACHE_VER[cat] : '') + '/' + sub + (search ? '_' + btoa(search).replace(/[^a-zA-Z0-9]/g, '') : '')
+  const key = modelKey(cat, sub, search)
   const cors = { 'access-control-allow-origin': '*', 'cross-origin-resource-policy': 'cross-origin' }
 
   const R2: any = resolveBucket(env)
@@ -93,14 +91,38 @@ export const onRequestGet: PagesFunction = async (ctx) => {
   if (R2) {
     try {
       const o = await R2.get(key)
-      if (o) return new Response(o.body, { headers: { 'content-type': ct, 'cache-control': 'public, max-age=31536000, immutable', ...cors } })
+      // x-model-source: 이 바이트가 어디서 왔는지 — 자체 호스팅이 실제로 유지되는지 눈으로 확인할 수 있게.
+      if (o) return new Response(o.body, { headers: { 'content-type': ct, 'cache-control': 'public, max-age=31536000, immutable', 'x-model-source': 'r2', ...cors } })
     } catch { /* R2 미스는 상류로 */ }
   }
-  // 2) 상류에서 받아 캐시
+  // 2) R2 에 없음 → 외부 상류. 자체 호스팅(strict) 모드에서는 여기서 막는다.
+  //    (관리자가 "모델 캐시 채우기" 를 돌리는 동안 열리는 창에서만 예외적으로 허용)
+  const db: any = resolveDB(env)
+  let mode = 'auto'
+  if (db) {
+    try {
+      const row: any = await db.prepare('SELECT key, value FROM settings WHERE key IN (?, ?)').bind(SELFHOST_KEY, WARM_UNTIL_KEY).all()
+      const map: Record<string, string> = {}
+      for (const r of (row?.results || []) as any[]) map[r.key] = String(r.value || '')
+      mode = map[SELFHOST_KEY] === 'strict' ? 'strict' : 'auto'
+      if (mode === 'strict' && Number(map[WARM_UNTIL_KEY] || 0) > Date.now()) mode = 'auto' // 적재 창
+    } catch { mode = 'auto' } // 설정을 못 읽으면 기존 동작 유지(서비스 우선)
+  }
+  if (mode === 'strict') {
+    return new Response(
+      JSON.stringify({ error: 'selfhost_strict', message: '자체 호스팅 전용 모드입니다. 이 파일은 R2 에 아직 없습니다. 관리자 → 모델 캐시 채우기를 실행하세요.', path: '/' + cat + '/' + sub }),
+      { status: 503, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-model-source': 'blocked', ...cors } },
+    )
+  }
+
   let up: Response
   try { up = await fetch(upstreamUrl, { cf: { cacheEverything: true, cacheTtl: 86400 } as any } as any) }
   catch { return new Response('upstream fetch failed', { status: 502, headers: cors }) }
-  if (!up.ok) return new Response('upstream ' + up.status, { status: 502, headers: cors })
+  if (!up.ok) return new Response('upstream ' + up.status, { status: 502, headers: { ...cors, 'x-model-source': 'upstream-fail' } })
+  // 외부를 탄 사실을 남긴다 — 관리자 화면에서 "아직 외부에 기대고 있는지" 를 볼 수 있게.
+  if (db) {
+    try { ctx.waitUntil(db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').bind(LAST_UPSTREAM_KEY, new Date().toISOString() + ' ' + cat + '/' + sub).run()) } catch { /* 기록 실패는 무시 */ }
+  }
 
   const clen = Number(up.headers.get('content-length') || 0)
   const STREAM_OVER = 20_000_000 // 이 크기를 넘으면 버퍼링하지 않고 흘려보낸다
@@ -108,7 +130,7 @@ export const onRequestGet: PagesFunction = async (ctx) => {
   //  → 응답 스트림을 tee 해서 한쪽은 클라이언트로, 한쪽은 R2 로. 적재는 waitUntil 로 응답과 분리.
   //  R2 는 길이를 아는 스트림을 요구하므로 content-length 가 있을 때만 이 경로를 쓴다.
   if (up.body && clen > STREAM_OVER) {
-    const headers = { 'content-type': ct, 'cache-control': 'public, max-age=31536000, immutable', ...cors }
+    const headers = { 'content-type': ct, 'cache-control': 'public, max-age=31536000, immutable', 'x-model-source': 'upstream', ...cors }
     if (!R2) return new Response(up.body, { headers })
     const [toClient, toR2] = up.body.tee()
     try {
@@ -121,5 +143,5 @@ export const onRequestGet: PagesFunction = async (ctx) => {
   }
   const buf = await up.arrayBuffer()
   if (R2) { try { await R2.put(key, buf, { httpMetadata: { contentType: ct } }) } catch { /* 캐시 실패 무시 */ } }
-  return new Response(buf, { headers: { 'content-type': ct, 'cache-control': 'public, max-age=31536000, immutable', ...cors } })
+  return new Response(buf, { headers: { 'content-type': ct, 'cache-control': 'public, max-age=31536000, immutable', 'x-model-source': 'upstream', ...cors } })
 }
