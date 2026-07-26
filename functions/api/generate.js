@@ -2177,6 +2177,7 @@ async function handle(context) {
     const candidates = seedanceModelIds(b, env);   // 모델 ID 후보(콘솔 표기·날짜 차이 자동 흡수)
     const tag = "[m:" + candidates[0] + "]";
     let lastErr = null;
+    const tried = [];   // 후보별 결과를 모아 에러에 실어 준다(어느 ID 에서 무엇이 났는지 보이게)
     outer:
     for (const hostId of hosts) {
       for (const mid of candidates) {
@@ -2196,16 +2197,22 @@ async function handle(context) {
           j = await r.json().catch(() => ({}));
         } catch (e) {
           lastErr = hostId + " 제출 실패(" + (Date.now() - t0) + "ms): " + String((e && e.message) || e).slice(0, 140);
+          tried.push(mid + "=ERR");
           continue;   // 다음 후보/호스트로
         }
         if (r.ok && j.id)
           return json({ statusUrl: "/api/generate?provider=seedance&host=" + hostId + "&task=" + encodeURIComponent(j.id), modelId: mid });
         lastErr = "HTTP " + r.status + " [" + mid + " img:" + imgN + "] " + ((j.error && (j.error.message || j.error.code)) || String(JSON.stringify(j)).slice(0, 140));
-        // 모델 ID 자체가 없으면 다음 후보로, 그 외(검열·잔액·형식)는 후보를 바꿔도 동일하므로 중단
-        if (!seedreamModelMissing(r.status, j)) break outer;
+        tried.push(mid + "=" + r.status);
+        // 다음 후보로 넘어갈 조건: 모델 ID 없음(404) 또는 제공사 5xx.
+        //  ModelArk 는 미개통·미배포 모델에 404 가 아니라 500(InternalServiceError)을 주는 경우가 있어,
+        //  5xx 에서 멈추면 남은 후보 ID 를 한 번도 못 써 보고 "제공사 서버 오류"로 끝나 버린다.
+        //  400(파라미터)·401/403(인증)·402(잔액)·429(한도)는 ID 를 바꿔도 동일하므로 즉시 중단.
+        if (!(seedreamModelMissing(r.status, j) || r.status >= 500)) break outer;
       }
     }
-    return json({ error: "Seedance " + tag + ": " + String(lastErr).slice(0, 220) }, 502);
+    const trail = tried.length > 1 ? " · 시도: " + tried.join(", ") : "";
+    return json({ error: "Seedance " + tag + ": " + String(lastErr).slice(0, 200) + trail }, 502);
   }
 
   if (provider === "seedream") {
@@ -2235,8 +2242,9 @@ async function handle(context) {
         if (d0 && d0.url) return json({ url: d0.url, kind: "image", modelId: mid });
         if (d0 && d0.b64_json) return json({ url: "data:image/png;base64," + d0.b64_json, kind: "image", modelId: mid });
         lastErr = "HTTP " + r.status + " [" + mid + "] " + ((j.error && (j.error.message || j.error.code)) || String(JSON.stringify(j)).slice(0, 160));
-        // 모델 ID 문제면 다음 후보로, 그 외(검열·잔액·형식)는 후보를 더 시도해도 동일하므로 중단
-        if (!seedreamModelMissing(r.status, j)) break outer;
+        // 모델 ID 문제(404) 또는 제공사 5xx 면 다음 후보로 — ModelArk 는 미개통 모델에 500 을 주기도 한다.
+        // 그 외(검열·잔액·형식·인증)는 후보를 더 시도해도 동일하므로 중단.
+        if (!(seedreamModelMissing(r.status, j) || r.status >= 500)) break outer;
       }
     }
     return json({ error: "Seedream " + tag + ": " + String(lastErr).slice(0, 220) }, 502);
