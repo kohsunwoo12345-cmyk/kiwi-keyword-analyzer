@@ -5644,7 +5644,12 @@ canvas.addEventListener('click',function(e){
   if(_ped){ openPoseEditor(n2); return; }
   var _cz=e.target.closest('[data-cnzoom]');
   if(_cz){ var pp=(_cz.getAttribute('data-cnzoom')||'').split('|'); var zurl=n2.w.cnPreviews&&n2.w.cnPreviews[pp[1]]; if(zurl && String(zurl).indexOf('data:')===0) openImageLightbox(zurl, pp[1]); return; }
-  if(e.target.closest('[data-runnode]')){ runQueue(); return; }
+  // 노드의 "Execute Node" 는 그 노드만 실행한다. 예전엔 runQueue() 를 그냥 불러서
+  // 캔버스의 모든 모델 노드가 함께 생성되고 전부 과금됐다.
+  if(e.target.closest('[data-runnode]')){
+    var _rn=e.target.closest('.node');
+    runQueue(_rn?_rn.dataset.node:undefined); return;
+  }
   if(e.target.closest('[data-imggen]')){ generateImageNode(n2); return; }
   if(e.target.closest('[data-promptgen]')){ generatePromptNode(n2); return; }
   if(e.target.closest('[data-dlimg]')){
@@ -6043,7 +6048,21 @@ function clearExec(){
   document.querySelectorAll('.node.exec').forEach(function(x){x.classList.remove('exec');});
   document.querySelectorAll('#edges path.exec').forEach(function(x){x.classList.remove('exec');});
 }
-function runQueue(){
+/* 이 노드에 입력을 대는 상류 노드 전부(자기 자신 포함) */
+function ancestorsOf(id){
+  var seen={}; seen[id]=1;
+  (function walk(cur){
+    state.links.filter(function(l){return l.to===cur;}).forEach(function(l){
+      if(seen[l.from])return; seen[l.from]=1; walk(l.from);
+    });
+  })(id);
+  return seen;
+}
+/* onlyId 를 주면 그 노드 하나만 생성한다(상류 준비 노드는 실행하되 다른 모델 노드는 건드리지 않음).
+   생성은 건당 과금이라, 노드 하나 실행이 그래프 전체 생성으로 번지면 안 된다. */
+var _runScopes=[];
+function runQueue(onlyId){
+  _runScopes.push(onlyId);   // 실행 대상을 큐로 — 실행 중 다른 노드를 눌러도 첫 대상이 재실행되지 않는다
   queue++; setQ();
   if(running)return;
   running=true;
@@ -6055,6 +6074,16 @@ function runQueue(){
       var n=state.nodes.find(function(x){return x.id===id;});
       return n&&!n.bypass&&n.type!=='note'&&n.type!=='reroute';
     });
+    var scope=_runScopes.shift();
+    if(scope){
+      var anc=ancestorsOf(scope);
+      order=order.filter(function(id){
+        if(id===scope) return true;               // 실행 대상
+        if(!anc[id]) return false;                // 이 노드와 무관한 가지
+        var n=state.nodes.find(function(x){return x.id===id;});
+        return n && n.type!=='model';             // 상류의 다른 모델 노드는 재생성하지 않음(중복 과금 방지)
+      });
+    }
     var i=0;
     function step(){
       if(i>=order.length){
