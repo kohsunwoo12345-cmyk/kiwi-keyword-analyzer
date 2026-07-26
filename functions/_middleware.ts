@@ -1,4 +1,5 @@
 import { resolveDB, clientIp, geoFrom, isBlocked, isWhitelistMode, isWhitelisted, logSecurity, json, countRecentSuspicious, autoBlockIp, isAdminLockEnabled, isAdminAccessAllowed, parseCookies, ADMIN_DEVICE_COOKIE } from './api/_utils'
+import { asMetadata, prMetadata } from './api/oauth/_oauth'
 
 // 관리자 콘솔 경로 (난독화된 base) + 관리자 API
 const ADMIN_BASE = '/adminsunkoh028741_11263'
@@ -22,6 +23,30 @@ export const onRequest: PagesFunction<any> = async (context) => {
   const { request, env, next } = context
   const url = new URL(request.url)
   const path = url.pathname
+
+  // ── MCP OAuth 디스커버리 (RFC 9728 / RFC 8414) ──
+  //  Claude 가 커넥터를 연결할 때 가장 먼저 읽는 공개 메타데이터.
+  //  보안 검사보다 앞에 두어 어떤 상황에서도 항상 응답되게 한다(연결 실패 방지).
+  //  경로 뒤에 리소스 경로가 붙는 형태(/.well-known/...-resource/api/mcp)도 함께 수용.
+  if (path.startsWith('/.well-known/oauth-')) {
+    const origin = url.origin
+    const meta = path.startsWith('/.well-known/oauth-protected-resource')
+      ? prMetadata(origin)
+      : path.startsWith('/.well-known/oauth-authorization-server')
+      ? asMetadata(origin)
+      : null
+    if (meta) {
+      return new Response(JSON.stringify(meta), {
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+          'cache-control': 'public, max-age=300',
+          'access-control-allow-origin': '*',
+          'access-control-allow-headers': 'Content-Type, Authorization, Mcp-Protocol-Version',
+          'access-control-allow-methods': 'GET, OPTIONS',
+        },
+      })
+    }
+  }
 
   if (ASSET_RE.test(path) || path.startsWith('/_next/')) return next()
 

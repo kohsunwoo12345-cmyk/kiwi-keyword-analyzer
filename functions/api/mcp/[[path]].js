@@ -1,9 +1,11 @@
 // /api/mcp — Claude 커스텀 커넥터용 MCP 서버 (Streamable HTTP, stateless)
 //
 // 연결 방법:
-//   · claude.ai / Claude Desktop:  설정 → 커넥터 → 커스텀 커넥터 추가
-//       URL: https://nextbygency.com/api/mcp            (MCP_AUTH_TOKEN 미설정 시)
-//       URL: https://nextbygency.com/api/mcp/<토큰>      (MCP_AUTH_TOKEN 설정 시)
+//   · claude.ai / Claude Desktop (권장 · 원클릭 OAuth):
+//       설정 → 커넥터 → 커스텀 커넥터 추가 → URL: https://nextbygency.com/api/mcp
+//       토큰 복사 불필요. Claude 가 401 의 WWW-Authenticate 를 보고 스스로 OAuth 흐름을 시작해
+//       로그인·승인 창을 띄우고 액세스 토큰을 받아간다. (OAuth 2.1 + DCR + PKCE)
+//   · 수동 방식(호환 유지): https://nextbygency.com/api/mcp/<개인토큰>
 //   · Claude Code:
 //       claude mcp add --transport http bygency https://nextbygency.com/api/mcp \
 //         --header "Authorization: Bearer <토큰>"
@@ -14,6 +16,7 @@
 
 import { onRequest as generateApi } from "../generate.js";
 import { resolveDB, ensureSchema, getUserByMcpToken } from "../_utils";
+import { getUserByAccessToken } from "../oauth/_oauth";
 import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage, MODEL_COST, PROV_LABEL } from "../studio/_pricing";
 
 const SERVER_INFO = { name: "bygency-studio", version: "1.1.0" };
@@ -391,6 +394,10 @@ async function resolveMcpAuth(request, env, db, pathToken) {
   const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
   const cand = pathToken || bearer || "";
   if (cand && db) {
+    // ① OAuth 액세스 토큰(Claude 커넥터 "연결" 승인으로 발급) — 힉스필드식 원클릭 연동 경로
+    const ou = await getUserByAccessToken(db, cand);
+    if (ou) return { user: ou };
+    // ② 개인 MCP 토큰(수동 발급 URL) — 기존 방식 계속 지원
     const u = await getUserByMcpToken(db, cand);
     if (u) return { user: u };
   }
@@ -413,10 +420,11 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version, Last-Event-ID, Anthropic-Beta",
   "Access-Control-Expose-Headers": "Mcp-Session-Id"
 };
-function jres(obj, status = 200) {
+function jres(obj, status = 200, extraHeaders) {
   return new Response(obj === null ? null : JSON.stringify(obj), {
     status,
-    headers: Object.assign({ "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }, CORS)
+    headers: Object.assign({ "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
+      CORS, extraHeaders || {})
   });
 }
 
@@ -453,8 +461,14 @@ export async function onRequest(context) {
   const db = resolveDB(env);
   if (db) { try { await ensureSchema(db); } catch {} }
   const auth = await resolveMcpAuth(request, env, db, pathToken);
-  if (!auth) return jres({ jsonrpc: "2.0", id: null, error: { code: -32001,
-    message: "unauthorized: 개인 MCP 토큰이 필요합니다. nextbygency.com 스튜디오 → 프로필 → MCP 연결에서 개인 URL을 발급받아 등록하세요." } }, 401);
+  if (!auth) {
+    // RFC 9728: 보호 리소스 메타데이터 위치를 알려주면 Claude 가 스스로 OAuth 연결 흐름을 시작한다.
+    // (커넥터에 서버 주소만 넣어도 로그인·승인 창이 뜨는 이유)
+    const origin = new URL(request.url).origin;
+    return jres({ jsonrpc: "2.0", id: null, error: { code: -32001,
+      message: "unauthorized: 연결이 필요합니다. Claude 커넥터에서 이 서버를 연결하면 로그인·승인 후 자동으로 인증됩니다. (또는 스튜디오 → 프로필 → MCP 연결에서 개인 URL 발급)" } }, 401,
+      { "WWW-Authenticate": 'Bearer realm="bygency", resource_metadata="' + origin + '/.well-known/oauth-protected-resource"' });
+  }
   const ctx = { db, user: auth.user || null };
 
   let body;
