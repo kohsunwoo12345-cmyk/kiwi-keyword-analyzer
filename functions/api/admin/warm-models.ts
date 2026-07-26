@@ -9,11 +9,11 @@ const FILES: string[] = [
   '/models/lib/transformers',
   '/models/lib/vision',
   '/models/lib/ortweb',   // onnxruntime-web (Real-ESRGAN raw ONNX 실행용)
-  // Real-ESRGAN x4 후보 repo — 하나라도 OK 면 그걸 자동 사용. 모두 실패해도 Swin2SR 로 자동 폴백.
-  '/models/hf/onnx-community/real-esrgan-x4plus/resolve/main/onnx/model.onnx',
-  '/models/hf/Xenova/real-esrgan-x4plus/resolve/main/onnx/model.onnx',
-  '/models/hf/onnx-community/Real-ESRGAN_x4plus/resolve/main/onnx/model.onnx',
-  '/models/hf/Xenova/4x-UltraSharp/resolve/main/onnx/model.onnx',
+  // onnxruntime-web 자기 버전 wasm — raw ONNX 실행용. transformers 번들(/models/ort)과 섞으면 안 된다.
+  '/models/ortw/ort-wasm-simd-threaded.wasm',
+  '/models/ortw/ort-wasm-simd.wasm',
+  '/models/ortw/ort-wasm-threaded.wasm',
+  '/models/ortw/ort-wasm.wasm',
   // Depth-Anything V2 base 양자화 — 1순위. (fp32 model.onnx 는 ≈380MB로 Worker 프록시 한도 초과·미사용)
   '/models/hf/onnx-community/depth-anything-v2-base/resolve/main/config.json',
   '/models/hf/onnx-community/depth-anything-v2-base/resolve/main/preprocessor_config.json',
@@ -42,10 +42,21 @@ const FILES: string[] = [
   // 초해상(SR) 업스케일 — Swin2SR (x2 = 2×, x4 = 4×). transformers.js image-to-image.
   '/models/hf/Xenova/swin2SR-classical-sr-x2-64/resolve/main/config.json',
   '/models/hf/Xenova/swin2SR-classical-sr-x2-64/resolve/main/preprocessor_config.json',
+  '/models/hf/Xenova/swin2SR-classical-sr-x2-64/resolve/main/onnx/model.onnx',
   '/models/hf/Xenova/swin2SR-classical-sr-x2-64/resolve/main/onnx/model_quantized.onnx',
   '/models/hf/Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr/resolve/main/config.json',
   '/models/hf/Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr/resolve/main/preprocessor_config.json',
+  '/models/hf/Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr/resolve/main/onnx/model.onnx',
   '/models/hf/Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr/resolve/main/onnx/model_quantized.onnx',
+]
+
+// 존재 확인만 하는 항목 — 있으면 자동으로 최상급 엔진(Real-ESRGAN)으로 승격, 없으면 Swin2SR 로 동작.
+//  없는 repo 를 수십 MB 씩 받아보다 실패하는 낭비를 없애려고 다운로드가 아니라 HEAD 로만 본다.
+const PROBES: string[] = [
+  '/models/hf/onnx-community/real-esrgan-x4plus/resolve/main/onnx/model.onnx',
+  '/models/hf/Xenova/real-esrgan-x4plus/resolve/main/onnx/model.onnx',
+  '/models/hf/onnx-community/Real-ESRGAN_x4plus/resolve/main/onnx/model.onnx',
+  '/models/hf/Xenova/4x-UltraSharp/resolve/main/onnx/model.onnx',
 ]
 
 function esc(s: any) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => (({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as any)[c])) }
@@ -60,11 +71,28 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const origin = new URL(request.url).origin
   const results = await Promise.allSettled(FILES.map(async (p) => {
     const r = await fetch(origin + p, { headers: { 'x-warm': '1' } })
-    const len = r.headers.get('content-length') || ''
-    // 본문을 끝까지 읽어야 프록시가 R2 에 put 을 완료한다.
-    const buf = await r.arrayBuffer().catch(() => null)
-    return { path: p, status: r.status, ok: r.ok, bytes: buf ? buf.byteLength : (len ? Number(len) : 0) }
+    // 본문을 끝까지 읽어야 프록시가 R2 적재를 마친다. 단 통째로 담지 않고 흘려보내며 크기만 센다
+    //  — 수십 MB 짜리 가중치를 병렬로 arrayBuffer 하면 워커 메모리 한도에 걸린다.
+    let bytes = 0
+    if (r.body) {
+      const reader = r.body.getReader()
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        bytes += value ? value.byteLength : 0
+      }
+    }
+    return { path: p, status: r.status, ok: r.ok, bytes }
   }))
+  // Real-ESRGAN 후보: 존재 여부만 확인 (있으면 스튜디오가 자동으로 그 가중치를 쓴다)
+  const probes = await Promise.all(PROBES.map(async (p) => {
+    try {
+      const r = await fetch(origin + p + '?probe=1', { headers: { 'x-warm': '1' } })
+      const j: any = await r.json().catch(() => ({}))
+      return { path: p, ok: !!j.ok, bytes: Number(j.bytes) || 0 }
+    } catch { return { path: p, ok: false, bytes: 0 } }
+  }))
+  const esrOk = probes.filter((x) => x.ok).length
   const rows = results.map((x, i) => x.status === 'fulfilled' ? x.value : { path: FILES[i], status: 0, ok: false, bytes: 0, err: String((x as any).reason).slice(0, 120) })
   const okCount = rows.filter((r) => r.ok).length
   const totalMB = +(rows.reduce((s, r) => s + (r.bytes || 0), 0) / 1048576).toFixed(1)
@@ -75,6 +103,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 <h1>ControlNet 모델 캐시 채우기 (R2)</h1>
 <p>각 모델 파일을 상류에서 받아 우리 R2 에 적재합니다. 이후 스튜디오는 외부 접속 없이 우리 서버에서만 모델을 로드합니다. 실패한 파일이 있으면 아래 버튼으로 다시 실행하면 이어서 채워집니다.</p>
 <div class="sum">완료 ${okCount} / ${FILES.length} · 적재 ${totalMB} MB</div>
+<div class="sum">업스케일 엔진: ${esrOk > 0 ? 'Real-ESRGAN 사용 가능 (최상급)' : 'Swin2SR 사용 (Real-ESRGAN 가중치 없음 — 정상 동작)'}</div>
+<h2 style="font-size:15px;margin:18px 0 6px">Real-ESRGAN 가중치 존재 확인 (다운로드 아님)</h2>
+<table><thead><tr><th>후보 repo</th><th>존재</th><th>크기</th></tr></thead><tbody>
+${probes.map((x) => `<tr><td>${esc(x.path)}</td><td class="${x.ok ? 'ok' : 'no'}">${x.ok ? '있음' : '없음'}</td><td>${x.bytes ? (x.bytes / 1048576).toFixed(1) + ' MB' : '-'}</td></tr>`).join('')}
+</tbody></table>
+<h2 style="font-size:15px;margin:18px 0 6px">R2 적재 결과</h2>
 <table><thead><tr><th>파일</th><th>상태</th><th>크기</th></tr></thead><tbody>
 ${rows.map((r) => `<tr><td>${esc(r.path)}</td><td class="${r.ok ? 'ok' : 'no'}">${r.ok ? 'OK' : '실패 ' + esc(r.status)}</td><td>${r.bytes ? (r.bytes / 1048576).toFixed(2) + ' MB' : '-'}</td></tr>`).join('')}
 </tbody></table>
