@@ -218,13 +218,34 @@ export function buildAlephPayload(b) {
     seed: Number.isFinite(Number(b.seed)) ? Number(b.seed) % 4294967295 : undefined
   };
 }
+/* 비율 필드를 받지 않는 제공사(Grok·Nano Banana·Hailuo 등)를 위해, 선택한 비율을
+   프롬프트에 문장으로 얹어 실제 구도에 반영되게 한다. 필드로 보내는 제공사는 건드리지 않는다. */
+const RATIO_WORDS = {
+  "16:9": "16:9 widescreen landscape composition",
+  "9:16": "9:16 vertical portrait composition, tall frame",
+  "1:1":  "1:1 square composition",
+  "4:5":  "4:5 portrait composition",
+  "4:3":  "4:3 landscape composition",
+  "3:4":  "3:4 portrait composition",
+  "21:9": "21:9 ultrawide cinematic composition"
+};
+export function withRatioHint(text, ratio) {
+  const w = RATIO_WORDS[String(ratio || "").trim()];
+  if (!w) return text || "";
+  if (new RegExp(String(ratio).replace(":", "\\s*:\\s*")).test(text || "")) return text || "";  // 이미 언급됨
+  return [text, "Aspect ratio: " + w + "."].filter(Boolean).join("\n");
+}
 export function buildXaiPayload(b) {
-  return {
+  const p = {
     model: "grok-imagine-image",
-    prompt: [b.prompt, b.negative ? ("피해야 할 것: " + b.negative) : ""].filter(Boolean).join("\n").slice(0, 1000),
+    prompt: withRatioHint([b.prompt, b.negative ? ("피해야 할 것: " + b.negative) : ""].filter(Boolean).join("\n"), b.ratio).slice(0, 1000),
     n: 1,
     response_format: "url"
   };
+  // 공식 SDK 는 image_url 로 소스 이미지를 받는다(URL 또는 base64) → 레퍼런스가 있으면 image-to-image.
+  const ref = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
+  if (ref) p.image_url = ref;
+  return p;
 }
 // Grok(xAI) 영상 생성 페이로드 — 공식 스펙: POST /v1/videos/generations, model grok-imagine-video-1.5,
 //  image:{url}(image-to-video, 공개 URL 만), duration. 모델명은 GROK_VIDEO_MODEL env 로 덮어쓰기 가능.
@@ -232,7 +253,7 @@ export function buildXaiVideoPayload(b, env) {
   const img = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
   const p = {
     model: (env && pick(env, ["GROK_VIDEO_MODEL", "grok_video_model"])) || "grok-imagine-video-1.5",
-    prompt: [b.prompt, b.negative ? ("피해야 할 것: " + b.negative) : ""].filter(Boolean).join("\n").slice(0, 1000),
+    prompt: withRatioHint([b.prompt, b.negative ? ("피해야 할 것: " + b.negative) : ""].filter(Boolean).join("\n"), b.ratio).slice(0, 1000),
     duration: Math.max(1, Math.min(20, Number(b.seconds) || 6))
   };
   if (img && /^https?:\/\//.test(String(img))) p.image = { url: String(img) };  // data:URL 은 불가(공개 URL 필요)
@@ -746,7 +767,7 @@ export const HAILUO_IDS = {
 };
 export function buildHailuoPayload(b) {
   const p = { model: HAILUO_IDS[b.model] || "MiniMax-Hailuo-02",
-              prompt: (b.prompt || "").slice(0, 2000) };
+              prompt: withRatioHint(b.prompt || "", b.ratio).slice(0, 2000) };
   const first = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
   if (first) p.first_frame_image = first;
   p.duration = (Number(b.seconds) || 6) <= 6 ? 6 : 10;
