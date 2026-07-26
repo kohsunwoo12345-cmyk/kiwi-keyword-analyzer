@@ -4494,7 +4494,9 @@ function showGenError(raw, provider, model){
   document.getElementById('errReason').textContent=info.reason;
   document.getElementById('errFix').textContent=info.fix;
   document.getElementById('errRaw').textContent=info.raw||'(원문 없음)';
-  document.getElementById('errRawWrap').style.display=info.raw?'block':'none';
+  var _rw=document.getElementById('errRawWrap');
+  _rw.style.display=info.raw?'block':'none';
+  _rw.open=true;   // 원문을 접어두면 진단할 때 아무도 펼치지 않는다 → 기본으로 펼쳐 둔다
   box.classList.add('show');
   paintIcons(box);
   return info;

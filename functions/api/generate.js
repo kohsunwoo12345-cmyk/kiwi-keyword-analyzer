@@ -1116,6 +1116,22 @@ async function handle(context) {
         return json({ diag: "seedream3", model, endpoint, error: String((e && e.message) || e).slice(0, 200), tookMs: Date.now() - t0 });
       }
     }
+    // 최근 실패한 생성 요청의 원문 에러 + 우리가 보낸 본문 형태(URL 스킴 포함)를 그대로 보여준다.
+    //   /api/generate?diag=gen-errors
+    if (u.searchParams.get("diag") === "gen-errors") {
+      const edb = resolveDB(env);
+      if (!edb) return json({ diag: "gen-errors", error: "DB 바인딩 없음" });
+      try {
+        const rows = await edb.prepare(
+          `SELECT provider, model, err, shape, created_at FROM gen_errors
+           ORDER BY created_at DESC LIMIT 20`).all();
+        return json({ diag: "gen-errors",
+          note: "shape.content 의 scheme 이 data:image 면 base64 가 그대로 나간 것, https 면 정상 URL.",
+          items: (rows && rows.results) || [] });
+      } catch (e) {
+        return json({ diag: "gen-errors", items: [], note: "아직 기록된 실패 없음", error: String((e && e.message) || e).slice(0, 160) });
+      }
+    }
     // 계정에 실제로 열려 있는 모델 목록을 제공사에 직접 물어본다(무과금).
     //   /api/generate?diag=ark-models
     //  "미개통이라 404"인지 "우리가 쓴 ID 가 틀려서 404"인지를 추측 없이 가른다.
@@ -2256,6 +2272,31 @@ async function handle(context) {
       }
     }
     const trail = tried.length > 1 ? " · 시도: " + tried.join(", ") : "";
+    // 실패한 제출을 서버에 남긴다 — 노드 화면의 원문을 사람이 옮겨 적어야만 원인을 알 수 있는 상황을 없앤다.
+    //  (diag=gen-errors 로 조회. 실패 시에만 기록하고, 본문은 요약만 남겨 용량을 묶는다.)
+    try {
+      const edb = resolveDB(env);
+      if (edb) {
+        const p0 = buildSeedancePayload(b, env, candidates[0]);
+        const shape = {
+          model: p0.model, ratio: p0.ratio, duration: p0.duration,
+          watermark: p0.watermark, generate_audio: p0.generate_audio,
+          content: (p0.content || []).map(c => c.type === "text"
+            ? { type: "text", len: String(c.text || "").length }
+            : { type: c.type, role: c.role, scheme: String(
+                (c.image_url && c.image_url.url) || (c.video_url && c.video_url.url) ||
+                (c.audio_url && c.audio_url.url) || "").slice(0, 12) })
+        };
+        await edb.prepare(
+          `CREATE TABLE IF NOT EXISTS gen_errors (id TEXT PRIMARY KEY, provider TEXT, model TEXT,
+             err TEXT, shape TEXT, created_at TEXT)`).run();
+        await edb.prepare(
+          `INSERT INTO gen_errors (id, provider, model, err, shape, created_at) VALUES (?,?,?,?,?,?)`)
+          .bind("ge_" + crypto.randomUUID().slice(0, 12), "seedance", String(b.model || ""),
+                String(lastErr).slice(0, 400) + trail, JSON.stringify(shape).slice(0, 900),
+                new Date().toISOString()).run();
+      }
+    } catch (_e) { /* 로깅 실패가 생성 응답을 막지 않도록 */ }
     return json({ error: "Seedance " + tag + ": " + String(lastErr).slice(0, 200) + trail }, 502);
   }
 
