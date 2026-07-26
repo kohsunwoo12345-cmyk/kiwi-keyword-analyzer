@@ -2361,6 +2361,24 @@ function loadCharLib(force){
    영상 레퍼런스(V2V)는 실제로 영상→영상을 지원하는 모델만 연결 허용.
    나머지 모델은 사진 레퍼런스·프롬프트만 연결되게 한다(vidref 차단). */
 function modelV2V(model){ return /V2V 자동|모션 전이|Runway Aleph|Seedance 2\.0/.test(model||''); }
+/* 영상 모델별 "실제 지원 입력" — 각 API가 실제로 받는 입력만 연결 허용한다.
+   ref=이미지 레퍼런스, vidref=영상 레퍼런스(V2V), first=첫 프레임, last=마지막 프레임, audio=오디오 참조.
+   modelsel·prompt·negative 는 모든 모델 공통이라 여기서 다루지 않는다(항상 허용). */
+function videoModelCaps(model){
+  var m=String(model||''), c={ref:false,vidref:false,first:false,last:false,audio:false};
+  // Seedance 2.0 계열 — 사진·영상·오디오 레퍼런스 + 첫/마지막 프레임 모두 지원(멀티모달)
+  if(/Seedance 2\.0/.test(m)) return {ref:true,vidref:true,first:true,last:true,audio:true};
+  // V2V(영상→영상) — 영상 레퍼런스 필수. 업스케일·자동 V2V 는 영상만, 모션 전이·Aleph 는 외형용 사진도 받음
+  if(/V2V 자동|업스케일 4K/.test(m)){ c.vidref=true; return c; }
+  if(/모션 전이|Runway Aleph/.test(m)){ c.vidref=true; c.ref=true; return c; }
+  // 텍스트 전용(T2V) — 레퍼런스 없음(순수 텍스트→영상)
+  if(/\(텍스트→영상\)|T2V-01 Director/.test(m)) return c;
+  // 이미지→영상 · 첫 프레임만(마지막 프레임/키프레임 미지원) — Gen-4·Grok·MiniMax I2V·Hailuo 02
+  if(/Runway Gen-4|Grok Imagine|I2V-01 Director|Hailuo 02/.test(m)){ c.ref=true; c.first=true; return c; }
+  // 그 외 이미지→영상 — 첫·마지막 프레임(키프레임) 지원
+  //  Veo 3.1 · Runway Gen-3 Alpha Turbo · Seedance 1.5/1.0 Pro·Fast·Lite(이미지) · Luma Ray · Kling(이미지→영상)
+  c.ref=true; c.first=true; c.last=true; return c;
+}
 /* 이미지 모델별 레퍼런스 최대 장수 — 실제 API가 다중 이미지를 받는 모델만 12장, 나머지는 1장 */
 var MODEL_REF_LIMIT = {
   'Nano Banana':12, 'GPT Image 2':12,'GPT Image 1.5':12,'GPT Image':12,'GPT Image Mini':12,
@@ -2426,18 +2444,25 @@ function refDownstreamLimit(nodeId){
 }
 /* 대상 노드의 입력 포트가 현재 모델에서 연결 허용되는지 */
 function portAllowed(node, port){
-  // 모든 포트에 자유롭게 연결 허용 — '미지원' 표시 없이 첨부되는 것만 첨부된다.
+  if(!node || node.type!=='model') return true;              // 영상 제작(모델 로더) 노드에만 적용
+  if(port==='modelsel'||port==='prompt'||port==='negative') return true;  // 공통 입력은 항상 허용
+  var c=videoModelCaps(effModel(node));
+  if(port==='ref')    return !!c.ref;
+  if(port==='vidref') return !!c.vidref;
+  if(port==='first')  return !!c.first;
+  if(port==='last')   return !!c.last;
+  if(port==='audio')  return !!c.audio;
   return true;
 }
-/* 모델이 바뀌어 더 이상 지원하지 않는 vidref 연결을 정리 */
+/* 모델이 바뀌어 더 이상 지원하지 않는 입력(사진·영상·프레임·오디오) 연결을 정리 */
 function pruneModelPorts(){
   var before=state.links.length;
   state.links=state.links.filter(function(l){
-    if(l.toPort!=='vidref') return true;
     var tn=state.nodes.find(function(x){return x.id===l.to;});
-    return !(tn && tn.type==='model' && !modelV2V(effModel(tn)));
+    if(!tn || tn.type!=='model') return true;
+    return portAllowed(tn, l.toPort);
   });
-  if(state.links.length!==before){ toast('V2V 미지원 모델이라 영상 레퍼런스 연결을 해제했습니다. (사진 레퍼런스·프롬프트만 가능)'); snapshot(); }
+  if(state.links.length!==before){ toast('이 모델이 지원하지 않는 입력 연결을 정리했습니다. (지원하는 입력만 연결됩니다)'); snapshot(); }
 }
 
 /* 비동기 job 폴링 헬퍼 (대부분의 영상 API 는 생성요청→상태폴링 구조) */
@@ -3625,6 +3650,7 @@ function generatePromptNode(n){
    같은 노드는 자동 레퍼런스 1개를 재사용(중복 노드 생성 방지). */
 function autoRefFromResult(n, url){
   if(!n || !url) return;
+  if(!portAllowed(n,'ref')) return;   // 이미지 레퍼런스를 지원하지 않는 모델엔 자동 투입하지 않음
   try{
     var ex = n.w.autoRefId ? state.nodes.find(function(x){ return x.id===n.w.autoRefId; }) : null;
     if(ex){ ex.w.imgs=[url]; ex.w.vids=[]; }
@@ -4964,10 +4990,12 @@ function widgetHTML(n,w){
     if(!n.w.text) return '<div class="wpreview"><span class="empty">생성된 프롬프트가 여기 표시됩니다<br>[프롬프트 생성]을 누르세요</span></div>';
     return '<textarea class="wtext" data-w="text" style="min-height:78px;">'+esc(n.w.text)+'</textarea>';
   }
-  if(w.t==='addrefbtns'){   // 모델 로더: +래퍼런스 → 레퍼런스 노드를 생성·연결
-    return '<div class="addref-row">'+
-      '<button class="wbtn addref-btn" data-addref="imageref">＋ 이미지 레퍼런스</button>'+
-      '<button class="wbtn addref-btn" data-addref="videoref">＋ 영상 레퍼런스</button></div>';
+  if(w.t==='addrefbtns'){   // 모델 로더: +래퍼런스 → 레퍼런스 노드를 생성·연결 (모델이 지원하는 것만 노출)
+    var rc=videoModelCaps(effModel(n)), btns='';
+    if(rc.ref)    btns+='<button class="wbtn addref-btn" data-addref="imageref">＋ 이미지 레퍼런스</button>';
+    if(rc.vidref) btns+='<button class="wbtn addref-btn" data-addref="videoref">＋ 영상 레퍼런스</button>';
+    if(!btns) return '';   // 텍스트 전용 모델(레퍼런스 미지원) — 버튼 숨김
+    return '<div class="addref-row">'+btns+'</div>';
   }
   if(w.t==='image'){
     if(n.w.img && !n.w.imgs){ n.w.imgs=[n.w.img]; n.w.img=null; }  // 구버전 마이그레이션
@@ -5459,6 +5487,9 @@ function spawnRefFor(target, kind){
   var port = kind==='videoref' ? 'vidref' : 'ref';
   if(port==='vidref' && !portAllowed(target,'vidref')){
     toast('이 모델은 영상 레퍼런스(V2V)를 지원하지 않습니다. 이미지 레퍼런스를 사용하세요.'); return;
+  }
+  if(port==='ref' && !portAllowed(target,'ref')){
+    toast('이 모델은 이미지 레퍼런스를 지원하지 않습니다. (프롬프트로 생성하는 모델)'); return;
   }
   var used = state.links.filter(function(l){ return l.to===target.id && l.toPort===port; }).length;
   var rn = addNode(kind, target.x - 260, target.y + used*140, true); rn.w.imgs=[]; rn.w.vids=[];
