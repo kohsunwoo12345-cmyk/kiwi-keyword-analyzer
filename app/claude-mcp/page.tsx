@@ -33,17 +33,17 @@ const M: Dict = {
   '요금제 활성화': { en: 'Activate a plan', ja: 'プランを有効化', zh: '开通套餐' },
   '어떻게 작동하나요': { en: 'How it works', ja: 'どのように動作しますか', zh: '如何运作' },
   '3단계면 끝납니다': { en: 'Done in 3 steps', ja: '3ステップで完了', zh: '三步搞定' },
-  '① 내 전용 MCP 토큰 발급': { en: '① Get your personal MCP token', ja: '① 専用MCPトークンを発行', zh: '① 获取专属 MCP 令牌' },
-  '프로필에서 나만의 MCP 연결 주소(개인 토큰 포함)를 발급받습니다. 이 주소로 생성한 결과는 모두 내 계정에 기록됩니다.': {
-    en: 'Issue your own MCP connection URL (with a personal token) from your profile. Everything generated with it is recorded to your account.',
-    ja: 'プロフィールから自分専用のMCP接続URL（個人トークン付き）を発行します。このURLで生成した結果はすべて自分のアカウントに記録されます。',
-    zh: '在个人资料中生成你专属的 MCP 连接地址（含个人令牌）。用它生成的一切都会记录到你的账户。',
+  '① 커넥터에 주소 입력': { en: '① Paste the server URL', ja: '① コネクタにURLを入力', zh: '① 在连接器中输入地址' },
+  'Claude 설정 → 커넥터 → 커스텀 커넥터 추가에 서버 주소 한 줄만 넣으면 됩니다. 토큰 발급·복사가 필요 없습니다.': {
+    en: 'In Claude: Settings → Connectors → Add custom connector, paste one server URL. No token to issue or copy.',
+    ja: 'Claudeの設定→コネクタ→カスタムコネクタ追加にサーバーURLを1行入れるだけ。トークンの発行・コピーは不要です。',
+    zh: '在 Claude 设置 → 连接器 → 添加自定义连接器中粘贴一行服务器地址即可。无需生成或复制令牌。',
   },
-  '② Claude·Cursor에 연결': { en: '② Connect it to Claude / Cursor', ja: '② Claude・Cursorに接続', zh: '② 连接到 Claude / Cursor' },
-  'Claude Desktop, Cursor 등 MCP를 지원하는 앱의 설정에 내 연결 주소를 HTTP MCP 서버로 등록하면 끝입니다.': {
-    en: 'Register your connection URL as an HTTP MCP server in any MCP-capable app (Claude Desktop, Cursor, etc.). That’s it.',
-    ja: 'Claude Desktopやcursorなど、MCP対応アプリの設定に接続URLをHTTP MCPサーバーとして登録するだけです。',
-    zh: '在支持 MCP 的应用（Claude Desktop、Cursor 等）设置中，把连接地址注册为 HTTP MCP 服务器即可。',
+  '② 로그인하고 연결 허용': { en: '② Log in & approve', ja: '② ログインして接続を許可', zh: '② 登录并允许连接' },
+  'BYGENCY 로그인 창이 자동으로 뜹니다. 로그인 후 “연결 허용”을 누르면 내 계정으로 안전하게 연결됩니다(OAuth).': {
+    en: 'A BYGENCY login window opens automatically. Sign in, click “Allow”, and you’re securely connected to your own account (OAuth).',
+    ja: 'BYGENCYのログイン画面が自動で開きます。ログイン後「接続を許可」を押すと、自分のアカウントに安全に接続されます（OAuth）。',
+    zh: '会自动弹出 BYGENCY 登录窗口。登录后点击“允许连接”，即以你自己的账户安全连接（OAuth）。',
   },
   '③ 대화로 생성': { en: '③ Generate by chatting', ja: '③ 会話で生成', zh: '③ 用对话生成' },
   '“밤 도심을 달리는 전기차 광고 이미지 만들어줘”처럼 말하면 Claude가 BYGENCY 도구를 호출해 생성하고 결과 링크를 돌려줍니다.': {
@@ -53,16 +53,16 @@ const M: Dict = {
   },
   '무엇을 할 수 있나요': { en: 'What you can do', ja: 'できること', zh: '能做什么' },
   '이미지 생성': { en: 'Image generation', ja: '画像生成', zh: '图片生成' },
-  'Nano Banana · GPT Image · Grok 등으로 즉시 이미지를 만들고 URL을 돌려받습니다.': {
-    en: 'Instantly create images with Nano Banana, GPT Image, Grok and more — returns a URL.',
-    ja: 'Nano Banana・GPT Image・Grokなどで即座に画像を作り、URLを返します。',
-    zh: '用 Nano Banana、GPT Image、Grok 等即时生成图片并返回 URL。',
+  '씨드림 · Flux · 나노바나나 · GPT Image · Grok 등 24종 이미지 모델로 즉시 만들고 URL을 돌려받습니다.': {
+    en: 'Instantly create with 24 image models — Seedream, Flux, Nano Banana, GPT Image, Grok and more — returns a URL.',
+    ja: 'Seedream・Flux・Nano Banana・GPT Image・Grokなど24種の画像モデルで即座に作成し、URLを返します。',
+    zh: '用 Seedream、Flux、Nano Banana、GPT Image、Grok 等 24 种图片模型即时生成并返回 URL。',
   },
   '영상 생성': { en: 'Video generation', ja: '動画生成', zh: '视频生成' },
-  'Veo · Runway · Seedance 등으로 영상 생성을 시작하고 작업(task)을 돌려받습니다.': {
-    en: 'Start video generation with Veo, Runway, Seedance and more — returns a task.',
-    ja: 'Veo・Runway・Seedanceなどで動画生成を開始し、タスクを返します。',
-    zh: '用 Veo、Runway、Seedance 等启动视频生成并返回任务。',
+  '씨댄스 2.0 · Veo · Kling · Runway · Hailuo · Luma 등 34종 영상 모델로 생성을 시작하고 작업(task)을 돌려받습니다.': {
+    en: 'Start with 34 video models — Seedance 2.0, Veo, Kling, Runway, Hailuo, Luma and more — returns a task.',
+    ja: 'Seedance 2.0・Veo・Kling・Runway・Hailuo・Lumaなど34種の動画モデルで生成を開始し、タスクを返します。',
+    zh: '用 Seedance 2.0、Veo、Kling、Runway、Hailuo、Luma 等 34 种视频模型启动生成并返回任务。',
   },
   '상태 확인': { en: 'Status check', ja: 'ステータス確認', zh: '状态查询' },
   'task 번호로 영상 완료 여부와 결과 URL을 확인합니다.': {
@@ -71,23 +71,23 @@ const M: Dict = {
     zh: '用任务编号查询视频是否完成并获取结果 URL。',
   },
   '본인 계정 크레딧으로 차감': { en: 'Billed to your own credits', ja: 'ご自身のクレジットから差し引き', zh: '从你自己的积分扣费' },
-  '생성 1건마다 사용한 모델의 원가에 맞춰 본인 계정 크레딧에서 차감됩니다. 토큰만 있으면 누구나 자신의 계정으로 연결해 사용할 수 있습니다.': {
-    en: 'Each generation draws from your own account credits based on the model’s cost. Anyone with a token can connect on their own account.',
-    ja: '生成1件ごとに使用モデルの原価に応じてご自身のアカウントのクレジットから差し引かれます。トークンさえあれば誰でも自分のアカウントで接続して利用できます。',
-    zh: '每次生成都会根据所用模型的成本从你自己的账户积分中扣除。只要有令牌，任何人都能以自己的账户连接使用。',
+  '생성 1건마다 사용한 모델의 원가에 맞춰 본인 계정 크레딧에서 차감됩니다. 연결 승인 시 로그인한 그 계정으로 과금되며, 잔액이 부족하면 생성 전에 거부됩니다.': {
+    en: 'Each generation draws from your own credits based on the model’s cost — billed to the account you approved at connect time. If the balance is short, generation is refused before it starts.',
+    ja: '生成1件ごとに使用モデルの原価に応じてクレジットから差し引かれます。接続承認時にログインしたアカウントに課金され、残高不足の場合は生成前に拒否されます。',
+    zh: '每次生成按所用模型的成本从积分中扣除——记账到你在连接时登录的账户。余额不足时会在生成前被拒绝。',
   },
   '지금 연동하러 가기': { en: 'Go connect now', ja: '今すぐ連携する', zh: '立即前往对接' },
 }
 
 const STEPS = [
-  { icon: KeyRound, t: '① 내 전용 MCP 토큰 발급', d: '프로필에서 나만의 MCP 연결 주소(개인 토큰 포함)를 발급받습니다. 이 주소로 생성한 결과는 모두 내 계정에 기록됩니다.' },
-  { icon: Plug, t: '② Claude·Cursor에 연결', d: 'Claude Desktop, Cursor 등 MCP를 지원하는 앱의 설정에 내 연결 주소를 HTTP MCP 서버로 등록하면 끝입니다.' },
+  { icon: Plug, t: '① 커넥터에 주소 입력', d: 'Claude 설정 → 커넥터 → 커스텀 커넥터 추가에 서버 주소 한 줄만 넣으면 됩니다. 토큰 발급·복사가 필요 없습니다.' },
+  { icon: KeyRound, t: '② 로그인하고 연결 허용', d: 'BYGENCY 로그인 창이 자동으로 뜹니다. 로그인 후 “연결 허용”을 누르면 내 계정으로 안전하게 연결됩니다(OAuth).' },
   { icon: Wand2, t: '③ 대화로 생성', d: '“밤 도심을 달리는 전기차 광고 이미지 만들어줘”처럼 말하면 Claude가 BYGENCY 도구를 호출해 생성하고 결과 링크를 돌려줍니다.' },
 ]
 
 const TOOLS = [
-  { icon: ImageIcon, t: '이미지 생성', d: 'Nano Banana · GPT Image · Grok 등으로 즉시 이미지를 만들고 URL을 돌려받습니다.' },
-  { icon: Video, t: '영상 생성', d: 'Veo · Runway · Seedance 등으로 영상 생성을 시작하고 작업(task)을 돌려받습니다.' },
+  { icon: ImageIcon, t: '이미지 생성', d: '씨드림 · Flux · 나노바나나 · GPT Image · Grok 등 24종 이미지 모델로 즉시 만들고 URL을 돌려받습니다.' },
+  { icon: Video, t: '영상 생성', d: '씨댄스 2.0 · Veo · Kling · Runway · Hailuo · Luma 등 34종 영상 모델로 생성을 시작하고 작업(task)을 돌려받습니다.' },
   { icon: ListChecks, t: '상태 확인', d: 'task 번호로 영상 완료 여부와 결과 URL을 확인합니다.' },
 ]
 
@@ -181,7 +181,7 @@ export default function ClaudeMcpPage() {
               <div>
                 <h4 className="text-sm font-bold">{t('본인 계정 크레딧으로 차감')}</h4>
                 <p className="mt-1 text-sm leading-relaxed text-[var(--text-soft)]">
-                  {t('생성 1건마다 사용한 모델의 원가에 맞춰 본인 계정 크레딧에서 차감됩니다. 토큰만 있으면 누구나 자신의 계정으로 연결해 사용할 수 있습니다.')}
+                  {t('생성 1건마다 사용한 모델의 원가에 맞춰 본인 계정 크레딧에서 차감됩니다. 연결 승인 시 로그인한 그 계정으로 과금되며, 잔액이 부족하면 생성 전에 거부됩니다.')}
                 </p>
               </div>
             </div>

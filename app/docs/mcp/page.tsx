@@ -188,7 +188,7 @@ export default function McpDocsPage() {
   }
 
   const nav = [
-    ['overview', t('개요')], ['token', t('내 토큰 발급')], ['connect', t('연결 방법')],
+    ['overview', t('개요')], ['oneclick', t('원클릭 연결')], ['token', t('토큰 방식(대안)')], ['connect', t('연결 방법')],
     ['tools', t('도구(Tools)')], ['examples', t('요청 예시')], ['credits', t('크레딧·과금')], ['errors', t('오류')],
   ]
 
@@ -239,8 +239,8 @@ export default function McpDocsPage() {
             </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {[
-                [<ImageIcon key="i" size={16} />, 'generate_image', t('이미지 생성 (Nano Banana·GPT Image·Grok). 즉시 URL 반환')],
-                [<Video key="v" size={16} />, 'generate_video', t('영상 생성 시작 (Veo·Runway·Seedance). task 반환')],
+                [<ImageIcon key="i" size={16} />, 'generate_image', t('이미지 생성 — 씨드림·Flux·나노바나나·GPT Image·Grok 등 24종. 즉시 URL 반환')],
+                [<Video key="v" size={16} />, 'generate_video', t('영상 생성 시작 — 씨댄스 2.0·Veo·Kling·Runway·Hailuo·Luma 등 34종. task 반환')],
                 [<ListChecks key="c" size={16} />, 'check_video_status', t('task로 영상 완료 상태·URL 확인')],
                 [<Cpu key="m" size={16} />, 'list_models', t('사용 가능한 모델·제약 목록')],
               ].map(([ic, name, desc]) => (
@@ -252,10 +252,30 @@ export default function McpDocsPage() {
             </div>
           </section>
 
-          {/* 토큰 발급 */}
+          {/* 원클릭 연결 (권장) */}
+          <section>
+            <Anchor id="oneclick" />
+            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><Plug size={20} className="text-violet-400" /> {t('1. 원클릭 연결 (권장)')}</h2>
+            <p className="text-[14.5px] leading-relaxed text-[var(--text-soft)]">
+              {t('토큰 발급·복사 없이, 서버 주소 한 줄로 연결합니다. Claude가 자동으로 BYGENCY 로그인·승인 창을 띄우고(OAuth), 승인하면 그 계정으로 연결됩니다.')}
+            </p>
+            <div className="mt-4 rounded-xl border border-emerald-400/25 bg-emerald-500/[.06] p-4">
+              <div className="mb-2 text-[12px] font-semibold text-emerald-300">{t('커넥터에 넣을 서버 주소 (모두 동일 · 토큰 없음)')}</div>
+              <code className="block rounded-lg border border-white/10 bg-[#0b0f1a] px-3 py-2.5 font-mono text-[12.5px] text-slate-200">{base}</code>
+              <ol className="mt-3 list-decimal space-y-1 pl-5 text-[13px] leading-relaxed text-[var(--text-soft)]">
+                <li>{t('Claude 설정 → ')}<b className="text-slate-200">{t('커넥터(Connectors)')}</b> → <b className="text-slate-200">{t('커스텀 커넥터 추가')}</b>{t(' → 위 주소 붙여넣기')}</li>
+                <li>{t('자동으로 뜨는 BYGENCY 로그인 창에서 로그인')}</li>
+                <li><b className="text-slate-200">{t('“연결 허용”')}</b>{t(' 클릭 — 끝. 대화에서 “이미지 만들어줘”라고 말하면 됩니다.')}</li>
+              </ol>
+              <p className="mt-2.5 text-[12px] text-[var(--text-dim)]">{t('※ 승인한 계정의 크레딧으로 과금됩니다. 연결 해제는 Claude 커넥터 설정에서 삭제하면 됩니다.')}</p>
+            </div>
+          </section>
+
+          {/* 토큰 발급 (대안) */}
           <section>
             <Anchor id="token" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><KeyRound size={20} className="text-violet-400" /> {t('1. 내 연결 주소 발급')}</h2>
+            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><KeyRound size={20} className="text-violet-400" /> {t('1-b. 개인 토큰 방식 (대안)')}</h2>
+            <p className="mb-2 text-[13px] text-[var(--text-dim)]">{t('로그인 창을 띄울 수 없는 환경(서버 스크립트·자동화·Claude API)에서 사용하는 방식입니다. 일반적인 Claude 연결은 위 원클릭 연결을 쓰세요.')}</p>
             <p className="text-[14.5px] leading-relaxed text-[var(--text-soft)]">
               {t('연결 주소에는 ')}<b className="text-slate-200">{t('본인 개인 토큰')}</b>{t('이 포함됩니다. 이 주소로 생성하면 ')}<b className="text-violet-300">{t('본인 계정 크레딧')}</b>{t('에서 차감됩니다.')}
               <b className="text-rose-300">{t(' 절대 타인과 공유하지 마세요.')}</b>
@@ -285,7 +305,7 @@ export default function McpDocsPage() {
 
             <h3 className="mb-1 flex items-center gap-2 text-[15px] font-bold text-slate-100"><Globe size={16} className="text-violet-400" /> {t('Claude 데스크톱 · claude.ai (커스텀 커넥터)')}</h3>
             <p className="text-[13.5px] leading-relaxed text-[var(--text-soft)]">
-              {t('설정(Settings) → ')}<b className="text-slate-200">{t('커넥터(Connectors)')}</b> → <b className="text-slate-200">{t('커스텀 커넥터 추가')}</b>{t(' → 위 ')}<b>{t('내 연결 주소')}</b>{t('를 붙여넣고 저장. 대화에서 “영상 만들어줘”라고 하면 도구가 실행됩니다. ')}<span className="text-[var(--text-dim)]">{t('※ Pro/Team/Enterprise 플랜에서 커스텀 커넥터가 지원됩니다.')}</span>
+              {t('설정(Settings) → ')}<b className="text-slate-200">{t('커넥터(Connectors)')}</b> → <b className="text-slate-200">{t('커스텀 커넥터 추가')}</b>{t(' → ')}<code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[12px] text-slate-200">{base}</code>{t(' 입력 → 자동으로 뜨는 로그인 창에서 “연결 허용”. 토큰이 필요 없습니다(원클릭 연결). 개인 토큰 주소를 넣어도 동일하게 동작합니다. ')}<span className="text-[var(--text-dim)]">{t('※ Pro/Team/Enterprise 플랜에서 커스텀 커넥터가 지원됩니다.')}</span>
             </p>
 
             <h3 className="mb-1 mt-6 flex items-center gap-2 text-[15px] font-bold text-slate-100"><Code2 size={16} className="text-violet-400" /> Cursor</h3>
