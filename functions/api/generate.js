@@ -288,7 +288,12 @@ export function buildSeedancePayload(b, env, forceModel) {
     let refs = (Array.isArray(b.refImages) && b.refImages.length) ? b.refImages.slice()
              : [first, b.lastFrame];
     if (first && refs.indexOf(first) < 0) refs.unshift(first);
-    const seenI = {}; refs = refs.filter(u => u && !seenI[u] && (seenI[u] = 1)).slice(0, 9);
+    // 2.0 의 reference_image 는 영상·오디오와 마찬가지로 "공개 URL 전용" — data:base64 를 넣으면
+    // 제출이 500 으로 실패한다(같은 모델·키로 텍스트만 제출은 200 성공, 레퍼런스만 붙이면 500).
+    // 스튜디오는 R2 URL 로 올려 보내지만, MCP·API 키 등 다른 경로에서 들어온 base64 는 여기서 걸러
+    // 전체 실패 대신 레퍼런스만 빠진 상태로 생성되게 한다(@태그도 남은 장수 기준으로만 붙는다).
+    const seenI = {};
+    refs = refs.filter(u => u && /^https?:\/\//.test(u) && !seenI[u] && (seenI[u] = 1)).slice(0, 9);
     // 영상 레퍼런스(공개 URL 전용, 최대 3) — 단일 srcVideo + 선택적 refVideos 배열
     const vids = [], seenV = {};
     [b.srcVideo].concat(Array.isArray(b.refVideos) ? b.refVideos : [])
