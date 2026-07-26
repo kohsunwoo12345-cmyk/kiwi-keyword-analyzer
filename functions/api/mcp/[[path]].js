@@ -14,7 +14,7 @@
 // 모델 목록은 스튜디오 단가표(studio/_pricing MODEL_COST)에서 자동 생성 — 스튜디오와 항상 동일.
 // 키는 Cloudflare 환경변수에서만 읽으며 응답에 절대 포함되지 않습니다.
 
-import { onRequest as generateApi } from "../generate.js";
+import { onRequest as generateApi, CAMERA_PRESETS } from "../generate.js";
 import { resolveDB, ensureSchema, getUserByMcpToken } from "../_utils";
 import { getUserByAccessToken } from "../oauth/_oauth";
 import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage, MODEL_COST, PROV_LABEL } from "../studio/_pricing";
@@ -43,7 +43,7 @@ const CATALOG = Object.keys(MODEL_COST).map((name) => {
     audioUsd: m.audio || 0,
   };
 });
-const VIDEO_CATALOG = CATALOG.filter((x) => x.kind === "video");
+const VIDEO_CATALOG = CATALOG.filter((x) => x.kind === "video" && x.provider !== "music");
 const IMAGE_CATALOG = CATALOG.filter((x) => x.kind === "image");
 
 // 예전 MCP 가 쓰던 짧은 이름 → 표시명 (기존 커넥터 호환)
@@ -123,6 +123,8 @@ const TOOLS = [
         seconds: { type: "number", description: "영상 길이(초). 모델별 지원값이 다름(대개 5/8/10). 기본 8" },
         ratio: { type: "string", enum: ["16:9", "9:16", "1:1"], description: "화면 비율, 기본 16:9" },
         generate_audio: { type: "boolean", description: "오디오 동시 생성 (씨댄스 2.0 등 지원 모델만, 기본 false)" },
+        camera: { type: "string", enum: Object.keys(CAMERA_PRESETS),
+                  description: "카메라 모션 프리셋 (선택). 시네마틱 카메라 지시문을 프롬프트에 자동 주입 — 크래시 줌·돌리 인·360 오빗·불릿타임·FPV 드론 등" },
         dry_run: { type: "boolean", description: "true면 실제 호출 없이 제공사로 보낼 페이로드만 미리보기 (과금 없음)" }
       },
       required: ["model", "prompt"]
@@ -160,6 +162,21 @@ const TOOLS = [
         ratio: { type: "string", enum: ["16:9", "9:16", "1:1", "4:5", "3:4", "4:3"], description: "화면 비율(지원 모델만), 기본 16:9" },
         negative_prompt: { type: "string", description: "피해야 할 요소 (선택)" },
         dry_run: { type: "boolean", description: "true면 실제 호출 없이 페이로드만 미리보기 (과금 없음)" }
+      },
+      required: ["prompt"]
+    }
+  },
+  {
+    name: "generate_music",
+    description:
+      "배경음악(BGM)·음악을 생성합니다. 즉시 오디오 URL을 반환합니다. 과금이 발생할 수 있습니다. " +
+      "생성한 음악 URL을 generate_video(씨댄스 2.0)의 audio 참조로 쓰거나 영상 편집에 사용할 수 있습니다.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        prompt: { type: "string", description: "원하는 음악 설명 (장르·분위기·악기·템포 등). 예: '잔잔한 로파이 힙합, 카페 분위기'" },
+        seconds: { type: "number", description: "길이(초). 10~120, 기본 30" },
+        lyrics: { type: "string", description: "가사 (선택 · 지원 엔진에서만 반영)" }
       },
       required: ["prompt"]
     }
@@ -240,6 +257,29 @@ async function runTool(name, args, env, origin, ctx) {
 
   if (name === "list_models") return modelInfo();
 
+  if (name === "generate_music") {
+    if (!args.prompt) throw new Error("prompt(음악 설명)는 필수입니다");
+    const secs = Math.min(Math.max(Number(args.seconds) || 30, 10), 120);
+    const MUSIC_MODEL = "음악 생성 (BGM·뮤직)";
+    let est = null;
+    if (me && db) {
+      est = await estimateMcp(db, me, MUSIC_MODEL, secs);
+      if (est && (Number(me.credits) || 0) < est.credits)
+        throw new Error("크레딧이 부족합니다. 필요 " + est.credits + "크레딧 · 보유 " + (Number(me.credits) || 0) + "크레딧. nextbygency.com/pricing 에서 충전하세요.");
+    }
+    const j = await callGeneratePOST(env, origin, {
+      provider: "music", model: MUSIC_MODEL,
+      prompt: args.prompt, lyrics: args.lyrics || undefined, seconds: secs
+    }, genTok);
+    if (j.error) throw new Error(j.error);
+    let url = j.url;
+    if (url && url.startsWith("data:")) { const hosted = await hostDataUrl(env, origin, url); if (hosted) url = hosted; }
+    let charged = null;
+    if (me && db && est) charged = await commitCharge(db, me, est, secs);
+    return { status: "succeeded", audio_url: url, engine: j.engine, seconds: secs,
+      credits_charged: charged == null ? undefined : charged, credits_remaining: me ? me.credits : undefined };
+  }
+
   if (name === "generate_image") {
     if (!args.prompt) throw new Error("prompt는 필수입니다");
     const c = resolveModel(args.model || "Nano Banana", "image");
@@ -301,6 +341,7 @@ async function runTool(name, args, env, origin, ctx) {
       seconds,
       ratio: args.ratio || "16:9",
       generateAudio: !!args.generate_audio,
+      camera: args.camera || undefined,   // 카메라 모션 프리셋 → 서버가 프롬프트에 주입
       dryRun: !!args.dry_run
     };
     const j = await callGeneratePOST(env, origin, body, genTok);

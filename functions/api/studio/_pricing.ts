@@ -164,6 +164,8 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   'Flux Kontext Max (레퍼런스 편집)': { u: 'img', usd: 0.08, prov: 'flux' },
   'Flux Kontext Pro (레퍼런스 편집)': { u: 'img', usd: 0.05, prov: 'flux' },
   // ── 오디오·립싱크 (초당) — 관리자 ai-pricing 에서 모델별 배수 설정 가능 ──
+  '음악 생성 (BGM·뮤직)': { u: 'sec', usd: 0.01, prov: 'music' },
+  '업스케일 4K (영상 화질 향상)': { u: 'sec', usd: 0.04, prov: 'upscale' },
   '나레이션 (AI 음성 해설)': { u: 'sec', usd: 0.02, prov: 'narrate' },
   '립싱크 (인물 말하기)': { u: 'sec', usd: 0.1, prov: 'lipsync' },
 }
@@ -171,7 +173,7 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
 export const PROV_LABEL: Record<string, string> = {
   google: 'Google Veo', runway: 'Runway', runway_aleph: 'Runway Aleph', v2v_auto: 'V2V 자동', motion: '모션 전이', seedance: 'Seedance', seedream: 'Seedream',
   hailuo: 'MiniMax Hailuo', luma: 'Luma', xai: 'Grok', flux: 'Flux', falcontrol: 'fal ControlNet',
-  nanobanana: 'Nano Banana', openai: 'GPT Image', kling: 'Kling', narrate: '나레이션', lipsync: '립싱크',
+  nanobanana: 'Nano Banana', openai: 'GPT Image', kling: 'Kling', narrate: '나레이션', lipsync: '립싱크', music: '음악 생성', upscale: '업스케일',
 }
 
 export interface ChargeInput {

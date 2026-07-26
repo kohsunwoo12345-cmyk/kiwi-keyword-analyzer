@@ -53,6 +53,30 @@ function r2BucketOf(env) {
   return null;
 }
 
+/* 음악 생성에 사용 가능한 엔진 (키 보유 순) — 추가 키 발급 불필요 */
+export function musicEngines(env, k) {
+  const list = [];
+  if (pick(env, ["ElevenLabs_API_KEY", "ELEVENLABS_API_KEY", "elevenlabs_api_key"])) list.push("elevenlabs");
+  if (k.hailuo) list.push("minimax");
+  if (k.fal) list.push("fal");
+  return list;
+}
+/* 오디오 바이트를 R2 에 올려 공개 URL 반환 (버킷 없으면 data URL 폴백) */
+async function hostAudioBytes(env, origin, bytes, mime) {
+  try {
+    const bucket = r2BucketOf(env);
+    if (bucket) {
+      const key = "u/" + crypto.randomUUID() + ".mp3";
+      await bucket.put(key, bytes, { httpMetadata: { contentType: mime || "audio/mpeg" } });
+      return origin + "/api/media/" + key;
+    }
+  } catch { /* 폴백 */ }
+  try {
+    let bin = ""; for (const c of bytes) bin += String.fromCharCode(c);
+    return "data:" + (mime || "audio/mpeg") + ";base64," + btoa(bin);
+  } catch { return null; }
+}
+
 /* 대본(텍스트)을 자체 다중엔진 TTS(/api/tts/v2/speak)로 음성(mp3) 합성 → R2 호스팅 → 공개 URL.
    이미 audioUrl 이 오면 그대로 사용. 실패 시 { error, status } 반환. */
 async function synthTTSUrl(env, origin, b, _fetchT, cookie) {
@@ -693,6 +717,27 @@ export function buildHailuoPayload(b) {
 
 /* ── Luma Dream Machine 영상 생성 ── */
 const LUMA_BASE = "https://api.lumalabs.ai/dream-machine/v1";
+
+/* ── 카메라 모션 프리셋 (힉스필드 DoP 스타일) ──
+   프롬프트에 시네마틱 카메라 지시문을 주입한다. 모든 영상 모델(씨댄스·Kling·Veo·Runway 등)이
+   프롬프트의 카메라 언어에 반응하므로 모델 무관하게 동작한다. b.camera 에 프리셋 이름을 넣으면 적용. */
+export const CAMERA_PRESETS = {
+  "크래시 줌":      "rapid crash zoom-in toward the subject, aggressive push-in, cinematic impact",
+  "돌리 인":        "slow smooth dolly-in toward the subject, shallow depth of field, cinematic",
+  "돌리 아웃":      "slow dolly-out revealing the scene, expanding composition, cinematic",
+  "360 오빗":       "camera orbits 360 degrees around the subject, smooth circular tracking shot",
+  "불릿타임":       "bullet-time effect, time nearly frozen while the camera sweeps around the subject",
+  "FPV 드론":       "fast FPV drone shot weaving through the scene, dynamic first-person aerial movement",
+  "핸드헬드":       "handheld camera with subtle natural shake, documentary realism",
+  "크레인 업":      "crane shot rising upward, revealing the scene from above, majestic sweep",
+  "로우앵글 트래킹": "low-angle tracking shot following the subject, dramatic perspective, ground-level speed",
+  "슬로우 팬":      "slow horizontal pan across the scene, steady cinematic sweep"
+};
+export function applyCameraPreset(b) {
+  const phrase = b && b.camera && CAMERA_PRESETS[String(b.camera).trim()];
+  if (phrase) b.prompt = String(b.prompt || "").trim() + (b.prompt ? ", " : "") + phrase;
+  return b;
+}
 export const LUMA_IDS = {
   "Luma Ray 2":       "ray-2",
   "Luma Ray Flash 2": "ray-flash-2",
@@ -847,6 +892,8 @@ async function handle(context) {
         lipsync:  !!k.fal,                                                                     // fal sync-lipsync
         revoice:  !!(pick(env, ["ElevenLabs_API_KEY", "ELEVENLABS_API_KEY", "elevenlabs_api_key"]) && k.fal), // 목소리 교체+립싱크
         narrateReady: !!(k.fal && pick(env, ["Text_to_Speech", "OpenAI_Text_to_speech", "ElevenLabs_API_KEY", "OPENAI_API_KEY"])), // TTS+병합
+        music:    musicEngines(env, k).length > 0,   // 음악(BGM) — ElevenLabs/MiniMax/fal 재사용
+        upscale:  !!k.fal,                            // 영상 업스케일 (fal Topaz)
         // 스튜디오가 실제로 쓰는 Seedance 모델 결정값 진단 (모델ID는 비밀 아님)
         seedanceModelOverride: pick(env, ["SEEDANCE_MODEL_ID", "seedance_model_id"]) || null,
         seedance20Maps: SEEDANCE_IDS["Seedance 2.0"],
@@ -1733,6 +1780,7 @@ async function handle(context) {
   if (cl > 3 * 1024 * 1024)
     return json({ error: "요청 데이터가 너무 큽니다(" + Math.round(cl / 1024 / 1024) + "MB). 이미지가 R2로 업로드되지 않고 원본이 통째로 실렸습니다 — Ctrl+Shift+R(강력 새로고침) 후 다시 시도하세요." }, 413);
   let b; try { b = await request.json(); } catch { return json({ error: "bad json" }, 400); }
+  applyCameraPreset(b);   // 카메라 모션 프리셋(b.camera) → 프롬프트에 시네마틱 지시문 주입
   const provider = b.provider;
 
   /* dryRun — 실제 호출 없이 매핑된 페이로드만 반환 (검증용) */
@@ -1743,6 +1791,8 @@ async function handle(context) {
                   : provider === "google" ? buildVeoPayload(b)
                   : provider === "seedance" ? buildSeedancePayload(b, env)
                   : provider === "seedream" ? buildSeedreamPayload(b, env)
+                  : provider === "music"    ? { engines: musicEngines(env, k), prompt: (b.prompt || "").slice(0, 300), seconds: Math.min(Math.max(Number(b.seconds) || 30, 10), 120) }
+                  : provider === "upscale"  ? { model: pick(env, ["FAL_UPSCALE_MODEL", "fal_upscale_model"]) || "fal-ai/topaz/upscale/video", video_url: b.srcVideo || null, factor: (b.res === "4K" ? 4 : 2) }
                   : provider === "flux"     ? buildFluxPayload(b)
                   : provider === "falcontrol" ? buildFalControlPayload(b)
                   : provider === "nanobanana" ? buildNanoPayload(b)
@@ -2244,6 +2294,88 @@ async function handle(context) {
     if (!r.ok || !j.task_id)
       return json({ error: "Hailuo: " + ((j.base_resp && j.base_resp.status_msg) || JSON.stringify(j) || "").slice(0, 200) }, 502);
     return json({ statusUrl: "/api/generate?provider=hailuo&task=" + encodeURIComponent(j.task_id) });
+  }
+
+  /* ── 음악(BGM) 생성 — 추가 키 불필요: 기존 키를 우선순위대로 재사용 ──
+     ① ElevenLabs Music(ELEVENLABS_API_KEY) → ② MiniMax Music(Hailuo 키) → ③ fal Stable Audio(FAL 키)
+     한 엔진이 실패하면 다음 엔진으로 자동 폴백. 결과는 R2 에 올려 공개 URL 로 반환. */
+  if (provider === "music") {
+    const engines = musicEngines(env, k);
+    if (!engines.length) return json({ error: "음악 생성 연동이 없습니다 — ElevenLabs·MiniMax(Hailuo)·fal 키 중 하나가 필요합니다." }, 500);
+    const origin = u.origin;
+    const promptTxt = String(b.prompt || "").slice(0, 800);
+    if (!promptTxt) return json({ error: "음악 설명(prompt)을 입력하세요." }, 400);
+    const secs = Math.min(Math.max(Number(b.seconds) || 30, 10), 120);
+    const errs = [];
+    for (const eng of engines) {
+      try {
+        if (eng === "elevenlabs") {
+          const key = pick(env, ["ElevenLabs_API_KEY", "ELEVENLABS_API_KEY", "elevenlabs_api_key"]);
+          // Eleven Music — 경로가 계정/버전에 따라 다를 수 있어 두 경로 순차 시도
+          for (const path of ["/v1/music", "/v1/music/compose"]) {
+            const r = await fetchT("https://api.elevenlabs.io" + path, {
+              method: "POST",
+              headers: { "xi-api-key": key, "Content-Type": "application/json" },
+              body: JSON.stringify({ prompt: promptTxt, music_length_ms: secs * 1000 })
+            }, 90000);
+            if (!r.ok) { if (path === "/v1/music/compose") errs.push("elevenlabs HTTP " + r.status); continue; }
+            const buf = new Uint8Array(await r.arrayBuffer());
+            if (buf.length < 1000) { errs.push("elevenlabs: 응답이 오디오가 아님"); break; }
+            const url = await hostAudioBytes(env, origin, buf, "audio/mpeg");
+            if (url) return json({ url, kind: "audio", engine: "elevenlabs", seconds: secs });
+            errs.push("elevenlabs: R2 업로드 실패"); break;
+          }
+        } else if (eng === "minimax") {
+          const r = await fetchT(HAILUO_BASE + "/music_generation", {
+            method: "POST",
+            headers: { "Authorization": "Bearer " + k.hailuo, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: pick(env, ["MINIMAX_MUSIC_MODEL"]) || "music-1.5",
+              prompt: promptTxt, lyrics: String(b.lyrics || "").slice(0, 600) || undefined })
+          }, 90000);
+          const j = await r.json().catch(() => ({}));
+          const hex = j && j.data && (j.data.audio || j.data.audio_hex);
+          const aurl = j && j.data && (j.data.audio_url || j.data.url);
+          if (aurl) return json({ url: aurl, kind: "audio", engine: "minimax", seconds: secs });
+          if (hex && /^[0-9a-f]+$/i.test(hex)) {
+            const buf = new Uint8Array(hex.length / 2);
+            for (let i = 0; i < buf.length; i++) buf[i] = parseInt(hex.substr(i * 2, 2), 16);
+            const url = await hostAudioBytes(env, origin, buf, "audio/mpeg");
+            if (url) return json({ url, kind: "audio", engine: "minimax", seconds: secs });
+          }
+          errs.push("minimax: " + ((j.base_resp && j.base_resp.status_msg) || ("HTTP " + r.status)));
+        } else if (eng === "fal") {
+          const model = pick(env, ["FAL_MUSIC_MODEL", "fal_music_model"]) || "fal-ai/stable-audio-25/text-to-audio";
+          const r = await fetchT("https://fal.run/" + model, {
+            method: "POST",
+            headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: promptTxt, seconds_total: secs })
+          }, 120000);
+          const j = await r.json().catch(() => ({}));
+          const url = (j.audio && j.audio.url) || (j.audio_file && j.audio_file.url) || j.url;
+          if (r.ok && url) return json({ url, kind: "audio", engine: "fal", seconds: secs });
+          errs.push("fal: " + String((j.detail && JSON.stringify(j.detail)) || j.error || ("HTTP " + r.status)).slice(0, 120));
+        }
+      } catch (e) { errs.push(eng + ": " + String((e && e.message) || e).slice(0, 100)); }
+    }
+    return json({ error: "음악 생성 실패 — " + errs.join(" · ").slice(0, 300) }, 502);
+  }
+
+  /* ── 영상 업스케일 (4K 화질 향상) — fal Topaz. 원본 영상 URL 필요 ── */
+  if (provider === "upscale") {
+    if (!k.fal) return json({ error: "업스케일은 FAL_API_KEY 가 필요합니다." }, 500);
+    const src = b.srcVideo || "";
+    if (!/^https?:\/\//.test(src)) return json({ error: "업스케일할 원본 영상이 필요합니다. 영상을 옴니 레퍼런스(영상)에 넣으면 자동 업로드됩니다(R2)." }, 400);
+    const model = pick(env, ["FAL_UPSCALE_MODEL", "fal_upscale_model"]) || "fal-ai/topaz/upscale/video";
+    const r = await fetchT(FAL_QUEUE + model, {
+      method: "POST",
+      headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
+      body: JSON.stringify({ video_url: src, upscale_factor: b.res === "4K" ? 4 : 2 })
+    }, 30000);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return json({ error: "업스케일 제출 실패 HTTP " + r.status + ": " + String(JSON.stringify(j)).slice(0, 180) }, 502);
+    if (j.video && j.video.url) return json({ url: j.video.url, kind: "video" });
+    if (!j.request_id) return json({ error: "업스케일: 응답에 task 없음: " + JSON.stringify(j).slice(0, 160) }, 502);
+    return json({ statusUrl: "/api/generate?provider=falq&model=" + encodeURIComponent(model) + "&task=" + encodeURIComponent(j.request_id) });
   }
 
   if (provider === "luma") {

@@ -1937,6 +1937,7 @@ var MODELS = [
  ['영상 → 영상 (V2V·실사화)','V2V 자동 (최고정확도·모델 자동선택)'],
  ['영상 → 영상 (V2V·실사화)','모션 전이 (원본 움직임 유지·Motion Transfer)'],
  ['영상 → 영상 (V2V·실사화)','Runway Aleph (영상→실사 V2V)'],
+ ['영상 → 영상 (V2V·실사화)','업스케일 4K (영상 화질 향상)'],
  ['영상','Google Veo 3.1'],['영상','Runway Gen-4'],['영상','Runway Gen-3 Alpha Turbo'],['영상','Grok Imagine (영상)'],
  ['영상','Seedance 2.0'],['영상','Seedance 2.0 Fast'],['영상','Seedance 2.0 Mini'],['영상','Seedance 1.5 Pro'],
  ['영상','Seedance 1.0 Pro'],['영상','Seedance 1.0 Pro Fast'],
@@ -2032,6 +2033,8 @@ var MODEL_COST = {
   'V2V 자동 (최고정확도·모델 자동선택)': { u:'sec', usd:0.15, prov:'v2v_auto' },
   '모션 전이 (원본 움직임 유지·Motion Transfer)': { u:'sec', usd:0.12, prov:'motion' },
   '나레이션 (AI 음성 해설)': { u:'sec', usd:0.02, prov:'narrate' },
+  '음악 생성 (BGM·뮤직)':      { u:'sec', usd:0.01, prov:'music' },
+  '업스케일 4K (영상 화질 향상)': { u:'sec', usd:0.04, prov:'upscale' },
   '립싱크 (인물 말하기)': { u:'sec', usd:0.10, prov:'lipsync' },
   'Runway Aleph (영상→실사 V2V)':      { u:'sec', usd:0.15, prov:'runway_aleph' },
   'Google Veo 3.1':                    { u:'sec', usd:0.40, audio:0.35, prov:'google' },
@@ -2087,7 +2090,7 @@ var MODEL_COST = {
   'Flux Kontext Pro (레퍼런스 편집)':  { u:'img', usd:0.05,  prov:'flux' }
 };
 // 제공사 집계 라벨
-var PROV_LABEL = { google:'Google Veo', runway:'Runway', runway_aleph:'Runway Aleph', v2v_auto:'V2V 자동', motion:'모션 전이', narrate:'나레이션', lipsync:'립싱크',
+var PROV_LABEL = { google:'Google Veo', runway:'Runway', runway_aleph:'Runway Aleph', v2v_auto:'V2V 자동', motion:'모션 전이', narrate:'나레이션', lipsync:'립싱크', music:'음악 생성', upscale:'업스케일',
   seedance:'Seedance', seedream:'Seedream', hailuo:'MiniMax Hailuo', luma:'Luma', xai:'Grok', flux:'Flux',
   falcontrol:'fal ControlNet', nanobanana:'Nano Banana', openai:'GPT Image', kling:'Kling' };
 // 구버전 recordCost(provider,...) 호환용 — 제공사 대표 단가
@@ -2290,6 +2293,8 @@ var PROVIDERS = [
 var MODEL_PROVIDER = {
   'V2V 자동 (최고정확도·모델 자동선택)':'v2v_auto',
   '모션 전이 (원본 움직임 유지·Motion Transfer)':'motion',
+  '업스케일 4K (영상 화질 향상)':'upscale',
+  '음악 생성 (BGM·뮤직)':'music',
   '나레이션 (AI 음성 해설)':'narrate',
   '립싱크 (인물 말하기)':'lipsync',
   'Runway Aleph (영상→실사 V2V)':'runway_aleph',
@@ -2323,6 +2328,21 @@ var MODEL_PROVIDER = {
   'Kling 2.0':'kling','Kling 1.6':'kling'
 };
 function providerOf(model){ return MODEL_PROVIDER[model] || 'fal'; }
+
+/* ── 카메라 모션 프리셋 (힉스필드 DoP 스타일) — 서버가 같은 이름으로 시네마틱 지시문을 프롬프트에 주입 ── */
+var CAMERA_OPTS=['없음','크래시 줌','돌리 인','돌리 아웃','360 오빗','불릿타임','FPV 드론','핸드헬드','크레인 업','로우앵글 트래킹','슬로우 팬'];
+
+/* ── 바이럴 효과 템플릿 — 프롬프트가 비어 있으면 통째로, 있으면 스타일 지시로 덧붙임 ── */
+var VIRAL_TPL={
+ 'AI 허그 (재회 포옹)':{p:'Two people embrace in a heartfelt warm hug, emotional reunion, soft golden light, tears of joy, cinematic close-up',cam:'돌리 인'},
+ '제품 히어로샷':{p:'Premium product hero shot on a pedestal, dramatic studio lighting, slow rotation, particles floating, luxury commercial style',cam:'360 오빗'},
+ '폭발 등장':{p:'Subject emerges dramatically from an explosion of light and particles, slow motion debris, epic cinematic entrance',cam:'크래시 줌'},
+ '변신 모프':{p:'Smooth seamless morph transformation of the subject into a new form, particles reassembling, magical transition',cam:'돌리 인'},
+ '미니어처 디오라마':{p:'Tilt-shift miniature diorama world, tiny detailed scene, tilt-shift blur, cute miniature aesthetic',cam:'크레인 업'},
+ '무한 줌':{p:'Infinite zoom into the scene revealing nested worlds, seamless fractal zoom transition',cam:'돌리 인'},
+ '시간 정지 (타임프리즈)':{p:'Time frozen completely, subject motionless mid-action, floating droplets and debris suspended in air',cam:'불릿타임'},
+ '유령의 질주 (스피드런)':{p:'High-speed run through the scene, motion blur streaks, adrenaline pace, dynamic energy',cam:'FPV 드론'}};
+var VIRAL_TPL_OPTS=['없음'].concat(Object.keys(VIRAL_TPL));
 
 /* ── 모델별 능력 게이팅 ──
    영상 레퍼런스(V2V)는 실제로 영상→영상을 지원하는 모델만 연결 허용.
@@ -3431,6 +3451,30 @@ function openImageLightbox(url, label){
 }
 /* "이미지 생성" 노드 단독 실행 — 프롬프트(+레퍼런스)로 이미지 1장 생성해 노드에 표시.
    결과는 n.w.img 에 저장되어 우측 IMAGE 포트로 다른 모델의 레퍼런스/첫 프레임에 연결 가능. */
+/* 음악(BGM) 생성 노드 실행 — 서버 provider=music (ElevenLabs→MiniMax→fal 자동 폴백) */
+function musicNode(n){
+  var text=(n.w.mtext||'').trim();
+  if(!text){
+    var tin=inputNodesOf(n.id,'script').filter(function(x){return x&&x.w&&(x.w.text||'').trim();})[0];
+    if(tin) text=(tin.w.text||'').trim();
+  }
+  if(!text){ toast('음악 설명을 입력하세요 (노드 안 또는 왼쪽 [텍스트] 노드 연결)'); return; }
+  var dur=Math.min(Math.max(+n.w.mdur||30,10),120);
+  var style=(n.w.mstyle&&n.w.mstyle!=='자동')?(text+' — 장르/스타일: '+n.w.mstyle):text;
+  n.w.musicking=true; n.w.merror=null; render();
+  callProxy({ provider:'music', model:'음악 생성 (BGM·뮤직)', prompt:style, seconds:dur })
+    .then(function(j){
+      n.w.musicking=false;
+      if(j&&j.url){
+        n.w.audio=j.url;
+        try{ recordCost('music','음악 생성 (BGM·뮤직)',dur,'audio',null,false,0,text,[],j.url); }catch(_e){}
+        toast('음악 생성 완료 ('+dur+'초)');
+      } else { n.w.merror=(j&&j.error)||'음악 생성 실패'; toast(String(n.w.merror).slice(0,90)); }
+      render(); snapshot();
+    })
+    .catch(function(e){ n.w.musicking=false; n.w.merror=String((e&&e.message)||e).slice(0,140); toast('음악 생성 실패'); render(); });
+}
+
 /* 나레이션 노드 실행 — 원본 영상 + AI 음성 해설 합성 (서버: provider=narrate) */
 async function narrateNode(n){
   if(!n || n.w.generating) return;
@@ -3948,9 +3992,14 @@ var DEFS = {
                   ['prompt','프롬프트','TEXT'],['negative','네거티브','TEXT'],
                   ['ref','이미지 레퍼런스','IMAGE'],
                   ['vidref','영상 레퍼런스','*'],
-                  ['first','첫 프레임','IMAGE'],['last','마지막 프레임','IMAGE']],
+                  ['first','첫 프레임','IMAGE'],['last','마지막 프레임','IMAGE'],
+                  ['audio','오디오 참조 (씨댄스 2.0·선택)','AUDIO']],
              outs:[['out','생성물','GEN']],
              widgets:[{k:'model',t:'combo',label:'model',opts:'VIDEO_MODELS',def:'Seedance 2.0'},
+                      {k:'camera',t:'combo',label:'카메라 무빙',opts:CAMERA_OPTS,def:'없음',
+                        tip:'<b>카메라 모션 프리셋</b> — 크래시 줌·돌리·360 오빗·불릿타임·FPV 드론 등 시네마틱 카메라 워크를 버튼 하나로 적용합니다. 선택하면 카메라 지시문이 프롬프트에 자동으로 더해집니다.'},
+                      {k:'tpl',t:'combo',label:'바이럴 템플릿',opts:VIRAL_TPL_OPTS,def:'없음',
+                        tip:'<b>바이럴 효과 템플릿</b> — AI 허그·제품 히어로샷·폭발 등장 등 인기 효과를 원클릭으로. 프롬프트가 비어 있으면 템플릿 프롬프트를 그대로 쓰고, 있으면 스타일로 덧붙입니다. 카메라 무빙도 자동 설정됩니다.'},
                       {k:'seedModel',t:'seedid'},
                       {k:'seedOpts',t:'seedopts'},
                       {k:'addref',t:'addrefbtns'},
@@ -4019,6 +4068,14 @@ var DEFS = {
                       {k:'revinfo',t:'revinfo'},
                       {k:'vid',t:'videoout'},
                       {k:'run',t:'revoicebtn',label:'목소리 교체 + 립싱크'}] },
+ music:    { cat:'오디오', title:'음악 생성 (BGM)', hd:'#1c2c3a',
+             ins:[['script','음악 설명 (텍스트·선택)','TEXT']],
+             outs:[['out','음악 → 오디오 참조','AUDIO']],
+             widgets:[{k:'mtext',t:'textarea',ph:'원하는 음악을 설명하세요...\n예) 잔잔한 로파이 힙합, 카페 분위기, 어쿠스틱 기타\n(비우면 왼쪽 [텍스트] 노드 사용)'},
+                      {k:'mstyle',t:'combo',label:'장르',opts:['자동','시네마틱','로파이','EDM','팝','힙합','재즈','클래식','국악 퓨전','앰비언트'],def:'자동'},
+                      {k:'mdur',t:'slider',label:'길이(초)',min:10,max:120,def:30},
+                      {k:'audioout',t:'audioout'},
+                      {k:'run',t:'musicbtn',label:'음악 생성'}] },
  note:     { cat:'유틸', title:'노트', hd:'', ins:[], outs:[],
              widgets:[{k:'text',t:'textarea',ph:'메모를 입력하세요...'}] },
  frame:    { cat:'유틸', title:'프레임 추출', hd:'#1f3a3a',
@@ -4823,6 +4880,15 @@ function widgetHTML(n,w){
       : '<div class="refcnt">해설(보이스오버) — 영상 위에 <b>목소리만</b> 얹습니다. 입 모양은 바뀌지 않습니다.</div>';
   }
   if(w.t==='narratebtn'){ var lipb=/립싱크/.test(n.w.nmode||''); return '<button class="wbtn" data-narrate>'+ICON.sparkle+' '+(lipb?'립싱크 생성':esc(w.label))+'</button>'; }
+  if(w.t==='musicbtn') return '<button class="wbtn" data-music>'+ICON.sparkle+' '+(n.w.musicking?'생성 중…':esc(w.label))+'</button>';
+  if(w.t==='audioout'){
+    if(n.w.musicking) return genLoader('음악 생성 중',60);
+    if(n.w.merror) return '<div class="refcnt" style="color:#f87171;">'+esc(String(n.w.merror).slice(0,140))+'</div>';
+    if(!n.w.audio) return '';
+    return '<div class="refcnt"><audio controls src="'+esc(n.w.audio)+'" style="width:100%;height:34px;"></audio></div>'
+      +'<button class="wbtn" data-audiocopy>URL 복사</button>'
+      +'<div class="refcnt">오른쪽 <b>오디오</b> 포트를 [AI 영상 제작]의 <b>오디오 참조</b>에 연결하면 씨댄스 2.0 배경음악으로 쓰입니다.</div>';
+  }
   if(w.t==='weavebtn') return '<button class="wbtn" data-weave>'+ICON.sparkle+' '+esc(w.label)+'</button>';
   if(w.t==='revoicebtn') return '<button class="wbtn" data-revoice>'+ICON.sparkle+' '+esc(w.label)+'</button>';
   if(w.t==='revinfo'){
@@ -5502,6 +5568,10 @@ canvas.addEventListener('click',function(e){
     return;
   }
   if(e.target.closest('[data-narrate]')){ narrateNode(n2); return; }
+  if(e.target.closest('[data-music]')){ musicNode(n2); return; }
+  if(e.target.closest('[data-audiocopy]')){
+    try{ navigator.clipboard.writeText(n2.w.audio||''); toast('음악 URL을 복사했습니다'); }catch(_e){ toast('복사 실패'); }
+    return; }
   if(e.target.closest('[data-weave]')){ weaveNode(n2); return; }
   if(e.target.closest('[data-revoice]')){ revoiceNode(n2); return; }
   if(e.target.closest('[data-upload]')){ host.querySelector('[data-file]').click(); return; }
@@ -5945,8 +6015,15 @@ function runQueue(){
             outs.forEach(function(o){ o.w.generating=true; o.w.error=null; });  // 생성 중 스피너 표시
             render();
             (function(){ var em=document.getElementById('nd-'+id); if(em)em.classList.add('exec'); })();
+            // 바이럴 템플릿: 프롬프트 없으면 템플릿 프롬프트 사용, 있으면 스타일로 덧붙임. 카메라도 자동 지정.
+            var tplSel=(n.w.tpl&&n.w.tpl!=='없음')?VIRAL_TPL[n.w.tpl]:null;
+            if(tplSel){ basePrompt = basePrompt ? (basePrompt+'\n\n[효과: '+tplSel.p+']') : tplSel.p; }
+            var camSel=(n.w.camera&&n.w.camera!=='없음')?n.w.camera:(tplSel?tplSel.cam:undefined);
+            // AUDIO 포트로 연결된 음악 노드 → 씨댄스 2.0 오디오 참조
+            var audN=(inputNodesOf(n.id,'audio')||[]).filter(function(x){return x&&x.w&&x.w.audio;})[0];
             generateWithAPI({
               model:chosenModel,
+              camera: camSel,
               prompt: basePrompt,
               negative: ng?ng.w.text:'',
               refImage: ffImg,
@@ -5962,7 +6039,7 @@ function runQueue(){
               seedanceModel: (n.w.seedModel||'').trim() || undefined,
               generateAudio: n.w.seedAudio===true,
               watermark: n.w.seedWatermark===true,
-              audioUrl: (n.w.seedAudioUrl||'').trim() || undefined,
+              audioUrl: (n.w.seedAudioUrl||'').trim() || (audN?audN.w.audio:undefined) || undefined,
               // Flux(비-Kontext) 이미지 모델일 때만 ControlNet·LoRA 적용
               controlnets: (/^Flux/.test(chosenModel||'')&&!/Kontext/.test(chosenModel||'')&&n.w.cnList)?n.w.cnList.slice():[],
               cnSteps: (n.w.cnSteps==null?28:n.w.cnSteps), cnGuidance: (n.w.cnGuidance==null?3.5:n.w.cnGuidance),
