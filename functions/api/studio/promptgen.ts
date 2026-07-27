@@ -30,6 +30,11 @@ async function promptCost(db: any): Promise<number> {
   return Math.round(credits * 100) / 100
 }
 
+/* 모델 ID 가 은퇴하면(저장해 둔 워크플로우에 옛 ID 가 남아 있는 경우) 호출이 404 로 죽는다.
+   그때 되돌아갈 현행 모델. 목록에서 지워도 예전 그래프는 옛 ID 를 그대로 들고 있다. */
+const GEMINI_FALLBACK = 'gemini-2.5-flash'
+const GPT_FALLBACK = 'gpt-4o-mini'
+
 // POST /api/studio/promptgen { provider, model, brief, kind } → { ok, prompt }
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env)
@@ -60,9 +65,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     let prompt = ''
     if (isGemini) {
       if (!googleKey) return json({ ok: false, error: 'Gemini(Google) API 키가 설정되지 않았습니다.' }, 400)
-      const gm = /^gemini/i.test(model) ? model : 'gemini-2.5-flash'
-      const r = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(gm) + ':generateContent?key=' + encodeURIComponent(googleKey),
+      const gm = /^gemini/i.test(model) ? model : GEMINI_FALLBACK
+      const callGemini = (id: string) => fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(id) + ':generateContent?key=' + encodeURIComponent(googleKey),
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -73,22 +78,28 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
           }),
         },
       )
+      let r = await callGemini(gm)
+      // 저장해 둔 워크플로우에 종료된 모델 ID 가 남아 있으면 404 가 난다 → 현행 모델로 1회 폴백.
+      if (r.status === 404 && gm !== GEMINI_FALLBACK) r = await callGemini(GEMINI_FALLBACK)
       const j: any = await r.json().catch(() => ({}))
       if (!r.ok) return json({ ok: false, error: 'Gemini 오류: ' + String(j?.error?.message || r.status).slice(0, 160) }, 502)
       prompt = (j?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('').trim()
     } else {
       if (!openaiKey) return json({ ok: false, error: 'OpenAI(GPT) API 키가 설정되지 않았습니다.' }, 400)
-      const gpt = /^gpt|^o[0-9]/i.test(model) ? model : 'gpt-4o-mini'
-      const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      const gpt = /^gpt|^o[0-9]/i.test(model) ? model : GPT_FALLBACK
+      const callGpt = (id: string) => fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + openaiKey },
         body: JSON.stringify({
-          model: gpt,
+          model: id,
           temperature: 0.9,
           max_tokens: 500,
           messages: [{ role: 'system', content: SYS }, { role: 'user', content: userMsg }],
         }),
       })
+      let r = await callGpt(gpt)
+      // 은퇴한 모델 ID(예전에 저장한 워크플로우)면 model_not_found 로 404/400 → 현행 모델로 1회 폴백.
+      if ((r.status === 404 || r.status === 400) && gpt !== GPT_FALLBACK) r = await callGpt(GPT_FALLBACK)
       const j: any = await r.json().catch(() => ({}))
       if (!r.ok) return json({ ok: false, error: 'GPT 오류: ' + String(j?.error?.message || r.status).slice(0, 160) }, 502)
       prompt = String(j?.choices?.[0]?.message?.content || '').trim()

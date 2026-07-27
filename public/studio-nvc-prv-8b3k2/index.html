@@ -1996,7 +1996,9 @@ var IMG_MODELS = [
 /* 프롬프트 작성 노드 모델 — GPT/Gemini 전 모델 (제공사는 이름 접두사로 자동 판별) */
 var PROMPT_MODELS = [
  ['GPT','gpt-4o'],['GPT','gpt-4o-mini'],['GPT','gpt-4.1'],['GPT','gpt-4.1-mini'],['GPT','gpt-4.1-nano'],['GPT','gpt-4-turbo'],['GPT','gpt-3.5-turbo'],
- ['Gemini','gemini-2.5-pro'],['Gemini','gemini-2.5-flash'],['Gemini','gemini-2.5-flash-lite'],['Gemini','gemini-2.0-flash'],['Gemini','gemini-2.0-flash-lite'],['Gemini','gemini-1.5-pro'],['Gemini','gemini-1.5-flash'],['Gemini','gemini-1.5-flash-8b']
+ // Gemini 1.5 전 계열과 2.0 Flash 계열은 이미 종료되어 호출하면 404 다(1.5=2025 종료, 2.0=2026-06-01 종료).
+ // 목록에 남겨 두면 고를 수는 있는데 무조건 실패하므로 제거하고, 현행 세대만 남긴다.
+ ['Gemini','gemini-3.5-flash'],['Gemini','gemini-2.5-pro'],['Gemini','gemini-2.5-flash'],['Gemini','gemini-2.5-flash-lite']
 ];
 /* 3D 변환·3D 이미지 생성 노드의 스타일 프리셋 — 각 라벨에 실제 프롬프트 지시문 매핑.
    레퍼런스를 넣으면 I2I(편집)로, 없으면 T2I(생성)로 동일 파이프라인에서 처리된다. */
@@ -5275,6 +5277,8 @@ function widgetHTML(n,w){
   var v=n.w[w.k];
   // 예전에 저장한 워크플로우에는 나중에 추가된 위젯 값이 없다 → 기본값으로 표시(빈 칸 방지)
   if(v===undefined && ('def' in w)) v=n.w[w.k]=w.def;
+  // 프레임 추출: 시간 슬라이더는 "직접 지정(초)" 을 골랐을 때만 의미가 있다.
+  if(n.type==='frame' && w.k==='ftime' && n.w.pos!=='직접 지정(초)') return '';
   // 실제 전송 본문 감사 결과, 모델이 무시하는 옵션은 노드에 띄우지 않는다.
   if(n.type==='model' && (w.k==='cfg'||w.k==='seed'||w.k==='camera'||w.k==='tpl')){
     var _vo=videoModelOpts(effModel(n));
@@ -5607,8 +5611,17 @@ function nodeHTML(n){
   for(var i=0;i<maxIO;i++){
     var inp=def.ins[i], out=def.outs[i];
     var inpOff=!!(inp && n.type==='model' && !portAllowed(n, inp[0]));   // 현재 모델이 이 포트를 미지원
+    // 이미지 계열 노드의 레퍼런스 포트 라벨이 "최대 12장" 으로 고정돼 있었는데, 실제 한도는
+    //  모델마다 다르다(Flux·Grok 1장, Flux 2 8장, Seedream 10~14장, Nano/GPT 12장).
+    //  라벨이 사실과 달라 12장을 붙였다가 생성 직전에야 초과 경고를 보게 됐다 → 현재 모델 한도로 표기.
+    var inpLabel = inp ? inp[1] : '';
+    if(inp && inp[0]==='ref' && (n.type==='imagegen'||n.type==='img3d'||n.type==='gen3d')){
+      var _lim=modelRefLimit(n.w.model);
+      inpLabel = inpLabel.replace(/\s*\(최대 \d+장[^)]*\)/, '')
+        + ' (최대 ' + _lim + '장' + (_lim>1?' · 다중 연결':'') + ')';
+    }
     rows+='<div class="iorow">'+
-      (inp?'<span class="port in'+(inpOff?' port-off':'')+'" data-port="'+inp[0]+'" data-dir="in" data-type="'+inp[2]+'" style="background:'+PORT_COLORS[inp[2]]+'"></span><span class="in-label'+(inpOff?' io-off':'')+'">'+inp[1]+(inpOff?' · 미지원':'')+'</span>':'<span></span>')+
+      (inp?'<span class="port in'+(inpOff?' port-off':'')+'" data-port="'+inp[0]+'" data-dir="in" data-type="'+inp[2]+'" style="background:'+PORT_COLORS[inp[2]]+'"></span><span class="in-label'+(inpOff?' io-off':'')+'">'+inpLabel+(inpOff?' · 미지원':'')+'</span>':'<span></span>')+
       (out?'<span class="out-label">'+out[1]+'</span><span class="port out" data-port="'+out[0]+'" data-dir="out" data-type="'+out[2]+'" style="background:'+PORT_COLORS[out[2]]+'"></span>':'')+
       '</div>';
   }
@@ -6168,7 +6181,7 @@ canvas.addEventListener('click',function(e){
     var i=opts.indexOf(String(n2.w[k])); i=(i+(+cyc.dataset.cyc)+opts.length)%opts.length;
     n2.w[k]=opts[i]; combo.querySelector('.wvalue').textContent=opts[i]; autosave();
     if(k==='model'){ snapImgRatio(n2); pruneModelPorts(); render(); }   // 모델 변경 → 비율·포트 정리 + 재렌더
-    else if(k==='nmode')render();   // 음성 방식(해설·립싱크) 안내 반영
+    else if(k==='nmode'||k==='pos')render();   // 음성 방식 안내 · 프레임 추출 위치(시간 슬라이더 노출) 반영
     return;
   }
   if(e.target.closest('[data-open]')){
@@ -6375,7 +6388,7 @@ dd.addEventListener('click',function(e){
   var di=e.target.closest('.di'); if(!di||!ddCtx)return;
   // hideDD() 가 ddCtx 를 null 로 만들기 전에 필요한 값을 먼저 확보 (이전엔 hideDD 후 ddCtx.k 접근 → 에러로 render() 미실행 = 옵션이 새로고침해야 나오던 원인)
   var k=ddCtx.k, node=ddCtx.n, anchor=ddCtx.anchor;
-  var wasModel=(k==='model'||k==='nmode');
+  var wasModel=(k==='model'||k==='nmode'||k==='pos');   // 이 값들은 다른 위젯의 노출을 바꾼다 → 재렌더
   node.w[k]=di.dataset.v; anchor.querySelector('.wvalue').textContent=di.dataset.v;
   autosave(); hideDD();
   if(k==='model'){ snapImgRatio(node); pruneModelPorts(); }   // 모델 변경 → 비율·미지원 포트 정리
