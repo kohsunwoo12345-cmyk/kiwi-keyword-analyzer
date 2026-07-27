@@ -103,6 +103,37 @@ export async function getUsdKrw(db: D1Database): Promise<number> {
 
 const RES_MULT: Record<string, number> = { '720p': 0.6, '1080p': 1.0, '4K': 2.6 }
 
+/** 해상도 배수를 적용할 제공사 — 우리가 그 해상도를 '실제로 요청' 하는 경우에만.
+ *  현재 영상 제공사는 해상도 파라미터를 받지 않거나(Veo·Seedance·Kling·Runway) 고정값으로만 보낸다
+ *  (Hailuo/Luma 는 1080p 고정, Runway 는 1280x720 고정). 즉 노드의 720p/1080p/4K 선택은
+ *  요청에 반영되지 않으므로, 그 값으로 원가를 곱하면 실제 비용과 어긋난다.
+ *  → 해상도를 실제로 보내는 제공사가 생기면 여기에 추가한다. */
+const RES_AWARE: Record<string, boolean> = {}
+
+/** 제공사에 '실제로 요청되는' 초 수.
+ *  각 제공사가 길이를 자기 규격으로 반올림한다(예: 8초 요청 → 10초 생성). 요청값 그대로
+ *  기록하면 실제 청구와 어긋나므로, 페이로드 빌더와 같은 규칙으로 환산해 과금·기록에 쓴다.
+ *  ⚠ generate.js 의 각 build*Payload 와 항상 같아야 한다(scripts/cost-accuracy-test.mjs 가 검증). */
+export function billedSeconds(model: string, seconds?: number): number {
+  const raw = Number(seconds) || 0
+  const m = MODEL_COST[model]
+  const prov = m ? m.prov : ''
+  const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
+  if (prov === 'seedance') {
+    return /Seedance\s*2\.0/i.test(model)
+      ? clamp(Math.round(raw || 5), 4, 15)          // 2.0: 공식 허용 4~15초
+      : ((raw || 8) <= 6 ? 5 : 10)                  // 1.x: 5초 또는 10초
+  }
+  if (prov === 'runway') return (raw || 8) <= 7 ? 5 : 10
+  // V2V(Aleph·V2V 자동·모션 전이)는 길이 파라미터가 없다 — 출력 길이 = 원본 영상 길이.
+  //  스튜디오가 원본 길이를 실제로 재서 보내므로 그대로 통과시킨다(아래 기본 분기).
+  if (prov === 'kling') return (raw || 5) <= 6 ? 5 : 10
+  if (prov === 'hailuo') return (raw || 6) <= 6 ? 6 : 10
+  if (prov === 'luma') return (raw || 5) <= 6 ? 5 : 9
+  if (prov === 'google') return clamp(raw || 8, 5, 8)
+  return Math.max(1, Math.round(raw || 8))          // 나레이션·립싱크·음악 등은 실제 길이 그대로
+}
+
 // 모델 표시명 → 단가.  u:'sec'(영상 초당) | 'img'(이미지 장당), usd, audio(오디오 초당 추가), prov(집계용)
 export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?: number; prov: string }> = {
   'Runway Aleph (영상→실사 V2V)': { u: 'sec', usd: 0.15, prov: 'runway_aleph' },
@@ -215,9 +246,11 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
   if (isImg) {
     usd = m ? m.usd : 0.05
   } else {
-    const units = Math.max(1, Math.round(Number(input.units) || 8))
+    // 요청한 초가 아니라 '실제로 생성되는' 초로 계산한다(제공사가 길이를 반올림한다).
+    const units = billedSeconds(model, Number(input.units) || 0)
     const base = m ? m.usd : 0.06
-    const resMult = RES_MULT[input.res || '1080p'] || 1
+    // 해상도 배수는 그 해상도를 실제로 요청하는 제공사에만 적용(현재는 없음 → 1배)
+    const resMult = RES_AWARE[m ? m.prov : ''] ? (RES_MULT[input.res || '1080p'] || 1) : 1
     const r = base * resMult
     const audioAdd = input.audio && m && m.audio ? m.audio * units : 0
     usd = r * units + audioAdd

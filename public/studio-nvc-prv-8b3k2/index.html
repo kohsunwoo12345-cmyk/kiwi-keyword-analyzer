@@ -2123,6 +2123,35 @@ function fmtKrw(v){ return '₩'+Math.round((v||0)*USD_KRW).toLocaleString('ko-K
 function updateCostChip(){ var c=document.getElementById('costChip'); if(c)c.textContent=fmtKrw(costTotal()); }
 /* 실제 생성 1건 기록. (provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl) */
 function mediaForRecord(u){ if(!u||typeof u!=='string')return ''; if(u.indexOf('data:')===0){ return u.length<=600000?u:''; } return u; }
+/* V2V(영상→영상) 모델은 길이 파라미터가 없어 출력 길이가 '원본 영상 길이' 다.
+   노드의 길이 설정으로 과금하면 실제와 어긋나므로, 원본 영상의 실제 길이를 재서 쓴다. */
+function effSecondsFor(model, srcVid, fallback){
+  if(!srcVid || !/V2V 자동|모션 전이|Runway Aleph/.test(model||'')) return Promise.resolve(fallback);
+  return new Promise(function(res){
+    try{
+      var v=document.createElement('video'); v.preload='metadata'; v.muted=true;
+      var done=false; function fin(x){ if(done)return; done=true; res(x); }
+      v.addEventListener('loadedmetadata',function(){ fin(Math.max(1, Math.round(v.duration||fallback))); });
+      v.addEventListener('error',function(){ fin(fallback); });
+      setTimeout(function(){ fin(fallback); }, 8000);   // 못 재면 설정값으로
+      v.src=sameOriginMedia(srcVid);
+    }catch(_e){ res(fallback); }
+  });
+}
+/* 제공사에 '실제로 요청되는' 초 수 — 제공사가 길이를 자기 규격으로 반올림한다(8초 요청 → 10초 생성).
+   요청값 그대로 계산하면 실제 비용과 어긋나므로 서버(_pricing.ts billedSeconds)와 같은 규칙을 쓴다. */
+function _billedSec(model, seconds){
+  var raw=Number(seconds)||0, m=MODEL_COST[model], prov=m?m.prov:'';
+  function cl(v,lo,hi){ return Math.min(Math.max(v,lo),hi); }
+  if(prov==='seedance') return /Seedance\s*2\.0/i.test(model)? cl(Math.round(raw||5),4,15) : ((raw||8)<=6?5:10);
+  if(prov==='runway') return (raw||8)<=7?5:10;
+  // V2V 는 길이 파라미터가 없어 원본 길이대로 나온다 → 잰 값을 그대로 쓴다(맨 아래 분기)
+  if(prov==='kling')  return (raw||5)<=6?5:10;
+  if(prov==='hailuo') return (raw||6)<=6?6:10;
+  if(prov==='luma')   return (raw||5)<=6?5:9;
+  if(prov==='google') return cl(raw||8,5,8);
+  return Math.max(1, Math.round(raw||8));
+}
 function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl, cnCount){
   var m = MODEL_COST[model];
   var isImg = m ? m.u==='img' : (kind==='image');
@@ -2130,9 +2159,10 @@ function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prom
   var rate, units, resMult=1, audioAdd=0;
   if(isImg){ units=1; rate = m?m.usd:0.05; }
   else {
-    units = Math.max(1, Math.round(Number(seconds)||8));
+    units = _billedSec(model, seconds);   // 요청한 초가 아니라 '실제 생성되는' 초
     var base = m?m.usd:0.06;
-    resMult = RES_MULT[res]||1;
+    // 해상도 배수는 그 해상도를 실제로 요청하는 제공사에만 적용 — 현재 영상 제공사는 모두 미해당(1배)
+    resMult = 1;
     rate = base*resMult;
     if(audioOn && m && m.audio) audioAdd = m.audio*units;   // 오디오 켠 경우만 추가요금
   }
@@ -6691,7 +6721,10 @@ function runQueue(onlyId){
             var camSel=(n.w.camera&&n.w.camera!=='없음')?n.w.camera:(tplSel?tplSel.cam:undefined);
             // AUDIO 포트로 연결된 음악 노드 → 씨댄스 2.0 오디오 참조
             var audN=(inputNodesOf(n.id,'audio')||[]).filter(function(x){return x&&x.w&&x.w.audio;})[0];
-            cnMapsForVideo(chosenModel, n, refList).then(function(_rl){ refList=_rl;
+            var _secSet = (effVideoSec(n)!=null?effVideoSec(n):(vSet?vSet.w.sec:8));
+            Promise.all([ cnMapsForVideo(chosenModel, n, refList),
+                          effSecondsFor(chosenModel, srcVid, _secSet) ]).then(function(_r){
+            refList=_r[0]; var _secUse=_r[1];
             return generateWithAPI({
               model:chosenModel,
               camera: camSel,
@@ -6705,7 +6738,7 @@ function runQueue(onlyId){
               firstFrame: sendFirst || null,
               lastFrame: lfImg,
               srcVideo: srcVid,
-              seconds: (effVideoSec(n)!=null?effVideoSec(n):(vSet?vSet.w.sec:8)),
+              seconds: _secUse,   // V2V 는 원본 영상 실제 길이, 그 외는 노드 설정값
               ratio: (effVideoRatio(n)||(vSet?vSet.w.ar:'16:9')),
               res: vSet?vSet.w.res:'1080p',
               fps: vSet?vSet.w.fps:'30',
