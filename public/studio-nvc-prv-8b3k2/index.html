@@ -3818,9 +3818,7 @@ function weaveNode(n){
     return { url:u, x:nd.x };
   }).filter(function(o){ return o.url; });
   withX.sort(function(a,b){ return a.x-b.x; });   // 캔버스 왼쪽→오른쪽 = 재생 순서
-  // 제공사 CDN 영상은 교차 출처라 crossOrigin='anonymous' 로 로드하면 CORS 헤더가 없을 때
-  //  아예 실패하고, 클립이 90초 타임아웃 뒤 조용히 건너뛰어진다 → 우리 출처 프록시로 통일한다.
-  var urls=withX.map(function(o){ return sameOriginMedia(o.url); });
+  var urls=withX.map(function(o){ return o.url; });   // 프록시 변환은 concatVideos 가 내부에서 처리
   if(urls.length<2){ toast('이어붙일 영상을 2개 이상 연결하세요 (출력 노드의 영상).'); return; }
   n.w.generating=true; n.w.error=null; render();
   (function(){ var em=document.getElementById('nd-'+n.id); if(em)em.classList.add('exec'); })();
