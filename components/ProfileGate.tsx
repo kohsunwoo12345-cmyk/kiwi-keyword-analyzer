@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { Sparkles, ArrowRight, Clapperboard } from 'lucide-react'
@@ -71,6 +71,19 @@ export function ProfileGate({ children }: { children: React.ReactNode }) {
   const gate = evalGate(user, ready, pathname)
   const redirectTo = gate.kind === 'redirect' ? gate.to : ''
 
+  // 확인이 "느릴 때만" 안내를 띄운다.
+  //  이 페이지는 정적 배포라 HTML 에 로딩 화면이 그대로 들어 있고, 브라우저는 그걸 먼저
+  //  그린 뒤 JS 하이드레이션이 끝나야 본문으로 바뀐다. 그래서 계정 확인이 순식간에
+  //  끝나도 "계정 정보를 확인하는 중…" 이 대시보드에 들어올 때마다 깜빡였다.
+  //  → 첫 GRACE_MS 동안은 아무 문구 없이 배경만 두어, 정상 속도에서는 보이지 않게 한다.
+  const GRACE_MS = 450
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    if (gate.kind !== 'loading') { setSlow(false); return }
+    const t = setTimeout(() => setSlow(true), GRACE_MS)
+    return () => clearTimeout(t)
+  }, [gate.kind])
+
   useEffect(() => {
     if (gate.kind === 'redirect') { router.replace(gate.to); return }
     // 영상 전용 회원 → 대시보드를 렌더하지 않고 스튜디오로 하드 이동(라우트 차단)
@@ -121,7 +134,10 @@ export function ProfileGate({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // 확인/이동 중 (loading | redirect)
+  // 계정 확인 중 — 정상 속도(대부분)에서는 문구 없이 배경만. 정적 HTML 도 이 상태로 배포된다.
+  if (gate.kind === 'loading' && !slow) return <div className="min-h-screen bg-[var(--bg)]" aria-busy="true" />
+
+  // 확인이 오래 걸리거나(느린 네트워크) 로그인/가입 페이지로 이동 중일 때만 안내
   return (
     <div className="grid min-h-screen place-items-center bg-[var(--bg)] px-6">
       <div className="flex flex-col items-center text-center">

@@ -66,6 +66,10 @@ export interface AuthResult {
   user?: User
 }
 
+// 로그인·가입·주소저장처럼 "내 계정 상태"가 바뀌는 엔드포인트.
+// 성공하면 /api/me 캐시를 버려야 다음 화면이 옛 상태(비로그인·주소 미완료)를 재사용하지 않는다.
+const AUTH_MUTATING = /\/api\/(login|signup|account\/address|account\/forgot-password)$/
+
 async function postJson(url: string, body: unknown): Promise<any> {
   try {
     const r = await fetch(url, {
@@ -74,7 +78,9 @@ async function postJson(url: string, body: unknown): Promise<any> {
       credentials: 'include',
       body: JSON.stringify(body),
     })
-    return await r.json()
+    const d = await r.json()
+    if (d && d.ok && AUTH_MUTATING.test(url)) clearMeCache()
+    return d
   } catch {
     return { ok: false, error: '네트워크 오류가 발생했습니다.' }
   }
@@ -130,33 +136,95 @@ export async function logout(): Promise<void> {
   } catch {
     /* ignore */
   }
+  clearMeCache()   // 로그아웃 즉시 캐시 폐기 — 다음 화면이 옛 로그인 상태를 재사용하지 않도록
 }
 
-export async function fetchMe(): Promise<User | null> {
+/* ── /api/me 공유 캐시 ──────────────────────────────────────────────
+   useAuth 는 한 화면에서 여러 컴포넌트(게이트·사이드바·챗독·계정패널·페이지)가
+   각각 호출한다. 예전에는 인스턴스마다 따로 fetch 해서 대시보드 한 번 여는 데
+   /api/me 가 6번 나갔고, 매번 ready=false 로 시작해 전체 화면 스피너
+   ("계정 정보를 확인하는 중…")가 떴다.
+     · inflight: 동시 호출은 하나의 요청을 공유(6회 → 1회)
+     · memory:   같은 문서 안에서는 즉시 재사용
+     · session:  같은 탭 안에서는 이전 스냅샷으로 즉시 렌더하고 뒤에서 재검증
+   캐시는 화면 표시용일 뿐이며, 실제 권한은 항상 서버 API 가 판정한다.        */
+const ME_TTL = 60_000            // 메모리 캐시 유효시간(재검증 없이 그대로 사용)
+const ME_SNAP_KEY = 'bg_me_snap' // 탭 세션 스냅샷(즉시 렌더용, 곧바로 재검증)
+
+let meCache: { user: User | null; at: number } | null = null
+let meInflight: Promise<User | null> | null = null
+
+/** 탭 세션 스냅샷 읽기. **로그인된 사용자일 때만** 돌려준다.
+ *  "비로그인" 스냅샷을 신뢰하면, 구글 로그인처럼 서버 리다이렉트로 돌아온 직후
+ *  (같은 탭 = 스냅샷 유지) 옛 null 을 보고 게이트가 /login 으로 되돌리는 사고가 난다.
+ *  → 낙관적 렌더는 "로그인 상태"에만 적용하고, 그 외에는 기존대로 서버에 물어본다. */
+function readSnapshot(): User | undefined {
+  if (typeof sessionStorage === 'undefined') return undefined
   try {
-    const r = await fetch('/api/me', { credentials: 'include' })
-    const d = await r.json()
-    return (d && d.user) || null
+    const raw = sessionStorage.getItem(ME_SNAP_KEY)
+    if (!raw) return undefined
+    const p = JSON.parse(raw)
+    return p && p.user && p.user.id ? (p.user as User) : undefined
   } catch {
-    return null
+    return undefined
   }
 }
+function writeSnapshot(user: User | null) {
+  try {
+    if (user && user.id) sessionStorage?.setItem(ME_SNAP_KEY, JSON.stringify({ user }))
+    else sessionStorage?.removeItem(ME_SNAP_KEY)
+  } catch { /* 용량/차단 무시 */ }
+}
+export function clearMeCache() {
+  meCache = null
+  meInflight = null
+  try { sessionStorage?.removeItem(ME_SNAP_KEY) } catch { /* ignore */ }
+}
 
-/** 로그인 상태 훅 */
+/** /api/me 조회. force=true 는 메모리 캐시를 건너뛰지만, **진행 중인 요청은 강제여부와
+ *  무관하게 항상 공유**한다. (안 그러면 스냅샷으로 렌더된 컴포넌트들이 각자 강제
+ *  재조회를 날려 한 화면에서 /api/me 가 여러 번 나간다.) */
+export async function fetchMe(force = false): Promise<User | null> {
+  if (!force && meCache && Date.now() - meCache.at < ME_TTL) return meCache.user
+  if (meInflight) return meInflight
+  const p = (async () => {
+    try {
+      const r = await fetch('/api/me', { credentials: 'include' })
+      const d = await r.json()
+      const u = (d && d.user) || null
+      meCache = { user: u, at: Date.now() }
+      writeSnapshot(u)
+      return u
+    } catch {
+      return meCache ? meCache.user : null   // 네트워크 실패 시 마지막 상태 유지(깜빡임 방지)
+    } finally {
+      meInflight = null
+    }
+  })()
+  meInflight = p
+  return p
+}
+
+/** 로그인 상태 훅 — 첫 진입 외에는 스피너 없이 즉시 렌더하고 뒤에서 재검증한다. */
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null)
-  const [ready, setReady] = useState(false)
+  // 메모리 캐시(같은 문서)나 탭 스냅샷(로그인 상태만)이 있으면 스피너 없이 바로 렌더한다.
+  const fromMemory = typeof window !== 'undefined' && meCache !== null
+  const seed = typeof window === 'undefined' ? undefined : fromMemory ? meCache!.user : readSnapshot()
+  const [user, setUser] = useState<User | null>(seed === undefined ? null : seed)
+  const [ready, setReady] = useState(seed !== undefined)
   useEffect(() => {
     let alive = true
-    fetchMe().then((u) => {
-      if (alive) {
-        setUser(u)
-        setReady(true)
-      }
+    // 이번 로드에서 이미 받아온 값(메모리 캐시)이면 재검증 불필요.
+    // 지난 로드의 탭 스냅샷으로 렌더 중일 때만 서버에 다시 확인한다.
+    fetchMe(!fromMemory && seed !== undefined).then((u) => {
+      if (!alive) return
+      setUser(u)
+      setReady(true)
     })
     return () => {
       alive = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   return { user, ready, setUser }
 }
