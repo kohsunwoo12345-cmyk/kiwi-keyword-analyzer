@@ -822,10 +822,12 @@ export const LUMA_IDS = {
   "Luma Ray 1.6":     "ray-1-6",
   "Luma Ray2":        "ray-2"   // 구버전 표시명 호환
 };
+// 노드의 해상도 선택 → Luma 허용값(540p/720p/1080p/4k). 하드코딩돼 있어 4K 를 골라도 1080p 였다.
+const LUMA_RES = { "540p": "540p", "720p": "720p", "1080p": "1080p", "4K": "4k", "4k": "4k" };
 export function buildLumaPayload(b) {
   const p = { model: LUMA_IDS[b.model] || "ray-2",
               prompt: (b.prompt || "").slice(0, 1200),
-              resolution: "1080p",
+              resolution: LUMA_RES[String(b.res || "").trim()] || "1080p",
               duration: (Number(b.seconds) || 5) <= 6 ? "5s" : "9s",
               aspect_ratio: b.ratio || "16:9" };
   const first = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
