@@ -1054,7 +1054,11 @@ async function handle(context) {
             const rate = await getUsdKrw(db);
             const mk = await resolveMarkup(db, me.id, mdl, Number(me.credit_markup) || 0);
             const ckw = await creditPriceFor(db, me);
-            const cc = computeCharge({ model: mdl, units: Number(pbody.seconds) || 8, res: pbody.res || "1080p", audio: !!pbody.generateAudio }, rate, mk, ckw);
+            //  게이트도 "실제로 생성될 길이·해상도" 기준이어야 확정 과금과 어긋나지 않는다.
+            const isImg = MODEL_COST[mdl] && MODEL_COST[mdl].u === "img";
+            const gUnits = isImg ? 1 : effectiveUnits(pbody, env);
+            const gRes = isImg ? undefined : effectiveRes(pbody, env);
+            const cc = computeCharge({ model: mdl, units: gUnits, res: gRes, audio: !!pbody.generateAudio }, rate, mk, ckw);
             const surPct = await resolveRefSurcharge(db, me.id);
             const refMult = 1 + (surPct / 100) * Math.max(0, Number(pbody.refCount) || 0);
             const cnCount = Math.max(0, (pbody.controlnets && pbody.controlnets.length) || Number(pbody.cn) || 0);

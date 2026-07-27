@@ -1,6 +1,7 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity, resolveBucket } from '../_utils'
 import { computeCharge, ensureAiUsage, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from '../studio/_pricing'
 import { creditPriceFor } from '../payments/prepare'
+import { effectiveUnits, effectiveRes } from '../generate.js'
 
 function b64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64)
@@ -63,12 +64,19 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // 회원×모델 override > 회원 전체 배수 > 전역 모델 배수 > 기본값
   const markup = me ? await resolveMarkup(db, me.id, model, memberMarkup) : (memberMarkup || undefined)
   const creditKrw = await creditPriceFor(db, me)   // 회원 1크레딧 단가(원). 차감/매출 기준
+  // 길이·해상도는 클라이언트 값을 그대로 믿지 않는다 — 그 모델로 실제 생성되는 값으로 환산해
+  //  과금한다(조작된 요청으로 15초 생성을 1초로 신고하는 것도, 해상도를 못 받는 모델에
+  //  4K 배율이 붙는 것도 막는다). 정상 클라이언트는 이미 스냅된 값을 보내므로 결과가 같다.
+  const isImg = String(b.kind || '') === 'image'
+  const eff = { provider: String(b.provider || ''), model, seconds: Number(b.units) || 0, res: b.res }
+  const units = isImg ? 1 : effectiveUnits(eff, env)
+  const effRes = isImg ? undefined : effectiveRes(eff, env)
   const c = computeCharge(
     {
       model,
-      units: Number(b.units) || 0,
+      units,
       kind: b.kind,
-      res: b.res,
+      res: effRes,
       audio: !!b.audio,
     },
     rate,
@@ -147,7 +155,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         c.provider,
         c.model,
         c.kind,
-        Number(b.units) || (c.kind === 'image' ? 1 : 0),
+        units || (c.kind === 'image' ? 1 : 0),   // 과금에 쓴 값과 같은 값을 기록(감사 일치)
         c.usd,
         c.costKrw,
         charged,
