@@ -2835,6 +2835,28 @@ function sameOriginMedia(url){
   if(url.indexOf('data:')===0 || url.indexOf('blob:')===0 || url.charAt(0)==='/' || url.indexOf(location.origin)===0) return url;
   return '/api/generate?media='+encodeURIComponent(url);
 }
+/* 원본 영상의 실제 길이(초)를 메타데이터만 읽어 확인한다.
+   길이를 "원본 영상에서 따르는" 작업(업스케일·V2V·모션 전이·나레이션·립싱크)은 노드에
+   길이 설정이 없어, 여태 소스 노드에 저장된 sec 값이나 기본 8초로 과금했다.
+   이어붙인 영상(sec=0)이나 직접 올린 영상은 그 값이 실제와 전혀 달라, 60초 영상을
+   8초로 청구하는 식의 어긋남이 생긴다 → 실제 길이를 재서 쓴다.
+   실패하면 null 을 돌려주고 호출부가 기존 폴백을 쓴다(생성을 막지 않는다). */
+function probeVideoSeconds(url){
+  return new Promise(function(resolve){
+    if(!url) return resolve(null);
+    var v=document.createElement('video'), done=false;
+    var fin=function(val){ if(done) return; done=true; clearTimeout(to);
+      try{ v.removeAttribute('src'); v.load(); }catch(_e){} resolve(val); };
+    var to=setTimeout(function(){ fin(null); }, 8000);
+    v.preload='metadata'; v.muted=true; v.playsInline=true;
+    v.onloadedmetadata=function(){
+      var d=Number(v.duration);
+      fin(isFinite(d)&&d>0 ? Math.max(1, Math.round(d)) : null);
+    };
+    v.onerror=function(){ fin(null); };
+    try{ v.src=sameOriginMedia(url); }catch(_e){ fin(null); }
+  });
+}
 /* ── 여러 영상을 하나의 연속 영상으로 이어붙이기 (캔버스+MediaRecorder, 브라우저 내 실동작) ──
    각 클립을 순서대로 재생하며 한 캔버스에 그려 연속 녹화 → 하나의 webm 으로 합친다. */
 /* 브라우저에서 만든 영상(이어붙이기·업스케일)은 blob: URL 로 나오는데, blob: 은 새로고침하면
@@ -3825,7 +3847,9 @@ async function narrateNode(n){
   var prov=isLip?'lipsync':'narrate';
   var modelNm=isLip?'립싱크 (인물 말하기)':'나레이션 (AI 음성 해설)';
   var label=isLip?'립싱크':'나레이션';
-  var _secN=(srcN&&srcN.w&&srcN.w.sec)||8;
+  // 나레이션·립싱크는 원본 영상 길이만큼 초당 과금된다(립싱크 $0.1/초).
+  //  소스 노드에 저장된 sec 은 이어붙인 영상(0)·직접 올린 영상(없음)에서 틀리므로 실제 길이를 잰다.
+  var _secN=(await probeVideoSeconds(srcU)) || (srcN&&srcN.w&&srcN.w.sec) || 8;
   var _gN=await creditGate({model:modelNm, units:_secN, kind:'video', res:'1080p', audio:true});
   if(_gN){ n.w.error=_gN; render(); return; }
   n.w.generating=true; n.w.error=null; render();
@@ -3840,8 +3864,8 @@ async function narrateNode(n){
         toast((info&&info.title)||(label+' 실패: '+String(msg).slice(0,80))); render(); return;
       }
       n.w.vid=res.url; n.w.kind='video'; n.w.model=label; n.w.poster=res.poster||(srcN&&srcN.w&&srcN.w.poster)||null;
-      n.w.sec=(srcN&&srcN.w&&srcN.w.sec)||8; n.w.srcVideoUrl=res.url;   // 후속 노드에서 V2V/재활용 가능
-      recordCost(prov,modelNm, n.w.sec||8, 'video', '1080p', true, 0, text, srcU?[srcU]:[], res.url);
+      n.w.sec=_secN; n.w.srcVideoUrl=res.url;   // 후속 노드에서 V2V/재활용 가능
+      recordCost(prov,modelNm, _secN, 'video', '1080p', true, 0, text, srcU?[srcU]:[], res.url);
       saveToGallery(res.url,'video',label,n.w.sec,n.w.poster);
       toast(isLip?'인물이 말하는 립싱크 영상이 완성됐습니다.':'나레이션이 적용된 영상이 완성됐습니다.');
       render(); snapshot();
@@ -3891,7 +3915,8 @@ async function revoiceNode(n){
   if(!srcU){ toast('말소리가 있는 영상을 연결하세요 ([AI 음성] 노드 결과 또는 사람이 말하는 영상).'); return; }
   var voiceId=VOICE_ID[n.w.voice]||'el:21m00Tcm4TlvDq8ikWAM';
   if(!/^el:/.test(voiceId)){ toast('일레븐랩스 목소리를 선택하세요.'); return; }
-  var _gR=await creditGate({model:'립싱크 (인물 말하기)', units:(srcN&&srcN.w&&srcN.w.sec)||8, kind:'video', res:'1080p', audio:true});
+  var _secR=(await probeVideoSeconds(srcU)) || (srcN&&srcN.w&&srcN.w.sec) || 8;   // 실제 길이 기준 과금
+  var _gR=await creditGate({model:'립싱크 (인물 말하기)', units:_secR, kind:'video', res:'1080p', audio:true});
   if(_gR){ n.w.error=_gR; render(); return; }
   n.w.generating=true; n.w.error=null; render();
   (function(){ var em=document.getElementById('nd-'+n.id); if(em)em.classList.add('exec'); })();
@@ -3911,8 +3936,8 @@ async function revoiceNode(n){
         n.w.error=msg; var info=showGenError(msg,'lipsync','목소리 교체·립싱크');
         toast((info&&info.title)||('목소리 교체 실패: '+String(msg).slice(0,80))); render(); return; }
       n.w.vid=res.url; n.w.kind='video'; n.w.model='목소리 교체·립싱크'; n.w.poster=(srcN&&srcN.w&&srcN.w.poster)||null;
-      n.w.sec=(srcN&&srcN.w&&srcN.w.sec)||8; n.w.srcVideoUrl=res.url;
-      recordCost('lipsync','립싱크 (인물 말하기)', n.w.sec||8, 'video', '1080p', true, 0, '목소리 교체·립싱크', srcU?[srcU]:[], res.url);
+      n.w.sec=_secR; n.w.srcVideoUrl=res.url;
+      recordCost('lipsync','립싱크 (인물 말하기)', _secR, 'video', '1080p', true, 0, '목소리 교체·립싱크', srcU?[srcU]:[], res.url);
       saveToGallery(res.url,'video','목소리 교체·립싱크',n.w.sec,n.w.poster);
       toast('목소리 교체 + 립싱크 영상 완성!'); render(); snapshot();
       var e2=document.getElementById('nd-'+n.id); if(e2)e2.classList.add('exec');
@@ -6676,11 +6701,16 @@ function runQueue(onlyId){
             // 실제로 생성에 쓰는 길이 — 모델 허용값으로 스냅된 값이다.
             //  과금도 반드시 같은 값을 써야 한다(설정 원본값으로 청구하면 8초 생성에 30초를 물린다).
             var _effSec=(effVideoSec(n)!=null?effVideoSec(n):(vSet?vSet.w.sec:8));
+            //  길이를 원본 영상에서 따르는 모델(업스케일·V2V 자동·모션 전이·Aleph)은 노드에 길이
+            //  설정이 없다. 그런데도 여태 영상 설정 슬라이더(기본 8초)로 과금해, 60초 원본을
+            //  8초로 청구하거나 그 반대가 됐다 → 원본 길이를 실제로 재서 그 값으로 과금한다.
+            var _srcLenP = (effVideoSec(n)==null && srcVid) ? probeVideoSeconds(srcVid) : Promise.resolve(null);
             // 실제로 적용될 해상도 — 모델이 해상도를 안 받으면 1080p(배율 1.0)로 고정한다.
             //  과금도 반드시 같은 값을 써야 한다(4K 를 골라도 결과가 같은 모델에 2.6배를 물리면 안 된다).
             var _effRes=(effVideoRes(n)||'1080p');
-            Promise.resolve(refList).then(function(_rl){ refList=_rl;   // 영상은 ControlNet 미적용(이미지 노드 전용)
-            return generateWithAPI({
+            Promise.all([refList, _srcLenP]).then(function(_pair){ refList=_pair[0];
+            if(_pair[1]) _effSec=_pair[1];   // 원본 길이를 잰 경우 요청·과금 모두 그 값으로
+            return generateWithAPI({   // 영상은 ControlNet 미적용(이미지 노드 전용)
               model:chosenModel,
               camera: camSel,
               prompt: basePrompt,
