@@ -598,12 +598,19 @@ export function buildSeedreamPayload(b, env, modelOverride) {
 
 /* ── Flux (Black Forest Labs) 이미지 생성 ── */
 const FLUX_BASE = "https://api.bfl.ai/v1/";
+/* BFL 엔드포인트 표.
+   · flux-pro(FLUX.1 [pro] 1.0)는 BFL 이 공식 폐지한 엔드포인트다 → 403 Forbidden.
+     대체는 flux-pro-1.1 · flux-kontext-pro 이고 둘 다 이미 아래에 있다.
+   · flux-2-dev 는 BFL API 에 없는 이름이다. FLUX.2 [dev]는 가중치를 받아 직접 돌리는
+     오픈웨이트 배포판이라 API 로는 서비스되지 않는다. API 로 제공되는 FLUX.2 는
+     pro · max · flex 세 가지다 → pro·max 를 후보로 넣어 probe-all 로 확인한다. */
 export const FLUX_ENDPOINTS = {
+  "Flux 2 Max":         "flux-2-max",
+  "Flux 2 Pro":         "flux-2-pro",
   "Flux 2 Flex":        "flux-2-flex",
-  "Flux 2 Dev":         "flux-2-dev",
   "Flux 1.1 Pro Ultra": "flux-pro-1.1-ultra",
   "Flux 1.1 Pro":       "flux-pro-1.1",
-  "Flux Pro":           "flux-pro",
+  "Flux Pro":           "flux-pro",   // BFL 공식 폐지 — 403. 진단에 드러나도록 표에는 남겨 둔다.
   "Flux Dev":           "flux-dev",
   // 레퍼런스 이미지를 넣어 편집/재생성(image-to-image)
   "Flux Kontext Max (레퍼런스 편집)": "flux-kontext-max",
