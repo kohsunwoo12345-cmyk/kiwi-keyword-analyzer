@@ -1539,8 +1539,9 @@ async function handle(context) {
           const t = await r.text();
           ids = [...new Set(String(t).match(/[a-z0-9]+(?:-[a-z0-9]+){1,}/gi) || [])]
             .filter(x => /^(deepseek|dola-seed|doubao|skylark|kimi|glm|gpt-oss|bytedance-seed)/i.test(x))
-            // 임베딩·번역 전용 모델은 chat/completions 로 프롬프트를 못 쓴다 → 제외
-            .filter(x => !/embedding|translation|tokenizer/i.test(x))
+            // 임베딩·번역 전용, 그리고 이미지·영상 생성 모델은 chat/completions 로 쓸 수 없다.
+            //  (dola-seedream-5-0-pro 가 400 을 내 LLM 으로 오인됐다)
+            .filter(x => !/embedding|translation|tokenizer|seedream|seedance|seededit|dreamina/i.test(x))
             .map(x => x.toLowerCase());
         } catch (_e) { /* 무시 */ }
         if (!ids.length) return { model: "프롬프트 LLM", provider: "promptgen", id: "(카탈로그에서 못 찾음)",

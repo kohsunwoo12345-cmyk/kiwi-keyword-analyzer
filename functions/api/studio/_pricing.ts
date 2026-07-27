@@ -182,10 +182,15 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   /* ── 프롬프트 작성 LLM (호출 1회당) ──
      영상·이미지와 같은 ARK 키로 호출하므로 외부 API 비용이 없다.
      값은 500토큰 안팎의 1회 호출 기준 잠정값. */
-  //  ⚠️ 아래 ID 들은 접미사 없는 형태라 이 계정에서 전부 404 였다(probe-all 확인).
-  //     probe-all 의 promptgen 항목이 카탈로그에서 찾은 실제 ID 로 교체해야 한다.
-  // 'deepseek-v4-pro': { u: 'tok', usd: 0.004, prov: 'promptgen' },
-  // 'dola-seed-2-1-turbo': { u: 'tok', usd: 0.002, prov: 'promptgen' },
+  //  probe-all 로 "실제 호출되는" 것만 등록(계정 카탈로그 35개 전수 확인).
+  //  접미사 없는 형태는 전부 404 라 접미사까지 포함한 ID 가 정확한 값이다.
+  'deepseek-v4-pro-260425': { u: 'tok', usd: 0.004, prov: 'promptgen' },
+  'deepseek-v4-flash-260425': { u: 'tok', usd: 0.001, prov: 'promptgen' },
+  'deepseek-v3-2-251201': { u: 'tok', usd: 0.002, prov: 'promptgen' },
+  'glm-5-2-260617': { u: 'tok', usd: 0.003, prov: 'promptgen' },
+  'glm-4-7-251222': { u: 'tok', usd: 0.0015, prov: 'promptgen' },
+  'dola-seed-2-1-turbo-260628': { u: 'tok', usd: 0.002, prov: 'promptgen' },
+  'gpt-oss-120b-250805': { u: 'tok', usd: 0.0008, prov: 'promptgen' },
 }
 
 export const PROV_LABEL: Record<string, string> = {

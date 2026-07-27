@@ -2014,9 +2014,14 @@ var PROMPT_MODELS = [
  // Gemini 1.5 전 계열과 2.0 Flash 계열은 이미 종료되어 호출하면 404 다(1.5=2025 종료, 2.0=2026-06-01 종료).
  // 목록에 남겨 두면 고를 수는 있는데 무조건 실패하므로 제거하고, 현행 세대만 남긴다.
  ['Gemini','gemini-3.5-flash'],['Gemini','gemini-2.5-pro'],['Gemini','gemini-2.5-flash'],['Gemini','gemini-2.5-flash-lite'],
- // BytePlus(ModelArk) — probe-all 로 "실제 호출되는" 것만 넣는다.
- //  DeepSeek·Kimi·Skylark 계열은 카탈로그에는 있으나 전부 404(미개통)라 제외했다.
- ['ModelArk','gpt-oss-120b-250805']
+ /* BytePlus(ModelArk) — probe-all 로 "실제 호출되는" 것만 넣는다(계정 카탈로그 35개 전수 확인).
+    영상·이미지와 같은 ARK 키로 나가므로 GPT·Gemini 외부 API 비용이 들지 않는다.
+    날짜 접미사가 없는 형태(deepseek-v4-pro 등)는 전부 404 라 반드시 접미사까지 써야 한다.
+    R1·Kimi·Skylark 계열은 카탈로그에 있어도 미개통이라 넣지 않았다. */
+ ['DeepSeek','deepseek-v4-pro-260425'],['DeepSeek','deepseek-v4-flash-260425'],['DeepSeek','deepseek-v3-2-251201'],
+ ['GLM','glm-5-2-260617'],['GLM','glm-4-7-251222'],
+ ['Dola Seed','dola-seed-2-1-turbo-260628'],
+ ['OSS','gpt-oss-120b-250805']
 ];
 /* 3D 변환·3D 이미지 생성 노드의 스타일 프리셋 — 각 라벨에 실제 프롬프트 지시문 매핑.
    레퍼런스를 넣으면 I2I(편집)로, 없으면 T2I(생성)로 동일 파이프라인에서 처리된다. */
