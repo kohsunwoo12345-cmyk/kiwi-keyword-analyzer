@@ -303,8 +303,13 @@ export function buildSeedancePayload(b, env, forceModel) {
     //    URL 전용 — 영상은 base64 불가), 오디오 role:"reference_audio"(최대 3)
     //  · 공식 스펙은 프롬프트 안에서 @Image1/@Video1/@Audio1 태그로 각 자산을 어떻게 쓸지
     //    명시해야 참조가 정확히 걸린다(태그 없이 첨부만 하면 모델이 무시할 수 있음).
-    // Seedance 2.0 공식 허용 길이는 4~15초 — 3초는 무효값이라 거절당하고, 15초는 보낼 수도 없었다.
-    const dur = Math.min(Math.max(Math.round(Number(b.seconds) || 5), 4), 15);
+    // Seedance 2.0 의 duration 은 4~15 범위의 "이산 허용값"만 받는다 — 4·5·6·8·10·12·15.
+    //  범위만 자르면 7·9·11·13·14 가 그대로 나가 제공사가 거부한다(노드는 스냅하지만
+    //  MCP·API 키 등 다른 경로는 임의 값을 보낼 수 있으므로 서버에서도 스냅한다).
+    const SEEDANCE2_DURATIONS = [4, 5, 6, 8, 10, 12, 15];
+    const wantSec = Math.round(Number(b.seconds) || 5);
+    const dur = SEEDANCE2_DURATIONS.reduce(
+      (a, c) => (Math.abs(c - wantSec) < Math.abs(a - wantSec) ? c : a), SEEDANCE2_DURATIONS[0]);
     // 2.0 의 이미지는 공개 URL 과 base64 를 모두 받는다(공식: data:image/<소문자>;base64,…).
     //  base64 인라인을 쓰는 이유: URL 로 주면 제공사가 우리 R2 를 가져오느라 제출이 길어져
     //  타임아웃 → 502 로 이어진다(영상 레퍼런스만 URL 전용이라 어쩔 수 없이 URL).
