@@ -23,6 +23,7 @@ import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { Button, SectionTag, Panel } from '@/components/ui'
 import { Reveal, Counter } from '@/components/motion'
+import { VideoStudioShowcase } from '@/components/features/VideoStudioShowcase'
 import { cn } from '@/lib/utils'
 import { FEATURES, getFeature, type Feature } from '@/lib/features'
 import { useT, type Dict } from '@/lib/i18n'
@@ -499,7 +500,12 @@ export function FeatureDetail({ slug }: { slug: string }) {
       </section>
 
       {/* ===== NODE WORKFLOW SHOWCASE (video only) ===== */}
-      {slug === 'video' && <VideoWorkflowShowcase feature={feature} />}
+      {slug === 'video' && (
+        <>
+          <VideoWorkflowShowcase feature={feature} />
+          <VideoStudioShowcase feature={feature} />
+        </>
+      )}
 
       {/* ===== CAPABILITIES ===== */}
       <section className="relative py-20">
