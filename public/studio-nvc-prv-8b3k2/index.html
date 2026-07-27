@@ -2431,6 +2431,24 @@ function modelV2V(model){ return /V2V 자동|모션 전이|Runway Aleph|Seedance
 /* 영상 모델별 "실제 지원 입력" — 각 API가 실제로 받는 입력만 연결 허용한다.
    ref=이미지 레퍼런스, vidref=영상 레퍼런스(V2V), first=첫 프레임, last=마지막 프레임, audio=오디오 참조.
    modelsel·prompt·negative 는 모든 모델 공통이라 여기서 다루지 않는다(항상 허용). */
+/* 영상 모델이 실제로 쓰는 "사진 레퍼런스" 최대 장수(전송 목록 기준).
+   Seedance 2.0 만 reference_image 를 여러 장(9) 받고, 나머지 이미지→영상 모델은 첫 장만 쓴다.
+   ※ 이 값은 서버로 보내는 목록 전체의 한도다. [첫 프레임]을 연결하면 그 프레임이 목록의
+     한 자리를 차지하므로, 사용자가 붙일 수 있는 사진은 그만큼(1장) 줄어든다.
+     → 아래 videoRefBudget() 이 그 "실제로 붙일 수 있는 장수"를 돌려준다. */
+function videoRefMax(model){
+  var c=videoModelCaps(model);
+  if(!c.ref) return 0;
+  return /Seedance 2\.0/.test(String(model||'')) ? 9 : 1;
+}
+/* 이 모델 노드에서 지금 사용자가 붙일 수 있는 사진 레퍼런스 장수.
+   [첫 프레임] 포트에 무언가 연결돼 있으면 한 자리를 그 프레임이 쓰므로 1장 줄어든다. */
+function videoRefBudget(node){
+  var mx=videoRefMax(effModel(node));
+  if(mx<=0) return 0;
+  var usedByFirst = (node && node.type==='model' && !!inputNodeOf(node.id,'first')) ? 1 : 0;
+  return Math.max(0, mx - usedByFirst);
+}
 function videoModelCaps(model){
   var m=String(model||''), c={ref:false,vidref:false,first:false,last:false,audio:false};
   // Seedance 2.0 계열 — 사진·영상·오디오 레퍼런스 + 첫/마지막 프레임 모두 지원(멀티모달)
@@ -2666,9 +2684,12 @@ function refExceedToast(nodeId, port){
   if(port!=='ref') return;
   var nd=state.nodes.find(function(x){return x.id===nodeId;}); if(!nd)return;
   if(nd.type!=='model'&&nd.type!=='imagegen'&&nd.type!=='img3d'&&nd.type!=='gen3d') return;
-  var lim = nd.type==='model' ? 4 : modelRefLimit(nd.w.model);
+  // 영상 모델은 모델별 한도에서 [첫 프레임]이 쓰는 자리를 뺀 값이 "붙일 수 있는 장수"다.
+  var lim = nd.type==='model' ? videoRefBudget(nd) : modelRefLimit(nd.w.model);
   var cnt = state.links.filter(function(l){return l.to===nodeId && l.toPort==='ref';}).length;
-  if(cnt>lim) toast('이 모델은 이미지 레퍼런스 최대 '+lim+'개까지 지원합니다. 초과된 '+(cnt-lim)+'개는 생성 시 제외됩니다.');
+  if(cnt>lim) toast('이 모델은 이미지 레퍼런스 '+lim+'장까지 사용합니다'
+    + (nd.type==='model'&&inputNodeOf(nodeId,'first')?' (첫 프레임이 1장 사용 중)':'')
+    + '. 초과된 '+(cnt-lim)+'개는 생성 시 제외됩니다.');
 }
 /* 모델 로더의 "실효 모델" — 모델선택 노드가 연결돼 있으면 그 모델, 아니면 자체 콤보 */
 function effModel(n){ if(!n||!n.w)return ''; if(n.type!=='model')return n.w.model||'';
@@ -5504,10 +5525,17 @@ function widgetHTML(n,w){
     if(!btns) return '';   // 텍스트 전용 모델(레퍼런스 미지원) — 버튼 숨김
     // 사진 레퍼런스를 여러 장 받는 영상 모델은 Seedance 2.0 계열뿐이다(reference_image 최대 9장).
     //  나머지는 첫 장만 쓰므로, 여러 장 연결해도 무시된다는 사실을 노드에 그대로 적어 둔다.
+    // 실제로 붙일 수 있는 장수를 그대로 적는다 — [첫 프레임]을 연결하면 그 프레임이 한 자리를
+    // 차지하므로 한도가 1장 줄어든다(예: 9장 → 8장). 예전엔 항상 9장이라고만 적혀 있었다.
+    var _mx=videoRefMax(_rm), _bud=videoRefBudget(n), _usedFirst=(_mx>0&&_bud<_mx);
     var note = rc.ref
-      ? (/Seedance 2\.0/.test(_rm)
-          ? '<div class="refcnt">사진 레퍼런스 최대 <b>9장</b> · 영상 3장 · 오디오 3장</div>'
-          : '<div class="refcnt">이 모델은 사진 레퍼런스를 <b>1장</b>만 사용합니다 (여러 장을 연결해도 첫 장만 적용)</div>')
+      ? (_mx>1
+          ? '<div class="refcnt">사진 레퍼런스 최대 <b>'+_bud+'장</b>'
+              +(_usedFirst?' <span style="color:#e8b76a;">(첫 프레임이 1장 사용 중 · 총 '+_mx+'장)</span>':'')
+              +' · 영상 3장 · 오디오 3장</div>'
+          : (_bud>0
+              ? '<div class="refcnt">이 모델은 사진 레퍼런스를 <b>1장</b>만 사용합니다 (여러 장을 연결해도 첫 장만 적용)</div>'
+              : '<div class="refcnt" style="color:#e8b76a;">[첫 프레임]이 연결돼 있어 이 모델의 사진 레퍼런스 자리를 모두 사용 중입니다 (사진을 쓰려면 첫 프레임 연결을 끊으세요)</div>'))
       : '';
     return '<div class="addref-row">'+btns+'</div>'+note;
   }
@@ -6746,7 +6774,13 @@ function runQueue(onlyId){
             var refList = [];
             if(threeD) refList.push(threeD);
             bgPhotos.forEach(function(im){ if(refList.indexOf(im)<0) refList.push(im); });
-            refList = refList.slice(0,4);                       // 제공사 레퍼런스 이미지 한도
+            // 제공사 레퍼런스 이미지 한도 — 모델별(Seedance 2.0 은 9장, 나머지는 1장).
+            //  예전엔 모델과 무관하게 4장으로 잘라, 9장을 받는 모델에서도 5장째부터 조용히 버려졌다.
+            //  refList[0] 은 첫 프레임이므로, 첫 프레임을 쓰면 사용자 사진은 한 자리 줄어든다.
+            var _refMax = Math.max(1, videoRefMax(chosenModel));
+            var _dropped = Math.max(0, refList.length - _refMax);
+            refList = refList.slice(0,_refMax);
+            if(_dropped) { try{ toast('이 모델의 사진 레퍼런스 한도는 '+_refMax+'장입니다 — 초과된 '+_dropped+'장은 제외했습니다'+(threeD?' (첫 프레임이 1장 사용)':'')); }catch(_e){} }
             var ffImg = threeD || refList[0] || null;
             var lfImg = imgsOf(lf)[0] || (vFrames.length>1?vFrames[vFrames.length-1]:null) || null;
             var vSet=linkedSetting(id,'video');

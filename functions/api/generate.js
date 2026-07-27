@@ -61,6 +61,25 @@ export function musicEngines(env, k) {
   if (k.fal) list.push("fal");
   return list;
 }
+/* data: 이미지(첫 프레임 등)를 R2 에 올려 공개 URL 로 바꾼다.
+   Grok(xAI) 영상처럼 "공개 URL 만" 받는 제공사에서, 스튜디오가 보낸 data:URI 첫 프레임이
+   조용히 버려져 이어보기가 되지 않던 문제를 막는다. 실패하면 null(원래 동작 유지). */
+export async function hostImageDataUri(env, origin, dataUri) {
+  try {
+    const m = /^data:(image\/[a-z0-9.+-]+);base64,([\s\S]+)$/i.exec(String(dataUri || ""));
+    if (!m) return null;
+    const bucket = r2BucketOf(env);
+    if (!bucket) return null;
+    const bin = atob(m[2]);
+    const buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    const ext = m[1] === "image/png" ? ".png" : m[1] === "image/webp" ? ".webp" : ".jpg";
+    const key = "u/" + crypto.randomUUID() + ext;
+    await bucket.put(key, buf, { httpMetadata: { contentType: m[1] } });
+    return origin + "/api/media/" + key;
+  } catch { return null; }
+}
+
 /* 오디오 바이트를 R2 에 올려 공개 URL 반환 (버킷 없으면 data URL 폴백) */
 async function hostAudioBytes(env, origin, bytes, mime) {
   try {
@@ -2368,6 +2387,13 @@ async function handle(context) {
     if (isVideo) {
       // 영상: 비동기 — 생성 태스크 POST → request_id 받아 폴링 statusUrl 반환
       const ep = pick(env, ["GROK_VIDEO_ENDPOINT", "grok_video_endpoint"]) || "https://api.x.ai/v1/videos/generations";
+      // Grok 영상은 공개 URL 만 받는다. 이어보기(앞 영상의 마지막 프레임)는 data:URI 로 오므로
+      // 그대로 두면 첫 프레임이 조용히 빠져 "이어지지 않는" 영상이 나온다 → R2 에 올려 URL 로 바꾼다.
+      const _first = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
+      if (_first && /^data:image\//i.test(String(_first))) {
+        const hosted = await hostImageDataUri(env, new URL(request.url).origin, _first);
+        if (hosted) b = { ...b, firstFrame: hosted };
+      }
       const r = await fetchT(ep, {
         method: "POST",
         headers: { "Authorization": "Bearer " + k.xai, "Content-Type": "application/json" },
