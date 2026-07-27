@@ -1718,7 +1718,9 @@ async function handle(context) {
       const okHost = ["cloudfront.net", "runwayml.com", "bytepluses.com", "volces.com",
                       "byteimg.com", "volccdn.com", "googleapis.com", "googleusercontent.com",
                       "bfl.ai", "blob.core.windows.net", "cdn-luma.com", "lumalabs.ai",
-                      "hailuoai.video", "minimax.io", "minimaxi.com", "aliyuncs.com"]
+                      "hailuoai.video", "minimax.io", "minimaxi.com", "aliyuncs.com",
+                      // fal 결과(립싱크·업스케일·모션 전이·ControlNet), Grok, Kling — 빠져 있어 403 이었다
+                      "fal.media", "fal.run", "fal.ai", "x.ai", "klingai.com", "kling.ai"]
         .some(d => host === d || host.endsWith("." + d));
       if (!okHost) return json({ error: "host not allowed" }, 403);
       const fwd = {};
