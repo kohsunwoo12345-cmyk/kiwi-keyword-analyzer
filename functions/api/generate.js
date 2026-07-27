@@ -1515,19 +1515,61 @@ async function handle(context) {
             const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch { /* 비JSON */ }
             const code = (j && j.error && j.error.code) || "";
             const msg = (j && j.error && j.error.message) || String(t).slice(0, 160);
-            const pathExists = r.status !== 404 || !/not\s*found|no\s*route|InvalidEndpointOrModel/i.test(code + " " + msg);
+            /* 게이트웨이가 없는 경로에 "본문 없는 200" 을 돌려주는 바람에 가짜 히트가 대량으로 잡혔다.
+               실제 API 응답은 반드시 JSON 본문이 있다 → 본문이 있어야만 경로가 있는 것으로 본다. */
+            const hasBody = !!(j && Object.keys(j).length);
+            const pathExists = hasBody && !(r.status === 404 && /not\s*found|no\s*route|InvalidEndpointOrModel/i.test(code + " " + msg));
             out.push({ path, bodyIdx: bi, httpStatus: r.status, code, message: String(msg).slice(0, 180), pathExists });
             // 경로가 확인되면 그 경로의 나머지 본문 변형만 더 보고 다음 경로로
             if (pathExists && r.status !== 404) break;
           } catch (e) { out.push({ path, bodyIdx: bi, httpStatus: 0, code: "", message: String((e && e.message) || e).slice(0, 120), pathExists: false }); }
         }
       }
-      const hits = out.filter(x => x.httpStatus && x.httpStatus !== 404);
+      const hits = out.filter(x => x.pathExists);
       return json({ diag: "ark3d-path", model: mid,
-        note: "httpStatus 가 404 가 아닌 경로가 실제 3D 엔드포인트다. 400/422 는 '경로는 맞고 파라미터만 부족' 이라는 뜻(작업 미생성·무과금). "
-            + "message 에 어떤 파라미터가 필요한지 그대로 나오므로, 그걸 보고 요청 형식을 확정한다.",
+        note: "본문이 있는 응답만 실제 경로로 셉니다(게이트웨이가 없는 경로에 빈 200 을 주기 때문). "
+            + "400/422 는 '경로는 맞고 파라미터만 부족' 이라는 뜻이며 작업은 생성되지 않습니다(무과금).",
         찾은경로: hits.map(x => x.path + " [" + x.httpStatus + (x.code ? " " + x.code : "") + "] " + x.message),
         전체: out });
+    }
+
+    /* ══ ModelArk 3D 요청 형식 탐지 (무과금) ══
+       /api/generate?diag=ark3d-spec[&model=hyper3d-gen2-260112]
+       경로 탐지 결과 3D 도 영상과 같은 /contents/generations/tasks 를 쓴다(모델 ID 는 통과하고
+       content 만 없다고 반려됐다). 여기서는 "반드시 반려되는" 본문을 단계적으로 보내
+       그때그때 반려 메시지에서 필요한 파라미터를 읽어 낸다.
+       ※ 프롬프트에 실제 내용을 넣으면 작업이 생성되어 과금되므로, 빈 값·잘못된 값만 보낸다. */
+    if (u.searchParams.get("diag") === "ark3d-spec") {
+      if (!k.seedance) return json({ diag: "ark3d-spec", error: "Seedance_API_KEY 미설정" });
+      const mid = u.searchParams.get("model") || "hyper3d-gen2-260112";
+      const cases = [
+        ["content 없음", { model: mid }],
+        ["content 빈 배열", { model: mid, content: [] }],
+        ["text 빈 값", { model: mid, content: [{ type: "text", text: "" }] }],
+        ["image_url 빈 값", { model: mid, content: [{ type: "image_url", image_url: { url: "" } }] }],
+        ["잘못된 type", { model: mid, content: [{ type: "__probe__", text: "x" }] }],
+        ["텍스트+잘못된 format", { model: mid, content: [{ type: "text", text: "" }], format: "__probe__" }],
+        ["텍스트+잘못된 quality", { model: mid, content: [{ type: "text", text: "" }], quality: "__probe__" }],
+        ["텍스트+잘못된 texture", { model: mid, content: [{ type: "text", text: "" }], texture: "__probe__" }]
+      ];
+      const out = [];
+      for (const [label, body] of cases) {
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+            method: "POST", headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify(body) }, 12000);
+          const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch { /* 비JSON */ }
+          const created = !!(j && j.id);
+          out.push({ 단계: label, 보낸본문: body, httpStatus: r.status,
+            code: (j && j.error && j.error.code) || "",
+            message: created ? "⚠️ 작업이 생성됐습니다(id=" + j.id + ") — 이 조합은 진단에서 빼야 합니다"
+                             : String((j && j.error && j.error.message) || t).slice(0, 240) });
+          if (created) break;   // 만에 하나 생성되면 즉시 중단
+        } catch (e) { out.push({ 단계: label, httpStatus: 0, message: String((e && e.message) || e).slice(0, 140) }); }
+      }
+      return json({ diag: "ark3d-spec", model: mid,
+        note: "각 단계의 반려 메시지가 '다음에 무엇이 필요한지' 를 알려 줍니다. 실제 내용을 넣지 않으므로 작업은 생성되지 않습니다(무과금).",
+        결과: out });
     }
 
     /* ══ 전체 모델 소환 확인 (무과금) ══
