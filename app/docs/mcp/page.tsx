@@ -361,7 +361,8 @@ export default function McpDocsPage() {
 {`{
   "model": "seedance",         // veo·runway·seedance (필수)
   "prompt": "질주하는 스포츠카",  // 필수
-  "first_frame_url": "https://…", // 선택 (runway는 필수)
+  "first_frame_url": "https://…", // 선택 (runway는 필수) · 이어보기: 앞 클립의 last_frame_url
+  "last_frame_url": "https://…",  // 선택 · 주면 첫↔끝 사이를 보간(시퀀스가 안정적)
   "seconds": 5,                // veo 5~8, runway/seedance 5·10
   "ratio": "16:9",             // 16:9·9:16·1:1
   "dry_run": false             // true면 과금 없이 미리보기
@@ -373,7 +374,13 @@ export default function McpDocsPage() {
             <ToolDoc name="check_video_status" desc={t('generate_video가 준 task로 완료를 확인합니다. (추가 과금 없음)')}>
 {`{ "task": "/api/generate?provider=…" }   // generate_video의 task 그대로
 → 진행 중: { "status":"generating", "note":"15~30초 후 다시" }
-→ 완료:   { "status":"succeeded", "video_url":"https://…" }`}
+→ 완료:   { "status":"succeeded", "video_url":"https://…",
+           "last_frame_url":"https://…" }   // 이어보기용 마지막 프레임(지원 모델)
+
+// 이어지는 클립 만들기
+//  ① check_video_status 의 last_frame_url 을 받는다
+//  ② 다음 generate_video 의 first_frame_url 로 그대로 넣는다 → 앞 영상 끝에서 이어짐
+//  ③ 끝 지점까지 정하려면 last_frame_url 도 함께 준다(두 그림 사이 보간)`}
             </ToolDoc>
 
             <ToolDoc name="list_models" desc={t('사용 가능한 모델과 각 특징/제약을 반환합니다.')}>

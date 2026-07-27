@@ -109,7 +109,8 @@ const TOOLS = [
       "실제 생성이 시작되며 과금이 발생할 수 있습니다. " +
       "즉시 완성되지 않고 task 토큰을 반환하므로, 이후 check_video_status 도구로 완료될 때까지 (보통 1~5분, 15~30초 간격) 상태를 확인하세요. " +
       "Runway 계열은 first_frame_url 또는 reference_image_url이 반드시 필요합니다(이미지에서 영상 생성). " +
-      "이어지는 영상(체이닝)을 만들려면 앞 영상의 마지막 장면 이미지를 first_frame_url로 넣으세요.",
+      "이어지는 영상(체이닝): check_video_status 가 돌려주는 last_frame_url 을 다음 호출의 first_frame_url 로 넣으면 앞 영상 끝에서 바로 이어집니다. " +
+      "끝 지점까지 정하려면 last_frame_url 파라미터에 다음 장면 이미지를 주세요(두 그림 사이를 보간 — 시퀀스가 더 안정적).",
     inputSchema: {
       type: "object",
       properties: {
@@ -119,7 +120,7 @@ const TOOLS = [
         prompt: { type: "string", description: "영상 내용 프롬프트 (한국어/영어)" },
         negative_prompt: { type: "string", description: "피해야 할 요소 (선택)" },
         first_frame_url: { type: "string", description: "첫 프레임 이미지 URL 또는 data URI (선택, Runway 계열은 필수)" },
-        last_frame_url: { type: "string", description: "마지막 프레임 이미지 URL (선택, 씨댄스 1.x 등 지원 모델)" },
+        last_frame_url: { type: "string", description: "마지막 프레임 이미지 URL (선택). 주면 첫 프레임과 이 이미지 사이를 보간합니다 — Seedance·Luma Ray·Veo·Runway Gen-4/Gen-3·Hailuo 02 지원" },
         reference_image_url: { type: "string", description: "레퍼런스 이미지 URL 또는 data URI (선택)" },
         source_video_url: { type: "string", description: "원본 영상 URL (선택). V2V·모션 전이·립싱크 계열 모델에 필요" },
         seconds: { type: "number", description: "영상 길이(초). 모델별 지원값이 다름(대개 5/8/10). 기본 8" },
@@ -215,7 +216,7 @@ function modelInfo() {
       "씨댄스 2.0 은 generate_audio:true 로 오디오 동시 생성이 가능합니다.",
       "씨드림 4.x/5.0 은 reference_image_urls 로 다중 레퍼런스를 지원합니다.",
     ],
-    tip: "이어지는 영상: 영상1 완료 → 마지막 장면 이미지를 영상2의 first_frame_url로 전달. 노드 스튜디오(https://nextbygency.com/studio-nvc-prv-8b3k2/)에서는 노드 연결로 자동화됩니다.",
+    tip: "이어지는 영상: 영상1 완료 → check_video_status 의 last_frame_url 을 영상2의 first_frame_url로 전달. 노드 스튜디오(https://nextbygency.com/studio-nvc-prv-8b3k2/)에서는 노드 연결로 자동화됩니다.",
   };
 }
 
@@ -424,7 +425,10 @@ async function runTool(name, args, env, origin, ctx) {
     const extra = charged == null ? {} : { credits_charged: charged, credits_remaining: me ? me.credits : undefined };
     if (j.url) {
       const durable = await rehostVideoUrl(env, origin, String(j.url).charAt(0) === "/" ? origin + j.url : j.url);
-      return Object.assign({ status: "succeeded", video_url: durable, kind: j.kind || "video" }, extra);
+      const lastF0 = j.lastFrame && /^https?:\/\//.test(String(j.lastFrame)) ? String(j.lastFrame) : null;
+      return Object.assign({ status: "succeeded", video_url: durable, kind: j.kind || "video" },
+        lastF0 ? { last_frame_url: lastF0,
+                   next: "이어지는 클립은 이 last_frame_url 을 first_frame_url 로 넣어 생성하세요." } : {}, extra);
     }
     if (j.statusUrl) return Object.assign({
       status: "generating",
@@ -454,9 +458,16 @@ async function runTool(name, args, env, origin, ctx) {
       }
       let abs = String(j.url).charAt(0) === "/" ? origin + j.url : j.url;
       const durable = await rehostVideoUrl(env, origin, abs);   // 제공사 CDN 만료 대비 영구 URL
-      return { status: "succeeded", video_url: durable, kind: j.kind || "video",
+      // 이어보기용 마지막 프레임 — 도구 설명은 "앞 영상의 마지막 장면을 다음 영상의
+      //  first_frame_url 로 넣으라"고 안내하면서 정작 그 이미지를 주지 않았다. 제공사가
+      //  돌려준 프레임(Seedance return_last_frame)이 있으면 그대로 내려 바로 이어붙일 수 있게 한다.
+      const lastF = j.lastFrame && /^https?:\/\//.test(String(j.lastFrame)) ? String(j.lastFrame) : null;
+      return Object.assign({ status: "succeeded", video_url: durable, kind: j.kind || "video",
                durable: durable !== abs || durable.indexOf("/api/media/") >= 0,
-               note: "이 URL은 영구 보관본입니다. Meta Ads MCP 등 광고 도구에 소재로 바로 전달할 수 있습니다." };
+               note: "이 URL은 영구 보관본입니다. Meta Ads MCP 등 광고 도구에 소재로 바로 전달할 수 있습니다." },
+        lastF ? { last_frame_url: lastF,
+                  next: "이어지는 다음 클립을 만들려면 이 last_frame_url 을 generate_video 의 first_frame_url 로 넣으세요. " +
+                        "끝 지점까지 정하고 싶으면 다음 장면 이미지를 last_frame_url 로 함께 주면 두 그림 사이를 보간합니다." } : {});
     }
     return { status: (j.status || "RUNNING").toLowerCase(), note: "아직 생성 중입니다. 15~30초 후 다시 확인하세요." };
   }
