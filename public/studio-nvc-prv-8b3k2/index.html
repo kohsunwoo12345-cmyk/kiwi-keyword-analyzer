@@ -1984,8 +1984,9 @@ var MODELS = [
  ['이미지 (텍스트·편집)','Nano Banana'],
  ['이미지 (텍스트·편집)','GPT Image 2'],['이미지 (텍스트·편집)','GPT Image 1.5'],['이미지 (텍스트·편집)','GPT Image'],['이미지 (텍스트·편집)','GPT Image Mini'],
  ['이미지','Seedream 5.0 Pro'],['이미지','Seedream 5.0 Lite'],['이미지','Seedream 4.5'],['이미지','Seedream 4.0'],
- // Flux 2 Dev·Flux Pro 는 이 계정에서 403 Forbidden(권한 없음) — probe-all 확인 후 제외
- ['이미지','Flux 2 Flex'],
+ // Flux Pro(FLUX.1 pro 1.0)는 BFL 공식 폐지(403) — 대체인 1.1 Pro·Kontext Pro 가 아래에 있다.
+ // FLUX.2 는 API 제공분이 max·pro·flex 셋이다(dev 는 오픈웨이트라 API 없음) — 셋 다 422 확인됨.
+ ['이미지','Flux 2 Max'],['이미지','Flux 2 Pro'],['이미지','Flux 2 Flex'],
  ['이미지','Flux 1.1 Pro Ultra'],['이미지','Flux 1.1 Pro'],['이미지','Flux Dev'],
  ['이미지','Grok Imagine']
 ];
@@ -2002,8 +2003,9 @@ var IMG_MODELS = [
  ['이미지 (레퍼런스 편집·I2I)','Seedream 4.5 (레퍼런스 편집)'],
  ['이미지 (레퍼런스 편집·I2I)','Seedream 4.0 (레퍼런스 편집)'],
  ['이미지','Seedream 5.0 Pro'],['이미지','Seedream 5.0 Lite'],['이미지','Seedream 4.5'],['이미지','Seedream 4.0'],
- // Flux 2 Dev·Flux Pro 는 이 계정에서 403 Forbidden(권한 없음) — probe-all 확인 후 제외
- ['이미지','Flux 2 Flex'],
+ // Flux Pro(FLUX.1 pro 1.0)는 BFL 공식 폐지(403) — 대체인 1.1 Pro·Kontext Pro 가 아래에 있다.
+ // FLUX.2 는 API 제공분이 max·pro·flex 셋이다(dev 는 오픈웨이트라 API 없음) — 셋 다 422 확인됨.
+ ['이미지','Flux 2 Max'],['이미지','Flux 2 Pro'],['이미지','Flux 2 Flex'],
  ['이미지','Flux 1.1 Pro Ultra'],['이미지','Flux 1.1 Pro'],['이미지','Flux Dev'],
  ['이미지','Grok Imagine']
 ];
@@ -2120,6 +2122,10 @@ var MODEL_COST = {
   'GPT Image 1.5':                   { u:'img', usd:0.06,  prov:'openai' },
   'GPT Image':                       { u:'img', usd:0.04,  prov:'openai' },
   'GPT Image Mini':                  { u:'img', usd:0.015, prov:'openai' },
+  'Flux 2 Max':                      { u:'img', usd:0.06,  prov:'flux' },   // ⚠️ 단가 잠정값 — BFL 대시보드 확인 후 조정
+  'Flux 2 Pro':                      { u:'img', usd:0.04,  prov:'flux' },   // ⚠️ 단가 잠정값
+  'Flux 2 Max':                      { u:'img', usd:0.06,  prov:'flux' },   // 단가 잠정값 — BFL 대시보드 확인 후 조정
+  'Flux 2 Pro':                      { u:'img', usd:0.04,  prov:'flux' },   // 단가 잠정값
   'Flux 2 Flex':                     { u:'img', usd:0.03,  prov:'flux' },
   'Flux 2 Dev':                      { u:'img', usd:0.025, prov:'flux' },
   'Flux 1.1 Pro Ultra':              { u:'img', usd:0.06,  prov:'flux' },
@@ -2406,7 +2412,7 @@ var MODEL_PROVIDER = {
   'Seedream 4.5':'seedream','Seedream 4.5 (레퍼런스 편집)':'seedream',
   'Seedream 4.0':'seedream','Seedream 4.0 (레퍼런스 편집)':'seedream',
   'Seedream 3.0':'seedream','SeedEdit 3.0 (레퍼런스 편집)':'seedream',
-  'Flux 2 Flex':'flux','Flux 2 Dev':'flux',
+  'Flux 2 Max':'flux','Flux 2 Pro':'flux','Flux 2 Flex':'flux',
   'Nano Banana':'nanobanana',
   'GPT Image 2':'openai','GPT Image 1.5':'openai','GPT Image':'openai','GPT Image Mini':'openai',
   'Flux 1.1 Pro Ultra':'flux','Flux 1.1 Pro':'flux','Flux Pro':'flux','Flux Dev':'flux',
@@ -2681,7 +2687,9 @@ var IMG_MODEL_RATIOS = {
   'Flux Kontext Max (레퍼런스 편집)':['1:1','16:9','9:16','4:3','3:4'],
   'Flux Kontext Pro (레퍼런스 편집)':['1:1','16:9','9:16','4:3','3:4'],
   'Flux 1.1 Pro Ultra':['1:1','16:9','9:16','4:3','3:4'],
-  'Flux 2 Flex':['1:1','16:9','9:16','4:5'],  'Flux 2 Dev':['1:1','16:9','9:16','4:5'],
+  'Flux 2 Max':['1:1','16:9','9:16','4:5'], 'Flux 2 Pro':['1:1','16:9','9:16','4:5'],
+  'Flux 2 Max':['1:1','16:9','9:16','4:5'],   'Flux 2 Pro':['1:1','16:9','9:16','4:5'],
+  'Flux 2 Flex':['1:1','16:9','9:16','4:5'],
   'Flux 1.1 Pro':['1:1','16:9','9:16','4:5'], 'Flux Pro':['1:1','16:9','9:16','4:5'],
   'Flux Dev':['1:1','16:9','9:16','4:5'],
   // GPT Image 는 1024x1024 / 1536x1024 / 1024x1536 → 1:1·3:2·2:3 에 해당
@@ -2708,7 +2716,7 @@ var MODEL_REF_LIMIT = {
   // FLUX.2 는 input_image~input_image_8 로 다중 레퍼런스(API 최대 8장),
   // FLUX 1.x 는 image_prompt 로 1장 — 둘 다 서버 페이로드에 실제로 실린다.
   'Flux Kontext Max (레퍼런스 편집)':1,'Flux Kontext Pro (레퍼런스 편집)':1,
-  'Flux 2 Flex':8,'Flux 2 Dev':8,
+  'Flux 2 Max':8,'Flux 2 Pro':8,'Flux 2 Flex':8,
   'Flux 1.1 Pro Ultra':1,'Flux 1.1 Pro':1,'Flux Pro':1,'Flux Dev':1,'Grok Imagine':1
 };
 function modelRefLimit(model){ var v=MODEL_REF_LIMIT[model]; return v==null?1:v; }
