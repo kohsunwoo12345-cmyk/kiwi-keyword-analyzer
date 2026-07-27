@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Boxes, RefreshCw, Search, ExternalLink, X, Layers, Activity, Coins, FileText, Loader2, Cpu } from 'lucide-react'
+import { Boxes, RefreshCw, Search, ExternalLink, X, Layers, Activity, Coins, FileText, Loader2, Cpu, FlaskConical } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Overlay } from '@/components/ui'
 import { adminStudioNodes, adminStudioNodeDetail, type StudioUserRow } from '@/lib/auth'
@@ -50,6 +50,10 @@ export default function StudioNodesPage() {
         <button onClick={load} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--text-soft)] hover:bg-slate-50">
           <RefreshCw size={14} className={cn(loading && 'animate-spin')} /> 새로고침
         </button>
+        {/* 실동작 테스트 — 업스케일·외부호출·첫프레임 전송을 직접 돌려보는 관리자 전용 페이지 */}
+        <a href="/adminsunkoh028741_11263/studio-tests" className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700">
+          <FlaskConical size={14} /> 스튜디오 테스트
+        </a>
       </div>
 
       <Panel title={`워크플로우 보유 사용자 ${users.length}명`}>

@@ -6,65 +6,8 @@
 // POST /api/admin/warm-models  (mode=strict|auto) — 자체 호스팅 모드 전환.
 import { Env, ensureSchema, resolveDB, resolveBucket, requireAdminUser, getSetting, setSetting } from '../_utils'
 import { modelKeyFromPath, SELFHOST_KEY, WARM_UNTIL_KEY, LAST_UPSTREAM_KEY } from '../../models/_key'
-
-// 스튜디오가 실제로 요청하는 파일 목록(= /models 경로). 프록시가 상류→R2 적재를 수행.
-const FILES: string[] = [
-  '/models/lib/transformers',
-  '/models/lib/vision',
-  '/models/lib/ortweb',   // onnxruntime-web (Real-ESRGAN raw ONNX 실행용)
-  // onnxruntime-web 자기 버전 wasm — raw ONNX 실행용. transformers 번들(/models/ort)과 섞으면 안 된다.
-  '/models/ortw/ort-wasm-simd-threaded.wasm',
-  '/models/ortw/ort-wasm-simd.wasm',
-  '/models/ortw/ort-wasm-threaded.wasm',
-  '/models/ortw/ort-wasm.wasm',
-  // Depth-Anything V2 base 양자화 — 1순위. (fp32 model.onnx 는 ≈380MB로 Worker 프록시 한도 초과·미사용)
-  '/models/hf/onnx-community/depth-anything-v2-base/resolve/main/config.json',
-  '/models/hf/onnx-community/depth-anything-v2-base/resolve/main/preprocessor_config.json',
-  '/models/hf/onnx-community/depth-anything-v2-base/resolve/main/onnx/model_quantized.onnx',
-  // Depth-Anything V1 base (더 정밀) — 2순위
-  '/models/hf/Xenova/depth-anything-base-hf/resolve/main/config.json',
-  '/models/hf/Xenova/depth-anything-base-hf/resolve/main/preprocessor_config.json',
-  '/models/hf/Xenova/depth-anything-base-hf/resolve/main/onnx/model_quantized.onnx',
-  // Depth-Anything small — 폴백
-  '/models/hf/Xenova/depth-anything-small-hf/resolve/main/config.json',
-  '/models/hf/Xenova/depth-anything-small-hf/resolve/main/preprocessor_config.json',
-  '/models/hf/Xenova/depth-anything-small-hf/resolve/main/onnx/model_quantized.onnx',
-  // onnxruntime-web wasm (transformers.js 백엔드) — 브라우저 지원에 따라 하나가 쓰임
-  '/models/ort/ort-wasm-simd-threaded.wasm',
-  '/models/ort/ort-wasm-simd.wasm',
-  '/models/ort/ort-wasm-threaded.wasm',
-  '/models/ort/ort-wasm.wasm',
-  // MediaPipe wasm
-  '/models/mpv/vision_wasm_internal.wasm',
-  '/models/mpv/vision_wasm_internal.js',
-  '/models/mpv/vision_wasm_nosimd_internal.wasm',
-  '/models/mpv/vision_wasm_nosimd_internal.js',
-  // MediaPipe 모델
-  '/models/mpm/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task',
-  '/models/mpm/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite',
-  // 초해상(SR) 업스케일 — Swin2SR (x2 = 2×, x4 = 4×). transformers.js image-to-image.
-  //  fp32(model.onnx) 가 화질 기준이고 양자화본은 폴백이라 둘 다 적재한다.
-  '/models/hf/Xenova/swin2SR-classical-sr-x2-64/resolve/main/config.json',
-  '/models/hf/Xenova/swin2SR-classical-sr-x2-64/resolve/main/preprocessor_config.json',
-  '/models/hf/Xenova/swin2SR-classical-sr-x2-64/resolve/main/onnx/model.onnx',
-  '/models/hf/Xenova/swin2SR-classical-sr-x2-64/resolve/main/onnx/model_quantized.onnx',
-  '/models/hf/Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr/resolve/main/config.json',
-  '/models/hf/Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr/resolve/main/preprocessor_config.json',
-  '/models/hf/Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr/resolve/main/onnx/model.onnx',
-  '/models/hf/Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr/resolve/main/onnx/model_quantized.onnx',
-]
-
-// 업스케일이 우리 것만으로 돌기 위해 반드시 R2 에 있어야 하는 파일
-const SR_REQUIRED = FILES.filter((p) => /swin2SR|\/models\/lib\/transformers$|\/models\/ort\//.test(p))
-
-// 존재 확인만 하는 항목 — 있으면 자동으로 최상급 엔진(Real-ESRGAN)으로 승격, 없으면 Swin2SR 로 동작.
-//  없는 repo 를 수십 MB 씩 받아보다 실패하는 낭비를 없애려고 다운로드가 아니라 HEAD 로만 본다.
-const PROBES: string[] = [
-  '/models/hf/onnx-community/real-esrgan-x4plus/resolve/main/onnx/model.onnx',
-  '/models/hf/Xenova/real-esrgan-x4plus/resolve/main/onnx/model.onnx',
-  '/models/hf/onnx-community/Real-ESRGAN_x4plus/resolve/main/onnx/model.onnx',
-  '/models/hf/Xenova/4x-UltraSharp/resolve/main/onnx/model.onnx',
-]
+// 파일 목록은 한 곳(_files.ts)에서만 관리한다 — 적재와 상태 조회의 숫자가 어긋나지 않게.
+import { MODEL_FILES as FILES, SR_REQUIRED, ESRGAN_PROBES as PROBES } from '../../models/_files'
 
 function esc(s: any) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => (({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as any)[c])) }
 const mb = (n: number) => (n ? (n / 1048576).toFixed(2) + ' MB' : '-')

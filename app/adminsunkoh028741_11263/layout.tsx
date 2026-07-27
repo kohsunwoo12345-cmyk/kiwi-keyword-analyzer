@@ -53,6 +53,7 @@ import {
   CalendarRange,
   MessagesSquare,
   Database,
+  FlaskConical,
 } from 'lucide-react'
 import { Logo } from '@/components/Brand'
 import { adminSupportCount, adminPendingCounts, adminAccessLockGet } from '@/lib/auth'
@@ -68,6 +69,7 @@ type NavGroup = { label: string; items: NavItem[] }
 export const VIDEO_NAV: NavItem[] = [
   { title: 'AI 모델 목록', href: `${ADMIN_BASE}/ai-models`, icon: Boxes },
   { title: '노드 관리', href: `${ADMIN_BASE}/studio-nodes`, icon: Boxes },
+  { title: '노드 스튜디오 테스트', href: `${ADMIN_BASE}/studio-tests`, icon: FlaskConical },
   { title: 'AI 생성 기록', href: `${ADMIN_BASE}/ai-generations`, icon: Images },
   { title: 'AI 정산', href: `${ADMIN_BASE}/ai-usage`, icon: Wallet },
   { title: 'AI 비용 (원가율)', href: `${ADMIN_BASE}/ai-pricing`, icon: Gauge },
