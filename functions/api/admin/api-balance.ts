@@ -8,7 +8,9 @@ import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser, setSet
 const PROVIDERS: { id: string; name: string; url: string; note: string; keys: string[]; unit?: string }[] = [
   { id: 'google', name: 'Google Veo', url: 'https://console.cloud.google.com/billing', note: 'Veo 3.1 (영상)', keys: ['VEO_API_KEY', 'veo_api_key', 'GOOGLE_API_KEY', 'GEMINI_API_KEY'] },
   { id: 'runway', name: 'Runway', url: 'https://dev.runwayml.com/', note: 'Gen-4 · Aleph (영상)', keys: ['Runway_API_KEY', 'RUNWAY_API_KEY', 'runway_api_key'], unit: '크레딧' },
-  { id: 'seedance', name: 'Seedance', url: 'https://fal.ai/dashboard/billing', note: 'Seedance 1.0/2.0 (영상)', keys: ['Seedance_API_KEY', 'SEEDANCE_API_KEY', 'seedance_api_key', 'Fal_API_KEY', 'FAL_API_KEY', 'FAL_KEY'] },
+  // ⚠ 씨댄스 요청은 fal 이 아니라 BytePlus ModelArk(ark.ap-southeast.bytepluses.com) 로 나간다.
+  //   충전·청구서도 BytePlus 콘솔에서 봐야 한다(예전 fal 경유 시절의 링크가 남아 있었음).
+  { id: 'seedance', name: 'Seedance (BytePlus ModelArk)', url: 'https://console.byteplus.com/ark', note: 'Seedance 1.0/2.0 (영상) · 씨드림 이미지와 같은 계정', keys: ['Seedance_API_KEY', 'SEEDANCE_API_KEY', 'seedance_api_key', 'Fal_API_KEY', 'FAL_API_KEY', 'FAL_KEY'] },
   { id: 'kling', name: 'Kling', url: 'https://app.klingai.com/', note: 'Kling 2.1/2.0/1.6 (영상)', keys: ['KLING_ACCESS_KEY', 'Kling_API_KEY', 'KLING_API_KEY', 'Fal_API_KEY', 'FAL_API_KEY', 'FAL_KEY'] },
   { id: 'hailuo', name: 'Hailuo (MiniMax)', url: 'https://www.minimax.io/platform', note: 'Hailuo 02 · Director (영상)', keys: ['Hailuo_API_KEY', 'HAILUO_API_KEY', 'hailuo_api_key', 'MINIMAX_API_KEY'] },
   { id: 'luma', name: 'Luma', url: 'https://lumalabs.ai/dashboard/api', note: 'Ray 2 · Flash (영상)', keys: ['Luma_API_KEY', 'LUMA_API_KEY', 'luma_api_key'], unit: 'USD' },
