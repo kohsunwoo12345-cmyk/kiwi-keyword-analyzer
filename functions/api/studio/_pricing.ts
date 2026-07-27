@@ -158,10 +158,11 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   'GPT Image': { u: 'img', usd: 0.04, prov: 'openai' },
   'GPT Image Mini': { u: 'img', usd: 0.015, prov: 'openai' },
   'Flux 2 Flex': { u: 'img', usd: 0.03, prov: 'flux' },
-  'Flux 2 Dev': { u: 'img', usd: 0.025, prov: 'flux' },
+  // Flux 2 Dev·Flux Pro 는 이 계정에서 403 Forbidden(권한 없음) — 개통되면 주석만 풀면 된다
+  // 'Flux 2 Dev': { u: 'img', usd: 0.025, prov: 'flux' },
   'Flux 1.1 Pro Ultra': { u: 'img', usd: 0.06, prov: 'flux' },
   'Flux 1.1 Pro': { u: 'img', usd: 0.04, prov: 'flux' },
-  'Flux Pro': { u: 'img', usd: 0.05, prov: 'flux' },
+  // 'Flux Pro': { u: 'img', usd: 0.05, prov: 'flux' },
   'Flux Dev': { u: 'img', usd: 0.025, prov: 'flux' },
   'Flux Kontext Max (레퍼런스 편집)': { u: 'img', usd: 0.08, prov: 'flux' },
   'Flux Kontext Pro (레퍼런스 편집)': { u: 'img', usd: 0.05, prov: 'flux' },

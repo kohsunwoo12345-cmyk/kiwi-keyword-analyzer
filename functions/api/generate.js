@@ -1539,11 +1539,13 @@ async function handle(context) {
           const t = await r.text();
           ids = [...new Set(String(t).match(/[a-z0-9]+(?:-[a-z0-9]+){1,}/gi) || [])]
             .filter(x => /^(deepseek|dola-seed|doubao|skylark|kimi|glm|gpt-oss|bytedance-seed)/i.test(x))
+            // 임베딩·번역 전용 모델은 chat/completions 로 프롬프트를 못 쓴다 → 제외
+            .filter(x => !/embedding|translation|tokenizer/i.test(x))
             .map(x => x.toLowerCase());
         } catch (_e) { /* 무시 */ }
         if (!ids.length) return { model: "프롬프트 LLM", provider: "promptgen", id: "(카탈로그에서 못 찾음)",
           httpStatus: 0, ok: false, code: "", message: "계정 카탈로그에 LLM 계열 ID 가 없습니다" };
-        const checked = await Promise.all(ids.slice(0, 20).map(async (id) => {
+        const checked = await Promise.all(ids.slice(0, 60).map(async (id) => {
           const x = await post(ARK_HOSTS.bp + "/chat/completions",
             { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" }, { model: id, messages: [] });
           const e = errOf(x); return { id, status: x.status, ok: !seedreamModelMissing(x.status, x.j), msg: e.msg };
@@ -1620,12 +1622,18 @@ async function handle(context) {
             if (!sa) return R(label, "google", id, 0, "", "구글 인증 없음(VEO_API_KEY·서비스계정 모두 없음)", { forceOk: false });
             try {
               const tok = await gcpToken(sa.email, sa.pem);
-              const x2 = await get("https://" + VERTEX_LOC + "-aiplatform.googleapis.com/v1/projects/" + sa.pid
-                + "/locations/" + VERTEX_LOC + "/publishers/google/models/" + id, { "Authorization": "Bearer " + tok });
+              // publisher 모델은 GET 리소스가 아니다(앞서 404 HTML 이 왔다) →
+              //  실제 생성과 같은 엔드포인트에 빈 본문을 POST 해 400(파라미터)/404(모델없음)로 가른다. 작업은 생기지 않는다.
+              const isVeo = /veo/i.test(id);
+              const url2 = "https://" + VERTEX_LOC + "-aiplatform.googleapis.com/v1/projects/" + sa.pid
+                + "/locations/" + VERTEX_LOC + "/publishers/google/models/" + id + (isVeo ? ":predictLongRunning" : ":generateContent");
+              const x2 = await post(url2, { "Authorization": "Bearer " + tok, "Content-Type": "application/json" },
+                isVeo ? { instances: [], parameters: {} } : { contents: [] });
               const e2 = errOf(x2);
+              const okNow = x2.status === 400 || x2.status === 200;   // 400=파라미터 반려(모델 존재)
               return R(label, "google", id, x2.status, e2.code,
-                x2.status === 200 ? "Vertex 서비스계정으로 확인됨 (AI Studio 키는 무효)" : e2.msg,
-                { forceOk: x2.status === 200 });
+                (okNow ? "Vertex 서비스계정으로 확인됨" : "") + " " + String(e2.msg).replace(/<[^>]*>/g, "").slice(0, 140),
+                { forceOk: okNow });
             } catch (e) { return R(label, "google", id, 0, "", "서비스계정 토큰 실패: " + String((e && e.message) || e).slice(0, 100), { forceOk: false }); }
           })());
         }
