@@ -1967,7 +1967,6 @@ var MODELS = [
  ['영상','Google Veo 3.1'],['영상','Runway Gen-4'],['영상','Runway Gen-3 Alpha Turbo'],['영상','Grok Imagine (영상)'],
  ['영상','Seedance 2.0'],['영상','Seedance 2.0 Fast'],['영상','Seedance 2.0 Mini'],['영상','Seedance 1.5 Pro'],
  ['영상','Seedance 1.0 Pro'],['영상','Seedance 1.0 Pro Fast'],
- ['영상','Seedance 1.0 Lite (텍스트→영상)'],['영상','Seedance 1.0 Lite (이미지→영상)'],
  ['영상','MiniMax Hailuo 02'],['영상','MiniMax T2V-01 Director'],['영상','MiniMax I2V-01 Director'],
  ['영상','Luma Ray 2'],['영상','Luma Ray Flash 2'],['영상','Luma Ray 1.6'],
  ['영상 · Kling','Kling 3.0 Pro (텍스트→영상)'],['영상 · Kling','Kling 3.0 Pro (이미지→영상)'],
@@ -2085,8 +2084,9 @@ var MODEL_COST = {
   'Seedance 1.5 Pro':                { u:'sec', usd:0.05,  prov:'seedance' },
   'Seedance 1.0 Pro':                { u:'sec', usd:0.062, prov:'seedance' },
   'Seedance 1.0 Pro Fast':           { u:'sec', usd:0.036, prov:'seedance' },
-  'Seedance 1.0 Lite (텍스트→영상)':    { u:'sec', usd:0.018, prov:'seedance' },
-  'Seedance 1.0 Lite (이미지→영상)':    { u:'sec', usd:0.018, prov:'seedance' },
+  // Seedance 1.0 Lite 2종은 이 계정에서 미개통(404) — 개통되면 두 줄만 되살리면 된다
+  // 'Seedance 1.0 Lite (텍스트→영상)':    { u:'sec', usd:0.018, prov:'seedance' },
+  // 'Seedance 1.0 Lite (이미지→영상)':    { u:'sec', usd:0.018, prov:'seedance' },
   'MiniMax Hailuo 02':               { u:'sec', usd:0.048, prov:'hailuo' },
   'MiniMax T2V-01 Director':         { u:'sec', usd:0.043, prov:'hailuo' },
   'MiniMax I2V-01 Director':         { u:'sec', usd:0.043, prov:'hailuo' },
@@ -2423,6 +2423,35 @@ var MODEL_PROVIDER = {
   'Kling 2.0':'kling','Kling 1.6':'kling'
 };
 function providerOf(model){ return MODEL_PROVIDER[model] || 'fal'; }
+/* ── 제공사 키가 없는 모델은 목록에서 숨긴다 ──
+   키가 빠져 있으면 그 제공사 모델은 100% 실패한다(예: LUMA_API_KEY 없음 → Luma 3종 403).
+   /api/generate?health 이 제공사별 키 보유 여부를 알려 주므로, 그걸 받아 목록을 거른다.
+   → 키를 넣으면 코드 수정 없이 자동으로 다시 나타난다.
+   조회 전이거나 조회 실패면 아무것도 숨기지 않는다(락아웃 방지). */
+var PROV_OK = null;
+(function loadProvHealth(){
+  try{
+    fetch('/api/generate?health=1',{cache:'no-store'})
+      .then(function(r){ return r.json(); })
+      .then(function(h){ if(h && typeof h==='object'){ PROV_OK=h; try{ render(); }catch(_e){} } })
+      .catch(function(){});
+  }catch(_e){}
+})();
+function provUsable(prov){
+  if(!PROV_OK) return true;                       // 아직 모름 → 숨기지 않는다
+  // 파이프라인(합성 제공사)은 실제 호출 제공사가 따로 있어 health 키가 없다 → 통과
+  var ALIAS={ v2v_auto:'v2vAuto', runway_aleph:'runway', motion:'motion', upscale:'fal',
+              falcontrol:'fal', nanobanana:'nanobanana', narrate:'elevenlabs', lipsync:'fal',
+              revoice:'fal', music:'fal', v2v:'v2vAuto' };
+  var key=ALIAS[prov]||prov;
+  return !(key in PROV_OK) || !!PROV_OK[key];
+}
+/* 모델 목록([그룹, 표시명] 배열)에서 쓸 수 없는 제공사를 제거 */
+function availModels(list){
+  if(!Array.isArray(list)) return list;
+  var out=list.filter(function(m){ return provUsable(providerOf(m[1])); });
+  return out.length?out:list;                     // 전부 걸러지면 원본 유지(빈 목록 방지)
+}
 
 /* ── 카메라 모션 프리셋 (힉스필드 DoP 스타일) — 서버가 같은 이름으로 시네마틱 지시문을 프롬프트에 주입 ── */
 var CAMERA_OPTS=['없음','크래시 줌','돌리 인','돌리 아웃','360 오빗','불릿타임','FPV 드론','핸드헬드','크레인 업','로우앵글 트래킹','슬로우 팬'];
@@ -6567,7 +6596,7 @@ function openDD(anchor,n,k){
   var html='';
   if(isModelList){
     html+='<input class="dd-search" type="text" placeholder="Search" spellcheck="false" autocomplete="off" style="position:sticky;top:0;z-index:1;display:block;width:calc(100% - 12px);margin:6px;padding:6px 9px;border-radius:7px;border:1px solid #34363e;background:#151517;color:#e6e6ea;font-size:11px;outline:none;font-family:inherit;box-sizing:border-box;">';
-    var list=wdef.opts==='IMG_MODELS'?IMG_MODELS:wdef.opts==='VIDEO_MODELS'?VIDEO_MODELS:wdef.opts==='PROMPT_MODELS'?PROMPT_MODELS:MODELS, cat='';
+    var list=availModels(wdef.opts==='IMG_MODELS'?IMG_MODELS:wdef.opts==='VIDEO_MODELS'?VIDEO_MODELS:wdef.opts==='PROMPT_MODELS'?PROMPT_MODELS:MODELS), cat='';
     list.forEach(function(m){ if(m[0]!==cat){cat=m[0];html+='<div class="dh">'+cat+'</div>';} html+='<div class="di" data-v="'+esc(m[1])+'">'+esc(m[1])+'</div>'; });
   } else { var arr=(wdef.opts==='STYLE3D')?STYLE3D_OPTS:wdef.opts;
     if(k==='ratio' && n.type==='imagegen') arr=imgModelRatios(n.w.model);   // 모델이 실제로 지원하는 비율만
@@ -7917,7 +7946,7 @@ pfHandleTossReturn();
   var chAttach=null;             // { kind:'image'|'video', dataUrl?, url?, name }
 
   function chModels(){            // 영상 모델(텍스트→영상). 첨부가 있으면 firstFrame/V2V 로 활용됨
-    return MODELS.filter(function(m){
+    return availModels(MODELS).filter(function(m){
       var cat=m[0], name=m[1];
       if(cat.indexOf('영상')!==0) return false;
       if(cat.indexOf('→ 영상')>=0) return false;
@@ -7926,7 +7955,7 @@ pfHandleTossReturn();
     }).map(function(m){ return m[1]; });
   }
   function imgModels(){           // 이미지 생성 모델
-    return MODELS.filter(function(m){ return m[0].indexOf('이미지')===0; }).map(function(m){ return m[1]; });
+    return availModels(MODELS).filter(function(m){ return m[0].indexOf('이미지')===0; }).map(function(m){ return m[1]; });
   }
   function fillModels(force){
     var sel=chEl('chModel'); if(!sel) return; if(sel._filledMode===chMode && !force) return;
@@ -8126,8 +8155,8 @@ pfHandleTossReturn();
   var WARN='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f0b23a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>';
   var busy=false, crMode='video', crAttach=null, crCount=1;
 
-  function vidModels(){ return MODELS.filter(function(m){ var cat=m[0],name=m[1]; if(cat.indexOf('영상')!==0)return false; if(cat.indexOf('→ 영상')>=0)return false; if(/이미지→영상/.test(name))return false; return true; }).map(function(m){return m[1];}); }
-  function imgModels(){ return MODELS.filter(function(m){ return m[0].indexOf('이미지')===0; }).map(function(m){return m[1];}); }
+  function vidModels(){ return availModels(MODELS).filter(function(m){ var cat=m[0],name=m[1]; if(cat.indexOf('영상')!==0)return false; if(cat.indexOf('→ 영상')>=0)return false; if(/이미지→영상/.test(name))return false; return true; }).map(function(m){return m[1];}); }
+  function imgModels(){ return availModels(MODELS).filter(function(m){ return m[0].indexOf('이미지')===0; }).map(function(m){return m[1];}); }
   function fillModels(force){ var sel=el('crModel'); if(!sel)return; if(sel._m===crMode&&!force)return;
     var list=crMode==='image'?imgModels():vidModels();
     var pref=crMode==='image'?['Nano Banana','GPT Image 2','GPT Image','Flux 1.1 Pro']:['Google Veo 3.1','Kling 2.1 Master (텍스트→영상)','Seedance 2.0','Luma Ray 2'];
