@@ -342,6 +342,44 @@ function seedanceI2VSwap(model, b) {
   if (!hasFirst) return model;
   return String(model || "").replace("(텍스트→영상)", "(이미지→영상)");
 }
+/* 계정에서 실제로 조회되는 ModelArk 모델 ID 목록 (5분 캐시).
+   하드코딩한 후보가 전부 404(InvalidEndpointOrModel.NotFound) 일 때, 날짜 접미사만 다른
+   같은 계열 ID 를 여기서 찾아 자동으로 쓴다 — 콘솔에서 개통해도 접미사가 다르면 계속
+   404 가 나던 문제(예: Seedance 1.0 Lite)를 코드 수정 없이 흡수한다. */
+let _arkCat = null, _arkCatAt = 0;
+export async function arkModelCatalog(key) {
+  if (_arkCat && Date.now() - _arkCatAt < 300000) return _arkCat;
+  const ids = new Set();
+  for (const p of ["/models?page_size=200", "/models", "/foundation_models", "/endpoints"]) {
+    try {
+      const r = await fetchT(ARK_HOSTS.bp + p, { headers: { "Authorization": "Bearer " + key } }, 8000);
+      if (!r.ok) continue;
+      const t = await r.text();
+      (String(t).match(/[a-z0-9]+(?:-[a-z0-9]+){2,}/gi) || [])
+        .filter(x => /^(seedance|seedream|seededit|doubao|dreamina|dola)/i.test(x))
+        .forEach(x => ids.add(x));
+      if (ids.size) break;
+    } catch (_e) { /* 다음 경로 */ }
+  }
+  _arkCat = [...ids]; _arkCatAt = Date.now();
+  return _arkCat;
+}
+/* 날짜 접미사(-250428 등)를 뗀 계열 이름 */
+export function arkStem(id) { return String(id || "").replace(/-\d{6}$/, ""); }
+/* 카탈로그에서 같은 계열의 다른 ID 를 찾는다(이미 시도한 것은 제외) */
+export function arkPickByStem(catalog, candidates) {
+  const stems = [...new Set((candidates || []).map(arkStem))];
+  const tried = new Set(candidates || []);
+  for (const st of stems) {
+    const hit = (catalog || []).find(x => !tried.has(x) && arkStem(x) === st);
+    if (hit) return hit;
+  }
+  for (const st of stems) {
+    const hit = (catalog || []).find(x => !tried.has(x) && x.indexOf(st) === 0);
+    if (hit) return hit;
+  }
+  return null;
+}
 export function seedanceModelIds(b, env) {
   const custom = b && typeof b.seedanceModel === "string" && b.seedanceModel.trim();
   if (custom) return [custom];                     // 노드에서 직접 입력한 모델 ID 최우선
@@ -1467,7 +1505,27 @@ async function handle(context) {
                  code: hit.code, message: hit.message, raw: hit.raw,
                  candidates: tried.map(x => x.id + (x.exists ? "✓" : "✗") + "[" + (x.httpStatus || "-") + (x.code ? " " + x.code : "") + "]") };
       }));
+      // 없다고 나온 모델은 계정 카탈로그와 대조해, "접미사만 다른 ID 가 있는지" 까지 알려 준다.
+      const missItems = items.filter(x => !x.exists);
+      let catalog = null, suggest = [];
+      if (missItems.length) {
+        try {
+          catalog = await arkModelCatalog(k.seedance);
+          for (const it of missItems) {
+            const ids = Array.isArray(SEEDANCE_IDS[it.model]) ? SEEDANCE_IDS[it.model] : [SEEDANCE_IDS[it.model]];
+            const alt = arkPickByStem(catalog, ids);
+            const near = (catalog || []).filter(x => x.indexOf(arkStem(ids[0]).split("-").slice(0, 4).join("-")) === 0);
+            suggest.push({ model: it.model, tried: ids, catalogMatch: alt,
+                           nearby: near.slice(0, 8),
+                           verdict: alt ? "카탈로그에 같은 계열의 다른 ID 가 있습니다 — 자동으로 그 ID 를 씁니다."
+                                        : "계정 카탈로그에 이 계열 자체가 없습니다(리전/계정에서 사용 불가)." });
+          }
+        } catch (_e) { /* 무시 */ }
+      }
       return json({ diag: "seedance-check",
+        catalogCount: catalog ? catalog.length : undefined,
+        catalogSeedanceLite: catalog ? catalog.filter(x => /lite/i.test(x)) : undefined,
+        suggest: suggest.length ? suggest : undefined,
         note: "candidates 의 [HTTP 코드] 를 그대로 보세요. 404·ModelNotFound·ModelNotOpen=ID 없음/미개통, "
             + "400 InvalidParameter=ID 는 정상(내용을 비워 보냈으니 당연한 반려). content 를 비워 보내므로 태스크는 생성되지 않습니다(무과금).",
         exists: items.filter(x => x.exists).map(x => x.model + " → " + x.id),
@@ -2580,6 +2638,31 @@ async function handle(context) {
         //  400(파라미터)·401/403(인증)·402(잔액)·429(한도)는 ID 를 바꿔도 동일하므로 즉시 중단.
         if (!(seedreamModelMissing(r.status, j) || r.status >= 500)) break outer;
       }
+    }
+    // 모든 후보가 "모델 없음" 으로 끝났다면, 계정 카탈로그에서 같은 계열의 실제 ID 를 찾아 1회 더 시도한다.
+    //  (콘솔에서 개통했는데 날짜 접미사가 우리 표와 다른 경우 — 코드 수정 없이 자동으로 맞춘다)
+    if (/InvalidEndpointOrModel|NotFound|404/i.test(String(lastErr || ""))) {
+      try {
+        const cat = await arkModelCatalog(k.seedance);
+        const alt = arkPickByStem(cat, candidates);
+        if (alt) {
+          const r2 = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+            method: "POST",
+            headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify(buildSeedancePayload(b, env, alt))
+          }, 22000);
+          const j2 = await r2.json().catch(() => ({}));
+          tried.push(alt + "=" + r2.status + "(카탈로그)");
+          if (r2.ok && j2.id)
+            return json({ statusUrl: "/api/generate?provider=seedance&host=bp&task=" + encodeURIComponent(j2.id), modelId: alt });
+          lastErr = "HTTP " + r2.status + " [" + alt + " 카탈로그]"
+            + ((j2.error && j2.error.code) ? " <" + j2.error.code + ">" : "") + " "
+            + ((j2.error && j2.error.message) || "");
+        } else if (cat && cat.length) {
+          lastErr = String(lastErr || "") + " · 계정 카탈로그에 같은 계열 ID 없음(조회된 "
+            + cat.length + "개 중). 이 모델은 계정/리전에서 사용할 수 없습니다.";
+        }
+      } catch (_e) { /* 카탈로그 조회 실패는 무시 */ }
     }
     const trail = tried.length > 1 ? " · 시도: " + tried.join(", ") : "";
     // 실패한 제출을 서버에 남긴다 — 노드 화면의 원문을 사람이 옮겨 적어야만 원인을 알 수 있는 상황을 없앤다.
