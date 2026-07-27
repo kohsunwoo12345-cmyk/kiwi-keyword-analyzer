@@ -306,6 +306,10 @@ export function buildSeedancePayload(b, env, forceModel) {
   const ratio = SEEDANCE_RATIOS.indexOf(String(b.ratio || "").trim()) >= 0 ? String(b.ratio).trim() : "16:9";
   const first = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
   const isV2 = /seedance-2/.test(model);   // dreamina-seedance-2-0-* 계열
+  // 해상도 — 공식 지원은 480p·720p·1080p. 2.0 은 최상위 resolution 필드, 1.x 는 --resolution 텍스트 명령.
+  //  예전엔 아예 보내지 않아, 노드에서 720p/4K 를 골라도 결과는 그대로인데 과금만 달라졌다.
+  const SEEDANCE_RES = { "480p": "480p", "720p": "720p", "1080p": "1080p", "4K": "1080p", "4k": "1080p" };
+  const resolution = SEEDANCE_RES[String(b.res || "").trim()] || "1080p";
 
   if (isV2) {
     // ── Seedance 2.0 공식 Reference-to-Video 형식 ──
@@ -379,14 +383,15 @@ export function buildSeedancePayload(b, env, forceModel) {
     // b.generateAudio === true 일 때만 켠다(그때만 오디오 포함 시도).
     const genAudio = b.generateAudio === true;
     const watermark = b.watermark === true;   // 기본 false(워터마크 없음)
-    return { model, content, ratio, duration: dur, watermark, generate_audio: genAudio };
+    return { model, content, ratio, resolution, duration: dur, watermark, generate_audio: genAudio };
   }
 
   // ── Seedance 1.x 형식(텍스트에 --ratio/--duration, first/last_frame) ──
   const dur = (Number(b.seconds) || 8) <= 6 ? 5 : 10;
   const content = [{ type: "text",
     text: [(b.prompt || ""), b.negative ? ("피해야 할 것: " + String(b.negative)) : ""]
-            .filter(Boolean).join("\n").slice(0, 800) + " --ratio " + ratio + " --duration " + dur }];
+            .filter(Boolean).join("\n").slice(0, 800)
+          + " --ratio " + ratio + " --duration " + dur + " --resolution " + resolution }];
   if (first) content.push({ type: "image_url", image_url: { url: first }, role: "first_frame" });
   if (b.lastFrame) content.push({ type: "image_url", image_url: { url: b.lastFrame }, role: "last_frame" });
   return { model, content };
@@ -858,7 +863,7 @@ export function buildLumaPayload(b) {
   return p;
 }
 
-export function buildVeoPayload(b) {
+export function buildVeoPayload(b, opts) {
   const inst = { prompt: (b.prompt || "").slice(0, 1000) };
   const vImg = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage;
   // Veo 는 base64 만 받음. data:URI 일 때만, 실제 MIME 을 그대로 사용(JPEG를 PNG로 잘못 라벨링하던 버그 수정)
@@ -866,15 +871,23 @@ export function buildVeoPayload(b) {
     const m = /^data:(image\/[a-z0-9.+-]+);base64,/i.exec(String(vImg));
     inst.image = { bytesBase64Encoded: String(vImg).split(",").pop(), mimeType: (m && m[1]) || "image/jpeg" };
   }
-  return {
-    instances: [inst],
-    parameters: {
-      aspectRatio: b.ratio === "9:16" ? "9:16" : "16:9",
-      durationSeconds: Math.min(Math.max(Number(b.seconds) || 8, 5), 8),
-      negativePrompt: b.negative || undefined,
-      personGeneration: "allow_adult"   // 사람/얼굴 차단(코드 173) 완화 — 성인 허용
-    }
+  // Veo 3.1 의 durationSeconds 는 4·6·8 만 받는다(Veo 2 시절의 5~8 클램프가 남아 4초 선택이 5초로 밀렸다).
+  const VEO_SECS = [4, 6, 8];
+  const wantSec = Math.round(Number(b.seconds) || 8);
+  const dur = VEO_SECS.reduce((a, c) => (Math.abs(c - wantSec) < Math.abs(a - wantSec) ? c : a), VEO_SECS[0]);
+  const p = {
+    aspectRatio: b.ratio === "9:16" ? "9:16" : "16:9",
+    durationSeconds: dur,
+    negativePrompt: b.negative || undefined,
+    personGeneration: "allow_adult"   // 사람/얼굴 차단(코드 173) 완화 — 성인 허용
   };
+  // generateAudio·resolution 은 Vertex 경로 전용 파라미터(AI Studio 폴백은 모르는 필드로 거부한다).
+  //  Veo 3.x 는 오디오를 기본 생성하므로, 노드 토글이 꺼져 있으면 명시적으로 끈다(과금 기준과 일치시킨다).
+  if (!(opts && opts.noVertexOnly)) {
+    p.generateAudio = b.generateAudio === true;
+    p.resolution = String(b.res || "").trim() === "720p" ? "720p" : "1080p";
+  }
+  return { instances: [inst], parameters: p };
 }
 
 export async function onRequest(context) {
@@ -2300,10 +2313,11 @@ async function handle(context) {
     const vj = await vr.json().catch(() => ({}));
     if (vr.ok && vj.name)
       return json({ statusUrl: "/api/generate?provider=google&vop=" + encodeURIComponent(vj.name) });
-    // ② AI Studio 폴백
+    // ② AI Studio 폴백 — generateAudio/resolution 은 Gemini API 가 모르는 필드라 빼고 보낸다
     const r = await fetchT(
       "https://generativelanguage.googleapis.com/v1beta/models/veo-3.1-generate-001:predictLongRunning?key=" + encodeURIComponent(k.google),
-      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildVeoPayload(b, { noVertexOnly: true })) });
     const j = await r.json();
     if (j.error) return json({ error: "Veo: " + (vj.error?.message || "") + " / " + j.error.message }, 502);
     if (!j.name) return json({ error: "Veo: no operation" }, 502);
