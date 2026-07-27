@@ -1862,7 +1862,8 @@ var STUDIO_BUILD_TAG='2026-07-13-v56';   // 서버 health.build 와 정확히 �
 try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum, upscaleImageURL:upscaleImageURL, upscaleVideoURL:upscaleVideoURL, removeBackground:removeBackground, fitToRatio:fitToRatio,
         addNode:addNode, render:render, state:state, DEFS:DEFS, nodeMedia:nodeMedia, nodeImgs:nodeImgs, upScaleOf:upScaleOf, upScaleHelp:upScaleHelp,
         captionImage:captionImage, captionVideo:captionVideo, drawCaptionOn:drawCaptionOn,
-        trimSpeedVideo:trimSpeedVideo, _speedOf:_speedOf }; }catch(_e){} },0); } }catch(_e){}
+        trimSpeedVideo:trimSpeedVideo, _speedOf:_speedOf,
+        gradeImage:gradeImage, gradeVideo:gradeVideo, resolveGrade:resolveGrade, gradeSummary:gradeSummary }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
   function s(inner,vb){ return '<svg class="ico" viewBox="'+(vb||'0 0 24 24')+'" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+inner+'</svg>'; }
@@ -4564,6 +4565,130 @@ function captionVideo(src, opts, onProg){
   });
 }
 
+/* ══════ 색보정 (밝기·대비·채도·색온도 · 분위기 프리셋) ══════
+   캔버스 필터로 한 번에 처리한다. 이미지는 한 장, 영상은 프레임마다 같은 값을 적용해 다시 녹화한다.
+   프리셋은 '기본 값' 이고 아래 슬라이더는 거기에 곱해지는 미세 조정이다. */
+function _num(v, d){ v=Number(v); return isFinite(v)?v:d; }
+function _gradePreset(label){
+  var s=String(label||'');
+  if(/흑백/.test(s))        return { b:1.02, c:1.12, sat:0,    temp:0,   gray:1 };
+  if(/시네마틱|영화/.test(s)) return { b:0.98, c:1.18, sat:0.92, temp:-8 };
+  if(/따뜻/.test(s))        return { b:1.03, c:1.04, sat:1.10, temp:22 };
+  if(/차갑|시원/.test(s))    return { b:1.00, c:1.06, sat:1.02, temp:-22 };
+  if(/빈티지|필름/.test(s))  return { b:1.04, c:0.92, sat:0.80, temp:14, sepia:0.28 };
+  if(/선명|또렷/.test(s))    return { b:1.02, c:1.14, sat:1.16, temp:0 };
+  return { b:1, c:1, sat:1, temp:0 };
+}
+/* 프리셋 + 슬라이더를 합쳐 실제로 적용할 값 하나로 만든다 */
+function resolveGrade(opts){
+  opts=opts||{};
+  var p=_gradePreset(opts.preset);
+  return {
+    b:   Math.max(0, Math.round(p.b   * (_num(opts.bright,100)/100)   * 1000)/1000),
+    c:   Math.max(0, Math.round(p.c   * (_num(opts.contrast,100)/100) * 1000)/1000),
+    sat: Math.max(0, Math.round(p.sat * (_num(opts.satur,100)/100)    * 1000)/1000),
+    sepia: p.sepia||0, gray: p.gray||0,
+    temp: Math.max(-100, Math.min(100, (p.temp||0) + _num(opts.temp,0)))
+  };
+}
+function _gradeFilter(g){
+  return 'brightness('+g.b+') contrast('+g.c+') saturate('+g.sat+')'+
+         (g.sepia?' sepia('+g.sepia+')':'')+(g.gray?' grayscale('+g.gray+')':'');
+}
+/* 색온도 — 따뜻하게(주황) / 차갑게(파랑) 를 은은하게 덮는다. 흑백일 땐 덮지 않는다. */
+function _gradeOverlay(ctx, W, H, g){
+  if(!g.temp || g.gray) return;
+  ctx.save();
+  ctx.globalCompositeOperation='soft-light';
+  ctx.globalAlpha=Math.min(0.6, Math.abs(g.temp)/100);
+  ctx.fillStyle = g.temp>0 ? '#ff9a3c' : '#3ca0ff';
+  ctx.fillRect(0,0,W,H);
+  ctx.restore();
+  ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1;
+}
+function gradeImage(src, opts){
+  return new Promise(function(resolve,reject){
+    var g=resolveGrade(opts);
+    var img=new Image(); img.crossOrigin='anonymous';
+    img.onload=function(){
+      var W=img.naturalWidth||512, H=img.naturalHeight||512;
+      var c=document.createElement('canvas'); c.width=W; c.height=H;
+      var x=c.getContext('2d');
+      x.filter=_gradeFilter(g); x.drawImage(img,0,0); x.filter='none';
+      _gradeOverlay(x,W,H,g);
+      resolve({ url:c.toDataURL('image/png'), kind:'image', dim:W+'×'+H, srcDim:W+'×'+H,
+                info:W+'×'+H+' · '+gradeSummary(opts) });
+    };
+    img.onerror=function(){ reject(new Error('이미지 로드 실패')); };
+    img.src=sameOriginMedia(src);
+  });
+}
+function gradeVideo(src, opts, onProg){
+  return new Promise(function(resolve,reject){
+    if(typeof MediaRecorder==='undefined'){ reject(new Error('이 브라우저는 영상 색보정 미지원')); return; }
+    var g=resolveGrade(opts);
+    var v=document.createElement('video'); v.crossOrigin='anonymous'; v.playsInline=true; v.preload='auto'; v.muted=true;
+    var done=false, actx=null;
+    var tm=setTimeout(function(){ if(!done){ done=true; cleanup(); reject(new Error('처리 시간 초과')); } }, 600000);
+    function cleanup(){ try{ if(actx) actx.close(); }catch(_){} try{ v.src=''; }catch(_){} }
+    v.addEventListener('loadedmetadata',function(){
+      var W=v.videoWidth||1280, H=v.videoHeight||720, dur=isFinite(v.duration)?v.duration:0;
+      var c=document.createElement('canvas'); c.width=W; c.height=H;
+      var ctx=c.getContext('2d');
+      var fps=30, stream=c.captureStream(fps), hasAudio=false;
+      try{
+        var AC=window.AudioContext||window.webkitAudioContext;
+        if(AC){
+          actx=new AC();
+          var dest=actx.createMediaStreamDestination();
+          actx.createMediaElementSource(v).connect(dest);
+          var atr=dest.stream.getAudioTracks();
+          if(atr.length){ atr.forEach(function(t){ stream.addTrack(t); }); hasAudio=true; v.muted=false; v.volume=1; }
+          if(actx.state==='suspended'){ try{ actx.resume(); }catch(_){} }
+        }
+      }catch(_e){ hasAudio=false; v.muted=true; }
+      var mime=[hasAudio?'video/webm;codecs=vp9,opus':'', hasAudio?'video/webm;codecs=vp8,opus':'',
+                'video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']
+                .filter(function(m){ return m && MediaRecorder.isTypeSupported(m); })[0]||'video/webm';
+      var rec;
+      try{ rec=new MediaRecorder(stream,{ mimeType:mime, videoBitsPerSecond:Math.min(16000000, Math.round(W*H*fps*0.12)) }); }
+      catch(e){ clearTimeout(tm); cleanup(); reject(new Error('레코더 시작 실패')); return; }
+      var chunks=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size)chunks.push(e.data); };
+      rec.onstop=function(){
+        clearTimeout(tm); cleanup();
+        if(!chunks.length){ reject(new Error('녹화 결과가 비었습니다')); return; }
+        resolve({ url:URL.createObjectURL(new Blob(chunks,{type:'video/webm'})), kind:'video',
+                  dim:W+'×'+H, srcDim:W+'×'+H, sec:Math.round(dur||0),
+                  info:W+'×'+H+' · '+gradeSummary(opts)+(hasAudio?' · 소리 유지':' · 소리 없음') });
+      };
+      function draw(){ try{ ctx.filter=_gradeFilter(g); ctx.drawImage(v,0,0,W,H); ctx.filter='none'; _gradeOverlay(ctx,W,H,g); }catch(e){} }
+      function tick(){ if(done)return; draw();
+        if(onProg&&dur) onProg(Math.min(1, v.currentTime/dur));
+        if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(tick); else requestAnimationFrame(tick); }
+      v.addEventListener('ended',function(){ if(done)return; done=true; draw();
+        setTimeout(function(){ try{ rec.stop(); }catch(e){} }, 200); },{once:true});
+      try{ rec.start(); }catch(e){ clearTimeout(tm); cleanup(); reject(new Error('레코더 시작 실패')); return; }
+      var pr=v.play();
+      function go(){ if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(tick); else requestAnimationFrame(tick); }
+      if(pr&&pr.then) pr.then(go).catch(function(){ clearTimeout(tm); cleanup(); reject(new Error('영상 재생 실패')); });
+      else go();
+    });
+    v.addEventListener('error',function(){ if(!done){ done=true; clearTimeout(tm); cleanup(); reject(new Error('영상 로드 실패')); } });
+    v.src=sameOriginMedia(src);
+  });
+}
+/* 무엇을 바꿨는지 사람 말로 요약 — 결과 밑에 그대로 적힌다 */
+function gradeSummary(opts){
+  opts=opts||{};
+  var parts=[], p=String(opts.preset||'');
+  if(p && !/없음|원본/.test(p)) parts.push(p);
+  var d=function(label, v, unit){ var n=_num(v,100)-100; if(Math.abs(n)>=1) parts.push(label+(n>0?'+':'')+Math.round(n)+(unit||'%')); };
+  d('밝기 ', opts.bright); d('대비 ', opts.contrast); d('채도 ', opts.satur);
+  var t=_num(opts.temp,0);
+  if(Math.abs(t)>=1) parts.push(t>0?('따뜻하게 +'+Math.round(t)):('차갑게 '+Math.round(t)));
+  return parts.length?parts.join(' · '):'변경 없음(원본 그대로)';
+}
+
 /* ══════ 영상 자르기 · 속도 조절 ══════
    원하는 구간만 재생시키면서 그 화면을 그대로 새로 녹화한다. 속도는 재생 속도로 준다
    (0.5배로 틀면 0.5배로 녹화되므로 결과도 정확히 그 속도가 된다).
@@ -4863,6 +4988,16 @@ var DEFS = {
                       {k:'fitmode',t:'combo',label:'맞추는 방법',opts:['꽉 채우기(가장자리 잘림)','전체 보이기(여백 생김)','여백을 흐린 배경으로'],def:'꽉 채우기(가장자리 잘림)'},
                       {k:'toolout',t:'toolout'},
                       {k:'run',t:'toolbtn',label:'비율 맞추기 실행',act:'fit'}] },
+ grade:    { cat:'편집', title:'색보정 (밝기·색감)', hd:'#2a1c3a',
+             ins:[['in','이미지·영상','*']], outs:[['out','색보정 결과','*']],
+             widgets:[{k:'gpreset',t:'combo',label:'분위기',opts:['없음 (직접 조절)','따뜻하게','차갑게','시네마틱 (영화 느낌)','빈티지 (필름 느낌)','선명하게','흑백'],def:'없음 (직접 조절)'},
+                      {k:'gbright',t:'slider',label:'밝기(%)',min:50,max:150,def:100},
+                      {k:'gcontrast',t:'slider',label:'대비(%)',min:50,max:150,def:100},
+                      {k:'gsatur',t:'slider',label:'색 진하기(%)',min:0,max:200,def:100},
+                      {k:'gtemp',t:'slider',label:'색온도(-차갑 / +따뜻)',min:-50,max:50,def:0},
+                      {k:'gradehelp',t:'gradehelp'},
+                      {k:'toolout',t:'toolout'},
+                      {k:'run',t:'toolbtn',label:'색보정 적용',act:'grade'}] },
  vtrim:    { cat:'편집', title:'영상 자르기 · 속도 조절', hd:'#1c2a3a',
              ins:[['in','영상','*']], outs:[['out','편집한 영상','*']],
              widgets:[{k:'trimA',t:'numin',label:'시작 (초)',ph:'0 = 처음부터'},
@@ -5817,6 +5952,12 @@ function widgetHTML(n,w){
     return '<label class="seedopt-row"><input type="checkbox" data-w="'+w.k+'"'+(n.w[w.k]===true?' checked':'')+'>'+
       '<span class="seedopt-tx"><b>'+esc(w.label||'')+'</b>'+(w.hint?'<i>'+esc(w.hint)+'</i>':'')+'</span></label>';
   }
+  // 색보정 노드 안내문 — 지금 설정이 무엇을 바꾸는지 말로 요약해 보여준다
+  if(w.t==='gradehelp'){
+    var _gs=gradeSummary({ preset:n.w.gpreset, bright:n.w.gbright, contrast:n.w.gcontrast, satur:n.w.gsatur, temp:n.w.gtemp });
+    return '<div class="refcnt up-help">지금 설정: <b>'+esc(_gs)+'</b></div>'+
+      '<div class="refcnt up-help">분위기를 고른 뒤 아래 막대로 더 세밀하게 조절합니다 · 영상도 같은 값으로 전체에 적용됩니다</div>';
+  }
   // 자르기·속도 노드 안내문 — 실제로 몇 초짜리가 나오는지 미리 계산해 보여준다
   if(w.t==='trimhelp'){
     var _a=Number(n.w.trimA)||0, _bRaw=String(n.w.trimB==null?'':n.w.trimB).trim();
@@ -6590,6 +6731,35 @@ canvas.addEventListener('click',function(e){
       });
       return;
     }
+    // ── 색보정 — 이미지·영상 모두 같은 값으로 적용 ──
+    if(act==='grade'){
+      var gMed=inN?nodeMedia(inN):null;
+      if(!gMed||!gMed.url){ toast('색보정할 이미지나 영상을 연결하세요'); return; }
+      var gOpts={ preset:n2.w.gpreset, bright:n2.w.gbright, contrast:n2.w.gcontrast, satur:n2.w.gsatur, temp:n2.w.gtemp };
+      var gIsImg=(gMed.kind!=='video');
+      var gNode=n2;
+      gNode.w.toolBusy=true; gNode.w.toolMsg='색보정 중'; gNode.w.toolPct=gIsImg?null:0; render();
+      if(!gIsImg) toast('영상 색보정 중… 영상 길이만큼 걸립니다');
+      function gProg(pp){
+        gNode.w.toolPct=pp;
+        var hh=document.getElementById('nd-'+gNode.id); if(!hh)return;
+        var bar=hh.querySelector('.up-prog i'); if(bar)bar.style.width=Math.round(pp*100)+'%';
+        var msg=hh.querySelector('.up-msg'); if(msg)msg.textContent='색보정 중… '+Math.round(pp*100)+'%';
+      }
+      (gIsImg ? gradeImage(gMed.url, gOpts) : gradeVideo(gMed.url, gOpts, gProg))
+        .then(function(r){
+          gNode.w.toolBusy=false; gNode.w.toolPct=null;
+          gNode.w.img=r.url; gNode.w.toolKind=r.kind; gNode.w.toolInfo=r.info; gNode.w.toolFallback=false;
+          toast('색보정 완료 · '+r.info); render(); snapshot();
+          if(r.kind==='video'){ try{ grabFrameFromURL(r.url,'video','first',0)
+            .then(function(im){ gNode.w.poster=im; render(); }).catch(function(){}); }catch(_e){} }
+          try{ nvLogAct('grade','grade',r.info,0,'grade'); }catch(_e){}
+        }).catch(function(err){
+          gNode.w.toolBusy=false; gNode.w.toolPct=null; render();
+          toast('색보정 실패: '+String(err&&err.message||err).slice(0,70));
+        });
+      return;
+    }
     // ── 영상 자르기 · 속도 조절 ──
     if(act==='vtrim'){
       var tMed=inN?nodeMedia(inN):null;
@@ -7050,7 +7220,7 @@ function topoOrder(){
 /* ── 노드에 담긴 결과물을 꺼내는 공용 함수 ──
    노드 종류마다 결과가 들어가는 칸이 다르다(출력 노드는 vid, 프레임 노드는 frameImg …).
    여러 곳에서 각자 따로 판단하면 어긋나므로 여기 한 곳에서만 정한다. */
-var TOOL_NODES={ upscale:1, caption:1, bgremove:1, fit:1, vtrim:1 };   // 결과가 w.img 에 담기는 편집 노드들
+var TOOL_NODES={ upscale:1, caption:1, bgremove:1, fit:1, vtrim:1, grade:1 };   // 결과가 w.img 에 담기는 편집 노드들
 function nodeImgs(node){
   if(!node||!node.w) return [];
   if(node.type==='output') return node.w.lastImg?[node.w.lastImg]:[];
