@@ -232,9 +232,16 @@ export function buildRunwayPayload(b) {
   const ratioMap = { "16:9": "1280:720", "9:16": "720:1280", "1:1": "960:960",
                      "4:3": "1104:832", "3:4": "832:1104", "4:5": "832:1104", "21:9": "1584:672" };
   const img = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
+  // Runway 는 promptImage 를 [{uri, position:"first"|"last"}] 배열로도 받는다 → 끝 프레임 지정 가능.
+  //  끝 프레임이 있을 때만 배열 형태로 보내고, 없으면 기존 문자열 형태를 그대로 유지한다(회귀 방지).
+  //  ※ 현재 videoModelCaps 는 Gen-4 의 [마지막 프레임] 포트를 열지 않으므로 이 경로는 아직 쓰이지
+  //    않는다(공식 문서로 position 지원을 확인하기 전까지 UI 노출 보류). 확인되면 caps 만 열면 된다.
+  const promptImage = (img && b.lastFrame)
+    ? [{ uri: img, position: "first" }, { uri: b.lastFrame, position: "last" }]
+    : img;
   return {
     model: RUNWAY_MODELS[b.model] || "gen4_turbo",
-    promptImage: img,
+    promptImage,
     promptText: cut(b.prompt, 1000),
     ratio: ratioMap[b.ratio] || "1280:720",
     duration: (Number(b.seconds) || 8) <= 7 ? 5 : 10,
@@ -940,7 +947,13 @@ export function buildLumaPayload(b) {
               duration: (Number(b.seconds) || 5) <= 6 ? "5s" : "9s",
               aspect_ratio: b.ratio || "16:9" };
   const first = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
-  if (first) p.keyframes = { frame0: { type: "image", url: first } };
+  // Luma 키프레임 — frame0=시작, frame1=끝. 끝 프레임을 주면 두 장 사이를 보간한다(이어보기 안정화).
+  //  노드는 [마지막 프레임] 포트를 열어 두고도 여태 frame1 을 보내지 않아 그 입력이 버려졌다.
+  if (first || b.lastFrame) {
+    p.keyframes = {};
+    if (first) p.keyframes.frame0 = { type: "image", url: first };
+    if (b.lastFrame) p.keyframes.frame1 = { type: "image", url: b.lastFrame };
+  }
   return p;
 }
 
@@ -951,6 +964,11 @@ export function buildVeoPayload(b, opts) {
   if (vImg && /^data:image\//i.test(String(vImg))) {
     const m = /^data:(image\/[a-z0-9.+-]+);base64,/i.exec(String(vImg));
     inst.image = { bytesBase64Encoded: String(vImg).split(",").pop(), mimeType: (m && m[1]) || "image/jpeg" };
+  }
+  // Veo 는 lastFrame 으로 끝 프레임을 받는다(시작~끝 보간). 첫 프레임이 있을 때만 유효.
+  if (inst.image && b.lastFrame && /^data:image\//i.test(String(b.lastFrame))) {
+    const lm = /^data:(image\/[a-z0-9.+-]+);base64,/i.exec(String(b.lastFrame));
+    inst.lastFrame = { bytesBase64Encoded: String(b.lastFrame).split(",").pop(), mimeType: (lm && lm[1]) || "image/jpeg" };
   }
   // Veo 3.1 의 durationSeconds 는 4·6·8 만 받는다(Veo 2 시절의 5~8 클램프가 남아 4초 선택이 5초로 밀렸다).
   const VEO_SECS = [4, 6, 8];
@@ -2092,7 +2110,10 @@ async function handle(context) {
       const cr = klingCreds(env);
       if (cr) {
         const task = u.searchParams.get("task");
-        const ep = u.searchParams.get("ep") || "text2video";
+        // ep 는 Kling 조회 경로에 그대로 들어가므로 허용 목록으로 고정(경로 조작 차단)
+        const EP_OK = { text2video: 1, image2video: 1, "video-extend": 1 };
+        const epRaw = u.searchParams.get("ep") || "text2video";
+        const ep = EP_OK[epRaw] ? epRaw : "text2video";
         if (!task) return json({ status: "failed", error: "no task" }, 400);
         const auth = await klingAuth(cr);
         const r = await fetchT(cr.base + "/v1/videos/" + ep + "/" + encodeURIComponent(task), { headers: { "Authorization": auth } });
@@ -2103,7 +2124,10 @@ async function handle(context) {
         if (st !== "succeed") return json({ status: st || "processing" });
         const vids = (j.data && j.data.task_result && j.data.task_result.videos) || [];
         const url = vids[0] && vids[0].url;
-        return url ? json({ url, kind: "video" }) : json({ status: "failed", error: "Kling: 결과 영상 URL 없음" });
+        // videoId — Kling "영상 확장"(video-extend)이 이 id 를 요구한다. 30일 내 Kling 생성분만 확장 가능.
+        const videoId = (vids[0] && (vids[0].id || vids[0].video_id)) || null;
+        return url ? json({ url, kind: "video", videoId, videoProvider: "kling" })
+                   : json({ status: "failed", error: "Kling: 결과 영상 URL 없음" });
       }
       // 2순위(폴백): fal.ai 폴링
       const task = u.searchParams.get("task");
@@ -2800,6 +2824,31 @@ async function handle(context) {
     if (!r.ok || !j.id)
       return json({ error: "Luma: " + (JSON.stringify(j.detail || j) || "").slice(0, 200) }, 502);
     return json({ statusUrl: "/api/generate?provider=luma&task=" + encodeURIComponent(j.id) });
+  }
+
+  // ── Kling 영상 확장(video-extend) — "앞 영상을 그대로 더 길게" ──
+  //  첫 프레임 이어붙이기와 달리 원본 클립 자체를 연장하므로 모션·카메라가 끊기지 않는다.
+  //  제약(제공사): Kling 이 생성한 영상만 · 30일 이내 · 5/10초 클립 · 한 번에 약 4~5초 추가.
+  //  → 그래서 Kling 공식 API 로 만든 결과의 videoId 가 있을 때만 호출한다.
+  if (provider === "klingextend") {
+    const cr = klingCreds(env);
+    if (!cr) return json({ error: "Kling 연동이 설정되지 않았습니다" }, 500);
+    const videoId = String(b.videoId || "").trim();
+    if (!videoId) return json({ error: "확장할 Kling 영상 ID가 없습니다. (Kling 공식 API로 만든 30일 이내 영상만 확장할 수 있습니다)" }, 400);
+    const auth = await klingAuth(cr);
+    const body = { video_id: videoId };
+    if (b.prompt) body.prompt = cut(String(b.prompt), 2000);
+    if (b.negative) body.negative_prompt = cut(String(b.negative), 2000);
+    if (Number.isFinite(Number(b.cfgScale))) body.cfg_scale = Number(b.cfgScale);
+    const r = await fetchT(cr.base + "/v1/videos/video-extend", {
+      method: "POST",
+      headers: { "Authorization": auth, "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.code !== 0 || !(j.data && j.data.task_id))
+      return json({ error: "Kling 확장: " + String(j.message || JSON.stringify(j) || "요청 실패").slice(0, 200) }, 502);
+    return json({ statusUrl: "/api/generate?provider=kling&task=" + encodeURIComponent(j.data.task_id) + "&ep=video-extend", kind: "video" });
   }
 
   if (provider === "kling") {
