@@ -35,6 +35,35 @@ async function promptCost(db: any): Promise<number> {
 const GEMINI_FALLBACK = 'gemini-2.5-flash'
 const GPT_FALLBACK = 'gpt-4o-mini'
 
+/* BytePlus(ModelArk) 계정에 이미 들어와 있는 LLM 계열.
+   영상·이미지와 같은 키(ARK/Seedance 키)로 호출하므로 GPT·Gemini 외부 비용이 들지 않는다.
+   ModelArk 는 OpenAI 호환 /chat/completions 를 제공한다. */
+const ARK_BASE = 'https://ark.ap-southeast.bytepluses.com/api/v3'
+const ARK_FAMILY = /^(deepseek|dola-seed|doubao|skylark|kimi|glm|gpt-oss|bytedance-seed)/i
+
+/* 계정에서 조회되는 LLM 계열 모델 ID (5분 캐시). generate.js 의 카탈로그는 이미지·영상
+   계열만 필터하므로, 프롬프트용 LLM 은 여기서 따로 훑는다. */
+let _llmCat: string[] | null = null
+let _llmCatAt = 0
+async function arkModelCatalogLLM(key: string): Promise<string[]> {
+  if (_llmCat && Date.now() - _llmCatAt < 300000) return _llmCat
+  const ids = new Set<string>()
+  for (const p of ['/models?page_size=200', '/models', '/foundation_models']) {
+    try {
+      const r = await fetch(ARK_BASE + p, { headers: { Authorization: 'Bearer ' + key } })
+      if (!r.ok) continue
+      const t = await r.text()
+      ;(String(t).match(/[a-z0-9]+(?:-[a-z0-9]+){2,}/gi) || [])
+        .filter((x) => ARK_FAMILY.test(x))
+        .forEach((x) => ids.add(x.toLowerCase()))
+      if (ids.size) break
+    } catch { /* 다음 경로 */ }
+  }
+  _llmCat = [...ids]
+  _llmCatAt = Date.now()
+  return _llmCat
+}
+
 // POST /api/studio/promptgen { provider, model, brief, kind } → { ok, prompt }
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env)
@@ -43,7 +72,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const b: any = await request.json().catch(() => ({}))
   const model = String(b.model || '').trim()
-  const isGemini = b.provider === 'gemini' || /^gemini/i.test(model)
+  const isArk = b.provider === 'ark' || ARK_FAMILY.test(model)
+  const isGemini = !isArk && (b.provider === 'gemini' || /^gemini/i.test(model))
   const kind = b.kind === 'video' ? 'video' : 'image'
   const brief = String(b.brief || '').trim().slice(0, 2000)
   if (!brief) return json({ ok: false, error: '무엇을 만들지 간단히 적어주세요.' }, 400)
@@ -63,7 +93,31 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   try {
     let prompt = ''
-    if (isGemini) {
+    if (isArk) {
+      const arkKey = pick(env, ['Seedance_API_KEY', 'SEEDANCE_API_KEY', 'ARK_API_KEY', 'seedance_api_key', 'ark_api_key'])
+      if (!arkKey) return json({ ok: false, error: 'BytePlus(ModelArk) API 키가 설정되지 않았습니다.' }, 400)
+      const callArk = (id: string) => fetch(ARK_BASE + '/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + arkKey },
+        body: JSON.stringify({
+          model: id, temperature: 0.9, max_tokens: 500,
+          messages: [{ role: 'system', content: SYS }, { role: 'user', content: userMsg }],
+        }),
+      })
+      let r = await callArk(model)
+      // 계정마다 날짜 접미사가 붙은 ID 를 쓴다(예: dola-seed-2-1-turbo-260628).
+      //  기본형이 404 면 계정 카탈로그에서 같은 계열 ID 를 찾아 1회 재시도한다.
+      if (r.status === 404) {
+        try {
+          const cat = await arkModelCatalogLLM(arkKey)
+          const alt = cat.find((x) => x !== model && (x === model || x.indexOf(model + '-') === 0))
+          if (alt) r = await callArk(alt)
+        } catch { /* 무시 */ }
+      }
+      const j: any = await r.json().catch(() => ({}))
+      if (!r.ok) return json({ ok: false, error: 'ModelArk 오류: ' + String(j?.error?.message || j?.message || r.status).slice(0, 200) }, 502)
+      prompt = String(j?.choices?.[0]?.message?.content || '').trim()
+    } else if (isGemini) {
       if (!googleKey) return json({ ok: false, error: 'Gemini(Google) API 키가 설정되지 않았습니다.' }, 400)
       const gm = /^gemini/i.test(model) ? model : GEMINI_FALLBACK
       const callGemini = (id: string) => fetch(

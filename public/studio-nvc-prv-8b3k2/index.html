@@ -1982,9 +1982,11 @@ var MODELS = [
  ['이미지 (레퍼런스 편집·I2I)','Seedream 5.0 Lite (레퍼런스 편집)'],
  ['이미지 (레퍼런스 편집·I2I)','Seedream 4.5 (레퍼런스 편집)'],
  ['이미지 (레퍼런스 편집·I2I)','Seedream 4.0 (레퍼런스 편집)'],
+ ['이미지 (레퍼런스 편집·I2I)','SeedEdit 3.0 (레퍼런스 편집)'],
  ['이미지 (텍스트·편집)','Nano Banana'],
  ['이미지 (텍스트·편집)','GPT Image 2'],['이미지 (텍스트·편집)','GPT Image 1.5'],['이미지 (텍스트·편집)','GPT Image'],['이미지 (텍스트·편집)','GPT Image Mini'],
  ['이미지','Seedream 5.0 Pro'],['이미지','Seedream 5.0 Lite'],['이미지','Seedream 4.5'],['이미지','Seedream 4.0'],
+ ['이미지','Seedream 3.0'],
  ['이미지','Flux 2 Flex'],['이미지','Flux 2 Dev'],
  ['이미지','Flux 1.1 Pro Ultra'],['이미지','Flux 1.1 Pro'],['이미지','Flux Pro'],['이미지','Flux Dev'],
  ['이미지','Grok Imagine']
@@ -2001,7 +2003,9 @@ var IMG_MODELS = [
  ['이미지 (레퍼런스 편집·I2I)','Seedream 5.0 Lite (레퍼런스 편집)'],
  ['이미지 (레퍼런스 편집·I2I)','Seedream 4.5 (레퍼런스 편집)'],
  ['이미지 (레퍼런스 편집·I2I)','Seedream 4.0 (레퍼런스 편집)'],
+ ['이미지 (레퍼런스 편집·I2I)','SeedEdit 3.0 (레퍼런스 편집)'],
  ['이미지','Seedream 5.0 Pro'],['이미지','Seedream 5.0 Lite'],['이미지','Seedream 4.5'],['이미지','Seedream 4.0'],
+ ['이미지','Seedream 3.0'],
  ['이미지','Flux 2 Flex'],['이미지','Flux 2 Dev'],
  ['이미지','Flux 1.1 Pro Ultra'],['이미지','Flux 1.1 Pro'],['이미지','Flux Pro'],['이미지','Flux Dev'],
  ['이미지','Grok Imagine']
@@ -2011,7 +2015,11 @@ var PROMPT_MODELS = [
  ['GPT','gpt-4o'],['GPT','gpt-4o-mini'],['GPT','gpt-4.1'],['GPT','gpt-4.1-mini'],['GPT','gpt-4.1-nano'],['GPT','gpt-4-turbo'],['GPT','gpt-3.5-turbo'],
  // Gemini 1.5 전 계열과 2.0 Flash 계열은 이미 종료되어 호출하면 404 다(1.5=2025 종료, 2.0=2026-06-01 종료).
  // 목록에 남겨 두면 고를 수는 있는데 무조건 실패하므로 제거하고, 현행 세대만 남긴다.
- ['Gemini','gemini-3.5-flash'],['Gemini','gemini-2.5-pro'],['Gemini','gemini-2.5-flash'],['Gemini','gemini-2.5-flash-lite']
+ ['Gemini','gemini-3.5-flash'],['Gemini','gemini-2.5-pro'],['Gemini','gemini-2.5-flash'],['Gemini','gemini-2.5-flash-lite'],
+ // BytePlus(ModelArk) 계정에 이미 들어와 있는 LLM — 같은 키로 호출하므로 외부 API 비용이 들지 않는다.
+ //  ID 는 접두사 없는 기본형으로 보내고, 날짜 접미사가 붙은 계정이면 서버가 카탈로그에서 찾아 보정한다.
+ ['DeepSeek','deepseek-v4-pro'],['DeepSeek','deepseek-v4-flash'],['DeepSeek','deepseek-v3-2'],['DeepSeek','deepseek-v3-1'],
+ ['Dola Seed','dola-seed-2-1-turbo'],['Dola Seed','dola-seed-2-0-pro'],['Dola Seed','dola-seed-2-0-lite'],['Dola Seed','dola-seed-2-0-mini']
 ];
 /* 3D 변환·3D 이미지 생성 노드의 스타일 프리셋 — 각 라벨에 실제 프롬프트 지시문 매핑.
    레퍼런스를 넣으면 I2I(편집)로, 없으면 T2I(생성)로 동일 파이프라인에서 처리된다. */
@@ -2103,6 +2111,8 @@ var MODEL_COST = {
   'Seedream 4.5 (레퍼런스 편집)':      { u:'img', usd:0.045, prov:'seedream' },
   'Seedream 4.0':                    { u:'img', usd:0.035, prov:'seedream' },
   'Seedream 4.0 (레퍼런스 편집)':      { u:'img', usd:0.035, prov:'seedream' },
+  'Seedream 3.0':                    { u:'img', usd:0.03,  prov:'seedream' },
+  'SeedEdit 3.0 (레퍼런스 편집)':      { u:'img', usd:0.03,  prov:'seedream' },
   'Nano Banana':                     { u:'img', usd:0.039, prov:'nanobanana' },
   'GPT Image 2':                     { u:'img', usd:0.08,  prov:'openai' },
   'GPT Image 1.5':                   { u:'img', usd:0.06,  prov:'openai' },
@@ -2393,6 +2403,7 @@ var MODEL_PROVIDER = {
   'Seedream 5.0 Lite':'seedream','Seedream 5.0 Lite (레퍼런스 편집)':'seedream',
   'Seedream 4.5':'seedream','Seedream 4.5 (레퍼런스 편집)':'seedream',
   'Seedream 4.0':'seedream','Seedream 4.0 (레퍼런스 편집)':'seedream',
+  'Seedream 3.0':'seedream','SeedEdit 3.0 (레퍼런스 편집)':'seedream',
   'Flux 2 Flex':'flux','Flux 2 Dev':'flux',
   'Nano Banana':'nanobanana',
   'GPT Image 2':'openai','GPT Image 1.5':'openai','GPT Image':'openai','GPT Image Mini':'openai',
@@ -2632,6 +2643,9 @@ var IMG_MODEL_RATIOS = {
   'Seedream 4.5':['1:1','16:9','9:16','4:3','3:4','4:5','3:2','2:3'],
   'Seedream 4.5 (레퍼런스 편집)':['1:1','16:9','9:16','4:3','3:4','4:5','3:2','2:3'],
   'Seedream 4.0':['1:1','16:9','9:16','4:3','3:4','4:5','3:2','2:3'],
+  // 3.0 은 t2i 전용(레퍼런스 없음), SeedEdit 3.0 은 이미지 1장 편집 — 크기 표기는 4.x 와 같다
+  'Seedream 3.0':['1:1','16:9','9:16','4:3','3:4','4:5','3:2','2:3'],
+  'SeedEdit 3.0 (레퍼런스 편집)':['1:1','16:9','9:16','4:3','3:4','4:5','3:2','2:3'],
   'Seedream 4.0 (레퍼런스 편집)':['1:1','16:9','9:16','4:3','3:4','4:5','3:2','2:3'],
   'Flux Kontext Max (레퍼런스 편집)':['1:1','16:9','9:16','4:3','3:4'],
   'Flux Kontext Pro (레퍼런스 편집)':['1:1','16:9','9:16','4:3','3:4'],
@@ -2656,6 +2670,8 @@ var MODEL_REF_LIMIT = {
   'Seedream 5.0 Lite':14,'Seedream 5.0 Lite (레퍼런스 편집)':14,
   'Seedream 4.5':14,'Seedream 4.5 (레퍼런스 편집)':14,
   'Seedream 4.0':14,'Seedream 4.0 (레퍼런스 편집)':14,
+  // 3.0 계열은 다중 레퍼런스 미지원 — 서버 buildSeedreamPayload 가 4.x·5.x 만 배열로 보낸다
+  'Seedream 3.0':1,'SeedEdit 3.0 (레퍼런스 편집)':1,
   'Nano Banana':12, 'GPT Image 2':12,'GPT Image 1.5':12,'GPT Image':12,'GPT Image Mini':12,
   // Kontext 는 입력 이미지 1장 편집 모델, Grok 은 image_url 1장.
   // FLUX.2 는 input_image~input_image_8 로 다중 레퍼런스(API 최대 8장),
@@ -4014,7 +4030,9 @@ function generatePromptNode(n){
   var brief=((bn&&bn.w&&bn.w.text)||n.w.brief||'').trim();
   if(!brief){ toast('무엇을 만들지 먼저 적어주세요 (아이디어·주제)'); return; }
   var model=n.w.pgmodel||'gpt-4o-mini';
-  var provider=/^gemini/i.test(model)?'gemini':'gpt';
+  // BytePlus(ModelArk) 계열은 영상·이미지와 같은 키로 호출된다(외부 API 비용 없음)
+  var provider=/^gemini/i.test(model)?'gemini'
+              :/^(deepseek|dola-seed|doubao|skylark|kimi|glm|gpt-oss|bytedance-seed)/i.test(model)?'ark':'gpt';
   var kind=(n.w.pgkind==='영상')?'video':'image';
   n.w.pgGenerating=true; n.w.pgError=null; render();
   fetch('/api/studio/promptgen',{ method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
