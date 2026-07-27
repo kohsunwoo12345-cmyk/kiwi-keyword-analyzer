@@ -5532,7 +5532,7 @@ function widgetHTML(n,w){
              : '<span class="badge r">'+(n.w.sec||8)+'s</span><video src="'+esc(media)+'" poster="'+esc(n.w.poster||POSTER)+'" muted loop playsinline controls></video>')+
       '</div><button class="wbtn" data-dl>'+ICON.dl+' '+(isImg?'이미지':'영상')+' 저장'+(up?' (업스케일)':'')+'</button>'+
       ctrl+
-      (n.w.lastImg?'<div class="refcnt">우측 포트 = 마지막 프레임 → 다음 모델의 "첫 프레임"에 연결하면 이어지는 영상</div>':'');
+      (n.w.lastImg?'<div class="refcnt">우측 포트 = 이 영상의 <b>마지막 프레임</b> · 빈 곳으로 <b>선을 끌어 놓으면</b> 이어서 제작할 노드가 자동 생성됩니다</div>':'');
   }
   return '';
 }
@@ -5766,6 +5766,33 @@ canvas.addEventListener('mousedown',function(e){
   canvas.classList.add('panning');
   drag={pan:true,sx:e.clientX,sy:e.clientY,px:state.pan.x,py:state.pan.y};
 });
+/* 출력 포트에서 빈 캔버스로 선을 놓았을 때 "이어서 만들 노드"를 정한다.
+   영상·이미지 결과 → AI 영상 제작의 [첫 프레임] = 앞 결과에서 곧바로 이어지는 영상 제작. */
+function nextNodeFor(node){
+  if(!node) return null;
+  switch(node.type){
+    case 'output': case 'weave': case 'narrate': case 'revoice': case 'frame':
+      return { type:'model', port:'first',
+               msg:'이어서 제작 — 앞 영상의 마지막 프레임이 [첫 프레임]으로 연결됐습니다' };
+    case 'reference': case 'imageref': case 'charref': case 'imagegen': case 'gen3d': case 'img3d':
+      return { type:'model', port:'first', msg:'AI 영상 제작 연결됨 — [첫 프레임]' };
+    case 'videoref':
+      return { type:'model', port:'vidref', msg:'AI 영상 제작 연결됨 — [영상 레퍼런스]' };
+    case 'model': case 'video':
+      // 모델 → (영상 설정) → 출력 순서. 둘 다 다음은 결과를 받을 출력 노드다.
+      return { type:'output', port:'in', msg:'출력 노드 연결됨' };
+    case 'prompt': case 'promptgen':
+      return { type:'model', port:'prompt', msg:'AI 영상 제작 연결됨 — [프롬프트]' };
+    case 'negative':
+      return { type:'model', port:'negative', msg:'AI 영상 제작 연결됨 — [네거티브]' };
+    case 'modelpick':
+      return { type:'model', port:'modelsel', msg:'AI 영상 제작 연결됨 — [모델 선택]' };
+    case 'music':
+      return { type:'model', port:'audio', msg:'AI 영상 제작 연결됨 — [오디오 참조]' };
+    default:
+      return null;   // 리라우트·노트 등은 자동 생성하지 않음
+  }
+}
 function startConnect(fromNode,fromPort,type,toFixed){
   connect={ from:fromNode?{node:fromNode,port:fromPort}:null, type:type, toFixed:toFixed };
   var tmp=document.createElementNS('http://www.w3.org/2000/svg','path');
@@ -5860,6 +5887,24 @@ window.addEventListener('mouseup',function(e){
           state.links=state.links.filter(function(l){return !(l.to===connect.toFixed.node&&l.toPort===connect.toFixed.port);});
         state.links.push({from:fromN,fromPort:pout.dataset.port,to:connect.toFixed.node,toPort:connect.toFixed.port,type:lt2});
         snapshot(); refExceedToast(connect.toFixed.node, connect.toFixed.port);
+      }
+    }
+    // ── 출력 포트에서 선을 끌어 빈 곳에 놓으면: "이어서 만들 노드" 를 자동 생성·연결 ──
+    //   핵심: 영상 결과(출력·이어붙이기·프레임 추출)에서 선을 뽑으면 곧바로 "AI 영상 제작" 노드가
+    //   생기고, 그 노드의 [첫 프레임] 포트에 연결된다. 출력 노드는 생성 직후 마지막 프레임을
+    //   lastImg 로 뽑아두므로(extractLastFrame) → 앞 영상의 마지막 컷에서 바로 이어지는 영상이 된다.
+    if(connect.from&&!pout&&!pin){
+      var fromNd=state.nodes.find(function(x){return x.id===connect.from.node;});
+      var plan=nextNodeFor(fromNd);
+      if(plan&&DEFS[plan.type]){
+        var wdN=screenToWorld(e.clientX,e.clientY);
+        var nnN=addNode(plan.type, Math.round(wdN.x), Math.round(wdN.y-36), true);
+        var inDef=(DEFS[plan.type].ins||[]).filter(function(p){return p[0]===plan.port;})[0];
+        var ltN=(connect.type==='*'||!connect.type)?(inDef?inDef[2]:'IMAGE'):connect.type;
+        if(plan.port!=='ref'&&plan.port!=='clips')
+          state.links=state.links.filter(function(l){return !(l.to===nnN.id&&l.toPort===plan.port);});
+        state.links.push({from:connect.from.node,fromPort:connect.from.port,to:nnN.id,toPort:plan.port,type:ltN});
+        snapshot(); toast(plan.msg||(DEFS[plan.type].title+' 자동 생성·연결'));
       }
     }
     // ── 입력 포트에서 선을 끌어 빈 곳에 놓으면: 그 포트에 맞는 소스 노드를 자동 생성·연결 ──
@@ -6710,6 +6755,23 @@ function runQueue(onlyId){
             var _effRes=(effVideoRes(n)||'1080p');
             Promise.all([refList, _srcLenP]).then(function(_pair){ refList=_pair[0];
             if(_pair[1]) _effSec=_pair[1];   // 원본 길이를 잰 경우 요청·과금 모두 그 값으로
+              // ── 이어보기 보장 ──
+              //  [첫 프레임] 포트에 영상 결과가 연결됐는데 마지막 프레임이 아직 없으면(추출 실패·
+              //  구버전 저장분·추출 전 실행) 지금 뽑아 쓴다. 이게 없으면 firstFrame 이 비어 나가
+              //  "이어지는 영상"이 아니라 완전히 새 영상이 만들어지는데, 사용자는 그 사실을 알 수 없다.
+              if(ff && ff.w && !imgsOf(ff)[0] && ff.w.vid){
+                return extractLastFrame(ff).then(function(){
+                  var _lf=imgsOf(ff)[0];
+                  if(_lf){
+                    threeD=_lf;
+                    if(refList.indexOf(_lf)<0) refList.unshift(_lf);
+                    refList=refList.slice(0,4);
+                  } else {
+                    try{ toast('이전 영상의 마지막 프레임을 읽지 못해 이어보기 없이 생성합니다'); }catch(_e){}
+                  }
+                });
+              }
+            }).then(function(){
             return generateWithAPI({   // 영상은 ControlNet 미적용(이미지 노드 전용)
               model:chosenModel,
               camera: camSel,
