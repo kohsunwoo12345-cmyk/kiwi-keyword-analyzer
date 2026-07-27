@@ -7,6 +7,7 @@ import { EmojiParser } from '@/components/EmojiParser'
 import { SupportChat } from '@/components/SupportChat'
 import { LanguageProvider } from '@/lib/i18n'
 import { JsonLd } from '@/components/seo/JsonLd'
+import { SitePageTransition } from '@/components/SitePageTransition'
 import { orgLd, websiteLd, SITE_URL, KEYWORDS } from '@/lib/seo'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
@@ -74,7 +75,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <LanguageProvider>
           <VisitTracker />
           <EmojiParser />
-          {children}
+          <SitePageTransition>{children}</SitePageTransition>
           <PublicNoticePopups />
           <SupportChat />
         </LanguageProvider>

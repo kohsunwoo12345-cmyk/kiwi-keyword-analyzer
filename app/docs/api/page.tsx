@@ -385,9 +385,9 @@ export default function ApiDocsPage() {
             <b className="text-slate-200">{t('노드형 AI 영상 플랜')}</b> {t('회원은 API 키 하나로')} <b className="text-slate-200">{t('이미지·영상 모든 모델')}</b>{t('을 직접 호출할 수 있습니다. 생성 1건마다')} <b className="text-blue-300">{t('본인 계정 크레딧')}</b>{t('에서 스튜디오와 동일하게 차감됩니다.')}
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
-            <Link href={STUDIO_URL} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-blue-600 to-sky-500 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-900/30 transition hover:brightness-110">
+            <a href={STUDIO_URL} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-blue-600 to-sky-500 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-900/30 transition hover:brightness-110">
               {t('API 키 발급')} <ArrowRight size={15} />
-            </Link>
+            </a>
             <Link href="/docs/mcp" className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-5 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10">
               {t('MCP 연동은 여기')} <Plug size={14} />
             </Link>
@@ -437,7 +437,7 @@ export default function ApiDocsPage() {
             <Anchor id="key" />
             <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><KeyRound size={20} className="text-blue-400" /> {t('1. API 키 발급')}</h2>
             <p className="text-[14.5px] leading-relaxed text-[var(--text-soft)]">
-              <Link href={STUDIO_URL} className="text-blue-300 underline">{t('스튜디오')}</Link> → {t('좌측 하단')} <b className="text-slate-200">{t('프로필')}</b> → <b className="text-slate-200">{t('API 연결')}</b> {t('탭에서 키를 만듭니다.')}
+              <a href={STUDIO_URL} className="text-blue-300 underline">{t('스튜디오')}</a> → {t('좌측 하단')} <b className="text-slate-200">{t('프로필')}</b> → <b className="text-slate-200">{t('API 연결')}</b> {t('탭에서 키를 만듭니다.')}
             </p>
             <ul className="mt-4 space-y-2.5 text-[14px] leading-relaxed text-[var(--text-soft)]">
               <li className="flex gap-2.5"><Check size={17} className="mt-0.5 flex-shrink-0 text-blue-400" /> {t('키는')} <b className="text-slate-200">{t('생성 시 한 번만')}</b> {t('전체가 표시됩니다.')} <b className="text-rose-300">{t('이후에는 다시 볼 수 없으니')}</b> {t('안전한 곳에 보관하세요.')}</li>
@@ -774,7 +774,7 @@ while True:
           <div className="rounded-2xl border border-blue-400/20 bg-gradient-to-br from-blue-500/[.08] to-sky-500/[.05] p-6 text-center">
             <p className="text-[15px] font-semibold text-slate-100">{t('준비됐나요? 스튜디오에서 API 키를 발급하고 바로 호출하세요.')}</p>
             <div className="mt-4 flex flex-wrap justify-center gap-3">
-              <Link href={STUDIO_URL} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-blue-600 to-sky-500 px-5 py-2.5 text-sm font-bold text-white transition hover:brightness-110">{t('API 키 발급')} <KeyRound size={14} /></Link>
+              <a href={STUDIO_URL} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-blue-600 to-sky-500 px-5 py-2.5 text-sm font-bold text-white transition hover:brightness-110">{t('API 키 발급')} <KeyRound size={14} /></a>
               <a href="#image" className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-5 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10">{t('호출 예시 보기')} <ExternalLink size={14} /></a>
             </div>
           </div>

@@ -213,9 +213,9 @@ export default function McpDocsPage() {
             <a href="#token" className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-violet-900/30 transition hover:brightness-110">
               {t('내 연결 주소 발급')} <ArrowRight size={15} />
             </a>
-            <Link href={STUDIO_URL} className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-5 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10">
+            <a href={STUDIO_URL} className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-5 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10">
               {t('스튜디오 열기')} <ExternalLink size={14} />
-            </Link>
+            </a>
           </div>
         </div>
       </section>
@@ -296,7 +296,7 @@ export default function McpDocsPage() {
                 {loggedIn === null && t('불러오는 중…')}
               </p>
             </div>
-            <p className="mt-3 text-[13px] text-[var(--text-dim)]">{t('발급·재발급 위치: ')}<Link href={STUDIO_URL} className="text-violet-300 underline">{t('스튜디오')}</Link>{t(' → 좌측 하단 프로필 → ')}<b>{t('MCP 연결')}</b>{t(' 탭. 토큰이 유출되면 같은 탭에서 재발급하면 기존 연결이 무효화됩니다.')}</p>
+            <p className="mt-3 text-[13px] text-[var(--text-dim)]">{t('발급·재발급 위치: ')}<a href={STUDIO_URL} className="text-violet-300 underline">{t('스튜디오')}</a>{t(' → 좌측 하단 프로필 → ')}<b>{t('MCP 연결')}</b>{t(' 탭. 토큰이 유출되면 같은 탭에서 재발급하면 기존 연결이 무효화됩니다.')}</p>
           </section>
 
           {/* 연결 방법 */}
@@ -471,7 +471,7 @@ export default function McpDocsPage() {
           <div className="rounded-2xl border border-violet-400/20 bg-gradient-to-br from-violet-500/[.08] to-fuchsia-500/[.05] p-6 text-center">
             <p className="text-[15px] font-semibold text-slate-100">{t('준비됐나요? 스튜디오에서 개인 토큰을 발급하고 연결하세요.')}</p>
             <div className="mt-4 flex flex-wrap justify-center gap-3">
-              <Link href={STUDIO_URL} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 px-5 py-2.5 text-sm font-bold text-white transition hover:brightness-110">{t('스튜디오 열기')} <ArrowRight size={15} /></Link>
+              <a href={STUDIO_URL} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 px-5 py-2.5 text-sm font-bold text-white transition hover:brightness-110">{t('스튜디오 열기')} <ArrowRight size={15} /></a>
               <a href="#token" className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-5 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10">{t('내 주소 발급')} <KeyRound size={14} /></a>
             </div>
           </div>

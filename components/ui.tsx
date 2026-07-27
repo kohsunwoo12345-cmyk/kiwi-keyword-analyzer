@@ -7,6 +7,14 @@ import Link from 'next/link'
 import { useEffect, useState, type ReactNode, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 
+/** Next 라우터가 처리할 수 없는 목적지인가 — public/ 정적 HTML(스튜디오·tools), 외부 URL,
+ *  메일·전화, 순수 해시. 이런 곳은 <Link> 가 아니라 <a> 로 내보내야 프리페치 404 와 이동 지연이 없다. */
+export function isPlainHref(href: string): boolean {
+  const h = String(href || '')
+  if (/^(https?:|mailto:|tel:|#)/i.test(h)) return true
+  return /^\/(studio-nvc-prv-8b3k2|tools)\b/.test(h)
+}
+
 /* ---------- Button ---------- */
 type BtnVariant = 'primary' | 'ghost' | 'outline' | 'soft'
 type BtnSize = 'sm' | 'md' | 'lg'
@@ -48,12 +56,22 @@ export function Button({
   disabled,
 }: BtnProps) {
   const cls = cn(btnBase, btnVariants[variant], btnSizes[size], className)
-  if (href)
+  if (href) {
+    // Next 라우트가 아닌 목적지(public/ 의 정적 HTML·외부 링크·해시)는 <Link> 로 감싸면
+    // 라우터가 존재하지 않는 RSC 페이로드(*.txt?_rsc=)를 프리페치하며 404 를 만들고,
+    // 클릭 시에도 클라이언트 라우팅 실패 후 하드 이동으로 되돌아가 지연이 생긴다. → 순수 <a>
+    if (isPlainHref(href))
+      return (
+        <a href={href} className={cls}>
+          {children}
+        </a>
+      )
     return (
       <Link href={href} className={cls}>
         {children}
       </Link>
     )
+  }
   return (
     <button type={type} onClick={onClick} disabled={disabled} className={cls}>
       {children}

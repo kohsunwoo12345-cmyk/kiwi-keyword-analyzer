@@ -688,9 +688,9 @@ export const videoMakerPage = `<!DOCTYPE html>
 <!-- TOP BAR -->
 <div class="tb">
   <button class="tb-back hub-back-btn" onclick="window.location.href='/super1647'">← 뒤로</button>
-  <div class="tb-logo"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ac.svg" class="tw" alt="🎬"> BYGENCY 영상 <span>5.0</span></div>
+  <div class="tb-logo"><img src="/emoji/1f3ac.svg" class="tw" alt="🎬"> BYGENCY 영상 <span>5.0</span></div>
 
-  <a href="/tools/my-videos" class="tb-gallery-btn" style="text-decoration:none"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f39e.svg" class="tw" alt="🎞"> 내 영상 <span id="gallery-count" style="display:inline-flex;align-items:center;justify-content:center;background:var(--primary);color:#fff;width:18px;height:18px;border-radius:50%;font-size:9px;font-weight:900;margin-left:3px">0</span></a>
+  <a href="/tools/my-videos" class="tb-gallery-btn" style="text-decoration:none"><img src="/emoji/1f39e.svg" class="tw" alt="🎞"> 내 영상 <span id="gallery-count" style="display:inline-flex;align-items:center;justify-content:center;background:var(--primary);color:#fff;width:18px;height:18px;border-radius:50%;font-size:9px;font-weight:900;margin-left:3px">0</span></a>
 </div>
 
 <div class="app">
@@ -698,12 +698,12 @@ export const videoMakerPage = `<!DOCTYPE html>
 <!-- ══════════ LEFT PANEL ══════════ -->
 <div class="lp">
   <div class="ltabs" id="ltabs">
-    <div class="ltab on" id="ltab-tmpl" onclick="switchLTab('tmpl',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3a8.svg" class="tw" alt="🎨"><br>템플릿</div>
-    <div class="ltab" id="ltab-fmt" onclick="switchLTab('fmt',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4d0.svg" class="tw" alt="📐"><br>형식</div>
-    <div class="ltab" id="ltab-script" onclick="switchLTab('script',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4dd.svg" class="tw" alt="📝"><br>대본</div>
-    <div class="ltab" id="ltab-voice" onclick="switchLTab('voice',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f399.svg" class="tw" alt="🎙"><br>목소리</div>
-    <div class="ltab" id="ltab-bgm" onclick="switchLTab('bgm',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3b5.svg" class="tw" alt="🎵"><br>BGM</div>
-    <div class="ltab" id="ltab-edit" onclick="switchLTab('edit',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2702.svg" class="tw" alt="✂️"><br>편집</div>
+    <div class="ltab on" id="ltab-tmpl" onclick="switchLTab('tmpl',this)"><img src="/emoji/1f3a8.svg" class="tw" alt="🎨"><br>템플릿</div>
+    <div class="ltab" id="ltab-fmt" onclick="switchLTab('fmt',this)"><img src="/emoji/1f4d0.svg" class="tw" alt="📐"><br>형식</div>
+    <div class="ltab" id="ltab-script" onclick="switchLTab('script',this)"><img src="/emoji/1f4dd.svg" class="tw" alt="📝"><br>대본</div>
+    <div class="ltab" id="ltab-voice" onclick="switchLTab('voice',this)"><img src="/emoji/1f399.svg" class="tw" alt="🎙"><br>목소리</div>
+    <div class="ltab" id="ltab-bgm" onclick="switchLTab('bgm',this)"><img src="/emoji/1f3b5.svg" class="tw" alt="🎵"><br>BGM</div>
+    <div class="ltab" id="ltab-edit" onclick="switchLTab('edit',this)"><img src="/emoji/2702.svg" class="tw" alt="✂️"><br>편집</div>
   </div>
 
   <!-- 템플릿 패널 -->
@@ -713,14 +713,14 @@ export const videoMakerPage = `<!DOCTYPE html>
 
       <!-- 씬 수 + 생성 시작 -->
       <div style="padding:12px 14px 14px;border-top:1px solid var(--border);margin-top:4px">
-        <div class="lp-title" style="margin-bottom:8px"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ac.svg" class="tw" alt="🎬"> 씬 수 선택</div>
+        <div class="lp-title" style="margin-bottom:8px"><img src="/emoji/1f3ac.svg" class="tw" alt="🎬"> 씬 수 선택</div>
         <div class="cnt-row" id="tpl-cnt-row" style="margin-bottom:10px">
           <div class="cnt-btn" onclick="selTplCnt(5,this)">5개</div>
           <div class="cnt-btn on" onclick="selTplCnt(7,this)">7개</div>
           <div class="cnt-btn" onclick="selTplCnt(10,this)">10개</div>
           <div class="cnt-btn" onclick="selTplCnt(15,this)">15개</div>
         </div>
-        <button class="btn btn-p" style="width:100%;justify-content:center;font-size:13px;padding:12px" onclick="startFromTemplate()"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ac.svg" class="tw" alt="🎬"> 영상 제작 시작</button>
+        <button class="btn btn-p" style="width:100%;justify-content:center;font-size:13px;padding:12px" onclick="startFromTemplate()"><img src="/emoji/1f3ac.svg" class="tw" alt="🎬"> 영상 제작 시작</button>
       </div>
     </div>
   </div>
@@ -732,10 +732,10 @@ export const videoMakerPage = `<!DOCTYPE html>
         <div class="lp-title">영상 형식</div>
         <div class="fmt-row">
           <div class="fo on" id="fo-short" onclick="setFmt('short')">
-            <span class="fo-ico"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4f1.svg" class="tw" alt="📱"></span>숏폼<br><span style="font-size:8px;font-weight:500;color:var(--text4)">9:16</span>
+            <span class="fo-ico"><img src="/emoji/1f4f1.svg" class="tw" alt="📱"></span>숏폼<br><span style="font-size:8px;font-weight:500;color:var(--text4)">9:16</span>
           </div>
           <div class="fo" id="fo-long" onclick="setFmt('long')">
-            <span class="fo-ico"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f5a5.svg" class="tw" alt="🖥"></span>롱폼<br><span style="font-size:8px;font-weight:500;color:var(--text4)">16:9</span>
+            <span class="fo-ico"><img src="/emoji/1f5a5.svg" class="tw" alt="🖥"></span>롱폼<br><span style="font-size:8px;font-weight:500;color:var(--text4)">16:9</span>
           </div>
           <div class="fo" id="fo-sq" onclick="setFmt('sq')">
             <span class="fo-ico">⬜</span>정방형<br><span style="font-size:8px;font-weight:500;color:var(--text4)">1:1</span>
@@ -753,8 +753,8 @@ export const videoMakerPage = `<!DOCTYPE html>
     <div class="lp-scroll">
       <div class="lp-sec">
         <div class="script-mode-tabs">
-          <div class="smt on" id="sm-full" onclick="setScriptMode('full')"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4dd.svg" class="tw" alt="📝"> 직접 입력</div>
-          <div class="smt" id="sm-scene" onclick="setScriptMode('scene')"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ac.svg" class="tw" alt="🎬"> 씬 편집</div>
+          <div class="smt on" id="sm-full" onclick="setScriptMode('full')"><img src="/emoji/1f4dd.svg" class="tw" alt="📝"> 직접 입력</div>
+          <div class="smt" id="sm-scene" onclick="setScriptMode('scene')"><img src="/emoji/1f3ac.svg" class="tw" alt="🎬"> 씬 편집</div>
         </div>
 
         <!-- AI 모드 (숨김) -->
@@ -767,7 +767,7 @@ export const videoMakerPage = `<!DOCTYPE html>
             style="width:100%;border:1.5px solid var(--border);border-radius:9px;padding:10px;font-size:11px;font-family:inherit;resize:vertical;outline:none;transition:border-color .15s;"
             onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'"></textarea>
           <div style="display:flex;gap:6px;margin-top:8px">
-            <button class="btn btn-p" style="flex:1;justify-content:center" onclick="splitToScenes()"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ac.svg" class="tw" alt="🎬"> 씬으로 분리 + 사진 매칭</button>
+            <button class="btn btn-p" style="flex:1;justify-content:center" onclick="splitToScenes()"><img src="/emoji/1f3ac.svg" class="tw" alt="🎬"> 씬으로 분리 + 사진 매칭</button>
             <button class="btn btn-s btn-sm" onclick="loadSample()">샘플</button>
           </div>
         </div>
@@ -775,7 +775,7 @@ export const videoMakerPage = `<!DOCTYPE html>
         <!-- 씬 편집 모드 -->
         <div id="script-scene-box" style="display:none">
           <div style="display:flex;gap:6px;margin-bottom:10px">
-            <button class="btn btn-s btn-sm" onclick="autoMatchMedia()"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f5bc.svg" class="tw" alt="🖼"> 전체 사진 매칭</button>
+            <button class="btn btn-s btn-sm" onclick="autoMatchMedia()"><img src="/emoji/1f5bc.svg" class="tw" alt="🖼"> 전체 사진 매칭</button>
             <button class="btn btn-p btn-sm" style="flex:1;justify-content:center" onclick="addScene()">+ 씬 추가</button>
           </div>
           <div class="scene-cards" id="scene-list"></div>
@@ -793,13 +793,13 @@ export const videoMakerPage = `<!DOCTYPE html>
         <div class="v-filters" id="v-filters">
           <span class="vf on" onclick="filterVTag('all',this)">전체</span>
           <span class="vf" onclick="filterVTag('google',this)" style="background:#4ade80;color:#000;font-weight:700">⭐ Google AI</span>
-          <span class="vf" onclick="filterVTag('openai',this)" style="background:#0ea5e9;color:#fff;font-weight:700"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f916.svg" class="tw" alt="🤖"> OpenAI 전체</span>
-          <span class="vf" onclick="filterVTag('openai-tts1',this)" style="background:#0284c7;color:#fff;font-weight:700"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f916.svg" class="tw" alt="🤖"> tts-1</span>
-          <span class="vf" onclick="filterVTag('openai-tts1hd',this)" style="background:#0c4a6e;color:#fff;font-weight:700"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f916.svg" class="tw" alt="🤖"> tts-1-hd</span>
-          <span class="vf" onclick="filterVTag('openai-4omini',this)" style="background:#4c1d95;color:#fff;font-weight:700"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f916.svg" class="tw" alt="🤖"> gpt-4o-mini-tts</span>
+          <span class="vf" onclick="filterVTag('openai',this)" style="background:#0ea5e9;color:#fff;font-weight:700"><img src="/emoji/1f916.svg" class="tw" alt="🤖"> OpenAI 전체</span>
+          <span class="vf" onclick="filterVTag('openai-tts1',this)" style="background:#0284c7;color:#fff;font-weight:700"><img src="/emoji/1f916.svg" class="tw" alt="🤖"> tts-1</span>
+          <span class="vf" onclick="filterVTag('openai-tts1hd',this)" style="background:#0c4a6e;color:#fff;font-weight:700"><img src="/emoji/1f916.svg" class="tw" alt="🤖"> tts-1-hd</span>
+          <span class="vf" onclick="filterVTag('openai-4omini',this)" style="background:#4c1d95;color:#fff;font-weight:700"><img src="/emoji/1f916.svg" class="tw" alt="🤖"> gpt-4o-mini-tts</span>
           <span class="vf" onclick="filterVTag('elevenlabs',this)" style="background:#7c3aed;color:#fff;font-weight:700">🔊 ElevenLabs</span>
-          <span class="vf" onclick="filterVTag('female',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f469.svg" class="tw" alt="👩"> 여성</span>
-          <span class="vf" onclick="filterVTag('male',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f468.svg" class="tw" alt="👨"> 남성</span>
+          <span class="vf" onclick="filterVTag('female',this)"><img src="/emoji/1f469.svg" class="tw" alt="👩"> 여성</span>
+          <span class="vf" onclick="filterVTag('male',this)"><img src="/emoji/1f468.svg" class="tw" alt="👨"> 남성</span>
         </div>
         <input class="v-search" id="v-search" type="text" placeholder="🔍 목소리 검색..."
           oninput="filterVoiceBySearch(this.value)">
@@ -820,14 +820,14 @@ export const videoMakerPage = `<!DOCTYPE html>
               oninput="document.getElementById('vc-pitch-val').textContent=parseFloat(this.value).toFixed(2)">
             <span class="vc-val" id="vc-pitch-val">1.00</span>
           </div>
-          <div style="font-size:10px;color:#0ea5e9;padding:2px 0 6px;opacity:.85"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f916.svg" class="tw" alt="🤖"> OpenAI·Google AI 목소리에 피치·배속 모두 적용됩니다.</div>
+          <div style="font-size:10px;color:#0ea5e9;padding:2px 0 6px;opacity:.85"><img src="/emoji/1f916.svg" class="tw" alt="🤖"> OpenAI·Google AI 목소리에 피치·배속 모두 적용됩니다.</div>
           <div class="vc-row">
             <span class="vc-lbl">볼륨</span>
             <input type="range" min="0" max="1" step="0.05" value="1" id="vc-vol"
               oninput="document.getElementById('vc-vol-val').textContent=Math.round(this.value*100)+'%'">
             <span class="vc-val" id="vc-vol-val">100%</span>
           </div>
-          <button class="btn btn-s btn-sm" style="margin-top:6px" onclick="speakCurScene()"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f50a.svg" class="tw" alt="🔊"> 현재 씬 듣기</button>
+          <button class="btn btn-s btn-sm" style="margin-top:6px" onclick="speakCurScene()"><img src="/emoji/1f50a.svg" class="tw" alt="🔊"> 현재 씬 듣기</button>
         </div>
       </div>
     </div>
@@ -868,31 +868,31 @@ export const videoMakerPage = `<!DOCTYPE html>
         <div id="bgm-local-panel">
         <div class="bgm-filters" id="bgm-filters">
           <span class="bf on" onclick="filterBTag('all',this)">전체</span>
-          <span class="bf" onclick="filterBTag('upbeat',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/26a1.svg" class="tw" alt="⚡"> 업비트</span>
-          <span class="bf" onclick="filterBTag('calm',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f60c.svg" class="tw" alt="😌"> 잔잔</span>
-          <span class="bf" onclick="filterBTag('cinematic',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ac.svg" class="tw" alt="🎬"> 시네마틱</span>
-          <span class="bf" onclick="filterBTag('electronic',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f39b.svg" class="tw" alt="🎛"> 일렉</span>
-          <span class="bf" onclick="filterBTag('jazz',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3b7.svg" class="tw" alt="🎷"> 재즈</span>
-          <span class="bf" onclick="filterBTag('pop',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3b5.svg" class="tw" alt="🎵"> 팝</span>
-          <span class="bf" onclick="filterBTag('classical',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3bb.svg" class="tw" alt="🎻"> 클래식</span>
-          <span class="bf" onclick="filterBTag('hiphop',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3a4.svg" class="tw" alt="🎤"> 힙합</span>
-          <span class="bf" onclick="filterBTag('ambient',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f319.svg" class="tw" alt="🌙"> 앰비언트</span>
-          <span class="bf" onclick="filterBTag('lofi',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3a7.svg" class="tw" alt="🎧"> Lo-Fi</span>
-          <span class="bf" onclick="filterBTag('kpop',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3a4.svg" class="tw" alt="🎤"> K-POP</span>
-          <span class="bf" onclick="filterBTag('trap',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f525.svg" class="tw" alt="🔥"> 트랩</span>
-          <span class="bf" onclick="filterBTag('acoustic',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3b8.svg" class="tw" alt="🎸"> 어쿠스틱</span>
-          <span class="bf" onclick="filterBTag('rnb',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3b7.svg" class="tw" alt="🎷"> R&B</span>
-          <span class="bf" onclick="filterBTag('folk',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f33e.svg" class="tw" alt="🌾"> 포크</span>
-          <span class="bf" onclick="filterBTag('synthwave',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f306.svg" class="tw" alt="🌆"> 신스웨이브</span>
-          <span class="bf" onclick="filterBTag('nature',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f33f.svg" class="tw" alt="🌿"> 자연</span>
-          <span class="bf" onclick="filterBTag('corporate',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4bc.svg" class="tw" alt="💼"> 기업</span>
-          <span class="bf" onclick="filterBTag('kdrama',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f495.svg" class="tw" alt="💕"> K-드라마</span>
-          <span class="bf" onclick="filterBTag('lounge',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2708.svg" class="tw" alt="✈️"> 라운지</span>
-          <span class="bf" onclick="filterBTag('soul',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3b5.svg" class="tw" alt="🎵"> 소울</span>
-          <span class="bf" onclick="filterBTag('epic',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4a5.svg" class="tw" alt="💥"> 에픽</span>
-          <span class="bf" onclick="filterBTag('chill',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2744.svg" class="tw" alt="❄️"> 칠</span>
-          <span class="bf" onclick="filterBTag('rock',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3b8.svg" class="tw" alt="🎸"> 록</span>
-          <span class="bf" onclick="filterBTag('happy',this)"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f60a.svg" class="tw" alt="😊"> 해피</span>
+          <span class="bf" onclick="filterBTag('upbeat',this)"><img src="/emoji/26a1.svg" class="tw" alt="⚡"> 업비트</span>
+          <span class="bf" onclick="filterBTag('calm',this)"><img src="/emoji/1f60c.svg" class="tw" alt="😌"> 잔잔</span>
+          <span class="bf" onclick="filterBTag('cinematic',this)"><img src="/emoji/1f3ac.svg" class="tw" alt="🎬"> 시네마틱</span>
+          <span class="bf" onclick="filterBTag('electronic',this)"><img src="/emoji/1f39b.svg" class="tw" alt="🎛"> 일렉</span>
+          <span class="bf" onclick="filterBTag('jazz',this)"><img src="/emoji/1f3b7.svg" class="tw" alt="🎷"> 재즈</span>
+          <span class="bf" onclick="filterBTag('pop',this)"><img src="/emoji/1f3b5.svg" class="tw" alt="🎵"> 팝</span>
+          <span class="bf" onclick="filterBTag('classical',this)"><img src="/emoji/1f3bb.svg" class="tw" alt="🎻"> 클래식</span>
+          <span class="bf" onclick="filterBTag('hiphop',this)"><img src="/emoji/1f3a4.svg" class="tw" alt="🎤"> 힙합</span>
+          <span class="bf" onclick="filterBTag('ambient',this)"><img src="/emoji/1f319.svg" class="tw" alt="🌙"> 앰비언트</span>
+          <span class="bf" onclick="filterBTag('lofi',this)"><img src="/emoji/1f3a7.svg" class="tw" alt="🎧"> Lo-Fi</span>
+          <span class="bf" onclick="filterBTag('kpop',this)"><img src="/emoji/1f3a4.svg" class="tw" alt="🎤"> K-POP</span>
+          <span class="bf" onclick="filterBTag('trap',this)"><img src="/emoji/1f525.svg" class="tw" alt="🔥"> 트랩</span>
+          <span class="bf" onclick="filterBTag('acoustic',this)"><img src="/emoji/1f3b8.svg" class="tw" alt="🎸"> 어쿠스틱</span>
+          <span class="bf" onclick="filterBTag('rnb',this)"><img src="/emoji/1f3b7.svg" class="tw" alt="🎷"> R&B</span>
+          <span class="bf" onclick="filterBTag('folk',this)"><img src="/emoji/1f33e.svg" class="tw" alt="🌾"> 포크</span>
+          <span class="bf" onclick="filterBTag('synthwave',this)"><img src="/emoji/1f306.svg" class="tw" alt="🌆"> 신스웨이브</span>
+          <span class="bf" onclick="filterBTag('nature',this)"><img src="/emoji/1f33f.svg" class="tw" alt="🌿"> 자연</span>
+          <span class="bf" onclick="filterBTag('corporate',this)"><img src="/emoji/1f4bc.svg" class="tw" alt="💼"> 기업</span>
+          <span class="bf" onclick="filterBTag('kdrama',this)"><img src="/emoji/1f495.svg" class="tw" alt="💕"> K-드라마</span>
+          <span class="bf" onclick="filterBTag('lounge',this)"><img src="/emoji/2708.svg" class="tw" alt="✈️"> 라운지</span>
+          <span class="bf" onclick="filterBTag('soul',this)"><img src="/emoji/1f3b5.svg" class="tw" alt="🎵"> 소울</span>
+          <span class="bf" onclick="filterBTag('epic',this)"><img src="/emoji/1f4a5.svg" class="tw" alt="💥"> 에픽</span>
+          <span class="bf" onclick="filterBTag('chill',this)"><img src="/emoji/2744.svg" class="tw" alt="❄️"> 칠</span>
+          <span class="bf" onclick="filterBTag('rock',this)"><img src="/emoji/1f3b8.svg" class="tw" alt="🎸"> 록</span>
+          <span class="bf" onclick="filterBTag('happy',this)"><img src="/emoji/1f60a.svg" class="tw" alt="😊"> 해피</span>
         </div>
         <input class="bgm-search" id="bgm-search" type="text" placeholder="🔍 BGM 검색..."
           oninput="filterBGMBySearch(this.value)">
@@ -915,12 +915,12 @@ export const videoMakerPage = `<!DOCTYPE html>
     <div class="lp-sec">
       <!-- 미디어 첨부 버튼 -->
       <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:12px">
-        <div class="lp-title" style="margin-bottom:2px"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4f8.svg" class="tw" alt="📸"> 씬 미디어</div>
+        <div class="lp-title" style="margin-bottom:2px"><img src="/emoji/1f4f8.svg" class="tw" alt="📸"> 씬 미디어</div>
         <button onclick="openPexelsModal()" style="width:100%;padding:9px 10px;background:linear-gradient(135deg,#06b6d4,#0891b2);color:#fff;border:none;border-radius:10px;font-size:10px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px">
-          <img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f5bc.svg" class="tw" alt="🖼️"> 무료 사진/영상 라이브러리
+          <img src="/emoji/1f5bc.svg" class="tw" alt="🖼️"> 무료 사진/영상 라이브러리
         </button>
         <button onclick="triggerUploadForScene(curScene)" style="width:100%;padding:9px 10px;background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:10px;font-size:10px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px">
-          <img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4f2.svg" class="tw" alt="📲"> 내 사진/동영상 첨부
+          <img src="/emoji/1f4f2.svg" class="tw" alt="📲"> 내 사진/동영상 첨부
         </button>
       </div>
       <div id="edit-opts-container"></div>
@@ -936,11 +936,11 @@ export const videoMakerPage = `<!DOCTYPE html>
   <div class="rp-top">
     <div class="scene-nav" id="scene-nav"></div>
     <div style="margin-left:auto;display:flex;gap:5px;flex-wrap:wrap;align-items:center">
-      <button class="btn btn-s btn-sm" onclick="autoMatchMedia()"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f5bc.svg" class="tw" alt="🖼"> 사진</button>
+      <button class="btn btn-s btn-sm" onclick="autoMatchMedia()"><img src="/emoji/1f5bc.svg" class="tw" alt="🖼"> 사진</button>
       <button class="btn btn-s btn-sm" onclick="prevScene2()">◀</button>
       <button class="btn btn-s btn-sm" id="play-prev-btn" onclick="togglePlayPreview()">▶ 미리보기</button>
       <button class="btn btn-s btn-sm" onclick="nextScene2()">▶</button>
-      <button class="btn btn-s btn-sm" onclick="speakCurScene()"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f50a.svg" class="tw" alt="🔊"></button>
+      <button class="btn btn-s btn-sm" onclick="speakCurScene()"><img src="/emoji/1f50a.svg" class="tw" alt="🔊"></button>
     </div>
   </div>
 
@@ -1256,7 +1256,7 @@ export const videoMakerPage = `<!DOCTYPE html>
         <button onclick="resetMediaTransform()" title="위치·크기 초기화" style="padding:4px 8px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:7px;font-size:9px;cursor:pointer;flex-shrink:0">↺ 초기화</button>
       </div>
       <div style="font-size:8.5px;color:#94a3b8;text-align:center;padding:0 8px 4px;background:rgba(255,255,255,.92)">💡 캔버스에서 <b>드래그</b>하면 위치 이동 · 위 <b>슬라이더</b>로 크기 조절 (스크롤/핀치도 가능)</div>
-      <div class="canvas-lbl" id="canvas-lbl"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4f1.svg" class="tw" alt="📱"> 숏폼 9:16 · 30초</div>
+      <div class="canvas-lbl" id="canvas-lbl"><img src="/emoji/1f4f1.svg" class="tw" alt="📱"> 숏폼 9:16 · 30초</div>
     </div>
   </div>
 
@@ -1360,22 +1360,22 @@ export const videoMakerPage = `<!DOCTYPE html>
   <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(90vw,780px);max-height:88vh;background:#fff;border-radius:20px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.4)">
     <!-- 모달 헤더 -->
     <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;background:linear-gradient(135deg,#06b6d4,#0891b2);color:#fff;flex-shrink:0">
-      <span style="font-size:18px;font-weight:900"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f5bc.svg" class="tw" alt="🖼"> 무료 미디어 라이브러리</span>
+      <span style="font-size:18px;font-weight:900"><img src="/emoji/1f5bc.svg" class="tw" alt="🖼"> 무료 미디어 라이브러리</span>
       <span style="font-size:10px;opacity:.8;background:rgba(255,255,255,.2);padding:2px 8px;border-radius:10px">Pexels + Pixabay · 200,000+ 무료 사진/영상</span>
-      <button onclick="closePexelsModal()" style="margin-left:auto;background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:11px;font-weight:700"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2715.svg" class="tw" alt="✕"> 닫기</button>
+      <button onclick="closePexelsModal()" style="margin-left:auto;background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:11px;font-weight:700">✕ 닫기</button>
     </div>
     <!-- 소스 선택 탭 -->
     <div style="display:flex;gap:0;border-bottom:2px solid #e5e7eb;background:#f9fafb;flex-shrink:0">
-      <button id="media-tab-pexels" onclick="switchMediaSource('pexels')" style="flex:1;padding:10px;font-size:11px;font-weight:800;border:none;background:linear-gradient(135deg,#06b6d4,#0891b2);color:#fff;cursor:pointer;border-radius:0"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f30a.svg" class="tw" alt="🌊"> Pexels</button>
-      <button id="media-tab-pixabay" onclick="switchMediaSource('pixabay')" style="flex:1;padding:10px;font-size:11px;font-weight:700;border:none;background:#f9fafb;color:#64748b;cursor:pointer;border-radius:0"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f338.svg" class="tw" alt="🌸"> Pixabay</button>
+      <button id="media-tab-pexels" onclick="switchMediaSource('pexels')" style="flex:1;padding:10px;font-size:11px;font-weight:800;border:none;background:linear-gradient(135deg,#06b6d4,#0891b2);color:#fff;cursor:pointer;border-radius:0"><img src="/emoji/1f30a.svg" class="tw" alt="🌊"> Pexels</button>
+      <button id="media-tab-pixabay" onclick="switchMediaSource('pixabay')" style="flex:1;padding:10px;font-size:11px;font-weight:700;border:none;background:#f9fafb;color:#64748b;cursor:pointer;border-radius:0"><img src="/emoji/1f338.svg" class="tw" alt="🌸"> Pixabay</button>
     </div>
     <!-- 검색 바 -->
     <div style="padding:14px 20px;border-bottom:1px solid #e5e7eb;flex-shrink:0;display:flex;gap:8px;align-items:center">
       <input id="pexels-search-input" type="text" placeholder="키워드 검색... (예: 학원, 공부, 선생님, 행복)" style="flex:1;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:12px;outline:none;font-family:inherit" onkeydown="if(event.key==='Enter'){if(_currentMediaSource==='pixabay')searchPixabay();else searchPexels();}" oninput="onPexelsSearchInput()">
-      <button onclick="if(_currentMediaSource==='pixabay'){searchPixabay();}else{searchPexels();}" style="padding:10px 18px;background:linear-gradient(135deg,#06b6d4,#0891b2);color:#fff;border:none;border-radius:10px;font-size:11px;font-weight:800;cursor:pointer"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f50d.svg" class="tw" alt="🔍"> 검색</button>
+      <button onclick="if(_currentMediaSource==='pixabay'){searchPixabay();}else{searchPexels();}" style="padding:10px 18px;background:linear-gradient(135deg,#06b6d4,#0891b2);color:#fff;border:none;border-radius:10px;font-size:11px;font-weight:800;cursor:pointer"><img src="/emoji/1f50d.svg" class="tw" alt="🔍"> 검색</button>
       <select id="pexels-type-sel" onchange="if(_currentMediaSource==='pixabay'){searchPixabay();}else{searchPexels();}" style="padding:10px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:11px;font-family:inherit;outline:none">
-        <option value="photos"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4f7.svg" class="tw" alt="📷"> 사진</option>
-        <option value="videos"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ac.svg" class="tw" alt="🎬"> 영상</option>
+        <option value="photos"><img src="/emoji/1f4f7.svg" class="tw" alt="📷"> 사진</option>
+        <option value="videos"><img src="/emoji/1f3ac.svg" class="tw" alt="🎬"> 영상</option>
       </select>
     </div>
     <!-- 빠른 카테고리 -->
@@ -1398,7 +1398,7 @@ export const videoMakerPage = `<!DOCTYPE html>
     </div>
     <!-- 그리드 -->
     <div id="pexels-grid" style="flex:1;overflow-y:auto;padding:14px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;min-height:200px">
-      <div style="grid-column:1/-1;text-align:center;padding:40px;color:#9ca3af"><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f50d.svg" class="tw" alt="🔍"> 검색어를 입력하거나 위 카테고리를 클릭하세요</div>
+      <div style="grid-column:1/-1;text-align:center;padding:40px;color:#9ca3af"><img src="/emoji/1f50d.svg" class="tw" alt="🔍"> 검색어를 입력하거나 위 카테고리를 클릭하세요</div>
     </div>
     <!-- 하단 로드 더 버튼 -->
     <div style="padding:12px 20px;border-top:1px solid #f3f4f6;flex-shrink:0;display:flex;gap:8px;align-items:center">
@@ -8406,9 +8406,11 @@ function setBgGradient(id, el){
 // ══════════════════════════════════════════════════════════════
 //  스티커/이모지 패널
 // ══════════════════════════════════════════════════════════════
-// Twemoji SVG 스티커 (emoji + CDN URL 쌍)
-// Base: https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/{codepoint}.svg
-var _TW='https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/';
+// Twemoji SVG 스티커 (emoji + URL 쌍)
+// 같은 자산을 사이트가 /emoji/{codepoint}.svg 로 이미 호스팅한다(3,700여 개).
+// 외부 CDN(jsdelivr) 대신 자체 호스팅을 쓰면 스티커 패널을 열 때 발생하던
+// 수십 건의 외부 요청·핸드셰이크가 사라진다(로딩 지연 감소).
+var _TW='/emoji/';
 function _tw(cp){return _TW+cp+'.svg';}
 var STICKERS_EMOTION=[
   {e:'😀',u:_tw('1f600')},{e:'😂',u:_tw('1f602')},{e:'🥰',u:_tw('1f970')},
