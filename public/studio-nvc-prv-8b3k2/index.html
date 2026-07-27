@@ -1860,7 +1860,8 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 var STUDIO_BUILD_TAG='2026-07-13-v56';   // 서버 health.build 와 정확히 같아야 최신(캐시/배포지연 아님)
 // (검증용) ?cnexport=1 접속 시 전처리 함수만 window 로 노출 — 순수 이미지 함수라 보안 영향 없음
 try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum, upscaleImageURL:upscaleImageURL, upscaleVideoURL:upscaleVideoURL, removeBackground:removeBackground, fitToRatio:fitToRatio,
-        addNode:addNode, render:render, state:state, DEFS:DEFS, nodeMedia:nodeMedia, nodeImgs:nodeImgs, upScaleOf:upScaleOf, upScaleHelp:upScaleHelp }; }catch(_e){} },0); } }catch(_e){}
+        addNode:addNode, render:render, state:state, DEFS:DEFS, nodeMedia:nodeMedia, nodeImgs:nodeImgs, upScaleOf:upScaleOf, upScaleHelp:upScaleHelp,
+        captionImage:captionImage, captionVideo:captionVideo, drawCaptionOn:drawCaptionOn }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
   function s(inner,vb){ return '<svg class="ico" viewBox="'+(vb||'0 0 24 24')+'" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+inner+'</svg>'; }
@@ -4411,6 +4412,157 @@ function fitToRatio(src, ratioLabel, mode){
   });
 }
 
+/* ══════ 자막 넣기 — 글씨를 화면에 '구워 넣는다'(어디서 열어도 그대로 보인다) ══════
+   이미지는 캔버스에 한 번 그리면 끝이고, 영상은 프레임마다 다시 그려 새로 녹화한다.
+   영상 소리는 사라지면 안 되므로 WebAudio 로 원본 소리를 녹화본에 그대로 붙인다. */
+var CAP_FONT='"Pretendard","Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo","Nanum Gothic",system-ui,sans-serif';
+/* 글자 스타일 — 어떤 배경에서도 읽히게 테두리(스트로크)를 기본으로 둔다 */
+function _capStyle(label){
+  var s=String(label||'');
+  if(/노란/.test(s))       return { fill:'#ffe14d', stroke:'#1a1200', box:null };
+  if(/검은 글씨/.test(s))  return { fill:'#111111', stroke:'#ffffff', box:null };
+  if(/박스/.test(s))       return { fill:'#ffffff', stroke:null,      box:'rgba(0,0,0,0.62)' };
+  return { fill:'#ffffff', stroke:'#000000', box:null };
+}
+/* 문구를 화면 폭에 맞춰 줄로 나눈다 — 사용자가 넣은 줄바꿈은 그대로 지킨다 */
+function _capLines(ctx, text, maxW){
+  var lines=[];
+  String(text||'').split(/\r?\n/).forEach(function(para){
+    var t=para.trim();
+    if(!t){ lines.push(''); return; }
+    var cur='';
+    // 한국어는 띄어쓰기가 적어 단어 단위로만 자르면 넘친다 → 넘치면 글자 단위로 더 자른다
+    t.split(/\s+/).forEach(function(word){
+      var next=cur?(cur+' '+word):word;
+      if(ctx.measureText(next).width<=maxW){ cur=next; return; }
+      if(cur){ lines.push(cur); cur=''; }
+      var chunk='';
+      for(var i=0;i<word.length;i++){
+        var c2=chunk+word[i];
+        if(ctx.measureText(c2).width>maxW && chunk){ lines.push(chunk); chunk=word[i]; }
+        else chunk=c2;
+      }
+      cur=chunk;
+    });
+    if(cur) lines.push(cur);
+  });
+  while(lines.length && lines[0]==='') lines.shift();            // 앞뒤 빈 줄은 버린다
+  while(lines.length && lines[lines.length-1]==='') lines.pop();
+  return lines;
+}
+/* 캔버스 위에 자막 한 덩어리를 그린다 (이미지·영상 프레임 공용) */
+function drawCaptionOn(ctx, W, H, text, opts){
+  opts=opts||{};
+  var pct=Math.max(2, Math.min(20, Number(opts.size)||6));
+  var fs=Math.max(12, Math.round(H*pct/100));
+  var st=_capStyle(opts.style);
+  ctx.save();
+  ctx.font='700 '+fs+'px '+CAP_FONT;
+  ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  var maxW=W*0.88;
+  var lines=_capLines(ctx, text, maxW);
+  if(!lines.length){ ctx.restore(); return 0; }
+  var lh=Math.round(fs*1.28), block=lh*lines.length, margin=Math.round(H*0.05);
+  var top;   // 자막 덩어리의 윗변
+  if(/위/.test(String(opts.pos||''))) top=margin;
+  else if(/가운데/.test(String(opts.pos||''))) top=Math.round((H-block)/2);
+  else top=H-margin-block;                                   // 기본: 아래
+  if(st.box){
+    var padX=Math.round(fs*0.5), padY=Math.round(fs*0.32), wMax=0;
+    lines.forEach(function(l){ wMax=Math.max(wMax, ctx.measureText(l).width); });
+    ctx.fillStyle=st.box;
+    var bx=Math.round((W-wMax)/2)-padX, bw=Math.round(wMax)+padX*2;
+    var r=Math.round(fs*0.22), by=top-padY, bh=block+padY*2;
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(bx,by,bw,bh,r); else ctx.rect(bx,by,bw,bh);
+    ctx.fill();
+  }
+  ctx.lineJoin='round'; ctx.miterLimit=2;
+  ctx.lineWidth=Math.max(2, Math.round(fs*0.16));
+  lines.forEach(function(l,i){
+    var y=top+lh*i+Math.round(fs*0.98);
+    if(st.stroke){ ctx.strokeStyle=st.stroke; ctx.strokeText(l, W/2, y); }
+    ctx.fillStyle=st.fill; ctx.fillText(l, W/2, y);
+  });
+  ctx.restore();
+  return lines.length;
+}
+/* 이미지에 자막 굽기 */
+function captionImage(src, opts){
+  return new Promise(function(resolve,reject){
+    if(!String(opts&&opts.text||'').trim()){ reject(new Error('자막 문구가 비어 있습니다')); return; }
+    var img=new Image(); img.crossOrigin='anonymous';
+    img.onload=function(){
+      var W=img.naturalWidth||512, H=img.naturalHeight||512;
+      var c=document.createElement('canvas'); c.width=W; c.height=H;
+      var x=c.getContext('2d'); x.drawImage(img,0,0);
+      var n=drawCaptionOn(x, W, H, opts.text, opts);
+      resolve({ url:c.toDataURL('image/png'), kind:'image', dim:W+'×'+H, srcDim:W+'×'+H,
+                info:W+'×'+H+' · 자막 '+n+'줄' });
+    };
+    img.onerror=function(){ reject(new Error('이미지 로드 실패')); };
+    img.src=sameOriginMedia(src);
+  });
+}
+/* 영상에 자막 굽기 — 재생하며 프레임마다 자막을 얹어 새로 녹화한다(소리 유지) */
+function captionVideo(src, opts, onProg){
+  return new Promise(function(resolve,reject){
+    if(typeof MediaRecorder==='undefined'){ reject(new Error('이 브라우저는 영상 자막 미지원')); return; }
+    if(!String(opts&&opts.text||'').trim()){ reject(new Error('자막 문구가 비어 있습니다')); return; }
+    var v=document.createElement('video'); v.crossOrigin='anonymous'; v.playsInline=true; v.preload='auto'; v.muted=true;
+    var done=false, actx=null;
+    var tm=setTimeout(function(){ if(!done){ done=true; cleanup(); reject(new Error('처리 시간 초과')); } }, 600000);
+    function cleanup(){ try{ if(actx) actx.close(); }catch(_){} try{ v.src=''; }catch(_){} }
+    v.addEventListener('loadedmetadata',function(){
+      var W=v.videoWidth||1280, H=v.videoHeight||720, dur=v.duration||0;
+      var c=document.createElement('canvas'); c.width=W; c.height=H;
+      var ctx=c.getContext('2d');
+      var fps=30, stream=c.captureStream(fps), hasAudio=false;
+      // 원본 소리를 녹화본에 붙인다. 스피커에는 연결하지 않아 처리 중 소리가 나지 않는다.
+      try{
+        var AC=window.AudioContext||window.webkitAudioContext;
+        if(AC){
+          actx=new AC();
+          var srcNode=actx.createMediaElementSource(v);
+          var dest=actx.createMediaStreamDestination();
+          srcNode.connect(dest);
+          var atr=dest.stream.getAudioTracks();
+          if(atr.length){ atr.forEach(function(t){ stream.addTrack(t); }); hasAudio=true; v.muted=false; v.volume=1; }
+          if(actx.state==='suspended'){ try{ actx.resume(); }catch(_){} }
+        }
+      }catch(_e){ hasAudio=false; v.muted=true; }
+      var mime=[hasAudio?'video/webm;codecs=vp9,opus':'', hasAudio?'video/webm;codecs=vp8,opus':'',
+                'video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']
+                .filter(function(m){ return m && MediaRecorder.isTypeSupported(m); })[0]||'video/webm';
+      var rec;
+      try{ rec=new MediaRecorder(stream,{ mimeType:mime, videoBitsPerSecond:Math.min(16000000, Math.round(W*H*fps*0.12)) }); }
+      catch(e){ clearTimeout(tm); cleanup(); reject(new Error('레코더 시작 실패')); return; }
+      var chunks=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size)chunks.push(e.data); };
+      var lines=0;
+      rec.onstop=function(){
+        clearTimeout(tm); cleanup();
+        if(!chunks.length){ reject(new Error('녹화 결과가 비었습니다')); return; }
+        resolve({ url:URL.createObjectURL(new Blob(chunks,{type:'video/webm'})), kind:'video',
+                  dim:W+'×'+H, srcDim:W+'×'+H, sec:Math.round(dur||0),
+                  info:W+'×'+H+' · 자막 '+lines+'줄'+(hasAudio?' · 소리 유지':' · 소리 없음') });
+      };
+      function draw(){ try{ ctx.drawImage(v,0,0,W,H); lines=drawCaptionOn(ctx,W,H,opts.text,opts); }catch(e){} }
+      function tick(){ if(done)return; draw();
+        if(onProg&&dur) onProg(Math.min(1, v.currentTime/dur));
+        if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(tick); else requestAnimationFrame(tick); }
+      v.addEventListener('ended',function(){ if(done)return; done=true; draw();
+        setTimeout(function(){ try{ rec.stop(); }catch(e){} }, 200); },{once:true});
+      try{ rec.start(); }catch(e){ clearTimeout(tm); cleanup(); reject(new Error('레코더 시작 실패')); return; }
+      var pr=v.play();
+      function go(){ if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(tick); else requestAnimationFrame(tick); }
+      if(pr&&pr.then) pr.then(go).catch(function(){ clearTimeout(tm); cleanup(); reject(new Error('영상 재생 실패')); });
+      else go();
+    });
+    v.addEventListener('error',function(){ if(!done){ done=true; clearTimeout(tm); cleanup(); reject(new Error('영상 로드 실패')); } });
+    v.src=sameOriginMedia(src);
+  });
+}
+
 /* ══════ 리샘플 폴백(모델 없이 확대 — 초해상 아님): 단계적 축소확대 + 언샤프 ══════ */
 function _unsharp(ctx,w,h,amount){
   if(!amount || w*h>30e6)return;   // 초대형은 비용 대비 이득이 없어 건너뛴다
@@ -4620,6 +4772,16 @@ var DEFS = {
                       {k:'fitmode',t:'combo',label:'맞추는 방법',opts:['꽉 채우기(가장자리 잘림)','전체 보이기(여백 생김)','여백을 흐린 배경으로'],def:'꽉 채우기(가장자리 잘림)'},
                       {k:'toolout',t:'toolout'},
                       {k:'run',t:'toolbtn',label:'비율 맞추기 실행',act:'fit'}] },
+ caption:  { cat:'편집', title:'자막 넣기 (영상·이미지)', hd:'#3a2f1c',
+             ins:[['in','이미지·영상','*'],['text','자막 문구 (텍스트 노드·선택)','TEXT']],
+             outs:[['out','자막 넣은 결과','*']],
+             widgets:[{k:'captext',t:'textarea',ph:'자막으로 넣을 문구를 적으세요\n줄을 바꾸면 그대로 두 줄이 됩니다\n(비우면 왼쪽 [텍스트] 노드의 내용을 사용)'},
+                      {k:'cappos',t:'combo',label:'위치',opts:['아래(기본)','가운데','위'],def:'아래(기본)'},
+                      {k:'capstyle',t:'combo',label:'글씨 스타일',opts:['흰 글씨 + 검은 테두리','흰 글씨 + 검은 반투명 박스','노란 글씨 (예능 자막)','검은 글씨 + 흰 테두리'],def:'흰 글씨 + 검은 테두리'},
+                      {k:'capsize',t:'slider',label:'글자 크기(%)',min:3,max:14,def:6},
+                      {k:'caphelp',t:'caphelp'},
+                      {k:'toolout',t:'toolout'},
+                      {k:'run',t:'toolbtn',label:'자막 넣기',act:'caption'}] },
  upscale:  { cat:'편집', title:'화질 좋게 만들기 (업스케일)', hd:'#1c3346',
              ins:[['in','이미지·영상','*']], outs:[['out','화질 개선본','*']],
              widgets:[{k:'upx',t:'combo',label:'얼마나 크게',opts:['2배','4배','5K (긴 변 5120px)'],def:'2배'},
@@ -5546,6 +5708,12 @@ function widgetHTML(n,w){
   }
   // 편집 도구 공용 위젯 — 결과 미리보기 + 실행 버튼. (배경 제거·비율 맞추기 등)
   if(w.t==='toolbtn') return '<button class="wbtn" data-tool="'+esc(w.act||'')+'">'+ICON.sparkle+' '+esc(w.label)+'</button>';
+  // 자막 노드 안내문 — 글자 크기가 실제로 어느 정도인지 눈에 보이게 알려준다
+  if(w.t==='caphelp'){
+    var _cp=Math.max(3, Math.min(14, Number(n.w.capsize)||6));
+    return '<div class="refcnt up-help">1080p 영상 기준 글자 높이 약 <b>'+Math.round(1080*_cp/100)+'px</b> · 긴 문구는 자동으로 줄바꿈됩니다</div>'+
+      '<div class="refcnt up-help">글씨를 영상에 <b>구워 넣습니다</b> — 어디에 올려도 그대로 보입니다 · 영상은 소리도 함께 유지됩니다</div>';
+  }
   // 업스케일 노드 안내문 — 고른 배율이 실제로 무슨 크기가 되는지 사람 말로 설명한다
   if(w.t==='uphelp'){
     return '<div class="refcnt up-help">'+esc(upScaleHelp(upScaleOf(n.w.upx)))+'</div>'+
@@ -6302,6 +6470,39 @@ canvas.addEventListener('click',function(e){
       });
       return;
     }
+    // ── 자막 넣기 — 이미지는 한 번에, 영상은 프레임마다 글씨를 얹어 새로 녹화한다 ──
+    if(act==='caption'){
+      var cMed=inN?nodeMedia(inN):null;
+      if(!cMed||!cMed.url){ toast('자막을 넣을 이미지나 영상을 연결하세요'); return; }
+      // 문구는 노드에 직접 적은 것이 우선, 비어 있으면 왼쪽 [텍스트] 노드의 내용을 쓴다
+      var tN=inputNodeOf(n2.id,'text');
+      var cTxt=String(n2.w.captext||'').trim() || String((tN&&tN.w&&tN.w.text)||'').trim();
+      if(!cTxt){ toast('자막 문구를 입력하거나 [텍스트] 노드를 연결하세요'); return; }
+      var cOpts={ text:cTxt, pos:n2.w.cappos||'아래(기본)', style:n2.w.capstyle||'흰 글씨 + 검은 테두리', size:n2.w.capsize||6 };
+      var cIsImg=(cMed.kind!=='video');
+      var capNode=n2;
+      capNode.w.toolBusy=true; capNode.w.toolMsg='자막 넣는 중'; capNode.w.toolPct=cIsImg?null:0; render();
+      if(!cIsImg) toast('영상에 자막을 굽는 중… 영상 길이만큼 걸립니다 (탭을 켜둔 채 기다려주세요)');
+      function capProg(pp){
+        capNode.w.toolPct=pp;
+        var hh=document.getElementById('nd-'+capNode.id); if(!hh)return;
+        var bar=hh.querySelector('.up-prog i'); if(bar)bar.style.width=Math.round(pp*100)+'%';
+        var msg=hh.querySelector('.up-msg'); if(msg)msg.textContent='자막 넣는 중… '+Math.round(pp*100)+'%';
+      }
+      var cJob = cIsImg ? captionImage(cMed.url, cOpts) : captionVideo(cMed.url, cOpts, capProg);
+      cJob.then(function(r){
+        capNode.w.toolBusy=false; capNode.w.toolPct=null;
+        capNode.w.img=r.url; capNode.w.toolKind=r.kind; capNode.w.toolInfo=r.info; capNode.w.toolFallback=false;
+        toast('자막 넣기 완료 · '+r.info); render(); snapshot();
+        if(r.kind==='video'){ try{ grabFrameFromURL(r.url,'video','first',0)
+          .then(function(im){ capNode.w.poster=im; render(); }).catch(function(){}); }catch(_e){} }
+        try{ nvLogAct('caption','caption',r.info,0,'caption'); }catch(_e){}
+      }).catch(function(err){
+        capNode.w.toolBusy=false; capNode.w.toolPct=null; render();
+        toast('자막 넣기 실패: '+String(err&&err.message||err).slice(0,70));
+      });
+      return;
+    }
     // ── 배경 제거 · 비율 맞추기 — 브라우저 캔버스 처리, 크레딧 차감 없음 ──
     var srcImg=inN?(nodeImgs(inN)[0]||null):null;
     if(!srcImg){ toast('이미지를 연결하세요 (이미지 생성·레퍼런스·출력 노드 등)'); return; }
@@ -6697,13 +6898,14 @@ function topoOrder(){
 /* ── 노드에 담긴 결과물을 꺼내는 공용 함수 ──
    노드 종류마다 결과가 들어가는 칸이 다르다(출력 노드는 vid, 프레임 노드는 frameImg …).
    여러 곳에서 각자 따로 판단하면 어긋나므로 여기 한 곳에서만 정한다. */
+var TOOL_NODES={ upscale:1, caption:1, bgremove:1, fit:1 };   // 결과가 w.img 에 담기는 편집 노드들
 function nodeImgs(node){
   if(!node||!node.w) return [];
   if(node.type==='output') return node.w.lastImg?[node.w.lastImg]:[];
   if(node.type==='narrate'||node.type==='weave'||node.type==='revoice') return node.w.poster?[node.w.poster]:[];
   if(node.type==='frame') return node.w.frameImg?[node.w.frameImg]:[];
-  // 업스케일 결과가 영상이면 대표 프레임(포스터)만 이미지로 넘긴다 — 영상 자체는 nodeMedia 로.
-  if(node.type==='upscale') return node.w.toolKind==='video' ? (node.w.poster?[node.w.poster]:[])
+  // 편집 노드 결과가 영상이면 대표 프레임(포스터)만 이미지로 넘긴다 — 영상 자체는 nodeMedia 로.
+  if(TOOL_NODES[node.type]) return node.w.toolKind==='video' ? (node.w.poster?[node.w.poster]:[])
                                                              : (node.w.img?[node.w.img]:[]);
   if(node.w.imgs&&node.w.imgs.length) return node.w.imgs;
   return node.w.img?[node.w.img]:[];
@@ -6720,7 +6922,7 @@ function nodeMedia(node){
     var u=w.upscaled||w.vid; if(!u) return null;
     return { url:u, kind:(w.upscaled?w.upKind:w.kind)||_mediaKind(u) };
   }
-  if(node.type==='upscale') return w.img?{ url:w.img, kind:w.toolKind||_mediaKind(w.img) }:null;
+  if(TOOL_NODES[node.type]) return w.img?{ url:w.img, kind:w.toolKind||_mediaKind(w.img) }:null;
   if(node.type==='frame') return w.frameImg?{ url:w.frameImg, kind:'image' }:null;
   if(w.srcVideoUrl) return { url:w.srcVideoUrl, kind:'video' };   // 업로드한 원본 영상이 있으면 영상 우선
   var im=nodeImgs(node)[0];
