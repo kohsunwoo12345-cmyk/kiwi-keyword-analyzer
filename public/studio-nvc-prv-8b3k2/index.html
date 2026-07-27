@@ -461,6 +461,9 @@ body.create-open #btnQueue{ display:none !important; }
 .up-prog i{ display:block; height:100%; width:0; background:linear-gradient(90deg,#4a7dff,#22d3ee); transition:width .2s; }
 .refcnt.upfb{ color:#e6b25a; }   /* AI 선명화가 아니라 단순 확대로 떨어진 경우 — 눈에 띄게 */
 .refcnt.up-help{ text-align:left; line-height:1.5; margin-top:4px; color:#9098a8; }
+/* 투명 배경 결과를 눈으로 확인할 수 있게 체크무늬 바탕 */
+.wpreview.tool-alpha{ background-image:linear-gradient(45deg,#2a2a30 25%,transparent 25%),linear-gradient(-45deg,#2a2a30 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#2a2a30 75%),linear-gradient(-45deg,transparent 75%,#2a2a30 75%);
+  background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; }
 .refcnt.up-help b{ color:#cdd6ff; }
 .refcnt a{ color:#7aa8ff; }
 /* ── 생성 중 고급 로더 (GPT/Gemini 스타일: 은은한 shimmer + 그라디언트 텍스트) ── */
@@ -1856,7 +1859,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 'use strict';
 var STUDIO_BUILD_TAG='2026-07-13-v56';   // 서버 health.build 와 정확히 같아야 최신(캐시/배포지연 아님)
 // (검증용) ?cnexport=1 접속 시 전처리 함수만 window 로 노출 — 순수 이미지 함수라 보안 영향 없음
-try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum, upscaleImageURL:upscaleImageURL }; }catch(_e){} },0); } }catch(_e){}
+try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum, upscaleImageURL:upscaleImageURL, removeBackground:removeBackground, fitToRatio:fitToRatio }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
   function s(inner,vb){ return '<svg class="ico" viewBox="'+(vb||'0 0 24 24')+'" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+inner+'</svg>'; }
@@ -4324,6 +4327,89 @@ function upscaleVideoURL(src,scale,onProg,opts){
     v.src=sameOriginMedia(src);
   });
 }
+
+/* ══════ 편집 도구 노드 — 배경 제거 · 비율 맞추기 ══════
+   둘 다 사용자 브라우저에서 처리한다(제공사 API 호출 0 · 크레딧 차감 0).
+   배경 제거는 이미 우리 /models 에 올려둔 MediaPipe 셀피 세그멘테이션을 쓰고,
+   경계는 기존 가이드 필터로 원본 윤곽에 스냅해 머리카락 경계를 살린다. */
+function _loadImg(src){
+  return new Promise(function(res,rej){
+    var i=new Image(); i.crossOrigin='anonymous';
+    i.onload=function(){ res(i); }; i.onerror=function(){ rej(new Error('이미지 로드 실패')); };
+    i.src=sameOriginMedia(src);
+  });
+}
+// 인물 마스크(0..1) 를 얻어 배경을 지운다. mode: 투명/흰/검정/흐리게
+function removeBackground(src, mode, feather){
+  return ensureSegmenter().then(function(seg){
+    return _loadImg(src).then(function(img){
+      var W=img.naturalWidth||512, H=img.naturalHeight||512;
+      var MAX=1600, sc=Math.min(1, MAX/Math.max(W,H));
+      var w=Math.max(1,Math.round(W*sc)), h=Math.max(1,Math.round(H*sc));
+      var c=document.createElement('canvas'); c.width=w; c.height=h;
+      var x=c.getContext('2d'); x.drawImage(img,0,0,w,h);
+      var out=seg.segment(c);
+      var cm=(out.confidenceMasks&&out.confidenceMasks[0])||null;
+      if(!cm) throw new Error('인물을 찾지 못했습니다');
+      var raw=cm.getAsFloat32Array(), mw=cm.width, mh=cm.height;
+      // 마스크를 이미지 크기로 맞춘 뒤, 원본 밝기를 길잡이로 경계를 정제(머리카락·옷깃)
+      var m=new Float32Array(w*h);
+      for(var yy=0;yy<h;yy++){ var sy=Math.min(mh-1, Math.round(yy*mh/h));
+        for(var xx=0;xx<w;xx++){ var sx=Math.min(mw-1, Math.round(xx*mw/w)); m[yy*w+xx]=raw[sy*mw+sx]; } }
+      try{
+        var id=x.getImageData(0,0,w,h).data, g=new Float32Array(w*h);
+        for(var i=0,p2=0;i<g.length;i++,p2+=4) g[i]=(id[p2]*0.299+id[p2+1]*0.587+id[p2+2]*0.114)/255;
+        m=_guidedRefine(m,g,w,h,Math.max(1,Math.round(Math.min(w,h)/160)),1e-4);
+      }catch(_e){}
+      try{ if(cm.close) cm.close(); }catch(_e){}
+      // 결과 합성
+      var o=document.createElement('canvas'); o.width=w; o.height=h; var ox=o.getContext('2d');
+      if(mode==='흰 배경'){ ox.fillStyle='#fff'; ox.fillRect(0,0,w,h); }
+      else if(mode==='검은 배경'){ ox.fillStyle='#000'; ox.fillRect(0,0,w,h); }
+      else if(mode==='흐리게(아웃포커스)'){ ox.filter='blur('+Math.max(4,Math.round(Math.min(w,h)/60))+'px)'; ox.drawImage(c,0,0); ox.filter='none'; }
+      // 인물만 알파 적용해 덧그린다
+      var cut=document.createElement('canvas'); cut.width=w; cut.height=h;
+      var cx=cut.getContext('2d'); cx.drawImage(c,0,0);
+      var cd=cx.getImageData(0,0,w,h), a=cd.data;
+      var soft=Math.max(0, Math.min(5, Number(feather)||0))/10;   // 경계 부드럽기
+      for(var k=0,q=0;k<m.length;k++,q+=4){
+        var v=m[k];
+        if(soft>0){ v=(v-0.5)/(soft+0.08)+0.5; }               // 대비를 세워 경계를 또렷하게
+        a[q+3]=Math.max(0, Math.min(255, Math.round(v*255)));
+      }
+      cx.putImageData(cd,0,0);
+      ox.drawImage(cut,0,0);
+      return { url:o.toDataURL('image/png'), info:w+'×'+h+' · '+mode };
+    });
+  });
+}
+// 지정한 비율로 자르거나 여백을 넣어 맞춘다 (숏폼·피드 규격)
+function fitToRatio(src, ratioLabel, mode){
+  var R={ '9:16':9/16, '1:1':1, '4:5':4/5, '16:9':16/9, '3:4':3/4, '2:3':2/3 };
+  var key=String(ratioLabel||'').split(' ')[0];
+  var ar=R[key]||9/16;
+  return _loadImg(src).then(function(img){
+    var W=img.naturalWidth||512, H=img.naturalHeight||512;
+    // 원본 넓이를 기준으로 목표 캔버스 산출(너무 커지지 않게 상한)
+    var longSide=Math.min(2048, Math.max(W,H));
+    var tw, th;
+    if(ar>=1){ tw=longSide; th=Math.round(longSide/ar); } else { th=longSide; tw=Math.round(longSide*ar); }
+    var c=document.createElement('canvas'); c.width=tw; c.height=th;
+    var x=c.getContext('2d'); x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high';
+    var cover=/꽉 채우기/.test(mode||''), blurPad=/흐린/.test(mode||'');
+    if(blurPad){   // 여백을 원본 확대·블러로 채워 자연스럽게
+      var s2=Math.max(tw/W, th/H)*1.15;
+      x.filter='blur('+Math.max(8,Math.round(Math.min(tw,th)/24))+'px)';
+      x.drawImage(img, (tw-W*s2)/2, (th-H*s2)/2, W*s2, H*s2);
+      x.filter='none';
+    } else if(!cover){ x.fillStyle='#000'; x.fillRect(0,0,tw,th); }
+    var sc = cover ? Math.max(tw/W, th/H) : Math.min(tw/W, th/H);
+    var dw=W*sc, dh=H*sc;
+    x.drawImage(img, (tw-dw)/2, (th-dh)/2, dw, dh);
+    return { url:c.toDataURL('image/png'), info:key+' · '+tw+'×'+th+(cover?' (가장자리 잘림)':'') };
+  });
+}
+
 /* ══════ 리샘플 폴백(모델 없이 확대 — 초해상 아님): 단계적 축소확대 + 언샤프 ══════ */
 function _unsharp(ctx,w,h,amount){
   if(!amount || w*h>30e6)return;   // 초대형은 비용 대비 이득이 없어 건너뛴다
@@ -4521,6 +4607,18 @@ var DEFS = {
                       {k:'run',t:'musicbtn',label:'음악 생성'}] },
  note:     { cat:'유틸', title:'노트', hd:'', ins:[], outs:[],
              widgets:[{k:'text',t:'textarea',ph:'메모를 입력하세요...'}] },
+ bgremove: { cat:'편집', title:'배경 제거 (인물 누끼)', hd:'#1f3a2e',
+             ins:[['in','이미지','*']], outs:[['out','투명 배경 PNG','IMAGE']],
+             widgets:[{k:'bgmode',t:'combo',label:'배경 처리',opts:['투명하게','흰 배경','검은 배경','흐리게(아웃포커스)'],def:'투명하게'},
+                      {k:'bgfeather',t:'slider',label:'가장자리 부드럽게',min:0,max:5,def:2},
+                      {k:'toolout',t:'toolout'},
+                      {k:'run',t:'toolbtn',label:'배경 제거 실행',act:'bgremove'}] },
+ fit:      { cat:'편집', title:'비율 맞추기 (숏폼·인쇄)', hd:'#2e2440',
+             ins:[['in','이미지','*']], outs:[['out','맞춘 이미지','IMAGE']],
+             widgets:[{k:'fitratio',t:'combo',label:'비율',opts:['9:16 (릴스·쇼츠)','1:1 (인스타 피드)','4:5 (인스타 세로)','16:9 (유튜브·PC)','3:4','2:3'],def:'9:16 (릴스·쇼츠)'},
+                      {k:'fitmode',t:'combo',label:'맞추는 방법',opts:['꽉 채우기(가장자리 잘림)','전체 보이기(여백 생김)','여백을 흐린 배경으로'],def:'꽉 채우기(가장자리 잘림)'},
+                      {k:'toolout',t:'toolout'},
+                      {k:'run',t:'toolbtn',label:'비율 맞추기 실행',act:'fit'}] },
  frame:    { cat:'유틸', title:'프레임 추출', hd:'#1f3a3a',
              ins:[['in','영상','*']], outs:[['out','프레임','IMAGE']],
              widgets:[{k:'pos',t:'combo',label:'위치',opts:['마지막 프레임','첫 프레임','중간(50%)','직접 지정(초)'],def:'마지막 프레임'},
@@ -5439,6 +5537,14 @@ function widgetHTML(n,w){
       '<button class="wbtn" data-dlimg>'+ICON.dl+' 이미지 저장</button>'+
       '<div class="refcnt">우측 IMAGE 포트 → 다른 모델의 <b>레퍼런스/첫 프레임</b>에 연결해 재활용</div>';
   }
+  // 편집 도구 공용 위젯 — 결과 미리보기 + 실행 버튼. (배경 제거·비율 맞추기 등)
+  if(w.t==='toolbtn') return '<button class="wbtn" data-tool="'+esc(w.act||'')+'">'+ICON.sparkle+' '+esc(w.label)+'</button>';
+  if(w.t==='toolout'){
+    if(n.w.toolBusy) return genLoader(n.w.toolMsg||'처리 중',90);
+    if(n.w.img) return '<div class="wpreview tool-alpha"><span class="badge">결과</span><img src="'+esc(n.w.img)+'" alt="결과"></div>'+
+      '<div class="refcnt">'+(n.w.toolInfo?esc(n.w.toolInfo)+' · ':'')+'우측 포트 → 다른 노드의 레퍼런스로 연결 · <a href="#" data-tooldl>내려받기</a></div>';
+    return '<div class="wpreview" style="aspect-ratio:16/9;"><span class="empty">아직 결과 없음<br>이미지를 연결하고 실행하세요</span></div>';
+  }
   if(w.t==='frameout'){
     if(n.w.extracting) return genLoader('추출 중',90);
     if(n.w.frameImg) return '<div class="wpreview"><span class="badge">프레임</span><img src="'+esc(n.w.frameImg)+'" alt="추출 프레임"></div>'+
@@ -6126,6 +6232,35 @@ canvas.addEventListener('click',function(e){
     var a=document.createElement('a'); a.href=n2.w.img;
     a.download='nvc-'+String(n2.w.model||'image').replace(/[^\w가-힣]+/g,'_')+'.png';
     document.body.appendChild(a); a.click(); a.remove(); return;
+  }
+  // 편집 도구 실행 (배경 제거 · 비율 맞추기) — 브라우저 처리, 크레딧 차감 없음
+  var toolBtn=e.target.closest('[data-tool]');
+  if(toolBtn){
+    var act=toolBtn.getAttribute('data-tool');
+    var inN=inputNodeOf(n2.id,'in');
+    var srcImg=inN?(imgsOf(inN)[0]||null):null;
+    if(!srcImg){ toast('이미지를 연결하세요 (이미지 생성·레퍼런스·출력 노드 등)'); return; }
+    n2.w.toolBusy=true; n2.w.toolMsg=(act==='bgremove'?'배경 지우는 중':'비율 맞추는 중'); render();
+    var job = act==='bgremove'
+      ? removeBackground(srcImg, n2.w.bgmode||'투명하게', n2.w.bgfeather)
+      : fitToRatio(srcImg, n2.w.fitratio||'9:16', n2.w.fitmode||'꽉 채우기(가장자리 잘림)');
+    job.then(function(r){
+      n2.w.toolBusy=false; n2.w.img=r.url; n2.w.toolInfo=r.info;
+      toast((act==='bgremove'?'배경 제거 완료 · ':'비율 맞추기 완료 · ')+r.info);
+      render(); snapshot();
+      try{ nvLogAct(act, act, r.info, 0, act); }catch(_e){}
+    }).catch(function(err){
+      n2.w.toolBusy=false; render();
+      toast((act==='bgremove'?'배경 제거 실패: ':'비율 맞추기 실패: ')+String(err&&err.message||err).slice(0,70));
+    });
+    return;
+  }
+  if(e.target.closest('[data-tooldl]')){
+    e.preventDefault();
+    if(!n2.w.img) return;
+    var a2=document.createElement('a'); a2.href=n2.w.img; a2.download='bygency-edit.png'; a2.rel='noopener';
+    document.body.appendChild(a2); a2.click(); a2.remove();
+    return;
   }
   if(e.target.closest('[data-framego]')){
     var srcN=inputNodeOf(n2.id,'in'), srcU=srcN&&srcN.w&&srcN.w.vid;
