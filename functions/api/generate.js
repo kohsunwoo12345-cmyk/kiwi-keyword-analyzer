@@ -827,7 +827,14 @@ function nanoPayloadNoRatio(p) {
 /* ── OpenAI 이미지 생성 (gpt-image-1) — 텍스트→이미지, 레퍼런스 있으면 편집(images/edits) ──
    Cloudflare egress 가 OpenAI 지역차단(403 unsupported country) 되는 문제 → 미국 릴레이 경유.
    OPENAI_RELAY_URL 설정 시 그 베이스로, 없으면 api.openai.com 직접(차단될 수 있음). */
-const OPENAI_SIZE = { "1:1": "1024x1024", "16:9": "1536x1024", "9:16": "1024x1536", "4:5": "1024x1536" };
+/* GPT Image 가 받는 사이즈는 1024x1024 · 1536x1024 · 1024x1536 뿐이다(= 1:1 · 3:2 · 2:3).
+   노드 선택지를 그 셋으로 바꿀 때 이 표를 같이 고치지 않아, 3:2·2:3 을 골라도 키가 없어
+   1024x1024 로 떨어졌다 — 세 선택지가 전부 정사각형으로 나왔다.
+   16:9·9:16·4:5 는 예전 표기 호환으로 가장 가까운 가로/세로 사이즈에 매핑해 둔다. */
+const OPENAI_SIZE = { "1:1": "1024x1024",
+                      "3:2": "1536x1024", "2:3": "1024x1536",
+                      "16:9": "1536x1024", "9:16": "1024x1536", "4:5": "1024x1536",
+                      "4:3": "1536x1024", "3:4": "1024x1536" };
 function openaiBase(env) {
   return (pick(env, ["OPENAI_RELAY_URL", "openai_relay_url"]) || "https://api.openai.com").replace(/\/+$/, "");
 }

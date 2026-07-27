@@ -2695,6 +2695,33 @@ function snapImgRatio(n){
   var allow=imgModelRatios(n.w.model);
   if(allow.indexOf(n.w.ratio)<0) n.w.ratio=allow[0];
 }
+/* 채팅(#create)·바로만들기 화면의 길이/화질/비율 선택지도 스튜디오 노드와 같은 기준으로 맞춘다.
+   예전엔 모델과 무관하게 5·8·10초 / 720p·1080p·4K / 16:9·9:16·1:1 로 고정돼 있어,
+   그 모델이 받지 않는 값을 골라도 그대로 보내고 과금만 그 값으로 붙었다
+   (예: Kling 에 4K → 결과는 같은데 요금 2.6배, Veo 에 1:1 → 조용히 16:9 로 생성). */
+function syncGenSelectors(model, isImage, secSel, resSel, ratioSel){
+  function setOpts(sel, vals, fallback, label){
+    if(!sel) return;
+    var lab=sel.closest?sel.closest('label'):null;
+    if(!vals || !vals.length){                      // 이 모델은 지정 불가 → 숨기고 중립값으로 고정
+      sel.innerHTML='<option value="'+fallback+'">'+fallback+'</option>'; sel.value=fallback;
+      if(lab) lab.style.display='none'; return;
+    }
+    if(lab) lab.style.display='';
+    var cur=sel.value;
+    sel.innerHTML=vals.map(function(v){ return '<option value="'+v+'">'+(label?label(v):v)+'</option>'; }).join('');
+    sel.value = vals.indexOf(cur)>=0 ? cur : (vals.indexOf(fallback)>=0?fallback:vals[0]);
+  }
+  if(isImage){
+    setOpts(secSel, [], '8'); setOpts(resSel, [], '1080p');
+    setOpts(ratioSel, imgModelRatios(model), '1:1');
+    return;
+  }
+  var vo=videoModelOpts(model);
+  setOpts(secSel, (vo.secs||[]).map(String), '5', function(v){ return v+'초'; });
+  setOpts(resSel, vo.res||[], '1080p');
+  setOpts(ratioSel, vo.ratios||[], '16:9');
+}
 function pruneModelPorts(){
   var before=state.links.length;
   state.links=state.links.filter(function(l){
@@ -7522,6 +7549,12 @@ pfHandleTossReturn();
     sel.innerHTML=list.map(function(n){ return '<option value="'+n.replace(/"/g,'&quot;')+'">'+n+'</option>'; }).join('');
     for(var i=0;i<pref.length;i++){ if(list.indexOf(pref[i])>=0){ sel.value=pref[i]; break; } }
     sel._filledMode=chMode;
+    syncCh();
+    if(!sel._syncBound){ sel._syncBound=1; sel.addEventListener('change', syncCh); }
+  }
+  function syncCh(){
+    var sel=chEl('chModel'); if(!sel) return;
+    syncGenSelectors(sel.value, chMode==='image', chEl('chSec'), chEl('chRes'), chEl('chRatio'));
   }
   function setMode(m){
     chMode = (m==='image') ? 'image' : 'video';
@@ -7591,9 +7624,11 @@ pfHandleTossReturn();
     setMode(mode);   // fillModels(true) 포함 → 이후 모델 값 지정
     var msel=chEl('chModel');
     if(msel && it.model){ for(var i=0;i<msel.options.length;i++){ if(msel.options[i].value===it.model){ msel.value=it.model; break; } } }
+    syncCh();   // 모델이 바뀌었을 수 있으니 선택지를 먼저 그 모델 기준으로 다시 만든다
     var rr=chEl('chRatio'); if(rr && it.ratio) rr.value=it.ratio;
     var rs=chEl('chRes');   if(rs && it.res)   rs.value=it.res;
     var sc=chEl('chSec');   if(sc && it.sec)   sc.value=String(it.sec);
+    syncCh();   // 그 모델이 안 받는 값이면 허용값으로 되돌린다
     var ta=chEl('chText');  if(ta){ ta.value=it.prompt||''; grow(ta); }
     chAttach=null;
     if(it.refs && it.refs.length){
@@ -7712,7 +7747,11 @@ pfHandleTossReturn();
     var pref=crMode==='image'?['Nano Banana','GPT Image 2','GPT Image','Flux 1.1 Pro']:['Google Veo 3.1','Kling 2.1 Master (텍스트→영상)','Seedance 2.0','Luma Ray 2'];
     sel.innerHTML=list.map(function(n){return '<option value="'+n.replace(/"/g,'&quot;')+'">'+n+'</option>';}).join('');
     for(var i=0;i<pref.length;i++){ if(list.indexOf(pref[i])>=0){ sel.value=pref[i]; break; } }
-    sel._m=crMode; }
+    sel._m=crMode; syncCr();
+    if(!sel._syncBound){ sel._syncBound=1; sel.addEventListener('change', syncCr); } }
+  function syncCr(){
+    var sel=el('crModel'); if(!sel) return;
+    syncGenSelectors(sel.value, crMode==='image', el('crSec'), el('crRes'), el('crRatio')); }
   function setMode(m){ crMode=(m==='image')?'image':'video';
     Array.prototype.forEach.call(document.querySelectorAll('#crMode button'),function(b){ b.classList.toggle('on', b.getAttribute('data-mode')===crMode); });
     home.classList.toggle('cr-mode-image', crMode==='image'); fillModels(true);
@@ -7739,7 +7778,9 @@ pfHandleTossReturn();
     c._it=it; c.addEventListener('click',function(){ restore(it); }); return c; }
   function restore(it){ var mode=it.mode||(it.kind==='image'?'image':'video'); setMode(mode);
     var ms=el('crModel'); if(ms&&it.model){for(var i=0;i<ms.options.length;i++){if(ms.options[i].value===it.model){ms.value=it.model;break;}}}
+    syncCr();
     var rr=el('crRatio'); if(rr&&it.ratio)rr.value=it.ratio; var rs=el('crRes'); if(rs&&it.res)rs.value=it.res; var sc=el('crSec'); if(sc&&it.sec)sc.value=String(it.sec);
+    syncCr();
     var ta=el('crText'); if(ta){ta.value=it.prompt||'';grow(ta);} crAttach=null;
     if(it.refs&&it.refs.length){var r0=it.refs[0]; if(r0&&r0.kind==='image'&&r0.dataUrl)crAttach={kind:'image',dataUrl:r0.dataUrl,name:r0.name||'참조 이미지'}; else if(r0&&r0.kind==='video'&&r0.url)crAttach={kind:'video',url:r0.url,name:r0.name||'참조 영상'};}
     renderAttach(); try{toast('프롬프트·설정을 불러왔습니다');}catch(e){} if(ta)ta.focus(); }
