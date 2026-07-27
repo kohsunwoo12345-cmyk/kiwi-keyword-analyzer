@@ -4064,11 +4064,35 @@ function getUpscaler(factor, onStage){
         run:function(cv){ return m.pipe(cv.toDataURL('image/png')).then(function(res){ return (res&&res.toCanvas)?res.toCanvas():null; }); } });
     });
   }
-  var swinFirst = _srRecall('best')==='swin' || _srRecall('esrgan').indexOf('no:')===0;
+  // 기본은 Swin2SR — 가중치가 확실히 존재하는 엔진이라 첫 실행이 곧장 돌아간다.
+  //  Real-ESRGAN 은 '가중치가 있다고 확인된 경우' 에만 우선한다(아래 _esrganWatch 가 하루 한 번 확인).
+  var swinFirst = _srRecall('esrgan')!=='yes';
   var first = swinFirst? swin : esr, second = swinFirst? esr : swin;
   return first().catch(function(e1){
     return second().catch(function(e2){ throw new Error(String(e1&&e1.message||e1)+' / '+String(e2&&e2.message||e2)); });
-  }).then(function(r){ _srRemember('best', /ESRGAN/.test(r.engine)?'esrgan':'swin'); return r; });
+  }).then(function(r){
+    _srRemember('best', /ESRGAN/.test(r.engine)?'esrgan':'swin');
+    if(!/ESRGAN/.test(r.engine)) setTimeout(_esrganWatch, 3000);   // 작업 끝난 뒤 조용히 확인
+    return r;
+  });
+}
+// Real-ESRGAN 가중치가 생겼는지 하루 한 번 '존재 확인만' 한다(다운로드 없음).
+//  있으면 기억해 두었다가 다음 업스케일부터 자동으로 그 엔진을 먼저 쓴다.
+function _esrganWatch(){
+  try{
+    var k=_srRecall('esrgan');
+    if(k==='yes') return;
+    if(k.indexOf('no:')===0 && (Date.now()-Number(k.slice(3))) < 864e5) return;
+    var i=0;
+    (function next(){
+      if(i>=ESRGAN_URLS.length){ _srRemember('esrgan','no:'+Date.now()); return; }
+      var u=ESRGAN_URLS[i++];
+      probeModel(u).then(function(ok){
+        if(ok){ _srRemember('esrgan','yes'); _srRemember('esrgan_url',u); }
+        else next();
+      });
+    })();
+  }catch(_e){}
 }
 // 러너로 캔버스를 타일 SR → 출력 캔버스(runner.factor 배).
 //  · 타일은 PAD 만큼 겹쳐 만들고, 새로 그리는 타일의 좌/상단 겹침 구간을 알파 램프로 크로스페이드해

@@ -82,7 +82,7 @@ const upscaled = await page.evaluate(async () => {
   const res = await window.__cn.upscaleImageURL(c.toDataURL('image/png'), 2)
   return { dim: res.dim, engine: res.engine, fallback: res.fallback, isPng: /^data:image\/png/.test(res.url) }
 })
-await page.waitForTimeout(300)
+await page.waitForTimeout(4500)   // 작업 뒤 백그라운드 Real-ESRGAN 존재 확인이 도는 시간
 await browser.close()
 server.close()
 
@@ -92,7 +92,14 @@ const modelReqs = requests.filter((u) => u.includes('/models/'))
 const checks = [
   ['외부 오리진 요청 0건', external.length === 0, external.slice(0, 8).join(' , ') || '없음'],
   ['모델·런타임 요청이 전부 우리 오리진', modelReqs.length > 0 && modelReqs.every((u) => u.startsWith(origin)), modelReqs.length + '건'],
-  ['가중치 존재 확인(probe) 경유', requests.some((u) => u.includes('probe=1')), '있음'],
+  // 첫 실행은 가중치가 확실한 엔진으로 곧장 간다(없는 후보를 먼저 찔러보지 않음)
+  ['첫 실행이 지연 없이 Swin2SR 로', (() => {
+    const t = requests.findIndex((u) => u.endsWith('/models/lib/transformers'))
+    const p0 = requests.findIndex((u) => u.includes('probe=1'))
+    return t >= 0 && (p0 < 0 || t < p0)
+  })(), 'transformers 먼저'],
+  // 그리고 나중에 조용히 Real-ESRGAN 가중치가 생겼는지 확인해 둔다(자동 승격 경로 유지)
+  ['백그라운드 가중치 확인 동작', requests.some((u) => u.includes('probe=1')), '있음'],
   ['Real-ESRGAN 없음 → Swin2SR 자동 채택', engine.ok === true && /Swin2SR/.test(engine.engine), JSON.stringify(engine)],
   // 이름표가 실제 배율과 일치해야 한다 — 기록·화면이 거짓말하지 않는다는 보장
   ['엔진 이름표 = 측정된 배율', engine.engine === 'Swin2SR x' + engine.factor, engine.engine + ' / factor=' + engine.factor],

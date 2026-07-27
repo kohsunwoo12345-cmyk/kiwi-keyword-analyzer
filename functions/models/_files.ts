@@ -4,12 +4,7 @@
 export const MODEL_FILES: string[] = [
   '/models/lib/transformers',
   '/models/lib/vision',
-  '/models/lib/ortweb',   // onnxruntime-web (Real-ESRGAN raw ONNX 실행용)
-  // onnxruntime-web 자기 버전 wasm — raw ONNX 실행용. transformers 번들(/models/ort)과 섞으면 안 된다.
-  '/models/ortw/ort-wasm-simd-threaded.wasm',
-  '/models/ortw/ort-wasm-simd.wasm',
-  '/models/ortw/ort-wasm-threaded.wasm',
-  '/models/ortw/ort-wasm.wasm',
+  '/models/lib/ortweb',   // onnxruntime-web (Real-ESRGAN raw ONNX 실행용 · 0.5MB)
   // Depth-Anything V2 base 양자화 — 1순위. (fp32 model.onnx 는 ≈380MB로 미사용)
   '/models/hf/onnx-community/depth-anything-v2-base/resolve/main/config.json',
   '/models/hf/onnx-community/depth-anything-v2-base/resolve/main/preprocessor_config.json',
@@ -49,6 +44,16 @@ export const MODEL_FILES: string[] = [
 
 /** 업스케일이 우리 것만으로 돌기 위해 반드시 R2 에 있어야 하는 파일 */
 export const SR_REQUIRED = MODEL_FILES.filter((p) => /swin2SR|\/models\/lib\/transformers$|\/models\/ort\//.test(p))
+
+/** Real-ESRGAN 전용 런타임 wasm (약 36MB) — 가중치가 실제로 있을 때만 적재한다.
+ *  운영 확인 결과 아래 후보 repo 가 모두 없어(502), 이 파일들은 받아봐야 쓰이지 않는다.
+ *  나중에 가중치를 확보하면 캐시 채우기가 자동으로 함께 받아온다. */
+export const ESRGAN_RUNTIME_FILES: string[] = [
+  '/models/ortw/ort-wasm-simd-threaded.wasm',
+  '/models/ortw/ort-wasm-simd.wasm',
+  '/models/ortw/ort-wasm-threaded.wasm',
+  '/models/ortw/ort-wasm.wasm',
+]
 
 /** 있으면 최상급 엔진(Real-ESRGAN)으로 자동 승격되는 후보 — 존재 확인만 한다(다운로드 아님) */
 export const ESRGAN_PROBES: string[] = [

@@ -7,7 +7,7 @@
 import { Env, ensureSchema, resolveDB, resolveBucket, requireAdminUser, getSetting, setSetting } from '../_utils'
 import { modelKeyFromPath, SELFHOST_KEY, WARM_UNTIL_KEY, LAST_UPSTREAM_KEY } from '../../models/_key'
 // 파일 목록은 한 곳(_files.ts)에서만 관리한다 — 적재와 상태 조회의 숫자가 어긋나지 않게.
-import { MODEL_FILES as FILES, SR_REQUIRED, ESRGAN_PROBES as PROBES } from '../../models/_files'
+import { MODEL_FILES, SR_REQUIRED, ESRGAN_PROBES as PROBES, ESRGAN_RUNTIME_FILES } from '../../models/_files'
 
 function esc(s: any) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => (({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as any)[c])) }
 const mb = (n: number) => (n ? (n / 1048576).toFixed(2) + ' MB' : '-')
@@ -36,6 +36,17 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const R2: any = resolveBucket(env)
   const mode = (await getSetting(db, SELFHOST_KEY)) === 'strict' ? 'strict' : 'auto'
   const lastUpstream = (await getSetting(db, LAST_UPSTREAM_KEY)) || ''
+
+  // 0) Real-ESRGAN 가중치가 실제로 있는지 먼저 확인 — 없으면 그 전용 런타임(36MB)은 받지 않는다.
+  const probes = await Promise.all(PROBES.map(async (p) => {
+    try {
+      const r = await fetch(origin + p + '?probe=1', { headers: { 'x-warm': '1' } })
+      const j: any = await r.json().catch(() => ({}))
+      return { path: p, ok: !!j.ok, bytes: Number(j.bytes) || 0 }
+    } catch { return { path: p, ok: false, bytes: 0 } }
+  }))
+  const esrOk = probes.filter((x) => x.ok).length
+  const FILES = esrOk > 0 ? MODEL_FILES.concat(ESRGAN_RUNTIME_FILES) : MODEL_FILES
 
   // 1) R2 에 이미 있는지 먼저 확인 — 있는 파일은 다시 받지 않는다(점검은 싸게, 반복 실행 안전).
   const have = await Promise.all(FILES.map(async (p) => {
@@ -75,16 +86,6 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     if (mode === 'strict') await setSetting(db, WARM_UNTIL_KEY, '0')   // 창 즉시 닫기
   }
 
-  // 3) Real-ESRGAN 후보: 존재 여부만 확인 (있으면 스튜디오가 자동으로 그 가중치를 쓴다)
-  const probes = await Promise.all(PROBES.map(async (p) => {
-    try {
-      const r = await fetch(origin + p + '?probe=1', { headers: { 'x-warm': '1' } })
-      const j: any = await r.json().catch(() => ({}))
-      return { path: p, ok: !!j.ok, bytes: Number(j.bytes) || 0 }
-    } catch { return { path: p, ok: false, bytes: 0 } }
-  }))
-  const esrOk = probes.filter((x) => x.ok).length
-
   const rows = have.map((h) => {
     const f = filled[h.path]
     const ok = h.inR2 || !!(f && f.ok)
@@ -123,6 +124,7 @@ button.btn.alt{background:linear-gradient(135deg,#475569,#64748b);}</style>
 </div>
 
 <h2>Real-ESRGAN 가중치 존재 확인 (다운로드 아님)</h2>
+<p style="margin:0 0 8px">전부 "없음" 이면 정상입니다 — Swin2SR 로 동작합니다. 이 경우 Real-ESRGAN 전용 런타임(약 36MB)도 받지 않습니다.</p>
 <table><thead><tr><th>후보 repo</th><th>존재</th><th>크기</th></tr></thead><tbody>
 ${probes.map((x) => `<tr><td>${esc(x.path)}</td><td class="${x.ok ? 'ok' : 'no'}">${x.ok ? '있음' : '없음'}</td><td>${mb(x.bytes)}</td></tr>`).join('')}
 </tbody></table>
