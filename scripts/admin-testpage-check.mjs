@@ -94,6 +94,19 @@ ok('   진짜 초해상으로 판정', /AI 모델이 디테일을 복원/.test(u
 ok('   외부 서버 호출 0건', /0건 \(우리 서버만 사용/.test(upText), (upText.match(/외부 서버 호출[\s\S]{0,80}/) || [''])[0].replace(/<[^>]*>/g, '').slice(0, 70))
 ok('   전/후 이미지 표시', await page.locator('img[alt="결과"]').count() > 0)
 
+// 2-b) 4× · 5K 도 실제로 눌러본다 — 관리자가 곧 시험할 배율 전부
+for (const label of ['4×', '5K']) {
+  await page.getByRole('button', { name: label, exact: true }).click()
+  await page.getByRole('button', { name: /실행/ }).click()
+  await page.waitForFunction(() => /업스케일 실행/.test(document.body.innerText), null, { timeout: 60000 })
+  await page.waitForTimeout(800)
+  const t = await page.locator('body').innerText()
+  const line = (t.match(/업스케일 실행\s*\n?([^\n]*)/) || [])[1] || ''
+  const real = !/단순 확대로 처리/.test(t)
+  ok(`2-b. ${label} 실행`, /→/.test(line) && real, line.trim().slice(0, 80))
+}
+await page.getByRole('button', { name: '2×', exact: true }).click()
+
 // 3) 씨댄스 전송 검증 — 실제 서버 빌더로 확인
 await page.getByRole('button', { name: /확인/ }).click()
 await page.waitForSelector('text=first_frame 역할로 전송', { timeout: 20000 })

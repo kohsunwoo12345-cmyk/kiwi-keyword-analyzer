@@ -2174,6 +2174,7 @@ function recordUpscale(srcUrl, res, scaleLabel, srcModel, prompt){
                  (srcModel?(' · 원본 모델 '+srcModel):'') +
                  (res.fallback&&res.reason?('\n초해상 불가 사유: '+res.reason):'') +   // 관리자가 원인을 바로 본다
                  (res.clamped?('\n해상도 한계로 실제 배율 '+(Math.round((res.ratio||0)*100)/100)+'배'):'') +
+                 (res.note?('\n'+res.note):'') +
                  (prompt?('\n'+prompt):'');
     // 원본이 이미 URL 이면 그대로 기록(재업로드 회피). data:/blob: 만 R2 로 올린다.
     var srcJob = /^(data|blob):/.test(String(srcUrl||'')) ? _upHost(srcUrl, 30000000) : Promise.resolve(srcUrl||'');
@@ -4141,8 +4142,14 @@ function upscaleImageURL(src,scale,opts,onProg){
     var img=new Image(); img.crossOrigin='anonymous';
     img.onload=function(){
       var iw=img.naturalWidth||512, ih=img.naturalHeight||512;
-      var factor=(opts&&opts.factor)||(scale>=4?4:2), effScale=scale;
-      if(opts&&opts.longTarget){ effScale=Math.max(1, Math.min(8, opts.longTarget/Math.max(iw,ih))); factor=4; }
+      var factor=(opts&&opts.factor)||(scale>=4?4:2), effScale=scale, note='';
+      if(opts&&opts.longTarget){
+        var want=opts.longTarget/Math.max(iw,ih);
+        effScale=Math.max(1, Math.min(8, want)); factor=4;
+        // 8배는 초해상의 실질 상한 — 그 이상은 없는 정보를 지어내는 쪽에 가깝다.
+        //  목표에 못 미치면 조용히 넘기지 말고 이유를 알린다.
+        if(want>8) note='원본이 작아 최대 8배까지만 확대했습니다(목표 '+opts.longTarget+'px 미달)';
+      }
       var tw=Math.max(1,Math.round(iw*effScale)), th=Math.max(1,Math.round(ih*effScale));
       var clamp=Math.min(1, SR_MAX_SIDE/Math.max(tw,th), Math.sqrt(SR_MAX_PIX/Math.max(1,tw*th)));
       if(clamp<1){ tw=Math.max(1,Math.round(tw*clamp)); th=Math.max(1,Math.round(th*clamp)); }   // 캔버스 한계 보호
@@ -4154,7 +4161,7 @@ function upscaleImageURL(src,scale,opts,onProg){
         var rx=rc.getContext('2d'); rx.imageSmoothingEnabled=true; rx.imageSmoothingQuality='high';
         rx.drawImage(img,0,0,tw,th);
         resolve({ url:rc.toDataURL('image/png'), kind:'image', dim:tw+'×'+th, srcDim:iw+'×'+ih,
-                  engine:'리사이즈(원본이 이미 목표 해상도)', fallback:false, clamped:clamp<1, ratio:ratio });
+                  engine:'리사이즈(원본이 이미 목표 해상도)', fallback:false, clamped:clamp<1, ratio:ratio, note:note });
         return;
       }
       // 엔진 배율은 버튼 라벨이 아니라 '필요한 배율' 로 고른다.
@@ -4181,7 +4188,7 @@ function upscaleImageURL(src,scale,opts,onProg){
           }
           if(keepAlpha) _applyAlphaFrom(o, srcC);
           resolve({ url:o.toDataURL('image/png'), kind:'image', dim:tw+'×'+th, srcDim:iw+'×'+ih,
-                    engine:runner.engine, fallback:false, clamped:clamp<1, ratio:ratio });
+                    engine:runner.engine, fallback:false, clamped:clamp<1, ratio:ratio, note:note });
         });
       }).catch(function(err){
         // 초해상 불가 → 리샘플(디테일 복원 아님). 무엇이 왜 안 됐는지 reason 으로 올려보낸다.
@@ -6142,7 +6149,8 @@ canvas.addEventListener('click',function(e){
           if(res.fallback) toast('초해상 모델을 쓰지 못해 리샘플로 확대했습니다 (디테일 복원 아님) · '+res.dim);
           // 캔버스 한계로 요청 배율을 다 못 준 경우 숨기지 않고 실제 배율을 알려준다
           else toast('업스케일 완료 · '+(res.engine||'초해상')+' · '+res.dim+
-                     (res.clamped?(' (해상도 한계로 실제 '+(Math.round((res.ratio||0)*100)/100)+'배)'):''));
+                     (res.clamped?(' (해상도 한계로 실제 '+(Math.round((res.ratio||0)*100)/100)+'배)'):'')+
+                     (res.note?(' · '+res.note):''));
           // 관리자 "AI 생성 기록"에 남긴다 (원가 0 · 크레딧 미차감). 실패해도 사용자 흐름엔 영향 없음.
           try{ recordUpscale(uSrc, res, uLabel, n2.w.model, n2.w.prompt||''); }catch(_e){} })
         .catch(function(err){ n2.w.upscaling=false; render(); toast('업스케일 실패: '+String(err&&err.message||err).slice(0,70)); });

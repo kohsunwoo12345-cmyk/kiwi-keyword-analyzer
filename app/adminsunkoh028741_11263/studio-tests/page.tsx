@@ -116,8 +116,8 @@ export default function StudioTestsPage() {
       setAfter(res.url)
       out.push({
         label: '업스케일 실행',
-        value: `${res.srcDim} → ${res.dim} · ${res.engine} · ${secs}초${res.clamped ? ' (해상도 한계로 배율 조정됨)' : ''}`,
-        state: res.fallback ? 'fail' : 'pass',
+        value: `${res.srcDim} → ${res.dim} · ${res.engine} · ${secs}초${res.clamped ? ' · 해상도 한계로 배율 조정됨' : ''}${res.note ? ' · ' + res.note : ''}`,
+        state: res.fallback ? 'fail' : res.note || res.clamped ? 'warn' : 'pass',
       })
       out.push({
         label: '진짜 초해상 여부',
