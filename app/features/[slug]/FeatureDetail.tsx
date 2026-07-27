@@ -24,6 +24,7 @@ import { Footer } from '@/components/layout/Footer'
 import { Button, SectionTag, Panel } from '@/components/ui'
 import { Reveal, Counter } from '@/components/motion'
 import { VideoStudioShowcase } from '@/components/features/VideoStudioShowcase'
+import { YoutubeInsightShowcase } from '@/components/features/YoutubeInsightShowcase'
 import { cn } from '@/lib/utils'
 import { FEATURES, getFeature, type Feature } from '@/lib/features'
 import { useT, type Dict } from '@/lib/i18n'
@@ -506,6 +507,9 @@ export function FeatureDetail({ slug }: { slug: string }) {
           <VideoStudioShowcase feature={feature} />
         </>
       )}
+
+      {/* ===== 유튜브 분석 쇼케이스 ===== */}
+      {slug === 'youtube' && <YoutubeInsightShowcase feature={feature} />}
 
       {/* ===== CAPABILITIES ===== */}
       <section className="relative py-20">
