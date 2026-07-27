@@ -230,7 +230,11 @@ const RATIO_WORDS = {
   "4:5":  "4:5 portrait composition",
   "4:3":  "4:3 landscape composition",
   "3:4":  "3:4 portrait composition",
-  "21:9": "21:9 ultrawide cinematic composition"
+  "3:2":  "3:2 landscape composition",
+  "2:3":  "2:3 portrait composition",
+  "5:4":  "5:4 landscape composition",
+  "21:9": "21:9 ultrawide cinematic composition",
+  "9:21": "9:21 ultratall vertical composition"
 };
 export function withRatioHint(text, ratio) {
   const w = RATIO_WORDS[String(ratio || "").trim()];
@@ -750,8 +754,14 @@ async function collectRefDataUris(b, max) {
   return out;
 }
 
+/* gemini-2.5-flash-image(나노바나나)가 generationConfig.imageConfig.aspectRatio 로 받는 비율.
+   문서상 지원 목록 — 이 밖의 값은 필드로 보내지 않고 프롬프트 힌트만 남긴다. */
+const NANO_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"];
 export function buildNanoPayload(b) {
-  const prompt = (b.prompt || "").slice(0, 2000);
+  const ratio = String(b.ratio || "").trim();
+  // 비율은 ①필드(imageConfig.aspectRatio) ②프롬프트 힌트 둘 다로 전달 —
+  //  구버전 엔드포인트가 필드를 무시하거나(400 시 재시도) 해도 구도가 반영되도록.
+  const prompt = withRatioHint((b.prompt || ""), ratio).slice(0, 2000);
   const parts = [{ text: prompt }];
   // _refs(핸들러가 준비한 data:URI 배열)가 있으면 전부 인라인, 없으면 단일 폴백
   const refs = Array.isArray(b._refs) && b._refs.length ? b._refs
@@ -760,7 +770,13 @@ export function buildNanoPayload(b) {
     const m = /^data:(image\/[^;]+);base64,(.+)$/.exec(String(ref));
     if (m) parts.push({ inlineData: { mimeType: m[1], data: m[2] } });
   }
-  return { contents: [{ role: "user", parts }] };
+  const out = { contents: [{ role: "user", parts }] };
+  if (NANO_RATIOS.indexOf(ratio) >= 0) out.generationConfig = { imageConfig: { aspectRatio: ratio } };
+  return out;
+}
+// imageConfig 를 모르는 엔드포인트(400 INVALID_ARGUMENT)에 대비한 폴백 페이로드
+function nanoPayloadNoRatio(p) {
+  const c = JSON.parse(p); delete c.generationConfig; return JSON.stringify(c);
 }
 
 /* ── OpenAI 이미지 생성 (gpt-image-1) — 텍스트→이미지, 레퍼런스 있으면 편집(images/edits) ──
@@ -2450,14 +2466,19 @@ async function handle(context) {
     if (!sa && !k.google) return json({ error: "나노바나나: 구글 인증이 없습니다 (Vertex 서비스계정 또는 VEO_API_KEY 필요)" }, 500);
     const nanoRefs = await collectRefDataUris(b, 12);   // 레퍼런스 최대 12장 (합성/편집)
     const payload = JSON.stringify(buildNanoPayload(Object.assign({}, b, { _refs: nanoRefs })));
-    let r;
+    let nanoUrl, nanoHeaders;
     if (sa) {   // Vertex(서비스계정) — Veo와 동일 인증
       let tok; try { tok = await gcpToken(sa.email, sa.pem); } catch (e) { return json({ error: "나노바나나 토큰 실패: " + String((e && e.message) || e).slice(0, 160) }, 502); }
-      const url = "https://" + VERTEX_LOC + "-aiplatform.googleapis.com/v1/projects/" + sa.pid + "/locations/" + VERTEX_LOC + "/publishers/google/models/" + NANO_MODEL + ":generateContent";
-      r = await fetchT(url, { method: "POST", headers: { "Authorization": "Bearer " + tok, "Content-Type": "application/json" }, body: payload }, 60000);
+      nanoUrl = "https://" + VERTEX_LOC + "-aiplatform.googleapis.com/v1/projects/" + sa.pid + "/locations/" + VERTEX_LOC + "/publishers/google/models/" + NANO_MODEL + ":generateContent";
+      nanoHeaders = { "Authorization": "Bearer " + tok, "Content-Type": "application/json" };
     } else {    // AI Studio 키
-      r = await fetchT("https://generativelanguage.googleapis.com/v1beta/models/" + NANO_MODEL + ":generateContent?key=" + encodeURIComponent(k.google),
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: payload }, 60000);
+      nanoUrl = "https://generativelanguage.googleapis.com/v1beta/models/" + NANO_MODEL + ":generateContent?key=" + encodeURIComponent(k.google);
+      nanoHeaders = { "Content-Type": "application/json" };
+    }
+    let r = await fetchT(nanoUrl, { method: "POST", headers: nanoHeaders, body: payload }, 60000);
+    // imageConfig(비율) 미지원 엔드포인트면 400 → 비율 필드만 빼고 1회 재시도 (프롬프트 힌트는 유지)
+    if (r.status === 400 && /"imageConfig"|generationConfig/.test(payload)) {
+      r = await fetchT(nanoUrl, { method: "POST", headers: nanoHeaders, body: nanoPayloadNoRatio(payload) }, 60000);
     }
     const j = await r.json().catch(() => ({}));
     if (!r.ok) return json({ error: "나노바나나 HTTP " + r.status + ": " + String((j.error && j.error.message) || JSON.stringify(j)).slice(0, 220) }, 502);
