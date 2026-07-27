@@ -2611,9 +2611,11 @@ var MODEL_REF_LIMIT = {
   'Seedream 4.5':14,'Seedream 4.5 (레퍼런스 편집)':14,
   'Seedream 4.0':14,'Seedream 4.0 (레퍼런스 편집)':14,
   'Nano Banana':12, 'GPT Image 2':12,'GPT Image 1.5':12,'GPT Image':12,'GPT Image Mini':12,
-  // Kontext 는 입력 이미지 1장 편집 모델, Flux 2·1.x 는 순수 생성(레퍼런스 미사용), Grok 은 image_url 1장
+  // Kontext 는 입력 이미지 1장 편집 모델, Grok 은 image_url 1장.
+  // FLUX.2 는 input_image~input_image_8 로 다중 레퍼런스(API 최대 8장),
+  // FLUX 1.x 는 image_prompt 로 1장 — 둘 다 서버 페이로드에 실제로 실린다.
   'Flux Kontext Max (레퍼런스 편집)':1,'Flux Kontext Pro (레퍼런스 편집)':1,
-  'Flux 2 Flex':1,'Flux 2 Dev':1,
+  'Flux 2 Flex':8,'Flux 2 Dev':8,
   'Flux 1.1 Pro Ultra':1,'Flux 1.1 Pro':1,'Flux Pro':1,'Flux Dev':1,'Grok Imagine':1
 };
 function modelRefLimit(model){ var v=MODEL_REF_LIMIT[model]; return v==null?1:v; }
@@ -5409,11 +5411,18 @@ function widgetHTML(n,w){
     return h+'</div>';
   }
   if(w.t==='addrefbtns'){   // 모델 로더: +래퍼런스 → 레퍼런스 노드를 생성·연결 (모델이 지원하는 것만 노출)
-    var rc=videoModelCaps(effModel(n)), btns='';
+    var _rm=effModel(n), rc=videoModelCaps(_rm), btns='';
     if(rc.ref)    btns+='<button class="wbtn addref-btn" data-addref="imageref">＋ 이미지 레퍼런스</button>';
     if(rc.vidref) btns+='<button class="wbtn addref-btn" data-addref="videoref">＋ 영상 레퍼런스</button>';
     if(!btns) return '';   // 텍스트 전용 모델(레퍼런스 미지원) — 버튼 숨김
-    return '<div class="addref-row">'+btns+'</div>';
+    // 사진 레퍼런스를 여러 장 받는 영상 모델은 Seedance 2.0 계열뿐이다(reference_image 최대 9장).
+    //  나머지는 첫 장만 쓰므로, 여러 장 연결해도 무시된다는 사실을 노드에 그대로 적어 둔다.
+    var note = rc.ref
+      ? (/Seedance 2\.0/.test(_rm)
+          ? '<div class="refcnt">사진 레퍼런스 최대 <b>9장</b> · 영상 3장 · 오디오 3장</div>'
+          : '<div class="refcnt">이 모델은 사진 레퍼런스를 <b>1장</b>만 사용합니다 (여러 장을 연결해도 첫 장만 적용)</div>')
+      : '';
+    return '<div class="addref-row">'+btns+'</div>'+note;
   }
   if(w.t==='image'){
     if(n.w.img && !n.w.imgs){ n.w.imgs=[n.w.img]; n.w.img=null; }  // 구버전 마이그레이션

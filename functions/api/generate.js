@@ -523,6 +523,33 @@ export function buildFluxPayload(b) {
     return { endpoint: ep, body };
   }
 
+  /* 레퍼런스 이미지 — Kontext 가 아닌 Flux 모델도 레퍼런스를 받는다.
+     · FLUX.2 (flex·dev): input_image, input_image_2 … input_image_8 (API 최대 8장)
+     · FLUX 1.x (ultra·pro·dev): image_prompt(base64) + image_prompt_strength
+     예전엔 Kontext 외에는 레퍼런스를 통째로 버렸다 — 노드는 1장을 받아 요금까지 가산하는데
+     실제 요청에는 실리지 않아 "레퍼런스가 무시된다" 로 보였다. */
+  const isFlux2 = /^flux-2-/.test(ep);
+  const allRefs = (() => {
+    const out = [], seen = {};
+    const push = (v) => { const s = stripB64(v); if (s && !seen[s] && (seen[s] = 1)) out.push(s); };
+    if (Array.isArray(b.refImages)) b.refImages.forEach(push);
+    push(b.firstFrame); push(b.refImage);
+    return out;
+  })();
+  //  1.x 의 image_prompt 는 기본 강도가 0.1 로 매우 약해, 붙여도 반영이 거의 안 보인다.
+  //  레퍼런스를 "일부러 연결한" 경우이므로 중간 강도로 올려 실제로 구도·스타일이 반영되게 한다.
+  const IMG_PROMPT_STRENGTH = 0.5;
+  const withRefs = (body) => {
+    if (!allRefs.length) return body;
+    if (isFlux2) {
+      allRefs.slice(0, 8).forEach((v, i) => { body[i === 0 ? "input_image" : "input_image_" + (i + 1)] = v; });
+    } else {
+      body.image_prompt = allRefs[0];
+      body.image_prompt_strength = IMG_PROMPT_STRENGTH;
+    }
+    return body;
+  };
+
   const cn = String(b.controlnet || "").toLowerCase();          // '', 'canny', 'depth'
   const loraId = String(b.lora || "").trim();                    // BFL finetune_id
   const loraStrength = Math.max(0, Math.min(2, Number(b.loraStrength) || 1.1));
@@ -543,21 +570,21 @@ export function buildFluxPayload(b) {
   if (loraId) {
     if (ep === "flux-pro-1.1-ultra")
       return { endpoint: "flux-pro-1.1-ultra-finetuned",
-               body: { prompt, aspect_ratio: b.ratio || "16:9", output_format: "png",
-                       safety_tolerance: 6, finetune_id: loraId, finetune_strength: loraStrength } };
+               body: withRefs({ prompt, aspect_ratio: b.ratio || "16:9", output_format: "png",
+                       safety_tolerance: 6, finetune_id: loraId, finetune_strength: loraStrength }) };
     const [w, h] = FLUX_DIMS[b.ratio] || FLUX_DIMS["16:9"];
     return { endpoint: "flux-pro-finetuned",
-             body: { prompt, width: w, height: h, output_format: "png",
-                     safety_tolerance: 6, finetune_id: loraId, finetune_strength: loraStrength } };
+             body: withRefs({ prompt, width: w, height: h, output_format: "png",
+                     safety_tolerance: 6, finetune_id: loraId, finetune_strength: loraStrength }) };
   }
 
   // ── 기본 ──
   if (ep === "flux-pro-1.1-ultra")
-    return { endpoint: ep, body: { prompt, aspect_ratio: b.ratio || "16:9",
-             output_format: "png", safety_tolerance: 6 } };
+    return { endpoint: ep, body: withRefs({ prompt, aspect_ratio: b.ratio || "16:9",
+             output_format: "png", safety_tolerance: 6 }) };
   const [w, h] = FLUX_DIMS[b.ratio] || FLUX_DIMS["16:9"];
-  return { endpoint: ep, body: { prompt, width: w, height: h,
-           output_format: "png", safety_tolerance: 6 } };
+  return { endpoint: ep, body: withRefs({ prompt, width: w, height: h,
+           output_format: "png", safety_tolerance: 6 }) };
 }
 
 /* ── fal.ai Flux ControlNet (Canny / Depth / Pose) — 컴피UI식 ControlNet ──
