@@ -298,6 +298,10 @@ export function buildXaiVideoPayload(b, env) {
     duration: [5, 8, 10].reduce((a, c) => {
       const w = Number(b.seconds) || 5; return Math.abs(c - w) < Math.abs(a - w) ? c : a; }, 5)
   };
+  // 영상 엔드포인트는 이미지와 달리 aspect_ratio 를 실제 필드로 받는다(문서 예시 기준).
+  //  예전엔 프롬프트 문구로만 넣어 구도가 어긋날 수 있었다 → 필드로도 보낸다(문구는 보조로 유지).
+  const XAI_RATIOS = ["16:9", "9:16", "1:1"];
+  if (XAI_RATIOS.indexOf(String(b.ratio || "").trim()) >= 0) p.aspect_ratio = String(b.ratio).trim();
   if (img && /^https?:\/\//.test(String(img))) p.image = { url: String(img) };  // data:URL 은 불가(공개 URL 필요)
   return p;
 }
@@ -673,6 +677,9 @@ async function klingAuth(cr) {
   return "Bearer " + (cr.mode === "aksk" ? await klingJWT(cr.ak, cr.sk) : cr.token);
 }
 // 표시 이름 → 공식 API 스펙 (model_name / mode / 엔드포인트)
+/* Kling 3.0 의 공식 model_name 은 v2 계열의 "-master" 표기와 다르다(kling-v3 계열).
+   콘솔 표기가 갈릴 수 있어 후보를 순서대로 시도한다 — Seedance 와 같은 방식. */
+export const KLING_ALT = { "kling-v3-master": ["kling-v3", "kling-v3-master", "kling-v3-std"] };
 export const KLING_API = {
   "Kling 3.0 Pro (텍스트→영상)": { m: "kling-v3-master", mode: "pro", ep: "text2video" },
   "Kling 3.0 Pro (이미지→영상)": { m: "kling-v3-master", mode: "pro", ep: "image2video" },
@@ -695,12 +702,10 @@ function klingApiSpec(b) {
 }
 function _stripDataUri(v) { return v ? String(v).replace(/^data:[^,]+,/, "") : ""; }
 function buildKlingApiPayload(b, spec) {
-  // Kling 3.0 만 3~15초를 받는다. 1.6/2.0/2.1 은 5·10초 두 값뿐이라 그쪽으로 스냅한다.
-  //  (예전엔 전 모델을 5/10 으로 고정해, 3.0 에서 15초를 골라도 10초로 잘렸다.)
+  // Kling 공식 API 의 duration 은 text2video·image2video 모두 "5" 또는 "10" 두 값만 받는다.
+  //  (한때 3.0 은 3~15 라고 보고 그대로 흘려보냈는데, 3·8·12·15 는 제공사가 거부한다.)
   const rawSec = Number(b.seconds) || 5;
-  const dur = /kling-v3/.test(String(spec.m || ""))
-    ? String(Math.min(Math.max(Math.round(rawSec), 3), 15))
-    : (rawSec > 7 ? "10" : "5");
+  const dur = rawSec > 7 ? "10" : "5";
   const p = { model_name: spec.m, prompt: cut(b.prompt, 2500), mode: spec.mode, duration: dur };
   if (b.negative) p.negative_prompt = String(b.negative).slice(0, 2500);
   // 노드의 CFG 슬라이더는 0~100 인데 Kling 은 0~1 만 받는다.
@@ -2803,15 +2808,23 @@ async function handle(context) {
     if (cr) {
       const spec = klingApiSpec(b);
       const auth = await klingAuth(cr);
-      const r = await fetchT(cr.base + "/v1/videos/" + spec.ep, {
-        method: "POST",
-        headers: { "Authorization": auth, "Content-Type": "application/json" },
-        body: JSON.stringify(buildKlingApiPayload(b, spec))
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || j.code !== 0 || !(j.data && j.data.task_id))
-        return json({ error: "Kling: " + String(j.message || JSON.stringify(j) || "요청 실패").slice(0, 200) }, 502);
-      return json({ statusUrl: "/api/generate?provider=kling&task=" + encodeURIComponent(j.data.task_id) + "&ep=" + spec.ep });
+      // 모델명 표기가 갈리는 계열(3.0)은 후보를 순서대로 시도하고, 마지막 오류를 그대로 보고한다.
+      const mids = KLING_ALT[spec.m] || [spec.m];
+      let lastMsg = "요청 실패";
+      for (const mid of mids) {
+        const r = await fetchT(cr.base + "/v1/videos/" + spec.ep, {
+          method: "POST",
+          headers: { "Authorization": auth, "Content-Type": "application/json" },
+          body: JSON.stringify(buildKlingApiPayload(b, { ...spec, m: mid }))
+        });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok && j.code === 0 && j.data && j.data.task_id)
+          return json({ statusUrl: "/api/generate?provider=kling&task=" + encodeURIComponent(j.data.task_id) + "&ep=" + spec.ep });
+        lastMsg = "[" + mid + "] " + String(j.message || JSON.stringify(j) || "요청 실패");
+        // 모델명 문제가 아니면(잔액·검열·파라미터 등) 다른 후보를 시도해도 의미가 없다.
+        if (!/model|not\s*exist|not\s*found|invalid.*name|不存在/i.test(lastMsg)) break;
+      }
+      return json({ error: "Kling: " + lastMsg.slice(0, 220) }, 502);
     }
     // 2순위(폴백): fal.ai 경유 (FAL_KEY 있을 때만)
     if (!k.fal) return json({ error: "Kling 연동이 설정되지 않았습니다. 환경변수 KLING_ACCESS_KEY·KLING_SECRET_KEY(또는 KLING_API_KEY) 를 넣어주세요." }, 500);

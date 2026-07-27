@@ -2512,11 +2512,11 @@ var VIDEO_MODEL_SPEC = {
   'Seedance 1.0 Pro Fast':       { secs:[5,10], ratios:['16:9','9:16','1:1'], res:['720p','1080p'], audio:false, watermark:false, neg:true, cfg:false, seed:false },
   'Seedance 1.0 Lite (텍스트→영상)': { secs:[5,10], ratios:['16:9','9:16','1:1'], res:['720p','1080p'], audio:false, watermark:false, neg:true, cfg:false, seed:false },
   'Seedance 1.0 Lite (이미지→영상)': { secs:[5,10], ratios:['16:9','9:16','1:1'], res:['720p','1080p'], audio:false, watermark:false, neg:true, cfg:false, seed:false },
-  // Kling — 1.6/2.0/2.1 은 5·10초 고정, 3.0 만 3~15초. cfg_scale(0~1) 지원.
-  'Kling 3.0 Pro (텍스트→영상)':    { secs:[3,5,8,10,12,15], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
-  'Kling 3.0 Pro (이미지→영상)':    { secs:[3,5,8,10,12,15], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
-  'Kling 3.0 Fast (텍스트→영상)':   { secs:[3,5,8,10,12,15], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
-  'Kling 3.0 Fast (이미지→영상)':   { secs:[3,5,8,10,12,15], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  // Kling — 공식 API 의 duration 은 전 모델 "5"·"10" 두 값뿐이다(3.0 포함). cfg_scale(0~1) 지원.
+  'Kling 3.0 Pro (텍스트→영상)':    { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 3.0 Pro (이미지→영상)':    { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 3.0 Fast (텍스트→영상)':   { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 3.0 Fast (이미지→영상)':   { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
   'Kling 2.1 Master (텍스트→영상)': { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
   'Kling 2.1 Master (이미지→영상)': { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
   'Kling 2.0 Master (텍스트→영상)': { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
