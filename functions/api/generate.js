@@ -334,12 +334,20 @@ export const SEEDANCE_IDS = {
   "Seedance 1.0":                ["seedance-1-0-pro-250528", "seedance-1-0-pro"]  // 구버전 표시명 호환
 };
 /* 이 모델에 시도할 ID 후보들(우선순위 순). 직접입력·환경변수가 있으면 그것만 사용. */
+/* 첫 프레임(이어보기)이 있는데 "텍스트→영상" 모델이 선택된 경우, 같은 계열의 "이미지→영상"
+   모델로 바꿔 준다. t2v 모델 ID 에 이미지를 보내면 제공사가 거부해 요청이 통째로 실패한다.
+   (스튜디오는 t2v 모델에서 첫 프레임 포트를 숨기지만 /api/v1·MCP 는 임의로 보낼 수 있다) */
+function seedanceI2VSwap(model, b) {
+  const hasFirst = !!(b && (b.firstFrame || b.refImage || (b.refImages && b.refImages[0])));
+  if (!hasFirst) return model;
+  return String(model || "").replace("(텍스트→영상)", "(이미지→영상)");
+}
 export function seedanceModelIds(b, env) {
   const custom = b && typeof b.seedanceModel === "string" && b.seedanceModel.trim();
   if (custom) return [custom];                     // 노드에서 직접 입력한 모델 ID 최우선
   const override = env && pick(env, ["SEEDANCE_MODEL_ID", "seedance_model_id"]);
   if (override) return [override];
-  const v = SEEDANCE_IDS[b && b.model] || "seedance-1-0-pro-250528";
+  const v = SEEDANCE_IDS[seedanceI2VSwap(b && b.model, b)] || SEEDANCE_IDS[b && b.model] || "seedance-1-0-pro-250528";
   return Array.isArray(v) ? v.slice() : [v];
 }
 export function seedanceModelId(b, env) { return seedanceModelIds(b, env)[0]; }
@@ -911,9 +919,12 @@ export const HAILUO_IDS = {
   "Hailuo MiniMax":           "MiniMax-Hailuo-02"   // 구버전 표시명 호환
 };
 export function buildHailuoPayload(b) {
-  const p = { model: HAILUO_IDS[b.model] || "MiniMax-Hailuo-02",
-              prompt: cut(withRatioHint(b.prompt || "", b.ratio), 2000) };
   const first = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
+  // T2V-01 Director 는 이미지를 받지 않는다. 첫 프레임(이어보기)이 있으면 같은 계열의
+  // I2V-01 Director 로 바꿔 준다 — 그대로 보내면 제공사가 거부해 요청이 통째로 실패한다.
+  let mid = HAILUO_IDS[b.model] || "MiniMax-Hailuo-02";
+  if (first && mid === "T2V-01-Director") mid = "I2V-01-Director";
+  const p = { model: mid, prompt: cut(withRatioHint(b.prompt || "", b.ratio), 2000) };
   if (first) p.first_frame_image = first;
   // T2V-01 / I2V-01 Director 계열은 6초 고정 모델이다. 10초를 보내면 제공사가 거부한다.
   //  (스튜디오는 6초만 노출하지만, /api/v1/generate·MCP 는 임의 값을 보낼 수 있다.)
