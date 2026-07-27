@@ -26,6 +26,7 @@ import { Reveal, Counter } from '@/components/motion'
 import { VideoStudioShowcase } from '@/components/features/VideoStudioShowcase'
 import { YoutubeInsightShowcase } from '@/components/features/YoutubeInsightShowcase'
 import { BlogRankShowcase } from '@/components/features/BlogRankShowcase'
+import { TeamCollabShowcase } from '@/components/features/TeamCollabShowcase'
 import { cn } from '@/lib/utils'
 import { FEATURES, getFeature, type Feature } from '@/lib/features'
 import { useT, type Dict } from '@/lib/i18n'
@@ -514,6 +515,9 @@ export function FeatureDetail({ slug }: { slug: string }) {
 
       {/* ===== 블로그 분석 쇼케이스 ===== */}
       {slug === 'blog' && <BlogRankShowcase feature={feature} />}
+
+      {/* ===== 팀 협업 쇼케이스 ===== */}
+      {slug === 'team' && <TeamCollabShowcase feature={feature} />}
 
       {/* ===== CAPABILITIES ===== */}
       <section className="relative py-20">
