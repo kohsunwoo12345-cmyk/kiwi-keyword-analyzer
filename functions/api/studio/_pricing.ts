@@ -77,6 +77,17 @@ export async function resolveMarkup(db: D1Database, userId: string, model: strin
   return undefined // computeCharge 기본값(2.5/3.0)
 }
 
+/** 자체 기능 서비스 요금 기준가(원) — 전역 설정으로 덮어쓸 수 있다.
+ *  settings.self_fees = {"화질 업스케일 (이미지 · 브라우저 초해상)": 150, ...} */
+export async function resolveSelfFees(db: D1Database): Promise<Record<string, number>> {
+  try {
+    const row: any = await db.prepare("SELECT value FROM settings WHERE key = 'self_fees'").first()
+    if (!row || !row.value) return {}
+    const o = JSON.parse(row.value)
+    return o && typeof o === 'object' ? o : {}
+  } catch { return {} }
+}
+
 /** 오늘자 USD→KRW 환율 (하루 1회 조회 후 D1 캐시). 결제/생성 시점의 그날 환율을 반환. */
 export async function getUsdKrw(db: D1Database): Promise<number> {
   const today = new Date().toISOString().slice(0, 10)
@@ -135,7 +146,9 @@ export function billedSeconds(model: string, seconds?: number): number {
 }
 
 // 모델 표시명 → 단가.  u:'sec'(영상 초당) | 'img'(이미지 장당), usd, audio(오디오 초당 추가), prov(집계용)
-export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?: number; prov: string }> = {
+//  feeKrw: 원가가 0인 '우리 자체 기능' 의 판매 기준가(원/단위). 제공사 비용이 아니라 서비스 요금이라
+//   원가(usd)와 분리해 둔다. 최종 청구 = feeKrw × 수량 × 배수(전역·회원별 설정) ÷ 1크레딧 단가.
+export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?: number; prov: string; feeKrw?: number }> = {
   'Runway Aleph (영상→실사 V2V)': { u: 'sec', usd: 0.15, prov: 'runway_aleph' },
   'V2V 자동 (최고정확도·모델 자동선택)': { u: 'sec', usd: 0.15, prov: 'v2v_auto' },
   '모션 전이 (원본 움직임 유지·Motion Transfer)': { u: 'sec', usd: 0.12, prov: 'motion' },
@@ -197,8 +210,10 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   // ── 오디오·립싱크 (초당) — 관리자 ai-pricing 에서 모델별 배수 설정 가능 ──
   '음악 생성 (BGM·뮤직)': { u: 'sec', usd: 0.01, prov: 'music' },
   // 브라우저 자체 초해상(Real-ESRGAN/Swin2SR) — 외부 API 원가 0. 기록만 남고 크레딧은 차감되지 않는다.
-  '화질 업스케일 (이미지 · 브라우저 초해상)': { u: 'img', usd: 0, prov: 'upscale' },
-  '화질 업스케일 (영상 · 브라우저 초해상)': { u: 'sec', usd: 0, prov: 'upscale' },
+  //  원가 0(사용자 브라우저에서 처리) — 대신 서비스 요금으로 과금한다. 금액은 관리자 페이지에서
+  //  전역·회원별로 조정 가능(배수 설정이 그대로 적용된다).
+  '화질 업스케일 (이미지 · 브라우저 초해상)': { u: 'img', usd: 0, prov: 'upscale', feeKrw: 100 },
+  '화질 업스케일 (영상 · 브라우저 초해상)': { u: 'sec', usd: 0, prov: 'upscale', feeKrw: 30 },
   '나레이션 (AI 음성 해설)': { u: 'sec', usd: 0.02, prov: 'narrate' },
   '립싱크 (인물 말하기)': { u: 'sec', usd: 0.1, prov: 'lipsync' },
 }
@@ -236,7 +251,7 @@ const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100
 /** 서버 권위 과금 계산 — 스튜디오 recordCost 공식과 동일. usdKrw 는 그날의 환율.
  *  markupOverride: 회원별 관리자 지정 배수(원가=1). 지정 시 기본 마크업 대신 사용하며 최소 1배로 강제.
  *  크레딧 = 실제비용(원) × 배수 ÷ 50 을 소수 2자리로 차감(예: 2.5원→0.05, 57원→1.14). */
-export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, markupOverride?: number, creditKrw: number = CREDIT_KRW): ChargeResult {
+export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, markupOverride?: number, creditKrw: number = CREDIT_KRW, feeOverride?: number): ChargeResult {
   const basis = creditKrw && creditKrw > 0 ? creditKrw : CREDIT_KRW // 1크레딧당 원(회원 단가). 기본 50, 충전단가(65 등) 전달 시 그 값 기준
   const rate = usdKrw && usdKrw > 0 ? usdKrw : USD_KRW
   const model = String(input.model || '')
@@ -257,10 +272,15 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
   }
   const costKrw = Math.round(usd * rate)
   // 마크업: 회원별 지정 배수가 있으면 그 값(최소 1배). 없으면 씨댄스 2.0/이미지=2.5, 그 외 3배
+  //  단, 원가 0 인 자체 기능(업스케일)은 '요금 × 배수' 구조라 기본 1배에서 시작한다.
+  const feeKrw = feeOverride != null && feeOverride >= 0 ? feeOverride : m && m.feeKrw ? m.feeKrw : 0
+  const isSelfFee = usd === 0 && feeKrw > 0
   const isSeed20 = /Seedance\s*2\.0/i.test(model)
-  const defaultMarkup = isSeed20 || isImg ? 2.5 : 3.0
+  const defaultMarkup = isSelfFee ? 1.0 : isSeed20 || isImg ? 2.5 : 3.0
   const markup = markupOverride && markupOverride > 0 ? Math.max(1, markupOverride) : defaultMarkup
-  const priceKrw = costKrw * markup
+  // 자체 기능은 원가가 아니라 서비스 요금(원/단위)에 배수를 곱해 판매가를 만든다.
+  const feeUnits = isImg ? 1 : Math.max(1, Math.round(Number(input.units) || 0))
+  const priceKrw = isSelfFee ? feeKrw * feeUnits * markup : costKrw * markup
   // 정확 비례 소수 크레딧 (올림 없음, 최소 1 없음). 1크레딧=basis원 → 1배·원가 6500원·65원기준 = 100크레딧
   const credits = round2(priceKrw / basis)
   const revenueKrw = round2(credits * basis)

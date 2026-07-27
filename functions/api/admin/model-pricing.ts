@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser, setSetting, getSetting, logAudit, clientIp } from '../_utils'
-import { MODEL_COST, PROV_LABEL, computeCharge, getUsdKrw, getModelMarkups, CREDIT_KRW, REF_SURCHARGE_DEFAULT, CN_SURCHARGE_DEFAULT } from '../studio/_pricing'
+import { MODEL_COST, PROV_LABEL, computeCharge, getUsdKrw, getModelMarkups, CREDIT_KRW, REF_SURCHARGE_DEFAULT, CN_SURCHARGE_DEFAULT , resolveSelfFees} from '../studio/_pricing'
 
 const clampPct = (v: any) => Math.max(0, Math.min(100, Math.round((Number(v) || 0) * 1000) / 1000))
 
@@ -84,16 +84,19 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     if (u) { userName = u.name || ''; userOverall = Number(u.credit_markup) || 0 }
   }
 
+  // 자체 기능(업스케일)의 서비스 요금 기준가 — 원가가 0이라 배수만으로는 금액이 안 나온다.
+  const selfFees = await resolveSelfFees(db)
   const models = Object.keys(MODEL_COST).map((model) => {
     const m = (MODEL_COST as any)[model]
     const kind = m.u === 'img' ? 'image' : 'video'
-    const base = computeCharge({ model, units: unitsFor(kind), kind, res: '1080p' } as any, rate, 1)
-    const dflt = computeCharge({ model, units: unitsFor(kind), kind, res: '1080p' } as any, rate, undefined)
+    const fee = selfFees[model] != null ? Number(selfFees[model]) : undefined
+    const base = computeCharge({ model, units: unitsFor(kind), kind, res: '1080p' } as any, rate, 1, CREDIT_KRW, fee)
+    const dflt = computeCharge({ model, units: unitsFor(kind), kind, res: '1080p' } as any, rate, undefined, CREDIT_KRW, fee)
     const globalMk = Number(gm[model]) > 0 ? Number(gm[model]) : 0
     const uMk = userId ? (Number(userMk[model]) > 0 ? Number(userMk[model]) : 0) : 0
     // 우선순위: 회원×모델 > 회원 전체 > 전역 모델 > 기본
     const eff = uMk > 0 ? uMk : (userId && userOverall > 0 ? userOverall : (globalMk > 0 ? globalMk : dflt.markup))
-    const effC = computeCharge({ model, units: unitsFor(kind), kind, res: '1080p' } as any, rate, eff)
+    const effC = computeCharge({ model, units: unitsFor(kind), kind, res: '1080p' } as any, rate, eff, CREDIT_KRW, fee)
     return {
       model,
       provider: PROV_LABEL[m.prov] || m.prov,
@@ -104,6 +107,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       userMarkup: uMk,
       effectiveMarkup: eff,
       effectiveCredits: effC.credits,
+      // 자체 기능(업스케일)만 해당 — 원가 대신 '서비스 요금(원/단위)' 으로 값을 매긴다
+      selfFee: m.feeKrw != null ? (fee != null ? fee : Number(m.feeKrw)) : null,
+      selfFeeUnit: m.feeKrw != null ? (m.u === 'img' ? '장' : '초') : null,
     }
   })
 
@@ -122,6 +128,23 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const b: any = await request.json().catch(() => ({}))
   const action = String(b.action || '')
+
+  // 자체 기능(업스케일) 서비스 요금 기준가 설정 — 원/단위. 전역 값이며, 회원별 차등은 배수로 준다.
+  if (action === 'set_self_fee') {
+    const model = String(b.model || '')
+    if (!MODEL_COST[model]) return json({ ok: false, error: '알 수 없는 모델' }, 400)
+    const fee = Math.max(0, Math.round(Number(b.fee) || 0))
+    const cur = await resolveSelfFees(db)
+    cur[model] = fee
+    await setSetting(db, 'self_fees', JSON.stringify(cur))
+    return json({ ok: true, model, fee })
+  }
+  if (action === 'reset_self_fee') {
+    const cur = await resolveSelfFees(db)
+    delete cur[String(b.model || '')]
+    await setSetting(db, 'self_fees', JSON.stringify(cur))
+    return json({ ok: true })
+  }
 
   if (action === 'set_global') {
     const gm = await getModelMarkups(db)

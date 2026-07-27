@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity, resolveBucket } from '../_utils'
-import { computeCharge, ensureAiUsage, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from '../studio/_pricing'
+import { computeCharge, ensureAiUsage, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge, resolveSelfFees } from '../studio/_pricing'
 import { creditPriceFor } from '../payments/prepare'
 // 생성 직후 제공사 잔액을 남긴다 — '실제로 빠져나간 금액' 을 나중에 대조하기 위한 근거.
 import { autoSnapshot } from '../admin/_spend'
@@ -66,6 +66,8 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   // 회원×모델 override > 회원 전체 배수 > 전역 모델 배수 > 기본값
   const markup = me ? await resolveMarkup(db, me.id, model, memberMarkup) : (memberMarkup || undefined)
   const creditKrw = await creditPriceFor(db, me)   // 회원 1크레딧 단가(원). 차감/매출 기준
+  // 원가 0 인 자체 기능(업스케일)의 서비스 요금 기준가 — 전역 설정으로 덮어쓸 수 있다
+  const selfFee = (await resolveSelfFees(db))[model]
   const c = computeCharge(
     {
       model,
@@ -77,6 +79,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     rate,
     markup,
     creditKrw,
+    selfFee,
   )
 
   // 레퍼런스 이미지 추가당 가산: 1장 추가마다 +surPct%. (회원별/전역 설정)

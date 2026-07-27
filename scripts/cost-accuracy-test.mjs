@@ -85,10 +85,27 @@ for (const model of MODELS) {
   const on = P.computeCharge({ model: 'Seedance 2.0', units: 5, kind: 'video', audio: true }, 1400)
   ok('오디오 ON 시 초당 추가요금 반영', Math.abs(on.usd - off.usd - 0.02 * 5) < 1e-9, `+$${(on.usd - off.usd).toFixed(3)}`)
 }
-// 자체 업스케일은 원가 0 이어야 한다
+// 자체 업스케일 — 원가(제공사 비용)는 0, 대신 서비스 요금으로 크레딧이 나간다
 {
-  const c = P.computeCharge({ model: '화질 업스케일 (이미지 · 브라우저 초해상)', units: 1, kind: 'image' }, 1400)
-  ok('브라우저 업스케일 원가 0 · 크레딧 0', c.usd === 0 && c.credits === 0, `$${c.usd} · ${c.credits}크레딧`)
+  const IMG = '화질 업스케일 (이미지 · 브라우저 초해상)'
+  const VID = '화질 업스케일 (영상 · 브라우저 초해상)'
+  const c = P.computeCharge({ model: IMG, units: 1, kind: 'image' }, 1400, undefined, 50)
+  ok('업스케일 원가(제공사 비용) 0', c.usd === 0 && c.costKrw === 0, `$${c.usd}`)
+  ok('업스케일 크레딧 과금됨(기본 100원=2크레딧)', c.credits === 2, `${c.credits}크레딧`)
+  // 영상은 초당 요금
+  const v = P.computeCharge({ model: VID, units: 10, kind: 'video' }, 1400, undefined, 50)
+  ok('영상 업스케일은 초당 과금(30원×10초=6크레딧)', v.credits === 6, `${v.credits}크레딧`)
+  // 배수(전역·회원별 설정)가 그대로 적용되는가
+  const x3 = P.computeCharge({ model: IMG, units: 1, kind: 'image' }, 1400, 3, 50)
+  ok('배수 설정이 업스케일 요금에 적용', x3.credits === 6, `${x3.credits}크레딧 (3배)`)
+  // 요금 기준가 자체를 관리자가 바꿀 수 있는가
+  const fee = P.computeCharge({ model: IMG, units: 1, kind: 'image' }, 1400, undefined, 50, 250)
+  ok('요금 기준가 변경 반영(250원=5크레딧)', fee.credits === 5, `${fee.credits}크레딧`)
+  // 크레딧 단가가 다른 회원(65원)
+  const c65 = P.computeCharge({ model: IMG, units: 1, kind: 'image' }, 1400, undefined, 65)
+  ok('회원 크레딧 단가 반영(100원÷65)', Math.abs(c65.credits - 1.54) < 0.01, `${c65.credits}크레딧`)
+  // 매출은 잡히고 원가는 0 → 순이익 = 매출
+  ok('업스케일 순이익 = 매출(원가 0)', c.profitKrw === c.revenueKrw && c.revenueKrw === 100, `${c.profitKrw}원`)
 }
 
 // ── 관리자 화면의 '계산 내역' 이 실제 기록을 정확히 되짚는가 ──

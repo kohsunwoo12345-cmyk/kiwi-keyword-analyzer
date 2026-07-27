@@ -22,6 +22,7 @@ export function ModelPricing() {
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [edits, setEdits] = useState<Record<string, string>>({})
+  const [feeEdits, setFeeEdits] = useState<any>({})
   const [bulk, setBulk] = useState('3')
   const [toast, setToast] = useState<string | null>(null)
 
@@ -34,6 +35,10 @@ export function ModelPricing() {
       setLoading(false)
       const e: Record<string, string> = {}
       for (const m of r.models || []) e[m.model] = String(scope === 'user' ? (m.userMarkup || m.effectiveMarkup) : (m.globalMarkup || m.effectiveMarkup))
+      // 자체 기능(업스케일)의 서비스 요금 — 원가가 없어 배수만으로는 금액이 정해지지 않는다
+      const f: any = {}
+      for (const m of r.models || []) if ((m as any).selfFee != null) f[m.model] = String((m as any).selfFee)
+      setFeeEdits(f)
       setEdits(e)
     })
   }
@@ -110,7 +115,7 @@ export function ModelPricing() {
               </thead>
               <tbody>
                 {Object.entries(grouped).map(([cat, list]) => (
-                  <FragmentRows key={cat} cat={cat} list={list} edits={edits} setEdits={setEdits} busy={busy} scope={scope} activeUserId={activeUserId} act={act} />
+                  <FragmentRows key={cat} cat={cat} list={list} edits={edits} setEdits={setEdits} feeEdits={feeEdits} setFeeEdits={setFeeEdits} busy={busy} scope={scope} activeUserId={activeUserId} act={act} />
                 ))}
                 {models.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-[var(--text-dim)]">{loading ? '불러오는 중…' : '모델이 없습니다.'}</td></tr>}
               </tbody>
@@ -124,7 +129,7 @@ export function ModelPricing() {
   )
 }
 
-function FragmentRows({ cat, list, edits, setEdits, busy, scope, activeUserId, act }: any) {
+function FragmentRows({ cat, list, edits, setEdits, feeEdits, setFeeEdits, busy, scope, activeUserId, act }: any) {
   return (
     <>
       <tr><td colSpan={6} className="px-2 pt-4 pb-1 text-[11px] font-bold uppercase tracking-wide text-violet-500">{cat}</td></tr>
@@ -137,7 +142,27 @@ function FragmentRows({ cat, list, edits, setEdits, busy, scope, activeUserId, a
           <tr key={m.model} className="border-b border-[var(--border-soft)] last:border-0 hover:bg-slate-50">
             <td className="px-2 py-2 font-medium">{m.model}</td>
             <td className="px-2 py-2"><Badge className="border-slate-200 bg-slate-50 text-slate-600">{m.provider}</Badge></td>
-            <td className="px-2 py-2 text-[var(--text-soft)]">{r2(m.baseCredits)} 크레딧</td>
+            <td className="px-2 py-2 text-[var(--text-soft)]">
+              {m.selfFee != null ? (
+                // 제공사 원가가 없는 자체 기능(업스케일) — 원가 대신 '서비스 요금' 을 직접 정한다.
+                //  전체 적용은 이 요금으로, 회원별 차등은 오른쪽 배수로 준다.
+                <span className="inline-flex items-center gap-1">
+                  <input
+                    value={feeEdits[m.model] ?? String(m.selfFee)}
+                    onChange={(e) => setFeeEdits((p: any) => ({ ...p, [m.model]: e.target.value.replace(/[^0-9]/g, '') }))}
+                    className="w-16 rounded-lg border border-violet-300 bg-white px-2 py-1 text-right text-sm"
+                    title="이 기능의 서비스 요금(원). 전체 회원에게 적용됩니다."
+                  />
+                  <span className="text-[11px] text-[var(--text-dim)]">원/{m.selfFeeUnit}</span>
+                  <Button size="sm" variant="outline" disabled={busy}
+                    onClick={() => act('set_self_fee', { model: m.model, fee: Number(feeEdits[m.model] ?? m.selfFee) }, `${m.model} 요금 저장`)}>
+                    <Save size={12} />
+                  </Button>
+                </span>
+              ) : (
+                <>{r2(m.baseCredits)} 크레딧</>
+              )}
+            </td>
             <td className="px-2 py-2">
               <div className="flex items-center gap-1">
                 <span className="text-[var(--text-dim)]">×</span>

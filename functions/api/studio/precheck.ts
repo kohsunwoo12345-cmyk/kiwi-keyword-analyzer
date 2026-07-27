@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB } from '../_utils'
-import { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from './_pricing'
+import { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge, resolveSelfFees } from './_pricing'
 import { creditPriceFor } from '../payments/prepare'
 
 // POST /api/studio/precheck { model, units?, kind?, res?, audio? }
@@ -16,7 +16,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const model = String(b.model || '')
   const markup = await resolveMarkup(db, me.id, model, Number(me.credit_markup) || 0)
   const creditKrw = await creditPriceFor(db, me)   // 회원 1크레딧 단가(원). 차감 기준
-  const c = computeCharge({ model, units: Number(b.units) || 0, kind: b.kind, res: b.res, audio: !!b.audio }, rate, markup, creditKrw)
+  const selfFee = (await resolveSelfFees(db))[model]   // 자체 기능(업스케일) 요금 기준가
+  const c = computeCharge(
+    { model, units: Number(b.units) || 0, kind: b.kind, res: b.res, audio: !!b.audio },
+    rate, markup, creditKrw, selfFee)
   const surPct = await resolveRefSurcharge(db, me.id)
   const refMult = 1 + (surPct / 100) * Math.max(0, Number(b.refs) || 0)
   const cnCount = Math.max(0, Number(b.cn) || 0)
