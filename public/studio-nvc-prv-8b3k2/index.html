@@ -2540,6 +2540,16 @@ function effVideoRatio(n){
   if(!opts.ratios.length) return null;
   return opts.ratios.indexOf(raw)>=0?raw:opts.ratios[0];
 }
+/* 이 영상 설정 노드를 실제로 참조하는 모델 노드들(linkedSetting 의 역방향).
+   설정 노드는 모델이 안 받는 값(예: 30초·4K)도 그대로 표시하므로, 그 값이 모델에서
+   어떤 값으로 스냅되는지 노드에 직접 보여 주기 위해 쓴다. */
+function modelsUsingSetting(vsId){
+  return (state.nodes||[]).filter(function(n){
+    if(!n || n.type!=='model') return false;
+    var vs=linkedSetting(n.id,'video');
+    return !!(vs && vs.id===vsId);
+  });
+}
 /* 이 노드에 실제로 적용될 해상도.
    해상도 필드를 받지 않는 모델(Kling·Runway·MiniMax·Grok 등)은 null 을 돌려준다 —
    그런 모델에 720p/4K 를 골라 봐야 결과물은 그대로인데 과금만 0.6배·2.6배로 달라졌다.
@@ -4416,6 +4426,7 @@ var DEFS = {
              widgets:[{k:'sec',t:'slider',label:'길이(초)',min:1,max:60,def:8},
                       {k:'ar',t:'combo',label:'ratio',opts:['16:9','9:16','1:1','4:5'],def:'16:9'},
                       {k:'res',t:'combo',label:'res',opts:['720p','1080p','4K'],def:'1080p'},
+                      {k:'applied',t:'vsetapplied'},
 ] },   // 모션 강도 제거 — 어느 제공사 페이로드에도 실리지 않던 장식 설정
  output:   { cat:'출력', title:'출력 (영상·이미지)', hd:'#233a33', ins:[['in','생성물','*']],
              outs:[['out','결과 → 레퍼런스','IMAGE']],
@@ -5442,6 +5453,23 @@ function widgetHTML(n,w){
     if(n.w.pgError) return '<div class="seedid-hint" style="color:#e6879a;padding:2px 2px 4px;">'+esc(String(n.w.pgError).slice(0,160))+'</div>';
     if(!n.w.text) return '<div class="wpreview"><span class="empty">생성된 프롬프트가 여기 표시됩니다<br>[프롬프트 생성]을 누르세요</span></div>';
     return '<textarea class="wtext" data-w="text" style="min-height:78px;">'+esc(n.w.text)+'</textarea>';
+  }
+  if(w.t==='vsetapplied'){   // 이 설정이 연결된 모델에서 실제로 어떤 값이 되는지 그대로 보여 준다
+    var users=modelsUsingSetting(n.id);
+    if(!users.length) return '<div class="refcnt">아직 연결된 영상 모델이 없습니다 — 모델 노드에 연결하면 실제 적용값이 여기 표시됩니다.</div>';
+    var rows=users.slice(0,4).map(function(mn){
+      var mm=effModel(mn), o=videoModelOpts(mm);
+      var es=effVideoSec(mn), er=effVideoRatio(mn), ev=effVideoRes(mn);
+      var parts=[];
+      parts.push(es==null ? '길이 원본따름' : ('길이 <b>'+es+'초</b>'+(Number(n.w.sec)!==es?' <i>(설정 '+n.w.sec+'초 → 스냅)</i>':'')));
+      if(er) parts.push('비율 <b>'+esc(er)+'</b>'+(n.w.ar!==er?' <i>(설정 '+esc(n.w.ar)+' → 스냅)</i>':''));
+      parts.push(ev ? ('해상도 <b>'+esc(ev)+'</b>'+(n.w.res!==ev?' <i>(설정 '+esc(n.w.res)+' → 스냅)</i>':''))
+                    : '해상도 <b>지정 불가</b> <i>(이 모델은 해상도를 받지 않아 1080p 기준으로 과금)</i>');
+      return '<div class="refcnt" style="text-align:left;">· '+esc(mm)+' — '+parts.join(' · ')+'</div>';
+    }).join('');
+    return '<div style="margin-top:4px;">'
+      + '<div class="refcnt" style="text-align:left;opacity:.8;">실제 적용값 (모델이 받는 값으로 자동 보정 · 과금도 이 값 기준)</div>'
+      + rows + (users.length>4?'<div class="refcnt">외 '+(users.length-4)+'개</div>':'') + '</div>';
   }
   if(w.t==='vidopts'){   // 영상 노드 내장 설정 — 그 모델이 실제로 받는 길이·비율만 드롭다운으로 노출
     var vo=videoModelOpts(effModel(n));
