@@ -1859,7 +1859,8 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 'use strict';
 var STUDIO_BUILD_TAG='2026-07-13-v56';   // 서버 health.build 와 정확히 같아야 최신(캐시/배포지연 아님)
 // (검증용) ?cnexport=1 접속 시 전처리 함수만 window 로 노출 — 순수 이미지 함수라 보안 영향 없음
-try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum, upscaleImageURL:upscaleImageURL, removeBackground:removeBackground, fitToRatio:fitToRatio }; }catch(_e){} },0); } }catch(_e){}
+try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum, upscaleImageURL:upscaleImageURL, upscaleVideoURL:upscaleVideoURL, removeBackground:removeBackground, fitToRatio:fitToRatio,
+        addNode:addNode, render:render, state:state, DEFS:DEFS, nodeMedia:nodeMedia, nodeImgs:nodeImgs, upScaleOf:upScaleOf, upScaleHelp:upScaleHelp }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
   function s(inner,vb){ return '<svg class="ico" viewBox="'+(vb||'0 0 24 24')+'" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+inner+'</svg>'; }
@@ -4619,6 +4620,12 @@ var DEFS = {
                       {k:'fitmode',t:'combo',label:'맞추는 방법',opts:['꽉 채우기(가장자리 잘림)','전체 보이기(여백 생김)','여백을 흐린 배경으로'],def:'꽉 채우기(가장자리 잘림)'},
                       {k:'toolout',t:'toolout'},
                       {k:'run',t:'toolbtn',label:'비율 맞추기 실행',act:'fit'}] },
+ upscale:  { cat:'편집', title:'화질 좋게 만들기 (업스케일)', hd:'#1c3346',
+             ins:[['in','이미지·영상','*']], outs:[['out','화질 개선본','*']],
+             widgets:[{k:'upx',t:'combo',label:'얼마나 크게',opts:['2배','4배','5K (긴 변 5120px)'],def:'2배'},
+                      {k:'uphelp',t:'uphelp'},
+                      {k:'toolout',t:'toolout'},
+                      {k:'run',t:'toolbtn',label:'화질 좋게 만들기',act:'upscale'}] },
  frame:    { cat:'유틸', title:'프레임 추출', hd:'#1f3a3a',
              ins:[['in','영상','*']], outs:[['out','프레임','IMAGE']],
              widgets:[{k:'pos',t:'combo',label:'위치',opts:['마지막 프레임','첫 프레임','중간(50%)','직접 지정(초)'],def:'마지막 프레임'},
@@ -5539,10 +5546,26 @@ function widgetHTML(n,w){
   }
   // 편집 도구 공용 위젯 — 결과 미리보기 + 실행 버튼. (배경 제거·비율 맞추기 등)
   if(w.t==='toolbtn') return '<button class="wbtn" data-tool="'+esc(w.act||'')+'">'+ICON.sparkle+' '+esc(w.label)+'</button>';
+  // 업스케일 노드 안내문 — 고른 배율이 실제로 무슨 크기가 되는지 사람 말로 설명한다
+  if(w.t==='uphelp'){
+    return '<div class="refcnt up-help">'+esc(upScaleHelp(upScaleOf(n.w.upx)))+'</div>'+
+      '<div class="refcnt up-help">AI가 흐린 부분을 채워 <b>선명하게</b> 만듭니다 (단순 확대와 다릅니다) · 크레딧이 차감됩니다</div>';
+  }
   if(w.t==='toolout'){
-    if(n.w.toolBusy) return genLoader(n.w.toolMsg||'처리 중',90);
-    if(n.w.img) return '<div class="wpreview tool-alpha"><span class="badge">결과</span><img src="'+esc(n.w.img)+'" alt="결과"></div>'+
-      '<div class="refcnt">'+(n.w.toolInfo?esc(n.w.toolInfo)+' · ':'')+'우측 포트 → 다른 노드의 레퍼런스로 연결 · <a href="#" data-tooldl>내려받기</a></div>';
+    // 오래 걸리는 작업(업스케일)은 진행률 막대로, 짧은 작업은 그냥 로더로 보여준다
+    if(n.w.toolBusy){
+      if(n.w.toolPct!=null) return '<div class="up-prog"><i style="width:'+Math.round((n.w.toolPct||0)*100)+'%"></i></div>'+
+        '<div class="refcnt up-msg">'+esc(n.w.toolMsg||'처리 중')+'… '+Math.round((n.w.toolPct||0)*100)+'%</div>';
+      return genLoader(n.w.toolMsg||'처리 중',90);
+    }
+    if(n.w.img){
+      var _tv=(n.w.toolKind==='video');
+      return '<div class="wpreview'+(_tv?'':' tool-alpha')+'"><span class="badge">결과</span>'+
+        (_tv?'<video src="'+esc(n.w.img)+'" muted loop playsinline controls></video>'
+            :'<img src="'+esc(n.w.img)+'" alt="결과">')+'</div>'+
+        '<div class="refcnt'+(n.w.toolFallback?' upfb':'')+'">'+(n.w.toolInfo?esc(n.w.toolInfo)+' · ':'')+
+        '우측 포트 → 다른 노드의 레퍼런스로 연결 · <a href="#" data-tooldl>내려받기</a></div>';
+    }
     return '<div class="wpreview" style="aspect-ratio:16/9;"><span class="empty">아직 결과 없음<br>이미지를 연결하고 실행하세요</span></div>';
   }
   if(w.t==='frameout'){
@@ -6233,19 +6256,61 @@ canvas.addEventListener('click',function(e){
     a.download='nvc-'+String(n2.w.model||'image').replace(/[^\w가-힣]+/g,'_')+'.png';
     document.body.appendChild(a); a.click(); a.remove(); return;
   }
-  // 편집 도구 실행 (배경 제거 · 비율 맞추기) — 브라우저 처리, 크레딧 차감 없음
+  // 편집 도구 실행 (배경 제거 · 비율 맞추기 · 화질 업스케일)
   var toolBtn=e.target.closest('[data-tool]');
   if(toolBtn){
     var act=toolBtn.getAttribute('data-tool');
+    if(n2.w.toolBusy) return;                       // 이미 처리 중이면 중복 실행 금지
     var inN=inputNodeOf(n2.id,'in');
-    var srcImg=inN?(imgsOf(inN)[0]||null):null;
+    // ── 화질 업스케일 노드 — 이미지든 영상이든 받아서 선명하게 키운다 (크레딧 차감) ──
+    if(act==='upscale'){
+      var med=inN?nodeMedia(inN):null;
+      if(!med||!med.url){ toast('화질을 개선할 이미지나 영상을 연결하세요 (생성 결과·레퍼런스·업로드 등)'); return; }
+      var uSet=upScaleOf(n2.w.upx), is5k=(uSet===5), uScale=is5k?4:uSet;
+      var uOpts=is5k?{ longTarget:5120 }:null;      // 5K: 긴 변 5120px 목표
+      var uIsImg=(med.kind!=='video');
+      if(is5k && !uIsImg) toast('5K 영상 업스케일: 매우 오래 걸리고(수 시간+) 브라우저가 5K 인코딩을 못 하면 자동으로 낮춰집니다.');
+      n2.w.toolBusy=true; n2.w.toolPct=0; n2.w.toolMsg='화질 개선 중'; render();
+      toast(uIsImg?'화질 개선 중… (처음 한 번은 AI 다운로드로 1~2분 걸립니다)':'영상 화질 개선 중… (길이만큼 오래 걸립니다)');
+      // 진행률은 노드 안 막대만 직접 갱신한다(매번 전체 다시 그리면 느려진다)
+      var upNode=n2;
+      function toolProg(pp){
+        upNode.w.toolPct=pp;
+        var hh=document.getElementById('nd-'+upNode.id); if(!hh)return;
+        var bar=hh.querySelector('.up-prog i'); if(bar)bar.style.width=Math.round(pp*100)+'%';
+        var msg=hh.querySelector('.up-msg'); if(msg)msg.textContent='화질 개선 중… '+Math.round(pp*100)+'%'+
+          (uIsImg?' (조각별로 AI 처리 중)':' (프레임마다 AI 처리 — 길수록 오래)');
+      }
+      var uLabel=is5k?'5K':(uSet+'×');
+      var uJob=uIsImg ? upscaleImageURL(med.url,uScale,uOpts,toolProg) : upscaleVideoURL(med.url,uScale,toolProg,uOpts);
+      uJob.then(function(res){
+        upNode.w.toolBusy=false; upNode.w.toolPct=null;
+        upNode.w.img=res.url; upNode.w.toolKind=res.kind; upNode.w.toolFallback=!!res.fallback;
+        // 실제로 AI 선명화가 됐는지 숨기지 않는다 — 리샘플로 떨어졌으면 그렇게 적는다
+        upNode.w.toolInfo=(res.dim||'')+(res.fallback?' · AI 선명화 실패(단순 확대)'
+          :(res.engine?(' · AI 선명화 '+res.engine):''))+(res.clamped?(' · 한계로 실제 '+(Math.round((res.ratio||0)*100)/100)+'배'):'');
+        render(); snapshot();
+        if(res.fallback) toast('AI 선명화를 쓰지 못해 단순 확대만 됐습니다 (선명해지지 않음) · '+res.dim);
+        else toast('화질 개선 완료 · '+res.dim+' · AI 선명화 적용'+(res.note?(' · '+res.note):''));
+        // 영상 결과는 대표 프레임을 뽑아 둔다 → 다음 모델의 레퍼런스로 바로 연결된다
+        if(res.kind==='video'){ try{ grabFrameFromURL(res.url,'video','first',0)
+          .then(function(im){ upNode.w.poster=im; render(); }).catch(function(){}); }catch(_e){} }
+        try{ recordUpscale(med.url, res, uLabel, (inN&&inN.w&&inN.w.model)||'', ''); }catch(_e){}
+      }).catch(function(err){
+        upNode.w.toolBusy=false; upNode.w.toolPct=null; render();
+        toast('업스케일 실패: '+String(err&&err.message||err).slice(0,70));
+      });
+      return;
+    }
+    // ── 배경 제거 · 비율 맞추기 — 브라우저 캔버스 처리, 크레딧 차감 없음 ──
+    var srcImg=inN?(nodeImgs(inN)[0]||null):null;
     if(!srcImg){ toast('이미지를 연결하세요 (이미지 생성·레퍼런스·출력 노드 등)'); return; }
-    n2.w.toolBusy=true; n2.w.toolMsg=(act==='bgremove'?'배경 지우는 중':'비율 맞추는 중'); render();
+    n2.w.toolBusy=true; n2.w.toolPct=null; n2.w.toolMsg=(act==='bgremove'?'배경 지우는 중':'비율 맞추는 중'); render();
     var job = act==='bgremove'
       ? removeBackground(srcImg, n2.w.bgmode||'투명하게', n2.w.bgfeather)
       : fitToRatio(srcImg, n2.w.fitratio||'9:16', n2.w.fitmode||'꽉 채우기(가장자리 잘림)');
     job.then(function(r){
-      n2.w.toolBusy=false; n2.w.img=r.url; n2.w.toolInfo=r.info;
+      n2.w.toolBusy=false; n2.w.img=r.url; n2.w.toolInfo=r.info; n2.w.toolKind='image'; n2.w.toolFallback=false;
       toast((act==='bgremove'?'배경 제거 완료 · ':'비율 맞추기 완료 · ')+r.info);
       render(); snapshot();
       try{ nvLogAct(act, act, r.info, 0, act); }catch(_e){}
@@ -6258,7 +6323,8 @@ canvas.addEventListener('click',function(e){
   if(e.target.closest('[data-tooldl]')){
     e.preventDefault();
     if(!n2.w.img) return;
-    var a2=document.createElement('a'); a2.href=n2.w.img; a2.download='bygency-edit.png'; a2.rel='noopener';
+    var a2=document.createElement('a'); a2.href=n2.w.img; a2.rel='noopener';
+    a2.download='bygency-edit.'+(n2.w.toolKind==='video'?'webm':'png');
     document.body.appendChild(a2); a2.click(); a2.remove();
     return;
   }
@@ -6628,6 +6694,52 @@ function topoOrder(){
   state.nodes.forEach(function(n){ visit(n.id); });
   return order;
 }
+/* ── 노드에 담긴 결과물을 꺼내는 공용 함수 ──
+   노드 종류마다 결과가 들어가는 칸이 다르다(출력 노드는 vid, 프레임 노드는 frameImg …).
+   여러 곳에서 각자 따로 판단하면 어긋나므로 여기 한 곳에서만 정한다. */
+function nodeImgs(node){
+  if(!node||!node.w) return [];
+  if(node.type==='output') return node.w.lastImg?[node.w.lastImg]:[];
+  if(node.type==='narrate'||node.type==='weave'||node.type==='revoice') return node.w.poster?[node.w.poster]:[];
+  if(node.type==='frame') return node.w.frameImg?[node.w.frameImg]:[];
+  // 업스케일 결과가 영상이면 대표 프레임(포스터)만 이미지로 넘긴다 — 영상 자체는 nodeMedia 로.
+  if(node.type==='upscale') return node.w.toolKind==='video' ? (node.w.poster?[node.w.poster]:[])
+                                                             : (node.w.img?[node.w.img]:[]);
+  if(node.w.imgs&&node.w.imgs.length) return node.w.imgs;
+  return node.w.img?[node.w.img]:[];
+}
+function _mediaKind(u){
+  var s=String(u||'');
+  return (/^data:video\//i.test(s)||/\.(mp4|webm|mov|m4v|avi|mkv)(\?|$)/i.test(s)) ? 'video' : 'image';
+}
+/* 편집 노드(업스케일 등)의 입력 — '축소된 미리보기' 가 아니라 원본 그대로의 결과물을 준다 */
+function nodeMedia(node){
+  if(!node||!node.w) return null;
+  var w=node.w;
+  if(node.type==='output'||node.type==='narrate'||node.type==='weave'||node.type==='revoice'){
+    var u=w.upscaled||w.vid; if(!u) return null;
+    return { url:u, kind:(w.upscaled?w.upKind:w.kind)||_mediaKind(u) };
+  }
+  if(node.type==='upscale') return w.img?{ url:w.img, kind:w.toolKind||_mediaKind(w.img) }:null;
+  if(node.type==='frame') return w.frameImg?{ url:w.frameImg, kind:'image' }:null;
+  if(w.srcVideoUrl) return { url:w.srcVideoUrl, kind:'video' };   // 업로드한 원본 영상이 있으면 영상 우선
+  var im=nodeImgs(node)[0];
+  return im?{ url:im, kind:_mediaKind(im) }:null;
+}
+/* 배율 이름만 봐서는 뭐가 되는지 알 수 없다 → 실제로 어떤 크기가 되는지 예시로 설명한다. */
+function upScaleHelp(sc){
+  return { 2:'가로·세로를 2배로 (예: 1024×1024 → 2048×2048). 대부분 이걸로 충분합니다.',
+           4:'가로·세로를 4배로 (예: 1920×1080 → 7680×4320). 인쇄물·대형 화면용.',
+           5:'크기와 상관없이 5K(긴 변 5120px)에 맞춥니다. 작은 원본은 최대 8배까지만 커집니다.' }[sc]
+    || '가로·세로를 크게 만듭니다.';
+}
+/* 콤보에 적힌 말("2배"/"5K …")을 숫자 배율로 되돌린다 */
+function upScaleOf(label){
+  var s=String(label||'');
+  if(/5K|5120/i.test(s)) return 5;
+  if(/4/.test(s)) return 4;
+  return 2;
+}
 /* 특정 입력 포트에 직접 연결된 노드 (첫/마지막 프레임 등 포트별 지정용) */
 function inputNodeOf(id,port){
   var l=state.links.filter(function(x){return x.to===id&&x.toPort===port;})[0];
@@ -6791,11 +6903,7 @@ function runQueue(onlyId){
             var rfs=inputNodesOf(id,'ref');       // 사진 레퍼런스 포트
             var vrfs=inputNodesOf(id,'vidref');   // 영상 레퍼런스 포트 (신규 · 분리 입력)
             var ff=inputNodeOf(id,'first'), lf=inputNodeOf(id,'last');
-            function imgsOf(node){ if(!node)return [];
-              if(node.type==='output') return node.w.lastImg?[node.w.lastImg]:[];
-              if(node.type==='narrate'||node.type==='weave'||node.type==='revoice') return node.w.poster?[node.w.poster]:[];
-              if(node.type==='frame') return node.w.frameImg?[node.w.frameImg]:[];
-              if(node.w.imgs&&node.w.imgs.length)return node.w.imgs; return node.w.img?[node.w.img]:[]; }
+            function imgsOf(node){ return nodeImgs(node); }
             // 사진 포트: 이미지=참고 사진. (하위호환) 영상이 섞여 있으면 그 프레임은 영상 프레임으로 분리.
             var vFrames=[], photoRefs=[];
             rfs.forEach(function(nd){ if(!nd||!nd.w)return;

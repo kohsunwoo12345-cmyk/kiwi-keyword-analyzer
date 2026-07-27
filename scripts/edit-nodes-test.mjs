@@ -71,6 +71,26 @@ const bg = await pg.evaluate(async () => {
 ok('배경(바깥)은 투명해짐', bg.edge < 30, 'alpha=' + bg.edge)
 ok('인물(가운데)은 남아 있음', bg.center > 200, 'alpha=' + bg.center)
 ok('결과 정보 표시', /×/.test(bg.info), bg.info)
+
+// 노드 버튼을 실제로 눌러서도 동작하는가 (함수만 되고 버튼은 안 되는 일이 없도록)
+const click = await pg.evaluate(async () => {
+  const c = window.__cn, S = c.state
+  const src = c.addNode('reference', 0, 0, true)
+  const cv = document.createElement('canvas'); cv.width=1920; cv.height=1080
+  const x = cv.getContext('2d'); x.fillStyle='#404080'; x.fillRect(0,0,1920,1080)
+  src.w.imgs = [cv.toDataURL('image/png')]; src.w.vids = [null]
+  const fitN = c.addNode('fit', 0, 0, true)
+  fitN.w.fitratio = '9:16 (릴스·쇼츠)'; fitN.w.fitmode = '꽉 채우기(가장자리 잘림)'
+  S.links.push({ from:src.id, to:fitN.id, fromPort:'out', toPort:'in' })
+  c.render()
+  document.getElementById('nd-'+fitN.id).querySelector('[data-tool="fit"]').click()
+  const t0=Date.now(); while(fitN.w.toolBusy && Date.now()-t0<30000) await new Promise(r=>setTimeout(r,150))
+  let dim=null
+  if(fitN.w.img) dim = await new Promise(r=>{ const i=new Image(); i.onload=()=>r(i.width+'x'+i.height); i.onerror=()=>r(null); i.src=fitN.w.img })
+  return { dim, info: fitN.w.toolInfo||'' }
+})
+ok('노드 버튼 클릭으로 비율 맞추기 실행됨', click.dim==='1080x1920', (click.dim||'결과 없음')+' · '+click.info)
+
 ok('페이지 오류 없음', errs.length===0, errs.slice(0,2).join(' | ')||'없음')
 
 await b.close(); server.close()
