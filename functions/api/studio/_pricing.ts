@@ -142,7 +142,7 @@ export function billedSeconds(model: string, seconds?: number): number {
   if (prov === 'hailuo') return (raw || 6) <= 6 ? 6 : 10
   if (prov === 'luma') return (raw || 5) <= 6 ? 5 : 9
   if (prov === 'google') return clamp(raw || 8, 5, 8)
-  return Math.max(1, Math.round(raw || 8))          // 나레이션·립싱크·음악 등은 실제 길이 그대로
+  return Math.max(1, Math.round(raw || 8))          // 나레이션·립싱크·음악·브라우저 편집 등은 실제 길이 그대로
 }
 
 // 모델 표시명 → 단가.  u:'sec'(영상 초당) | 'img'(이미지 장당), usd, audio(오디오 초당 추가), prov(집계용)
@@ -214,6 +214,19 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   //  전역·회원별로 조정 가능(배수 설정이 그대로 적용된다).
   '화질 업스케일 (이미지 · 브라우저 초해상)': { u: 'img', usd: 0, prov: 'upscale', feeKrw: 100 },
   '화질 업스케일 (영상 · 브라우저 초해상)': { u: 'sec', usd: 0, prov: 'upscale', feeKrw: 30 },
+  // 브라우저 편집 기능(자막·색보정·합성·자르기·누끼·비율) — 제공사 비용 0.
+  //  기본 요금 0원 = 무료. 관리자 페이지에서 값을 넣으면 그때부터 크레딧이 차감된다.
+  //  이미지 편집은 '장당', 영상 편집은 '초당' 으로 계산한다.
+  //  이미지 편집은 '장당', 영상 편집은 '초당' 이라 이름을 나눠 둔다(같은 이름이면 영상이 1장으로 계산된다).
+  '자막 넣기 (이미지 · 브라우저 편집)': { u: 'img', usd: 0, prov: 'edit', feeKrw: 0 },
+  '자막 넣기 (영상 · 브라우저 편집)': { u: 'sec', usd: 0, prov: 'edit', feeKrw: 0 },
+  '색보정 (이미지 · 브라우저 편집)': { u: 'img', usd: 0, prov: 'edit', feeKrw: 0 },
+  '색보정 (영상 · 브라우저 편집)': { u: 'sec', usd: 0, prov: 'edit', feeKrw: 0 },
+  '합성 (이미지 · 브라우저 편집)': { u: 'img', usd: 0, prov: 'edit', feeKrw: 0 },
+  '합성 (영상 · 브라우저 편집)': { u: 'sec', usd: 0, prov: 'edit', feeKrw: 0 },
+  '영상 자르기·속도 (브라우저 편집)': { u: 'sec', usd: 0, prov: 'edit', feeKrw: 0 },
+  '배경 제거 (브라우저 편집)': { u: 'img', usd: 0, prov: 'edit', feeKrw: 0 },
+  '비율 맞추기 (브라우저 편집)': { u: 'img', usd: 0, prov: 'edit', feeKrw: 0 },
   '나레이션 (AI 음성 해설)': { u: 'sec', usd: 0.02, prov: 'narrate' },
   '립싱크 (인물 말하기)': { u: 'sec', usd: 0.1, prov: 'lipsync' },
 }
@@ -221,7 +234,7 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
 export const PROV_LABEL: Record<string, string> = {
   google: 'Google Veo', runway: 'Runway', runway_aleph: 'Runway Aleph', v2v_auto: 'V2V 자동', motion: '모션 전이', seedance: 'Seedance', seedream: 'Seedream',
   hailuo: 'MiniMax Hailuo', luma: 'Luma', xai: 'Grok', flux: 'Flux', falcontrol: 'fal ControlNet',
-  nanobanana: 'Nano Banana', openai: 'GPT Image', kling: 'Kling', narrate: '나레이션', lipsync: '립싱크', music: '음악 생성', upscale: '업스케일',
+  nanobanana: 'Nano Banana', openai: 'GPT Image', kling: 'Kling', narrate: '나레이션', lipsync: '립싱크', music: '음악 생성', upscale: '업스케일', edit: '브라우저 편집',
 }
 
 export interface ChargeInput {

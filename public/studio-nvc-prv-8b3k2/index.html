@@ -1877,7 +1877,8 @@ try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cn
         captionImage:captionImage, captionVideo:captionVideo, drawCaptionOn:drawCaptionOn,
         trimSpeedVideo:trimSpeedVideo, _speedOf:_speedOf,
         gradeImage:gradeImage, gradeVideo:gradeVideo, resolveGrade:resolveGrade, gradeSummary:gradeSummary,
-        composeImage:composeImage, composeVideo:composeVideo, composeRect:composeRect }; }catch(_e){} },0); } }catch(_e){}
+        composeImage:composeImage, composeVideo:composeVideo, composeRect:composeRect,
+        stripGraphMedia:stripGraphMedia, loadDocIntoState:loadDocIntoState, keepToolResult:keepToolResult }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
   function s(inner,vb){ return '<svg class="ico" viewBox="'+(vb||'0 0 24 24')+'" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+inner+'</svg>'; }
@@ -2072,6 +2073,16 @@ var MODEL_COST = {
   // 브라우저 자체 초해상(Real-ESRGAN/Swin2SR) — 외부 API 원가 0. 기록만 남기고 크레딧은 차감하지 않는다.
   '화질 업스케일 (이미지 · 브라우저 초해상)': { u:'img', usd:0, prov:'upscale' },
   '화질 업스케일 (영상 · 브라우저 초해상)':   { u:'sec', usd:0, prov:'upscale' },
+  // 브라우저 편집(자막·색보정·합성·자르기·누끼·비율) — 외부 API 원가 0. 요금은 관리자 설정값(기본 0원=무료).
+  '자막 넣기 (이미지 · 브라우저 편집)':       { u:'img', usd:0, prov:'edit' },
+  '자막 넣기 (영상 · 브라우저 편집)':         { u:'sec', usd:0, prov:'edit' },
+  '색보정 (이미지 · 브라우저 편집)':          { u:'img', usd:0, prov:'edit' },
+  '색보정 (영상 · 브라우저 편집)':            { u:'sec', usd:0, prov:'edit' },
+  '합성 (이미지 · 브라우저 편집)':            { u:'img', usd:0, prov:'edit' },
+  '합성 (영상 · 브라우저 편집)':              { u:'sec', usd:0, prov:'edit' },
+  '영상 자르기·속도 (브라우저 편집)':         { u:'sec', usd:0, prov:'edit' },
+  '배경 제거 (브라우저 편집)':                { u:'img', usd:0, prov:'edit' },
+  '비율 맞추기 (브라우저 편집)':              { u:'img', usd:0, prov:'edit' },
   '립싱크 (인물 말하기)': { u:'sec', usd:0.10, prov:'lipsync' },
   'Runway Aleph (영상→실사 V2V)':      { u:'sec', usd:0.15, prov:'runway_aleph' },
   'Google Veo 3.1':                    { u:'sec', usd:0.40, audio:0.35, prov:'google' },
@@ -2210,13 +2221,63 @@ function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prom
    결과물은 data:/blob: 라 그대로는 보관 못 하므로 R2 로 먼저 재호스팅한 URL 을 기록한다.
    원본(업스케일 전) 은 레퍼런스로 함께 남겨 관리자 화면에서 전/후 비교가 된다. ══════ */
 var UPSCALE_MODEL_IMG='화질 업스케일 (이미지 · 브라우저 초해상)', UPSCALE_MODEL_VID='화질 업스케일 (영상 · 브라우저 초해상)';
+var _upHostCache={};   // 같은 결과물을 두 번 올리지 않는다(기록 + 노드 보관이 동시에 부른다)
 function _upHost(url, maxBytes){
   if(!url) return Promise.resolve(null);
   if(/\/api\/media\//.test(url)) return Promise.resolve(url);   // 이미 우리 R2
-  return fetch(/^(data|blob):/.test(url)?url:sameOriginMedia(url))
+  if(_upHostCache[url]) return _upHostCache[url];
+  var p = fetch(/^(data|blob):/.test(url)?url:sameOriginMedia(url))
     .then(function(r){ return r.ok? r.blob() : null; })
     .then(function(blob){ if(!blob) return null; if(maxBytes && blob.size>maxBytes) return null; return hostMediaBlob(blob); })
     .catch(function(){ return null; });
+  _upHostCache[url]=p;
+  return p;
+}
+
+/* ══════ 편집 결과 보관 ══════
+   캔버스로 만든 결과(data:/blob:)는 새로고침하면 사라지고, 서버(AI 모델)도 가져갈 수 없다.
+   그래서 결과가 나오는 즉시 우리 저장소로 올리고 노드가 가리키는 주소를 그 URL 로 바꾼다.
+   → 새로고침해도 남고, 다음 모델의 레퍼런스로도 그대로 쓰이며, 보관함·관리자 기록에도 남는다. */
+//  이미지 편집은 '장당', 영상 편집은 '초당' 이라 이름이 나뉜다 (서버 단가표와 글자까지 같아야 한다)
+var TOOL_MODEL = {
+  caption:  { image:'자막 넣기 (이미지 · 브라우저 편집)', video:'자막 넣기 (영상 · 브라우저 편집)' },
+  grade:    { image:'색보정 (이미지 · 브라우저 편집)',   video:'색보정 (영상 · 브라우저 편집)' },
+  compose:  { image:'합성 (이미지 · 브라우저 편집)',     video:'합성 (영상 · 브라우저 편집)' },
+  vtrim:    { video:'영상 자르기·속도 (브라우저 편집)' },
+  bgremove: { image:'배경 제거 (브라우저 편집)' },
+  fit:      { image:'비율 맞추기 (브라우저 편집)' }
+};
+/* 노드가 들고 있는 임시 주소를 보관된 URL 로 바꾼다 (업스케일 노드도 같이 쓴다) */
+function adoptHostedUrl(node, oldUrl, url){
+  if(!url || !node || node.w.img!==oldUrl) return;
+  node.w.img=url; node.w.toolHosted=true;
+  try{ render(); }catch(_e){}
+  // 화면이 새 주소로 바뀐 뒤에 옛 blob 을 정리한다(바로 지우면 재생 중인 영상이 끊긴다)
+  if(String(oldUrl||'').indexOf('blob:')===0) setTimeout(function(){ try{ URL.revokeObjectURL(oldUrl); }catch(_){} }, 15000);
+}
+function keepToolResult(node, act, res){
+  try{
+    if(!res || !res.url) return;
+    var isImg=(res.kind||'image')==='image';
+    var model=(TOOL_MODEL[act]||{})[isImg?'image':'video']; if(!model) return;
+    var units=isImg?1:Math.max(1, Math.round(Number(res.sec)||0)||1);
+    var oldUrl=res.url;
+    _upHost(res.url, isImg?30000000:300000000).then(function(url){
+      adoptHostedUrl(node, oldUrl, url);
+      // 관리자 "AI 생성 기록" 에 남긴다. 제공사 비용 0 — 요금은 관리자가 정한 값(기본 0원=무료).
+      try{
+        fetch('/api/usage/record',{ method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+          body: JSON.stringify({ provider:'edit', model:model, kind:isImg?'image':'video', units:units, res:null, audio:false,
+            usd:0, refs:0, cn:0, prompt:String(res.info||'').slice(0,4000), refUrls:[],
+            resultUrl:url||'', resultKind:isImg?'image':'video' }) })
+          .then(function(r){ return r.json().catch(function(){ return {}; }); })
+          .then(function(j){ if(j && j.charged>0){ try{ toast(model+' · '+j.charged+' 크레딧 차감'); }catch(_e){} } })
+          .catch(function(){});
+      }catch(_e){}
+      try{ if(url) saveToGallery(url, isImg?'image':'video', model, isImg?0:units, node.w.poster||null, { prompt:String(res.info||'') }); }catch(_e){}
+    }).catch(function(){});
+    try{ nvLogAct(act, act, String(res.info||'').slice(0,200), 0, model); }catch(_e){}
+  }catch(e){}
 }
 function recordUpscale(srcUrl, res, scaleLabel, srcModel, prompt){
   try{
@@ -5641,7 +5702,11 @@ function newDocId(){ return 'doc-'+Date.now()+'-'+Math.floor(Math.random()*1e6);
 function loadDocIntoState(d){
   var g=d.data||{};
   (g.nodes||[]).forEach(function(n){ if(n.w){ if(n.w.generating)n.w.generating=false; if(n.w.upscaling)n.w.upscaling=false; if(n.w.extracting)n.w.extracting=false;
-    if(n.w.upscaled&&String(n.w.upscaled).indexOf('blob:')===0){ n.w.upscaled=null; n.w.upKind=null; n.w.upDim=null; } } });
+    n.w.toolBusy=false; n.w.toolPct=null;
+    if(n.w.upscaled&&String(n.w.upscaled).indexOf('blob:')===0){ n.w.upscaled=null; n.w.upKind=null; n.w.upDim=null; }
+    // 지난 탭에서 만든 임시 주소(blob:)는 지금 열면 깨진 화면으로 보인다 → 빈 결과로 되돌린다
+    if(String(n.w.img||'').indexOf('blob:')===0){ n.w.img=null; n.w.toolKind=null; n.w.toolInfo=null; n.w.toolHosted=false; }
+    if(String(n.w.poster||'').indexOf('blob:')===0) n.w.poster=null; } });
   state.nodes=g.nodes||[]; state.links=g.links||[]; state.groups=g.groups||[]; state.annos=g.annos||[]; state.seq=g.seq||100;
   sel.clear(); undoStack=[]; redoStack=[]; undoStack.push(JSON.stringify({nodes:state.nodes,links:state.links,groups:state.groups,annos:state.annos,seq:state.seq}));
   if(g.pan&&typeof g.zoom==='number'){ state.pan=g.pan; state.zoom=g.zoom; render(); applyView(); }
@@ -5745,7 +5810,8 @@ function saveViewSoon(){ autosave(); }
 // 생성 결과·업로드의 대용량 base64(data:) 는 서버 전송에서 제거해 경량화(원격 URL 은 유지).
 function stripGraphMedia(g){
   try{ g=JSON.parse(JSON.stringify(g)); }catch(e){ return g; }
-  var isData=function(v){ return typeof v==='string' && v.indexOf('data:')===0; };
+  // data: 는 너무 크고, blob: 는 이 탭에서만 통하는 임시 주소라 저장해 봐야 다음에 열면 깨진다 → 둘 다 뺀다
+  var isData=function(v){ return typeof v==='string' && (v.indexOf('data:')===0 || v.indexOf('blob:')===0); };
   (g&&g.nodes||[]).forEach(function(n){ if(!n||!n.w)return; var w=n.w;
     ['img','vid','poster','upscaled','srcVideoUrl'].forEach(function(k){ if(isData(w[k]))w[k]=null; });
     // imgs 와 vids 는 같은 인덱스로 짝을 이룬다 — 한쪽만 걸러내면 영상 프레임 표시가 밀린다.
@@ -6923,6 +6989,9 @@ canvas.addEventListener('click',function(e){
         if(res.kind==='video'){ try{ grabFrameFromURL(res.url,'video','first',0)
           .then(function(im){ upNode.w.poster=im; render(); }).catch(function(){}); }catch(_e){} }
         try{ recordUpscale(med.url, res, uLabel, (inN&&inN.w&&inN.w.model)||'', ''); }catch(_e){}
+        // 결과 주소도 보관본으로 바꿔 새로고침·다음 노드 연결에서 살아 있게 한다
+        try{ var _uOld=res.url; _upHost(res.url, res.kind==='image'?30000000:300000000)
+          .then(function(u){ adoptHostedUrl(upNode, _uOld, u); }).catch(function(){}); }catch(_e){}
       }).catch(function(err){
         upNode.w.toolBusy=false; upNode.w.toolPct=null; render();
         toast('업스케일 실패: '+String(err&&err.message||err).slice(0,70));
@@ -6955,7 +7024,7 @@ canvas.addEventListener('click',function(e){
           toast('합성 완료 · '+r.info); render(); snapshot();
           if(r.kind==='video'){ try{ grabFrameFromURL(r.url,'video','first',0)
             .then(function(im){ cmNode.w.poster=im; render(); }).catch(function(){}); }catch(_e){} }
-          try{ nvLogAct('compose','compose',r.info,0,'compose'); }catch(_e){}
+          keepToolResult(cmNode, 'compose', r);
         }).catch(function(err){
           cmNode.w.toolBusy=false; cmNode.w.toolPct=null; render();
           toast('합성 실패: '+String(err&&err.message||err).slice(0,70));
@@ -6984,7 +7053,7 @@ canvas.addEventListener('click',function(e){
           toast('색보정 완료 · '+r.info); render(); snapshot();
           if(r.kind==='video'){ try{ grabFrameFromURL(r.url,'video','first',0)
             .then(function(im){ gNode.w.poster=im; render(); }).catch(function(){}); }catch(_e){} }
-          try{ nvLogAct('grade','grade',r.info,0,'grade'); }catch(_e){}
+          keepToolResult(gNode, 'grade', r);
         }).catch(function(err){
           gNode.w.toolBusy=false; gNode.w.toolPct=null; render();
           toast('색보정 실패: '+String(err&&err.message||err).slice(0,70));
@@ -7016,7 +7085,7 @@ canvas.addEventListener('click',function(e){
           trNode.w.img=r.url; trNode.w.toolKind='video'; trNode.w.toolInfo=r.info; trNode.w.toolFallback=false;
           toast('영상 편집 완료 · '+r.info); render(); snapshot();
           try{ grabFrameFromURL(r.url,'video','first',0).then(function(im){ trNode.w.poster=im; render(); }).catch(function(){}); }catch(_e){}
-          try{ nvLogAct('vtrim','vtrim',r.info,0,'vtrim'); }catch(_e){}
+          keepToolResult(trNode, 'vtrim', r);
         }).catch(function(err){
           trNode.w.toolBusy=false; trNode.w.toolPct=null; render();
           toast('영상 편집 실패: '+String(err&&err.message||err).slice(0,70));
@@ -7049,7 +7118,7 @@ canvas.addEventListener('click',function(e){
         toast('자막 넣기 완료 · '+r.info); render(); snapshot();
         if(r.kind==='video'){ try{ grabFrameFromURL(r.url,'video','first',0)
           .then(function(im){ capNode.w.poster=im; render(); }).catch(function(){}); }catch(_e){} }
-        try{ nvLogAct('caption','caption',r.info,0,'caption'); }catch(_e){}
+        keepToolResult(capNode, 'caption', r);
       }).catch(function(err){
         capNode.w.toolBusy=false; capNode.w.toolPct=null; render();
         toast('자막 넣기 실패: '+String(err&&err.message||err).slice(0,70));
@@ -7067,7 +7136,7 @@ canvas.addEventListener('click',function(e){
       n2.w.toolBusy=false; n2.w.img=r.url; n2.w.toolInfo=r.info; n2.w.toolKind='image'; n2.w.toolFallback=false;
       toast((act==='bgremove'?'배경 제거 완료 · ':'비율 맞추기 완료 · ')+r.info);
       render(); snapshot();
-      try{ nvLogAct(act, act, r.info, 0, act); }catch(_e){}
+      keepToolResult(n2, act, { url:r.url, kind:'image', info:r.info });
     }).catch(function(err){
       n2.w.toolBusy=false; render();
       toast((act==='bgremove'?'배경 제거 실패: ':'비율 맞추기 실패: ')+String(err&&err.message||err).slice(0,70));

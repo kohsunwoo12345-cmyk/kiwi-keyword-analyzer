@@ -137,9 +137,38 @@ const API_ONLY = ['Seedream 3.0', 'SeedEdit 3.0 (레퍼런스 편집)']
 }
 
 // 5) 단가표에만 있고 목록에 없는 항목(유령 단가) — 오탈자로 매칭이 깨진 경우를 잡는다
+//    노드 선택 목록에 안 뜨는 자체 기능(업스케일·브라우저 편집)과 부가 기능은 제외한다.
 {
-  const extra = Object.keys(serverCost).filter((k) => !listed.includes(k) && !API_ONLY.includes(k) && !/업스케일|나레이션|립싱크|음악/.test(k))
+  const extra = Object.keys(serverCost).filter((k) => !listed.includes(k) && !API_ONLY.includes(k) && !/업스케일|브라우저 편집|나레이션|립싱크|음악/.test(k))
   ok('단가표에 정체불명 항목 없음(오탈자 탐지)', extra.length === 0, extra.join(' , '))
+}
+
+// 5-1) 브라우저 편집 기능 — 이미지/영상 이름이 나뉘어 있고 단위가 맞는가
+//      (한 이름으로 합치면 30초 영상이 '1장' 으로 계산되어 요금이 30배 어긋난다)
+{
+  const need = [
+    ['자막 넣기 (이미지 · 브라우저 편집)', 'img'], ['자막 넣기 (영상 · 브라우저 편집)', 'sec'],
+    ['색보정 (이미지 · 브라우저 편집)', 'img'],   ['색보정 (영상 · 브라우저 편집)', 'sec'],
+    ['합성 (이미지 · 브라우저 편집)', 'img'],     ['합성 (영상 · 브라우저 편집)', 'sec'],
+    ['영상 자르기·속도 (브라우저 편집)', 'sec'],
+    ['배경 제거 (브라우저 편집)', 'img'],         ['비율 맞추기 (브라우저 편집)', 'img'],
+  ]
+  const bad = []
+  for (const [name, u] of need) {
+    const sv = serverCost[name], st = clientCost[name]
+    if (!sv) { bad.push(`${name}: 서버 단가표 없음`); continue }
+    if (!st) { bad.push(`${name}: 스튜디오 단가표 없음`); continue }
+    if (sv.u !== u) bad.push(`${name}: 단위 ${sv.u} ≠ ${u}`)
+    if (sv.usd !== 0) bad.push(`${name}: 제공사 원가가 0이 아님 ($${sv.usd})`)
+  }
+  ok(`브라우저 편집 ${need.length}종 — 이미지/영상 단위 분리 · 원가 0`, bad.length === 0, bad.slice(0, 3).join(' / '))
+  // 기본은 무료, 관리자가 금액을 넣으면 그대로 반영되는가
+  const free = P.computeCharge({ model: '배경 제거 (브라우저 편집)', units: 1, kind: 'image' }, 1400, undefined, 50)
+  ok('편집 기능 기본값은 무료(0크레딧)', free.credits === 0, `${free.credits}크레딧`)
+  const paid = P.computeCharge({ model: '배경 제거 (브라우저 편집)', units: 1, kind: 'image' }, 1400, undefined, 50, 200)
+  ok('관리자가 금액을 넣으면 그대로 차감(200원=4크레딧)', paid.credits === 4, `${paid.credits}크레딧`)
+  const vid = P.computeCharge({ model: '자막 넣기 (영상 · 브라우저 편집)', units: 10, kind: 'video' }, 1400, undefined, 50, 20)
+  ok('영상 편집은 초당 계산(20원×10초=4크레딧)', vid.credits === 4, `${vid.credits}크레딧`)
   // API 전용 모델도 단가가 반드시 있어야 한다(없으면 기본값 $0.05 로 잘못 청구된다)
   const apiMiss = API_ONLY.filter((k) => !serverCost[k])
   ok('API 전용 모델도 단가 보유', apiMiss.length === 0, apiMiss.join(' , '))

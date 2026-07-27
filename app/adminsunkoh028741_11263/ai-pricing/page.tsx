@@ -4,6 +4,7 @@ import { Gauge } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { ModelPricing } from '@/components/admin/ModelPricing'
 import { UpscalePricing } from '@/components/admin/UpscalePricing'
+import { EditPricing } from '@/components/admin/EditPricing'
 import { UserMarkupList } from '@/components/admin/UserMarkupList'
 import { PromptGenPricing } from '@/components/admin/PromptGenPricing'
 import { CreditsRecall } from '@/components/admin/CreditsRecall'
@@ -24,6 +25,9 @@ export default function AiPricingPage() {
       <div className="space-y-6 p-6 lg:p-8">
         <Reveal>
           <UpscalePricing />
+        </Reveal>
+        <Reveal>
+          <EditPricing />
         </Reveal>
         <Reveal>
           <ModelPricing />
