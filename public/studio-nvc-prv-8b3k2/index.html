@@ -4498,6 +4498,7 @@ var DEFS = {
                         tip:'<b>CFG (프롬프트 충실도)</b> — 프롬프트를 얼마나 강하게 따를지 정합니다. 낮으면 자유롭고 자연스럽게, 높으면 지시를 강하게 따릅니다(너무 높으면 부자연·과채도). 보통 60~80 권장. 모델마다 반영 정도가 달라 일부 모델은 이 값을 무시합니다.'},
                       {k:'seed',t:'seed',def:156680208700286,
                         tip:'<b>Seed (시드)</b> — 결과의 랜덤 시작값입니다. 고정하면 같은 프롬프트로 같은 결과가 재현되고, 주사위를 누르면 매번 새 결과가 나옵니다. 마음에 든 결과의 seed를 두고 프롬프트만 살짝 바꾸면 그 느낌을 유지할 수 있어요. 모델에 따라 고정 시드를 지원하지 않을 수 있습니다.'},
+                      {k:'abGen',t:'abgen'},
                       {k:'run',t:'button',label:'Execute Node'}] },
  imagegen: { cat:'모델', title:'이미지 생성', hd:'#243a40',
              ins:[['prompt','프롬프트(선택)','TEXT'],['ref','레퍼런스 (최대 12장 · 다중 연결)','IMAGE']],
@@ -5484,6 +5485,15 @@ function widgetHTML(n,w){
       (list.length? '<div style="margin-top:5px;font-size:9px;color:#5f7078;line-height:1.4;">'+tr('Depth는 브라우저 근사, Pose는 최초 1회 인식 모델을 불러옵니다. 실제 생성은 fal 정밀 전처리를 사용합니다.')+'</div>':'')+
     '</div>';
   }
+  if(w.t==='abgen'){   // A/B 소재 배치 생성 — 같은 설정으로 시드를 달리한 변형을 한 번에
+    return '<div class="vo-row" style="margin-top:6px;">'
+      +'<label class="vo-sel"><span class="vo-k">변형</span><select data-abn>'
+      + [2,3,4,6,8].map(function(k){ return '<option value="'+k+'"'+((n.w.abN||3)===k?' selected':'')+'>'+k+'개</option>'; }).join('')
+      +'</select><span class="vo-caret">▼</span></label>'
+      +'<button class="wbtn" data-abgo style="flex:1 1 130px;">'+ICON.sparkle+' A/B 변형 생성</button></div>'
+      +'<textarea class="wtext" data-abscript placeholder="변형별 프롬프트(선택) — 한 줄에 하나. 비우면 같은 프롬프트에 시드만 바꿔 만듭니다." style="min-height:48px;margin-top:5px;">'+esc(n.w.abScript||'')+'</textarea>'
+      +'<div class="refcnt">광고 소재 A/B 테스트용 — 같은 장면을 여러 버전으로 한 번에. 변형 수만큼 크레딧이 듭니다.</div>';
+  }
   if(w.t==='button') return '<button class="wbtn" data-runnode>'+ICON.sparkle+' '+esc(w.label)+'</button>';
   if(w.t==='framebtn') return '<button class="wbtn" data-framego>'+ICON.fit+' '+esc(w.label)+'</button>';
   if(w.t==='imggenbtn') return '<button class="wbtn" data-imggen>'+ICON.sparkle+' '+esc(w.label)+'</button>';
@@ -5977,6 +5987,42 @@ function seqWaitIdle(nodeId){
     })();
   });
 }
+/* ── A/B 소재 배치 생성 ──
+   모델 노드를 변형 수만큼 복제해 같은 입력(프롬프트·레퍼런스·첫 프레임 등)을 그대로 물리고,
+   시드만 달리해 한 번에 실행한다. 변형별 프롬프트를 주면 그 줄로 전용 프롬프트 노드를 붙인다.
+   광고 소재 A/B 테스트처럼 "같은 장면의 여러 버전"이 필요할 때 쓴다. */
+function abVariants(modelId, count, promptLines){
+  var src=state.nodes.filter(function(x){return x.id===modelId;})[0];
+  if(!src){ try{ toast('원본 노드를 찾을 수 없습니다'); }catch(_e){} return 0; }
+  var incoming=(state.links||[]).filter(function(l){ return l.to===modelId; });
+  var made=[];
+  for(var i=0;i<count;i++){
+    var isFirst=(i===0);
+    var node=isFirst?src:addNode('model', Math.round((src.x||0)), Math.round((src.y||0)+(i*300)), true);
+    if(!isFirst){
+      // 위젯 값 복사 — 결과·진행 상태는 제외해야 새 노드가 "이미 생성됨"으로 보이지 않는다
+      Object.keys(src.w||{}).forEach(function(k){
+        if(/^(vid|img|imgs|vids|poster|lastImg|lastImgSrc|videoId|videoProvider|generating|error|pendingUrl|upscaled|upKind|upDim|abScript|seqScript)$/.test(k)) return;
+        node.w[k]=src.w[k];
+      });
+      incoming.forEach(function(l){ state.links.push({from:l.from,fromPort:l.fromPort,to:node.id,toPort:l.toPort,type:l.type}); });
+    }
+    node.w.seed=Math.floor(Math.random()*9e14);        // 변형마다 다른 시드
+    var line=(promptLines&&promptLines[i]||'').trim();
+    if(line){
+      // 이 변형 전용 프롬프트 — 기존 프롬프트 연결은 끊고 새 노드를 직접 연결
+      state.links=state.links.filter(function(l){ return !(l.to===node.id&&l.toPort==='prompt'); });
+      var pn=addNode('prompt', Math.round(node.x-330), Math.round(node.y), true);
+      pn.w.text=line;
+      state.links.push({from:pn.id,fromPort:'out',to:node.id,toPort:'prompt',type:'TEXT'});
+    }
+    made.push(node.id);
+  }
+  snapshot(); render();
+  made.forEach(function(id){ runQueue(id); });
+  try{ toast('A/B 변형 '+made.length+'개 생성 시작'); }catch(_e){}
+  return made.length;
+}
 function autoSequence(startOutId, count, scriptLines){
   var srcId=startOutId, made=0;
   function step(){
@@ -6341,6 +6387,8 @@ canvas.addEventListener('change',function(e){
   var host=e.target.closest('.node'); if(!host)return;
   var n=state.nodes.find(function(x){return x.id===host.dataset.node;}); if(!n)return;
   // 영상 노드 내장 설정(길이·비율) 드롭다운
+  if(e.target.hasAttribute('data-abn')){ n.w.abN=+e.target.value; autosave(); return; }
+  if(e.target.hasAttribute('data-abscript')){ n.w.abScript=e.target.value; autosave(); return; }
   if(e.target.hasAttribute('data-seqn')){ n.w.seqN=+e.target.value; autosave(); return; }
   if(e.target.hasAttribute('data-seqscript')){ n.w.seqScript=e.target.value; autosave(); return; }
   if(e.target.hasAttribute('data-vsec')){ n.w.vsec=+e.target.value; snapshot(); render(); return; }
@@ -6503,6 +6551,14 @@ canvas.addEventListener('click',function(e){
     e.preventDefault();
     if(n2.w.upscaled&&String(n2.w.upscaled).indexOf('blob:')===0){ try{URL.revokeObjectURL(n2.w.upscaled);}catch(_){} }
     n2.w.upscaled=null; n2.w.upKind=null; n2.w.upDim=null; render(); return;
+  }
+  // ── A/B 소재 배치 생성 ──
+  if(e.target.closest('[data-abgo]')){
+    var _an=Number(n2.w.abN)||3;
+    var _al=String(n2.w.abScript||'').split('\n').map(function(x){return x.trim();}).filter(Boolean);
+    if(!confirm('같은 설정으로 변형 '+_an+'개를 한 번에 만듭니다. 변형 수만큼 크레딧이 차감됩니다. 계속할까요?')) return;
+    abVariants(n2.id, _an, _al);
+    return;
   }
   // ── 이어보기 시퀀스 자동 생성 ──
   if(e.target.closest('[data-seqgo]')){
