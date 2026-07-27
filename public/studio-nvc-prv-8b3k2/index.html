@@ -1861,7 +1861,8 @@ var STUDIO_BUILD_TAG='2026-07-13-v56';   // 서버 health.build 와 정확히 �
 // (검증용) ?cnexport=1 접속 시 전처리 함수만 window 로 노출 — 순수 이미지 함수라 보안 영향 없음
 try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum, upscaleImageURL:upscaleImageURL, upscaleVideoURL:upscaleVideoURL, removeBackground:removeBackground, fitToRatio:fitToRatio,
         addNode:addNode, render:render, state:state, DEFS:DEFS, nodeMedia:nodeMedia, nodeImgs:nodeImgs, upScaleOf:upScaleOf, upScaleHelp:upScaleHelp,
-        captionImage:captionImage, captionVideo:captionVideo, drawCaptionOn:drawCaptionOn }; }catch(_e){} },0); } }catch(_e){}
+        captionImage:captionImage, captionVideo:captionVideo, drawCaptionOn:drawCaptionOn,
+        trimSpeedVideo:trimSpeedVideo, _speedOf:_speedOf }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
   function s(inner,vb){ return '<svg class="ico" viewBox="'+(vb||'0 0 24 24')+'" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+inner+'</svg>'; }
@@ -4563,6 +4564,96 @@ function captionVideo(src, opts, onProg){
   });
 }
 
+/* ══════ 영상 자르기 · 속도 조절 ══════
+   원하는 구간만 재생시키면서 그 화면을 그대로 새로 녹화한다. 속도는 재생 속도로 준다
+   (0.5배로 틀면 0.5배로 녹화되므로 결과도 정확히 그 속도가 된다).
+   소리는 WebAudio 로 붙여 유지하고, '소리 없애기' 를 켜면 아예 붙이지 않는다. */
+function _speedOf(label){
+  var m=/([0-9.]+)\s*배/.exec(String(label||''));
+  var v=m?Number(m[1]):1;
+  return (isFinite(v)&&v>0) ? Math.max(0.1, Math.min(8, v)) : 1;
+}
+function trimSpeedVideo(src, opts, onProg){
+  opts=opts||{};
+  return new Promise(function(resolve,reject){
+    if(typeof MediaRecorder==='undefined'){ reject(new Error('이 브라우저는 영상 편집 미지원')); return; }
+    var speed=Math.max(0.1, Math.min(8, Number(opts.speed)||1));
+    var v=document.createElement('video'); v.crossOrigin='anonymous'; v.playsInline=true; v.preload='auto'; v.muted=true;
+    var done=false, actx=null;
+    var tm=setTimeout(function(){ if(!done){ done=true; cleanup(); reject(new Error('처리 시간 초과')); } }, 900000);
+    function cleanup(){ try{ if(actx) actx.close(); }catch(_){} try{ v.src=''; }catch(_){} }
+    v.addEventListener('loadedmetadata',function(){
+      var W=v.videoWidth||1280, H=v.videoHeight||720;
+      var dur=isFinite(v.duration)?v.duration:0;
+      // 브라우저가 길이를 못 읽는 파일(일부 webm)은 '끝까지' 로 두고 ended 로 끝낸다
+      var a=Math.max(0, Number(opts.start)||0);
+      var b=(opts.end==null||opts.end==='')?(dur||Infinity):Math.max(0, Number(opts.end)||0);
+      if(dur){ a=Math.min(a, Math.max(0,dur-0.05)); b=Math.min(b, dur); }
+      if(b<=a){ clearTimeout(tm); cleanup(); reject(new Error('끝 시간이 시작 시간보다 커야 합니다')); return; }
+      var c=document.createElement('canvas'); c.width=W; c.height=H;
+      var ctx=c.getContext('2d');
+      var fps=30, stream=c.captureStream(fps), hasAudio=false;
+      if(!opts.mute){
+        try{
+          var AC=window.AudioContext||window.webkitAudioContext;
+          if(AC){
+            actx=new AC();
+            var dest=actx.createMediaStreamDestination();
+            actx.createMediaElementSource(v).connect(dest);
+            var atr=dest.stream.getAudioTracks();
+            if(atr.length){ atr.forEach(function(t){ stream.addTrack(t); }); hasAudio=true; v.muted=false; v.volume=1; }
+            if(actx.state==='suspended'){ try{ actx.resume(); }catch(_){} }
+          }
+        }catch(_e){ hasAudio=false; v.muted=true; }
+      }
+      var mime=[hasAudio?'video/webm;codecs=vp9,opus':'', hasAudio?'video/webm;codecs=vp8,opus':'',
+                'video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']
+                .filter(function(m){ return m && MediaRecorder.isTypeSupported(m); })[0]||'video/webm';
+      var rec;
+      try{ rec=new MediaRecorder(stream,{ mimeType:mime, videoBitsPerSecond:Math.min(16000000, Math.round(W*H*fps*0.12)) }); }
+      catch(e){ clearTimeout(tm); cleanup(); reject(new Error('레코더 시작 실패')); return; }
+      var chunks=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size)chunks.push(e.data); };
+      // 실제로 어디까지 재생됐는지를 직접 잰다 — 브라우저가 길이를 못 읽는 파일(webm 등)에서도
+      // "몇 초 구간" 안내가 엉뚱한 숫자로 나오지 않게 한다.
+      var endT=a;
+      rec.onstop=function(){
+        clearTimeout(tm); cleanup();
+        if(!chunks.length){ reject(new Error('녹화 결과가 비었습니다')); return; }
+        var cut=Math.max(0, endT-a), outSec=cut/speed;
+        resolve({ url:URL.createObjectURL(new Blob(chunks,{type:'video/webm'})), kind:'video',
+                  dim:W+'×'+H, srcDim:W+'×'+H, sec:Math.round(outSec*10)/10,
+                  info:W+'×'+H+' · '+(Math.round(cut*10)/10)+'초 구간 · '+speed+'배속 → 결과 '+(Math.round(outSec*10)/10)+'초'+
+                       (hasAudio?' · 소리 유지':' · 소리 없음') });
+      };
+      function stop(){ if(done)return; done=true;
+        if(v.currentTime>endT) endT=v.currentTime;
+        try{ ctx.drawImage(v,0,0,W,H); }catch(e){}
+        try{ v.pause(); }catch(e){}
+        setTimeout(function(){ try{ rec.stop(); }catch(e){} }, 200); }
+      function tick(){ if(done)return;
+        try{ ctx.drawImage(v,0,0,W,H); }catch(e){}
+        if(v.currentTime>endT) endT=v.currentTime;
+        if(isFinite(b) && v.currentTime>=b){ stop(); return; }
+        if(onProg && isFinite(b)) onProg(Math.max(0, Math.min(1, (v.currentTime-a)/(b-a))));
+        if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(tick); else requestAnimationFrame(tick); }
+      v.addEventListener('ended',function(){ stop(); },{once:true});
+      function begin(){
+        try{ v.playbackRate=speed; }catch(_){}
+        try{ rec.start(); }catch(e){ clearTimeout(tm); cleanup(); reject(new Error('레코더 시작 실패')); return; }
+        var pr=v.play();
+        function go(){ try{ v.playbackRate=speed; }catch(_){}
+          if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(tick); else requestAnimationFrame(tick); }
+        if(pr&&pr.then) pr.then(go).catch(function(){ clearTimeout(tm); cleanup(); reject(new Error('영상 재생 실패')); });
+        else go();
+      }
+      if(a>0){ v.addEventListener('seeked', begin, {once:true}); try{ v.currentTime=a; }catch(_){ begin(); } }
+      else begin();
+    });
+    v.addEventListener('error',function(){ if(!done){ done=true; clearTimeout(tm); cleanup(); reject(new Error('영상 로드 실패')); } });
+    v.src=sameOriginMedia(src);
+  });
+}
+
 /* ══════ 리샘플 폴백(모델 없이 확대 — 초해상 아님): 단계적 축소확대 + 언샤프 ══════ */
 function _unsharp(ctx,w,h,amount){
   if(!amount || w*h>30e6)return;   // 초대형은 비용 대비 이득이 없어 건너뛴다
@@ -4772,6 +4863,15 @@ var DEFS = {
                       {k:'fitmode',t:'combo',label:'맞추는 방법',opts:['꽉 채우기(가장자리 잘림)','전체 보이기(여백 생김)','여백을 흐린 배경으로'],def:'꽉 채우기(가장자리 잘림)'},
                       {k:'toolout',t:'toolout'},
                       {k:'run',t:'toolbtn',label:'비율 맞추기 실행',act:'fit'}] },
+ vtrim:    { cat:'편집', title:'영상 자르기 · 속도 조절', hd:'#1c2a3a',
+             ins:[['in','영상','*']], outs:[['out','편집한 영상','*']],
+             widgets:[{k:'trimA',t:'numin',label:'시작 (초)',ph:'0 = 처음부터'},
+                      {k:'trimB',t:'numin',label:'끝 (초)',ph:'비우면 끝까지'},
+                      {k:'vspeed',t:'combo',label:'속도',opts:['0.25배 (아주 느리게)','0.5배 (느리게)','1배 (그대로)','1.5배 (조금 빠르게)','2배 (빠르게)','4배 (아주 빠르게)'],def:'1배 (그대로)'},
+                      {k:'vmute',t:'checkbox',label:'소리 없애기',hint:'끄면 원본 소리를 그대로 유지합니다'},
+                      {k:'trimhelp',t:'trimhelp'},
+                      {k:'toolout',t:'toolout'},
+                      {k:'run',t:'toolbtn',label:'자르기 · 속도 적용',act:'vtrim'}] },
  caption:  { cat:'편집', title:'자막 넣기 (영상·이미지)', hd:'#3a2f1c',
              ins:[['in','이미지·영상','*'],['text','자막 문구 (텍스트 노드·선택)','TEXT']],
              outs:[['out','자막 넣은 결과','*']],
@@ -5708,6 +5808,26 @@ function widgetHTML(n,w){
   }
   // 편집 도구 공용 위젯 — 결과 미리보기 + 실행 버튼. (배경 제거·비율 맞추기 등)
   if(w.t==='toolbtn') return '<button class="wbtn" data-tool="'+esc(w.act||'')+'">'+ICON.sparkle+' '+esc(w.label)+'</button>';
+  // 숫자 입력 칸 (초 단위 등) — 비워두면 '기본값' 으로 동작한다
+  if(w.t==='numin'){
+    return '<div class="seedopt-field"><span class="seedopt-lb">'+esc(w.label||'')+'</span>'+
+      '<input class="seedid-in" type="text" inputmode="decimal" data-w="'+w.k+'" spellcheck="false" placeholder="'+esc(w.ph||'')+'" value="'+esc(v==null?'':v)+'"></div>';
+  }
+  if(w.t==='checkbox'){
+    return '<label class="seedopt-row"><input type="checkbox" data-w="'+w.k+'"'+(n.w[w.k]===true?' checked':'')+'>'+
+      '<span class="seedopt-tx"><b>'+esc(w.label||'')+'</b>'+(w.hint?'<i>'+esc(w.hint)+'</i>':'')+'</span></label>';
+  }
+  // 자르기·속도 노드 안내문 — 실제로 몇 초짜리가 나오는지 미리 계산해 보여준다
+  if(w.t==='trimhelp'){
+    var _a=Number(n.w.trimA)||0, _bRaw=String(n.w.trimB==null?'':n.w.trimB).trim();
+    var _sp=_speedOf(n.w.vspeed), _b=_bRaw===''?null:(Number(_bRaw)||0);
+    var _msg;
+    if(_b!=null && _b<=_a) _msg='<b style="color:#e6879a;">끝 시간을 시작 시간보다 크게 적어주세요</b>';
+    else if(_b==null) _msg=_a>0?('앞 '+_a+'초를 잘라내고 끝까지 · '+_sp+'배속'):('처음부터 끝까지 · '+_sp+'배속');
+    else _msg=_a+'초~'+_b+'초 ('+(Math.round((_b-_a)*10)/10)+'초 구간) · '+_sp+'배속 → 결과 약 '+(Math.round((_b-_a)/_sp*10)/10)+'초';
+    return '<div class="refcnt up-help">'+_msg+'</div>'+
+      '<div class="refcnt up-help">영상을 실제로 재생하면서 다시 녹화합니다 — <b>느리게 만들수록 처리도 그만큼 오래</b> 걸립니다</div>';
+  }
   // 자막 노드 안내문 — 글자 크기가 실제로 어느 정도인지 눈에 보이게 알려준다
   if(w.t==='caphelp'){
     var _cp=Math.max(3, Math.min(14, Number(n.w.capsize)||6));
@@ -6470,6 +6590,38 @@ canvas.addEventListener('click',function(e){
       });
       return;
     }
+    // ── 영상 자르기 · 속도 조절 ──
+    if(act==='vtrim'){
+      var tMed=inN?nodeMedia(inN):null;
+      if(!tMed||!tMed.url){ toast('편집할 영상을 연결하세요'); return; }
+      if(tMed.kind!=='video'){ toast('영상만 자르기·속도 조절이 됩니다 (이미지는 [비율 맞추기]를 쓰세요)'); return; }
+      var tA=Number(n2.w.trimA)||0;
+      var tBraw=String(n2.w.trimB==null?'':n2.w.trimB).trim();
+      var tB=tBraw===''?null:(Number(tBraw)||0);
+      if(tB!=null && tB<=tA){ toast('끝 시간을 시작 시간보다 크게 적어주세요'); return; }
+      var tSpeed=_speedOf(n2.w.vspeed);
+      var trNode=n2;
+      trNode.w.toolBusy=true; trNode.w.toolMsg='영상 편집 중'; trNode.w.toolPct=0; render();
+      toast('영상을 재생하며 다시 녹화합니다 · '+(tSpeed<1?'느린 속도라 시간이 더 걸립니다':'잠시 기다려주세요'));
+      function trProg(pp){
+        trNode.w.toolPct=pp;
+        var hh=document.getElementById('nd-'+trNode.id); if(!hh)return;
+        var bar=hh.querySelector('.up-prog i'); if(bar)bar.style.width=Math.round(pp*100)+'%';
+        var msg=hh.querySelector('.up-msg'); if(msg)msg.textContent='영상 편집 중… '+Math.round(pp*100)+'%';
+      }
+      trimSpeedVideo(tMed.url, { start:tA, end:tB, speed:tSpeed, mute:n2.w.vmute===true }, trProg)
+        .then(function(r){
+          trNode.w.toolBusy=false; trNode.w.toolPct=null;
+          trNode.w.img=r.url; trNode.w.toolKind='video'; trNode.w.toolInfo=r.info; trNode.w.toolFallback=false;
+          toast('영상 편집 완료 · '+r.info); render(); snapshot();
+          try{ grabFrameFromURL(r.url,'video','first',0).then(function(im){ trNode.w.poster=im; render(); }).catch(function(){}); }catch(_e){}
+          try{ nvLogAct('vtrim','vtrim',r.info,0,'vtrim'); }catch(_e){}
+        }).catch(function(err){
+          trNode.w.toolBusy=false; trNode.w.toolPct=null; render();
+          toast('영상 편집 실패: '+String(err&&err.message||err).slice(0,70));
+        });
+      return;
+    }
     // ── 자막 넣기 — 이미지는 한 번에, 영상은 프레임마다 글씨를 얹어 새로 녹화한다 ──
     if(act==='caption'){
       var cMed=inN?nodeMedia(inN):null;
@@ -6898,7 +7050,7 @@ function topoOrder(){
 /* ── 노드에 담긴 결과물을 꺼내는 공용 함수 ──
    노드 종류마다 결과가 들어가는 칸이 다르다(출력 노드는 vid, 프레임 노드는 frameImg …).
    여러 곳에서 각자 따로 판단하면 어긋나므로 여기 한 곳에서만 정한다. */
-var TOOL_NODES={ upscale:1, caption:1, bgremove:1, fit:1 };   // 결과가 w.img 에 담기는 편집 노드들
+var TOOL_NODES={ upscale:1, caption:1, bgremove:1, fit:1, vtrim:1 };   // 결과가 w.img 에 담기는 편집 노드들
 function nodeImgs(node){
   if(!node||!node.w) return [];
   if(node.type==='output') return node.w.lastImg?[node.w.lastImg]:[];
