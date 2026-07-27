@@ -1863,7 +1863,8 @@ try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cn
         addNode:addNode, render:render, state:state, DEFS:DEFS, nodeMedia:nodeMedia, nodeImgs:nodeImgs, upScaleOf:upScaleOf, upScaleHelp:upScaleHelp,
         captionImage:captionImage, captionVideo:captionVideo, drawCaptionOn:drawCaptionOn,
         trimSpeedVideo:trimSpeedVideo, _speedOf:_speedOf,
-        gradeImage:gradeImage, gradeVideo:gradeVideo, resolveGrade:resolveGrade, gradeSummary:gradeSummary }; }catch(_e){} },0); } }catch(_e){}
+        gradeImage:gradeImage, gradeVideo:gradeVideo, resolveGrade:resolveGrade, gradeSummary:gradeSummary,
+        composeImage:composeImage, composeVideo:composeVideo, composeRect:composeRect }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
   function s(inner,vb){ return '<svg class="ico" viewBox="'+(vb||'0 0 24 24')+'" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+inner+'</svg>'; }
@@ -4565,6 +4566,126 @@ function captionVideo(src, opts, onProg){
   });
 }
 
+/* ══════ 합성 — 바탕(이미지·영상) 위에 그림(로고·워터마크·스티커)을 얹는다 ══════
+   위치·크기·투명도를 정해 두면 이미지는 한 번에, 영상은 프레임마다 같은 자리에 얹어 다시 녹화한다. */
+function _blendOf(label){
+  var s=String(label||'');
+  if(/밝게|스크린/.test(s)) return 'screen';      // 검은 배경 로고를 얹을 때
+  if(/어둡게|곱하기/.test(s)) return 'multiply';   // 흰 배경 로고를 얹을 때
+  return 'source-over';
+}
+/* 얹을 그림이 바탕 어디에 얼마만 한 크기로 들어갈지 계산한다 */
+function composeRect(W, H, ow, oh, opts){
+  opts=opts||{};
+  var pos=String(opts.pos||'오른쪽 아래');
+  var mg=Math.round(Math.min(W,H)*Math.max(0,Math.min(30,_num(opts.margin,4)))/100);
+  var ar=(ow&&oh)?(ow/oh):1;
+  if(/전체|꽉/.test(pos)){                          // 화면 전체를 덮는다(가장자리 잘림)
+    var sc=Math.max(W/ow, H/oh);
+    var dw0=ow*sc, dh0=oh*sc;
+    return { x:Math.round((W-dw0)/2), y:Math.round((H-dh0)/2), w:Math.round(dw0), h:Math.round(dh0) };
+  }
+  var dw=Math.max(1, Math.round(W*Math.max(2,Math.min(100,_num(opts.size,25)))/100));
+  var dh=Math.max(1, Math.round(dw/ar));
+  if(dh>H-mg*2 && H-mg*2>0){ dh=H-mg*2; dw=Math.max(1,Math.round(dh*ar)); }   // 세로가 넘치면 맞춰 줄인다
+  var x, y;
+  if(/가운데/.test(pos)){ x=Math.round((W-dw)/2); y=Math.round((H-dh)/2); }
+  else {
+    x=/왼쪽/.test(pos) ? mg : (W-dw-mg);
+    y=/위/.test(pos)   ? mg : (H-dh-mg);
+  }
+  return { x:x, y:y, w:dw, h:dh };
+}
+function _drawOverlay(ctx, W, H, over, opts){
+  var r=composeRect(W, H, over.naturalWidth||over.width||1, over.naturalHeight||over.height||1, opts);
+  ctx.save();
+  ctx.globalAlpha=Math.max(0, Math.min(1, _num(opts.opacity,100)/100));
+  ctx.globalCompositeOperation=_blendOf(opts.blend);
+  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+  try{ ctx.drawImage(over, r.x, r.y, r.w, r.h); }catch(e){}
+  ctx.restore();
+  ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
+  return r;
+}
+function _loadImgEl(src){
+  return new Promise(function(resolve,reject){
+    var i=new Image(); i.crossOrigin='anonymous';
+    i.onload=function(){ resolve(i); };
+    i.onerror=function(){ reject(new Error('이미지 로드 실패')); };
+    i.src=sameOriginMedia(src);
+  });
+}
+function composeImage(baseSrc, overSrc, opts){
+  return Promise.all([_loadImgEl(baseSrc), _loadImgEl(overSrc)]).then(function(a){
+    var base=a[0], over=a[1];
+    var W=base.naturalWidth||512, H=base.naturalHeight||512;
+    var c=document.createElement('canvas'); c.width=W; c.height=H;
+    var x=c.getContext('2d');
+    x.drawImage(base,0,0);
+    var r=_drawOverlay(x, W, H, over, opts);
+    return { url:c.toDataURL('image/png'), kind:'image', dim:W+'×'+H, srcDim:W+'×'+H,
+             info:W+'×'+H+' · '+(opts&&opts.pos||'오른쪽 아래')+' · 크기 '+r.w+'×'+r.h+
+                  ' · 투명도 '+Math.round(_num(opts&&opts.opacity,100))+'%' };
+  });
+}
+function composeVideo(baseSrc, overSrc, opts, onProg){
+  return _loadImgEl(overSrc).then(function(over){
+    return new Promise(function(resolve,reject){
+      if(typeof MediaRecorder==='undefined'){ reject(new Error('이 브라우저는 영상 합성 미지원')); return; }
+      var v=document.createElement('video'); v.crossOrigin='anonymous'; v.playsInline=true; v.preload='auto'; v.muted=true;
+      var done=false, actx=null;
+      var tm=setTimeout(function(){ if(!done){ done=true; cleanup(); reject(new Error('처리 시간 초과')); } }, 600000);
+      function cleanup(){ try{ if(actx) actx.close(); }catch(_){} try{ v.src=''; }catch(_){} }
+      v.addEventListener('loadedmetadata',function(){
+        var W=v.videoWidth||1280, H=v.videoHeight||720, dur=isFinite(v.duration)?v.duration:0;
+        var c=document.createElement('canvas'); c.width=W; c.height=H;
+        var ctx=c.getContext('2d');
+        var fps=30, stream=c.captureStream(fps), hasAudio=false;
+        try{
+          var AC=window.AudioContext||window.webkitAudioContext;
+          if(AC){
+            actx=new AC();
+            var dest=actx.createMediaStreamDestination();
+            actx.createMediaElementSource(v).connect(dest);
+            var atr=dest.stream.getAudioTracks();
+            if(atr.length){ atr.forEach(function(t){ stream.addTrack(t); }); hasAudio=true; v.muted=false; v.volume=1; }
+            if(actx.state==='suspended'){ try{ actx.resume(); }catch(_){} }
+          }
+        }catch(_e){ hasAudio=false; v.muted=true; }
+        var mime=[hasAudio?'video/webm;codecs=vp9,opus':'', hasAudio?'video/webm;codecs=vp8,opus':'',
+                  'video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']
+                  .filter(function(m){ return m && MediaRecorder.isTypeSupported(m); })[0]||'video/webm';
+        var rec;
+        try{ rec=new MediaRecorder(stream,{ mimeType:mime, videoBitsPerSecond:Math.min(16000000, Math.round(W*H*fps*0.12)) }); }
+        catch(e){ clearTimeout(tm); cleanup(); reject(new Error('레코더 시작 실패')); return; }
+        var chunks=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size)chunks.push(e.data); };
+        var rect=null;
+        rec.onstop=function(){
+          clearTimeout(tm); cleanup();
+          if(!chunks.length){ reject(new Error('녹화 결과가 비었습니다')); return; }
+          resolve({ url:URL.createObjectURL(new Blob(chunks,{type:'video/webm'})), kind:'video',
+                    dim:W+'×'+H, srcDim:W+'×'+H, sec:Math.round(dur||0),
+                    info:W+'×'+H+' · '+(opts&&opts.pos||'오른쪽 아래')+(rect?(' · 크기 '+rect.w+'×'+rect.h):'')+
+                         ' · 투명도 '+Math.round(_num(opts&&opts.opacity,100))+'%'+(hasAudio?' · 소리 유지':' · 소리 없음') });
+        };
+        function draw(){ try{ ctx.drawImage(v,0,0,W,H); rect=_drawOverlay(ctx,W,H,over,opts); }catch(e){} }
+        function tick(){ if(done)return; draw();
+          if(onProg&&dur) onProg(Math.min(1, v.currentTime/dur));
+          if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(tick); else requestAnimationFrame(tick); }
+        v.addEventListener('ended',function(){ if(done)return; done=true; draw();
+          setTimeout(function(){ try{ rec.stop(); }catch(e){} }, 200); },{once:true});
+        try{ rec.start(); }catch(e){ clearTimeout(tm); cleanup(); reject(new Error('레코더 시작 실패')); return; }
+        var pr=v.play();
+        function go(){ if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(tick); else requestAnimationFrame(tick); }
+        if(pr&&pr.then) pr.then(go).catch(function(){ clearTimeout(tm); cleanup(); reject(new Error('영상 재생 실패')); });
+        else go();
+      });
+      v.addEventListener('error',function(){ if(!done){ done=true; clearTimeout(tm); cleanup(); reject(new Error('영상 로드 실패')); } });
+      v.src=sameOriginMedia(baseSrc);
+    });
+  });
+}
+
 /* ══════ 색보정 (밝기·대비·채도·색온도 · 분위기 프리셋) ══════
    캔버스 필터로 한 번에 처리한다. 이미지는 한 장, 영상은 프레임마다 같은 값을 적용해 다시 녹화한다.
    프리셋은 '기본 값' 이고 아래 슬라이더는 거기에 곱해지는 미세 조정이다. */
@@ -4988,6 +5109,17 @@ var DEFS = {
                       {k:'fitmode',t:'combo',label:'맞추는 방법',opts:['꽉 채우기(가장자리 잘림)','전체 보이기(여백 생김)','여백을 흐린 배경으로'],def:'꽉 채우기(가장자리 잘림)'},
                       {k:'toolout',t:'toolout'},
                       {k:'run',t:'toolbtn',label:'비율 맞추기 실행',act:'fit'}] },
+ compose:  { cat:'편집', title:'합성 (로고·워터마크 얹기)', hd:'#3a1c1c',
+             ins:[['base','바탕 (이미지·영상)','*'],['over','위에 올릴 그림','*']],
+             outs:[['out','합성 결과','*']],
+             widgets:[{k:'cpos',t:'combo',label:'위치',opts:['오른쪽 아래','왼쪽 아래','오른쪽 위','왼쪽 위','가운데','전체 채우기'],def:'오른쪽 아래'},
+                      {k:'csize',t:'slider',label:'크기(바탕 가로의 %)',min:2,max:100,def:25},
+                      {k:'copacity',t:'slider',label:'투명도(%)',min:5,max:100,def:100},
+                      {k:'cmargin',t:'slider',label:'가장자리 여백(%)',min:0,max:20,def:4},
+                      {k:'cblend',t:'combo',label:'겹치는 방식',opts:['일반','밝게 (검은 배경 로고)','어둡게 (흰 배경 로고)'],def:'일반'},
+                      {k:'composehelp',t:'composehelp'},
+                      {k:'toolout',t:'toolout'},
+                      {k:'run',t:'toolbtn',label:'합성 실행',act:'compose'}] },
  grade:    { cat:'편집', title:'색보정 (밝기·색감)', hd:'#2a1c3a',
              ins:[['in','이미지·영상','*']], outs:[['out','색보정 결과','*']],
              widgets:[{k:'gpreset',t:'combo',label:'분위기',opts:['없음 (직접 조절)','따뜻하게','차갑게','시네마틱 (영화 느낌)','빈티지 (필름 느낌)','선명하게','흑백'],def:'없음 (직접 조절)'},
@@ -5952,6 +6084,15 @@ function widgetHTML(n,w){
     return '<label class="seedopt-row"><input type="checkbox" data-w="'+w.k+'"'+(n.w[w.k]===true?' checked':'')+'>'+
       '<span class="seedopt-tx"><b>'+esc(w.label||'')+'</b>'+(w.hint?'<i>'+esc(w.hint)+'</i>':'')+'</span></label>';
   }
+  // 합성 노드 안내문 — 1920×1080 기준으로 로고가 실제 몇 픽셀이 되는지 알려준다
+  if(w.t==='composehelp'){
+    var _cr=composeRect(1920,1080,1,1,{ pos:n.w.cpos, size:n.w.csize, margin:n.w.cmargin });
+    var _full=/전체|꽉/.test(String(n.w.cpos||''));
+    return '<div class="refcnt up-help">'+(_full
+        ? '바탕을 <b>꽉 채웁니다</b> (비율이 다르면 가장자리가 잘립니다) — 배경 교체·오버레이용'
+        : '1920×1080 영상 기준 로고 크기 약 <b>'+_cr.w+'×'+_cr.h+'px</b> · 위치 '+esc(n.w.cpos||'오른쪽 아래'))+'</div>'+
+      '<div class="refcnt up-help">왼쪽 <b>바탕</b> 포트에 영상·이미지, <b>위에 올릴 그림</b> 포트에 로고를 연결하세요 · 투명 PNG 그대로 지원</div>';
+  }
   // 색보정 노드 안내문 — 지금 설정이 무엇을 바꾸는지 말로 요약해 보여준다
   if(w.t==='gradehelp'){
     var _gs=gradeSummary({ preset:n.w.gpreset, bright:n.w.gbright, contrast:n.w.gcontrast, satur:n.w.gsatur, temp:n.w.gtemp });
@@ -6731,6 +6872,39 @@ canvas.addEventListener('click',function(e){
       });
       return;
     }
+    // ── 합성 — 바탕(이미지·영상) 위에 그림을 얹는다 ──
+    if(act==='compose'){
+      var baseN=inputNodeOf(n2.id,'base'), overN=inputNodeOf(n2.id,'over');
+      var baseMed=baseN?nodeMedia(baseN):null;
+      var overImg=overN?(nodeImgs(overN)[0]||null):null;
+      if(!baseMed||!baseMed.url){ toast('왼쪽 [바탕] 포트에 이미지나 영상을 연결하세요'); return; }
+      if(!overImg){ toast('[위에 올릴 그림] 포트에 로고·워터마크 이미지를 연결하세요'); return; }
+      var cmOpts={ pos:n2.w.cpos||'오른쪽 아래', size:n2.w.csize, opacity:n2.w.copacity,
+                   margin:n2.w.cmargin, blend:n2.w.cblend };
+      var cmIsImg=(baseMed.kind!=='video');
+      var cmNode=n2;
+      cmNode.w.toolBusy=true; cmNode.w.toolMsg='합성 중'; cmNode.w.toolPct=cmIsImg?null:0; render();
+      if(!cmIsImg) toast('영상 합성 중… 영상 길이만큼 걸립니다');
+      function cmProg(pp){
+        cmNode.w.toolPct=pp;
+        var hh=document.getElementById('nd-'+cmNode.id); if(!hh)return;
+        var bar=hh.querySelector('.up-prog i'); if(bar)bar.style.width=Math.round(pp*100)+'%';
+        var msg=hh.querySelector('.up-msg'); if(msg)msg.textContent='합성 중… '+Math.round(pp*100)+'%';
+      }
+      (cmIsImg ? composeImage(baseMed.url, overImg, cmOpts) : composeVideo(baseMed.url, overImg, cmOpts, cmProg))
+        .then(function(r){
+          cmNode.w.toolBusy=false; cmNode.w.toolPct=null;
+          cmNode.w.img=r.url; cmNode.w.toolKind=r.kind; cmNode.w.toolInfo=r.info; cmNode.w.toolFallback=false;
+          toast('합성 완료 · '+r.info); render(); snapshot();
+          if(r.kind==='video'){ try{ grabFrameFromURL(r.url,'video','first',0)
+            .then(function(im){ cmNode.w.poster=im; render(); }).catch(function(){}); }catch(_e){} }
+          try{ nvLogAct('compose','compose',r.info,0,'compose'); }catch(_e){}
+        }).catch(function(err){
+          cmNode.w.toolBusy=false; cmNode.w.toolPct=null; render();
+          toast('합성 실패: '+String(err&&err.message||err).slice(0,70));
+        });
+      return;
+    }
     // ── 색보정 — 이미지·영상 모두 같은 값으로 적용 ──
     if(act==='grade'){
       var gMed=inN?nodeMedia(inN):null;
@@ -7220,7 +7394,7 @@ function topoOrder(){
 /* ── 노드에 담긴 결과물을 꺼내는 공용 함수 ──
    노드 종류마다 결과가 들어가는 칸이 다르다(출력 노드는 vid, 프레임 노드는 frameImg …).
    여러 곳에서 각자 따로 판단하면 어긋나므로 여기 한 곳에서만 정한다. */
-var TOOL_NODES={ upscale:1, caption:1, bgremove:1, fit:1, vtrim:1, grade:1 };   // 결과가 w.img 에 담기는 편집 노드들
+var TOOL_NODES={ upscale:1, caption:1, bgremove:1, fit:1, vtrim:1, grade:1, compose:1 };   // 결과가 w.img 에 담기는 편집 노드들
 function nodeImgs(node){
   if(!node||!node.w) return [];
   if(node.type==='output') return node.w.lastImg?[node.w.lastImg]:[];
