@@ -2216,6 +2216,25 @@ window.addEventListener('pagehide',function(){ try{ if(_actQ.length && navigator
 
 /* ════════ 보관함(갤러리) 모달 ════════ */
 function updateLibChip(){ loadGallery().then(function(list){ var c=document.getElementById('libChip'); if(c)c.textContent=list.length; }); }
+/* ── 미디어 지연 로딩 — 목록의 이미지·영상은 화면에 보일 때만 src 를 넣어 렉/트래픽 최소화.
+     data-lsrc 에 실제 주소를 담아 두면 뷰포트 근처(300px)에 들어올 때 로드된다. ── */
+var _lazyIO = (typeof IntersectionObserver!=='undefined') ? new IntersectionObserver(function(es){
+  es.forEach(function(en){
+    if(!en.isIntersecting) return;
+    var el=en.target, s=el.getAttribute('data-lsrc');
+    if(s){ el.src=s; el.removeAttribute('data-lsrc'); }
+    _lazyIO.unobserve(el);
+  });
+},{rootMargin:'300px'}) : null;
+function lazyAttach(scope){
+  var els=(scope||document).querySelectorAll('[data-lsrc]');
+  Array.prototype.forEach.call(els,function(el){
+    if(_lazyIO) _lazyIO.observe(el);
+    else { el.src=el.getAttribute('data-lsrc'); el.removeAttribute('data-lsrc'); }
+  });
+}
+/* 지연 로딩 중인 영상을 즉시 로드(호버 재생 등 지금 당장 필요할 때) */
+function lazyNow(v){ if(v&&v.getAttribute&&v.getAttribute('data-lsrc')){ v.src=v.getAttribute('data-lsrc'); v.removeAttribute('data-lsrc'); } }
 (function(){
   // ⚠ 보관함 본문은 id=galBody — 노드 라이브러리 패널(.lib-body#libBody)과 id 가 겹쳐
   //   getElementById 가 그쪽(첫 번째)을 돌려주는 바람에 카드가 숨은 패널에 그려지던 버그가 있었다.
@@ -2225,14 +2244,19 @@ function updateLibChip(){ loadGallery().then(function(list){ var c=document.getE
   function tstr(ms){ var d=new Date(Number(ms)||0); if(!Number(ms)||isNaN(d.getTime())) return ''; return two(d.getMonth()+1)+'/'+two(d.getDate())+' '+two(d.getHours())+':'+two(d.getMinutes()); }
   function card(g){
     g=g||{};
-    var isImg=g.kind==='image', src=g.data||g.url||'', pos=g.poster||src;
+    var isImg=g.kind==='image', src=g.data||g.url||'';
     // 재생 불가가 확실한 원본(값 없음 · 세션이 끝나면 죽는 blob: URL)은 바로 자리표시 카드
     var dead = !src || /^blob:/i.test(String(src));
     var phDiv = '<div style="display:grid;place-items:center;height:100%;color:#8b8fa3;font-size:11px;text-align:center;padding:8px;">원본 만료<br>다시 생성해 주세요</div>';
     var expiredPh = "this.outerHTML=&quot;"+phDiv.replace(/"/g,"'")+"&quot;";
+    // 포스터는 진짜 포스터 이미지가 있을 때만. 없으면 src 에 #t=0.15 를 붙여
+    // 브라우저가 0.15초 지점 프레임을 썸네일로 그리게 한다(검은 박스 방지).
+    // data-lsrc 지연 로딩: 화면에 보이는 카드만 실제 로드.
+    var hasPoster = g.poster && !/^blob:/i.test(String(g.poster));
+    var vsrc = src + (String(src).indexOf('#')<0 ? '#t=0.15' : '');
     var media = dead ? phDiv
-              : isImg ? '<img src="'+esc(src)+'" alt="" onerror="'+expiredPh+'">'
-              : '<video src="'+esc(src)+'" poster="'+esc(pos||POSTER)+'" muted loop playsinline preload="metadata" onerror="'+expiredPh+'"></video>';
+              : isImg ? '<img data-lsrc="'+esc(src)+'" alt="" loading="lazy" decoding="async" onerror="'+expiredPh+'">'
+              : '<video data-lsrc="'+esc(vsrc)+'" '+(hasPoster?'poster="'+esc(g.poster)+'" ':'')+'muted loop playsinline preload="metadata" onerror="'+expiredPh+'"></video>';
     var badge='<span class="lib-badge">'+(isImg?ICON.image:ICON.video)+(isImg?'이미지':(g.sec?g.sec+'초':'영상'))+'</span>';
     return '<div class="lib-item" data-gid="'+esc(g.id)+'">'+
       '<div class="lib-thumb">'+badge+media+'</div>'+
@@ -2261,6 +2285,7 @@ function updateLibChip(){ loadGallery().then(function(list){ var c=document.getE
                 '<div class="lib-acts"><button class="del" data-gdel title="삭제">'+ICON.trash+'</button></div></div>'; }
       });
       body.innerHTML=noticeHtml+'<div class="lib-grid">'+html+'</div>';
+      lazyAttach(body);   // 보이는 카드부터 이미지·영상 로드 (렉 방지)
     });
   }
   function downloadItem(g){
@@ -2300,6 +2325,16 @@ function updateLibChip(){ loadGallery().then(function(list){ var c=document.getE
   document.getElementById('libReset').addEventListener('click',function(){
     if(!confirm('보관함을 모두 비울까요? 계정 보관함(서버)의 항목도 목록에서 사라집니다. (되돌릴 수 없습니다)'))return;
     loadGallery().then(function(list){ Promise.all(list.map(function(g){return galleryDel(g.id);})).then(function(){ renderLib(); updateLibChip(); }); });
+  });
+  // 영상 카드 호버 → 미리 재생, 벗어나면 정지 (썸네일 프레임은 그대로 유지)
+  body.addEventListener('mouseover',function(e){
+    var it=e.target.closest('.lib-item'); if(!it)return;
+    var v=it.querySelector('video'); if(v&&v.paused){ lazyNow(v); try{ v.play().catch(function(){}); }catch(_e){} }
+  });
+  body.addEventListener('mouseout',function(e){
+    var it=e.target.closest('.lib-item'); if(!it)return;
+    if(e.relatedTarget && it.contains(e.relatedTarget)) return;   // 카드 내부 이동은 무시
+    var v=it.querySelector('video'); if(v&&!v.paused){ try{ v.pause(); }catch(_e){} }
   });
   body.addEventListener('click',function(e){
     var it=e.target.closest('.lib-item'); if(!it)return; var gid=it.getAttribute('data-gid');
@@ -7494,14 +7529,14 @@ pfHandleTossReturn();
     var el=document.createElement('div'); el.className='ch-card'; el.setAttribute('data-kind', it.kind==='image'?'image':'video');
     el.style.cursor='pointer'; el.title='클릭하면 이 프롬프트·설정·첨부를 다시 불러옵니다';
     var media = it.kind==='image'
-      ? '<img src="'+esc(it.url)+'" alt="" loading="lazy">'
-      : '<video src="'+esc(it.url)+'" '+(it.poster?'poster="'+esc(it.poster)+'" ':'')+'muted loop playsinline preload="metadata"></video>';
+      ? '<img src="'+esc(it.url)+'" alt="" loading="lazy" decoding="async">'
+      : '<video data-lsrc="'+esc(it.url+(String(it.url).indexOf('#')<0?'#t=0.15':''))+'" '+(it.poster?'poster="'+esc(it.poster)+'" ':'')+'muted loop playsinline preload="metadata"></video>';
     var meta = esc(it.model||'') + (it.kind==='image' ? '' : (it.sec?' · '+it.sec+'초':''));
     el.innerHTML = media
       + '<span class="ch-badge">'+(it.kind==='image'?'이미지':'영상')+'</span>'
       + '<div class="ch-card-bar"><span>'+meta+'</span><a href="'+esc(it.url)+'" download target="_blank">저장</a></div>';
     var v=el.querySelector('video');
-    if(v){ el.addEventListener('mouseenter',function(){ try{v.play();}catch(e){} }); el.addEventListener('mouseleave',function(){ try{v.pause();}catch(e){} }); }
+    if(v){ lazyAttach(el); el.addEventListener('mouseenter',function(){ lazyNow(v); try{v.play();}catch(e){} }); el.addEventListener('mouseleave',function(){ try{v.pause();}catch(e){} }); }
     var a=el.querySelector('a'); if(a) a.addEventListener('click',function(ev){ ev.stopPropagation(); });   // 다운로드는 재세팅 제외
     el.addEventListener('click',function(){ restoreRecipe(it); });   // 카드 클릭 → 프롬프트·설정 재세팅
     return el;
@@ -7653,9 +7688,9 @@ pfHandleTossReturn();
   function resWrap(){ return el('crResults'); }
   function showResults(){ var hero=el('crHero'); if(hero)hero.style.display='none'; }
   function makeCard(it){ var c=document.createElement('div'); c.className='ch-card'; c.setAttribute('data-kind',it.kind==='image'?'image':'video'); c.style.cursor='pointer'; c.title='클릭하면 프롬프트·설정·첨부를 다시 불러옵니다';
-    var media=it.kind==='image'?'<img src="'+esc(it.url)+'" loading="lazy" alt="">':'<video src="'+esc(it.url)+'" '+(it.poster?'poster="'+esc(it.poster)+'" ':'')+'muted loop playsinline preload="metadata"></video>';
+    var media=it.kind==='image'?'<img src="'+esc(it.url)+'" loading="lazy" decoding="async" alt="">':'<video data-lsrc="'+esc(it.url+(String(it.url).indexOf('#')<0?'#t=0.15':''))+'" '+(it.poster?'poster="'+esc(it.poster)+'" ':'')+'muted loop playsinline preload="metadata"></video>';
     c.innerHTML=media+'<span class="ch-badge">'+(it.kind==='image'?'이미지':'영상')+'</span><div class="ch-card-bar"><span>'+esc(it.model||'')+(it.kind==='image'?'':(it.sec?' · '+it.sec+'초':''))+'</span><a href="'+esc(it.url)+'" download target="_blank">저장</a></div>';
-    var v=c.querySelector('video'); if(v){ c.addEventListener('mouseenter',function(){try{v.play();}catch(e){}}); c.addEventListener('mouseleave',function(){try{v.pause();}catch(e){}}); }
+    var v=c.querySelector('video'); if(v){ lazyAttach(c); c.addEventListener('mouseenter',function(){lazyNow(v);try{v.play();}catch(e){}}); c.addEventListener('mouseleave',function(){try{v.pause();}catch(e){}}); }
     var a=c.querySelector('a'); if(a)a.addEventListener('click',function(e){e.stopPropagation();});
     c._it=it; c.addEventListener('click',function(){ restore(it); }); return c; }
   function restore(it){ var mode=it.mode||(it.kind==='image'?'image':'video'); setMode(mode);
