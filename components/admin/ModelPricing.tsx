@@ -42,6 +42,13 @@ export function ModelPricing() {
       setEdits(e)
     })
   }
+  // 위 "화질 업스케일 요금" 카드에서 금액을 저장하면 이 표도 함께 갱신한다.
+  useEffect(() => {
+    const h = () => { try { reload() } catch { /* noop */ } }
+    window.addEventListener('pricing-updated', h)
+    return () => window.removeEventListener('pricing-updated', h)
+  }, [])
+
   useEffect(() => { reload() /* eslint-disable-next-line */ }, [scope, activeUserId])
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 2600); return () => clearTimeout(t) }, [toast])
 
@@ -144,21 +151,8 @@ function FragmentRows({ cat, list, edits, setEdits, feeEdits, setFeeEdits, busy,
             <td className="px-2 py-2"><Badge className="border-slate-200 bg-slate-50 text-slate-600">{m.provider}</Badge></td>
             <td className="px-2 py-2 text-[var(--text-soft)]">
               {m.selfFee != null ? (
-                // 제공사 원가가 없는 자체 기능(업스케일) — 원가 대신 '서비스 요금' 을 직접 정한다.
-                //  전체 적용은 이 요금으로, 회원별 차등은 오른쪽 배수로 준다.
-                <span className="inline-flex items-center gap-1">
-                  <input
-                    value={feeEdits[m.model] ?? String(m.selfFee)}
-                    onChange={(e) => setFeeEdits((p: any) => ({ ...p, [m.model]: e.target.value.replace(/[^0-9]/g, '') }))}
-                    className="w-16 rounded-lg border border-violet-300 bg-white px-2 py-1 text-right text-sm"
-                    title="이 기능의 서비스 요금(원). 전체 회원에게 적용됩니다."
-                  />
-                  <span className="text-[11px] text-[var(--text-dim)]">원/{m.selfFeeUnit}</span>
-                  <Button size="sm" variant="outline" disabled={busy}
-                    onClick={() => act('set_self_fee', { model: m.model, fee: Number(feeEdits[m.model] ?? m.selfFee) }, `${m.model} 요금 저장`)}>
-                    <Save size={12} />
-                  </Button>
-                </span>
+                // 제공사 원가가 없는 자체 기능 — 금액은 위 "화질 업스케일 요금" 카드에서 정한다.
+                <span className="text-violet-600">요금 {Number(m.selfFee).toLocaleString('ko-KR')}원/{m.selfFeeUnit}</span>
               ) : (
                 <>{r2(m.baseCredits)} 크레딧</>
               )}
