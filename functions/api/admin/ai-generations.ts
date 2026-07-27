@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, resolveDB, requireAdminUser } from '../_utils'
-import { ensureAiUsage, getUsdKrw } from '../studio/_pricing'
+import { ensureAiUsage, getUsdKrw, explainCost } from '../studio/_pricing'
 
 // GET /api/admin/ai-generations?limit=&offset=&kind=&q=&days=
 //  → 관리자: 각 사용자의 AI 이미지/영상 생성 1건씩(프롬프트·레퍼런스·결과·비용·환율) 목록
@@ -47,7 +47,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     let refs: string[] = []
     try { refs = r.refs ? JSON.parse(r.refs) : [] } catch { refs = [] }
     if (!Array.isArray(refs)) refs = []
+
+    // 이 금액이 어떻게 나왔는지 분해 — 계산 규칙은 _pricing.ts 한 곳에서만 관리한다.
+    const cost = explainCost({ model: r.model, kind: r.kind, units: r.units, usd: r.usd, usdKrw: r.usd_krw, costKrw: r.cost_krw })
+
     return {
+      cost,
       id: r.id,
       createdAt: r.created_at,
       userId: r.user_id || '',

@@ -385,6 +385,13 @@ export interface AiGenerationRow {
   refs: string[]
   resultUrl: string
   resultKind: string
+  /** 이 금액이 어떻게 나왔는지 — 단가×수량(+오디오)·환율·현재 규칙 재계산 */
+  cost?: {
+    unitPrice: number; unitLabel: string; units: number
+    baseTotal: number; audioUsd: number; unexplained: number
+    rate: number; krwOk: boolean; priced: boolean
+    nowUnits: number; nowUsd: number; matchesNow: boolean
+  }
 }
 export interface AiGenerationsResp {
   ok: boolean

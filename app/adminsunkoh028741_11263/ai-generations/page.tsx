@@ -236,7 +236,42 @@ function GenCard({ r }: { r: AiGenerationRow }) {
           <Meta k="AI 원가" v={`${usd(r.usd)} · ${krw(r.costKrw)}`} />
           <Meta k="당일 환율" v={r.usdKrw ? `₩${Math.round(r.usdKrw).toLocaleString('ko-KR')}/$` : '-'} />
         </div>
+
+        {/* 이 금액이 나온 계산 — 눈으로 검산할 수 있게 그대로 보여준다 */}
+        <CostBreakdown r={r} />
       </div>
+    </div>
+  )
+}
+
+/** 원가 계산 내역 — 단가 × 수량 (+오디오) × 환율. 기록된 값과 안 맞으면 이유를 표시한다. */
+function CostBreakdown({ r }: { r: AiGenerationRow }) {
+  const c = r.cost
+  if (!c) return null
+  const f = (n: number) => '$' + (Math.round(n * 10000) / 10000).toFixed(4)
+  const warn = !c.priced || !c.krwOk || Math.abs(c.unexplained) > 1e-6
+  return (
+    <div className={cn('mt-2 rounded-lg border px-2.5 py-2 text-[11px] leading-relaxed',
+      warn ? 'border-amber-500/40 bg-amber-500/5' : 'border-[var(--border-soft)] bg-[var(--panel-2)]')}>
+      <div className="mb-0.5 font-semibold text-[var(--text-dim)]">계산 내역</div>
+      <div className="text-[var(--text-soft)]">
+        {f(c.unitPrice)} / {c.unitLabel} × {c.units}{c.unitLabel} = {f(c.baseTotal)}
+        {c.audioUsd > 0 && <> {' + '} 오디오 {f(c.audioUsd)}</>}
+        {Math.abs(c.unexplained) > 1e-6 && (
+          <span className="text-amber-600"> {c.unexplained > 0 ? '+' : '−'} 설명 안 되는 금액 {f(Math.abs(c.unexplained))}</span>
+        )}
+      </div>
+      <div className="text-[var(--text-soft)]">
+        = {usd(r.usd)} × ₩{Math.round(c.rate).toLocaleString('ko-KR')} = <b className="text-[var(--text)]">{krw(r.costKrw)}</b>
+        {!c.krwOk && <span className="text-amber-600"> (환율 환산 불일치)</span>}
+      </div>
+      {!c.priced && <div className="mt-1 text-amber-600">⚠ 단가표에 없는 모델 — 기본 단가로 계산된 기록입니다.</div>}
+      {c.priced && !c.matchesNow && (
+        <div className="mt-1 text-amber-600">
+          ⚠ 현재 규칙으로는 {c.nowUnits}{c.unitLabel} 기준 {f(c.nowUsd)} · ₩{Math.round(c.nowUsd * c.rate).toLocaleString('ko-KR')} 입니다
+          (옛 계산식으로 기록된 건)
+        </div>
+      )}
     </div>
   )
 }

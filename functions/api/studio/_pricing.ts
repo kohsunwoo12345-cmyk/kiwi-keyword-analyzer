@@ -308,3 +308,32 @@ export async function ensureAiUsage(db: D1Database): Promise<void> {
   await db.prepare('CREATE INDEX IF NOT EXISTS idx_ai_usage_user ON ai_usage(user_id)').run().catch(() => {})
   await db.prepare('CREATE INDEX IF NOT EXISTS idx_ai_usage_time ON ai_usage(created_at)').run().catch(() => {})
 }
+
+/** 기록된 금액이 '어떻게 나온 것인지' 되짚는다 — 관리자 화면에서 눈으로 검산할 수 있게.
+ *  단가×수량(+오디오)으로 설명되지 않는 금액이 남으면 옛 계산식(해상도 배수·요청 초 기준)으로
+ *  기록된 건이다. nowUsd 는 현재 규칙으로 다시 계산한 값. */
+export function explainCost(input: { model: string; kind?: string; units?: number; usd?: number; usdKrw?: number; costKrw?: number }) {
+  const m = MODEL_COST[input.model]
+  const isImg = m ? m.u === 'img' : input.kind === 'image'
+  const unitLabel = isImg ? '장' : '초'
+  const base = m ? m.usd : isImg ? 0.05 : 0.06
+  const units = isImg ? 1 : Number(input.units) || 0
+  const r6 = (n: number) => Math.round(n * 1000000) / 1000000
+  const baseTotal = r6(base * units)
+  const recUsd = Number(input.usd) || 0
+  const diff = r6(recUsd - baseTotal)
+  const audioTotal = m && m.audio ? r6(m.audio * units) : 0
+  const audioUsd = audioTotal > 0 && Math.abs(diff - audioTotal) < 1e-6 ? audioTotal : 0
+  const rate = Number(input.usdKrw) || 0
+  const nowUnits = isImg ? 1 : billedSeconds(input.model, units)
+  const nowUsd = r6(base * nowUnits + (audioUsd > 0 && m && m.audio ? m.audio * nowUnits : 0))
+  return {
+    unitPrice: base, unitLabel, units, baseTotal, audioUsd,
+    unexplained: r6(diff - audioUsd),
+    rate,
+    krwOk: rate > 0 ? Math.abs((Number(input.costKrw) || 0) - Math.round(recUsd * rate)) <= 1 : true,
+    priced: !!m,
+    nowUnits, nowUsd,
+    matchesNow: Math.abs(recUsd - nowUsd) < 1e-6,
+  }
+}

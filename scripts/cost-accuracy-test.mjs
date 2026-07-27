@@ -91,6 +91,36 @@ for (const model of MODELS) {
   ok('브라우저 업스케일 원가 0 · 크레딧 0', c.usd === 0 && c.credits === 0, `$${c.usd} · ${c.credits}크레딧`)
 }
 
+// ── 관리자 화면의 '계산 내역' 이 실제 기록을 정확히 되짚는가 ──
+{
+  // 정상 기록: 씨댄스 2.0 · 12초 · 오디오 ON · 환율 1484
+  const usd = 0.062 * 12 + 0.02 * 12
+  const e = P.explainCost({ model: 'Seedance 2.0', kind: 'video', units: 12, usd, usdKrw: 1484, costKrw: Math.round(usd * 1484) })
+  ok('계산 내역: 단가×초 분해', e.unitPrice === 0.062 && e.units === 12 && Math.abs(e.baseTotal - 0.744) < 1e-9, `${e.unitPrice}×${e.units}=${e.baseTotal}`)
+  ok('계산 내역: 오디오 분리', Math.abs(e.audioUsd - 0.24) < 1e-9, '$' + e.audioUsd)
+  ok('계산 내역: 설명 안 되는 금액 없음', e.unexplained === 0, String(e.unexplained))
+  ok('계산 내역: 원화 환산 일치', e.krwOk === true)
+  ok('계산 내역: 현재 규칙과 일치', e.matchesNow === true, `$${e.nowUsd}`)
+}
+{
+  // 옛 기록 재현: 16초를 요청했지만 씨댄스 2.0 은 15초까지만 만든다 → 16초로 청구된 기록
+  const oldUsd = 0.062 * 16
+  const e = P.explainCost({ model: 'Seedance 2.0', kind: 'video', units: 16, usd: oldUsd, usdKrw: 1472, costKrw: Math.round(oldUsd * 1472) })
+  ok('옛 기록 감지: 현재 규칙과 다름', e.matchesNow === false, `기록 $${oldUsd.toFixed(3)} vs 현재 $${e.nowUsd}`)
+  ok('옛 기록: 현재 규칙은 15초로 환산', e.nowUnits === 15, `${e.nowUnits}초`)
+}
+{
+  // 해상도 배수가 섞인 옛 기록(4K 2.6배) → '설명 안 되는 금액' 으로 잡혀야 한다
+  const oldUsd = 0.062 * 2.6 * 5
+  const e = P.explainCost({ model: 'Seedance 2.0', kind: 'video', units: 5, usd: oldUsd, usdKrw: 1400, costKrw: Math.round(oldUsd * 1400) })
+  ok('해상도 배수 섞인 옛 기록 탐지', e.unexplained > 0.4, '$' + e.unexplained.toFixed(3))
+}
+{
+  // 단가표에 없는 모델은 '기본 단가로 계산됨' 으로 표시되어야 한다
+  const e = P.explainCost({ model: '없는 모델', kind: 'image', units: 1, usd: 0.05, usdKrw: 1400, costKrw: 70 })
+  ok('단가표에 없는 모델 표시', e.priced === false)
+}
+
 fs.rmSync(dir, { recursive: true, force: true })
 let fail = 0
 for (const [n, pass, info] of out) { if (!pass) fail++; console.log((pass ? 'PASS ' : 'FAIL ') + n + (info ? '  — ' + info : '')) }
