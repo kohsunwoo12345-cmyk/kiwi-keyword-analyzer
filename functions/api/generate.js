@@ -437,13 +437,18 @@ export function buildSeedancePayload(b, env, forceModel) {
   }
 
   // ── Seedance 1.x 형식(텍스트에 --ratio/--duration, first/last_frame) ──
+  //  Lite 는 t2v·i2v 가 서로 다른 모델 ID 다. t2v 에 이미지를 붙이거나 i2v 에 안 붙이면
+  //  제공사가 반려한다. 스튜디오는 포트로 막지만 API·MCP 는 임의로 보낼 수 있어 여기서도 맞춘다.
+  const liteT2V = /lite-t2v/.test(model), liteI2V = /lite-i2v/.test(model);
   const dur = (Number(b.seconds) || 8) <= 6 ? 5 : 10;
   const content = [{ type: "text",
     text: cut([(b.prompt || ""), b.negative ? ("피해야 할 것: " + String(b.negative)) : ""]
             .filter(Boolean).join("\n"), 800)
           + " --ratio " + ratio + " --duration " + dur + " --resolution " + resolution }];
-  if (first) content.push({ type: "image_url", image_url: { url: first }, role: "first_frame" });
-  if (b.lastFrame) content.push({ type: "image_url", image_url: { url: b.lastFrame }, role: "last_frame" });
+  if (first && !liteT2V) content.push({ type: "image_url", image_url: { url: first }, role: "first_frame" });
+  if (b.lastFrame && !liteT2V) content.push({ type: "image_url", image_url: { url: b.lastFrame }, role: "last_frame" });
+  // i2v 모델인데 이미지가 없으면 제공사가 반려하므로, 표시명이 t2v 인 형제 모델로 되돌린다.
+  if (liteI2V && !first) return { model: model.replace("lite-i2v", "lite-t2v"), content };
   return { model, content };
 }
 const ARK_HOSTS = {
@@ -485,9 +490,20 @@ export function seedreamModelIds(b, env) {
 }
 export function seedreamModelId(b, env) { return seedreamModelIds(b, env)[0]; }
 /* "이 모델 ID 자체가 없다"는 응답인지 판별 → 다음 후보로 재시도할 조건 */
+/* "이 모델 ID 가 없다/안 열렸다" 인지 판정. 다음 후보 ID 로 넘어갈지, 그리고 진단에서
+   "미개통" 으로 표시할지가 이 함수 하나에 달려 있다.
+   예전 정규식은 model 뒤 아무 데나 "invalid" 가 있으면 미개통으로 봤다. 그래서
+   "the model ... has invalid parameters" 같은 '파라미터 오류'까지 미개통으로 뭉개져,
+   실제로는 개통돼 있는데 "미개통" 이라고 잘못 보고됐다.
+   → 제공사가 쓰는 명시적 코드와 문구만 인정한다. */
 export function seedreamModelMissing(status, j) {
-  const msg = String((j && j.error && (j.error.message || j.error.code)) || "").toLowerCase();
-  return status === 404 || /model.*(not found|not exist|invalid|unavailable)|invalidendpoint|notfound/.test(msg);
+  const code = String((j && j.error && j.error.code) || "").toLowerCase();
+  const msg  = String((j && j.error && j.error.message) || "").toLowerCase();
+  if (/modelnotfound|modelnotopen|invalidendpointormodel|endpointisinvalid|notfound/.test(code)) return true;
+  if (/model .*(does not exist|not exist|not found|is not available|unavailable|not activated|not enabled)/.test(msg)) return true;
+  if (/(unknown|unsupported) model|no such model/.test(msg)) return true;
+  // 404 인데 위 문구가 없더라도 경로/모델 문제로 보고 다음 후보를 시도한다.
+  return status === 404;
 }
 // 비율 → ModelArk 이미지 크기(WxH, 각 변 512~2048). 기본 16:9.
 const SEEDREAM_SIZES = {
@@ -1423,7 +1439,11 @@ async function handle(context) {
           const missing = seedreamModelMissing(r.status, j);
           const taskId = j && (j.id || (j.data && j.data.id));
           if (taskId) return { id, exists: true, httpStatus: r.status, taskId };   // 실제 제출됨(존재 확정)
+          // 판정 근거를 그대로 실어 준다 — 우리 해석이 아니라 제공사 원문으로 확인할 수 있게.
           return { id, exists: !missing, httpStatus: r.status,
+                   code: String((j && j.error && j.error.code) || ""),
+                   message: String((j && j.error && j.error.message) || "").slice(0, 300),
+                   raw: j ? undefined : String(text).slice(0, 300),
                    err: String((j && j.error && (j.error.message || j.error.code)) || text).slice(0, 140) };
         } catch (e) { return { id, exists: false, error: String((e && e.message) || e).slice(0, 100) }; }
       };
@@ -1433,10 +1453,12 @@ async function handle(context) {
         const hit = tried.find(x => x.exists) || tried[0];
         return { model: name, id: hit.id, exists: tried.some(x => x.exists),
                  httpStatus: hit.httpStatus, taskId: hit.taskId, err: hit.err,
-                 candidates: tried.map(x => x.id + (x.exists ? "✓" : "✗")) };
+                 code: hit.code, message: hit.message, raw: hit.raw,
+                 candidates: tried.map(x => x.id + (x.exists ? "✓" : "✗") + "[" + (x.httpStatus || "-") + (x.code ? " " + x.code : "") + "]") };
       }));
       return json({ diag: "seedance-check",
-        note: "404/NotFound=ID 없음/미개통. 그 외(400 등)=존재(ID정상, 파라미터만 반려). content 비워 보내 태스크 미생성(무과금).",
+        note: "candidates 의 [HTTP 코드] 를 그대로 보세요. 404·ModelNotFound·ModelNotOpen=ID 없음/미개통, "
+            + "400 InvalidParameter=ID 는 정상(내용을 비워 보냈으니 당연한 반려). content 를 비워 보내므로 태스크는 생성되지 않습니다(무과금).",
         exists: items.filter(x => x.exists).map(x => x.model + " → " + x.id),
         missing: items.filter(x => !x.exists).map(x => x.model + " → " + x.id), items });
     }
@@ -2532,7 +2554,14 @@ async function handle(context) {
         }
         if (r.ok && j.id)
           return json({ statusUrl: "/api/generate?provider=seedance&host=" + hostId + "&task=" + encodeURIComponent(j.id), modelId: mid });
-        lastErr = "HTTP " + r.status + " [" + mid + " img:" + imgN + "] " + ((j.error && (j.error.message || j.error.code)) || String(JSON.stringify(j)).slice(0, 140));
+        // 제공사 코드와 메시지를 둘 다 남긴다 — 코드만 보면 "미개통(ModelNotOpen)" 인지
+        //  "파라미터 오류(InvalidParameter)" 인지 한눈에 갈린다(예전엔 메시지만 남아 구분이 안 됐다).
+        const eCode = (j.error && j.error.code) || "";
+        const eMsg = (j.error && j.error.message) || String(JSON.stringify(j)).slice(0, 140);
+        lastErr = "HTTP " + r.status + " [" + mid + " img:" + imgN + "]"
+          + (eCode ? " <" + eCode + ">" : "") + " " + eMsg
+          + (/modelnotopen|not activated|not enabled/i.test(eCode + " " + eMsg)
+              ? " — 이 모델은 계정에서 아직 개통되지 않았습니다(BytePlus 콘솔에서 활성화 필요)." : "");
         tried.push(mid + "=" + r.status);
         // 다음 후보로 넘어갈 조건: 모델 ID 없음(404) 또는 제공사 5xx.
         //  ModelArk 는 미개통·미배포 모델에 404 가 아니라 500(InternalServiceError)을 주는 경우가 있어,
