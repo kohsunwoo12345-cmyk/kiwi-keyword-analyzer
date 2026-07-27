@@ -1926,7 +1926,9 @@ function paintIcons(root){
 }
 paintIcons();
 /* ════════ 타입/노드 정의 ════════ */
-var PORT_COLORS = { TEXT:'#ffab40', IMAGE:'#42a5f5', GEN:'#f48fb1', VIDEO:'#81c784', MODEL:'#60a5fa', AUDIO:'#4dd0e1', '*':'#9aa0b5' };
+var PORT_COLORS = { TEXT:'#ffab40', IMAGE:'#42a5f5', GEN:'#f48fb1', VIDEO:'#81c784', MODEL:'#60a5fa', AUDIO:'#4dd0e1',
+  MEDIA:'#8bc9a6',   // 영상 계열 입력 — 이미지·영상·생성물만 받는다
+  '*':'#9aa0b5' };
 /* 나레이션 목소리 (표시명 → TTS voice_id). 서버 /api/tts/v2/speak 규격. */
 var VOICE_OPTS = [
   '일레븐랩스·여성(Rachel)','일레븐랩스·여성(Sarah)','일레븐랩스·남성(Adam)','일레븐랩스·남성(Antoni)','일레븐랩스·여성(Aria)',
@@ -1944,7 +1946,18 @@ var VOICE_ID = {
 };
 // 목소리 교체(Speech-to-Speech)는 일레븐랩스 보이스만 사용
 var EL_VOICE_OPTS = ['일레븐랩스·여성(Rachel)','일레븐랩스·여성(Sarah)','일레븐랩스·남성(Adam)','일레븐랩스·남성(Antoni)','일레븐랩스·여성(Aria)'];
-function typeOK(a,b){ return a===b || a==='*' || b==='*'; }
+/* 포트 타입 호환.
+   영상 입력(영상 레퍼런스·나레이션·목소리 교체·이어붙이기·프레임 추출)이 예전엔 '*' 였다.
+   그래서 프롬프트(TEXT)·음악(AUDIO)·모델 선택(MODEL) 출력까지 연결이 됐고, 연결해도
+   아무 일도 일어나지 않아 "왜 반영이 안 되지" 로 이어졌다.
+   → MEDIA 타입을 두고 이미지·영상·생성물만 받게 한다. 다른 조합의 판정은 그대로다. */
+var MEDIA_OK = { IMAGE:1, VIDEO:1, GEN:1, MEDIA:1 };
+function typeOK(a,b){
+  if(a===b || a==='*' || b==='*') return true;
+  if(a==='MEDIA') return !!MEDIA_OK[b];
+  if(b==='MEDIA') return !!MEDIA_OK[a];
+  return false;
+}
 /* 실제 백엔드(/api/generate)에 연결되어 지금 바로 생성 가능한 모델만 노출 */
 var MODELS = [
  ['영상 → 영상 (V2V·실사화)','V2V 자동 (최고정확도·모델 자동선택)'],
@@ -4407,7 +4420,7 @@ var DEFS = {
              ins:[['modelsel','모델 선택 (선택)','MODEL'],
                   ['prompt','프롬프트','TEXT'],['negative','네거티브','TEXT'],
                   ['ref','이미지 레퍼런스','IMAGE'],
-                  ['vidref','영상 레퍼런스','*'],
+                  ['vidref','영상 레퍼런스','MEDIA'],
                   ['first','첫 프레임','IMAGE'],['last','마지막 프레임','IMAGE'],
                   ['audio','오디오 참조 (씨댄스 2.0·선택)','AUDIO']],
              outs:[['out','생성물','GEN']],
@@ -4462,14 +4475,14 @@ var DEFS = {
              outs:[['out','결과 → 레퍼런스','IMAGE']],
              widgets:[{k:'vid',t:'videoout'}] },
  weave:    { cat:'출력', title:'영상 이어붙이기 (연속)', hd:'#233a3f',
-             ins:[['clips','영상들 (왼쪽→오른쪽 순서)','*']],
-             outs:[['out','이어진 영상 → 레퍼런스','*']],
+             ins:[['clips','영상들 (왼쪽→오른쪽 순서)','MEDIA']],
+             outs:[['out','이어진 영상 → 레퍼런스','MEDIA']],
              widgets:[{k:'weaveinfo',t:'weaveinfo'},
                       {k:'vid',t:'videoout'},
                       {k:'run',t:'weavebtn',label:'영상 이어붙이기'}] },
  narrate:  { cat:'오디오', title:'AI 음성 (해설·립싱크)', hd:'#3a2c1c',
-             ins:[['in','영상','*'],['script','대본 (텍스트·선택)','TEXT']],
-             outs:[['out','음성 영상 → 레퍼런스','*']],
+             ins:[['in','영상','MEDIA'],['script','대본 (텍스트·선택)','TEXT']],
+             outs:[['out','음성 영상 → 레퍼런스','MEDIA']],
              widgets:[{k:'nmode',t:'combo',label:'방식',opts:['해설 (보이스오버)','립싱크 (인물 말하기)'],def:'해설 (보이스오버)'},
                       {k:'ntext',t:'textarea',ph:'영상에 입힐 대사/해설을 입력하세요...\n(비우면 왼쪽 [대본] 노드의 텍스트를 사용)'},
                       {k:'voice',t:'combo',label:'목소리',opts:VOICE_OPTS,def:'한국어·여성(밝은)'},
@@ -4478,8 +4491,8 @@ var DEFS = {
                       {k:'vid',t:'videoout'},
                       {k:'run',t:'narratebtn',label:'음성 입히기'}] },
  revoice:  { cat:'오디오', title:'목소리 교체 → 립싱크', hd:'#3a1c2c',
-             ins:[['in','영상 (말소리 포함)','*']],
-             outs:[['out','목소리 교체·립싱크 영상 → 레퍼런스','*']],
+             ins:[['in','영상 (말소리 포함)','MEDIA']],
+             outs:[['out','목소리 교체·립싱크 영상 → 레퍼런스','MEDIA']],
              widgets:[{k:'voice',t:'combo',label:'교체할 목소리',opts:EL_VOICE_OPTS,def:'일레븐랩스·여성(Rachel)'},
                       {k:'revinfo',t:'revinfo'},
                       {k:'vid',t:'videoout'},
@@ -4495,7 +4508,7 @@ var DEFS = {
  note:     { cat:'유틸', title:'노트', hd:'', ins:[], outs:[],
              widgets:[{k:'text',t:'textarea',ph:'메모를 입력하세요...'}] },
  frame:    { cat:'유틸', title:'프레임 추출', hd:'#1f3a3a',
-             ins:[['in','영상','*']], outs:[['out','프레임','IMAGE']],
+             ins:[['in','영상','MEDIA']], outs:[['out','프레임','IMAGE']],
              widgets:[{k:'pos',t:'combo',label:'위치',opts:['마지막 프레임','첫 프레임','중간(50%)','직접 지정(초)'],def:'마지막 프레임'},
                       {k:'ftime',t:'slider',label:'시간(초)',min:0,max:60,def:0},
                       {k:'frameout',t:'frameout'},
