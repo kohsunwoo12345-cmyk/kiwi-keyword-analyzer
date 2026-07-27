@@ -1480,6 +1480,56 @@ async function handle(context) {
         note: "계정에서 조회되는 모델 ID 목록. 여기 있는데 404 면 권한/미개통, 아예 없으면 그 ID 자체가 없는 것.",
         found: hit ? hit.modelIds : null, tried: out });
     }
+    /* 이미지 모델(Seedream/SeedEdit) 존재확인 — Seedance 와 같은 방식.
+       prompt 를 비워 제출하면 존재하는 모델은 400(InvalidParameter), 없는 모델은
+       404(InvalidEndpointOrModel.NotFound) 를 준다. 이미지도 태스크가 생기지 않아 무과금.
+         /api/generate?diag=seedream-check */
+    if (u.searchParams.get("diag") === "seedream-check") {
+      if (!k.seedance) return json({ diag: "seedream-check", error: "Seedance_API_KEY 미설정" });
+      const checkOne = async (id) => {
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + "/images/generations", {
+            method: "POST", headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: id, prompt: "" }) }, 15000);
+          const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch { /* 비JSON */ }
+          const missing = seedreamModelMissing(r.status, j);
+          return { id, exists: !missing, httpStatus: r.status,
+                   code: String((j && j.error && j.error.code) || ""),
+                   message: String((j && j.error && j.error.message) || text).slice(0, 220) };
+        } catch (e) { return { id, exists: false, error: String((e && e.message) || e).slice(0, 100) }; }
+      };
+      const items = await Promise.all(Object.keys(SEEDREAM_IDS).map(async (name) => {
+        const ids = SEEDREAM_IDS[name];
+        const tried = await Promise.all(ids.map(checkOne));
+        const hit = tried.find(x => x.exists) || tried[0];
+        return { model: name, id: hit.id, exists: tried.some(x => x.exists),
+                 httpStatus: hit.httpStatus, code: hit.code, message: hit.message,
+                 candidates: tried.map(x => x.id + (x.exists ? "✓" : "✗") + "[" + (x.httpStatus || "-") + (x.code ? " " + x.code : "") + "]") };
+      }));
+      const miss = items.filter(x => !x.exists);
+      let catalog = null, suggest = [];
+      if (miss.length) {
+        try {
+          catalog = await arkModelCatalog(k.seedance);
+          for (const it of miss) {
+            const ids = SEEDREAM_IDS[it.model];
+            const alt = arkPickByStem(catalog, ids);
+            const listed = (catalog || []).filter(x => ids.indexOf(x) >= 0);
+            suggest.push({ model: it.model, tried: ids, catalogMatch: alt, listedInCatalog: listed,
+              nearby: (catalog || []).filter(x => /seedream|seededit|dola/i.test(x)).slice(0, 12),
+              verdict: alt ? "카탈로그에 같은 계열의 다른 ID 가 있습니다 — 그 ID 로 바꾸면 됩니다."
+                : listed.length ? "ID 는 맞습니다(카탈로그에 있음). 호출만 404 → 콘솔에서 개통 필요."
+                : "계정 카탈로그에 이 계열이 없습니다." });
+          }
+        } catch (_e) { /* 무시 */ }
+      }
+      return json({ diag: "seedream-check",
+        note: "prompt 를 비워 제출합니다. 400 InvalidParameter=ID 정상, 404 InvalidEndpointOrModel.NotFound=ID 없음/미개통. 이미지는 생성되지 않습니다(무과금).",
+        catalogSeedream: catalog ? catalog.filter(x => /seedream|seededit|dola/i.test(x)) : undefined,
+        exists: items.filter(x => x.exists).map(x => x.model + " → " + x.id),
+        missing: miss.map(x => x.model + " → " + x.id),
+        suggest: suggest.length ? suggest : undefined, items });
+    }
     // 초고속 존재확인(무과금): 각 Seedance 모델을 content 없이 제출 → 404/NotFound=ID없음, 그 외=존재(파라미터만 반려·태스크 미생성).
     //   /api/generate?diag=seedance-check
     if (u.searchParams.get("diag") === "seedance-check") {
