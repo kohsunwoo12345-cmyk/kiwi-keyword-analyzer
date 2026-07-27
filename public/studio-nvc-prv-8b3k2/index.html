@@ -2757,6 +2757,14 @@ function sameOriginMedia(url){
 }
 /* ── 여러 영상을 하나의 연속 영상으로 이어붙이기 (캔버스+MediaRecorder, 브라우저 내 실동작) ──
    각 클립을 순서대로 재생하며 한 캔버스에 그려 연속 녹화 → 하나의 webm 으로 합친다. */
+/* 브라우저에서 만든 영상(이어붙이기·업스케일)은 blob: URL 로 나오는데, blob: 은 새로고침하면
+   죽는다. 게다가 서버 저장 시 걸러지는 건 data: 뿐이라, 죽은 blob: 링크가 그대로 저장돼
+   다음 접속에서 재생 불가가 된다. → R2 에 올려 공개 URL 로 바꾸고, 실패했을 때만 blob: 을 쓴다. */
+function hostRecordedVideo(chunks, type){
+  var blob=new Blob(chunks,{type:type||'video/webm'});
+  return hostMediaBlob(blob).then(function(url){ return url||URL.createObjectURL(blob); })
+                            .catch(function(){ return URL.createObjectURL(blob); });
+}
 function concatVideos(urls, onProg){
   return new Promise(function(resolve,reject){
     if(typeof MediaRecorder==='undefined'){ reject(new Error('이 브라우저는 영상 이어붙이기를 지원하지 않습니다')); return; }
@@ -2766,7 +2774,7 @@ function concatVideos(urls, onProg){
     var tm=setTimeout(function(){ if(!done){ done=true; try{rec&&rec.stop();}catch(e){} reject(new Error('처리 시간 초과')); } }, 300000);
     function finish(){ if(done)return; done=true; clearTimeout(tm);
       if(!rec){ reject(new Error('첫 영상을 불러오지 못했습니다')); return; }
-      rec.onstop=function(){ resolve({ url:URL.createObjectURL(new Blob(chunks,{type:'video/webm'})), kind:'video', dim:w+'×'+h }); };
+      rec.onstop=function(){ hostRecordedVideo(chunks,'video/webm').then(function(u){ resolve({ url:u, kind:'video', dim:w+'×'+h }); }); };
       setTimeout(function(){ try{rec.stop();}catch(e){} }, 200);
     }
     function playClip(i){
@@ -4129,7 +4137,7 @@ function upscaleVideoURL(src,scale,onProg,opts){
         var vbps=Math.min(clip>60?10000000:24000000, Math.round(tw*th*FPS*0.10));   // 긴 영상은 비트레이트↓ (메모리·용량 안전)
         var rec; try{ rec=new MediaRecorder(stream,{ mimeType:mime, videoBitsPerSecond:vbps }); }catch(e){ return fallback(); }
         var chunks=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size)chunks.push(e.data); };
-        rec.onstop=function(){ if(settled)return; settled=true; resolve({ url:URL.createObjectURL(new Blob(chunks,{type:'video/webm'})), kind:'video', dim:tw+'×'+th }); };
+        rec.onstop=function(){ if(settled)return; settled=true; hostRecordedVideo(chunks,'video/webm').then(function(u){ resolve({ url:u, kind:'video', dim:tw+'×'+th }); }); };
         try{ rec.start(2000); }catch(e){ try{ rec.start(); }catch(e2){ return fallback(); } }   // 2초마다 청크 flush
         var total=Math.max(1, Math.round(clip*FPS)), idx=0;
         function seekTo(t){ return new Promise(function(res){ var done2=false; function on(){ if(done2)return; done2=true; v.removeEventListener('seeked',on); res(); } v.addEventListener('seeked',on); setTimeout(on,8000); try{ v.currentTime=Math.min(t, Math.max(0,(dur||clip)-0.02)); }catch(e){ on(); } }); }
@@ -4202,7 +4210,7 @@ function _upscaleVideoResample(src,scale,onProg){
       var mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].filter(function(m){return MediaRecorder.isTypeSupported(m);})[0]||'video/webm';
       var rec=new MediaRecorder(stream,{ mimeType:mime, videoBitsPerSecond:Math.min(24000000,Math.round(w*h*fps*0.12)) });
       var chunks=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size)chunks.push(e.data); };
-      rec.onstop=function(){ if(done&&chunks.length){ clearTimeout(tm); resolve({ url:URL.createObjectURL(new Blob(chunks,{type:'video/webm'})), kind:'video', dim:w+'×'+h }); } };
+      rec.onstop=function(){ if(done&&chunks.length){ clearTimeout(tm); hostRecordedVideo(chunks,'video/webm').then(function(u){ resolve({ url:u, kind:'video', dim:w+'×'+h }); }); } };
       function draw(){ try{ ctx.drawImage(v,0,0,w,h); }catch(e){} }
       function tick(){ if(done)return; draw(); if(onProg&&v.duration)onProg(Math.min(1,v.currentTime/v.duration)); if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(tick); else requestAnimationFrame(tick); }
       v.addEventListener('ended',function(){ if(done)return; done=true; draw(); setTimeout(function(){ try{rec.stop();}catch(e){} },160); },{once:true});
@@ -4858,7 +4866,8 @@ window.__nvExportGraph=function(){
   saveActiveIntoDoc();
   var g;
   try{ g=JSON.parse(JSON.stringify(docSnap())); }catch(e){ g=docSnap(); }
-  var isData=function(v){ return typeof v==='string' && v.indexOf('data:')===0; };
+  // blob: 은 그 탭에서만 유효 — 저장해도 다음 접속엔 죽은 링크라 data: 와 같이 제거한다.
+  var isData=function(v){ return typeof v==='string' && (v.indexOf('data:')===0 || v.indexOf('blob:')===0); };
   (g.nodes||[]).forEach(function(n){
     if(!n||!n.w)return; var w=n.w;
     ['img','vid','poster','upscaled','srcVideoUrl'].forEach(function(k){ if(isData(w[k]))w[k]=null; });
@@ -4925,7 +4934,8 @@ function saveViewSoon(){ autosave(); }
 // 생성 결과·업로드의 대용량 base64(data:) 는 서버 전송에서 제거해 경량화(원격 URL 은 유지).
 function stripGraphMedia(g){
   try{ g=JSON.parse(JSON.stringify(g)); }catch(e){ return g; }
-  var isData=function(v){ return typeof v==='string' && v.indexOf('data:')===0; };
+  // blob: 은 그 탭에서만 유효 — 저장해도 다음 접속엔 죽은 링크라 data: 와 같이 제거한다.
+  var isData=function(v){ return typeof v==='string' && (v.indexOf('data:')===0 || v.indexOf('blob:')===0); };
   (g&&g.nodes||[]).forEach(function(n){ if(!n||!n.w)return; var w=n.w;
     ['img','vid','poster','upscaled','srcVideoUrl'].forEach(function(k){ if(isData(w[k]))w[k]=null; });
     // imgs 와 vids 는 같은 인덱스로 짝을 이룬다 — 한쪽만 걸러내면 영상 프레임 표시가 밀린다.
