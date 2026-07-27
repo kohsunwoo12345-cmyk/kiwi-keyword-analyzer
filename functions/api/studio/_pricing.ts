@@ -148,8 +148,10 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   'Seedream 4.5 (레퍼런스 편집)': { u: 'img', usd: 0.045, prov: 'seedream' },
   'Seedream 4.0': { u: 'img', usd: 0.035, prov: 'seedream' },
   'Seedream 4.0 (레퍼런스 편집)': { u: 'img', usd: 0.035, prov: 'seedream' },
-  'Seedream 3.0': { u: 'img', usd: 0.03, prov: 'seedream' },
-  'SeedEdit 3.0 (레퍼런스 편집)': { u: 'img', usd: 0.03, prov: 'seedream' },
+  // Seedream 3.0 · SeedEdit 3.0 은 콘솔 목록에는 있으나 이 계정에서 호출하면 404 다(probe-all 확인).
+  //  개통되면 아래 두 줄을 되살리고 스튜디오 목록에도 다시 넣는다.
+  // 'Seedream 3.0': { u: 'img', usd: 0.03, prov: 'seedream' },
+  // 'SeedEdit 3.0 (레퍼런스 편집)': { u: 'img', usd: 0.03, prov: 'seedream' },
   'Nano Banana': { u: 'img', usd: 0.039, prov: 'nanobanana' },
   'GPT Image 2': { u: 'img', usd: 0.08, prov: 'openai' },
   'GPT Image 1.5': { u: 'img', usd: 0.06, prov: 'openai' },
@@ -172,20 +174,17 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   /* ── 3D 생성 (BytePlus ModelArk · 모델 1개당 과금) ──
      ⚠️ 단가는 공개 시세 기준 잠정값이다. 콘솔의 실제 단가를 확인한 뒤 이 값을 맞춰야 한다.
      생성 노드에는 아직 노출하지 않는다(엔드포인트·응답 규격 확인 전). 관리자 화면에는 표시된다. */
+  //  실제 ID 확인됨(probe-all): hyper3d-gen2-260112 / hitem3d-2-0-251223
   'Hyper3D Gen-2 (3D 생성)': { u: '3d', usd: 0.4, prov: 'ark3d' },
   'Hitem3D 2.0 (3D 생성)': { u: '3d', usd: 0.4, prov: 'ark3d' },
 
   /* ── 프롬프트 작성 LLM (호출 1회당) ──
      영상·이미지와 같은 ARK 키로 호출하므로 외부 API 비용이 없다.
      값은 500토큰 안팎의 1회 호출 기준 잠정값. */
-  'deepseek-v4-pro': { u: 'tok', usd: 0.004, prov: 'promptgen' },
-  'deepseek-v4-flash': { u: 'tok', usd: 0.001, prov: 'promptgen' },
-  'deepseek-v3-2': { u: 'tok', usd: 0.002, prov: 'promptgen' },
-  'deepseek-v3-1': { u: 'tok', usd: 0.002, prov: 'promptgen' },
-  'dola-seed-2-1-turbo': { u: 'tok', usd: 0.002, prov: 'promptgen' },
-  'dola-seed-2-0-pro': { u: 'tok', usd: 0.004, prov: 'promptgen' },
-  'dola-seed-2-0-lite': { u: 'tok', usd: 0.001, prov: 'promptgen' },
-  'dola-seed-2-0-mini': { u: 'tok', usd: 0.0006, prov: 'promptgen' },
+  //  ⚠️ 아래 ID 들은 접미사 없는 형태라 이 계정에서 전부 404 였다(probe-all 확인).
+  //     probe-all 의 promptgen 항목이 카탈로그에서 찾은 실제 ID 로 교체해야 한다.
+  // 'deepseek-v4-pro': { u: 'tok', usd: 0.004, prov: 'promptgen' },
+  // 'dola-seed-2-1-turbo': { u: 'tok', usd: 0.002, prov: 'promptgen' },
 }
 
 export const PROV_LABEL: Record<string, string> = {

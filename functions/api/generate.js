@@ -1531,12 +1531,29 @@ async function handle(context) {
           const e = errOf(x); return R(name, "seedream", id, x.status, e.code, e.msg); })());
       }
       // ── BytePlus ModelArk: 프롬프트 LLM (OpenAI 호환 chat/completions) ──
-      if (k.seedance && want("promptgen")) for (const id of ["deepseek-v4-pro","deepseek-v4-flash","deepseek-v3-2","deepseek-v3-1",
-                                                             "dola-seed-2-1-turbo","dola-seed-2-0-pro","dola-seed-2-0-lite","dola-seed-2-0-mini"]) {
-        jobs.push((async () => { const x = await post(ARK_HOSTS.bp + "/chat/completions",
-          { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" }, { model: id, messages: [] });
-          const e = errOf(x); return R(id, "promptgen", id, x.status, e.code, e.msg); })());
-      }
+      if (k.seedance && want("promptgen")) jobs.push((async () => {
+        // 접미사 없는 ID 는 전부 404 였다 → 계정 카탈로그에서 실제 LLM ID 를 뽑아 그걸로 확인한다.
+        let ids = [];
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + "/models?page_size=200", { headers: { "Authorization": "Bearer " + k.seedance } }, 10000);
+          const t = await r.text();
+          ids = [...new Set(String(t).match(/[a-z0-9]+(?:-[a-z0-9]+){1,}/gi) || [])]
+            .filter(x => /^(deepseek|dola-seed|doubao|skylark|kimi|glm|gpt-oss|bytedance-seed)/i.test(x))
+            .map(x => x.toLowerCase());
+        } catch (_e) { /* 무시 */ }
+        if (!ids.length) return { model: "프롬프트 LLM", provider: "promptgen", id: "(카탈로그에서 못 찾음)",
+          httpStatus: 0, ok: false, code: "", message: "계정 카탈로그에 LLM 계열 ID 가 없습니다" };
+        const checked = await Promise.all(ids.slice(0, 20).map(async (id) => {
+          const x = await post(ARK_HOSTS.bp + "/chat/completions",
+            { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" }, { model: id, messages: [] });
+          const e = errOf(x); return { id, status: x.status, ok: !seedreamModelMissing(x.status, x.j), msg: e.msg };
+        }));
+        const good = checked.filter(c => c.ok);
+        return { model: "프롬프트 LLM (카탈로그 " + ids.length + "개 중 " + checked.length + "개 확인)", provider: "promptgen",
+          id: good.map(c => c.id).join(", ") || "(전부 호출 불가)", httpStatus: 200, ok: good.length > 0, code: "",
+          message: "소환 가능: " + (good.map(c => c.id).join(", ") || "없음")
+                 + " · 불가: " + (checked.filter(c => !c.ok).map(c => c.id + "[" + c.status + "]").join(", ") || "없음") };
+      })());
       // ── BytePlus ModelArk: 3D (엔드포인트 미확인 → 카탈로그 조회로 존재만 확인) ──
       if (k.seedance && want("ark3d")) jobs.push((async () => {
         try {
@@ -1567,13 +1584,17 @@ async function handle(context) {
           { "Authorization": "Bearer " + k.runway, "X-Runway-Version": RUNWAY_VER, "Content-Type": "application/json" },
           { model: id, promptText: "", ratio: "1280:720", duration: 5 });
           const e = errOf(x); const bad = /model/i.test(String(e.msg)) && /invalid|unknown|not/i.test(String(e.msg));
-          return R(name, "runway", id, x.status, e.code, e.msg, { forceOk: x.status !== 404 && !bad }); })());
+          return R(name, "runway", id, x.status, e.code, e.msg,
+            { forceOk: x.status !== 404 && x.status !== 401 && x.status !== 403 && !bad }); })());
       }
       // ── Luma (프롬프트 비움) ──
       if (k.luma && want("luma")) for (const [name, id] of Object.entries(LUMA_IDS)) {
         jobs.push((async () => { const x = await post(LUMA_BASE + "/generations",
           { "Authorization": "Bearer " + k.luma, "Content-Type": "application/json" }, { model: id, prompt: "" });
-          const e = errOf(x); return R(name, "luma", id, x.status, e.code, e.msg, { forceOk: x.status !== 404 }); })());
+          const e = errOf(x);
+          // 403 Not authenticated = 키가 없거나 잘못됨. "모델 있음" 이 아니라 "쓸 수 없음" 이다.
+          return R(name, "luma", id, x.status, e.code, e.msg,
+            { forceOk: x.status !== 404 && x.status !== 401 && x.status !== 403 }); })());
       }
       // ── MiniMax (프롬프트 비움 → base_resp 오류) ──
       if (k.hailuo && want("hailuo")) for (const [name, id] of Object.entries(HAILUO_IDS)) {
@@ -1583,10 +1604,31 @@ async function handle(context) {
           const bad = /model/i.test(String(br.status_msg || "")) && /invalid|not/i.test(String(br.status_msg || ""));
           return R(name, "hailuo", id, x.status, String(br.status_code || ""), br.status_msg || String(x.t).slice(0, 120), { forceOk: !bad }); })());
       }
-      // ── Google Veo / Nano Banana (읽기 전용 모델 조회) ──
-      if (k.google && want("google")) for (const id of ["veo-3.1-generate-001", NANO_MODEL]) {
-        jobs.push((async () => { const x = await get("https://generativelanguage.googleapis.com/v1beta/models/" + id + "?key=" + encodeURIComponent(k.google));
-          const e = errOf(x); return R(id === NANO_MODEL ? "Nano Banana" : "Google Veo 3.1", "google", id, x.status, e.code, e.msg, { forceOk: x.status === 200 }); })());
+      /* ── Google Veo / Nano Banana ──
+         AI Studio 키(VEO_API_KEY)로 조회하고, 그게 안 되면 Vertex 서비스계정으로 다시 확인한다.
+         실제 생성은 서비스계정 경로가 1순위라, 키가 죽어 있어도 생성은 될 수 있다. */
+      if (want("google")) {
+        const sa = gcpCreds(env);
+        for (const id of ["veo-3.1-generate-001", NANO_MODEL]) {
+          jobs.push((async () => {
+            const label = id === NANO_MODEL ? "Nano Banana" : "Google Veo 3.1";
+            if (k.google) {
+              const x = await get("https://generativelanguage.googleapis.com/v1beta/models/" + id + "?key=" + encodeURIComponent(k.google));
+              if (x.status === 200) return R(label, "google", id, 200, "", "AI Studio 키로 확인됨", { forceOk: true });
+              if (!sa) { const e = errOf(x); return R(label, "google", id, x.status, e.code, e.msg + " (서비스계정 미설정)", { forceOk: false }); }
+            }
+            if (!sa) return R(label, "google", id, 0, "", "구글 인증 없음(VEO_API_KEY·서비스계정 모두 없음)", { forceOk: false });
+            try {
+              const tok = await gcpToken(sa.email, sa.pem);
+              const x2 = await get("https://" + VERTEX_LOC + "-aiplatform.googleapis.com/v1/projects/" + sa.pid
+                + "/locations/" + VERTEX_LOC + "/publishers/google/models/" + id, { "Authorization": "Bearer " + tok });
+              const e2 = errOf(x2);
+              return R(label, "google", id, x2.status, e2.code,
+                x2.status === 200 ? "Vertex 서비스계정으로 확인됨 (AI Studio 키는 무효)" : e2.msg,
+                { forceOk: x2.status === 200 });
+            } catch (e) { return R(label, "google", id, 0, "", "서비스계정 토큰 실패: " + String((e && e.message) || e).slice(0, 100), { forceOk: false }); }
+          })());
+        }
       }
       // ── OpenAI (읽기 전용 모델 조회) ──
       if (k.openai && want("openai")) for (const [name, id] of Object.entries(OPENAI_IMG_ID)) {
@@ -1598,11 +1640,20 @@ async function handle(context) {
         jobs.push((async () => { const x = await get("https://api.x.ai/v1/models/" + id, { "Authorization": "Bearer " + k.xai });
           const e = errOf(x); return R(/video/.test(id) ? "Grok Imagine (영상)" : "Grok Imagine", "xai", id, x.status, e.code, e.msg, { forceOk: x.status === 200 }); })());
       }
-      // ── Flux / BFL (프롬프트 비움 → 422) ──
+      /* ── Flux / BFL ──
+         ⚠️ 빈 프롬프트({prompt:""})는 BFL 이 그대로 "수락" 해 실제 작업이 생성된다(과금).
+            실제로 flux-2-flex·kontext-max·kontext-pro 에서 작업이 만들어졌다.
+            → 반드시 "검증 단계에서 걸리는" 잘못된 열거값을 보내 422 로 끊는다. 작업은 만들어지지 않는다. */
       if (k.flux && want("flux")) for (const [name, ep] of Object.entries(FLUX_ENDPOINTS)) {
         jobs.push((async () => { const x = await post(FLUX_BASE + ep,
-          { "x-key": k.flux, "Content-Type": "application/json" }, { prompt: "" });
-          const e = errOf(x); return R(name, "flux", ep, x.status, e.code, e.msg, { forceOk: x.status !== 404 }); })());
+          { "x-key": k.flux, "Content-Type": "application/json" },
+          { prompt: "probe", output_format: "__probe_invalid__" });
+          const e = errOf(x);
+          // 200 이 오면 검증을 통과해 작업이 생겼다는 뜻 — 진단으로서 실패다. 사실대로 표시한다.
+          const created = x.status >= 200 && x.status < 300;
+          return R(name, "flux", ep, x.status, e.code,
+            created ? "⚠️ 작업이 생성됐습니다(검증을 통과함) — 이 항목은 진단에서 제외해야 합니다" : e.msg,
+            { forceOk: x.status === 422 || x.status === 400 }); })());
       }
 
       const items = await Promise.all(jobs);
