@@ -2678,8 +2678,13 @@ function refDownstreamLimit(nodeId){
 /* 대상 노드의 입력 포트가 현재 모델에서 연결 허용되는지 */
 function portAllowed(node, port){
   if(!node || node.type!=='model') return true;              // 영상 제작(모델 로더) 노드에만 적용
-  if(port==='modelsel'||port==='prompt'||port==='negative') return true;  // 공통 입력은 항상 허용
-  var c=videoModelCaps(effModel(node));
+  if(port==='modelsel') return true;
+  var _m=effModel(node), o=videoModelOpts(_m);
+  // 프롬프트를 아예 받지 않는 모델(업스케일)과, 네거티브 필드가 없는 모델(Runway·Luma·MiniMax)은
+  //  해당 포트를 열어 둬도 페이로드에 실리지 않는다 → 연결 자체를 막아 "연결했는데 무시" 를 없앤다.
+  if(port==='prompt')   return !o.noPrompt;
+  if(port==='negative') return !o.noPrompt && !!o.neg;
+  var c=videoModelCaps(_m);
   if(port==='ref')    return !!c.ref;
   if(port==='vidref') return !!c.vidref;
   if(port==='first')  return !!c.first;
@@ -5236,6 +5241,16 @@ function addNode(type,x,y,skipSnap){
 /* ════════ 렌더 ════════ */
 function widgetHTML(n,w){
   var v=n.w[w.k];
+  // 예전에 저장한 워크플로우에는 나중에 추가된 위젯 값이 없다 → 기본값으로 표시(빈 칸 방지)
+  if(v===undefined && ('def' in w)) v=n.w[w.k]=w.def;
+  // 실제 전송 본문 감사 결과, 모델이 무시하는 옵션은 노드에 띄우지 않는다.
+  if(n.type==='model' && (w.k==='cfg'||w.k==='seed'||w.k==='camera'||w.k==='tpl')){
+    var _vo=videoModelOpts(effModel(n));
+    if(w.k==='cfg' && !_vo.cfg) return '';
+    if(w.k==='seed' && !_vo.seed) return '';
+    // 프롬프트를 아예 받지 않는 모델(업스케일)에서는 카메라 무빙·바이럴 템플릿이 무의미하다.
+    if((w.k==='camera'||w.k==='tpl') && _vo.noPrompt) return '';
+  }
   if(w.t==='textarea'){
     if(n.type==='prompt'||n.type==='negative'){   // 노션 코드블럭 스타일
       var lang=n.type==='negative'?'negative':'prompt';
@@ -5259,14 +5274,6 @@ function widgetHTML(n,w){
         combo+='<div class="refcnt" style="color:#ffcf7f;">모델 선택 노드가 지정: <b>'+esc(_eff)+'</b> — 위 선택 대신 이 모델로 생성됩니다</div>';
     }
     return combo;
-  }
-  // 실제 전송 본문 감사 결과, 모델이 무시하는 옵션은 노드에 띄우지 않는다.
-  if(n.type==='model' && (w.k==='cfg'||w.k==='seed'||w.k==='camera'||w.k==='tpl')){
-    var _vo=videoModelOpts(effModel(n));
-    if(w.k==='cfg' && !_vo.cfg) return '';
-    if(w.k==='seed' && !_vo.seed) return '';
-    // 프롬프트를 아예 받지 않는 모델(업스케일)에서는 카메라 무빙·바이럴 템플릿이 무의미하다.
-    if((w.k==='camera'||w.k==='tpl') && _vo.noPrompt) return '';
   }
   if(w.t==='slider'){
     var slHtml='<div class="widget"><span class="wlabel" style="padding-left:10px;">'+esc(w.label)+'</span>'+
@@ -5304,7 +5311,7 @@ function widgetHTML(n,w){
         '<input class="seedid-in" data-w="seedAudioUrl" spellcheck="false" placeholder="공개 mp3 URL — 배경음악으로 참조 (비우면 없음)" value="'+esc(n.w.seedAudioUrl||'')+'"></div>';
     if(isSeed && !_so.audio)
       html+='<div class="seedid-hint">이 모델(1.0 계열)은 오디오 생성을 지원하지 않습니다.</div>';
-    html+='<div class="seedid-hint" style="margin-top:6px;">길이·비율·해상도는 <b>영상 설정</b> 노드(또는 위 드롭다운)에서 조절됩니다.</div>';
+    html+='<div class="seedid-hint" style="margin-top:6px;">길이·비율·해상도는 <b>영상 설정</b> 노드(또는 아래 드롭다운)에서 조절됩니다.</div>';
     html+='</div>';
     return html;
   }
