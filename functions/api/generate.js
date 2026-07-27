@@ -234,8 +234,7 @@ export function buildRunwayPayload(b) {
   const img = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
   // Runway 는 promptImage 를 [{uri, position:"first"|"last"}] 배열로도 받는다 → 끝 프레임 지정 가능.
   //  끝 프레임이 있을 때만 배열 형태로 보내고, 없으면 기존 문자열 형태를 그대로 유지한다(회귀 방지).
-  //  ※ 현재 videoModelCaps 는 Gen-4 의 [마지막 프레임] 포트를 열지 않으므로 이 경로는 아직 쓰이지
-  //    않는다(공식 문서로 position 지원을 확인하기 전까지 UI 노출 보류). 확인되면 caps 만 열면 된다.
+  //  ※ position first/last 는 gen4_turbo·gen3a_turbo 공식 지원(확인 완료) → caps 에서 포트 개방.
   const promptImage = (img && b.lastFrame)
     ? [{ uri: img, position: "first" }, { uri: b.lastFrame, position: "last" }]
     : img;
@@ -968,6 +967,9 @@ export function buildHailuoPayload(b) {
   if (first && mid === "T2V-01-Director") mid = "I2V-01-Director";
   const p = { model: mid, prompt: cut(withRatioHint(b.prompt || "", b.ratio), 2000) };
   if (first) p.first_frame_image = first;
+  // 끝 프레임(시작~끝 보간) — 공식 문서상 MiniMax-Hailuo-02 계열만 지원한다.
+  //  Director(01) 계열은 6초 고정 구형 모델이라 대상에서 제외한다.
+  if (first && b.lastFrame && /Hailuo-02/i.test(mid)) p.last_frame_image = b.lastFrame;
   // T2V-01 / I2V-01 Director 계열은 6초 고정 모델이다. 10초를 보내면 제공사가 거부한다.
   //  (스튜디오는 6초만 노출하지만, /api/v1/generate·MCP 는 임의 값을 보낼 수 있다.)
   const only6 = /Director|T2V-01|I2V-01/i.test(String(b.model || "")) || /01-Director/i.test(p.model);
