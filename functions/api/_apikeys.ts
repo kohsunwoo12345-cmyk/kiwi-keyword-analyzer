@@ -62,6 +62,10 @@ export async function ensureApiKeysSchema(db: D1Database) {
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_api_calls_user ON api_calls(user_id)`).run().catch(() => {})
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_api_calls_created ON api_calls(created_at)`).run().catch(() => {})
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_api_calls_status ON api_calls(user_id, status)`).run().catch(() => {})
+  // 비동기 영상 태스크 식별자 — 제출 시 차감한 크레딧을 그 태스크가 실패했을 때 되돌리기 위한 키.
+  //  (기존 배포된 테이블에도 붙여야 하므로 ALTER 를 조용히 시도한다)
+  await db.prepare(`ALTER TABLE api_calls ADD COLUMN task_key TEXT`).run().catch(() => {})
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_api_calls_task ON api_calls(task_key)`).run().catch(() => {})
   // 남용 방지용 레이트리밋 히트 로그 (요청 1건당 1행, 슬라이딩 윈도우 집계)
   await db.prepare(`CREATE TABLE IF NOT EXISTS api_rate (
     id TEXT PRIMARY KEY,
@@ -183,4 +187,43 @@ export function hasVideoApiAccess(user: any): boolean {
   const products = String(user.products || '')
   if ((user.hasPlan === 1 || user.hasPlan === true) && (products === 'both' || products === 'video')) return true
   return false
+}
+
+
+/** 비동기 영상 태스크의 식별자(statusUrl)를 호출 기록에 붙인다 — 실패 시 환불 조회용. */
+export async function attachApiCallTask(db: D1Database, id: string, taskKey: string) {
+  if (!id || !taskKey) return
+  try {
+    await db.prepare(`UPDATE api_calls SET task_key = ? WHERE id = ?`)
+      .bind(String(taskKey).slice(0, 300), id).run()
+  } catch { /* ignore */ }
+}
+
+/** 제출 시점에 차감한 크레딧을, 그 태스크가 실패로 끝났을 때 1회만 돌려준다.
+ *  스튜디오는 성공했을 때만 과금하는데 API·MCP 는 제출 시점에 차감하므로,
+ *  제공사 태스크가 실패하면 아무것도 못 받고 크레딧만 빠지는 상태가 된다.
+ *  status='ok' → 'refunded' 로 바꾸는 UPDATE 가 1행을 바꿨을 때만 실제 환급해 중복 환불을 막는다. */
+export async function refundFailedTask(db: D1Database, taskKey: string, reason?: string): Promise<number> {
+  if (!db || !taskKey) return 0
+  try {
+    const row: any = await db.prepare(
+      `SELECT id, user_id, credits, model FROM api_calls WHERE task_key = ? AND status = 'ok' AND credits > 0 LIMIT 1`,
+    ).bind(String(taskKey).slice(0, 300)).first()
+    if (!row) return 0
+    const amt = Math.round(Number(row.credits || 0) * 100) / 100
+    if (!(amt > 0)) return 0
+    const upd: any = await db.prepare(`UPDATE api_calls SET status = 'refunded', error = ? WHERE id = ? AND status = 'ok'`)
+      .bind(String(reason || '생성 실패 — 자동 환불').slice(0, 300), row.id).run()
+    if (!upd || !upd.meta || upd.meta.changes !== 1) return 0   // 다른 요청이 먼저 환불함
+    const u: any = await db.prepare(`SELECT credits FROM users WHERE id = ? LIMIT 1`).bind(row.user_id).first()
+    const after = Math.round(((Number(u && u.credits) || 0) + amt) * 100) / 100
+    await db.prepare(`UPDATE users SET credits = ? WHERE id = ?`).bind(after, row.user_id).run()
+    try {
+      await db.prepare(
+        `INSERT INTO transactions (id,user_id,kind,amount,balance_after,memo,created_at) VALUES (?,?,'credit',?,?,?,?)`,
+      ).bind('t_' + crypto.randomUUID().slice(0, 16), row.user_id, amt, after,
+             '생성 실패 환불 · ' + String(row.model || ''), new Date().toISOString()).run()
+    } catch { /* ignore */ }
+    return amt
+  } catch { return 0 }
 }

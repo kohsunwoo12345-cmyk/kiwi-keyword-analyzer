@@ -19,6 +19,7 @@ import { resolveDB, ensureSchema, getUserByMcpToken } from "../_utils";
 import { getUserByAccessToken } from "../oauth/_oauth";
 import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage, MODEL_COST, PROV_LABEL } from "../studio/_pricing";
 import { findCharacter, listCharacters } from "../studio/characters";
+import { ensureApiKeysSchema, beginApiCall, finishApiCall, attachApiCallTask, refundFailedTask } from "../_apikeys";
 
 const SERVER_INFO = { name: "bygency-studio", version: "1.1.0" };
 
@@ -410,6 +411,16 @@ async function runTool(name, args, env, origin, ctx) {
     // 생성이 시작/완료되면(=과금 발생) 이 시점에 크레딧 차감. check_video_status 는 추가 차감 없음.
     let charged = null;
     if (me && db && est) charged = await commitCharge(db, me, est, billSec);
+    //  영상은 제출 시점에 차감하고 결과는 나중에 나온다 → 호출 기록에 태스크 식별자를 남겨,
+    //  check_video_status 가 실패로 확정하면 이 차감을 되돌릴 수 있게 한다.
+    if (me && db && charged > 0 && typeof j.statusUrl === "string") {
+      try {
+        await ensureApiKeysSchema(db);
+        const callId = await beginApiCall(db, { userId: me.id, endpoint: "/mcp/generate_video", provider: c.provider, model: c.name, kind: "video" });
+        await finishApiCall(db, callId, { status: "ok", credits: charged });
+        await attachApiCallTask(db, callId, j.statusUrl);
+      } catch (_e) { /* 기록 실패가 생성을 막지는 않는다 */ }
+    }
     const extra = charged == null ? {} : { credits_charged: charged, credits_remaining: me ? me.credits : undefined };
     if (j.url) {
       const durable = await rehostVideoUrl(env, origin, String(j.url).charAt(0) === "/" ? origin + j.url : j.url);
@@ -427,7 +438,12 @@ async function runTool(name, args, env, origin, ctx) {
     const task = String(args.task || "");
     if (!task.startsWith("/api/generate?")) throw new Error("task 형식이 올바르지 않습니다. generate_video가 반환한 값을 그대로 사용하세요.");
     const j = await callGenerateGET(env, origin, task, genTok);
-    if (j.status === "failed" || j.error) return { status: "failed", error: j.error || "생성 실패" };
+    if (j.status === "failed" || j.error) {
+      let refunded = 0;
+      if (db) { try { refunded = await refundFailedTask(db, task, j.error || "생성 실패"); } catch (_e) {} }
+      return Object.assign({ status: "failed", error: j.error || "생성 실패" },
+        refunded > 0 ? { credits_refunded: refunded, note: "생성이 실패하여 차감된 크레딧을 돌려드렸습니다." } : {});
+    }
     if (j.url) {
       if (String(j.url).startsWith("data:")) {
         // Veo 등은 base64 대용량으로 반환됨 — 대화 컨텍스트에 넣기엔 너무 큼

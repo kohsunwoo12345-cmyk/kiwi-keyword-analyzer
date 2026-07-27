@@ -4,7 +4,7 @@
 //  키 1개로 모든 모델 호출 가능. 크레딧은 스튜디오(UI)와 동일 규칙으로 차감된다.
 import { onRequest as generateApi, effectiveUnits, effectiveRes } from "../generate.js";
 import { resolveDB, ensureSchema, json } from "../_utils";
-import { getUserByApiKey, logApiCall, hasVideoApiAccess, ensureApiKeysSchema, enforceRateLimit, beginApiCall, finishApiCall } from "../_apikeys";
+import { getUserByApiKey, logApiCall, hasVideoApiAccess, ensureApiKeysSchema, enforceRateLimit, beginApiCall, finishApiCall, attachApiCallTask, refundFailedTask } from "../_apikeys";
 import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage } from "../studio/_pricing";
 
 // 크레딧 차감 + 사용/거래 기록 (스튜디오 usage/record 와 동일)
@@ -98,6 +98,9 @@ export const onRequestPost = async ({ request, env }) => {
       let charged = 0;
       try { if (est) charged = await commitCharge(db, me, est, kind === "image" ? 1 : units); } catch {}
       await finishApiCall(db, callId, { status: "ok", credits: charged });
+      //  영상은 제출 시점에 차감하고 결과는 나중에 나온다 → 태스크 식별자를 남겨,
+      //  폴링에서 실패로 확정되면 이 차감을 되돌릴 수 있게 한다.
+      if (data && typeof data.statusUrl === "string") await attachApiCallTask(db, callId, data.statusUrl);
       return json({ ok: true, ...data, credits_charged: charged, credits_remaining: Number(me.credits) || 0 });
     }
     await finishApiCall(db, callId, { status: "failed", credits: 0, error: data.error || `HTTP ${res.status}` });
@@ -120,5 +123,13 @@ export const onRequestGet = async ({ request, env }) => {
   const headers = {};
   if (genTok) headers["Authorization"] = "Bearer " + genTok;
   const innerReq = new Request(origin + "/api/generate" + url.search, { headers });
-  return generateApi({ request: innerReq, env });
+  const out = await generateApi({ request: innerReq, env });
+  //  실패로 확정된 태스크면, 제출 시 차감했던 크레딧을 1회만 돌려준다.
+  let body = null;
+  try { body = await out.clone().json(); } catch { return out; }
+  if (body && (body.status === "failed" || (body.error && !body.url))) {
+    const refunded = await refundFailedTask(a.db, "/api/generate" + url.search, body.error || "생성 실패");
+    if (refunded > 0) return json({ ...body, credits_refunded: refunded }, out.status || 200);
+  }
+  return out;
 };
