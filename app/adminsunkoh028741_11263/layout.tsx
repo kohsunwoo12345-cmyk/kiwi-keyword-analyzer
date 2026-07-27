@@ -72,6 +72,7 @@ export const VIDEO_NAV: NavItem[] = [
   { title: '노드 스튜디오 테스트', href: `${ADMIN_BASE}/studio-tests`, icon: FlaskConical },
   { title: 'AI 생성 기록', href: `${ADMIN_BASE}/ai-generations`, icon: Images },
   { title: 'AI 정산', href: `${ADMIN_BASE}/ai-usage`, icon: Wallet },
+  { title: '제공사 실제 사용액', href: `${ADMIN_BASE}/spend-track`, icon: Wallet },
   { title: 'AI 비용 (원가율)', href: `${ADMIN_BASE}/ai-pricing`, icon: Gauge },
   { title: 'AI API 남은 한도', href: `${ADMIN_BASE}/api-quota`, icon: Fuel },
   { title: '회원 API 키·호출', href: `${ADMIN_BASE}/api-keys`, icon: KeyRound },

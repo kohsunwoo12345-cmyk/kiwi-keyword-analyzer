@@ -1,6 +1,8 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity, resolveBucket } from '../_utils'
 import { computeCharge, ensureAiUsage, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from '../studio/_pricing'
 import { creditPriceFor } from '../payments/prepare'
+// 생성 직후 제공사 잔액을 남긴다 — '실제로 빠져나간 금액' 을 나중에 대조하기 위한 근거.
+import { autoSnapshot } from '../admin/_spend'
 
 function b64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64)
@@ -49,7 +51,8 @@ async function persistMedia(env: any, url: string): Promise<string> {
 // POST /api/usage/record { model, kind, units, res?, audio?, provider? }
 //  → 스튜디오 생성 1건 확정. BYGENCY 세션으로 사용자 식별 → 크레딧 100% 차감 + 정산 기록.
 //    (성공한 생성에서만 호출됨. 크레딧 부족 시에도 잔액까지는 차감하지 않고 기록만 남긴다.)
-export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+export const onRequestPost: PagesFunction<Env> = async (ctx) => {
+  const { request, env } = ctx
   const db = resolveDB(env)
   if (!db) return json({ ok: true, stored: false })
   await ensureSchema(db)
@@ -164,6 +167,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   } catch (e) {
     return json({ ok: false, error: String((e as any)?.message || e).slice(0, 160) }, 500)
   }
+
+  // 잔액이 실제로 바뀌는 순간이 '생성 직후' 다 — 이때 찍어두면 별도 스케줄러 없이 자동 추적된다.
+  //  30분 쿨다운이 있어 호출이 잦아도 부담이 없고, 실패해도 과금·응답에는 영향이 없다.
+  try { ctx.waitUntil(autoSnapshot(db, env)) } catch { /* 추적 실패 무시 */ }
 
   return json({ ok: true, stored: true, charged, credits: wantCredits, refCount, refSurchargePct: surPct, cnCount, cnSurchargePct: cnPct })
 }
