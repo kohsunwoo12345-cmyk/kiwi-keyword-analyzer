@@ -346,24 +346,28 @@ function seedanceI2VSwap(model, b) {
    하드코딩한 후보가 전부 404(InvalidEndpointOrModel.NotFound) 일 때, 날짜 접미사만 다른
    같은 계열 ID 를 여기서 찾아 자동으로 쓴다 — 콘솔에서 개통해도 접미사가 다르면 계속
    404 가 나던 문제(예: Seedance 1.0 Lite)를 코드 수정 없이 흡수한다. */
-let _arkCat = null, _arkCatAt = 0;
+let _arkCat = null, _arkCatAt = 0, _arkCatSrc = null;
 export async function arkModelCatalog(key) {
   if (_arkCat && Date.now() - _arkCatAt < 300000) return _arkCat;
   const ids = new Set();
+  const probes = [];
   for (const p of ["/models?page_size=200", "/models", "/foundation_models", "/endpoints"]) {
     try {
       const r = await fetchT(ARK_HOSTS.bp + p, { headers: { "Authorization": "Bearer " + key } }, 8000);
-      if (!r.ok) continue;
       const t = await r.text();
+      probes.push({ path: p, httpStatus: r.status, bytes: t.length, head: String(t).slice(0, 160) });
+      if (!r.ok) continue;
       (String(t).match(/[a-z0-9]+(?:-[a-z0-9]+){2,}/gi) || [])
         .filter(x => /^(seedance|seedream|seededit|doubao|dreamina|dola)/i.test(x))
         .forEach(x => ids.add(x));
-      if (ids.size) break;
-    } catch (_e) { /* 다음 경로 */ }
+      if (ids.size) { _arkCatSrc = { path: p, httpStatus: r.status, probes }; break; }
+    } catch (e) { probes.push({ path: p, error: String((e && e.message) || e).slice(0, 80) }); }
   }
+  if (!_arkCatSrc) _arkCatSrc = { path: null, probes };
   _arkCat = [...ids]; _arkCatAt = Date.now();
   return _arkCat;
 }
+export function arkCatalogSource() { return _arkCatSrc; }
 /* 날짜 접미사(-250428 등)를 뗀 계열 이름 */
 export function arkStem(id) { return String(id || "").replace(/-\d{6}$/, ""); }
 /* 카탈로그에서 같은 계열의 다른 ID 를 찾는다(이미 시도한 것은 제외) */
@@ -1515,15 +1519,26 @@ async function handle(context) {
             const ids = Array.isArray(SEEDANCE_IDS[it.model]) ? SEEDANCE_IDS[it.model] : [SEEDANCE_IDS[it.model]];
             const alt = arkPickByStem(catalog, ids);
             const near = (catalog || []).filter(x => x.indexOf(arkStem(ids[0]).split("-").slice(0, 4).join("-")) === 0);
+            // 세 갈래로 정확히 구분한다.
+            //  ① 카탈로그에 접미사가 다른 ID 가 있다 → 자동 보정 가능
+            //  ② 카탈로그에 "우리가 이미 시도한 그 ID" 만 있다 → ID 는 맞고 호출 권한이 없다(개통 필요)
+            //  ③ 카탈로그에 계열 자체가 없다 → 이 계정/리전에 그 모델이 없다
+            const listedSame = (catalog || []).filter(x => ids.indexOf(x) >= 0);
+            const verdict = alt
+              ? "카탈로그에 같은 계열의 다른 ID 가 있습니다 — 자동으로 그 ID 를 씁니다."
+              : listedSame.length
+                ? "모델 ID 는 맞습니다(카탈로그에 그대로 있음). 그런데 이 API 키로 호출하면 404 입니다 → "
+                  + "BytePlus 콘솔에서 이 모델을 '개통(Activate/Enable)' 해야 합니다. 목록에 보이는 것과 개통은 별개입니다."
+                : "계정 카탈로그에 이 계열 자체가 없습니다(리전/계정에서 사용 불가).";
             suggest.push({ model: it.model, tried: ids, catalogMatch: alt,
-                           nearby: near.slice(0, 8),
-                           verdict: alt ? "카탈로그에 같은 계열의 다른 ID 가 있습니다 — 자동으로 그 ID 를 씁니다."
-                                        : "계정 카탈로그에 이 계열 자체가 없습니다(리전/계정에서 사용 불가)." });
+                           listedInCatalog: listedSame, nearby: near.slice(0, 8), verdict });
           }
         } catch (_e) { /* 무시 */ }
       }
       return json({ diag: "seedance-check",
         catalogCount: catalog ? catalog.length : undefined,
+        catalogSource: catalog ? arkCatalogSource() : undefined,
+        catalogAll: catalog || undefined,
         catalogSeedanceLite: catalog ? catalog.filter(x => /lite/i.test(x)) : undefined,
         suggest: suggest.length ? suggest : undefined,
         note: "candidates 의 [HTTP 코드] 를 그대로 보세요. 404·ModelNotFound·ModelNotOpen=ID 없음/미개통, "
@@ -2659,8 +2674,10 @@ async function handle(context) {
             + ((j2.error && j2.error.code) ? " <" + j2.error.code + ">" : "") + " "
             + ((j2.error && j2.error.message) || "");
         } else if (cat && cat.length) {
-          lastErr = String(lastErr || "") + " · 계정 카탈로그에 같은 계열 ID 없음(조회된 "
-            + cat.length + "개 중). 이 모델은 계정/리전에서 사용할 수 없습니다.";
+          const listed = cat.filter(x => candidates.indexOf(x) >= 0);
+          lastErr = String(lastErr || "") + (listed.length
+            ? " · 이 모델 ID 는 계정 카탈로그에 있으나 호출은 404 입니다 → BytePlus 콘솔에서 해당 모델을 개통(Activate)해 주세요."
+            : " · 계정 카탈로그(" + cat.length + "개)에 같은 계열 ID 가 없습니다 — 이 계정/리전에서 사용할 수 없는 모델입니다.");
         }
       } catch (_e) { /* 카탈로그 조회 실패는 무시 */ }
     }
