@@ -165,7 +165,6 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   'Flux Kontext Pro (레퍼런스 편집)': { u: 'img', usd: 0.05, prov: 'flux' },
   // ── 오디오·립싱크 (초당) — 관리자 ai-pricing 에서 모델별 배수 설정 가능 ──
   '음악 생성 (BGM·뮤직)': { u: 'sec', usd: 0.01, prov: 'music' },
-  '업스케일 4K (영상 화질 향상)': { u: 'sec', usd: 0.04, prov: 'upscale' },
   // 브라우저 자체 초해상(Real-ESRGAN/Swin2SR) — 외부 API 원가 0. 기록만 남고 크레딧은 차감되지 않는다.
   '화질 업스케일 (이미지 · 브라우저 초해상)': { u: 'img', usd: 0, prov: 'upscale' },
   '화질 업스케일 (영상 · 브라우저 초해상)': { u: 'sec', usd: 0, prov: 'upscale' },

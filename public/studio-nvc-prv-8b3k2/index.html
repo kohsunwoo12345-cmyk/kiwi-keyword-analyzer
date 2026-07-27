@@ -1949,7 +1949,7 @@ var MODELS = [
  ['영상 → 영상 (V2V·실사화)','V2V 자동 (최고정확도·모델 자동선택)'],
  ['영상 → 영상 (V2V·실사화)','모션 전이 (원본 움직임 유지·Motion Transfer)'],
  ['영상 → 영상 (V2V·실사화)','Runway Aleph (영상→실사 V2V)'],
- ['영상 → 영상 (V2V·실사화)','업스케일 4K (영상 화질 향상)'],
+ ['영상 → 영상 (V2V·실사화)'],
  ['영상','Google Veo 3.1'],['영상','Runway Gen-4'],['영상','Runway Gen-3 Alpha Turbo'],['영상','Grok Imagine (영상)'],
  ['영상','Seedance 2.0'],['영상','Seedance 2.0 Fast'],['영상','Seedance 2.0 Mini'],['영상','Seedance 1.5 Pro'],
  ['영상','Seedance 1.0 Pro'],['영상','Seedance 1.0 Pro Fast'],
@@ -2046,7 +2046,6 @@ var MODEL_COST = {
   '모션 전이 (원본 움직임 유지·Motion Transfer)': { u:'sec', usd:0.12, prov:'motion' },
   '나레이션 (AI 음성 해설)': { u:'sec', usd:0.02, prov:'narrate' },
   '음악 생성 (BGM·뮤직)':      { u:'sec', usd:0.01, prov:'music' },
-  '업스케일 4K (영상 화질 향상)': { u:'sec', usd:0.04, prov:'upscale' },
   // 브라우저 자체 초해상(Real-ESRGAN/Swin2SR) — 외부 API 원가 0. 기록만 남기고 크레딧은 차감하지 않는다.
   '화질 업스케일 (이미지 · 브라우저 초해상)': { u:'img', usd:0, prov:'upscale' },
   '화질 업스케일 (영상 · 브라우저 초해상)':   { u:'sec', usd:0, prov:'upscale' },
@@ -2363,7 +2362,6 @@ var PROVIDERS = [
 var MODEL_PROVIDER = {
   'V2V 자동 (최고정확도·모델 자동선택)':'v2v_auto',
   '모션 전이 (원본 움직임 유지·Motion Transfer)':'motion',
-  '업스케일 4K (영상 화질 향상)':'upscale',
   '음악 생성 (BGM·뮤직)':'music',
   '나레이션 (AI 음성 해설)':'narrate',
   '립싱크 (인물 말하기)':'lipsync',
@@ -2439,7 +2437,7 @@ function videoModelCaps(model){
   // Seedance 2.0 계열 — 사진·영상·오디오 레퍼런스 + 첫/마지막 프레임 모두 지원(멀티모달)
   if(/Seedance 2\.0/.test(m)) return {ref:true,vidref:true,first:true,last:true,audio:true};
   // V2V(영상→영상) — 영상 레퍼런스 필수. 업스케일·자동 V2V 는 영상만, 모션 전이·Aleph 는 외형용 사진도 받음
-  if(/V2V 자동|업스케일 4K/.test(m)){ c.vidref=true; return c; }
+  if(/V2V 자동/.test(m)){ c.vidref=true; return c; }
   if(/모션 전이|Runway Aleph/.test(m)){ c.vidref=true; c.ref=true; return c; }
   // 텍스트 전용(T2V) — 레퍼런스 없음(순수 텍스트→영상)
   if(/\(텍스트→영상\)|T2V-01 Director/.test(m)) return c;
@@ -2468,7 +2466,7 @@ function videoModelOpts(model){
     return { secs:[6,10], ratios:['16:9','9:16'], audio:false, watermark:false };
   if(/Veo/.test(m))
     return { secs:[8], ratios:['16:9','9:16'], audio:false, watermark:false };
-  if(/V2V 자동|모션 전이|Runway Aleph|업스케일 4K/.test(m))
+  if(/V2V 자동|모션 전이|Runway Aleph/.test(m))
     return { secs:[], ratios:[], audio:false, watermark:false };   // 원본 영상 길이·비율을 따라감
   return { secs:[5,10], ratios:['16:9','9:16','1:1'], audio:false, watermark:false };
 }
@@ -6605,12 +6603,22 @@ function runQueue(onlyId){
             if(!srcVid) rfs.forEach(function(nd){ if(nd&&nd.w&&nd.w.srcVideoUrl) srcVid=nd.w.srcVideoUrl; });
             var seed2 = /Seedance 2\.0/.test(chosenModel||'');   // reference_video 지원 모델
             // 3D 베이스 대표 프레임 + 별도 참고(배경) 사진을 모두 레퍼런스로 보낸다(둘을 순서로 구분).
-            var threeD = imgsOf(ff)[0] || vFrames[0] || null;
+            var ffPort = imgsOf(ff)[0] || null;                 // '첫 프레임' 포트에 실제로 연결된 이미지
+            var threeD = ffPort || vFrames[0] || null;          // 레퍼런스 1번(3D 베이스·영상 대표 프레임)
             var bgPhotos = photoRefs.filter(function(im){ return im!==threeD; });
             var refList = [];
             if(threeD) refList.push(threeD);
             bgPhotos.forEach(function(im){ if(refList.indexOf(im)<0) refList.push(im); });
-            refList = refList.slice(0,4);                       // 제공사 레퍼런스 이미지 한도
+            // ── Seedance 2.0: '첫 프레임(이미지→영상)' 과 '레퍼런스' 는 서로 다른 모드다 ──
+            //  · 첫 프레임 포트에 연결한 것만 first_frame 으로 보낸다. 영상 레퍼런스의 대표 프레임이
+            //    자동으로 첫 프레임이 되면, 레퍼런스만 붙인 요청이 이미지→영상 모드로 바뀌어
+            //    결과가 지정한 것과 다르게 나온다.
+            //  · first_frame 으로 보낼 이미지는 레퍼런스 목록에서 뺀다. 서버도 중복을 거르지만,
+            //    여기서 빼야 아래 자동 안내문의 "레퍼런스 1번" 이 서버가 매기는 @Image1 과 일치한다.
+            //    (어긋나면 모델이 엉뚱한 그림을 1번으로 보고 전혀 다른 결과를 낸다)
+            var sendFirst = seed2 ? ffPort : threeD;
+            if(seed2 && ffPort) refList = refList.filter(function(im){ return im!==ffPort; });
+            refList = refList.slice(0, seed2?9:4);              // 2.0 은 레퍼런스 이미지 9장까지
             var ffImg = threeD || refList[0] || null;
             var lfImg = imgsOf(lf)[0] || (vFrames.length>1?vFrames[vFrames.length-1]:null) || null;
             var vSet=upstream(id,'video');
@@ -6619,19 +6627,28 @@ function runQueue(onlyId){
             var hasBgPhoto = bgPhotos.length>0;
             var basePrompt = pr?pr.w.text:'';
             var already = /실사|포토리얼|photoreal|realistic|live[- ]?action|real footage/i.test(basePrompt);
-            if((hasVideoRef || hasBgPhoto) && !already){
-              var addOn='[';
-              if(hasVideoRef){
+            // 안내문 번호는 '실제로 보낼 레퍼런스 목록' 기준으로 매긴다.
+            //  refList[0] 이 영상에서 뽑은 프레임일 때만 "3D 베이스" 설명이 맞다.
+            //  사진 레퍼런스만 붙였는데 "1번은 3D/CG 클립 프레임이니 실사로 변환하라" 고 적어 보내면
+            //  모델이 사용자의 참고 사진을 CG 로 오인해 전혀 다른 결과를 낸다.
+            var refIsVideoFrame = refList.length>0 && vFrames.indexOf(refList[0])>=0;
+            if((hasVideoRef || hasBgPhoto || sendFirst) && !already){
+              var addOn='';
+              if(refIsVideoFrame){
                 addOn += '레퍼런스 이미지 1번은 3D 모델링/기초 "영상을 프레임 단위로 쪼갠 장면"입니다'
                   + (srcVid&&seed2?'(원본 영상도 reference_video로 함께 참조)':'')
-                  + ' → 이 3D 베이스를 실사(실제 촬영본)로 변환: 같은 구도·동작 유지, 사실적 재질·조명·디테일, 실제 카메라 룩.';
+                  + ' → 이 3D 베이스를 실사(실제 촬영본)로 변환: 같은 구도·동작 유지, 사실적 재질·조명·디테일, 실제 카메라 룩.'
+                  + ' Reference image 1 = a frame of the 3D/CG modeling clip to convert to photorealistic live-action (keep composition & motion); the following reference photos are the background/subject to apply.';
               }
               if(hasBgPhoto){
-                addOn += (hasVideoRef?' ':'')
-                  + '레퍼런스 이미지 '+(hasVideoRef?'2번 이후':'')+' "사진"은 배경/피사체 참고입니다 → 그 배경과 분위기를 실제 장면에 반영하세요(3D 베이스로 오인 금지).';
+                addOn += (addOn?' ':'')
+                  + '레퍼런스 이미지 '+(refIsVideoFrame?'2번 이후 ':'')+'"사진"은 배경/피사체 참고입니다 → 그 배경과 분위기를 실제 장면에 반영하세요'+(refIsVideoFrame?'(3D 베이스로 오인 금지)':'')+'.';
               }
-              addOn += ' Reference image 1 = a frame of the 3D/CG modeling clip to convert to photorealistic live-action (keep composition & motion); the following reference photos are the background/subject to apply.]';
-              basePrompt = (basePrompt?basePrompt+'\n\n':'') + addOn;
+              if(sendFirst){
+                addOn += (addOn?' ':'')
+                  + '첫 프레임(first frame)으로 지정한 이미지가 영상의 시작 장면입니다 → 그 구도·인물·배경을 그대로 유지한 채 이어지는 움직임을 만드세요.';
+              }
+              if(addOn) basePrompt = (basePrompt?basePrompt+'\n\n':'') + '[' + addOn + ']';
             }
             outs.forEach(function(o){ o.w.generating=true; o.w.error=null; });  // 생성 중 스피너 표시
             render();
@@ -6653,7 +6670,7 @@ function runQueue(onlyId){
               // 첫 프레임은 "첫 프레임 포트(또는 영상 프레임)"에 실제로 연결된 것만 넘긴다.
               //  ffImg 는 없으면 레퍼런스 첫 장으로 폴백하는데, 그걸 그대로 firstFrame 으로 보내면
               //  레퍼런스만 붙인 요청이 이미지→영상 모드로 바뀐다(Seedance 2.0 은 두 모드가 다름).
-              firstFrame: threeD || null,
+              firstFrame: sendFirst || null,
               lastFrame: lfImg,
               srcVideo: srcVid,
               seconds: (effVideoSec(n)!=null?effVideoSec(n):(vSet?vSet.w.sec:8)),

@@ -927,7 +927,6 @@ async function handle(context) {
         revoice:  !!(pick(env, ["ElevenLabs_API_KEY", "ELEVENLABS_API_KEY", "elevenlabs_api_key"]) && k.fal), // 목소리 교체+립싱크
         narrateReady: !!(k.fal && pick(env, ["Text_to_Speech", "OpenAI_Text_to_speech", "ElevenLabs_API_KEY", "OPENAI_API_KEY"])), // TTS+병합
         music:    musicEngines(env, k).length > 0,   // 음악(BGM) — ElevenLabs/MiniMax/fal 재사용
-        upscale:  !!k.fal,                            // 영상 업스케일 (fal Topaz)
         // 스튜디오가 실제로 쓰는 Seedance 모델 결정값 진단 (모델ID는 비밀 아님)
         seedanceModelOverride: pick(env, ["SEEDANCE_MODEL_ID", "seedance_model_id"]) || null,
         seedance20Maps: SEEDANCE_IDS["Seedance 2.0"],
@@ -1924,7 +1923,6 @@ async function handle(context) {
                   : provider === "seedance" ? buildSeedancePayload(b, env)
                   : provider === "seedream" ? buildSeedreamPayload(b, env)
                   : provider === "music"    ? { engines: musicEngines(env, k), prompt: (b.prompt || "").slice(0, 300), seconds: Math.min(Math.max(Number(b.seconds) || 30, 10), 120) }
-                  : provider === "upscale"  ? { model: pick(env, ["FAL_UPSCALE_MODEL", "fal_upscale_model"]) || "fal-ai/topaz/upscale/video", video_url: b.srcVideo || null, factor: (b.res === "4K" ? 4 : 2) }
                   : provider === "flux"     ? buildFluxPayload(b)
                   : provider === "falcontrol" ? buildFalControlPayload(b)
                   : provider === "nanobanana" ? buildNanoPayload(b)
@@ -2540,21 +2538,10 @@ async function handle(context) {
   }
 
   /* ── 영상 업스케일 (4K 화질 향상) — fal Topaz. 원본 영상 URL 필요 ── */
+  // 업스케일은 외부 API(fal Topaz)를 쓰지 않는다 — 스튜디오 출력 노드의 "화질 업스케일"
+  //  (브라우저 자체 초해상 · 무료)이 유일한 경로다. 옛 클라이언트가 이 provider 로 들어오면 안내한다.
   if (provider === "upscale") {
-    if (!k.fal) return json({ error: "업스케일은 FAL_API_KEY 가 필요합니다." }, 500);
-    const src = b.srcVideo || "";
-    if (!/^https?:\/\//.test(src)) return json({ error: "업스케일할 원본 영상이 필요합니다. 영상을 옴니 레퍼런스(영상)에 넣으면 자동 업로드됩니다(R2)." }, 400);
-    const model = pick(env, ["FAL_UPSCALE_MODEL", "fal_upscale_model"]) || "fal-ai/topaz/upscale/video";
-    const r = await fetchT(FAL_QUEUE + model, {
-      method: "POST",
-      headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
-      body: JSON.stringify({ video_url: src, upscale_factor: b.res === "4K" ? 4 : 2 })
-    }, 30000);
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) return json({ error: "업스케일 제출 실패 HTTP " + r.status + ": " + String(JSON.stringify(j)).slice(0, 180) }, 502);
-    if (j.video && j.video.url) return json({ url: j.video.url, kind: "video" });
-    if (!j.request_id) return json({ error: "업스케일: 응답에 task 없음: " + JSON.stringify(j).slice(0, 160) }, 502);
-    return json({ statusUrl: "/api/generate?provider=falq&model=" + encodeURIComponent(model) + "&task=" + encodeURIComponent(j.request_id) });
+    return json({ error: "영상 업스케일은 외부 API 대신 스튜디오의 '화질 업스케일' 버튼(자체 엔진·무료)을 사용하세요." }, 410);
   }
 
   if (provider === "luma") {
