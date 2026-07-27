@@ -2984,8 +2984,10 @@ function hostAudioBlob(blob){
 try{ window.__extractAudioWav=extractAudioWav; }catch(e){}   // 검증 훅
 /* 프레임을 참조용 크기로 축소해 data:URI 생성 — 최대 변 1024px.
    원본 해상도 그대로 보내면 프레임 여러 장에서 payload 가 폭증해 서버 함수가 죽습니다(502). */
-function _frameDataURL(v, q){
-  var vw=v.videoWidth||1280, vh=v.videoHeight||720, mx=1024, sc=Math.min(1, mx/Math.max(vw,vh));
+function _frameDataURL(v, q, maxSide){
+  // maxSide 기본 1024 — 레퍼런스로 여러 장 보낼 때의 안전값.
+  // 이어보기용 "마지막 프레임" 1장은 화질이 곧 이어짐의 품질이라 더 크게 뽑는다(1280).
+  var vw=v.videoWidth||1280, vh=v.videoHeight||720, mx=maxSide||1024, sc=Math.min(1, mx/Math.max(vw,vh));
   var c=document.createElement('canvas');
   c.width=Math.max(2,Math.round(vw*sc)); c.height=Math.max(2,Math.round(vh*sc));
   c.getContext('2d').drawImage(v,0,0,c.width,c.height);
@@ -2999,7 +3001,7 @@ function extractLastFrame(o){
     v.crossOrigin='anonymous'; v.muted=true; v.preload='auto';
     var done=false, tm=setTimeout(function(){ if(!done){done=true; finish();} },30000);
     function grab(){
-      try{ o.w.lastImg=_frameDataURL(v,0.82); return true; }
+      try{ o.w.lastImg=_frameDataURL(v,0.86,1280); return true; }
       catch(e){ return false; } /* 코덱/CORS 실패 시 체이닝 생략 */
     }
     function finish(){ if(!done){ done=true; clearTimeout(tm); try{v.src='';}catch(e){} resolve(); } }
@@ -3150,9 +3152,14 @@ async function resolveMediaForProvider(prov, params){
   //   (영상 레퍼런스는 base64 가 불가하므로 R2 공개 URL 유지)
   if(prov==='seedance' || prov==='flux' || prov==='falcontrol' || prov==='nanobanana' || prov==='openai'){
     // Seedance·Flux·fal·나노바나나·GPT 는 레퍼런스(입력) 이미지를 작은 base64 로 인라인 전송
-    var sk=['firstFrame','lastFrame','refImage'];
-    for(var s=0;s<sk.length;s++){ var sv=params[sk[s]];
-      if(sv && /^data:image\//i.test(sv)) params[sk[s]]=await _downscaleDataURL(sv, 1024, 0.8); }
+    // 첫/마지막 프레임은 "이어보기"의 화질을 그대로 결정한다(앞 영상 끝 → 다음 영상 시작).
+    //  레퍼런스와 같은 1024/0.8 로 줄이면 이어지는 장면이 눈에 띄게 흐려진다 → 이 두 장만 1280/0.86.
+    //  (장수가 1장씩뿐이라 payload 증가는 ~70KB 수준으로, 502 를 유발하던 다중 레퍼런스와 무관)
+    var sv0=params.firstFrame, sv1=params.lastFrame;
+    if(sv0 && /^data:image\//i.test(sv0)) params.firstFrame=await _downscaleDataURL(sv0, 1280, 0.86);
+    if(sv1 && /^data:image\//i.test(sv1)) params.lastFrame =await _downscaleDataURL(sv1, 1280, 0.86);
+    if(params.refImage && /^data:image\//i.test(params.refImage))
+      params.refImage=await _downscaleDataURL(params.refImage, 1024, 0.8);
     // refImages 배열의 "모든" 레퍼런스를 유지·축소한다 (예전엔 1장으로 줄여 배경 참고가 버려졌음)
     if(Array.isArray(params.refImages)){
       for(var r=0;r<params.refImages.length;r++){ var rv=params.refImages[r];
@@ -5842,6 +5849,21 @@ canvas.addEventListener('mousedown',function(e){
   canvas.classList.add('panning');
   drag={pan:true,sx:e.clientX,sy:e.clientY,px:state.pan.x,py:state.pan.y};
 });
+/* 이 결과물(출력·설정 노드)을 만들어 낸 모델 노드를 상류로 거슬러 찾는다. */
+function producerModelOf(nodeId){
+  var seen={}, found=null;
+  (function up(cur){
+    if(found||seen[cur])return; seen[cur]=1;
+    (state.links||[]).filter(function(l){ return l.to===cur; }).forEach(function(l){
+      if(found)return;
+      var n=(state.nodes||[]).filter(function(x){ return x.id===l.from; })[0];
+      if(!n)return;
+      if(n.type==='model'){ found=n; return; }
+      up(n.id);
+    });
+  })(nodeId);
+  return found;
+}
 /* 출력 포트에서 빈 캔버스로 선을 놓았을 때 "이어서 만들 노드"를 정한다.
    영상·이미지 결과 → AI 영상 제작의 [첫 프레임] = 앞 결과에서 곧바로 이어지는 영상 제작. */
 function nextNodeFor(node){
@@ -5980,6 +6002,22 @@ window.addEventListener('mouseup',function(e){
         if(plan.port!=='ref'&&plan.port!=='clips')
           state.links=state.links.filter(function(l){return !(l.to===nnN.id&&l.toPort===plan.port);});
         state.links.push({from:connect.from.node,fromPort:connect.from.port,to:nnN.id,toPort:plan.port,type:ltN});
+        // ── 이어보기 노드는 "바로 실행 가능"해야 한다 ──
+        //  첫 프레임만 연결하면 프롬프트가 비어 있어, 눌러도 앞 장면과 무관한 영상이 나오거나
+        //  모델이 거부한다. 앞 영상을 만든 모델 노드의 프롬프트·네거티브·모델선택 입력을 그대로
+        //  물려주고 모델·길이·비율·해상도도 맞춰, 드래그 직후 실행하면 실제로 이어지게 한다.
+        if(plan.type==='model'&&plan.port==='first'){
+          var prevM=producerModelOf(connect.from.node);
+          if(prevM&&prevM.w){
+            ['model','vsec','vratio','vres','seedModel','seedAudio'].forEach(function(k){
+              if(prevM.w[k]!==undefined&&prevM.w[k]!==null) nnN.w[k]=prevM.w[k];
+            });
+            ['prompt','negative','modelsel'].forEach(function(pt){
+              var srcL=(state.links||[]).filter(function(l){ return l.to===prevM.id&&l.toPort===pt; })[0];
+              if(srcL) state.links.push({from:srcL.from,fromPort:srcL.fromPort,to:nnN.id,toPort:pt,type:srcL.type});
+            });
+          }
+        }
         snapshot(); toast(plan.msg||(DEFS[plan.type].title+' 자동 생성·연결'));
       }
     }
