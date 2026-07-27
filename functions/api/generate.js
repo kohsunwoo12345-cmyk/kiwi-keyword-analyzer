@@ -1783,7 +1783,12 @@ async function handle(context) {
       const j = await r.json();
       if (j.status === "succeeded") {
         const url = j.content?.video_url || null;
-        return url ? json({ url, kind: "video" }) : json({ status: "failed", error: "no video_url" });
+        // ModelArk 는 완료 응답에 '실제 과금 단위(토큰)' 를 실어 준다 — 추정이 아니라 제공사가 센 값이다.
+        //  그대로 흘려보내 기록에 남긴다(청구서 대조·정확한 원가 산출의 근거).
+        const usage = j.usage && typeof j.usage === "object"
+          ? { provider: "seedance", model: j.model || null, completion_tokens: j.usage.completion_tokens ?? null, total_tokens: j.usage.total_tokens ?? null }
+          : null;
+        return url ? json({ url, kind: "video", usage }) : json({ status: "failed", error: "no video_url" });
       }
       if (j.status === "failed" || j.error) return json({ status: "failed", error: (j.error && j.error.message) || "seedance failed" });
       return json({ status: j.status || "RUNNING" });

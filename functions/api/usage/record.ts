@@ -120,6 +120,9 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   // 생성 콘텐츠 아카이브 — 프롬프트/레퍼런스/결과. 실패해도 기록/차감은 유지.
   const prompt = String(b.prompt || '').slice(0, 4000)
   const resultKind = String(b.resultKind || (c.kind === 'image' ? 'image' : 'video')).slice(0, 12)
+  // 제공사가 보고한 실제 사용량 — 추정이 아니라 제공사가 직접 센 과금 단위(예: ModelArk 토큰)
+  let provUsage = ''
+  try { if (b.provUsage && typeof b.provUsage === 'object') provUsage = JSON.stringify(b.provUsage).slice(0, 500) } catch { provUsage = '' }
   let refsJson = ''
   let resultUrl = ''
   try {
@@ -139,8 +142,8 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     const id = 'au' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
     await db
       .prepare(
-        `INSERT INTO ai_usage (id,user_id,email,name,provider,model,kind,units,usd,cost_krw,credits,revenue_krw,markup,usd_krw,created_at,prompt,refs,result_url,result_kind)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        `INSERT INTO ai_usage (id,user_id,email,name,provider,model,kind,units,usd,cost_krw,credits,revenue_krw,markup,usd_krw,created_at,prompt,refs,result_url,result_kind,prov_usage)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .bind(
         id,
@@ -162,6 +165,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
         refsJson,
         resultUrl,
         resultKind,
+        provUsage,
       )
       .run()
   } catch (e) {

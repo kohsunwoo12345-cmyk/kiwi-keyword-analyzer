@@ -265,6 +265,13 @@ function CostBreakdown({ r }: { r: AiGenerationRow }) {
         = {usd(r.usd)} × ₩{Math.round(c.rate).toLocaleString('ko-KR')} = <b className="text-[var(--text)]">{krw(r.costKrw)}</b>
         {!c.krwOk && <span className="text-amber-600"> (환율 환산 불일치)</span>}
       </div>
+      {/* 제공사가 직접 보고한 사용량 — 추정이 아니라 제공사가 센 실제 과금 단위 */}
+      {r.provUsage?.completion_tokens != null && (
+        <div className="mt-1 rounded bg-emerald-500/10 px-1.5 py-1 text-emerald-700">
+          제공사 보고 실사용량: <b>{Number(r.provUsage.completion_tokens).toLocaleString('ko-KR')} 토큰</b>
+          {r.provUsage.model ? ` · ${r.provUsage.model}` : ''} — 청구서와 직접 대조 가능한 실측값입니다
+        </div>
+      )}
       {!c.priced && <div className="mt-1 text-amber-600">⚠ 단가표에 없는 모델 — 기본 단가로 계산된 기록입니다.</div>}
       {c.priced && !c.matchesNow && (
         <div className="mt-1 text-amber-600">

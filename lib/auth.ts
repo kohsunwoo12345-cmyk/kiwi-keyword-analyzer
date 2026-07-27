@@ -385,6 +385,8 @@ export interface AiGenerationRow {
   refs: string[]
   resultUrl: string
   resultKind: string
+  /** 제공사가 직접 보고한 실제 사용량 (예: ModelArk 토큰). 있으면 추정이 아닌 실측 과금 단위 */
+  provUsage?: { provider?: string; model?: string | null; completion_tokens?: number | null; total_tokens?: number | null } | null
   /** 이 금액이 어떻게 나왔는지 — 단가×수량(+오디오)·환율·현재 규칙 재계산 */
   cost?: {
     unitPrice: number; unitLabel: string; units: number

@@ -34,7 +34,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     (await db
       .prepare(
         `SELECT id, created_at, user_id, name, email, provider, model, kind,
-                credits, cost_krw, usd, usd_krw, markup, prompt, refs, result_url, result_kind
+                credits, cost_krw, usd, usd_krw, markup, prompt, refs, result_url, result_kind, prov_usage
          FROM ai_usage WHERE ${whereSql}
          ORDER BY created_at DESC LIMIT ? OFFSET ?`,
       )
@@ -50,9 +50,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
     // 이 금액이 어떻게 나왔는지 분해 — 계산 규칙은 _pricing.ts 한 곳에서만 관리한다.
     const cost = explainCost({ model: r.model, kind: r.kind, units: r.units, usd: r.usd, usdKrw: r.usd_krw, costKrw: r.cost_krw })
+    // 제공사가 직접 보고한 사용량 — 있으면 이게 '실제 과금 단위' 다(추정 아님)
+    let provUsage: any = null
+    try { provUsage = r.prov_usage ? JSON.parse(r.prov_usage) : null } catch { provUsage = null }
 
     return {
       cost,
+      provUsage,
       id: r.id,
       createdAt: r.created_at,
       userId: r.user_id || '',

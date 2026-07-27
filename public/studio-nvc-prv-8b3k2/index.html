@@ -2152,7 +2152,7 @@ function _billedSec(model, seconds){
   if(prov==='google') return cl(raw||8,5,8);
   return Math.max(1, Math.round(raw||8));
 }
-function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl, cnCount){
+function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl, cnCount, provUsage){
   var m = MODEL_COST[model];
   var isImg = m ? m.u==='img' : (kind==='image');
   var prov = m ? m.prov : provider;
@@ -2175,6 +2175,7 @@ function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prom
     var _refs=[]; try{ if(refUrls&&refUrls.length){ _refs=refUrls.map(mediaForRecord).filter(Boolean).slice(0,4); } }catch(e){}
     fetch('/api/usage/record',{ method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
       body: JSON.stringify({ provider:prov, model:model||prov, kind:isImg?'image':'video', units:units, res:isImg?null:(res||'1080p'), audio:!!audioAdd, usd:usd, refs:Math.max(0,Number(refCount)||0), cn:Math.max(0,Number(cnCount)||0),
+        provUsage: provUsage||null,   // 제공사가 보고한 실제 사용량(토큰 등) — 청구서 대조용
         prompt:(prompt||'').slice(0,4000), refUrls:_refs, resultUrl:mediaForRecord(resultUrl), resultKind:isImg?'image':'video' }) }).catch(function(){});
   }catch(e){}
   // 상세 활동 로그(관리자 감사): "어떤 모델로 무엇을 생성" (정확 크레딧은 ai_usage 에 별도 집계)
@@ -2667,7 +2668,7 @@ async function callProxy(params){
   var r=await fetch(base,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(params),credentials:_same?'include':'same-origin'});
   var t=await r.text(), j={}; try{ j=JSON.parse(t); }catch(e){}   // 본문이 JSON이 아니어도 원문을 살림
   if(!r.ok) throw new Error(j.error || ('HTTP '+r.status+(t?': '+String(t).replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,140):'')));
-  if(j.url) return { url:j.url, kind:j.kind||'video', poster:j.poster||params.firstFrame||null, type:params.provider };
+  if(j.url) return { url:j.url, kind:j.kind||'video', poster:j.poster||params.firstFrame||null, type:params.provider, usage:j.usage||null };
   if(j.statusUrl){
     // 진행 중 작업을 노드 밖(전역)에 기록 — 새로고침해도 이어받을 수 있다.
     if(_pnode){ _pnode.w.pendingUrl=j.statusUrl; try{ autosave(); }catch(_e){} }
@@ -2676,7 +2677,8 @@ async function callProxy(params){
       return s.url? s : null;
     });
     if(_pnode){ _pnode.w.pendingUrl=null; }
-    return { url:out.url, kind:out.kind||'video', poster:out.poster||params.firstFrame||null, type:params.provider };
+    // usage = 제공사가 보고한 실제 사용량(예: ModelArk 토큰). 기록에 그대로 남긴다.
+    return { url:out.url, kind:out.kind||'video', poster:out.poster||params.firstFrame||null, type:params.provider, usage:out.usage||null };
   }
   throw new Error(j.error||'proxy: 응답에 url 없음');
 }
@@ -3915,7 +3917,7 @@ function generateImageNode(n){
           _on.w.vid=res.url; _on.w.kind=res.kind||'image'; _on.w.lastImg=res.url; _on.w.model=n.w.model;
         }catch(_e){}
       }
-      try{ if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image', null, false, refCountUsed, prompt, refUsedList, res.url, cnChargeCount); }catch(_e){}
+      try{ if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image', null, false, refCountUsed, prompt, refUsedList, res.url, cnChargeCount, res.usage); }catch(_e){}
       try{ saveToGallery(res.url, 'image', n.w.model, 0, null); }catch(_e){}
       try{ if(res.url && res.type!=='error') autoRefFromResult(n, res.url); }catch(_e){}
       toast('이미지 생성 완료'); try{ snapshot(); }catch(_e){} render();
@@ -6772,7 +6774,7 @@ function runQueue(onlyId){
               render();
               // ② 부수작업(과금 기록·보관함 저장)은 각각 격리 — 실패해도 UI 에 영향 없음
               try{ if(res.url && res.type!=='error')
-                recordCost(res.type||providerOf(chosenModel), chosenModel, vSet?vSet.w.sec:8, res.kind, vSet?vSet.w.res:'1080p', n.w.seedAudio===true, 0, basePrompt, [].concat(refList||[], srcVid?[srcVid]:[]), res.url); }catch(_e){}
+                recordCost(res.type||providerOf(chosenModel), chosenModel, _secUse, res.kind, vSet?vSet.w.res:'1080p', n.w.seedAudio===true, 0, basePrompt, [].concat(refList||[], srcVid?[srcVid]:[]), res.url, 0, res.usage); }catch(_e){}
               try{ saveToGallery(res.url, res.kind||'video', chosenModel, vSet?vSet.w.sec:8, res.poster); }catch(_e){}
               var el2=document.getElementById('nd-'+id); if(el2)el2.classList.add('exec');
               Promise.all(liveNodes(outIds).map(extractLastFrame)).then(function(){ render(); step(); });

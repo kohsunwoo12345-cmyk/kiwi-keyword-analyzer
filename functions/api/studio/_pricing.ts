@@ -301,6 +301,8 @@ export async function ensureAiUsage(db: D1Database): Promise<void> {
     refs: "refs TEXT DEFAULT ''", // 레퍼런스 URL JSON 배열
     result_url: "result_url TEXT DEFAULT ''", // 결과 이미지/영상 URL(가능하면 R2 durable)
     result_kind: "result_kind TEXT DEFAULT ''", // image | video
+    // 제공사가 보고한 실제 사용량(JSON). 예: ModelArk {completion_tokens}. 추정이 아닌 '실측 과금 단위'.
+    prov_usage: "prov_usage TEXT DEFAULT ''",
   }
   for (const [name, ddl] of Object.entries(cols)) {
     await db.prepare(`ALTER TABLE ai_usage ADD COLUMN ${ddl}`).run().catch(() => {})
