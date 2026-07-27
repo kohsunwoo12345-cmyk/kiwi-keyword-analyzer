@@ -40,6 +40,17 @@ const server = http.createServer(async (req, res) => {
   const send = (code, body, ct) => { res.writeHead(code, { 'content-type': ct || 'application/json', 'cache-control': 'no-store' }); res.end(body) }
 
   if (p === '/models/lib/transformers') return send(200, FAKE_TRANSFORMERS, 'text/javascript')
+  // 인물 분리(MediaPipe) 스텁 — 가운데 세로 절반을 '인물' 로 보는 가짜 마스크.
+  //  실제 모델 파일 없이도 배경 제거의 합성 로직(알파 적용)을 그대로 검증할 수 있다.
+  if (p === '/models/lib/vision') return send(200, `
+    export const FilesetResolver = { forVisionTasks: async () => ({}) };
+    export const ImageSegmenter = { createFromOptions: async () => ({
+      segment(canvas){
+        const w=canvas.width, h=canvas.height, a=new Float32Array(w*h);
+        for(let y=0;y<h;y++) for(let x=0;x<w;x++) a[y*w+x] = (x>w*0.25 && x<w*0.75) ? 1 : 0;
+        return { confidenceMasks:[{ width:w, height:h, getAsFloat32Array:()=>a, close(){} }] };
+      }
+    })};`, 'text/javascript')
   if (p.startsWith('/models/')) {
     if (u.searchParams.get('probe') === '1') return send(200, JSON.stringify({ ok: /swin2SR/.test(p), cached: true, bytes: 1234 }))
     if (/config\.json$/.test(p)) return send(200, JSON.stringify({ model_type: 'swin2sr', upscale: 2 }))
@@ -107,11 +118,34 @@ for (const label of ['4×', '5K']) {
 }
 await page.getByRole('button', { name: '2×', exact: true }).click()
 
-// 3) 씨댄스 전송 검증 — 실제 서버 빌더로 확인
+// 3) 편집 기능 — 실제 스튜디오 함수를 불러 픽셀로 판정하는 패널
+await page.getByRole('button', { name: /편집 기능 전체 테스트/ }).click()
+await page.waitForFunction(() => /외부 서버 호출/.test(document.body.innerText.split('편집 기능이 진짜로')[1] || ''),
+  null, { timeout: 120000 }).catch(() => {})
+await page.waitForTimeout(800)
+{
+  const t = await page.locator('body').innerText()
+  // 패널 제목에도 '색보정·합성…' 이 들어 있어 그 줄은 버리고 결과 줄만 본다
+  const seg = ((t.split('3. 편집 기능이 진짜로')[1] || '').split('4. 첫 프레임')[0]).split('\n').slice(1).join('\n')
+  const line = (name) => ((seg.match(new RegExp(name + '\\s*\\n?([^\\n]*)')) || [])[1] || '').trim()
+  ok('3. 색보정이 실제로 흑백으로 바뀜', /흑백 적용됨 — R=G=B/.test(seg), line('색보정').slice(0, 60))
+  ok('   자막이 아래쪽에 실제로 찍힘', /아래쪽에 글씨 \d+픽셀/.test(seg) && /위쪽 침범 0픽셀/.test(seg), line('자막').slice(0, 60))
+  ok('   로고가 계산한 좌표에 정확히 들어감', /계산값 \(350,150\) 40×40 과 일치/.test(seg), line('합성').slice(0, 70))
+  ok('   비율 맞추기가 세로 규격으로 변환', /225×400/.test(seg), line('비율 맞추기').slice(0, 60))
+  ok('   영상 자르기·2배속이 길이를 절반으로', /결과 0\.[2-8]\d초/.test(seg), line('영상 자르기·속도').slice(0, 70))
+  ok('   편집 중 외부 서버 호출 0건', /외부 서버 호출\s*\n?\s*0건/.test(seg), (seg.match(/외부 서버 호출\s*\n?([^\n]*)/) || [])[1] || '')
+  const shots = await page.locator('img[alt="색보정(흑백)"], img[alt="자막"], img[alt="합성(로고)"], img[alt="비율 9:16"], img[alt="배경 제거"]').count()
+  ok('   결과 미리보기가 화면에 표시됨', shots >= 5, shots + '장')
+  // 배경 제거는 인물 분리 모델이 있어야 돈다 — 없으면 '실패' 로 정직하게 뜬다(둘 다 정상 동작)
+  ok('   배경 제거가 동작함', /배경 제거\(누끼\)/.test(seg) && /동작함 — 가장자리 투명도 0/.test(seg),
+     line('배경 제거\\(누끼\\)').slice(0, 90))
+}
+
+// 4) 씨댄스 전송 검증 — 실제 서버 빌더로 확인
 await page.getByRole('button', { name: /확인/ }).click()
 await page.waitForSelector('text=first_frame 역할로 전송', { timeout: 20000 })
 const sdText = await page.content()
-ok('3. 첫 프레임이 first_frame 으로 전송', /첫 프레임 이미지 → first_frame 역할로 전송/.test(sdText))
+ok('4. 첫 프레임이 first_frame 으로 전송', /첫 프레임 이미지 → first_frame 역할로 전송/.test(sdText))
 ok('   레퍼런스 2장 함께 전송', /레퍼런스 1번, 레퍼런스 2번 → reference_image/.test(sdText))
 ok('   중복 전송 없음', /각자 제 역할로만 전송/.test(sdText))
 ok('   3D 변환 지시문 없음', /없음 \(정상\)/.test(sdText))
@@ -122,7 +156,7 @@ await page.locator('input[type="checkbox"]').first().uncheck()
 await page.getByRole('button', { name: /확인/ }).click()
 await page.waitForTimeout(1500)
 const sd2 = await page.content()
-ok('4. 첫 프레임 미지정 시 레퍼런스 모드', /전송 안 함 \(레퍼런스 모드\)/.test(sd2))
+ok('5. 첫 프레임 미지정 시 레퍼런스 모드', /전송 안 함 \(레퍼런스 모드\)/.test(sd2))
 
 ok('페이지 스크립트 오류 없음', errs.length === 0, errs.slice(0, 2).join(' | ') || '없음')
 

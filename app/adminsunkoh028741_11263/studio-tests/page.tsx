@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   FlaskConical, Play, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Loader2,
-  Server, Sparkles, Film, ExternalLink, Upload,
+  Server, Sparkles, Film, ExternalLink, Upload, Scissors,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button } from '@/components/ui'
@@ -130,7 +130,11 @@ export default function StudioTestsPage() {
         value: outside.length ? `${outside.length}건 — ${outside.slice(0, 3).join(' , ')}` : `0건 (우리 서버만 사용 · 총 ${seen.length}건 요청)`,
         state: outside.length ? 'fail' : 'pass',
       })
-      out.push({ label: '비용', value: '0원 — 외부 API를 쓰지 않아 크레딧도 차감되지 않습니다', state: 'pass' })
+      out.push({
+        label: '비용',
+        value: '제공사 비용 0원 (고객 컴퓨터에서 처리) · 이 테스트는 기록·차감 없이 실행됩니다. 실제 스튜디오에서는 “AI 비용” 페이지에서 정한 요금만큼 크레딧이 차감됩니다.',
+        state: 'pass',
+      })
     } catch (e: any) {
       out.push({ label: '업스케일 실행', value: '실패: ' + String(e?.message || e), state: 'fail' })
     } finally {
@@ -138,6 +142,147 @@ export default function StudioTestsPage() {
     }
     setUp([...out]); setUpBusy(false)
   }, [ownImg, scale])
+
+  // ── 편집 기능 실동작 ──
+  //  스튜디오 안의 진짜 함수를 그대로 호출하고, 결과 이미지의 픽셀을 읽어 '정말 그렇게 됐는지' 를 숫자로 확인한다.
+  const [ed, setEd] = useState<Line[]>([])
+  const [edBusy, setEdBusy] = useState(false)
+  const [edShots, setEdShots] = useState<{ label: string; url: string; video?: boolean; alpha?: boolean }[]>([])
+
+  /** 결과물의 픽셀을 읽어 온다 (같은 출처라 data:/blob: 모두 읽을 수 있다) */
+  async function readPixels(url: string) {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('결과 이미지를 읽지 못했습니다')); i.src = url
+    })
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height
+    const x = c.getContext('2d')!; x.drawImage(img, 0, 0)
+    return { w: img.width, h: img.height, d: x.getImageData(0, 0, img.width, img.height).data }
+  }
+  function solid(w: number, h: number, color: string): string {
+    const c = document.createElement('canvas'); c.width = w; c.height = h
+    const x = c.getContext('2d')!; x.fillStyle = color; x.fillRect(0, 0, w, h)
+    return c.toDataURL('image/png')
+  }
+  /** 짧은 테스트 영상을 그 자리에서 만든다 (외부 파일 없이 영상 기능을 확인하기 위함) */
+  function makeTestVideo(ms = 2000): Promise<string> {
+    return new Promise((resolve, reject) => {
+      try {
+        const c = document.createElement('canvas'); c.width = 160; c.height = 90
+        const x = c.getContext('2d')!
+        const st = c.captureStream(30)
+        const mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find((m) => MediaRecorder.isTypeSupported(m))
+        const rec = new MediaRecorder(st, { mimeType: mime })
+        const ch: Blob[] = []
+        rec.ondataavailable = (e) => { if (e.data.size) ch.push(e.data) }
+        rec.onstop = () => resolve(URL.createObjectURL(new Blob(ch, { type: 'video/webm' })))
+        rec.start()
+        const t0 = performance.now()
+        const loop = () => {
+          const t = performance.now() - t0
+          x.fillStyle = t < ms / 2 ? '#c02020' : '#20a040'; x.fillRect(0, 0, 160, 90)
+          if (t < ms) requestAnimationFrame(loop); else rec.stop()
+        }
+        loop()
+      } catch (e) { reject(e) }
+    })
+  }
+
+  const runEdit = useCallback(async () => {
+    const w: any = frame.current?.contentWindow
+    const cn = w?.__cn
+    if (!cn?.gradeImage) { setEd([{ label: '스튜디오 로드', value: '아직 준비되지 않았습니다. 잠시 후 다시 눌러주세요.', state: 'fail' }]); return }
+    setEdBusy(true); setEd([{ label: '편집 기능 확인 중', value: '', state: 'run' }]); setEdShots([])
+
+    const out: Line[] = []
+    const shots: { label: string; url: string; video?: boolean; alpha?: boolean }[] = []
+    const push = (l: Line) => { out.push(l); setEd([...out]) }
+
+    // 외부로 나가는 요청이 있는지 편집 내내 감시한다
+    const seen: string[] = []
+    const origFetch = w.fetch
+    w.fetch = function (...a: any[]) { try { seen.push(String(a[0]?.url || a[0])) } catch { /* noop */ } return origFetch.apply(this, a) }
+
+    // 1) 색보정 — 흑백으로 바꾸면 R=G=B 여야 한다
+    try {
+      const r = await cn.gradeImage(solid(120, 80, '#3060a0'), { preset: '흑백', bright: 100, contrast: 100, satur: 100, temp: 0 })
+      const p = await readPixels(r.url)
+      const same = p.d[0] === p.d[1] && p.d[1] === p.d[2]
+      shots.push({ label: '색보정(흑백)', url: r.url })
+      push({ label: '색보정', value: same ? `흑백 적용됨 — R=G=B=${p.d[0]} · ${r.info}` : `색이 남아 있음 (${p.d[0]},${p.d[1]},${p.d[2]})`, state: same ? 'pass' : 'fail' })
+    } catch (e: any) { push({ label: '색보정', value: '실패: ' + String(e?.message || e), state: 'fail' }) }
+
+    // 2) 자막 — 아래쪽에 흰 글씨가 실제로 찍혀야 한다
+    try {
+      const r = await cn.captionImage(solid(320, 180, '#204070'), { text: '관리자 테스트 자막', pos: '아래(기본)', style: '흰 글씨 + 검은 테두리', size: 9 })
+      const p = await readPixels(r.url)
+      let bottomWhite = 0, topWhite = 0
+      for (let y = 0; y < p.h; y++) for (let xx = 0; xx < p.w; xx++) {
+        const i = (y * p.w + xx) * 4
+        if (p.d[i] > 210 && p.d[i + 1] > 210 && p.d[i + 2] > 210) { if (y > p.h * 0.6) bottomWhite++; else topWhite++ }
+      }
+      shots.push({ label: '자막', url: r.url })
+      push({ label: '자막', value: bottomWhite > 50 ? `아래쪽에 글씨 ${bottomWhite}픽셀 · 위쪽 침범 ${topWhite}픽셀 · ${r.info}` : '글씨가 찍히지 않았습니다', state: bottomWhite > 50 && topWhite === 0 ? 'pass' : bottomWhite > 50 ? 'warn' : 'fail' })
+    } catch (e: any) { push({ label: '자막', value: '실패: ' + String(e?.message || e), state: 'fail' }) }
+
+    // 3) 합성 — 로고가 지정한 자리(오른쪽 아래)에 정확히 들어가야 한다
+    try {
+      const r = await cn.composeImage(solid(400, 200, '#0000ff'), solid(40, 40, '#00ff00'),
+        { pos: '오른쪽 아래', size: 10, opacity: 100, margin: 5, blend: '일반' })
+      const p = await readPixels(r.url)
+      let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1
+      for (let y = 0; y < p.h; y++) for (let xx = 0; xx < p.w; xx++) {
+        const i = (y * p.w + xx) * 4
+        if (p.d[i + 1] > 120 && p.d[i] < 120 && p.d[i + 2] < 120) { if (xx < x0) x0 = xx; if (y < y0) y0 = y; if (xx > x1) x1 = xx; if (y > y1) y1 = y }
+      }
+      const hit = x0 === 350 && y0 === 150 && x1 - x0 + 1 === 40
+      shots.push({ label: '합성(로고)', url: r.url })
+      push({ label: '합성', value: x1 < 0 ? '로고가 얹히지 않았습니다' : `로고 위치 (${x0},${y0}) 크기 ${x1 - x0 + 1}×${y1 - y0 + 1} — 계산값 (350,150) 40×40 과 ${hit ? '일치' : '불일치'}`, state: hit ? 'pass' : 'fail' })
+    } catch (e: any) { push({ label: '합성', value: '실패: ' + String(e?.message || e), state: 'fail' }) }
+
+    // 4) 비율 맞추기 — 가로 이미지를 세로 규격으로
+    try {
+      const r = await cn.fitToRatio(solid(400, 225, '#804020'), '9:16 (릴스·쇼츠)', '꽉 채우기(가장자리 잘림)')
+      const p = await readPixels(r.url)
+      const okFit = p.w === 225 && p.h === 400
+      shots.push({ label: '비율 9:16', url: r.url })
+      push({ label: '비율 맞추기', value: `${p.w}×${p.h} · ${r.info}` + (okFit ? '' : ' — 기대값 225×400 과 다름'), state: okFit ? 'pass' : 'fail' })
+    } catch (e: any) { push({ label: '비율 맞추기', value: '실패: ' + String(e?.message || e), state: 'fail' }) }
+
+    // 5) 배경 제거 — 인물 분리 모델이 우리 서버에 있어야 돈다
+    try {
+      const r = await cn.removeBackground(solid(200, 200, '#c04030'), '투명하게', 0)
+      const p = await readPixels(r.url)
+      const edge = p.d[((p.h >> 1) * p.w + 3) * 4 + 3]
+      shots.push({ label: '배경 제거', url: r.url, alpha: true })
+      push({ label: '배경 제거(누끼)', value: `동작함 — 가장자리 투명도 ${edge} · ${r.info}`, state: 'pass' })
+    } catch (e: any) {
+      push({ label: '배경 제거(누끼)', value: '실패: ' + String(e?.message || e) + ' — 인물 분리 모델이 우리 서버에 없으면 이렇게 됩니다(위 1번에서 모델 채우기)', state: 'fail' })
+    }
+
+    // 6) 영상 자르기·속도 — 그 자리에서 만든 2초 영상을 0.5~1.5초 · 2배속으로
+    try {
+      const src = await makeTestVideo(2000)
+      const r = await cn.trimSpeedVideo(src, { start: 0.5, end: 1.5, speed: 2, mute: true }, () => {})
+      const v = document.createElement('video'); v.src = r.url; v.muted = true
+      await new Promise((res) => { v.onloadeddata = res; v.onerror = res; setTimeout(res, 5000) })
+      let dur = v.duration
+      if (!isFinite(dur)) { await new Promise((res) => { v.onseeked = res; v.currentTime = 1e6; setTimeout(res, 4000) }); dur = v.currentTime }
+      shots.push({ label: '영상 자르기·2배속', url: r.url, video: true })
+      const good = Math.abs(dur - 0.5) < 0.35
+      push({ label: '영상 자르기·속도', value: `1초 구간을 2배속 → 결과 ${dur.toFixed(2)}초 (기대 약 0.5초) · ${r.info}`, state: good ? 'pass' : 'warn' })
+    } catch (e: any) { push({ label: '영상 자르기·속도', value: '실패: ' + String(e?.message || e), state: 'fail' }) }
+
+    w.fetch = origFetch
+    const outside = seen.filter((u) => /^https?:\/\//i.test(u) && !u.startsWith(location.origin))
+    push({
+      label: '외부 서버 호출',
+      value: outside.length ? `${outside.length}건 — ${outside.slice(0, 3).join(' , ')}` : `0건 (우리 서버만 사용 · 총 ${seen.length}건 요청)`,
+      state: outside.length ? 'fail' : 'pass',
+    })
+    push({ label: '비용', value: '편집은 모두 고객 컴퓨터에서 처리 — 제공사 비용 0원. 이 테스트는 기록·차감 없이 실행됩니다.', state: 'pass' })
+
+    setEdShots(shots); setEdBusy(false)
+  }, [])
 
   // ── 3. 씨댄스 2.0 전송 검증(dryRun) ──
   const [sd, setSd] = useState<Line[]>([])
@@ -194,7 +339,7 @@ export default function StudioTestsPage() {
         icon={FlaskConical}
         eyebrow="STUDIO"
         title="노드 스튜디오 테스트"
-        desc="업스케일이 실제로 도는지, 외부 서버를 쓰는지, 첫 프레임과 레퍼런스가 제대로 전송되는지를 이 페이지에서 직접 돌려 확인합니다. 실제 생성(크레딧 차감)은 일어나지 않습니다."
+        desc="업스케일·편집 기능이 실제로 도는지, 외부 서버를 쓰는지, 첫 프레임과 레퍼런스가 제대로 전송되는지를 이 페이지에서 직접 돌려 확인합니다. 여기서 돌리는 테스트는 기록도 크레딧 차감도 하지 않습니다."
       />
 
       {/* 1. 자체 호스팅 */}
@@ -261,10 +406,42 @@ export default function StudioTestsPage() {
         </p>
       </Panel>
 
-      {/* 3. 씨댄스 전송 */}
+      {/* 3. 편집 기능 */}
       <div className="mt-5" />
       <Panel
-        title={<span className="flex items-center gap-2"><Film size={16} className="text-violet-500" /> 3. 첫 프레임·레퍼런스가 제대로 전송되는가 (씨댄스 2.0)</span>}
+        title={<span className="flex items-center gap-2"><Scissors size={16} className="text-violet-500" /> 3. 편집 기능이 진짜로 되는가 (자막·색보정·합성·비율·누끼·자르기)</span>}
+        action={
+          <Button size="sm" onClick={runEdit} disabled={edBusy}>
+            {edBusy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} 편집 기능 전체 테스트
+          </Button>
+        }
+      >
+        <div className="px-1">{ed.map((l, i) => <Row key={i} {...l} />)}</div>
+        {edShots.length > 0 && (
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {edShots.map((sh, i) => (
+              <div key={i}>
+                <div className={cn('overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel-2)]', sh.alpha && 'bg-[repeating-conic-gradient(#2a2a30_0_25%,transparent_0_50%)] bg-[length:16px_16px]')}>
+                  {sh.video
+                    ? <video src={sh.url} muted loop autoPlay playsInline className="block h-24 w-full object-contain" />
+                    : <img src={sh.url} alt={sh.label} className="block h-24 w-full object-contain" />}
+                </div>
+                <div className="mt-1 text-center text-[11px] text-[var(--text-dim)]">{sh.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="mt-3 rounded-lg bg-[var(--panel-2)] px-3 py-2 text-xs leading-relaxed text-[var(--text-dim)]">
+          스튜디오 안의 <b>실제 함수</b>를 그대로 불러 돌리고, 결과 그림의 픽셀을 직접 읽어 판정합니다 —
+          “흑백이 정말 R=G=B인가”, “로고가 계산한 좌표에 정확히 들어갔는가”처럼 눈대중이 아닌 숫자로 확인합니다.
+          배경 제거만 인물 분리 모델이 필요하며, 위 1번에서 모델이 채워져 있어야 동작합니다.
+        </p>
+      </Panel>
+
+      {/* 4. 씨댄스 전송 */}
+      <div className="mt-5" />
+      <Panel
+        title={<span className="flex items-center gap-2"><Film size={16} className="text-violet-500" /> 4. 첫 프레임·레퍼런스가 제대로 전송되는가 (씨댄스 2.0)</span>}
         action={
           <div className="flex flex-wrap items-center gap-2">
             <label className="inline-flex items-center gap-1.5 text-xs text-[var(--text-soft)]">
