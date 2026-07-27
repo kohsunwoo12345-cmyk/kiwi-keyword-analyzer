@@ -2124,16 +2124,17 @@ var MODEL_COST = {
   'GPT Image Mini':                  { u:'img', usd:0.015, prov:'openai' },
   'Flux 2 Max':                      { u:'img', usd:0.06,  prov:'flux' },   // ⚠️ 단가 잠정값 — BFL 대시보드 확인 후 조정
   'Flux 2 Pro':                      { u:'img', usd:0.04,  prov:'flux' },   // ⚠️ 단가 잠정값
-  'Flux 2 Max':                      { u:'img', usd:0.06,  prov:'flux' },   // 단가 잠정값 — BFL 대시보드 확인 후 조정
-  'Flux 2 Pro':                      { u:'img', usd:0.04,  prov:'flux' },   // 단가 잠정값
-  'Flux 2 Flex':                     { u:'img', usd:0.03,  prov:'flux' },
+  // BFL 은 출력 메가픽셀당 과금(1MP 기준). max=첫1MP $0.07 · flex=$0.06/MP · pro=$0.03/MP
+  'Flux 2 Max':                      { u:'img', usd:0.07,  prov:'flux' },
+  'Flux 2 Pro':                      { u:'img', usd:0.03,  prov:'flux' },
+  'Flux 2 Flex':                     { u:'img', usd:0.06,  prov:'flux' },
   'Flux 2 Dev':                      { u:'img', usd:0.025, prov:'flux' },
   'Flux 1.1 Pro Ultra':              { u:'img', usd:0.06,  prov:'flux' },
   'Flux 1.1 Pro':                    { u:'img', usd:0.04,  prov:'flux' },
   'Flux Pro':                        { u:'img', usd:0.05,  prov:'flux' },
   'Flux Dev':                        { u:'img', usd:0.025, prov:'flux' },
   'Flux Kontext Max (레퍼런스 편집)':  { u:'img', usd:0.08,  prov:'flux' },
-  'Flux Kontext Pro (레퍼런스 편집)':  { u:'img', usd:0.05,  prov:'flux' }
+  'Flux Kontext Pro (레퍼런스 편집)':  { u:'img', usd:0.04,  prov:'flux' }   // BFL 공식 $0.04/장
 };
 // 제공사 집계 라벨
 var PROV_LABEL = { google:'Google Veo', runway:'Runway', runway_aleph:'Runway Aleph', v2v_auto:'V2V 자동', motion:'모션 전이', narrate:'나레이션', lipsync:'립싱크', music:'음악 생성', upscale:'업스케일',

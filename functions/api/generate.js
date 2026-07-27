@@ -1487,6 +1487,49 @@ async function handle(context) {
         note: "계정에서 조회되는 모델 ID 목록. 여기 있는데 404 면 권한/미개통, 아예 없으면 그 ID 자체가 없는 것.",
         found: hit ? hit.modelIds : null, tried: out });
     }
+    /* ══ ModelArk 3D 엔드포인트 탐지 (무과금) ══
+       /api/generate?diag=ark3d-path
+       3D 는 영상(/contents/generations/tasks)·이미지(/images/generations)와 다른 경로를 쓴다.
+       문서 접근이 막혀 있어, 후보 경로에 "모델만 있고 필수 파라미터는 없는" 본문을 POST 해
+       404(그 경로 없음) / 400·422(경로는 있고 파라미터만 반려) 로 갈라 실제 경로를 찾는다.
+       필수 파라미터가 없으므로 작업은 만들어지지 않는다(무과금). */
+    if (u.searchParams.get("diag") === "ark3d-path") {
+      if (!k.seedance) return json({ diag: "ark3d-path", error: "Seedance_API_KEY 미설정" });
+      const mid = u.searchParams.get("model") || "hyper3d-gen2-260112";
+      const paths = [
+        "/3d/generations/tasks", "/3d/generations", "/contents/generations/tasks",
+        "/3d_generations/tasks", "/generations/3d/tasks", "/models/3d/generations/tasks",
+        "/threed/generations/tasks", "/mesh/generations/tasks", "/3d/tasks",
+        "/contents/generations/3d/tasks", "/3d/models/generations/tasks", "/assets/generations/tasks"
+      ];
+      const bodies = [{ model: mid }, { model: mid, content: [] }, { model: mid, prompt: "" }];
+      const out = [];
+      for (const path of paths) {
+        for (let bi = 0; bi < bodies.length; bi++) {
+          try {
+            const r = await fetchT(ARK_HOSTS.bp + path, {
+              method: "POST",
+              headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+              body: JSON.stringify(bodies[bi])
+            }, 10000);
+            const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch { /* 비JSON */ }
+            const code = (j && j.error && j.error.code) || "";
+            const msg = (j && j.error && j.error.message) || String(t).slice(0, 160);
+            const pathExists = r.status !== 404 || !/not\s*found|no\s*route|InvalidEndpointOrModel/i.test(code + " " + msg);
+            out.push({ path, bodyIdx: bi, httpStatus: r.status, code, message: String(msg).slice(0, 180), pathExists });
+            // 경로가 확인되면 그 경로의 나머지 본문 변형만 더 보고 다음 경로로
+            if (pathExists && r.status !== 404) break;
+          } catch (e) { out.push({ path, bodyIdx: bi, httpStatus: 0, code: "", message: String((e && e.message) || e).slice(0, 120), pathExists: false }); }
+        }
+      }
+      const hits = out.filter(x => x.httpStatus && x.httpStatus !== 404);
+      return json({ diag: "ark3d-path", model: mid,
+        note: "httpStatus 가 404 가 아닌 경로가 실제 3D 엔드포인트다. 400/422 는 '경로는 맞고 파라미터만 부족' 이라는 뜻(작업 미생성·무과금). "
+            + "message 에 어떤 파라미터가 필요한지 그대로 나오므로, 그걸 보고 요청 형식을 확정한다.",
+        찾은경로: hits.map(x => x.path + " [" + x.httpStatus + (x.code ? " " + x.code : "") + "] " + x.message),
+        전체: out });
+    }
+
     /* ══ 전체 모델 소환 확인 (무과금) ══
        /api/generate?diag=probe-all            모든 제공사·모든 모델
        /api/generate?diag=probe-all&provider=kling   특정 제공사만

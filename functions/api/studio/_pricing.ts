@@ -157,11 +157,16 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   'GPT Image 1.5': { u: 'img', usd: 0.06, prov: 'openai' },
   'GPT Image': { u: 'img', usd: 0.04, prov: 'openai' },
   'GPT Image Mini': { u: 'img', usd: 0.015, prov: 'openai' },
-  //  FLUX.2 는 API 제공분이 max·pro·flex 셋(dev 는 오픈웨이트라 API 없음) — probe-all 로 셋 다 확인됨.
-  //  ⚠️ max·pro 단가는 잠정값 — BFL 대시보드에서 실제 단가 확인 후 조정 필요.
-  'Flux 2 Max': { u: 'img', usd: 0.06, prov: 'flux' },
-  'Flux 2 Pro': { u: 'img', usd: 0.04, prov: 'flux' },
-  'Flux 2 Flex': { u: 'img', usd: 0.03, prov: 'flux' },
+  /* FLUX.2 는 API 제공분이 max·pro·flex 셋(dev 는 오픈웨이트라 API 없음) — probe-all 로 셋 다 확인됨.
+     BFL 은 "요청당" 이 아니라 "출력 메가픽셀당" 과금한다(1크레딧=$0.01). 우리 출력은 약 1MP
+     (1024x1024=1.05MP · 1344x768=1.03MP)라 1MP 단가를 그대로 쓴다.
+       max  = 첫 1MP $0.07 (이후 MP당 $0.03)
+       flex = MP당 $0.06
+       pro  = MP당 $0.03
+     ※ 이전 값(max 0.06 · pro 0.04 · flex 0.03)은 추정치였고 flex 가 실제의 절반이었다. */
+  'Flux 2 Max': { u: 'img', usd: 0.07, prov: 'flux' },
+  'Flux 2 Pro': { u: 'img', usd: 0.03, prov: 'flux' },
+  'Flux 2 Flex': { u: 'img', usd: 0.06, prov: 'flux' },
   // Flux 2 Dev·Flux Pro 는 이 계정에서 403 Forbidden(권한 없음) — 개통되면 주석만 풀면 된다
   // 'Flux 2 Dev': { u: 'img', usd: 0.025, prov: 'flux' },
   'Flux 1.1 Pro Ultra': { u: 'img', usd: 0.06, prov: 'flux' },
@@ -169,7 +174,7 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   // 'Flux Pro': { u: 'img', usd: 0.05, prov: 'flux' },
   'Flux Dev': { u: 'img', usd: 0.025, prov: 'flux' },
   'Flux Kontext Max (레퍼런스 편집)': { u: 'img', usd: 0.08, prov: 'flux' },
-  'Flux Kontext Pro (레퍼런스 편집)': { u: 'img', usd: 0.05, prov: 'flux' },
+  'Flux Kontext Pro (레퍼런스 편집)': { u: 'img', usd: 0.04, prov: 'flux' },   // BFL 공식 $0.04/장
   // ── 오디오·립싱크 (초당) — 관리자 ai-pricing 에서 모델별 배수 설정 가능 ──
   '음악 생성 (BGM·뮤직)': { u: 'sec', usd: 0.01, prov: 'music' },
   '업스케일 4K (영상 화질 향상)': { u: 'sec', usd: 0.04, prov: 'upscale' },
