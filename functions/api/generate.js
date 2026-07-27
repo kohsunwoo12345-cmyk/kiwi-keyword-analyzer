@@ -196,7 +196,9 @@ export const RUNWAY_MODELS = {
   "Runway Gen-3 Alpha Turbo": "gen3a_turbo",
 };
 export function buildRunwayPayload(b) {
-  const ratioMap = { "16:9": "1280:720", "9:16": "720:1280", "1:1": "960:960", "4:5": "832:1104" };
+  // Runway 허용 비율 전체 — 4:3·3:4·21:9 가 빠져 있어 16:9 로 폴백되고 있었다.
+  const ratioMap = { "16:9": "1280:720", "9:16": "720:1280", "1:1": "960:960",
+                     "4:3": "1104:832", "3:4": "832:1104", "4:5": "832:1104", "21:9": "1584:672" };
   const img = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
   return {
     model: RUNWAY_MODELS[b.model] || "gen4_turbo",
@@ -208,7 +210,8 @@ export function buildRunwayPayload(b) {
   };
 }
 /* Runway Gen-4 Aleph — 진짜 V2V(영상→영상). 입력 영상은 반드시 공개 URL(R2). */
-const RUNWAY_RATIOS = { "16:9": "1280:720", "9:16": "720:1280", "1:1": "960:960", "4:5": "832:1104" };
+const RUNWAY_RATIOS = { "16:9": "1280:720", "9:16": "720:1280", "1:1": "960:960",
+                     "4:3": "1104:832", "3:4": "832:1104", "4:5": "832:1104", "21:9": "1584:672" };
 export function buildAlephPayload(b) {
   return {
     model: "gen4_aleph",
@@ -292,7 +295,11 @@ export function seedanceModelIds(b, env) {
 export function seedanceModelId(b, env) { return seedanceModelIds(b, env)[0]; }
 export function buildSeedancePayload(b, env, forceModel) {
   const model = forceModel || seedanceModelId(b, env);
-  const ratio = b.ratio === "9:16" ? "9:16" : b.ratio === "1:1" ? "1:1" : "16:9";
+  // Seedance 2.0 공식 지원 비율: 21:9 · 16:9 · 4:3 · 1:1 · 3:4 · 9:16.
+  //  예전엔 9:16·1:1 만 통과시키고 나머지를 전부 16:9 로 뭉개, 4:3·3:4·21:9 선택이 무시됐다.
+  //  (1.x 는 --ratio 로 텍스트에 실리며 같은 표기를 쓴다)
+  const SEEDANCE_RATIOS = ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"];
+  const ratio = SEEDANCE_RATIOS.indexOf(String(b.ratio || "").trim()) >= 0 ? String(b.ratio).trim() : "16:9";
   const first = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
   const isV2 = /seedance-2/.test(model);   // dreamina-seedance-2-0-* 계열
 
