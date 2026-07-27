@@ -466,6 +466,19 @@ body.create-open #btnQueue{ display:none !important; }
   background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; }
 .refcnt.up-help b{ color:#cdd6ff; }
 .refcnt a{ color:#7aa8ff; }
+/* ── 전/후 비교 (가운데 손잡이를 좌우로 밀어 원본과 편집본을 겹쳐 본다) ── */
+.cmpwrap{ position:relative; width:100%; aspect-ratio:16/9; border-radius:8px; overflow:hidden; background:#0d0d12; margin-top:4px; }
+.cmpwrap .cmplayer{ position:absolute; inset:0; }
+.cmpwrap img, .cmpwrap video{ width:100%; height:100%; object-fit:contain; display:block; }
+.cmpbar{ position:absolute; top:0; bottom:0; width:2px; margin-left:-1px; background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.45); pointer-events:none; }
+.cmpbar::after{ content:""; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:20px; height:20px; border-radius:50%;
+  background:#fff; box-shadow:0 1px 6px rgba(0,0,0,.55); }
+.cmptag{ position:absolute; top:6px; font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; background:rgba(0,0,0,.62); color:#fff; pointer-events:none; }
+.cmptag.l{ left:6px; } .cmptag.r{ right:6px; }
+.cmprange{ width:100%; margin-top:7px; }
+.cmpside{ display:flex; gap:6px; margin-top:4px; }
+.cmpside > div{ flex:1; position:relative; border-radius:8px; overflow:hidden; background:#0d0d12; aspect-ratio:16/9; }
+.cmpside img, .cmpside video{ width:100%; height:100%; object-fit:contain; display:block; }
 /* ── 생성 중 고급 로더 (GPT/Gemini 스타일: 은은한 shimmer + 그라디언트 텍스트) ── */
 .genwrap{ position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; min-height:118px; overflow:hidden;
   background:linear-gradient(135deg,#14161f 0%,#191c2b 55%,#161826 100%); }
@@ -5109,6 +5122,11 @@ var DEFS = {
                       {k:'fitmode',t:'combo',label:'맞추는 방법',opts:['꽉 채우기(가장자리 잘림)','전체 보이기(여백 생김)','여백을 흐린 배경으로'],def:'꽉 채우기(가장자리 잘림)'},
                       {k:'toolout',t:'toolout'},
                       {k:'run',t:'toolbtn',label:'비율 맞추기 실행',act:'fit'}] },
+ compare:  { cat:'편집', title:'전 / 후 비교', hd:'#1c3a38',
+             ins:[['a','전 (원본)','*'],['b','후 (편집본)','*']],
+             outs:[['out','후(편집본) 그대로 전달','*']],
+             widgets:[{k:'cmpmode',t:'combo',label:'보기 방식',opts:['겹쳐 보기 (손잡이 밀기)','나란히 보기'],def:'겹쳐 보기 (손잡이 밀기)'},
+                      {k:'cmpview',t:'cmpview'}] },
  compose:  { cat:'편집', title:'합성 (로고·워터마크 얹기)', hd:'#3a1c1c',
              ins:[['base','바탕 (이미지·영상)','*'],['over','위에 올릴 그림','*']],
              outs:[['out','합성 결과','*']],
@@ -6084,6 +6102,34 @@ function widgetHTML(n,w){
     return '<label class="seedopt-row"><input type="checkbox" data-w="'+w.k+'"'+(n.w[w.k]===true?' checked':'')+'>'+
       '<span class="seedopt-tx"><b>'+esc(w.label||'')+'</b>'+(w.hint?'<i>'+esc(w.hint)+'</i>':'')+'</span></label>';
   }
+  // 전/후 비교 — 두 입력을 겹쳐 놓고 가운데 손잡이를 밀어 어디까지 바뀌었는지 본다
+  if(w.t==='cmpview'){
+    var aM=nodeMedia(inputNodeOf(n.id,'a')), bM=nodeMedia(inputNodeOf(n.id,'b'));
+    if(!aM||!bM){
+      return '<div class="wpreview" style="aspect-ratio:16/9;"><span class="empty">비교할 것이 없습니다<br>'+
+        (aM?'':'[전] 포트에 원본, ')+(bM?'':'[후] 포트에 편집본을 ')+'연결하세요</span></div>';
+    }
+    var mediaTag=function(m){
+      return m.kind==='video'
+        ? '<video src="'+esc(m.url)+'" muted loop playsinline autoplay></video>'
+        : '<img src="'+esc(m.url)+'" alt="">';
+    };
+    if(/나란히/.test(String(n.w.cmpmode||''))){
+      return '<div class="cmpside">'+
+        '<div>'+mediaTag(aM)+'<span class="cmptag l">전</span></div>'+
+        '<div>'+mediaTag(bM)+'<span class="cmptag l">후</span></div></div>'+
+        '<div class="refcnt up-help">왼쪽이 원본, 오른쪽이 편집본입니다</div>';
+    }
+    var p=Math.max(0, Math.min(100, _num(n.w.cmpPos, 50)));
+    return '<div class="cmpwrap" data-cmpwrap>'+
+        '<div class="cmplayer">'+mediaTag(aM)+'</div>'+
+        '<div class="cmplayer cmpb" style="clip-path:inset(0 0 0 '+p+'%);">'+mediaTag(bM)+'</div>'+
+        '<span class="cmptag l">전</span><span class="cmptag r">후</span>'+
+        '<i class="cmpbar" style="left:'+p+'%;"></i>'+
+      '</div>'+
+      '<input type="range" class="cmprange" min="0" max="100" value="'+p+'" data-cmp>'+
+      '<div class="refcnt up-help">막대를 좌우로 밀어 <b>바뀐 부분</b>을 확인하세요 · 왼쪽=원본, 오른쪽=편집본</div>';
+  }
   // 합성 노드 안내문 — 1920×1080 기준으로 로고가 실제 몇 픽셀이 되는지 알려준다
   if(w.t==='composehelp'){
     var _cr=composeRect(1920,1080,1,1,{ pos:n.w.cpos, size:n.w.csize, margin:n.w.cmargin });
@@ -6731,6 +6777,17 @@ canvas.addEventListener('input',function(e){
     var cnn=host.querySelector('[data-cnnum="'+cp+'-'+ck+'"]');
     if(cnn) cnn.textContent = ck==='strength' ? v.toFixed(2) : Math.round(v*100)+'%';
     autosave(); return; }
+  // 전/후 비교 손잡이 — 다시 그리지 않고 그 자리에서 바로 움직인다(부드럽게)
+  if(e.target.hasAttribute('data-cmp')){
+    var cp=Math.max(0, Math.min(100, +e.target.value));
+    n.w.cmpPos=cp;
+    var wrapEl=host.querySelector('[data-cmpwrap]');
+    if(wrapEl){
+      var bEl=wrapEl.querySelector('.cmpb'); if(bEl)bEl.style.clipPath='inset(0 0 0 '+cp+'%)';
+      var barEl=wrapEl.querySelector('.cmpbar'); if(barEl)barEl.style.left=cp+'%';
+    }
+    autosave(); return;
+  }
   var k=e.target.dataset.w;
   if(k!=null){ n.w[k]=e.target.type==='checkbox'?e.target.checked:(e.target.type==='range'?+e.target.value:e.target.value);
     var num=host.querySelector('[data-num="'+k+'"]'); if(num)num.textContent=e.target.value; autosave(); }
@@ -7403,6 +7460,8 @@ function nodeImgs(node){
   // 편집 노드 결과가 영상이면 대표 프레임(포스터)만 이미지로 넘긴다 — 영상 자체는 nodeMedia 로.
   if(TOOL_NODES[node.type]) return node.w.toolKind==='video' ? (node.w.poster?[node.w.poster]:[])
                                                              : (node.w.img?[node.w.img]:[]);
+  // 비교 노드는 [후] 에 연결된 것을 그대로 넘긴다 (스스로 만드는 결과물이 없다)
+  if(node.type==='compare'){ var _bn=inputNodeOf(node.id,'b'); return (_bn&&_bn.type!=='compare')?nodeImgs(_bn):[]; }
   if(node.w.imgs&&node.w.imgs.length) return node.w.imgs;
   return node.w.img?[node.w.img]:[];
 }
@@ -7410,10 +7469,16 @@ function _mediaKind(u){
   var s=String(u||'');
   return (/^data:video\//i.test(s)||/\.(mp4|webm|mov|m4v|avi|mkv)(\?|$)/i.test(s)) ? 'video' : 'image';
 }
-/* 편집 노드(업스케일 등)의 입력 — '축소된 미리보기' 가 아니라 원본 그대로의 결과물을 준다 */
-function nodeMedia(node){
+/* 편집 노드(업스케일 등)의 입력 — '축소된 미리보기' 가 아니라 원본 그대로의 결과물을 준다.
+   _d 는 되돌기(비교 노드끼리 서로 물린 경우) 방지용 깊이 제한이다. */
+function nodeMedia(node, _d){
   if(!node||!node.w) return null;
   var w=node.w;
+  // 비교 노드는 스스로 만드는 것이 없다 → [후] 에 연결된 것을 그대로 흘려보낸다
+  if(node.type==='compare'){
+    if((_d||0)>6) return null;
+    return nodeMedia(inputNodeOf(node.id,'b'), (_d||0)+1);
+  }
   if(node.type==='output'||node.type==='narrate'||node.type==='weave'||node.type==='revoice'){
     var u=w.upscaled||w.vid; if(!u) return null;
     return { url:u, kind:(w.upscaled?w.upKind:w.kind)||_mediaKind(u) };
