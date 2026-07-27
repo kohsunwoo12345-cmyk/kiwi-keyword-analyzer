@@ -189,6 +189,19 @@ async function fetchT(url, opts, ms) {
   }
 }
 
+/* 프롬프트 길이 제한.
+   카메라 프리셋·비율 힌트·레퍼런스 @태그 바인딩은 모두 프롬프트 "뒤"에 붙는다.
+   그런데 각 제공사 한도에 맞춰 뒤를 그냥 잘라내면(=예전 .slice(0,N)) 프롬프트가 조금만
+   길어도 그 지시문들이 통째로 사라졌다 — 카메라 모션을 골라도 반영되지 않던 원인.
+   한도를 넘으면 본문 중간을 줄이고 뒤쪽 지시문은 그대로 남긴다. */
+const CUT_KEEP = 260;   // 뒤쪽 지시문 보존 길이(카메라 ~90 · 비율 ~50 · @태그 블록 ~150)
+export function cut(s, max) {
+  s = String(s == null ? "" : s);
+  if (s.length <= max) return s;
+  const keep = Math.min(CUT_KEEP, Math.floor(max / 3));
+  return s.slice(0, max - keep - 1) + "…" + s.slice(s.length - keep);
+}
+
 /* ── 페이로드 빌더 (dryRun 검증도 이 함수를 그대로 사용) ── */
 // Runway 표시명 → API 모델 ID (Gen-3/Gen-4 모두 image_to_video 엔드포인트 공용)
 export const RUNWAY_MODELS = {
@@ -203,7 +216,7 @@ export function buildRunwayPayload(b) {
   return {
     model: RUNWAY_MODELS[b.model] || "gen4_turbo",
     promptImage: img,
-    promptText: (b.prompt || "").slice(0, 1000),
+    promptText: cut(b.prompt, 1000),
     ratio: ratioMap[b.ratio] || "1280:720",
     duration: (Number(b.seconds) || 8) <= 7 ? 5 : 10,
     seed: Number.isFinite(Number(b.seed)) ? Number(b.seed) % 4294967295 : undefined
@@ -216,7 +229,7 @@ export function buildAlephPayload(b) {
   return {
     model: "gen4_aleph",
     videoUri: b.srcVideo || null,
-    promptText: (b.prompt || "").slice(0, 1000),
+    promptText: cut(b.prompt, 1000),
     ratio: RUNWAY_RATIOS[b.ratio] || "1280:720",
     seed: Number.isFinite(Number(b.seed)) ? Number(b.seed) % 4294967295 : undefined
   };
@@ -245,7 +258,7 @@ export function withRatioHint(text, ratio) {
 export function buildXaiPayload(b) {
   const p = {
     model: "grok-imagine-image",
-    prompt: withRatioHint([b.prompt, b.negative ? ("피해야 할 것: " + b.negative) : ""].filter(Boolean).join("\n"), b.ratio).slice(0, 1000),
+    prompt: cut(withRatioHint([b.prompt, b.negative ? ("피해야 할 것: " + b.negative) : ""].filter(Boolean).join("\n"), b.ratio), 1000),
     n: 1,
     response_format: "url"
   };
@@ -260,7 +273,7 @@ export function buildXaiVideoPayload(b, env) {
   const img = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
   const p = {
     model: (env && pick(env, ["GROK_VIDEO_MODEL", "grok_video_model"])) || "grok-imagine-video-1.5",
-    prompt: withRatioHint([b.prompt, b.negative ? ("피해야 할 것: " + b.negative) : ""].filter(Boolean).join("\n"), b.ratio).slice(0, 1000),
+    prompt: cut(withRatioHint([b.prompt, b.negative ? ("피해야 할 것: " + b.negative) : ""].filter(Boolean).join("\n"), b.ratio), 1000),
     duration: Math.max(1, Math.min(20, Number(b.seconds) || 6))
   };
   if (img && /^https?:\/\//.test(String(img))) p.image = { url: String(img) };  // data:URL 은 불가(공개 URL 필요)
@@ -359,7 +372,7 @@ export function buildSeedancePayload(b, env, forceModel) {
     //  Seedance 에는 negative_prompt 필드가 없다 → 노드의 네거티브 입력이 그냥 버려지지 않도록
     //  Luma 와 같은 방식으로 프롬프트 안에 "피해야 할 것"으로 접어 넣는다.
     let text = [(b.prompt || ""), b.negative ? ("피해야 할 것: " + String(b.negative)) : ""]
-      .filter(Boolean).join("\n").slice(0, 1500);
+      .filter(Boolean).join("\n");
     const tags = [];
     refs.forEach((_, i) => tags.push("@Image" + (i + 1)));
     useVids.forEach((_, i) => tags.push("@Video" + (i + 1)));
@@ -371,7 +384,7 @@ export function buildSeedancePayload(b, env, forceModel) {
       if (useAuds.length) hint.push("@Audio1 은 사운드/음성 참고");
       text = (text ? text + "\n\n" : "") + "[레퍼런스 바인딩: " + tags.join(", ") + " — " + hint.join(", ") + "]";
     }
-    const content = [{ type: "text", text }];
+    const content = [{ type: "text", text: cut(text, 1500) }];
     // 첫/마지막 프레임은 전용 role 로. last_frame 은 공식적으로 first_frame 이 있을 때만 유효하다.
     if (firstF) content.push({ type: "image_url", image_url: { url: firstF }, role: "first_frame" });
     if (firstF && lastF) content.push({ type: "image_url", image_url: { url: lastF }, role: "last_frame" });
@@ -389,8 +402,8 @@ export function buildSeedancePayload(b, env, forceModel) {
   // ── Seedance 1.x 형식(텍스트에 --ratio/--duration, first/last_frame) ──
   const dur = (Number(b.seconds) || 8) <= 6 ? 5 : 10;
   const content = [{ type: "text",
-    text: [(b.prompt || ""), b.negative ? ("피해야 할 것: " + String(b.negative)) : ""]
-            .filter(Boolean).join("\n").slice(0, 800)
+    text: cut([(b.prompt || ""), b.negative ? ("피해야 할 것: " + String(b.negative)) : ""]
+            .filter(Boolean).join("\n"), 800)
           + " --ratio " + ratio + " --duration " + dur + " --resolution " + resolution }];
   if (first) content.push({ type: "image_url", image_url: { url: first }, role: "first_frame" });
   if (b.lastFrame) content.push({ type: "image_url", image_url: { url: b.lastFrame }, role: "last_frame" });
@@ -458,7 +471,7 @@ export function buildSeedreamPayload(b, env, modelOverride) {
   const size = seedreamMinSize(SEEDREAM_SIZES[b && b.ratio] || "2048x1152", model);
   const body = {
     model,
-    prompt: String((b && b.prompt) || "").slice(0, 1500),
+    prompt: cut(b && b.prompt, 1500),
     size,
     response_format: "url",
     watermark: b && b.watermark === true    // 기본 워터마크 없음
@@ -497,7 +510,7 @@ export const FLUX_ENDPOINTS = {
 const FLUX_DIMS = { "16:9":[1344,768], "9:16":[768,1344], "1:1":[1024,1024], "4:5":[896,1120] };
 export function buildFluxPayload(b) {
   let ep = FLUX_ENDPOINTS[b.model] || "flux-pro-1.1";
-  const prompt = (b.prompt || "").slice(0, 1000);
+  const prompt = cut(b.prompt, 1000);
   const ref = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
   const stripB64 = (v) => v ? String(v).replace(/^data:image\/[^;]+;base64,/, "") : null;
 
@@ -635,7 +648,7 @@ function buildKlingApiPayload(b, spec) {
   const dur = /kling-v3/.test(String(spec.m || ""))
     ? String(Math.min(Math.max(Math.round(rawSec), 3), 15))
     : (rawSec > 7 ? "10" : "5");
-  const p = { model_name: spec.m, prompt: String(b.prompt || "").slice(0, 2500), mode: spec.mode, duration: dur };
+  const p = { model_name: spec.m, prompt: cut(b.prompt, 2500), mode: spec.mode, duration: dur };
   if (b.negative) p.negative_prompt = String(b.negative).slice(0, 2500);
   // 노드의 CFG 슬라이더는 0~100 인데 Kling 은 0~1 만 받는다.
   //  예전엔 0~1 만 통과시켜, 슬라이더 값(기본 70)이 매번 조용히 버려졌다 → 0~100 을 0~1 로 환산.
@@ -664,7 +677,7 @@ function falV2VModel(env) {
 }
 function buildMotionPayload(b) {
   const p = {
-    prompt: String(b.prompt || "").slice(0, 2500),
+    prompt: cut(b.prompt, 2500),
     video_url: b.srcVideo || null,
   };
   if (b.negative) p.negative_prompt = String(b.negative).slice(0, 2000);
@@ -699,7 +712,7 @@ const _cl = (v, lo, hi, def) => { const n = Number(v); return Number.isFinite(n)
 /* fal ControlNet — flux-general + ControlNet Union 으로 통일.
    다중 스택(b.controlnets 배열) + 타입별 강도/start·end % 지원. (컴피UI식) */
 export function buildFalControlPayload(b) {
-  const prompt = (b.prompt || "").slice(0, 1500);
+  const prompt = cut(b.prompt, 1500);
   const ref = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;   // 컨트롤 이미지(base64 data URI 또는 URL)
   const steps = Math.max(4, Math.min(50, Math.round(Number(b.cnSteps) || 28)));         // 샘플링 스텝(품질/속도)
   const guidance = _cl(b.cnGuidance, 1, 10, 3.5);                                        // 프롬프트 반영 강도(CFG)
@@ -766,7 +779,7 @@ export function buildNanoPayload(b) {
   const ratio = String(b.ratio || "").trim();
   // 비율은 ①필드(imageConfig.aspectRatio) ②프롬프트 힌트 둘 다로 전달 —
   //  구버전 엔드포인트가 필드를 무시하거나(400 시 재시도) 해도 구도가 반영되도록.
-  const prompt = withRatioHint((b.prompt || ""), ratio).slice(0, 2000);
+  const prompt = cut(withRatioHint((b.prompt || ""), ratio), 2000);
   const parts = [{ text: prompt }];
   // _refs(핸들러가 준비한 data:URI 배열)가 있으면 전부 인라인, 없으면 단일 폴백
   const refs = Array.isArray(b._refs) && b._refs.length ? b._refs
@@ -797,7 +810,7 @@ export const OPENAI_IMG_ID = {
   "GPT Image": "gpt-image-1", "GPT Image Mini": "gpt-image-1-mini"
 };
 export function buildOpenAIImagePayload(b) {
-  return { model: OPENAI_IMG_ID[b.model] || "gpt-image-1", prompt: (b.prompt || "").slice(0, 4000),
+  return { model: OPENAI_IMG_ID[b.model] || "gpt-image-1", prompt: cut(b.prompt, 4000),
            size: OPENAI_SIZE[b.ratio] || "1024x1024", n: 1 };
 }
 
@@ -811,7 +824,7 @@ export const HAILUO_IDS = {
 };
 export function buildHailuoPayload(b) {
   const p = { model: HAILUO_IDS[b.model] || "MiniMax-Hailuo-02",
-              prompt: withRatioHint(b.prompt || "", b.ratio).slice(0, 2000) };
+              prompt: cut(withRatioHint(b.prompt || "", b.ratio), 2000) };
   const first = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
   if (first) p.first_frame_image = first;
   p.duration = (Number(b.seconds) || 6) <= 6 ? 6 : 10;
@@ -854,7 +867,7 @@ export const LUMA_IDS = {
 const LUMA_RES = { "540p": "540p", "720p": "720p", "1080p": "1080p", "4K": "4k", "4k": "4k" };
 export function buildLumaPayload(b) {
   const p = { model: LUMA_IDS[b.model] || "ray-2",
-              prompt: (b.prompt || "").slice(0, 1200),
+              prompt: cut(b.prompt, 1200),
               resolution: LUMA_RES[String(b.res || "").trim()] || "1080p",
               duration: (Number(b.seconds) || 5) <= 6 ? "5s" : "9s",
               aspect_ratio: b.ratio || "16:9" };
@@ -864,7 +877,7 @@ export function buildLumaPayload(b) {
 }
 
 export function buildVeoPayload(b, opts) {
-  const inst = { prompt: (b.prompt || "").slice(0, 1000) };
+  const inst = { prompt: cut(b.prompt, 1000) };
   const vImg = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage;
   // Veo 는 base64 만 받음. data:URI 일 때만, 실제 MIME 을 그대로 사용(JPEG를 PNG로 잘못 라벨링하던 버그 수정)
   if (vImg && /^data:image\//i.test(String(vImg))) {
@@ -2572,7 +2585,7 @@ async function handle(context) {
     const engines = musicEngines(env, k);
     if (!engines.length) return json({ error: "음악 생성 연동이 없습니다 — ElevenLabs·MiniMax(Hailuo)·fal 키 중 하나가 필요합니다." }, 500);
     const origin = u.origin;
-    const promptTxt = String(b.prompt || "").slice(0, 800);
+    const promptTxt = cut(b.prompt, 800);
     if (!promptTxt) return json({ error: "음악 설명(prompt)을 입력하세요." }, 400);
     const secs = Math.min(Math.max(Number(b.seconds) || 30, 10), 120);
     const errs = [];
