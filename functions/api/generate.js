@@ -787,7 +787,9 @@ export function buildHailuoPayload(b) {
   const first = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
   if (first) p.first_frame_image = first;
   p.duration = (Number(b.seconds) || 6) <= 6 ? 6 : 10;
-  p.resolution = "1080P";
+  // Hailuo 02 는 1080P 에서 6초만 지원한다 — 10초는 768P/512P 에서만 된다.
+  //  해상도를 1080P 로 고정해 두면 10초 선택이 무효 조합이 되어 거절당한다.
+  p.resolution = p.duration > 6 ? "768P" : "1080P";
   return p;
 }
 

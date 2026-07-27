@@ -2495,9 +2495,9 @@ var VIDEO_MODEL_SPEC = {
   'Runway Gen-4':                { secs:[5,10], ratios:['16:9','9:16'], audio:false, watermark:false, neg:false, cfg:false, seed:true },
   'Runway Gen-3 Alpha Turbo':    { secs:[5,10], ratios:['16:9','9:16'], audio:false, watermark:false, neg:false, cfg:false, seed:true },
   // Luma — Ray 2 계열 5·9초, 비율 5종. Ray 1.6 은 구세대로 5초 고정.
-  'Luma Ray 2':                  { secs:[5,9], ratios:['16:9','9:16','1:1','4:3','3:4'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
-  'Luma Ray Flash 2':            { secs:[5,9], ratios:['16:9','9:16','1:1','4:3','3:4'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
-  'Luma Ray 1.6':                { secs:[5],   ratios:['16:9','9:16','1:1'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
+  'Luma Ray 2':                  { secs:[5,9], ratios:['16:9','9:16','1:1','4:3','3:4','21:9','9:21'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
+  'Luma Ray Flash 2':            { secs:[5,9], ratios:['16:9','9:16','1:1','4:3','3:4','21:9','9:21'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
+  'Luma Ray 1.6':                { secs:[5,9], ratios:['16:9','9:16','1:1','4:3','3:4','21:9','9:21'], audio:false, watermark:false, neg:false, cfg:false, seed:false },   // 공식 MCP: 모델별 길이 제한 없음
   // MiniMax — Hailuo 02 는 6·10초(1080P 는 6초), 01 Director 계열은 6초 고정. 비율 필드 없음(프롬프트로 전달).
   'MiniMax Hailuo 02':           { secs:[6,10], ratios:['16:9','9:16'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
   'MiniMax T2V-01 Director':     { secs:[6],    ratios:['16:9','9:16'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
