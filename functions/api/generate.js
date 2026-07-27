@@ -418,7 +418,11 @@ export function buildSeedancePayload(b, env, forceModel) {
     // b.generateAudio === true 일 때만 켠다(그때만 오디오 포함 시도).
     const genAudio = b.generateAudio === true;
     const watermark = b.watermark === true;   // 기본 false(워터마크 없음)
-    return { model, content, ratio, resolution, duration: dur, watermark, generate_audio: genAudio };
+    // return_last_frame — 공식 "클립 이어붙이기" 방식. 켜면 결과에 last_frame_url(제공사가 만든
+    //  진짜 마지막 프레임, 원본 해상도·무손실 경로)이 함께 온다. 이걸 다음 클립의 first_frame 으로
+    //  넘기는 것이 ModelArk 가 안내하는 연속 생성법이다.
+    //  (브라우저에서 영상을 다시 디코딩해 캔버스로 뽑던 방식은 축소·재압축·CORS 실패 위험이 있다)
+    return { model, content, ratio, resolution, duration: dur, watermark, generate_audio: genAudio, return_last_frame: true };
   }
 
   // ── Seedance 1.x 형식(텍스트에 --ratio/--duration, first/last_frame) ──
@@ -1991,7 +1995,10 @@ async function handle(context) {
       const j = await r.json();
       if (j.status === "succeeded") {
         const url = j.content?.video_url || null;
-        return url ? json({ url, kind: "video" }) : json({ status: "failed", error: "no video_url" });
+        // return_last_frame 으로 받은 "제공사가 만든 마지막 프레임" — 이어보기의 다음 클립
+        // first_frame 으로 그대로 쓴다(원본 해상도 URL, 브라우저 재추출 불필요).
+        const lastFrame = j.content?.last_frame_url || j.content?.last_frame || null;
+        return url ? json({ url, kind: "video", lastFrame }) : json({ status: "failed", error: "no video_url" });
       }
       if (j.status === "failed" || j.error) return json({ status: "failed", error: (j.error && j.error.message) || "seedance failed" });
       return json({ status: j.status || "RUNNING" });

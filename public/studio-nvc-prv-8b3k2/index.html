@@ -2822,7 +2822,8 @@ async function callProxy(params){
   var r=await fetch(base,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(params),credentials:_same?'include':'same-origin'});
   var t=await r.text(), j={}; try{ j=JSON.parse(t); }catch(e){}   // 본문이 JSON이 아니어도 원문을 살림
   if(!r.ok) throw new Error(j.error || ('HTTP '+r.status+(t?': '+String(t).replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,140):'')));
-  if(j.url) return { url:j.url, kind:j.kind||'video', poster:j.poster||params.firstFrame||null, type:params.provider };
+  // lastFrame: 제공사(Seedance return_last_frame)가 돌려준 진짜 마지막 프레임 URL — 이어보기에 그대로 쓴다.
+  if(j.url) return { url:j.url, kind:j.kind||'video', poster:j.poster||params.firstFrame||null, lastFrame:j.lastFrame||null, type:params.provider };
   if(j.statusUrl){
     // 진행 중 작업을 노드 밖(전역)에 기록 — 새로고침해도 이어받을 수 있다.
     if(_pnode){ _pnode.w.pendingUrl=j.statusUrl; try{ autosave(); }catch(_e){} }
@@ -2831,7 +2832,7 @@ async function callProxy(params){
       return s.url? s : null;
     });
     if(_pnode){ _pnode.w.pendingUrl=null; }
-    return { url:out.url, kind:out.kind||'video', poster:out.poster||params.firstFrame||null, type:params.provider };
+    return { url:out.url, kind:out.kind||'video', poster:out.poster||params.firstFrame||null, lastFrame:out.lastFrame||null, type:params.provider };
   }
   throw new Error(j.error||'proxy: 응답에 url 없음');
 }
@@ -5619,7 +5620,9 @@ function widgetHTML(n,w){
              : '<span class="badge r">'+(n.w.sec||8)+'s</span><video src="'+esc(media)+'" poster="'+esc(n.w.poster||POSTER)+'" muted loop playsinline controls></video>')+
       '</div><button class="wbtn" data-dl>'+ICON.dl+' '+(isImg?'이미지':'영상')+' 저장'+(up?' (업스케일)':'')+'</button>'+
       ctrl+
-      (n.w.lastImg?'<div class="refcnt">우측 포트 = 이 영상의 <b>마지막 프레임</b> · 빈 곳으로 <b>선을 끌어 놓으면</b> 이어서 제작할 노드가 자동 생성됩니다</div>':'');
+      (n.w.lastImg?'<div class="refcnt">우측 포트 = 이 영상의 <b>마지막 프레임</b>'
+        +(n.w.lastImgSrc==='provider'?' <span style="color:#7fd1a6;">(모델이 돌려준 원본 화질)</span>':'')
+        +' · 빈 곳으로 <b>선을 끌어 놓으면</b> 이어서 제작할 노드가 자동 생성됩니다</div>':'');
   }
   return '';
 }
@@ -6945,6 +6948,10 @@ function runQueue(onlyId){
                 var vs=upstream(o.id,'video');
                 o.w.generating=false; o.w.error=null;
                 o.w.vid=res.url; o.w.kind=res.kind||'video'; o.w.poster=res.poster||null; o.w.model=chosenModel; o.w.sec=_effSec;
+                // 제공사가 돌려준 마지막 프레임(Seedance return_last_frame)이 있으면 그걸 쓴다.
+                //  원본 해상도 URL 이라 브라우저 재추출(축소·재압축·CORS 실패)을 건너뛴다.
+                o.w.lastImg = (res.lastFrame && /^https?:\/\//.test(res.lastFrame)) ? res.lastFrame : null;
+                o.w.lastImgSrc = o.w.lastImg ? 'provider' : null;
               });
               var _mn2=liveNode(id); if(_mn2){ _mn2.w.seed=Math.floor(Math.random()*9e14); _mn2.w.pendingUrl=null; }
               render();
@@ -6953,7 +6960,10 @@ function runQueue(onlyId){
                 recordCost(res.type||providerOf(chosenModel), chosenModel, _effSec, res.kind, _effRes, n.w.seedAudio===true, 0, basePrompt, [].concat(refList||[], srcVid?[srcVid]:[]), res.url); }catch(_e){}
               try{ saveToGallery(res.url, res.kind||'video', chosenModel, vSet?vSet.w.sec:8, res.poster); }catch(_e){}
               var el2=document.getElementById('nd-'+id); if(el2)el2.classList.add('exec');
-              Promise.all(liveNodes(outIds).map(extractLastFrame)).then(function(){ render(); step(); });
+              // 제공사 프레임이 없을 때만 브라우저에서 뽑는다(폴백).
+              Promise.all(liveNodes(outIds).map(function(o){
+                return o.w.lastImg ? Promise.resolve() : extractLastFrame(o);
+              })).then(function(){ render(); step(); });
             }).catch(function(e){
               var em=String(e&&e.message||e||'오류');
               liveNodes(outIds).forEach(function(o){ o.w.generating=false; o.w.error=em; });
