@@ -168,10 +168,29 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   '업스케일 4K (영상 화질 향상)': { u: 'sec', usd: 0.04, prov: 'upscale' },
   '나레이션 (AI 음성 해설)': { u: 'sec', usd: 0.02, prov: 'narrate' },
   '립싱크 (인물 말하기)': { u: 'sec', usd: 0.1, prov: 'lipsync' },
+
+  /* ── 3D 생성 (BytePlus ModelArk · 모델 1개당 과금) ──
+     ⚠️ 단가는 공개 시세 기준 잠정값이다. 콘솔의 실제 단가를 확인한 뒤 이 값을 맞춰야 한다.
+     생성 노드에는 아직 노출하지 않는다(엔드포인트·응답 규격 확인 전). 관리자 화면에는 표시된다. */
+  'Hyper3D Gen-2 (3D 생성)': { u: '3d', usd: 0.4, prov: 'ark3d' },
+  'Hitem3D 2.0 (3D 생성)': { u: '3d', usd: 0.4, prov: 'ark3d' },
+
+  /* ── 프롬프트 작성 LLM (호출 1회당) ──
+     영상·이미지와 같은 ARK 키로 호출하므로 외부 API 비용이 없다.
+     값은 500토큰 안팎의 1회 호출 기준 잠정값. */
+  'deepseek-v4-pro': { u: 'tok', usd: 0.004, prov: 'promptgen' },
+  'deepseek-v4-flash': { u: 'tok', usd: 0.001, prov: 'promptgen' },
+  'deepseek-v3-2': { u: 'tok', usd: 0.002, prov: 'promptgen' },
+  'deepseek-v3-1': { u: 'tok', usd: 0.002, prov: 'promptgen' },
+  'dola-seed-2-1-turbo': { u: 'tok', usd: 0.002, prov: 'promptgen' },
+  'dola-seed-2-0-pro': { u: 'tok', usd: 0.004, prov: 'promptgen' },
+  'dola-seed-2-0-lite': { u: 'tok', usd: 0.001, prov: 'promptgen' },
+  'dola-seed-2-0-mini': { u: 'tok', usd: 0.0006, prov: 'promptgen' },
 }
 
 export const PROV_LABEL: Record<string, string> = {
   google: 'Google Veo', runway: 'Runway', runway_aleph: 'Runway Aleph', v2v_auto: 'V2V 자동', motion: '모션 전이', seedance: 'Seedance', seedream: 'Seedream',
+  ark3d: '3D 생성 (ModelArk)', promptgen: '프롬프트 작성 LLM',
   hailuo: 'MiniMax Hailuo', luma: 'Luma', xai: 'Grok', flux: 'Flux', falcontrol: 'fal ControlNet',
   nanobanana: 'Nano Banana', openai: 'GPT Image', kling: 'Kling', narrate: '나레이션', lipsync: '립싱크', music: '음악 생성', upscale: '업스케일',
 }
@@ -208,7 +227,9 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
   const rate = usdKrw && usdKrw > 0 ? usdKrw : USD_KRW
   const model = String(input.model || '')
   const m = MODEL_COST[model]
-  const isImg = m ? m.u === 'img' : input.kind === 'image'
+  // 'img'(장당) 외에 '3d'(모델 1개당)·'tok'(호출 1회당) 도 "단위 1개" 과금이다 — 초당 계산을 타면 안 된다.
+  const isFlat = m ? (m.u === 'img' || m.u === '3d' || m.u === 'tok') : input.kind === 'image'
+  const isImg = isFlat
   let usd: number
   if (isImg) {
     usd = m ? m.usd : 0.05

@@ -1480,6 +1480,144 @@ async function handle(context) {
         note: "계정에서 조회되는 모델 ID 목록. 여기 있는데 404 면 권한/미개통, 아예 없으면 그 ID 자체가 없는 것.",
         found: hit ? hit.modelIds : null, tried: out });
     }
+    /* ══ 전체 모델 소환 확인 (무과금) ══
+       /api/generate?diag=probe-all            모든 제공사·모든 모델
+       /api/generate?diag=probe-all&provider=kling   특정 제공사만
+
+       원리: "그 모델이 존재하는지" 만 확인한다. 필수 필드(프롬프트·이미지 등)를 일부러
+       비워 보내므로 제공사는 항상 파라미터 오류로 반려하고 작업이 만들어지지 않는다.
+         · 400/422 등 파라미터 오류  → 모델은 존재함(소환 가능)
+         · 404 / model not found    → 그 ID 가 없거나 미개통
+       읽기 전용 조회(GET)가 있는 제공사(OpenAI·Gemini)는 그걸 쓴다 — 더 확실하고 안전하다. */
+    if (u.searchParams.get("diag") === "probe-all") {
+      const only = String(u.searchParams.get("provider") || "").trim();
+      const want = (p) => !only || only === p;
+      const t0 = Date.now();
+      const R = (name, provider, id, status, code, message, extra) => ({
+        model: name, provider, id, httpStatus: status,
+        ok: extra && extra.forceOk !== undefined ? extra.forceOk : !seedreamModelMissing(status, code ? { error: { code, message } } : null),
+        code: code || "", message: String(message || "").slice(0, 160),
+      });
+      const post = async (url, headers, body, ms) => {
+        try {
+          const r = await fetchT(url, { method: "POST", headers, body: JSON.stringify(body) }, ms || 12000);
+          const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch { /* 비JSON */ }
+          return { status: r.status, j, t };
+        } catch (e) { return { status: 0, j: null, t: String((e && e.message) || e) }; }
+      };
+      const get = async (url, headers, ms) => {
+        try {
+          const r = await fetchT(url, { headers }, ms || 12000);
+          const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch { /* 비JSON */ }
+          return { status: r.status, j, t };
+        } catch (e) { return { status: 0, j: null, t: String((e && e.message) || e) }; }
+      };
+      const errOf = (x) => ({ code: (x.j && x.j.error && (x.j.error.code || x.j.error.type)) || (x.j && x.j.code) || "",
+                              msg: (x.j && x.j.error && (x.j.error.message || x.j.error)) || (x.j && x.j.message) || String(x.t || "").slice(0, 160) });
+      const jobs = [];
+
+      // ── BytePlus ModelArk: 영상(Seedance) ──
+      if (k.seedance && want("seedance")) for (const [name, ids] of Object.entries(SEEDANCE_IDS)) {
+        const id = Array.isArray(ids) ? ids[0] : ids;
+        jobs.push((async () => { const x = await post(ARK_HOSTS.bp + "/contents/generations/tasks",
+          { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" }, { model: id, content: [] });
+          const e = errOf(x); return R(name, "seedance", id, x.status, e.code, e.msg); })());
+      }
+      // ── BytePlus ModelArk: 이미지(Seedream/SeedEdit) ──
+      if (k.seedance && want("seedream")) for (const [name, ids] of Object.entries(SEEDREAM_IDS)) {
+        const id = Array.isArray(ids) ? ids[0] : ids;
+        jobs.push((async () => { const x = await post(ARK_HOSTS.bp + "/images/generations",
+          { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" }, { model: id, prompt: "" });
+          const e = errOf(x); return R(name, "seedream", id, x.status, e.code, e.msg); })());
+      }
+      // ── BytePlus ModelArk: 프롬프트 LLM (OpenAI 호환 chat/completions) ──
+      if (k.seedance && want("promptgen")) for (const id of ["deepseek-v4-pro","deepseek-v4-flash","deepseek-v3-2","deepseek-v3-1",
+                                                             "dola-seed-2-1-turbo","dola-seed-2-0-pro","dola-seed-2-0-lite","dola-seed-2-0-mini"]) {
+        jobs.push((async () => { const x = await post(ARK_HOSTS.bp + "/chat/completions",
+          { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" }, { model: id, messages: [] });
+          const e = errOf(x); return R(id, "promptgen", id, x.status, e.code, e.msg); })());
+      }
+      // ── BytePlus ModelArk: 3D (엔드포인트 미확인 → 카탈로그 조회로 존재만 확인) ──
+      if (k.seedance && want("ark3d")) jobs.push((async () => {
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + "/models?page_size=200", { headers: { "Authorization": "Bearer " + k.seedance } }, 10000);
+          const t = await r.text();
+          const hits = [...new Set(String(t).match(/[a-z0-9]+(?:-[a-z0-9]+){1,}/gi) || [])].filter(x => /hyper3d|hitem3d|rodin/i.test(x));
+          return { model: "3D (Hyper3D·Hitem3D)", provider: "ark3d", id: hits.join(", ") || "(카탈로그에서 못 찾음)",
+                   httpStatus: r.status, ok: hits.length > 0, code: "", message: hits.length ? "카탈로그에서 발견 — 호출 규격은 별도 확인 필요" : "카탈로그에 3D 계열 ID 없음" };
+        } catch (e) { return { model: "3D (Hyper3D·Hitem3D)", provider: "ark3d", id: "-", httpStatus: 0, ok: false, code: "", message: String((e && e.message) || e).slice(0, 120) }; }
+      })());
+      // ── Kling (프롬프트 비움 → 파라미터 반려) ──
+      if (want("kling")) {
+        const cr = klingCreds(env);
+        if (cr) { const auth = await klingAuth(cr);
+          for (const [name, spec] of Object.entries(KLING_API)) {
+            const mids = KLING_ALT[spec.m] || [spec.m];
+            jobs.push((async () => { const x = await post(cr.base + "/v1/videos/" + spec.ep,
+              { "Authorization": auth, "Content-Type": "application/json" }, { model_name: mids[0], prompt: "", mode: spec.mode, duration: "5" });
+              const e = errOf(x);
+              const bad = /model|not\s*exist|not\s*found/i.test(String(e.code) + " " + String(e.msg));
+              return R(name, "kling", mids[0], x.status, e.code, e.msg, { forceOk: !bad }); })());
+          }
+        }
+      }
+      // ── Runway (promptImage 없음 → 400) ──
+      if (k.runway && want("runway")) for (const [name, id] of Object.entries(RUNWAY_MODELS)) {
+        jobs.push((async () => { const x = await post("https://api.dev.runwayml.com/v1/image_to_video",
+          { "Authorization": "Bearer " + k.runway, "X-Runway-Version": RUNWAY_VER, "Content-Type": "application/json" },
+          { model: id, promptText: "", ratio: "1280:720", duration: 5 });
+          const e = errOf(x); const bad = /model/i.test(String(e.msg)) && /invalid|unknown|not/i.test(String(e.msg));
+          return R(name, "runway", id, x.status, e.code, e.msg, { forceOk: x.status !== 404 && !bad }); })());
+      }
+      // ── Luma (프롬프트 비움) ──
+      if (k.luma && want("luma")) for (const [name, id] of Object.entries(LUMA_IDS)) {
+        jobs.push((async () => { const x = await post(LUMA_BASE + "/generations",
+          { "Authorization": "Bearer " + k.luma, "Content-Type": "application/json" }, { model: id, prompt: "" });
+          const e = errOf(x); return R(name, "luma", id, x.status, e.code, e.msg, { forceOk: x.status !== 404 }); })());
+      }
+      // ── MiniMax (프롬프트 비움 → base_resp 오류) ──
+      if (k.hailuo && want("hailuo")) for (const [name, id] of Object.entries(HAILUO_IDS)) {
+        jobs.push((async () => { const x = await post(HAILUO_BASE + "/video_generation",
+          { "Authorization": "Bearer " + k.hailuo, "Content-Type": "application/json" }, { model: id, prompt: "" });
+          const br = (x.j && x.j.base_resp) || {};
+          const bad = /model/i.test(String(br.status_msg || "")) && /invalid|not/i.test(String(br.status_msg || ""));
+          return R(name, "hailuo", id, x.status, String(br.status_code || ""), br.status_msg || String(x.t).slice(0, 120), { forceOk: !bad }); })());
+      }
+      // ── Google Veo / Nano Banana (읽기 전용 모델 조회) ──
+      if (k.google && want("google")) for (const id of ["veo-3.1-generate-001", NANO_MODEL]) {
+        jobs.push((async () => { const x = await get("https://generativelanguage.googleapis.com/v1beta/models/" + id + "?key=" + encodeURIComponent(k.google));
+          const e = errOf(x); return R(id === NANO_MODEL ? "Nano Banana" : "Google Veo 3.1", "google", id, x.status, e.code, e.msg, { forceOk: x.status === 200 }); })());
+      }
+      // ── OpenAI (읽기 전용 모델 조회) ──
+      if (k.openai && want("openai")) for (const [name, id] of Object.entries(OPENAI_IMG_ID)) {
+        jobs.push((async () => { const x = await get(openaiBase(env) + "/v1/models/" + id, { "Authorization": "Bearer " + k.openai });
+          const e = errOf(x); return R(name, "openai", id, x.status, e.code, e.msg, { forceOk: x.status === 200 }); })());
+      }
+      // ── xAI Grok (읽기 전용 모델 조회) ──
+      if (k.xai && want("xai")) for (const id of ["grok-imagine-image", (pick(env, ["GROK_VIDEO_MODEL", "grok_video_model"]) || "grok-imagine-video-1.5")]) {
+        jobs.push((async () => { const x = await get("https://api.x.ai/v1/models/" + id, { "Authorization": "Bearer " + k.xai });
+          const e = errOf(x); return R(/video/.test(id) ? "Grok Imagine (영상)" : "Grok Imagine", "xai", id, x.status, e.code, e.msg, { forceOk: x.status === 200 }); })());
+      }
+      // ── Flux / BFL (프롬프트 비움 → 422) ──
+      if (k.flux && want("flux")) for (const [name, ep] of Object.entries(FLUX_ENDPOINTS)) {
+        jobs.push((async () => { const x = await post(FLUX_BASE + ep,
+          { "x-key": k.flux, "Content-Type": "application/json" }, { prompt: "" });
+          const e = errOf(x); return R(name, "flux", ep, x.status, e.code, e.msg, { forceOk: x.status !== 404 }); })());
+      }
+
+      const items = await Promise.all(jobs);
+      const okList = items.filter(x => x.ok), ngList = items.filter(x => !x.ok);
+      const byProv = {};
+      items.forEach(x => { (byProv[x.provider] = byProv[x.provider] || { ok: 0, ng: 0 })[x.ok ? "ok" : "ng"]++; });
+      return json({ diag: "probe-all", elapsedMs: Date.now() - t0,
+        note: "필수 필드를 비워 보내 '모델 존재 여부' 만 확인합니다. 실제 생성물은 만들어지지 않아 과금이 없습니다. "
+            + "OpenAI·Google·Grok 은 읽기 전용 모델 조회(GET)로 확인합니다.",
+        summary: { total: items.length, ok: okList.length, ng: ngList.length, byProvider: byProv },
+        소환불가: ngList.map(x => x.provider + " · " + x.model + " → " + x.id + " [" + x.httpStatus + (x.code ? " " + x.code : "") + "] " + x.message),
+        소환가능: okList.map(x => x.provider + " · " + x.model + " → " + x.id),
+        items });
+    }
+
     /* 이미지 모델(Seedream/SeedEdit) 존재확인 — Seedance 와 같은 방식.
        prompt 를 비워 제출하면 존재하는 모델은 400(InvalidParameter), 없는 모델은
        404(InvalidEndpointOrModel.NotFound) 를 준다. 이미지도 태스크가 생기지 않아 무과금.

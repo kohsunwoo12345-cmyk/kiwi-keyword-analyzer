@@ -45,8 +45,11 @@ const CATALOG = Object.keys(MODEL_COST).map((name) => {
     audioUsd: m.audio || 0,
   };
 });
-const VIDEO_CATALOG = CATALOG.filter((x) => x.kind === "video" && x.provider !== "music");
-const IMAGE_CATALOG = CATALOG.filter((x) => x.kind === "image");
+// 3D('3d')·프롬프트 LLM('tok') 은 생성 도구가 아니므로 MCP 카탈로그에서 제외한다.
+//  (단가표에는 관리자 화면 표시를 위해 들어 있다)
+const GEN_UNITS = { img: 1, sec: 1 };
+const VIDEO_CATALOG = CATALOG.filter((x) => GEN_UNITS[x.unit] && x.kind === "video" && x.provider !== "music");
+const IMAGE_CATALOG = CATALOG.filter((x) => GEN_UNITS[x.unit] && x.kind === "image");
 
 // 예전 MCP 가 쓰던 짧은 이름 → 표시명 (기존 커넥터 호환)
 const LEGACY_ALIAS = {
