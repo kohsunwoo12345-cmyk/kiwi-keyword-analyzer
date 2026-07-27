@@ -6167,7 +6167,7 @@ canvas.addEventListener('click',function(e){
             :wdef.opts==='STYLE3D'?STYLE3D_OPTS:wdef.opts;
     var i=opts.indexOf(String(n2.w[k])); i=(i+(+cyc.dataset.cyc)+opts.length)%opts.length;
     n2.w[k]=opts[i]; combo.querySelector('.wvalue').textContent=opts[i]; autosave();
-    if(k==='model'){ snapImgRatio(node); pruneModelPorts(); render(); }   // 모델 변경 → 비율·포트 정리 + 재렌더
+    if(k==='model'){ snapImgRatio(n2); pruneModelPorts(); render(); }   // 모델 변경 → 비율·포트 정리 + 재렌더
     else if(k==='nmode')render();   // 음성 방식(해설·립싱크) 안내 반영
     return;
   }
@@ -6378,7 +6378,7 @@ dd.addEventListener('click',function(e){
   var wasModel=(k==='model'||k==='nmode');
   node.w[k]=di.dataset.v; anchor.querySelector('.wvalue').textContent=di.dataset.v;
   autosave(); hideDD();
-  if(k==='model'){ snapImgRatio(n); pruneModelPorts(); }   // 모델 변경 → 비율·미지원 포트 정리
+  if(k==='model'){ snapImgRatio(node); pruneModelPorts(); }   // 모델 변경 → 비율·미지원 포트 정리
   if(wasModel) render();               // 모델별 옵션(seedopts/fluxctrl 등) 즉시 반영
 });
 
