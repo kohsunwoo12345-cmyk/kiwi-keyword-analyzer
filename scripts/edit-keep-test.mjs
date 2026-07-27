@@ -90,6 +90,7 @@ ok('제공사 비용은 0으로 기록', gradeRec && gradeRec.usd===0 && gradeRe
 ok('결과 주소가 기록에 함께 남음', gradeRec && /^\/api\/media\//.test(gradeRec.resultUrl||''), gradeRec?.resultUrl||'(없음)')
 
 // 2) 영상 편집(자막) — 초 단위로 기록되는가 · blob 주소가 보관본으로 바뀌는가
+await pg.evaluate(o => fetch(o+'/__slow'), origin)   // 업로드를 늦춰 '먼저 임시 주소 → 나중에 보관본' 순서를 확실히 본다
 const vidCase = await pg.evaluate(async () => {
   const C=window.__cn, S=C.state
   const c=document.createElement('canvas'); c.width=120; c.height=68

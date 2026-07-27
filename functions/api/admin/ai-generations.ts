@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, resolveDB, requireAdminUser } from '../_utils'
-import { ensureAiUsage, getUsdKrw, explainCost } from '../studio/_pricing'
+import { ensureAiUsage, getUsdKrw, explainCost, resolveSelfFees } from '../studio/_pricing'
 
 // GET /api/admin/ai-generations?limit=&offset=&kind=&q=&days=
 //  → 관리자: 각 사용자의 AI 이미지/영상 생성 1건씩(프롬프트·레퍼런스·결과·비용·환율) 목록
@@ -25,6 +25,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (kind === 'image' || kind === 'video') { where.push('kind = ?'); binds.push(kind) }
   // 업스케일 탭: provider 가 upscale 이거나 모델명에 "업스케일" 이 들어간 기록(구버전 기록 포함)
   if (prov === 'upscale') { where.push("(provider = 'upscale' OR model LIKE '%업스케일%')") }
+  // 편집 탭: provider 가 edit 이거나 모델명이 "브라우저 편집" 인 기록
+  else if (prov === 'edit') { where.push("(provider = 'edit' OR model LIKE '%브라우저 편집%')") }
   else if (prov) { where.push('provider = ?'); binds.push(prov) }
   if (q) { where.push('(email LIKE ? OR name LIKE ? OR model LIKE ? OR prompt LIKE ?)'); const like = `%${q}%`; binds.push(like, like, like, like) }
   const whereSql = where.join(' AND ')
@@ -34,7 +36,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     (await db
       .prepare(
         `SELECT id, created_at, user_id, name, email, provider, model, kind,
-                credits, cost_krw, usd, usd_krw, markup, prompt, refs, result_url, result_kind, prov_usage
+                credits, cost_krw, revenue_krw, usd, usd_krw, markup, prompt, refs, result_url, result_kind, prov_usage
          FROM ai_usage WHERE ${whereSql}
          ORDER BY created_at DESC LIMIT ? OFFSET ?`,
       )
@@ -42,6 +44,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       .all()).results || []
 
   const todayRate = await getUsdKrw(db)
+  // 자체 기능(원가 0)의 현재 요금 설정 — 기록 당시 요금과 달라졌는지 대조하는 데 쓴다
+  const selfFees = await resolveSelfFees(db)
 
   const items = rows.map((r: any) => {
     let refs: string[] = []
@@ -49,7 +53,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     if (!Array.isArray(refs)) refs = []
 
     // 이 금액이 어떻게 나왔는지 분해 — 계산 규칙은 _pricing.ts 한 곳에서만 관리한다.
-    const cost = explainCost({ model: r.model, kind: r.kind, units: r.units, usd: r.usd, usdKrw: r.usd_krw, costKrw: r.cost_krw })
+    const cost = explainCost({
+      model: r.model, kind: r.kind, units: r.units, usd: r.usd, usdKrw: r.usd_krw, costKrw: r.cost_krw,
+      credits: r.credits, revenueKrw: r.revenue_krw, markup: r.markup, feeNow: selfFees[r.model],
+    })
     // 제공사가 직접 보고한 사용량 — 있으면 이게 '실제 과금 단위' 다(추정 아님)
     let provUsage: any = null
     try { provUsage = r.prov_usage ? JSON.parse(r.prov_usage) : null } catch { provUsage = null }
@@ -67,6 +74,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       kind: r.kind || '',
       credits: Number(r.credits) || 0,
       costKrw: Number(r.cost_krw) || 0,
+      revenueKrw: Number(r.revenue_krw) || 0,
       usd: Number(r.usd) || 0,
       usdKrw: Number(r.usd_krw) || 0,
       markup: Number(r.markup) || 0,

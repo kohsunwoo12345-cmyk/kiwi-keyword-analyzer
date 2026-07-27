@@ -347,7 +347,11 @@ export async function ensureAiUsage(db: D1Database): Promise<void> {
 /** 기록된 금액이 '어떻게 나온 것인지' 되짚는다 — 관리자 화면에서 눈으로 검산할 수 있게.
  *  단가×수량(+오디오)으로 설명되지 않는 금액이 남으면 옛 계산식(해상도 배수·요청 초 기준)으로
  *  기록된 건이다. nowUsd 는 현재 규칙으로 다시 계산한 값. */
-export function explainCost(input: { model: string; kind?: string; units?: number; usd?: number; usdKrw?: number; costKrw?: number }) {
+export function explainCost(input: {
+  model: string; kind?: string; units?: number; usd?: number; usdKrw?: number; costKrw?: number
+  // 아래는 '크레딧이 어떻게 나왔는지' 까지 되짚기 위한 값 (없으면 크레딧 설명은 생략된다)
+  credits?: number; revenueKrw?: number; markup?: number; feeNow?: number
+}) {
   const m = MODEL_COST[input.model]
   const isImg = m ? m.u === 'img' : input.kind === 'image'
   const unitLabel = isImg ? '장' : '초'
@@ -362,6 +366,32 @@ export function explainCost(input: { model: string; kind?: string; units?: numbe
   const rate = Number(input.usdKrw) || 0
   const nowUnits = isImg ? 1 : billedSeconds(input.model, units)
   const nowUsd = r6(base * nowUnits + (audioUsd > 0 && m && m.audio ? m.audio * nowUnits : 0))
+  // ── 크레딧이 어떻게 나왔는지 ──
+  //  일반 모델: 원가(원) × 배수 ÷ 1크레딧 단가
+  //  자체 기능(원가 0): 서비스 요금(원/단위) × 수량 × 배수 ÷ 1크레딧 단가
+  //   요금 자체는 기록에 남지 않으므로 매출에서 거꾸로 계산해 보여주고, 지금 설정과 다르면 알린다.
+  const recCredits = Number(input.credits) || 0
+  const recRevenue = Number(input.revenueKrw) || 0
+  const markup = Number(input.markup) || 0
+  const recCost = Number(input.costKrw) || 0
+  // 기록 시점의 1크레딧 단가 = 매출 ÷ 크레딧 (회원마다 단가가 달라 기록에서 되짚는다)
+  const creditKrw = recCredits > 0 && recRevenue > 0 ? Math.round((recRevenue / recCredits) * 100) / 100 : CREDIT_KRW
+  const isSelfFee = recUsd === 0 && !!m && m.usd === 0
+  const feeUnits = isImg ? 1 : Math.max(1, Math.round(Number(input.units) || 0))
+  const feeKrw = isSelfFee && feeUnits > 0 && markup > 0 ? Math.round((recRevenue / (feeUnits * markup)) * 100) / 100 : 0
+  const priceKrw = isSelfFee ? Math.round(feeKrw * feeUnits * markup) : Math.round(recCost * markup)
+  const calcCredits = creditKrw > 0 ? Math.round((priceKrw / creditKrw) * 100) / 100 : 0
+  const feeNow = input.feeNow != null ? Number(input.feeNow) : m && m.feeKrw != null ? m.feeKrw : null
+  const credit = {
+    basis: recCredits === 0 && recRevenue === 0 ? 'free' : isSelfFee ? 'fee' : 'cost',
+    markup, creditKrw, priceKrw, feeKrw, feeUnits, feeNow,
+    credits: calcCredits,
+    recorded: recCredits,
+    // 소수 둘째 자리 반올림 오차(±0.02)까지는 일치로 본다
+    ok: Math.abs(calcCredits - recCredits) <= 0.02,
+    // 자체 기능은 요금이 바뀌었을 수 있다 — 지금 설정과 다르면 '설정이 바뀐 것' 이지 오류가 아니다
+    feeChanged: isSelfFee && feeNow != null && Math.abs(feeKrw - feeNow) > 0.01,
+  }
   return {
     unitPrice: base, unitLabel, units, baseTotal, audioUsd,
     unexplained: r6(diff - audioUsd),
@@ -370,5 +400,6 @@ export function explainCost(input: { model: string; kind?: string; units?: numbe
     priced: !!m,
     nowUnits, nowUsd,
     matchesNow: Math.abs(recUsd - nowUsd) < 1e-6,
+    credit,
   }
 }

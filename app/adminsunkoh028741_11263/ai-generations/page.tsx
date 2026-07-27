@@ -51,6 +51,7 @@ const KIND_TABS: { key: string; label: string; kind?: string; prov?: string }[] 
   { key: 'image', label: '이미지', kind: 'image' },
   { key: 'video', label: '영상', kind: 'video' },
   { key: 'upscale', label: '업스케일', prov: 'upscale' },
+  { key: 'edit', label: '편집(자막·색보정 등)', prov: 'edit' },
 ]
 
 /** 업스케일 기록인지 — 브라우저 초해상 · fal Topaz 4K 모두 provider=upscale */
@@ -249,22 +250,58 @@ function CostBreakdown({ r }: { r: AiGenerationRow }) {
   const c = r.cost
   if (!c) return null
   const f = (n: number) => '$' + (Math.round(n * 10000) / 10000).toFixed(4)
-  const warn = !c.priced || !c.krwOk || Math.abs(c.unexplained) > 1e-6
+  const cd = c.credit
+  const isSelf = cd?.basis === 'fee'
+  const warn = !c.priced || !c.krwOk || Math.abs(c.unexplained) > 1e-6 || (cd ? !cd.ok : false)
+  const won = (n: number) => '₩' + Math.round(n).toLocaleString('ko-KR')
   return (
     <div className={cn('mt-2 rounded-lg border px-2.5 py-2 text-[11px] leading-relaxed',
       warn ? 'border-amber-500/40 bg-amber-500/5' : 'border-[var(--border-soft)] bg-[var(--panel-2)]')}>
       <div className="mb-0.5 font-semibold text-[var(--text-dim)]">계산 내역</div>
-      <div className="text-[var(--text-soft)]">
-        {f(c.unitPrice)} / {c.unitLabel} × {c.units}{c.unitLabel} = {f(c.baseTotal)}
-        {c.audioUsd > 0 && <> {' + '} 오디오 {f(c.audioUsd)}</>}
-        {Math.abs(c.unexplained) > 1e-6 && (
-          <span className="text-amber-600"> {c.unexplained > 0 ? '+' : '−'} 설명 안 되는 금액 {f(Math.abs(c.unexplained))}</span>
-        )}
-      </div>
-      <div className="text-[var(--text-soft)]">
-        = {usd(r.usd)} × ₩{Math.round(c.rate).toLocaleString('ko-KR')} = <b className="text-[var(--text)]">{krw(r.costKrw)}</b>
-        {!c.krwOk && <span className="text-amber-600"> (환율 환산 불일치)</span>}
-      </div>
+      {/* 자체 기능(고객 브라우저 처리)은 제공사 비용이 0원 — 원가 줄 대신 요금 줄만 보여준다 */}
+      {isSelf ? (
+        <div className="text-[var(--text-soft)]">
+          제공사 비용 <b className="text-[var(--text)]">₩0</b> (고객 컴퓨터에서 처리한 자체 기능)
+        </div>
+      ) : (
+        <>
+          <div className="text-[var(--text-soft)]">
+            {f(c.unitPrice)} / {c.unitLabel} × {c.units}{c.unitLabel} = {f(c.baseTotal)}
+            {c.audioUsd > 0 && <> {' + '} 오디오 {f(c.audioUsd)}</>}
+            {Math.abs(c.unexplained) > 1e-6 && (
+              <span className="text-amber-600"> {c.unexplained > 0 ? '+' : '−'} 설명 안 되는 금액 {f(Math.abs(c.unexplained))}</span>
+            )}
+          </div>
+          <div className="text-[var(--text-soft)]">
+            = {usd(r.usd)} × ₩{Math.round(c.rate).toLocaleString('ko-KR')} = <b className="text-[var(--text)]">{krw(r.costKrw)}</b>
+            {!c.krwOk && <span className="text-amber-600"> (환율 환산 불일치)</span>}
+          </div>
+        </>
+      )}
+
+      {/* 크레딧까지 끝까지 되짚는다 — 이 숫자가 왜 이렇게 나왔는지 눈으로 검산할 수 있게 */}
+      {cd && cd.basis === 'free' && (
+        <div className="mt-1 text-[var(--text-dim)]">차감 크레딧 <b>0</b> — 무료로 설정된 기능입니다</div>
+      )}
+      {cd && cd.basis !== 'free' && (
+        <div className="mt-1 border-t border-[var(--border-soft)] pt-1 text-[var(--text-soft)]">
+          <span className="text-[var(--text-dim)]">크레딧 </span>
+          {isSelf
+            ? <>서비스 요금 {won(cd.feeKrw)}/{c.unitLabel} × {cd.feeUnits}{c.unitLabel}</>
+            : <>{krw(r.costKrw)}</>}
+          {' × 배수 '}{cd.markup || 1}{' = '}<b className="text-[var(--text)]">{won(cd.priceKrw)}</b>
+          {' ÷ '}{won(cd.creditKrw)}/크레딧{' = '}
+          <b className="text-[var(--text)]">{cd.recorded.toLocaleString('ko-KR')} 크레딧</b>
+          {cd.ok
+            ? <span className="ml-1 text-emerald-600">✓ 검산 일치</span>
+            : <span className="ml-1 text-amber-600">⚠ 계산값 {cd.credits} 와 다름</span>}
+        </div>
+      )}
+      {cd?.feeChanged && (
+        <div className="mt-1 text-[var(--text-dim)]">
+          이 기록은 요금 {won(cd.feeKrw)} 기준입니다 — 현재 설정은 {won(cd.feeNow || 0)} (요금을 바꾼 뒤의 기록은 새 금액으로 계산됩니다)
+        </div>
+      )}
       {/* 제공사가 직접 보고한 사용량 — 추정이 아니라 제공사가 센 실제 과금 단위 */}
       {r.provUsage?.completion_tokens != null && (
         <div className="mt-1 rounded bg-emerald-500/10 px-1.5 py-1 text-emerald-700">

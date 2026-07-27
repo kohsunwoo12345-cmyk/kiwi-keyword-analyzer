@@ -138,6 +138,73 @@ for (const model of MODELS) {
   ok('단가표에 없는 모델 표시', e.priced === false)
 }
 
+// ── 크레딧까지 끝까지 설명되는가 (관리자 화면의 '크레딧' 줄) ──
+{
+  // 실제 기록 재현: 씨댄스 2.0 · 15초 · 오디오 ON · 환율 1460 · 배수 1 · 크레딧 단가 65원
+  const usd = (0.062 + 0.02) * 15                    // $1.23
+  const costKrw = Math.round(usd * 1460)             // ₩1,796
+  const credits = Math.round((costKrw / 65) * 100) / 100
+  const e = P.explainCost({ model: 'Seedance 2.0', kind: 'video', units: 15, usd, usdKrw: 1460, costKrw,
+                            credits, revenueKrw: Math.round(credits * 65), markup: 1 })
+  ok('크레딧 계산 근거를 원가 기준으로 밝힘', e.credit.basis === 'cost', e.credit.basis)
+  ok('기록 시점의 1크레딧 단가를 되짚음(65원)', Math.abs(e.credit.creditKrw - 65) < 0.6, `${e.credit.creditKrw}원`)
+  ok('원가 × 배수 = 판매가', e.credit.priceKrw === costKrw, `${e.credit.priceKrw}원 (원가 ${costKrw})`)
+  ok('크레딧 검산 일치', e.credit.ok === true, `계산 ${e.credit.credits} vs 기록 ${e.credit.recorded}`)
+}
+{
+  // 배수 2.5배가 걸린 기록 — 크레딧이 그만큼 커져야 한다
+  const costKrw = 1000, markup = 2.5, creditKrw = 50
+  const credits = Math.round(((costKrw * markup) / creditKrw) * 100) / 100
+  const e = P.explainCost({ model: 'Seedance 2.0', kind: 'video', units: 5, usd: 0.31, usdKrw: 1400, costKrw,
+                            credits, revenueKrw: Math.round(credits * creditKrw), markup })
+  ok('배수가 크레딧에 그대로 반영됨(2.5배)', e.credit.priceKrw === 2500 && e.credit.ok, `${e.credit.priceKrw}원 · ${e.credit.recorded}크레딧`)
+}
+{
+  // 자체 기능(원가 0) — 서비스 요금 기준으로 설명되어야 한다
+  const IMG = '화질 업스케일 (이미지 · 브라우저 초해상)'
+  const c = P.computeCharge({ model: IMG, units: 1, kind: 'image' }, 1400, undefined, 50)
+  const e = P.explainCost({ model: IMG, kind: 'image', units: 1, usd: 0, usdKrw: 1400, costKrw: 0,
+                            credits: c.credits, revenueKrw: c.revenueKrw, markup: c.markup, feeNow: 100 })
+  ok('자체 기능은 요금 기준으로 설명', e.credit.basis === 'fee', e.credit.basis)
+  ok('기록에서 요금(100원/장)을 되짚음', Math.abs(e.credit.feeKrw - 100) < 0.5, `${e.credit.feeKrw}원`)
+  ok('자체 기능 크레딧 검산 일치', e.credit.ok === true, `계산 ${e.credit.credits} vs 기록 ${e.credit.recorded}`)
+  ok('원가는 0으로 남는다', e.baseTotal === 0 && e.unexplained === 0, `$${e.baseTotal}`)
+}
+{
+  // 영상 자체 기능 — 초당 요금이 초 수만큼 곱해졌는지
+  const VID = '화질 업스케일 (영상 · 브라우저 초해상)'
+  const c = P.computeCharge({ model: VID, units: 10, kind: 'video' }, 1400, undefined, 50)
+  const e = P.explainCost({ model: VID, kind: 'video', units: 10, usd: 0, usdKrw: 1400, costKrw: 0,
+                            credits: c.credits, revenueKrw: c.revenueKrw, markup: c.markup, feeNow: 30 })
+  ok('영상 자체 기능은 초 수만큼 곱해짐(30원×10초)', e.credit.feeUnits === 10 && e.credit.priceKrw === 300,
+     `${e.credit.feeKrw}원 × ${e.credit.feeUnits}초 = ${e.credit.priceKrw}원`)
+  ok('영상 자체 기능 크레딧 검산 일치', e.credit.ok === true, `${e.credit.recorded}크레딧`)
+}
+{
+  // 요금을 나중에 바꾼 경우 — '오류' 가 아니라 '설정이 바뀐 것' 으로 표시되어야 한다
+  const IMG = '화질 업스케일 (이미지 · 브라우저 초해상)'
+  const c = P.computeCharge({ model: IMG, units: 1, kind: 'image' }, 1400, undefined, 50)   // 100원 시절 기록
+  const e = P.explainCost({ model: IMG, kind: 'image', units: 1, usd: 0, usdKrw: 1400, costKrw: 0,
+                            credits: c.credits, revenueKrw: c.revenueKrw, markup: c.markup, feeNow: 250 })
+  ok('요금을 바꾼 뒤에도 옛 기록은 검산 일치', e.credit.ok === true, `${e.credit.recorded}크레딧`)
+  ok('요금이 바뀌었음을 따로 알림', e.credit.feeChanged === true, `기록 ${e.credit.feeKrw}원 vs 현재 ${e.credit.feeNow}원`)
+}
+{
+  // 무료 기능(편집 기본값) — 차감 0으로 표시되고 경고가 뜨면 안 된다
+  const M = '배경 제거 (브라우저 편집)'
+  const c = P.computeCharge({ model: M, units: 1, kind: 'image' }, 1400, undefined, 50)
+  const e = P.explainCost({ model: M, kind: 'image', units: 1, usd: 0, usdKrw: 1400, costKrw: 0,
+                            credits: c.credits, revenueKrw: c.revenueKrw, markup: c.markup, feeNow: 0 })
+  ok('무료 편집은 "무료" 로 표시', e.credit.basis === 'free' && e.credit.recorded === 0, e.credit.basis)
+  ok('무료 편집에 경고가 뜨지 않음', e.credit.ok === true && e.credit.feeChanged === false)
+}
+{
+  // 크레딧이 어긋난 기록(손으로 고쳤거나 옛 규칙) 은 잡아내야 한다
+  const e = P.explainCost({ model: 'Seedance 2.0', kind: 'video', units: 5, usd: 0.31, usdKrw: 1400, costKrw: 434,
+                            credits: 99, revenueKrw: 99 * 50, markup: 1 })
+  ok('크레딧이 안 맞는 기록을 잡아냄', e.credit.ok === false, `계산 ${e.credit.credits} vs 기록 ${e.credit.recorded}`)
+}
+
 fs.rmSync(dir, { recursive: true, force: true })
 let fail = 0
 for (const [n, pass, info] of out) { if (!pass) fail++; console.log((pass ? 'PASS ' : 'FAIL ') + n + (info ? '  — ' + info : '')) }

@@ -378,6 +378,8 @@ export interface AiGenerationRow {
   kind: string
   credits: number
   costKrw: number
+  /** 매출(원) — 크레딧 × 그 회원의 1크레딧 단가 */
+  revenueKrw?: number
   usd: number
   usdKrw: number
   markup: number
@@ -393,6 +395,13 @@ export interface AiGenerationRow {
     baseTotal: number; audioUsd: number; unexplained: number
     rate: number; krwOk: boolean; priced: boolean
     nowUnits: number; nowUsd: number; matchesNow: boolean
+    /** 크레딧이 어떻게 나왔는지 — 원가(또는 서비스 요금) × 배수 ÷ 1크레딧 단가 */
+    credit?: {
+      basis: 'cost' | 'fee' | 'free'
+      markup: number; creditKrw: number; priceKrw: number
+      feeKrw: number; feeUnits: number; feeNow: number | null
+      credits: number; recorded: number; ok: boolean; feeChanged: boolean
+    }
   }
 }
 export interface AiGenerationsResp {
