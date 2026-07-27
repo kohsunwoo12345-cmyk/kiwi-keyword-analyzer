@@ -2,7 +2,7 @@
 //  · POST /api/v1/generate : { provider, model, prompt, ... } → 생성 시작(이미지=즉시 URL, 영상=task 반환)
 //  · GET  /api/v1/generate?provider=...&task=...|op=... : 비동기 영상 상태 폴링
 //  키 1개로 모든 모델 호출 가능. 크레딧은 스튜디오(UI)와 동일 규칙으로 차감된다.
-import { onRequest as generateApi } from "../generate.js";
+import { onRequest as generateApi, effectiveUnits, effectiveRes } from "../generate.js";
 import { resolveDB, ensureSchema, json } from "../_utils";
 import { getUserByApiKey, logApiCall, hasVideoApiAccess, ensureApiKeysSchema, enforceRateLimit, beginApiCall, finishApiCall } from "../_apikeys";
 import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage } from "../studio/_pricing";
@@ -59,7 +59,10 @@ export const onRequestPost = async ({ request, env }) => {
   const provider = String(body.provider || "");
   const model = String(body.model || "");
   const kind = String(body.kind || (/image|nano|gpt|grok|flux/i.test(provider + model) ? "image" : "video"));
-  const units = Number(body.seconds || body.units || (kind === "image" ? 1 : 8)) || 8;
+  //  과금 단위는 "요청한 길이"가 아니라 "실제로 생성될 길이" 여야 한다 — 빌더가 모델별
+  //  허용값으로 스냅하므로(Veo 7→6초, Seedance 1.x 8→10초 등) 요청값으로 청구하면 어긋난다.
+  const units = kind === "image" ? 1 : effectiveUnits(body, env);
+  const billRes = kind === "image" ? undefined : effectiveRes(body, env);
   if (!model && !provider) return apiErr("model 또는 provider 는 필수입니다.", 400);
 
   // 남용 방지: 슬라이딩 윈도우 레이트리밋 + 동시 진행 제한 (관리자 면제)
@@ -71,7 +74,7 @@ export const onRequestPost = async ({ request, env }) => {
   try {
     const rate = await getUsdKrw(db);
     const markup = await resolveMarkup(db, me.id, model, Number(me.credit_markup) || 0);
-    est = computeCharge({ model, units, kind, res: body.res, audio: !!body.audio }, rate, markup);
+    est = computeCharge({ model, units, kind, res: billRes, audio: !!body.audio }, rate, markup);
     if (!isAdmin && (Number(me.credits) || 0) < (est?.credits || 0)) {
       return json({ ok: false, error: "크레딧이 부족합니다.", need: est?.credits, have: Number(me.credits) || 0, needPlan: true }, 402);
     }

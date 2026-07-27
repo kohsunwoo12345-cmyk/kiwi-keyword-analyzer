@@ -14,7 +14,7 @@
 // 모델 목록은 스튜디오 단가표(studio/_pricing MODEL_COST)에서 자동 생성 — 스튜디오와 항상 동일.
 // 키는 Cloudflare 환경변수에서만 읽으며 응답에 절대 포함되지 않습니다.
 
-import { onRequest as generateApi, CAMERA_PRESETS } from "../generate.js";
+import { onRequest as generateApi, CAMERA_PRESETS, effectiveUnits } from "../generate.js";
 import { resolveDB, ensureSchema, getUserByMcpToken } from "../_utils";
 import { getUserByAccessToken } from "../oauth/_oauth";
 import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage, MODEL_COST, PROV_LABEL } from "../studio/_pricing";
@@ -367,10 +367,17 @@ async function runTool(name, args, env, origin, ctx) {
     if (!c) throw new Error("알 수 없는 영상 모델: " + args.model + " — list_models 로 사용 가능한 model 값을 확인하세요.");
     if (!args.prompt) throw new Error("prompt는 필수입니다");
     const seconds = args.seconds || 8;
+    //  과금 단위는 "요청한 길이"가 아니라 "실제로 생성될 길이" 여야 한다 — 빌더가 모델별
+    //  허용값으로 스냅하므로(Veo 7→6초, Seedance 1.x 8→10초, Kling 1.6 12→10초 등),
+    //  요청값 그대로 청구하면 실제 생성물과 어긋난다.
+    const billSec = effectiveUnits({
+      provider: c.provider, model: c.name, seconds,
+      firstFrame: args.first_frame_url || null, srcVideo: args.source_video_url || null
+    }, env);
     // 크레딧 사전 확인 (dry_run 은 과금 없음)
     let est = null;
     if (me && db && !args.dry_run) {
-      est = await estimateMcp(db, me, c.name, seconds, "1080p", !!args.generate_audio);
+      est = await estimateMcp(db, me, c.name, billSec, "1080p", !!args.generate_audio);
       if (est && (Number(me.credits) || 0) < est.credits)
         throw new Error("크레딧이 부족합니다. 필요 " + est.credits + "크레딧 · 보유 " + (Number(me.credits) || 0) + "크레딧. nextbygency.com/pricing 에서 충전하세요.");
     }
@@ -402,7 +409,7 @@ async function runTool(name, args, env, origin, ctx) {
     if (j.dryRun) return { dry_run: true, model: c.name, provider: j.provider, payload: j.payload, note: j.note };
     // 생성이 시작/완료되면(=과금 발생) 이 시점에 크레딧 차감. check_video_status 는 추가 차감 없음.
     let charged = null;
-    if (me && db && est) charged = await commitCharge(db, me, est, seconds);
+    if (me && db && est) charged = await commitCharge(db, me, est, billSec);
     const extra = charged == null ? {} : { credits_charged: charged, credits_remaining: me ? me.credits : undefined };
     if (j.url) {
       const durable = await rehostVideoUrl(env, origin, String(j.url).charAt(0) === "/" ? origin + j.url : j.url);

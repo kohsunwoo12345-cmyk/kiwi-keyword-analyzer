@@ -274,7 +274,10 @@ export function buildXaiVideoPayload(b, env) {
   const p = {
     model: (env && pick(env, ["GROK_VIDEO_MODEL", "grok_video_model"])) || "grok-imagine-video-1.5",
     prompt: cut(withRatioHint([b.prompt, b.negative ? ("피해야 할 것: " + b.negative) : ""].filter(Boolean).join("\n"), b.ratio), 1000),
-    duration: Math.max(1, Math.min(20, Number(b.seconds) || 6))
+    //  Grok 영상은 5·8·10초만 받는다. 예전엔 1~20 을 그대로 흘려보내, API·MCP 로 임의 값이
+    //  들어오면 제공사가 거부하거나 실제 길이와 과금이 어긋났다 → 허용값으로 스냅한다.
+    duration: [5, 8, 10].reduce((a, c) => {
+      const w = Number(b.seconds) || 5; return Math.abs(c - w) < Math.abs(a - w) ? c : a; }, 5)
   };
   if (img && /^https?:\/\//.test(String(img))) p.image = { url: String(img) };  // data:URL 은 불가(공개 URL 필요)
   return p;
@@ -861,7 +864,10 @@ export function buildHailuoPayload(b) {
               prompt: cut(withRatioHint(b.prompt || "", b.ratio), 2000) };
   const first = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
   if (first) p.first_frame_image = first;
-  p.duration = (Number(b.seconds) || 6) <= 6 ? 6 : 10;
+  // T2V-01 / I2V-01 Director 계열은 6초 고정 모델이다. 10초를 보내면 제공사가 거부한다.
+  //  (스튜디오는 6초만 노출하지만, /api/v1/generate·MCP 는 임의 값을 보낼 수 있다.)
+  const only6 = /Director|T2V-01|I2V-01/i.test(String(b.model || "")) || /01-Director/i.test(p.model);
+  p.duration = only6 ? 6 : ((Number(b.seconds) || 6) <= 6 ? 6 : 10);
   // Hailuo 02 는 1080P 에서 6초만 지원한다 — 10초는 768P/512P 에서만 된다.
   //  해상도를 1080P 로 고정해 두면 10초 선택이 무효 조합이 되어 거절당한다.
   p.resolution = p.duration > 6 ? "768P" : "1080P";
@@ -935,6 +941,53 @@ export function buildVeoPayload(b, opts) {
     p.resolution = String(b.res || "").trim() === "720p" ? "720p" : "1080p";
   }
   return { instances: [inst], parameters: p };
+}
+
+/* ── "실제로 생성된 길이·해상도" ──
+   과금은 요청값이 아니라 제공사에 실제로 나간 값을 기준으로 해야 한다.
+   빌더들이 모델별 허용값으로 스냅/클램프하므로(예: Veo 7→6초, Seedance 1.x 8→10초,
+   Kling 1.6 12→10초), 요청값으로 청구하면 8초 만들고 30초를 물리는 식의 어긋남이 생긴다.
+   스튜디오는 화면에서 이미 스냅하지만 /api/v1/generate·MCP 는 임의 값을 보낼 수 있다.
+   표를 따로 두면 빌더와 어긋나므로, 빌더를 실제로 돌려 그 결과에서 값을 읽는다. */
+const RES_AWARE = { seedance: 1, google: 1, luma: 1, upscale: 1 };
+export function effectiveUnits(body, env) {
+  const raw = Math.max(1, Math.round(Number((body && (body.seconds ?? body.units)) || 8)));
+  const prov = String((body && body.provider) || "");
+  const num = (v) => { const n = Number(String(v == null ? "" : v).replace(/[^\d.]/g, "")); return Number.isFinite(n) && n > 0 ? Math.round(n) : null; };
+  try {
+    const b = Object.assign({}, body, { seconds: raw });
+    if (prov === "seedance") {
+      const p = buildSeedancePayload(b, env);
+      if (p.duration) return num(p.duration) || raw;
+      const m = /--duration\s+(\d+)/.exec((p.content && p.content[0] && p.content[0].text) || "");
+      return m ? Number(m[1]) : raw;
+    }
+    if (prov === "google") return num(buildVeoPayload(b).parameters.durationSeconds) || raw;
+    if (prov === "runway") return num(buildRunwayPayload(b).duration) || raw;
+    if (prov === "luma")   return num(buildLumaPayload(b).duration) || raw;
+    if (prov === "hailuo") return num(buildHailuoPayload(b).duration) || raw;
+    if (prov === "kling")  return num(buildKlingApiPayload(b, klingApiSpec(b)).duration) || raw;
+    if (prov === "xai")    return num(buildXaiVideoPayload(b, env).duration) || raw;
+  } catch (_e) { /* 빌더가 던지면 요청값을 그대로 쓴다 */ }
+  return raw;
+}
+export function effectiveRes(body, env) {
+  const prov = String((body && body.provider) || "");
+  const raw = String((body && body.res) || "1080p");
+  //  해상도 필드를 아예 받지 않는 제공사(Kling·Runway·MiniMax·Grok 등)는 무엇을 골라도
+  //  결과가 같다 → 과금 배율이 달라지지 않도록 1080p(1.0배)로 고정한다.
+  if (!RES_AWARE[prov]) return "1080p";
+  try {
+    if (prov === "seedance") {
+      const p = buildSeedancePayload(Object.assign({}, body), env);
+      if (p.resolution) return p.resolution;                       // 2.0 — 최상위 필드
+      const m = /--resolution\s+(\S+)/.exec((p.content && p.content[0] && p.content[0].text) || "");
+      return m ? m[1] : "1080p";                                   // 1.x — 텍스트 명령
+    }
+    if (prov === "google") return buildVeoPayload(Object.assign({}, body)).parameters.resolution || "1080p";
+  } catch (_e) {}
+  // Luma·업스케일은 고른 값을 그대로 받는다(4K 포함)
+  return /^(480p|540p|720p|1080p|4K)$/i.test(raw) ? raw : "1080p";
 }
 
 export async function onRequest(context) {
