@@ -1,7 +1,9 @@
 # BYGENCY 정기 실행(크론)
 #
 # Cloudflare Pages Functions 에는 자체 스케줄러가 없다. 그래서 "정해진 시각에 서버가
-# 알아서 도는 일"은 전부 외부에서 HTTP 로 두드려 줘야 한다. 이 워크플로가 그 역할을 한다.
+# 알아서 도는 일"은 전부 외부에서 HTTP 로 두드려 줘야 한다.
+# 그 역할은 Cloudflare Workers Cron Trigger(workers/cron/)가 맡고, 이 워크플로는
+# 손으로 한 번 돌리고 싶을 때 쓰는 예비 경로다.
 #
 # ── 비용 ──────────────────────────────────────────────────────────────────────
 #  이 저장소는 공개(public) 저장소이므로 GitHub Actions 사용료가 0원이다.
@@ -13,28 +15,25 @@
 #    비활성화한다. 그때는 Actions 탭에서 "Enable workflow" 를 누르면 다시 돈다.
 #
 # ── 준비물(한 번만) ───────────────────────────────────────────────────────────
-#  1) Cloudflare Pages → 프로젝트 → Settings → Environment variables 에
+#  1) Cloudflare Pages → 프로젝트 → Settings → Variables and Secrets 에
 #     CRON_TOKEN = (아무도 모르는 긴 임의 문자열) 등록 후 재배포
 #  2) GitHub → Settings → Secrets and variables → Actions
 #       Secrets:   CRON_TOKEN  (위와 똑같은 값)
 #       Variables: SITE_URL    (예: https://bygency.co)  — 없으면 아래 기본값 사용
+#  ※ 정기 실행 쪽 설정은 workers/cron/README.md 참고
 #
-# ── 시간대에 대하여 ───────────────────────────────────────────────────────────
-#  아래 cron 표현식은 GitHub 규격상 항상 UTC 다. 하지만 "예약 생성"의 실행 시각은
-#  이 워크플로가 정하지 않는다. 회원이 스튜디오에서 고른 나라의 현지 시각(IANA 시간대,
-#  서머타임 포함)으로 서버가 계산해 두고, 이 워크플로는 그저 자주 두드려서
-#  "지금 때가 된 예약"을 서버가 집어가게 할 뿐이다.
-#  그래서 15분마다 호출한다 — 인도(UTC+5:30)·네팔(UTC+5:45)처럼 30·45분 오프셋
-#  지역도 정시에 맞출 수 있다.
-#  ⚠ GitHub 의 스케줄 실행은 혼잡 시 수 분~수십 분 지연될 수 있다(공식 문서 명시).
-#    분 단위 정확도가 필요하면 Cloudflare Workers 의 Cron Triggers(무료)로 옮기는 편이 낫다.
+# ── 왜 스케줄이 없는가 ────────────────────────────────────────────────────────
+#  GitHub 의 스케줄 실행은 혼잡 시 수 분~수십 분 지연될 수 있다(공식 문서 명시).
+#  그래서 정기 실행은 Cloudflare Workers Cron Trigger 로 옮겼다 → workers/cron/
+#  여기 남은 것은 수동 실행 전용 예비 경로다.
 
 name: cron
 
+# ⚠ 자동 스케줄은 꺼져 있다 — 정기 실행은 Cloudflare Workers Cron Trigger(workers/cron)가 맡는다.
+#   (둘 다 켜 두면 같은 예약을 두 번 집어갈 수 있어 한쪽만 스케줄을 갖는다.)
+#   이 워크플로는 "워커가 죽었을 때 손으로 한 번 돌리는" 예비 수단으로 남겨 둔다.
+#   Actions 탭 → cron → Run workflow 에서 실행.
 on:
-  schedule:
-    - cron: '*/15 * * * *'    # 예약 생성 처리 — 15분마다 (UTC 기준이지만 위 설명 참고)
-    - cron: '5 0 * * *'       # 네이버 플레이스 순위 추적 — 매일 00:05 UTC = 한국 09:05
   workflow_dispatch:
     inputs:
       job:
@@ -45,7 +44,7 @@ on:
         options: [video, naver, both]
 
 concurrency:
-  group: bygency-cron-${{ github.event.schedule || github.event.inputs.job }}
+  group: bygency-cron-${{ github.event.inputs.job }}
   cancel-in-progress: false
 
 env:
@@ -54,7 +53,7 @@ env:
 jobs:
   # ── 예약 영상 생성 ─────────────────────────────────────────────────────────
   video-schedules:
-    if: github.event.schedule == '*/15 * * * *' || contains(fromJSON('["video","both"]'), github.event.inputs.job)
+    if: contains(fromJSON('["video","both"]'), github.event.inputs.job)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -81,7 +80,7 @@ jobs:
 
   # ── 네이버 플레이스 순위 추적 ──────────────────────────────────────────────
   naver-place:
-    if: github.event.schedule == '5 0 * * *' || contains(fromJSON('["naver","both"]'), github.event.inputs.job)
+    if: contains(fromJSON('["naver","both"]'), github.event.inputs.job)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
