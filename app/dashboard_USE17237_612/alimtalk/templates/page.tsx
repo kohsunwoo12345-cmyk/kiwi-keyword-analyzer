@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { LayoutTemplate, Plus, Check, Clock, AlertCircle, RefreshCw, MessageSquarePlus, Send, Inbox } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Button, Badge } from '@/components/ui'
-import { Card, EmptyState } from '@/components/dash/Kit'
+import { Card, EmptyState, Field, Section } from '@/components/dash/Kit'
 import {
   kakaoChannels, kakaoChannelAuth, kakaoChannelAdd, kakaoTemplates, kakaoTemplateCreate, kakaoTemplateRequest,
   type KakaoChannel, type KakaoTemplate,
@@ -171,37 +171,35 @@ export default function AlimtalkTemplatesPage() {
           )}
 
           {(regStep !== 0 || !hasChannel) && (
-            <div className="mt-4 grid gap-4 lg:grid-cols-2">
-              {/* 1단계 */}
-              <form onSubmit={reqAuth} className="card-2 space-y-3 p-4">
-                <p className="flex items-center gap-2 text-xs font-semibold">
-                  <span className="grid h-5 w-5 place-items-center rounded-full bg-amber-500 text-[10px] font-bold text-white">1</span>
-                  인증번호 받기
-                </p>
-                <div>
-                  <label className="mb-1 block text-xs text-[var(--text-dim)]">카카오 채널 검색용 아이디 (@ 제외)</label>
-                  <input value={plusid} onChange={(e) => setPlusid(e.target.value.replace(/^@/, ''))} placeholder="예: bygency" className={inputCls} />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-[var(--text-dim)]">채널 관리자 휴대폰번호</label>
-                  <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000" inputMode="tel" className={inputCls} />
-                </div>
-                <Button type="submit" disabled={regBusy} className="w-full">{regBusy ? '요청 중…' : '인증번호 받기'}</Button>
-                <p className="text-[11px] leading-relaxed text-[var(--text-dim)]">채널 관리자 카카오톡으로 인증번호가 발송됩니다. (채널이 "비즈니스 채널"이어야 알림톡 사용 가능)</p>
-              </form>
-              {/* 2단계 */}
-              <form onSubmit={doAdd} className="card-2 space-y-3 p-4">
-                <p className="flex items-center gap-2 text-xs font-semibold">
-                  <span className={`grid h-5 w-5 place-items-center rounded-full text-[10px] font-bold ${regStep >= 2 ? 'bg-amber-500 text-white' : 'bg-[var(--panel-2)] text-[var(--text-dim)]'}`}>2</span>
-                  <span className={regStep >= 2 ? '' : 'text-[var(--text-dim)]'}>인증번호 입력 → 등록 완료</span>
-                </p>
-                <div>
-                  <label className="mb-1 block text-xs text-[var(--text-dim)]">인증번호</label>
-                  <input value={authnum} onChange={(e) => setAuthnum(e.target.value)} placeholder="카카오톡으로 받은 번호" inputMode="numeric" className={inputCls} disabled={regStep < 2} />
-                </div>
-                <Button type="submit" disabled={regBusy || regStep < 2} className="w-full !bg-gradient-to-br !from-amber-500 !to-orange-500">{regBusy ? '등록 중…' : '채널 등록 완료'}</Button>
-                <p className="text-[11px] leading-relaxed text-[var(--text-dim)]">등록되면 발신프로필키(senderkey)가 발급되어 템플릿·발송에 자동 사용됩니다.</p>
-              </form>
+            <div className="mt-2">
+              <Section
+                label="1단계 · 인증번호 받기"
+                hint={'채널 관리자 카카오톡으로 인증번호가 발송됩니다. (채널이 "비즈니스 채널"이어야 알림톡을 쓸 수 있습니다)'}
+                first
+              >
+                <form onSubmit={reqAuth} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                  <Field label="채널 검색용 아이디">
+                    <input value={plusid} onChange={(e) => setPlusid(e.target.value.replace(/^@/, ''))} placeholder="예: bygency (@ 제외)" className={inputCls} />
+                  </Field>
+                  <Field label="채널 관리자 휴대폰번호">
+                    <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-0000-0000" inputMode="tel" className={inputCls} />
+                  </Field>
+                  <Button type="submit" disabled={regBusy} variant="outline">{regBusy ? '요청 중…' : '인증번호 받기'}</Button>
+                </form>
+              </Section>
+
+              <Section
+                label="2단계 · 인증번호 입력"
+                hint="등록되면 발신프로필키(senderkey)가 발급되어 템플릿·발송에 자동 사용됩니다."
+                className={regStep >= 2 ? undefined : 'opacity-60'}
+              >
+                <form onSubmit={doAdd} className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <Field label="인증번호">
+                    <input value={authnum} onChange={(e) => setAuthnum(e.target.value)} placeholder="카카오톡으로 받은 번호" inputMode="numeric" className={inputCls} disabled={regStep < 2} />
+                  </Field>
+                  <Button type="submit" disabled={regBusy || regStep < 2} className="!bg-gradient-to-br !from-amber-500 !to-orange-500">{regBusy ? '등록 중…' : '채널 등록 완료'}</Button>
+                </form>
+              </Section>
             </div>
           )}
         </Card>
@@ -209,20 +207,18 @@ export default function AlimtalkTemplatesPage() {
         {/* 템플릿 등록 폼 */}
         {showForm && hasChannel && (
           <Card title="새 템플릿 등록" desc="알리고에 등록하고 카카오 승인까지 요청합니다">
-            <div className="space-y-3">
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-[var(--text-soft)]">템플릿명</label>
+            <div className="space-y-4">
+              <Field label="템플릿명">
                 <input value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 예약 확인 안내" className={inputCls} />
-              </div>
-              <div>
-                <div className="mb-1.5 flex items-end justify-between">
-                  <label className="text-xs font-medium text-[var(--text-soft)]">본문</label>
-                  <span className={`text-[11px] tabular-nums ${body.length > 1000 ? 'font-bold text-rose-500' : 'text-[var(--text-dim)]'}`}>{body.length}/1,000자</span>
-                </div>
+              </Field>
+              <Field
+                label="본문"
+                right={<span className={body.length > 1000 ? 'font-semibold text-rose-500' : undefined}>{body.length}/1,000자</span>}
+                hint="등록 후 카카오 심사(보통 영업일 1~2일)를 거쳐 승인되면 발송에 사용할 수 있습니다."
+              >
                 <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="변수는 #{이름} 형식으로 입력하세요.&#10;예) #{이름}님, 예약이 접수되었습니다. 일시: #{예약일시}" className={`resize-none ${inputCls}`} />
-                <p className="mt-1 text-[11px] text-[var(--text-dim)]">등록 후 카카오 심사(보통 영업일 1~2일)를 거쳐 승인되면 발송에 사용할 수 있습니다.</p>
-              </div>
-              <div className="flex justify-end gap-2">
+              </Field>
+              <div className="flex justify-end gap-2 border-t border-[var(--border-soft)] pt-4">
                 <Button variant="outline" onClick={() => setShowForm(false)}>취소</Button>
                 <Button onClick={saveTemplate} disabled={formBusy || body.length > 1000} className="!bg-gradient-to-br !from-amber-500 !to-orange-500">{formBusy ? '등록 중…' : '등록 + 승인요청'}</Button>
               </div>

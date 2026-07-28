@@ -17,7 +17,7 @@ import {
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Badge, Button } from '@/components/ui'
 import { Counter } from '@/components/motion'
-import { Card, EmptyState, Metric } from '@/components/dash/Kit'
+import { Card, EmptyState, Field, Metric, Section } from '@/components/dash/Kit'
 import { cn } from '@/lib/utils'
 import {
   useAuth,
@@ -321,7 +321,8 @@ export default function CreditsPage() {
             <span className="hidden text-[11.5px] text-[var(--text-dim)] sm:block">한 번에 하나의 신청만 대기할 수 있습니다</span>
           }
         >
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Section label="수량 선택" first>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {CREDIT_PACKAGES.map((pkg, i) => {
               const active = selected === i
               return (
@@ -330,10 +331,10 @@ export default function CreditsPage() {
                   type="button"
                   onClick={() => setSelected(i)}
                   className={cn(
-                    'relative flex flex-col rounded-2xl border p-4 text-left transition-all',
+                    'relative flex flex-col rounded-2xl border p-4 text-left transition-colors',
                     active
-                      ? 'border-amber-400 bg-amber-500/10 ring-2 ring-amber-400/40'
-                      : 'border-[var(--border)] hover:border-amber-500/40 hover:bg-[var(--panel-2)]',
+                      ? 'border-amber-500/60 bg-amber-500/[0.07]'
+                      : 'border-[var(--border)] hover:border-amber-500/35 hover:bg-[var(--panel-2)]',
                   )}
                 >
                   {pkg.badge && (
@@ -341,16 +342,14 @@ export default function CreditsPage() {
                       {pkg.badge}
                     </span>
                   )}
-                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-amber-500/15 text-amber-500">
-                    <Coins size={17} />
-                  </span>
-                  <p className="mt-3 text-2xl font-bold tracking-tight tabular-nums">
+                  <Coins size={13} strokeWidth={2.25} className={active ? 'text-amber-500' : 'text-[var(--text-dim)]'} />
+                  <p className="mt-3 text-[24px] font-semibold leading-none tracking-[-0.025em] tabular-nums">
                     {ko(pkg.credits)}
-                    <span className="ml-1 text-sm font-semibold text-[var(--text-soft)]">크레딧</span>
+                    <span className="ml-1 text-[12px] font-medium text-[var(--text-dim)]">크레딧</span>
                   </p>
-                  <p className="mt-1 text-sm font-semibold text-[var(--text-soft)] tabular-nums">{(pkg.credits * rate).toLocaleString()}원</p>
-                  <span className={cn('mt-2 inline-flex items-center gap-1 text-xs font-semibold', active ? 'text-amber-500' : 'text-transparent')}>
-                    <Check size={13} /> 선택됨
+                  <p className="mt-2 text-[12.5px] tabular-nums text-[var(--text-soft)]">{(pkg.credits * rate).toLocaleString()}원</p>
+                  <span className={cn('mt-2 inline-flex items-center gap-1 text-[11.5px] font-semibold', active ? 'text-amber-500' : 'text-transparent')}>
+                    <Check size={12} /> 선택됨
                   </span>
                 </button>
               )
@@ -361,16 +360,14 @@ export default function CreditsPage() {
               type="button"
               onClick={() => setSelected('custom')}
               className={cn(
-                'relative flex flex-col rounded-2xl border p-4 text-left transition-all',
+                'relative flex flex-col rounded-2xl border p-4 text-left transition-colors',
                 selected === 'custom'
-                  ? 'border-amber-400 bg-amber-500/10 ring-2 ring-amber-400/40'
-                  : 'border-dashed border-[var(--border)] hover:border-amber-500/40 hover:bg-[var(--panel-2)]',
+                  ? 'border-amber-500/60 bg-amber-500/[0.07]'
+                  : 'border-dashed border-[var(--border)] hover:border-amber-500/35 hover:bg-[var(--panel-2)]',
               )}
             >
-              <span className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--panel-2)] text-[var(--text-dim)]">
-                <Plus size={17} />
-              </span>
-              <p className="mt-3 text-sm font-semibold">직접 입력</p>
+              <Plus size={13} strokeWidth={2.25} className={selected === 'custom' ? 'text-amber-500' : 'text-[var(--text-dim)]'} />
+              <p className="mt-3 text-[13px] font-semibold">직접 입력</p>
               <input
                 value={customCredits}
                 onChange={(e) => {
@@ -382,26 +379,23 @@ export default function CreditsPage() {
                 placeholder="예: 30"
                 inputMode="numeric"
               />
-              <p className="mt-1.5 text-xs tabular-nums text-[var(--text-dim)]">
+              <p className="mt-2 text-[12px] tabular-nums text-[var(--text-dim)]">
                 {customCredits ? `${(Math.max(0, Math.floor(Number(customCredits.replace(/[^0-9]/g, '')))) * rate).toLocaleString()}원` : '수량을 입력하세요'}
               </p>
             </button>
           </div>
+          </Section>
 
-          {/* 결제 방식 */}
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <div className="flex flex-col rounded-2xl border border-amber-500/40 bg-amber-500/[0.06] p-4">
-              <div className="flex items-start gap-3">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-500 text-white">
-                  <Zap size={17} />
-                </span>
-                <div>
-                  <p className="flex items-center gap-1.5 text-sm font-semibold">
-                    카드로 즉시 충전
-                    <span className="rounded-full border border-amber-500/30 bg-[var(--panel)] px-1.5 py-0.5 text-[10px] font-bold text-amber-500">Toss</span>
-                  </p>
-                  <p className="mt-0.5 text-xs text-[var(--text-dim)]">결제 즉시 크레딧이 지급됩니다.</p>
-                </div>
+          <Section label="결제 방식" hint="카드 결제는 즉시, 신청은 관리자 승인 후 지급됩니다.">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col rounded-2xl border border-amber-500/40 bg-amber-500/[0.05] p-4">
+              <div>
+                <p className="flex items-center gap-1.5 text-[13px] font-semibold">
+                  <Zap size={13} strokeWidth={2.25} className="text-amber-500" />
+                  카드로 즉시 충전
+                  <span className="rounded-full border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-bold text-amber-500">Toss</span>
+                </p>
+                <p className="mt-1 text-[11.5px] text-[var(--text-dim)]">결제 즉시 크레딧이 지급됩니다.</p>
               </div>
               <Button onClick={payWithCard} disabled={cardBusy || confirming} className="mt-3 w-full justify-center">
                 <CreditCard size={16} /> {cardBusy ? '결제창 여는 중...' : confirming ? '결제 확인 중...' : '카드로 결제하기'}
@@ -409,23 +403,22 @@ export default function CreditsPage() {
             </div>
 
             <div className="flex flex-col rounded-2xl border border-[var(--border)] p-4">
-              <div className="flex items-start gap-3">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--panel-2)] text-[var(--text-dim)]">
-                  <Clock size={17} />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold">충전 신청 (관리자 승인)</p>
-                  <p className="mt-0.5 text-xs text-[var(--text-dim)]">신청 후 승인되면 지급됩니다.</p>
-                </div>
+              <div>
+                <p className="flex items-center gap-1.5 text-[13px] font-semibold">
+                  <Clock size={13} strokeWidth={2.25} className="text-[var(--text-dim)]" />
+                  충전 신청 (관리자 승인)
+                </p>
+                <p className="mt-1 text-[11.5px] text-[var(--text-dim)]">신청 후 승인되면 지급됩니다.</p>
               </div>
               <Button onClick={submitCharge} disabled={busy} variant="outline" className="mt-3 w-full justify-center">
                 <Sparkles size={16} /> {busy ? '신청 중...' : '충전 신청'}
               </Button>
             </div>
           </div>
+          </Section>
 
           {/* 상태 메시지 */}
-          <div className="mt-4 space-y-2 empty:mt-0">
+          <div className="mt-5 space-y-2 empty:mt-0">
             {okMsg && <Msg tone="ok">충전 신청이 접수되었습니다. 관리자 승인 후 크레딧이 지급됩니다.</Msg>}
             {errMsg && <Msg tone="err">{errMsg}</Msg>}
             {confirming && <Msg tone="warn">결제를 확인하는 중입니다...</Msg>}
