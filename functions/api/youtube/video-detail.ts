@@ -195,6 +195,7 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
       licensedContent: contentDetails.licensedContent || false
     })
   } catch(e:any) {
-    return j({ok:false, error: '서버 오류가 발생했습니다.'||'영상 분석 오류'})
+    console.error('youtube/video-detail:', e?.message || e)
+    return j({ok:false, error: '서버 오류가 발생했습니다.'})
   }
 }

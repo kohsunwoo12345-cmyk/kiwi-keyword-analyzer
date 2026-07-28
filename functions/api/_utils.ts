@@ -1064,7 +1064,12 @@ export async function logExport(
 }
 
 /** 관리자 세션 가드 (공용) */
-export async function requireAdminUser(request: Request, db: D1Database) {
+/** 관리자 가드 결과. 두 갈래를 명시해 둔다 —
+ *  추론에 맡기면 error 가 양쪽 모두에서 선택 속성이 되어, 호출부의 `return guard.error` 가
+ *  Response | undefined 로 넓어진다(핸들러가 undefined 를 반환할 수 있는 것처럼 보인다). */
+type AdminGuard = { error: Response; me?: undefined } | { error?: undefined; me: any }
+
+export async function requireAdminUser(request: Request, db: D1Database): Promise<AdminGuard> {
   const me: any = await getSessionUser(request, db)
   if (!me) return { error: json({ ok: false, error: '로그인이 필요합니다.' }, 401) }
   if (me.email !== ADMIN_EMAIL && me.role !== 'admin')

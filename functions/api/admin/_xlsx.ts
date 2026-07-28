@@ -3,7 +3,7 @@
 
 const enc = new TextEncoder()
 
-function crc32(buf: Uint8Array): number {
+function crc32(buf: Uint8Array<ArrayBuffer>): number {
   let c = ~0
   for (let i = 0; i < buf.length; i++) {
     c ^= buf[i]
@@ -40,16 +40,16 @@ function sheetXml(sh: Sheet): string {
 
 const u16 = (n: number) => new Uint8Array([n & 0xff, (n >> 8) & 0xff])
 const u32 = (n: number) => new Uint8Array([n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >> 24) & 0xff])
-function concat(arrs: Uint8Array[]): Uint8Array {
+function concat(arrs: Uint8Array<ArrayBuffer>[]): Uint8Array<ArrayBuffer> {
   let len = 0; for (const a of arrs) len += a.length
   const out = new Uint8Array(len); let o = 0
   for (const a of arrs) { out.set(a, o); o += a.length }
   return out
 }
 
-function zipStore(files: { name: string; data: Uint8Array }[]): Uint8Array {
-  const chunks: Uint8Array[] = []
-  const central: Uint8Array[] = []
+function zipStore(files: { name: string; data: Uint8Array<ArrayBuffer> }[]): Uint8Array<ArrayBuffer> {
+  const chunks: Uint8Array<ArrayBuffer>[] = []
+  const central: Uint8Array<ArrayBuffer>[] = []
   let offset = 0
   for (const f of files) {
     const nameBytes = enc.encode(f.name)
@@ -86,13 +86,13 @@ export function sheetToCsv(sh: Sheet): string {
   return String.fromCharCode(0xFEFF) + lines.join('\r\n')
 }
 // 여러 파일을 하나의 ZIP(무압축)으로 — 전체 DB를 테이블별 CSV 묶음으로 받을 때 사용
-export function zipFiles(files: { name: string; data: Uint8Array }[]): Uint8Array {
+export function zipFiles(files: { name: string; data: Uint8Array<ArrayBuffer> }[]): Uint8Array<ArrayBuffer> {
   return zipStore(files)
 }
 
-export function buildXlsx(sheets: Sheet[]): Uint8Array {
+export function buildXlsx(sheets: Sheet[]): Uint8Array<ArrayBuffer> {
   if (!sheets.length) sheets = [{ name: 'Sheet1', headers: ['(비어 있음)'], rows: [] }]
-  const files: { name: string; data: Uint8Array }[] = []
+  const files: { name: string; data: Uint8Array<ArrayBuffer> }[] = []
   const add = (name: string, str: string) => files.push({ name, data: enc.encode(str) })
   const usedNames = new Set<string>()
   const names = sheets.map((s, i) => {

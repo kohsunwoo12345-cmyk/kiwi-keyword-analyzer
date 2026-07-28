@@ -198,8 +198,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
 // POST /api/admin/settlement — 지사 CRUD / 대표 계정 지정 / 정산 지급 기록
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
-  const db = resolveDB(env)
-  if (!db) return json({ ok: false, error: 'DB 바인딩 없음' }, 500)
+  const bound = resolveDB(env)
+  if (!bound) return json({ ok: false, error: 'DB 바인딩 없음' }, 500)
+  const db = bound // 아래 중첩 함수들이 db 를 캡처한다 — 널 검사 결과를 타입에 남긴다
   await ensureSchema(db)
   const guard = await requireAdminUser(request, db)
   if (guard.error) return guard.error

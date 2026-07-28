@@ -7,8 +7,12 @@ export function generateStaticParams() {
 
 export const dynamicParams = false
 
-export function generateMetadata({ params }: { params: { slug: string } }) {
-  const f = getFeature(params.slug)
+// Next 15 부터 params 는 Promise 다.
+type Params = Promise<{ slug: string }>
+
+export async function generateMetadata({ params }: { params: Params }) {
+  const { slug } = await params
+  const f = getFeature(slug)
   if (!f) {
     return {
       title: '기능 | BYGENCY',
@@ -21,6 +25,7 @@ export function generateMetadata({ params }: { params: { slug: string } }) {
   }
 }
 
-export default function Page({ params }: { params: { slug: string } }) {
-  return <FeatureDetail slug={params.slug} />
+export default async function Page({ params }: { params: Params }) {
+  const { slug } = await params
+  return <FeatureDetail slug={slug} />
 }

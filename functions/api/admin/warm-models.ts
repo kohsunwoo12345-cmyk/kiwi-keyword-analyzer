@@ -55,7 +55,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!db) return new Response('DB 없음', { status: 500 })
   await ensureSchema(db)
   const guard = await requireAdminUser(request, db)
-  if ('error' in guard) return guard.error
+  if (guard.error) return guard.error
 
   const origin = new URL(request.url).origin
   const results = await Promise.allSettled(FILES.map(async (p) => {

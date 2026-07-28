@@ -72,6 +72,7 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     }
     return j({ok:true, channel, recentVideos})
   } catch(e:any) {
-    return j({ok:false, error: '서버 오류가 발생했습니다.'||'채널 분석 오류'})
+    console.error('youtube/channel-detail:', e?.message || e)
+    return j({ok:false, error: '서버 오류가 발생했습니다.'})
   }
 }

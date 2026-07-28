@@ -1253,7 +1253,7 @@ export default function AdminSecurityPage() {
                         size="sm"
                         className="!border-emerald-200 !text-emerald-600 hover:!bg-emerald-50"
                         disabled={busy}
-                        onClick={() => run(() => adminSecurityAction('unblock', { ip: lookupData.ip }), `${lookupData.ip} 차단 해제 완료`).then((r) => r.ok && runLookup(lookupData.ip))}
+                        onClick={() => run(() => adminSecurityAction('unblock', { ip: lookupData.ip }), `${lookupData.ip} 차단 해제 완료`).then((r) => { if (r.ok) runLookup(lookupData.ip) })}
                       >
                         <ShieldCheck size={15} /> 차단 해제
                       </Button>
@@ -1263,7 +1263,7 @@ export default function AdminSecurityPage() {
                         size="sm"
                         className="!border-rose-200 !text-rose-600 hover:!bg-rose-50"
                         disabled={busy}
-                        onClick={() => run(() => adminSecurityAction('block', { ip: lookupData.ip, reason: '관리자 IP 조회 후 차단' }), `${lookupData.ip} 차단 완료 (실제 접속 차단)`).then((r) => r.ok && runLookup(lookupData.ip))}
+                        onClick={() => run(() => adminSecurityAction('block', { ip: lookupData.ip, reason: '관리자 IP 조회 후 차단' }), `${lookupData.ip} 차단 완료 (실제 접속 차단)`).then((r) => { if (r.ok) runLookup(lookupData.ip) })}
                       >
                         <Ban size={15} /> 이 IP 차단 (실제 접속 차단)
                       </Button>

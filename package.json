@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit && tsc -p functions --noEmit"
   },
   "dependencies": {
     "@types/node": "^20",
@@ -24,6 +25,7 @@
     "typescript": "^5"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1",
     "eslint": "^8",
     "eslint-config-next": "14.2.35"
   }

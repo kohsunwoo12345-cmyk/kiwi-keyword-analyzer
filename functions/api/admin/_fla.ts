@@ -7,33 +7,33 @@ function spFlaNum(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-async function spFlaFirst(c, sql, binds = []) {
+async function spFlaFirst(c, sql, binds: any[] = []): Promise<any> {
   try {
     const stmt = c.env.DB.prepare(sql);
     return await (binds.length ? stmt.bind(...binds) : stmt).first();
-  } catch (error) {
-    console.warn('[funnel-landing-analytics] first skipped:', error && error.message ? error.message : error);
+  } catch (error: any) {
+    console.warn('[funnel-landing-analytics] first skipped:', error?.message || error);
     return null;
   }
 }
 
-async function spFlaAll(c, sql, binds = []) {
+async function spFlaAll(c, sql, binds: any[] = []): Promise<any[]> {
   try {
     const stmt = c.env.DB.prepare(sql);
     const result = await (binds.length ? stmt.bind(...binds) : stmt).all();
     return result && result.results ? result.results : [];
-  } catch (error) {
-    console.warn('[funnel-landing-analytics] all skipped:', error && error.message ? error.message : error);
+  } catch (error: any) {
+    console.warn('[funnel-landing-analytics] all skipped:', error?.message || error);
     return [];
   }
 }
 
-async function spFlaRun(c, sql, binds = []) {
+async function spFlaRun(c, sql, binds: any[] = []): Promise<any> {
   const stmt = c.env.DB.prepare(sql);
   return await (binds.length ? stmt.bind(...binds) : stmt).run();
 }
 
-async function spFlaRunQuiet(c, sql, binds = []) {
+async function spFlaRunQuiet(c, sql, binds: any[] = []): Promise<any> {
   try { return await spFlaRun(c, sql, binds); } catch (_) { return null; }
 }
 
@@ -46,8 +46,8 @@ async function spFlaColumns(c, tableName) {
   }
 }
 
-function spFlaPick(columns, names) {
-  const lower = new Map(columns.map((column) => [String(column).toLowerCase(), column]));
+function spFlaPick(columns, names): string {
+  const lower = new Map<string, string>(columns.map((column: any) => [String(column).toLowerCase(), String(column)]));
   for (const name of names) {
     const found = lower.get(String(name).toLowerCase());
     if (found) return found;
@@ -59,7 +59,7 @@ function spFlaQ(identifier) {
   return '"' + String(identifier).replace(/"/g, '""') + '"';
 }
 
-function spFlaValue(row, names, fallback = '') {
+function spFlaValue(row, names, fallback: any = ''): any {
   const safe = row || {};
   const lower = new Map(Object.keys(safe).map((key) => [String(key).toLowerCase(), safe[key]]));
   for (const name of names) {
@@ -95,11 +95,11 @@ function spFlaApplyDate(where, binds, column, range) {
 
 async function spFlaMapById(c, tableName) {
   const columns = await spFlaColumns(c, tableName);
-  if (!columns.length) return new Map();
+  if (!columns.length) return new Map<string, any>();
   const idColumn = spFlaPick(columns, ['id']);
-  if (!idColumn) return new Map();
+  if (!idColumn) return new Map<string, any>();
   const rows = await spFlaAll(c, 'SELECT * FROM ' + tableName + ' LIMIT 5000');
-  const map = new Map();
+  const map = new Map<string, any>();
   for (const row of rows) map.set(String(row[idColumn]), row);
   return map;
 }
@@ -109,7 +109,7 @@ async function spFlaLoadPages(c, range, funnelFilter) {
   const funnelMap = await spFlaMapById(c, 'funnels');
   const userMap = await spFlaMapById(c, 'users');
   const pageTables = ['funnel_landing_pages'];
-  const pages = [];
+  const pages: any[] = [];
   const seen = new Set();
   for (const table of pageTables) {
     const columns = await spFlaColumns(c, table);
@@ -162,7 +162,7 @@ async function spFlaLoadPages(c, range, funnelFilter) {
 }
 
 async function spFlaCountMap(c, table, keyColumn, keys, dateColumn, range, extraWhere = '') {
-  const map = new Map();
+  const map = new Map<string, any>();
   const clean = Array.from(new Set(keys.map((key) => String(key || '')).filter(Boolean)));
   if (!clean.length || !keyColumn) return map;
   for (let i = 0; i < clean.length; i += 80) {
@@ -269,7 +269,7 @@ async function spFlaTrafficCandidateTables(c) {
     'funnel_applicants', 'landing_applicants', 'funnel_leads', 'landing_form_submissions',
     'form_submissions'
   ];
-  const tableNames = [];
+  const tableNames: string[] = [];
   for (const name of preferred) if (existing.has(name)) tableNames.push(name);
   for (const name of existing) {
     if (tableNames.includes(name)) continue;
@@ -289,8 +289,8 @@ function spFlaMaybeJson(value) {
   try { return JSON.parse(text); } catch (_) { return null; }
 }
 
-function spFlaTrafficExtract(row) {
-  const data = {};
+function spFlaTrafficExtract(row): any {
+  const data: any = {};
   const wanted = {
     utmsource: 'source', source: 'source', trafficsource: 'source', channel: 'source', origin: 'source', from: 'source',
     utmmedium: 'medium', medium: 'medium', mediatype: 'medium',
@@ -399,18 +399,18 @@ function spFlaMatchTrafficPages(fields, pages) {
 }
 
 async function spFlaTrafficSources(c, pages, range) {
-  const sourceCounts = new Map();
-  const applicantCounts = new Map();
-  const detailMap = new Map();
-  const pageSource = new Map();
+  const sourceCounts = new Map<string, any>();
+  const applicantCounts = new Map<string, any>();
+  const detailMap = new Map<string, any>();
+  const pageSource = new Map<string, any>();
   const tables = await spFlaTrafficCandidateTables(c);
 
   for (const table of tables) {
     const columns = await spFlaColumns(c, table);
     if (!columns.length) continue;
     const dateColumn = spFlaPick(columns, ['created_at', 'createdAt', 'visited_at', 'viewed_at', 'submitted_at', 'sent_at', 'timestamp', 'event_time']);
-    const where = [];
-    const binds = [];
+    const where: string[] = [];
+    const binds: any[] = [];
     spFlaApplyDate(where, binds, dateColumn, range);
     const sql = 'SELECT * FROM ' + table + (where.length ? ' WHERE ' + where.join(' AND ') : '') + ' ORDER BY ' + spFlaQ(dateColumn || spFlaPick(columns, ['id']) || columns[0]) + ' DESC LIMIT 8000';
     const rows = await spFlaAll(c, sql, binds);
@@ -432,7 +432,7 @@ async function spFlaTrafficSources(c, pages, range) {
       sourceCounts.set(label, (sourceCounts.get(label) || 0) + matchedPages.length);
       if (isApplicant) applicantCounts.set(label, (applicantCounts.get(label) || 0) + matchedPages.length);
       for (const page of matchedPages) {
-        const map = pageSource.get(page.id) || new Map();
+        const map = pageSource.get(page.id) || new Map<string, any>();
         const item = map.get(label) || { source: label, medium: labelInfo.medium || '', campaign: labelInfo.campaign || '', term: labelInfo.term || '', referrer: labelInfo.referrer || '', url: labelInfo.url || '', count: 0, applicants: 0, share: 0 };
         item.count += 1;
         if (isApplicant) item.applicants += 1;
@@ -451,7 +451,7 @@ async function spFlaTrafficSources(c, pages, range) {
       page.topSource = '직접/알 수 없음';
       page.sources = [];
     } else {
-      const entries = Array.from(map.values()).sort((a, b) => b.count - a.count);
+      const entries = (Array.from(map.values()) as any[]).sort((a, b) => b.count - a.count);
       const pageTotal = entries.reduce((sum, item) => sum + spFlaNum(item.count, 0), 0) || 1;
       page.topSource = entries[0].source;
       page.sources = entries.slice(0, 12).map((item) => ({ ...item, share: spFlaNum(item.count, 0) / pageTotal * 100 }));
@@ -477,7 +477,7 @@ function spFlaCta(page) {
 }
 
 function spFlaRecommendations(summary, pages, sources) {
-  const recs = [];
+  const recs: any[] = [];
   const best = sources[0];
   if (best) recs.push({ type: 'good', title: '강한 유입 경로 집중', body: best.source + ' 유입이 가장 많습니다. 해당 채널의 광고 문구와 랜딩 CTA를 같은 메시지로 맞추세요.' });
   const weak = pages.filter((p) => spFlaNum(p.views, 0) >= 20 && spFlaNum(p.conversionRate, 0) < 3).slice(0, 3);
@@ -497,7 +497,7 @@ function spFlaMessageUnitCost(type) {
 function spFlaSentStatusWhere(columns) {
   const statusColumn = spFlaPick(columns, ['status', 'send_status', 'result_status']);
   const sentColumn = spFlaPick(columns, ['sent_at', 'sentAt', 'delivered_at', 'completed_at']);
-  const clauses = [];
+  const clauses: string[] = [];
   if (statusColumn) clauses.push("LOWER(COALESCE(" + spFlaQ(statusColumn) + ", '')) IN ('sent','success','succeeded','delivered','complete','completed','ok')");
   if (sentColumn) clauses.push("COALESCE(" + spFlaQ(sentColumn) + ", '') <> ''");
   return clauses.length ? '(' + clauses.join(' OR ') + ')' : '';
@@ -505,7 +505,7 @@ function spFlaSentStatusWhere(columns) {
 
 function spFlaNotExcelWhere(columns) {
   const candidates = ['source', 'send_source', 'origin', 'trigger', 'import_source', 'upload_source', 'batch_type', 'file_name', 'memo', 'note'];
-  const clauses = [];
+  const clauses: string[] = [];
   for (const name of candidates) {
     const column = spFlaPick(columns, [name]);
     if (!column) continue;
@@ -530,7 +530,7 @@ async function spFlaAttachSentSms(c, pages, range) {
   }
   if (!pages.length) return;
 
-  const pageLookup = new Map();
+  const pageLookup = new Map<string, any>();
   const addLookup = (type, value, page) => {
     const key = String(value || '');
     if (!key) return;
@@ -636,7 +636,7 @@ async function spFlaAnalytics(c) {
     lmsCost,
     messageCost
   };
-  const funnelMap = new Map();
+  const funnelMap = new Map<string, any>();
   for (const page of pages) if (page.funnelId) funnelMap.set(String(page.funnelId), { id: page.funnelId, name: page.funnelName || '퍼널 #' + page.funnelId });
   return { success: true, periodLabel: range.label, range, summary, pages, sources, funnels: Array.from(funnelMap.values()), recommendations: spFlaRecommendations(summary, pages, sources) };
 }

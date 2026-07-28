@@ -108,8 +108,10 @@ export async function getUsdKrw(db: D1Database): Promise<number> {
    ※ 제공사 가격표를 확인하면 실측값으로 교체할 것. */
 const RES_MULT: Record<string, number> = { '540p': 0.35, '720p': 0.6, '1080p': 1.0, '4K': 2.6 }
 
-// 모델 표시명 → 단가.  u:'sec'(영상 초당) | 'img'(이미지 장당), usd, audio(오디오 초당 추가), prov(집계용)
-export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?: number; prov: string }> = {
+// 모델 표시명 → 단가.
+// u:'sec'(영상 초당) | 'img'(이미지 장당) | '3d'(모델 1개당) | 'tok'(호출 1회당), usd, audio(오디오 초당 추가), prov(집계용)
+export type CostUnit = 'sec' | 'img' | '3d' | 'tok'
+export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: number; prov: string }> = {
   'Runway Aleph (영상→실사 V2V)': { u: 'sec', usd: 0.15, prov: 'runway_aleph' },
   'V2V 자동 (최고정확도·모델 자동선택)': { u: 'sec', usd: 0.15, prov: 'v2v_auto' },
   '모션 전이 (원본 움직임 유지·Motion Transfer)': { u: 'sec', usd: 0.12, prov: 'motion' },

@@ -19,7 +19,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!db) return json({ ok: false, error: 'DB 바인딩 없음' }, 500)
   await ensureSchema(db); await ensureTeamTables(db)
   const guard = await requireAdminUser(request, db)
-  if ('error' in guard) return guard.error
+  if (guard.error) return guard.error
 
   const url = new URL(request.url)
   const q = String(url.searchParams.get('q') || '').trim().toLowerCase()

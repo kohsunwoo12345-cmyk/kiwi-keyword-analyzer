@@ -72,10 +72,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     if (!dayMap[d]) dayMap[d] = { revenue: 0, credit: 0, plan: 0 }
     dayMap[d].revenue += amt; dayMap[d][cat] += amt
   }
-  creditCard.forEach((r) => bump(r.created_at, Number(r.amount) || 0, 'credit'))
-  creditApproval.forEach((r) => bump(r.created_at, Number(r.amount) || 0, 'credit'))
-  planRows.forEach((r) => bump(r.created_at, planAmount(r), 'plan'))
-  teamRows.forEach((r) => bump(r.created_at, Number(r.amount) || 0, 'plan'))
+  creditCard.forEach((r) => bump(String(r.created_at), Number(r.amount) || 0, 'credit'))
+  creditApproval.forEach((r) => bump(String(r.created_at), Number(r.amount) || 0, 'credit'))
+  planRows.forEach((r) => bump(String(r.created_at), planAmount(r), 'plan'))
+  teamRows.forEach((r) => bump(String(r.created_at), Number(r.amount) || 0, 'plan'))
   const byDay = Object.keys(dayMap).sort().reverse().map((d) => ({ d, ...dayMap[d] }))
 
   // ── 최근 결제 내역(통합) ──

@@ -39,6 +39,7 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     }))
     return j({ok:true, videos})
   } catch(e:any) {
-    return j({ok:false, error: '서버 오류가 발생했습니다.'||'영상 검색 오류'})
+    console.error('youtube/search-videos:', e?.message || e)
+    return j({ok:false, error: '서버 오류가 발생했습니다.'})
   }
 }

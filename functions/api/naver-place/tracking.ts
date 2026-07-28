@@ -210,9 +210,10 @@ export const onRequestPost: PagesFunction = async (context) => {
       })
     } catch (dbError) {
       console.error('[Tracking] DB insert failed:', dbError)
+      // DB 오류 원문은 로그에만 남긴다 — 클라이언트에 스키마/쿼리 내용을 흘리지 않는다.
       return c.json({
         success: false,
-        error: 'DB 저장 실패: ' + dbError.message
+        error: 'DB 저장에 실패했습니다. 잠시 후 다시 시도해주세요.'
       }, 500)
     }
   } catch (error) {

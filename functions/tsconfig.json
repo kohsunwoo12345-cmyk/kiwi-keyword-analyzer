@@ -1,0 +1,25 @@
+{
+  "//": [
+    "Cloudflare Pages Functions 는 브라우저가 아니라 Workers 런타임에서 돈다. DOM 대신 Workers 타입을 쓴다.",
+    "noImplicitAny 는 꺼 둔다 — 이 디렉터리는 strict 이전에 쓰인 코드다.",
+    "널 안전성·속성 접근 검사는 켜 두고, 인자 타입 표기만 단계적으로 갚는다."
+  ],
+  "compilerOptions": {
+    "lib": ["esnext", "webworker"],
+    "types": ["@cloudflare/workers-types"],
+    "allowJs": true,
+    "checkJs": false,
+    "skipLibCheck": true,
+    "strict": true,
+    "noImplicitAny": false,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "target": "ES2022"
+  },
+  "include": ["**/*.ts", "**/*.js"],
+  "exclude": ["node_modules"]
+}

@@ -134,7 +134,7 @@ export const onRequestPost: PagesFunction = async (context) => {
     }
     
     // 🔥 네이버 검색 API 우선, 실패 시 웹 크롤링
-    let rank = null
+    let rank: number | null = null
     let totalCount = 0
     let naverPlaceTotalCount = 0  // 전체 업체 수 - 최외부 스코프에 선언 (바닥 코드에서도 참조 가능)
     let placeName = fetchedPlaceName  // 좌표 추출 시 이미 이름 확보
@@ -151,7 +151,7 @@ export const onRequestPost: PagesFunction = async (context) => {
         useAPI = true
         
         // 최대 300개까지 조회 (100개씩 3번)
-        const allPlaces = []
+        const allPlaces: any[] = []
         
         for (let start = 1; start <= 300; start += 100) {
           const apiUrl = `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(keyword)}&display=100&start=${start}&sort=random`
@@ -171,7 +171,7 @@ export const onRequestPost: PagesFunction = async (context) => {
             break
           }
           
-          const apiData = await apiResponse.json()
+          const apiData = await apiResponse.json() as any
           console.log(`[Naver API] Response - total: ${apiData.total}, items: ${apiData.items?.length || 0}`)
           
           if (!apiData.items || apiData.items.length === 0) {
@@ -694,10 +694,10 @@ export const onRequestPost: PagesFunction = async (context) => {
           // 🚀 Cloudflare Workers Puppeteer - 실제 브라우저 크롤링
           console.log(`[Puppeteer] Starting browser automation for: ${keyword}`)
           
-          let browser = null
+          let browser: any = null
           try {
             browser = await puppeteer.launch(c.env.MYBROWSER)
-            const places = []
+            const places: any[] = []
             const seenIds = new Set()
             
             // 최대 5페이지까지 크롤링
@@ -709,7 +709,7 @@ export const onRequestPost: PagesFunction = async (context) => {
               
               console.log(`[Puppeteer Page ${pageNum}] Fetching: ${searchUrl}`)
               
-              let page = null
+              let page: any = null
               try {
                 page = await browser.newPage()
                 
@@ -804,7 +804,7 @@ export const onRequestPost: PagesFunction = async (context) => {
           // 🚀 Browserless.io를 통한 실제 브라우저 크롤링
           console.log(`[Browserless] Starting browser automation for: ${keyword}`)
           
-          const places = []
+          const places: any[] = []
           const seenIds = new Set()
           
           // 최대 5페이지까지 크롤링
@@ -1080,7 +1080,7 @@ export const onRequestPost: PagesFunction = async (context) => {
             console.log(`[Place Name] Final result: ${placeName || 'NOT FOUND'}`)
           }
         } catch (e) {
-          console.warn('[Place Name] Failed to fetch place info:', e.message)
+          console.warn('[Place Name] Failed to fetch place info:', e instanceof Error ? e.message : String(e))
         }
         
         // totalCount가 0이면 naverPlaceTotalCount로 재설정
@@ -1158,6 +1158,23 @@ export const onRequestPost: PagesFunction = async (context) => {
       console.warn('[Rank] No DB binding available, skipping save')
     }
     
+    // 여기까지 왔으면 foundPlace 가 true 이므로 rank 도 채워져 있다.
+    // 다만 그 짝은 크롤링 분기 10곳이 각자 지키는 규칙이라, 어긋나면 "null위입니다"를 내보내지 말고 순위 미확정으로 알린다.
+    if (rank == null) {
+      console.warn('[Rank] foundPlace 는 true 인데 rank 가 비었다:', { placeId, keyword })
+      return c.json({
+        success: true,
+        found: false,
+        rank: null,
+        totalCount: totalCount,
+        keyword: keyword,
+        placeId: placeId,
+        placeName: placeName,
+        percentage: null,
+        message: `'${keyword}' 검색 결과에서 순위를 확정하지 못했습니다. 잠시 후 다시 시도해주세요.`,
+      })
+    }
+
     // 항상 성공 응답 반환 (rank는 크롤링된 실제 순위)
     return c.json({
       success: true,

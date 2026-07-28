@@ -22,6 +22,7 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     }))
     return j({ok:true, videos})
   } catch(e:any) {
-    return j({ok:false, error: '서버 오류가 발생했습니다.'||'트렌드 불러오기 오류'})
+    console.error('youtube/trending:', e?.message || e)
+    return j({ok:false, error: '서버 오류가 발생했습니다.'})
   }
 }

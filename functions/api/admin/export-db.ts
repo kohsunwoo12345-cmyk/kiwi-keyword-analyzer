@@ -68,7 +68,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const admin = { id: guard.me.id, email: guard.me.email }
   const ip = clientIp(request)
   const enc = new TextEncoder()
-  const file = (buf: Uint8Array, fname: string, ct: string) => new Response(buf, {
+  const file = (buf: Uint8Array<ArrayBuffer>, fname: string, ct: string) => new Response(buf, {
     headers: {
       'Content-Type': ct,
       'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(fname)}`,

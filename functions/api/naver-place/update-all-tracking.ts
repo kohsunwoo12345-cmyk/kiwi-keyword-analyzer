@@ -56,7 +56,7 @@ export const onRequestPost: PagesFunction = async (context) => {
     // 활성 추적 키워드 가져오기 (세션 fallback이면 본인 것만)
     const userScope = sessionUserId ? ' AND user_id = ?' : ''
     const bindArgs: any[] = sessionUserId ? [sessionUserId, batchSize, offset] : [batchSize, offset]
-    let trackingList = []
+    let trackingList: any[] = []
     try {
       const data = await db.prepare(`
         SELECT * FROM naver_place_tracking
@@ -80,7 +80,7 @@ export const onRequestPost: PagesFunction = async (context) => {
       }
     }
     
-    const results = []
+    const results: any[] = []
     
     // 각 추적 항목에 대해 순위 체크
     let successCount = 0
@@ -248,7 +248,7 @@ export const onRequestPost: PagesFunction = async (context) => {
 
         // ── 2차: Puppeteer (MYBROWSER 있을 때, pcmap 실패 시) ──
         if (!foundPlace && c.env.MYBROWSER) {
-          let browser = null
+          let browser: any = null
           try {
             browser = await puppeteer.launch(c.env.MYBROWSER)
             const places: Array<{id: string, name: string | null}> = []
@@ -257,7 +257,7 @@ export const onRequestPost: PagesFunction = async (context) => {
               const start = (pageNum - 1) * 10 + 1
               const searchUrl = `https://m.search.naver.com/search.naver?query=${encodeURIComponent(keyword)}&where=m_view&sm=mtb_jum&start=${start}`
               console.log(`[Cron Puppeteer Page ${pageNum}] URL: ${searchUrl}`)
-              let page = null
+              let page: any = null
               try {
                 page = await browser.newPage()
                 await page.goto(searchUrl, { waitUntil: 'networkidle0', timeout: 30000 })

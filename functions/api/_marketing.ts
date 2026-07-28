@@ -288,7 +288,7 @@ async function makeSolapiAuth(apiKey: string, apiSecret: string): Promise<string
 
 // ① 웹 푸시
 // ── VAPID 헬퍼 ───────────────────────────────────────────────────────────────
-function b64urlDecode(s: string): Uint8Array {
+function b64urlDecode(s: string): Uint8Array<ArrayBuffer> {
   const pad = '='.repeat((4 - (s.length % 4)) % 4);
   const b64 = (s + pad).replace(/-/g, '+').replace(/_/g, '/');
   const raw = atob(b64);
@@ -296,7 +296,7 @@ function b64urlDecode(s: string): Uint8Array {
   for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
   return out;
 }
-function b64urlEncode(buf: ArrayBuffer | Uint8Array): string {
+function b64urlEncode(buf: ArrayBuffer | Uint8Array<ArrayBuffer>): string {
   const arr = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
   let bin = '';
   arr.forEach(b => (bin += String.fromCharCode(b)));
@@ -383,12 +383,12 @@ async function sendWebPush(
     const salt = crypto.getRandomValues(new Uint8Array(16));
 
     // HKDF helpers
-    async function hkdfExtract(salt_: Uint8Array, ikm: ArrayBuffer): Promise<CryptoKey> {
+    async function hkdfExtract(salt_: Uint8Array<ArrayBuffer>, ikm: BufferSource): Promise<CryptoKey> {
       const hmacKey = await crypto.subtle.importKey('raw', salt_, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
       const prk = await crypto.subtle.sign('HMAC', hmacKey, ikm);
       return crypto.subtle.importKey('raw', prk, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
     }
-    async function hkdfExpand(prk: CryptoKey, info: Uint8Array, length: number): Promise<Uint8Array> {
+    async function hkdfExpand(prk: CryptoKey, info: Uint8Array<ArrayBuffer>, length: number): Promise<Uint8Array<ArrayBuffer>> {
       const infoWithCounter = new Uint8Array([...info, 0x01]);
       const okm = await crypto.subtle.sign('HMAC', prk, infoWithCounter);
       return new Uint8Array(okm).slice(0, length);

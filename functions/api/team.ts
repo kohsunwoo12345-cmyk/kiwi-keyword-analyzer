@@ -106,7 +106,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const teamRows = (await db.prepare(
     `SELECT t.id, t.name, t.owner_id, m.role FROM team_members m JOIN teams t ON t.id = m.team_id WHERE m.user_id = ? ORDER BY t.created_at DESC`,
   ).bind(me.id).all()).results || []
-  const teams = []
+  const teams: any[] = []
   for (const t of teamRows as any[]) {
     const members = (await db.prepare(
       `SELECT u.id, u.name, u.email, m.role FROM team_members m JOIN users u ON u.id = m.user_id WHERE m.team_id = ?`,

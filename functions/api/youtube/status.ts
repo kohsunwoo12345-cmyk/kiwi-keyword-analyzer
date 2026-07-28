@@ -9,6 +9,7 @@ export const onRequestGet: PagesFunction = async ({ env }) => {
     if(data.error) return j({ok:false, error: data.error.message||'API 오류'})
     return j({ok:true, quota: 'connected'})
   } catch(e:any) {
-    return j({ok:false, error: '서버 오류가 발생했습니다.'||'연결 오류'})
+    console.error('youtube/status:', e?.message || e)
+    return j({ok:false, error: '서버 오류가 발생했습니다.'})
   }
 }
