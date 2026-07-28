@@ -1731,14 +1731,27 @@ async function handle(context) {
       /* 403 "Not authenticated" 는 보통 "자격증명 자체를 못 읽었다" 는 뜻이다
          (계정 거부라면 보통 다른 문구가 온다). 헤더 방식이 틀린 것인지, 키가 죽은 것인지
          가르기 위해 다른 표기법도 읽기 전용으로 시도한다. 전부 GET 이라 과금이 없다. */
+      /* 프로젝트 ID — 루마 콘솔에 프로젝트 ID 라는 값이 있다. 이게 API 호출에 필요한지는
+         문서를 못 봐서 단정할 수 없으므로, 추측 대신 실제로 시도해 본다.
+         Luma_PROJECT_ID 환경변수를 넣어 두면 아래 표기법들을 전부 읽기 전용으로 시험하고,
+         그중 200 이 나오는 게 있으면 그 방식을 실제 호출에도 반영하면 된다.
+         값이 없으면 이 시험은 건너뛴다(그 자체로 "안 넣어도 되는지" 는 판정 못 함). */
+      const proj = pick(env, ["Luma_PROJECT_ID", "LUMA_PROJECT_ID", "luma_project_id"]);
+      const projCases = proj ? [
+        { 이름: "헤더 X-Project-Id",  h: { "Authorization": "Bearer " + kv, "X-Project-Id": proj } },
+        { 이름: "헤더 Luma-Project-Id", h: { "Authorization": "Bearer " + kv, "Luma-Project-Id": proj } },
+        { 이름: "헤더 X-Luma-Project", h: { "Authorization": "Bearer " + kv, "X-Luma-Project": proj } },
+        { 이름: "쿼리 project_id",    h: { "Authorization": "Bearer " + kv }, q: "&project_id=" + encodeURIComponent(proj) },
+      ] : [];
       const hdrVariants = await Promise.all([
         { 이름: "Authorization: Bearer <key>", h: { "Authorization": "Bearer " + kv } },
         { 이름: "Authorization: <key> (Bearer 없음)", h: { "Authorization": kv } },
         { 이름: "x-api-key", h: { "x-api-key": kv } },
         { 이름: "x-api-key + Bearer 동시", h: { "x-api-key": kv, "Authorization": "Bearer " + kv } },
+        ...projCases,
       ].map(async (v) => {
         try {
-          const r = await fetchT(LUMA_BASE + "/generations?limit=1",
+          const r = await fetchT(LUMA_BASE + "/generations?limit=1" + (v.q || ""),
             { headers: Object.assign({ "accept": "application/json" }, v.h) }, 12000);
           const t = await r.text(); let j2 = null; try { j2 = JSON.parse(t); } catch { /* 비JSON */ }
           return { 방식: v.이름, httpStatus: r.status, 응답: j2 || String(t).slice(0, 200) };
@@ -1761,6 +1774,12 @@ async function handle(context) {
       return json({ diag: "luma-check",
         note: "목록 조회는 읽기 전용, 모델 확인은 prompt 를 비운 반려 요청입니다. 생성물·과금이 없습니다.",
         키형태: { length: kv.length, prefix: kv.slice(0, 6), suffix: kv.slice(-4), hasWhitespace: /\s/.test(kv) },
+        프로젝트ID: proj
+          ? { 설정됨: true, 값앞자리: String(proj).slice(0, 8) + "…",
+              안내: "아래 '헤더방식별' 에서 프로젝트 ID 를 붙인 4가지 표기법 결과를 보세요. 200 이 나오는 게 있으면 그 방식이 정답입니다." }
+          : { 설정됨: false,
+              안내: "Luma_PROJECT_ID 환경변수가 없습니다. 프로젝트 ID 가 필요한지 시험하려면 그 값을 넣고 다시 실행하세요. "
+                  + "다만 Bearer 키만으로 200 이 나온다면 프로젝트 ID 는 애초에 필요 없습니다." },
         헤더방식별: hdrVariants,
         키유효성: { httpStatus: list.status, 응답: list.body,
           결론: list.status === 200 ? "키는 유효합니다 — 모델별 결과가 실제 원인입니다."
