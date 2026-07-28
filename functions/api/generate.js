@@ -1804,6 +1804,42 @@ async function handle(context) {
         모델별: per });
     }
 
+    /* ══ 제공사 문서 대신 읽어오기 (읽기 전용·무과금) ══
+       /api/generate?diag=doc&url=https://docs.agents.lumalabs.ai/...
+
+       왜 필요한가: 개발 환경에서 제공사 문서 사이트가 전부 403 으로 막혀 있어
+       규격을 확인할 수 없다. 배포된 서버는 막히지 않으므로 서버가 대신 읽어 준다.
+       그러면 추측 대신 문서 원문으로 구현할 수 있다.
+
+       열린 프록시가 되지 않도록 호스트를 제공사 문서 도메인으로만 제한한다.
+       (진단 자체가 관리자 전용이지만, 그것만 믿지 않고 한 겹 더 둔다.) */
+    if (u.searchParams.get("diag") === "doc") {
+      const target = String(u.searchParams.get("url") || "").trim();
+      if (!target) return json({ diag: "doc", error: "url 파라미터가 필요합니다" });
+      let host = "";
+      try { const t = new URL(target); if (t.protocol !== "https:") throw 0; host = t.hostname; }
+      catch { return json({ diag: "doc", error: "https URL 이 아닙니다" }); }
+      const ALLOW = /(^|\.)(lumalabs\.ai|bfl\.ai|byteplus\.com|volcengine\.com|klingai\.com|minimax\.io|runwayml\.com)$/i;
+      if (!ALLOW.test(host)) return json({ diag: "doc", error: "허용되지 않은 호스트입니다: " + host, 허용: ALLOW.source });
+      try {
+        const r = await fetchT(target, { headers: { "accept": "text/html,application/json", "user-agent": "Mozilla/5.0" } }, 15000);
+        const t = await r.text();
+        // HTML 이면 태그를 걷어내 본문만 남긴다(문서 페이지가 대부분 HTML 이라 그대로면 읽기 어렵다)
+        const isHtml = /^\s*</.test(t);
+        const text = isHtml
+          ? t.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ")
+             .replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&quot;/g, '"')
+             .replace(/&#x27;|&apos;/g, "'").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+             .replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim()
+          : t;
+        // 문서 안의 링크도 같이 뽑아 준다 — 다음에 어느 페이지를 볼지 정하기 위해
+        const links = isHtml ? [...new Set((t.match(/href="([^"]+)"/g) || [])
+          .map(x => x.slice(6, -1)).filter(x => /^(https?:|\/)/.test(x)))].slice(0, 60) : [];
+        return json({ diag: "doc", url: target, httpStatus: r.status,
+          길이: text.length, 본문: text.slice(0, 12000), 링크: links });
+      } catch (e) { return json({ diag: "doc", url: target, error: String((e && e.message) || e).slice(0, 200) }); }
+    }
+
     /* ══ Luma 정밀 진단 (무과금) ══
        /api/generate?diag=luma-check
        probe-all 에서 403 이 났는데, 403 은 "키 없음" 이 아니라 "인증은 됐지만 거부" 다.
@@ -1864,6 +1900,9 @@ async function handle(context) {
          구세대 dream-machine/v1 에 보내고 있었다 — 키가 새 API 용이면 인증부터 막힌다.
          결제 문제로 본 앞선 판단은 틀렸다(잔액 $10, Add funds 완료 상태였다).
          그래서 주소 후보를 GET 으로만 훑어 어디가 200 을 주는지 찾는다. */
+      /* 회원이 알려 준 문서 주소가 docs.agents.lumalabs.ai 다 — 우리가 두드리던
+         api.lumalabs.ai 와 다른 호스트다. ray-3.2·uni-1 은 이 새 API 의 모델일 가능성이
+         크다. agents 계열 호스트를 후보에 넣는다. */
       const BASES = [
         "https://api.lumalabs.ai/dream-machine/v1",
         "https://api.lumalabs.ai/dream-machine/v2",
@@ -1871,8 +1910,14 @@ async function handle(context) {
         "https://api.lumalabs.ai/v2",
         "https://api.lumalabs.ai/api/v1",
         "https://api.luma.ai/v1",
+        // ── agents 계열 ──
+        "https://api.agents.lumalabs.ai/v1",
+        "https://api.agents.lumalabs.ai",
+        "https://agents.lumalabs.ai/api/v1",
+        "https://agents.lumalabs.ai/v1",
+        "https://api.lumalabs.ai/agents/v1",
       ];
-      const PATHS = ["/generations?limit=1", "/generations/video?limit=1", "/models", "/credits",
+      const PATHS = ["/generations?limit=1", "/generations/video?limit=1", "/generations/image?limit=1", "/models", "/credits",
         // 프로젝트가 경로에 들어가는 형태일 수도 있다
         ...(proj ? ["/projects/" + encodeURIComponent(proj) + "/generations?limit=1"] : [])];
       const baseProbe = [];
