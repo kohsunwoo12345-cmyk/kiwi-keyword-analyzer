@@ -89,7 +89,7 @@ export default function EmailSendPage() {
         }
       />
 
-      <div className="space-y-5 p-5 lg:p-7">
+      <div className="space-y-5 p-5 pb-24 lg:p-7 lg:pb-24">
         <div className="grid gap-4 sm:grid-cols-3">
           <Metric label="보유 크레딧" icon={Coins} accent="#f59e0b" value={formatNumber(credits)} sub="수신자 1명당 1 크레딧" />
           <Metric

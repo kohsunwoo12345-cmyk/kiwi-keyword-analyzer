@@ -14,6 +14,23 @@ export function formatNumberFull(num: number): string {
   return num.toLocaleString('ko-KR')
 }
 
+/**
+ * 금액 축약 표기 — 지표 타일처럼 좁은 자리에 쓴다.
+ * formatNumber와 달리 "639.0만" 같은 군더더기 소수점을 남기지 않는다.
+ * 표 안에서는 축약하지 말고 formatNumberFull을 써야 열끼리 자릿수가 맞는다.
+ */
+export function formatWon(num: number): string {
+  const sign = num < 0 ? '-' : ''
+  const n = Math.abs(num)
+  if (n >= 100_000_000) return `${sign}₩${trimZero(n / 100_000_000)}억`
+  if (n >= 10_000) return `${sign}₩${Math.round(n / 10_000).toLocaleString('ko-KR')}만`
+  return `${sign}₩${n.toLocaleString('ko-KR')}`
+}
+
+function trimZero(n: number): string {
+  return n.toFixed(1).replace(/\.0$/, '')
+}
+
 export function calcSaturation(monthlySearch: number, monthlyDoc: number): {
   label: string; color: string; level: number
 } {

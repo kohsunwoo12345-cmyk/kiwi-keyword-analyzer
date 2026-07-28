@@ -54,7 +54,7 @@ export default function SmsLogsPage() {
     <div className="animate-fade-in">
       <PageHeader icon={BarChart3} eyebrow="문자 (SMS)" title="발송 이력·통계" desc="문자 발송 성과와 성공/실패 이력을 한눈에 확인합니다." accent={ACCENT} />
 
-      <div className="space-y-5 p-5 lg:p-7">
+      <div className="space-y-5 p-5 pb-24 lg:p-7 lg:pb-24">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Metric label="총 발송" icon={Send} accent={ACCENT} value={formatNumber(stats?.recipients || 0)} sub={`발송 배치 ${formatNumber(stats?.batches || 0)}건`} />
           <Metric label="성공" icon={Check} accent="#22c55e" value={formatNumber(stats?.sent || 0)} sub="수신처 기준" />

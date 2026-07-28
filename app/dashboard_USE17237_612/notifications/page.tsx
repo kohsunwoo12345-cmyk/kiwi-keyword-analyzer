@@ -39,7 +39,7 @@ export default function NotificationsPage() {
         }
       />
 
-      <div className="space-y-5 p-5 lg:p-7">
+      <div className="space-y-5 p-5 pb-24 lg:p-7 lg:pb-24">
         <div className="grid gap-4 sm:grid-cols-3">
           <Metric label="전체 알림" icon={Bell} accent="#6366f1" value={`${items.length}건`} sub="공지·프로모션 팝업 기록" />
           <Metric label="안 읽음" icon={Circle} accent="#f59e0b" value={`${unread}건`} sub={unread ? '확인하지 않은 알림이 있습니다' : '모두 확인했습니다'} />

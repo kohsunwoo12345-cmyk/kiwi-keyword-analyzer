@@ -154,7 +154,7 @@ export default function SmsComposePage() {
         }
       />
 
-      <div className="space-y-5 p-5 lg:p-7">
+      <div className="space-y-5 p-5 pb-24 lg:p-7 lg:pb-24">
         {toast && (
           <div className="animate-fade-in flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/12 px-3.5 py-2.5 text-sm text-emerald-500">
             <Check size={15} /> {toast}
