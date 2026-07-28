@@ -630,6 +630,16 @@ export const FLUX_ENDPOINTS = {
      1312x736 = 1.7826 → 오차 0.27% (기존 1.56% 의 1/6). 화소는 0.97MP 로 거의 그대로.
    1:1(1024x1024)·4:5(896x1120)은 원래 정확했으므로 그대로 둔다. */
 const FLUX_DIMS = { "16:9":[1312,736], "9:16":[736,1312], "1:1":[1024,1024], "4:5":[896,1120] };
+/* FLUX.2 전용 치수. diag=flux-check 로 확정했다 — flux-2-max/pro/flex 는 하한 64 뿐이고
+   32배수 제약도 상한도 없다(1000·99999 를 넣어도 width/height 오류가 나지 않았다).
+   그래서 1.x 때문에 감수했던 0.27% 오차를 여기서는 감수할 이유가 없다.
+     1344x756 = 정확히 16:9, 1.016MP — 32배수 조합(1312x736)보다 화소도 조금 많다.
+   1:1·4:5 는 32배수 조합이 이미 정확해 그대로 쓴다. */
+const FLUX2_DIMS = { "16:9":[1344,756], "9:16":[756,1344], "1:1":[1024,1024], "4:5":[896,1120] };
+const fluxDims = (ep, ratio) => {
+  const t = /^flux-2-/.test(String(ep)) ? FLUX2_DIMS : FLUX_DIMS;
+  return t[ratio] || t["16:9"];
+};
 export function buildFluxPayload(b) {
   let ep = FLUX_ENDPOINTS[b.model] || "flux-pro-1.1";
   const prompt = cut(b.prompt, 1000);
@@ -694,7 +704,7 @@ export function buildFluxPayload(b) {
       return { endpoint: "flux-pro-1.1-ultra-finetuned",
                body: withRefs({ prompt, aspect_ratio: b.ratio || "16:9", output_format: "png",
                        safety_tolerance: 6, finetune_id: loraId, finetune_strength: loraStrength }) };
-    const [w, h] = FLUX_DIMS[b.ratio] || FLUX_DIMS["16:9"];
+    const [w, h] = fluxDims(ep, b.ratio);
     return { endpoint: "flux-pro-finetuned",
              body: withRefs({ prompt, width: w, height: h, output_format: "png",
                      safety_tolerance: 6, finetune_id: loraId, finetune_strength: loraStrength }) };
@@ -704,7 +714,7 @@ export function buildFluxPayload(b) {
   if (ep === "flux-pro-1.1-ultra")
     return { endpoint: ep, body: withRefs({ prompt, aspect_ratio: b.ratio || "16:9",
              output_format: "png", safety_tolerance: 6 }) };
-  const [w, h] = FLUX_DIMS[b.ratio] || FLUX_DIMS["16:9"];
+  const [w, h] = fluxDims(ep, b.ratio);
   return { endpoint: ep, body: withRefs({ prompt, width: w, height: h,
            output_format: "png", safety_tolerance: 6 }) };
 }
