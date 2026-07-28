@@ -16,7 +16,7 @@ import {
   RotateCcw,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Card, EmptyState, Metric } from '@/components/dash/Kit'
+import { Card, EmptyState, Metric, inputCls } from '@/components/dash/Kit'
 import { Button } from '@/components/ui'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { useAuth, aiGenerate, CREDIT_COSTS } from '@/lib/auth'
@@ -198,8 +198,6 @@ export default function BlogWriterPage() {
   const credits = user?.credits ?? 0
   const cost = CREDIT_COSTS.blog.cost
   const notEnough = credits < cost
-  const inputCls =
-    'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-green-500'
 
   return (
     <div className="animate-fade-in">

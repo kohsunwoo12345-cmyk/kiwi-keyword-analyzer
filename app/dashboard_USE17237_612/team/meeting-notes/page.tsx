@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ClipboardList, Plus, Check, Users, Trash2, X, ListChecks, CalendarDays, CircleDot } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Card, EmptyState, Field, Metric, Section } from '@/components/dash/Kit'
+import { Card, EmptyState, Field, Metric, Section, inputCls } from '@/components/dash/Kit'
 import { Button } from '@/components/ui'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { useAuth } from '@/lib/auth'
@@ -68,8 +68,6 @@ const SEED: Meeting[] = [
   },
 ]
 
-const inputCls =
-  'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-sky-500'
 
 export default function MeetingNotesPage() {
   const [meetings, setMeetings, ready] = useLocalStorage<Meeting[]>('bivience_meetings', SEED)

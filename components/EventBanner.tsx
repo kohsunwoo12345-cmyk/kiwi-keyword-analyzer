@@ -66,7 +66,9 @@ export function EventBanner() {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-fuchsia-600 to-violet-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-violet-500/30 transition-transform hover:scale-105"
+          // 채팅 버튼(bottom-5 right-5, 56px)과 자리가 정확히 겹쳐 절반이 가려지고
+        // 오른쪽을 눌러도 반응하지 않았다. 채팅 버튼 위로 올린다.
+        className="fixed bottom-[5.5rem] right-5 z-40 inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-[var(--panel)] px-3.5 py-2 text-[12.5px] font-semibold text-violet-400 shadow-lg backdrop-blur transition-colors hover:bg-violet-500/10"
         >
           <Gift size={16} /> 초대 이벤트
         </button>

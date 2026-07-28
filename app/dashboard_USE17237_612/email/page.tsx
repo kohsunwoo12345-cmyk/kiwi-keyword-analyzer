@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Mail, Send, Users, Coins, Inbox, AlertCircle, Check } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Button } from '@/components/ui'
-import { Card, Field, Metric, Section } from '@/components/dash/Kit'
+import { Card, Field, Metric, Section, inputCls } from '@/components/dash/Kit'
 import { formatNumber } from '@/lib/utils'
 import { useAuth, sendEmail } from '@/lib/auth'
 
@@ -12,8 +12,6 @@ const ACCENT = '#0ea5e9'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-const inputClass =
-  'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500'
 
 function splitEmails(raw: string): { valid: string[]; invalid: string[] } {
   const parts = raw
@@ -139,7 +137,7 @@ export default function EmailSendPage() {
                   onChange={(e) => setRecipients(e.target.value)}
                   rows={3}
                   placeholder="user@example.com, hello@nextbygency.com"
-                  className={`${inputClass} resize-none`}
+                  className={`${inputCls} resize-none`}
                 />
               </Field>
 
@@ -161,7 +159,7 @@ export default function EmailSendPage() {
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
                     placeholder="이메일 제목을 입력하세요"
-                    className={inputClass}
+                    className={inputCls}
                   />
                 </Field>
                 <Field label="본문" right={`${body.length}자`}>
@@ -170,7 +168,7 @@ export default function EmailSendPage() {
                     onChange={(e) => setBody(e.target.value)}
                     rows={8}
                     placeholder="이메일 내용을 입력하세요."
-                    className={`${inputClass} resize-none`}
+                    className={`${inputCls} resize-none`}
                   />
                 </Field>
               </div>

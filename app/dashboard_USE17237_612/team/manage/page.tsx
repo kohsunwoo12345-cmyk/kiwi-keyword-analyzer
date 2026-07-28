@@ -7,7 +7,7 @@ import {
   Mail, Inbox, Sparkles, AlertCircle,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Card, EmptyState, Field, Metric, Section } from '@/components/dash/Kit'
+import { Card, EmptyState, Field, Metric, Section, inputCls } from '@/components/dash/Kit'
 import { isImeEnter } from '@/lib/utils'
 
 const ACCENT = '#0ea5e9'
@@ -19,8 +19,6 @@ type TeamData = { ok: boolean; teams: Team[]; invites: Invite[]; meId: string; m
 
 type Toast = { id: number; text: string; kind: 'ok' | 'err' | 'info' }
 
-const inputCls =
-  'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none transition focus:border-sky-500'
 
 const ROLE_ORDER: Record<string, number> = { owner: 0, admin: 1, member: 2 }
 

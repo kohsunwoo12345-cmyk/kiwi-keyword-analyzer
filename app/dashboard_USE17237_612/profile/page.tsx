@@ -32,7 +32,7 @@ import {
   X,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Card, EmptyState, Field, Section } from '@/components/dash/Kit'
+import { Card, EmptyState, Field, Section, inputCls } from '@/components/dash/Kit'
 import { Button, Badge, Overlay } from '@/components/ui'
 import {
   accountOverview,
@@ -564,8 +564,6 @@ export default function ProfilePage() {
     setNotifications((ns) => ns.map((n) => ({ ...n, read: 1 })))
   }
 
-  const inputCls =
-    'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-violet-500'
 
   const socialNoPw = !!user?.provider && user.provider !== 'email' && !user.passwordSet
   const curTier = planTrack === 'marketer' ? (user?.plan ?? '없음') : (user?.videoPlan ?? '없음')

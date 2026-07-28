@@ -7,14 +7,12 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Button } from '@/components/ui'
-import { Card, EmptyState, Metric } from '@/components/dash/Kit'
+import { Card, EmptyState, Metric, inputCls } from '@/components/dash/Kit'
 import { isImeEnter } from '@/lib/utils'
 import { kstDate } from '@/lib/time'
 
 const ACCENT = '#0ea5e9'
 
-const inputCls =
-  'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none transition focus:border-sky-500'
 
 type Group = { id: string; name: string; count: number; created_at: string }
 type Member = { id: string; name: string; phone: string; extra?: string; created_at: string }

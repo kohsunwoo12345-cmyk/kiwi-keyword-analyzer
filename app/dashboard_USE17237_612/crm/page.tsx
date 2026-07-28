@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Contact, Users, DollarSign, Repeat, Send, MessageSquare, Search, UserX, Check, TrendingUp } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Card, EmptyState, Field, Metric, Section } from '@/components/dash/Kit'
+import { Card, EmptyState, Field, Metric, Section, inputCls } from '@/components/dash/Kit'
 import { Button } from '@/components/ui'
 import { crmStages, crmCustomers } from '@/lib/mock'
 import { formatNumber, formatNumberFull, formatWon } from '@/lib/utils'
@@ -75,8 +75,6 @@ export default function CrmPage() {
   const maxLtv = Math.max(...LTV.map((l) => l.value))
   const topStage = crmStages[0].count
 
-  const inputCls =
-    'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-amber-500'
 
   return (
     <div className="animate-fade-in">

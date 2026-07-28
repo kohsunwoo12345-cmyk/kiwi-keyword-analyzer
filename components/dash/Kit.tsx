@@ -14,6 +14,14 @@ import { cn } from '@/lib/utils'
    토큰(var(--panel) 등) 기반이라 라이트/다크 자동 대응.
    ============================================================ */
 
+/**
+ * 공용 입력 클래스.
+ * 화면마다 따로 정의하면서 focus 색(sky/amber/green/violet)과 transition 이
+ * 제각각이 됐다. 브랜드 색 하나로 통일한다.
+ */
+export const inputCls =
+  'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-[13px] text-[var(--text)] outline-none transition-colors placeholder:text-[var(--text-dim)] focus:border-indigo-500/70'
+
 /** 지표 타일 — 큰 숫자 하나와 보조 설명 */
 export function Metric({
   label,

@@ -339,7 +339,7 @@ export function ChatDock() {
     <>
       {!open && (
         <button onClick={() => { setOpen(true); setView('list') }} aria-label="채팅 열기"
-          className="fixed bottom-5 right-5 z-[120] grid h-14 w-14 place-items-center rounded-full bg-[var(--bg-soft)] shadow-[0_8px_30px_rgba(59,130,246,0.35)] ring-1 ring-[var(--border)] transition-transform hover:scale-105 active:scale-95">
+          className="fixed bottom-5 right-5 z-[120] grid h-13 w-13 place-items-center rounded-full bg-[var(--panel)] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.5)] ring-1 ring-[var(--border)] backdrop-blur transition-transform hover:scale-[1.04] active:scale-95" style={{ height: 52, width: 52 }}>
           <ChatBubbleIcon size={34} />
           {totalUnread > 0 && (
             <span className="absolute -right-0.5 -top-0.5 grid min-h-[20px] min-w-[20px] place-items-center rounded-full bg-rose-500 px-1 text-[11px] font-bold text-white ring-2 ring-[var(--bg-soft)]">
