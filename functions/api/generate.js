@@ -1555,6 +1555,147 @@ async function handle(context) {
       } catch (e) { return json({ diag: "ark-task", id, error: String((e && e.message) || e).slice(0, 200) }); }
     }
 
+    /* ══ FLUX / BFL 정밀 진단 (무과금) ══
+       /api/generate?diag=flux-check
+       probe-all 은 "키가 거부됐다" 와 "그 모델만 없다" 를 구분하지 못한다(둘 다 실패로 보인다).
+       여기서는 셋을 따로 확인해 원인을 확정한다.
+        1) 키 자체가 유효한가  — GET /v1/get_result?id=<존재하지 않는 UUID>  (읽기 전용)
+                                 401/403 → 키 문제,  그 외 → 키는 통과
+        2) 헤더 방식           — x-key 와 Authorization: Bearer 둘 다 시도(계정마다 다르다)
+        3) 모델별 접근 권한    — output_format 에 존재하지 않는 열거값을 넣어 422 로 끊는다.
+                                 (빈 프롬프트는 BFL 이 수락해 실제 과금 작업이 생긴다 — 절대 쓰지 말 것)
+       응답 본문을 자르지 않고 그대로 싣는다. 우리 해석이 아니라 BFL 원문으로 판단하기 위함이다. */
+    if (u.searchParams.get("diag") === "flux-check") {
+      if (!k.flux) return json({ diag: "flux-check", error: "FLUX/BFL 키 미설정" });
+      const kv = String(k.flux);
+      const shape = { length: kv.length, prefix: kv.slice(0, 4), suffix: kv.slice(-4),
+                      looksUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(kv),
+                      hasWhitespace: /\s/.test(kv) };
+      const call = async (url, headers, body) => {
+        try {
+          const r = await fetchT(url, body ? { method: "POST", headers, body: JSON.stringify(body) } : { headers }, 12000);
+          const t = await r.text(); let j2 = null; try { j2 = JSON.parse(t); } catch { /* 비JSON */ }
+          return { status: r.status, body: j2 || String(t).slice(0, 500) };
+        } catch (e) { return { status: 0, body: String((e && e.message) || e).slice(0, 200) }; }
+      };
+      const HX = { "x-key": kv, "Content-Type": "application/json", "accept": "application/json" };
+      const HB = { "Authorization": "Bearer " + kv, "Content-Type": "application/json", "accept": "application/json" };
+      const DEAD = "00000000-0000-0000-0000-000000000000";
+      // 1) 인증 확인 — 읽기 전용. 작업이 없으므로 아무것도 생성/과금되지 않는다.
+      const [authX, authB] = await Promise.all([
+        call(FLUX_BASE + "get_result?id=" + DEAD, HX),
+        call(FLUX_BASE + "get_result?id=" + DEAD, HB),
+      ]);
+      const authOK = (a) => a.status !== 401 && a.status !== 403 && a.status !== 0;
+      const useHdr = authOK(authX) ? HX : (authOK(authB) ? HB : HX);
+      const hdrName = authOK(authX) ? "x-key" : (authOK(authB) ? "Authorization: Bearer" : "(둘 다 거부됨)");
+      // 3) 모델별 — 잘못된 열거값이라 검증 단계에서 반려된다(작업 미생성).
+      const per = await Promise.all(Object.entries(FLUX_ENDPOINTS).map(async ([name, ep]) => {
+        const x = await call(FLUX_BASE + ep, useHdr, { prompt: "probe", output_format: "__probe_invalid__" });
+        const created = x.status >= 200 && x.status < 300;
+        const verdict =
+          created                          ? "⚠️ 작업이 생성됨 — 진단에서 제외해야 함"
+          : x.status === 422 || x.status === 400 ? "✅ 소환 가능 (검증 반려 = 모델 존재)"
+          : x.status === 401               ? "❌ 인증 실패 — 키가 잘못됨"
+          : x.status === 402               ? "❌ 크레딧 부족 — BFL 계정 충전 필요"
+          : x.status === 403               ? "❌ 접근 거부 — 이 모델에 대한 권한 없음(플랜/약관 동의 필요)"
+          : x.status === 404               ? "❌ 엔드포인트 없음 — 모델 ID 폐지/오타"
+          : x.status === 429               ? "⚠️ 요청 한도 초과 — 잠시 후 재시도"
+          :                                  "❓ 예상 밖 응답";
+        return { model: name, endpoint: ep, httpStatus: x.status, 판정: verdict, 응답: x.body };
+      }));
+      /* 4) 파라미터 수용 여부 — 우리가 보내는 필드를 그 엔드포인트가 정말 받는가?
+         BFL 은 pydantic 검증이라 모르는 필드에 422 extra_forbidden 을 돌려준다.
+         output_format 을 일부러 틀리게 넣어 두 오류가 함께 나오므로, 작업은 생성되지 않는다.
+         ※ 지금 코드는 FLUX.2(max/pro/flex)에 width/height 를 보낸다. 만약 이 계열이
+            aspect_ratio 만 받는다면 비율 지정이 통째로 무시되고 전부 기본 비율로 나온다 —
+            Nano Banana 에서 이미 겪은 것과 같은 유형의 버그다. 여기서 사실로 확정한다. */
+      const FIELD_CASES = [
+        { 이름: "width/height", extra: { width: 1344, height: 768 } },
+        { 이름: "aspect_ratio", extra: { aspect_ratio: "16:9" } },
+      ];
+      const paramCheck = await Promise.all(
+        Object.entries(FLUX_ENDPOINTS).map(async ([name, ep]) => {
+          const rows = await Promise.all(FIELD_CASES.map(async (c) => {
+            const x = await call(FLUX_BASE + ep, useHdr,
+              Object.assign({ prompt: "probe", output_format: "__probe_invalid__" }, c.extra));
+            // 422 상세에서 "이 필드" 에 대한 불만이 있는지만 본다.
+            const det = JSON.stringify((x.body && x.body.detail) || x.body || "");
+            const keys = Object.keys(c.extra);
+            const rejected = keys.some(kf =>
+              new RegExp('"' + kf + '"').test(det) &&
+              /extra_forbidden|unexpected|not permitted|unknown field|extra fields/i.test(det));
+            const created = x.status >= 200 && x.status < 300;
+            return { 필드: c.이름, httpStatus: x.status,
+                     판정: created ? "⚠️ 작업 생성됨(진단 제외)"
+                          : rejected ? "❌ 이 엔드포인트는 이 필드를 받지 않음"
+                          : (x.status === 422 || x.status === 400) ? "✅ 필드는 수용됨(output_format 만 반려)"
+                          : "❓ " + x.status,
+                     상세: det.slice(0, 300) };
+          }));
+          const wh = rows[0], ar = rows[1];
+          const 결론 =
+            /받지 않음/.test(wh.판정) && /수용됨/.test(ar.판정) ? "⚠️ aspect_ratio 만 받는다 — 지금 코드가 width/height 를 보내면 비율이 무시된다"
+            : /수용됨/.test(wh.판정) && /받지 않음/.test(ar.판정) ? "width/height 만 받는다 (현재 코드와 일치)"
+            : /수용됨/.test(wh.판정) && /수용됨/.test(ar.판정) ? "둘 다 받는다"
+            : "판정 불가 — 상세 확인 필요";
+          return { model: name, endpoint: ep, 결론, 검사: rows };
+        }));
+
+      return json({ diag: "flux-check",
+        note: "전부 읽기 전용이거나 '존재하지 않는 열거값' 요청이라 생성물·과금이 없습니다.",
+        파라미터수용: paramCheck,
+        키형태: shape,
+        인증확인: { 사용헤더: hdrName,
+                    "x-key": { httpStatus: authX.status, 응답: authX.body },
+                    "Bearer": { httpStatus: authB.status, 응답: authB.body },
+                    결론: hdrName === "(둘 다 거부됨)"
+                      ? "키가 BFL 에서 거부됩니다 — 키 자체를 다시 발급/설정해야 합니다."
+                      : "키는 인증을 통과합니다 — 아래 모델별 결과가 실제 원인입니다." },
+        모델별: per });
+    }
+
+    /* ══ Luma 정밀 진단 (무과금) ══
+       /api/generate?diag=luma-check
+       probe-all 에서 403 이 났는데, 403 은 "키 없음" 이 아니라 "인증은 됐지만 거부" 다.
+       읽기 전용 목록 조회로 키 유효성부터 가른다 — 생성 호출이 아니라 과금이 없다. */
+    if (u.searchParams.get("diag") === "luma-check") {
+      if (!k.luma) return json({ diag: "luma-check", error: "LUMA_API_KEY 미설정 — 값 자체가 없습니다" });
+      const kv = String(k.luma);
+      const call = async (path, body) => {
+        try {
+          const h = { "Authorization": "Bearer " + kv, "accept": "application/json", "Content-Type": "application/json" };
+          const r = await fetchT(LUMA_BASE + path, body ? { method: "POST", headers: h, body: JSON.stringify(body) } : { headers: h }, 12000);
+          const t = await r.text(); let j2 = null; try { j2 = JSON.parse(t); } catch { /* 비JSON */ }
+          return { status: r.status, body: j2 || String(t).slice(0, 400) };
+        } catch (e) { return { status: 0, body: String((e && e.message) || e).slice(0, 200) }; }
+      };
+      // 읽기 전용: 생성 목록 1건 조회. 키가 살아 있으면 200(빈 배열이어도), 죽었으면 401/403.
+      const list = await call("/generations?limit=1");
+      const per = await Promise.all(Object.entries(LUMA_IDS).map(async ([name, id]) => {
+        const x = await call("/generations", { model: id, prompt: "" });   // prompt 비움 → 파라미터 반려
+        const created = !!(x.body && x.body.id);
+        const verdict =
+          created                                ? "⚠️ 작업이 생성됨 — 진단에서 제외해야 함"
+          : x.status === 400 || x.status === 422  ? "✅ 소환 가능 (파라미터 반려 = 모델 존재)"
+          : x.status === 401                      ? "❌ 인증 실패 — 키가 잘못됨/만료"
+          : x.status === 402                      ? "❌ 크레딧 부족"
+          : x.status === 403                      ? "❌ 접근 거부 — 키는 유효하나 이 계정/플랜에 권한 없음"
+          : x.status === 404                      ? "❌ 모델 ID 없음"
+          :                                         "❓ 예상 밖 응답";
+        return { model: name, id, httpStatus: x.status, 판정: verdict, 응답: x.body };
+      }));
+      return json({ diag: "luma-check",
+        note: "목록 조회는 읽기 전용, 모델 확인은 prompt 를 비운 반려 요청입니다. 생성물·과금이 없습니다.",
+        키형태: { length: kv.length, prefix: kv.slice(0, 6), suffix: kv.slice(-4), hasWhitespace: /\s/.test(kv) },
+        키유효성: { httpStatus: list.status, 응답: list.body,
+          결론: list.status === 200 ? "키는 유효합니다 — 모델별 결과가 실제 원인입니다."
+              : list.status === 401 ? "키가 잘못됐거나 만료됐습니다 — 재발급 필요."
+              : list.status === 403 ? "키는 인식되지만 계정이 거부됩니다 — Luma 대시보드에서 결제수단/플랜을 확인하세요."
+              : "예상 밖 응답 — 아래 원문을 확인하세요." },
+        모델별: per });
+    }
+
     /* ⚠️ diag=ark3d-spec 은 제거했다.
        ModelArk 가 text:"" 를 반려하지 않고 수락해 실제 3D 작업이 생성됐다
        (cgt-20260728090647-cp2rb). "필수 필드를 비우면 반려된다" 는 전제가 이 제공사에서
