@@ -7,7 +7,7 @@ import {
   Mail, Inbox, Sparkles, AlertCircle,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Card, EmptyState, Metric } from '@/components/dash/Kit'
+import { Card, EmptyState, Field, Metric, Section } from '@/components/dash/Kit'
 import { isImeEnter } from '@/lib/utils'
 
 const ACCENT = '#0ea5e9'
@@ -329,10 +329,7 @@ export default function TeamManagePage() {
                       }
                       desc={`멤버 ${members.length}명`}
                     >
-                      <div className="mb-4">
-                        <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-[var(--text-soft)]">
-                          <UserPlus size={13} /> 팀원 초대
-                        </label>
+                      <Section label="팀원 초대" first>
                         <div className="flex flex-col gap-2 sm:flex-row">
                           <input
                             className={inputCls}
@@ -363,8 +360,9 @@ export default function TeamManagePage() {
                             팀 멤버라면 누구나 초대할 수 있습니다. 좌석은 팀 소유자의 요금제를 따릅니다.
                           </p>
                         )}
-                      </div>
+                      </Section>
 
+                      <Section label={`팀원 ${members.length}명`}>
                       <div className="space-y-1.5">
                         {members.map((m) => (
                           <div
@@ -387,6 +385,7 @@ export default function TeamManagePage() {
                           </div>
                         ))}
                       </div>
+                      </Section>
                     </Card>
                   )
                 })}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Megaphone, DollarSign, TrendingUp, Target, Zap, Sparkles, SearchX } from 'lucide-react'
+import { Megaphone, DollarSign, TrendingUp, Target, Zap, SearchX } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { AreaTrend, Donut } from '@/components/dash/Charts'
 import { Card, EmptyState, Metric } from '@/components/dash/Kit'
@@ -217,23 +217,15 @@ export default function AdsPage() {
             ].map((r, i) => (
               <div
                 key={r.t}
-                className="relative overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-4"
+                className="rounded-xl border border-[var(--border)] p-4 transition-colors hover:bg-[var(--panel-2)]"
                 style={{ animation: `fadeInUp 0.5s cubic-bezier(0.16,1,0.3,1) ${i * 80}ms both` }}
               >
-                <span className="absolute inset-y-0 left-0 w-1" style={{ background: r.c }} />
-                <div className="flex items-start justify-between gap-2">
-                  <p className="flex items-center gap-1.5 text-[13px] font-bold">
-                    <Sparkles size={13} style={{ color: r.c }} />
-                    {r.t}
-                  </p>
-                  <span
-                    className="flex-shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-bold"
-                    style={{ background: `${r.c}1f`, color: r.c }}
-                  >
-                    {r.tag}
-                  </span>
-                </div>
-                <p className="mt-2 text-[12px] leading-relaxed text-[var(--text-soft)]">{r.d}</p>
+                <p className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em]" style={{ color: r.c }}>
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: r.c }} />
+                  {r.tag}
+                </p>
+                <p className="mt-2.5 text-[13px] font-semibold leading-snug">{r.t}</p>
+                <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--text-soft)]">{r.d}</p>
               </div>
             ))}
           </div>

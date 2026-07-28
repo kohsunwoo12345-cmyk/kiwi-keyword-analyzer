@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Button, Overlay } from '@/components/ui'
-import { Card, EmptyState } from '@/components/dash/Kit'
+import { Card, EmptyState, Field, Section } from '@/components/dash/Kit'
 import { isImeEnter } from '@/lib/utils'
 
 const ACCENT = '#0ea5e9'
@@ -44,6 +44,8 @@ const VIS: Record<Visibility, { label: string; badge: string; cls: string; icon:
 }
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
+const calInput =
+  'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-sky-500'
 const MANAGE_HREF = '/dashboard_USE17237_612/team/manage'
 
 interface Member {
@@ -649,52 +651,45 @@ export default function TeamCalendarPage() {
         {/* Side panel */}
         <div className="space-y-5 self-start">
           <Card title="새 집행 일정" desc="날짜·제목만 있으면 등록됩니다">
-            <div className="space-y-3">
-              <div>
-                <label className="mb-1 block text-xs text-[var(--text-dim)]">날짜</label>
-                <input
-                  type="date"
-                  value={fDate}
-                  onChange={(e) => setFDate(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-[var(--text-dim)]">제목</label>
-                <input
-                  value={fTitle}
-                  onChange={(e) => setFTitle(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !isImeEnter(e)) addEvent() }}
-                  placeholder="예: 여름 세일 광고 집행"
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-[var(--text-dim)]">색상 (분류)</label>
-                <select
-                  value={fColor}
-                  onChange={(e) => setFColor(e.target.value as ColorKey)}
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500"
-                >
-                  {(Object.keys(COLORS) as ColorKey[]).map((k) => (
-                    <option key={k} value={k}>
-                      {COLORS[k].label} ({k})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-[var(--text-dim)]">메모 (선택)</label>
-                <textarea
-                  value={fMemo}
-                  onChange={(e) => setFMemo(e.target.value)}
-                  rows={2}
-                  placeholder="세부 내용이나 링크"
-                  className="w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-[var(--text-dim)]">공유 범위</label>
+            <>
+              <Section label="일정" first>
+                <div className="space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="날짜">
+                      <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} className={calInput} />
+                    </Field>
+                    <Field label="분류">
+                      <select value={fColor} onChange={(e) => setFColor(e.target.value as ColorKey)} className={calInput}>
+                        {(Object.keys(COLORS) as ColorKey[]).map((k) => (
+                          <option key={k} value={k}>{COLORS[k].label}</option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                  <Field label="제목">
+                    <input
+                      value={fTitle}
+                      onChange={(e) => setFTitle(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !isImeEnter(e)) addEvent() }}
+                      placeholder="예: 여름 세일 광고 집행"
+                      className={calInput}
+                    />
+                  </Field>
+                  <Field label="메모" optional>
+                    <textarea
+                      value={fMemo}
+                      onChange={(e) => setFMemo(e.target.value)}
+                      rows={2}
+                      placeholder="세부 내용이나 링크"
+                      className={`${calInput} resize-none`}
+                    />
+                  </Field>
+                </div>
+              </Section>
+
+              <Section label="공유 범위">
+                <div className="space-y-3">
+                <div>
                 <div className="grid grid-cols-3 gap-1.5">
                   {(['team', 'private', 'user'] as Visibility[]).map((v) => {
                     const Icon = VIS[v].icon
@@ -717,51 +712,50 @@ export default function TeamCalendarPage() {
                   })}
                 </div>
               </div>
-              {fVis === 'user' && (
-                <div>
-                  <label className="mb-1 block text-xs text-[var(--text-dim)]">공유할 팀원</label>
-                  <select
-                    value={fTarget}
-                    onChange={(e) => setFTarget(e.target.value)}
-                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500"
+                {fVis === 'user' && (
+                  <Field
+                    label="공유할 팀원"
+                    hint={otherMembers.length === 0 ? '공유할 팀원이 없습니다. 팀원을 먼저 초대하세요.' : undefined}
                   >
-                    <option value="">— 팀원 선택 —</option>
-                    {otherMembers.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} ({m.email})
-                      </option>
+                    <select value={fTarget} onChange={(e) => setFTarget(e.target.value)} className={calInput}>
+                      <option value="">— 팀원 선택 —</option>
+                      {otherMembers.map((m) => (
+                        <option key={m.id} value={m.id}>{m.name} ({m.email})</option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
+                </div>
+              </Section>
+
+              <Section label="발송 대상">
+                <Field
+                  label="타깃 그룹"
+                  optional
+                  hint={
+                    <>
+                      문자·알림톡 발송 시 같은 그룹을 선택할 수 있습니다.{' '}
+                      <a href="/dashboard_USE17237_612/team/groups" className="font-medium text-sky-500 hover:underline">그룹 만들기 →</a>
+                    </>
+                  }
+                >
+                  <select value={fGroup} onChange={(e) => setFGroup(e.target.value)} className={calInput}>
+                    <option value="">— 그룹 없음 —</option>
+                    {groups.map((g) => (
+                      <option key={g.id} value={g.id}>{g.name} ({g.count}명)</option>
                     ))}
                   </select>
-                  {otherMembers.length === 0 && (
-                    <p className="mt-1 text-[11px] text-[var(--text-dim)]">공유할 팀원이 없습니다. 팀원을 초대하세요.</p>
-                  )}
-                </div>
-              )}
-              <div>
-                <label className="mb-1 block text-xs text-[var(--text-dim)]">타깃 그룹 (엑셀 DB · 선택)</label>
-                <select
-                  value={fGroup}
-                  onChange={(e) => setFGroup(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500"
+                </Field>
+
+                <Button
+                  onClick={addEvent}
+                  disabled={saving}
+                  className="mt-4 w-full !bg-gradient-to-br !from-sky-500 !to-blue-500"
                 >
-                  <option value="">— 그룹 없음 —</option>
-                  {groups.map((g) => (
-                    <option key={g.id} value={g.id}>{g.name} ({g.count}명)</option>
-                  ))}
-                </select>
-                <p className="mt-1 text-[11px] text-[var(--text-dim)]">
-                  이 일정의 발송 대상 그룹입니다. 문자·알림톡 발송 시 같은 그룹을 선택할 수 있어요.
-                  {' '}<a href="/dashboard_USE17237_612/team/groups" className="text-sky-500 hover:underline">그룹 만들기 →</a>
-                </p>
-              </div>
-              <Button
-                onClick={addEvent}
-                disabled={saving}
-                className="w-full !bg-gradient-to-br !from-sky-500 !to-blue-500"
-              >
-                {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} 일정 추가
-              </Button>
-            </div>
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} 일정 추가
+                </Button>
+              </Section>
+            </>
           </Card>
 
           <Card title="공유 범위 안내" desc="일정마다 따로 정할 수 있습니다">
