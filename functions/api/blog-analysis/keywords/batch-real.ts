@@ -1,5 +1,6 @@
 // Ported from SUPERPLACE: POST /api/blog-analysis/keywords/batch-real
 // 네이버 검색광고 API(HMAC 서명) 기반 키워드 대량 검색량 조회 + 블로그탭 크롤링 경쟁도 보조
+import { resolveDB, clientIp, rateLimitOk } from '../../_utils'
 const j = (obj: any, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json' } })
 
@@ -272,6 +273,14 @@ async function crawlNaverBlogSearch(keyword: string, maxItems: number = 40): Pro
 }
 
 export const onRequestPost: PagesFunction = async ({ request, env }) => {
+  // ⚠ 이 경로는 네이버 검색광고 API 와 검색결과 크롤링을 함께 쓴다.
+  //   무제한으로 열려 있으면 우리 계정이 호출 제한에 걸리거나 IP 가 차단당한다.
+  //   공개 도구라 로그인까지 요구하지는 않되, IP 기준 횟수는 제한한다.
+  try {
+    const _db = resolveDB(env as any)
+    if (_db && !(await rateLimitOk(_db, `blogkw:${clientIp(request)}`, 30, 10)))
+      return j({ ok: false, success: false, error: '조회 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.' }, 429)
+  } catch { /* 제한 판단 실패가 기능을 막지는 않는다 */ }
   try {
     const { keywords } = await request.json() as any
 

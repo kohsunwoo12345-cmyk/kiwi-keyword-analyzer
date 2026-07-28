@@ -1,10 +1,14 @@
-import { Env, json, ensureSchema, resolveDB, clientIp } from './_utils'
+import { Env, json, ensureSchema, resolveDB, clientIp, rateLimitOk } from './_utils'
 
 // POST /api/contact { name, email, phone?, company?, message } → 문의 접수 (공개)
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env)
   if (!db) return json({ ok: false, error: 'DB 바인딩 없음' }, 500)
   await ensureSchema(db)
+
+  // 로그인 없이 열려 있는 접수 창구다 — 제한이 없으면 스팸으로 문의함이 통째로 묻힌다
+  if (!(await rateLimitOk(db, `contact:${clientIp(request)}`, 5, 10)))
+    return json({ ok: false, error: '잠시 후 다시 시도해 주세요.' }, 429)
 
   const body: any = await request.json().catch(() => ({}))
   const name = String(body.name || '').trim()

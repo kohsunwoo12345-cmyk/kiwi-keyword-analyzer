@@ -1,10 +1,14 @@
-import { Env, json, ensureSchema, resolveDB, clientIp, geoFrom } from '../_utils'
+import { Env, json, ensureSchema, resolveDB, clientIp, geoFrom, rateLimitOk } from '../_utils'
 
 // POST /api/leads/collect { name, phone, email?, source? } → 랜딩 DB 수집 데모 (공개)
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env)
   if (!db) return json({ ok: false, error: 'DB 바인딩 없음' }, 500)
   await ensureSchema(db)
+
+  // 공개 수집 경로 — 스크립트로 리드 테이블을 채워 넣지 못하게 막는다
+  if (!(await rateLimitOk(db, `lead:${clientIp(request)}`, 20, 10)))
+    return json({ ok: false, error: '잠시 후 다시 시도해 주세요.' }, 429)
 
   const body: any = await request.json().catch(() => ({}))
   const name = String(body.name || '').trim()
