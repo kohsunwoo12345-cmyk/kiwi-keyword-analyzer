@@ -37,9 +37,9 @@ export default function AdminUserActivityPage() {
   return (
     <div>
       <PageHeader
-        icon={History}
+eyebrow="ADMIN"         icon={History}
         title="사용자 활동 기록"
-        description="등록 사용자별 워크플로 공유·팀·AI 생성·크레딧 등 모든 활동을 한국시간(KST)으로 상세 기록합니다. 회원을 클릭하면 전체 타임라인을 봅니다."
+        desc="등록 사용자별 워크플로 공유·팀·AI 생성·크레딧 등 모든 활동을 한국시간(KST)으로 상세 기록합니다. 회원을 클릭하면 전체 타임라인을 봅니다."
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">

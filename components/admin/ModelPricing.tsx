@@ -50,7 +50,10 @@ export function ModelPricing() {
   const models = data.models || []
   const grouped = useMemo(() => {
     const g: Record<string, typeof models> = {}
-    for (const m of models) { (g[m.kind === 'image' ? '이미지' : '영상'] ||= []).push(m) }
+    // kind 는 image·video 외에 3d(3D 파일 1개당)·llm(프롬프트 작성 호출 1회당)도 있다.
+    //  예전엔 image 가 아니면 전부 '영상' 으로 묶어, 3D·LLM 이 영상으로 잘못 표시됐다.
+    const LABEL: Record<string, string> = { image: '이미지', video: '영상', '3d': '3D 생성', llm: '프롬프트 작성 LLM' }
+    for (const m of models) { (g[LABEL[m.kind] || '기타'] ||= []).push(m) }
     return g
   }, [models])
 

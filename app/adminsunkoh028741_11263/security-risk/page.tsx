@@ -45,7 +45,7 @@ export default function SecurityRiskPage() {
 
   return (
     <div>
-      <PageHeader icon={ShieldAlert} title="해킹 위험" description="실시간 공격 신호와 보안 점검을 한눈에. 30초마다 자동 새로고침됩니다." />
+      <PageHeader eyebrow="ADMIN" icon={ShieldAlert} title="해킹 위험" desc="실시간 공격 신호와 보안 점검을 한눈에. 30초마다 자동 새로고침됩니다." />
 
       <div className="mb-4 flex justify-end">
         <button onClick={load} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-soft)] hover:bg-slate-100">

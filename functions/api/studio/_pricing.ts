@@ -123,6 +123,11 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   'MiniMax Hailuo 02': { u: 'sec', usd: 0.048, prov: 'hailuo' },
   'MiniMax T2V-01 Director': { u: 'sec', usd: 0.043, prov: 'hailuo' },
   'MiniMax I2V-01 Director': { u: 'sec', usd: 0.043, prov: 'hailuo' },
+  // Luma Agents API. 구세대 Ray 2/Flash 2/1.6 은 이 계정 키로 호출되지 않으므로 노드에서 뺐지만,
+  //  예전 그래프가 그대로 요청할 수 있어 단가는 남겨 둔다(없으면 이미지 기본값 $0.05 로 잘못 청구된다).
+  'Luma Ray 3.2': { u: 'sec', usd: 0.08, prov: 'luma' },
+  'Luma Uni 1': { u: 'img', usd: 0.04, prov: 'luma' },
+  'Luma Uni 1 Max': { u: 'img', usd: 0.08, prov: 'luma' },
   'Luma Ray 2': { u: 'sec', usd: 0.08, prov: 'luma' },
   'Luma Ray Flash 2': { u: 'sec', usd: 0.04, prov: 'luma' },
   'Luma Ray 1.6': { u: 'sec', usd: 0.06, prov: 'luma' },
