@@ -72,7 +72,8 @@ export const onRequestPost: PagesFunction = async (context) => {
     // R2에 업로드 (경로: landing-images/{userId}/{timestamp}-{fileName})
     const timestamp = Date.now()
     const sanitizedFileName = image.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-    const key = `landing-images/${userId}/${timestamp}-${sanitizedFileName}`
+    // 파일명(logo.png 등)과 시각만으로 주소가 정해지면 남의 업로드를 추측할 수 있다 → 무작위 조각 추가
+    const key = `landing-images/${userId}/${timestamp}-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}-${sanitizedFileName}`
 
     // R2 바인딩 확인
     if (!c.env.R2) {

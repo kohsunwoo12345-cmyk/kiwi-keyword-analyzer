@@ -1,4 +1,4 @@
-import { Env, json, ensureSchema, getSessionUser, resolveDB, verifyPassword, clearCookie, ADMIN_EMAIL, logActivity } from '../_utils'
+import { Env, json, ensureSchema, getSessionUser, resolveDB, verifyPassword, clearCookie, ADMIN_EMAIL, logActivity, purgeUserData } from '../_utils'
 
 // POST /api/account/delete { password?, confirmEmail? } → 본인 계정 영구 삭제
 // - 일반(이메일) 계정: 비밀번호 확인 필수
@@ -37,25 +37,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const uid = me.id
   await logActivity(db, uid, 'delete', '회원 탈퇴(계정 삭제)').catch(() => {})
 
-  // 본인 관련 데이터 정리 + 계정 삭제 (존재하지 않는 테이블/컬럼은 무시)
+  // 본인 관련 데이터 정리 + 계정 삭제.
+  //  지울 목록은 purgeUserData 한 곳에서만 관리한다 — 예전에는 본인 탈퇴와 관리자 삭제가
+  //  각자 목록을 들고 있어 한쪽에만 추가되는 일이 반복됐고, 그래서 연락처·신청자·발송 이력이
+  //  탈퇴 후에도 남아 있었다.
+  await purgeUserData(db, uid)
   const del = async (sql: string, ...b: any[]) => { try { await db.prepare(sql).bind(...b).run() } catch { /* ignore */ } }
-  await del('DELETE FROM sessions WHERE user_id = ?', uid)
-  await del('DELETE FROM transactions WHERE user_id = ?', uid)
-  await del('DELETE FROM notifications WHERE user_id = ?', uid)
-  await del('DELETE FROM activity_log WHERE user_id = ?', uid)
-  await del('DELETE FROM friendships WHERE user_id = ? OR friend_id = ?', uid, uid)
-  await del('DELETE FROM plan_requests WHERE user_id = ?', uid)
-  await del('DELETE FROM point_requests WHERE user_id = ?', uid)
-  await del('DELETE FROM credit_requests WHERE user_id = ?', uid)
-  await del('DELETE FROM credit_orders WHERE user_id = ?', uid)
-  await del('DELETE FROM sender_numbers WHERE user_id = ?', uid)
-  // 예약은 남겨 두면 크론이 회원을 못 찾아 영영 처리하지 못하고,
-  //  관리자 화면에는 "실행 대기"로 계속 잡혀 멈춤 경보가 헛울린다.
-  await del('DELETE FROM studio_schedules WHERE user_id = ?', uid)
-  await del('DELETE FROM studio_brandkit WHERE user_id = ?', uid)
-  // 추천 관계 정리: 이 사용자를 추천인으로 둔 회원은 추천인 해제
-  await del("UPDATE users SET referred_by = '' WHERE referred_by = ?", uid)
-  await del('DELETE FROM referral_rewards WHERE referrer_id = ? OR friend_id = ?', uid, uid)
   await del('DELETE FROM users WHERE id = ?', uid)
 
   return json({ ok: true }, 200, { 'Set-Cookie': clearCookie() })
