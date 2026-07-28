@@ -1162,9 +1162,16 @@ export const LUMA_IDS = {
   "Luma Uni 1 Max":   "uni-1-max",
 };
 const LUMA_VIDEO_MODELS = { "ray-3.2": 1 };
-// Agents API 의 해상도·길이는 문자열 열거값이다.
-const LUMA_RES = { "540p": "540p", "720p": "720p", "1080p": "1080p", "4K": "4k", "4k": "4k" };
-const LUMA_SECS = [5, 9];
+/* 아래 열거값은 문서(guides/model)로 확인한 것이다. 처음 옮길 때 구 API 기억으로
+   9초·4K·9:21 을 넣었는데 셋 다 ray-3.2 에 없는 값이었다 — 그대로 뒀으면 길이는
+   제공사가 반려하고, 4K 는 요금만 더 받고 1080p 가 나왔을 것이다.
+     해상도 540p·720p·1080p (4K 없음) · 길이 5s·10s · 비율 6종(9:21 없음) */
+const LUMA_RES_ALLOW = ["540p", "720p", "1080p"];
+const LUMA_RES = { "540p": "540p", "720p": "720p", "1080p": "1080p",
+                   // 노드에서 4K 를 고르면 지원 최대치인 1080p 로 내린다(없는 값을 보내지 않기 위함)
+                   "4K": "1080p", "4k": "1080p" };
+const LUMA_SECS = [5, 10];
+export const LUMA_RATIOS = ["9:16", "3:4", "1:1", "4:3", "16:9", "21:9"];
 export function buildLumaPayload(b) {
   const id = LUMA_IDS[b.model] || "uni-1";
   const isVideo = !!LUMA_VIDEO_MODELS[id];
@@ -1173,17 +1180,38 @@ export function buildLumaPayload(b) {
   //  같은 의도를 Agents API 형식인 video.end_frame 으로 이어받는다.)
 
   if (!isVideo) {
-    // 이미지 — 레퍼런스가 있으면 편집(image_edit), 없으면 생성
+    /* 이미지 — 레퍼런스가 있으면 편집(image_edit), 없으면 생성.
+       문서: 텍스트→이미지는 image_ref 최대 9장, 편집은 원본이 별도 슬롯을 차지해 최대 8장.
+       예전엔 첫 장만 쓰고 나머지를 버렸다 — 노드는 여러 장을 받고 요금까지 가산하는데
+       실제 요청에는 한 장만 실렸다. */
     const p = { model: id, prompt: cut(b.prompt, 1200), aspect_ratio: b.ratio || "16:9" };
-    if (first) { p.type = "image_edit"; p.source = { url: first }; }
+    const refs = [];
+    const add = (v) => { const t = v && String(v).trim(); if (t && refs.indexOf(t) < 0) refs.push(t); };
+    if (Array.isArray(b.refImages)) b.refImages.forEach(add);
+    add(b.firstFrame); add(b.refImage);
+    if (refs.length) {
+      p.type = "image_edit";
+      p.source = { url: refs[0] };
+      const extra = refs.slice(1, 9);                 // 원본 1 + 참조 8
+      if (extra.length) p.image_ref = extra.map((url) => ({ url }));
+    } else if (Array.isArray(b.styleRefs) && b.styleRefs.length) {
+      p.image_ref = b.styleRefs.slice(0, 9).map((url) => ({ url }));   // 생성 시 스타일 참조(최대 9)
+    }
+    if (b.webSearch === true) p.web_search = true;    // 생성 전 웹에서 시각 참조 검색
+    const fmt = String(b.imgFormat || "").toLowerCase();
+    if (fmt === "png" || fmt === "jpeg") p.output_format = fmt;
     return p;
   }
   // 영상 — 모델이 안 받는 길이를 보내지 않도록 허용값 중 가장 가까운 값으로 스냅한다
   const raw = Number(b.seconds) || 5;
   const sec = LUMA_SECS.reduce((a, c) => Math.abs(c - raw) < Math.abs(a - raw) ? c : a, LUMA_SECS[0]);
+  // 비율도 허용 6종 밖이면 16:9 로 떨어뜨린다(없는 값을 보내면 제공사가 반려한다)
+  const ar = LUMA_RATIOS.indexOf(String(b.ratio || "")) >= 0 ? b.ratio : "16:9";
   const p = { model: id, type: "video", prompt: cut(b.prompt, 1200),
-              aspect_ratio: b.ratio || "16:9",
+              aspect_ratio: ar,
               video: { resolution: LUMA_RES[String(b.res || "").trim()] || "1080p", duration: sec + "s" } };
+  if (b.lumaHdr === true) p.video.hdr = true;                       // HDR 출력(720p·1080p)
+  if (b.lumaLoop === true && !b.lastFrame) p.video.loop = true;     // 끊김 없는 반복(생성 전용)
   if (first) p.video.start_frame = { url: first };
   if (b.lastFrame) p.video.end_frame = { url: b.lastFrame };
   return p;
