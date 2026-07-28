@@ -66,6 +66,16 @@ Pages 처럼 Workers 도 저장소를 연결해 두면 푸시할 때마다 Cloud
    최상단 `wrangler.toml`(= Pages 설정)로 `wrangler deploy` 를 시도하다 이렇게 죽는다:
    `▲ you have run wrangler deploy on a Pages project` → `✘ Missing entry-point to Worker script`
 
+   Root directory 칸을 못 찾겠거나 바꿀 수 없다면, 대신 **배포 명령**에 설정 파일을
+   직접 가리켜도 된다(`main` 은 설정 파일 위치를 기준으로 풀린다):
+
+   ```
+   npx wrangler deploy -c workers/cron/wrangler.toml
+   ```
+
+   다만 이 경우 매번 최상단 의존성(430개)까지 설치하므로 빌드가 1~2분 더 걸린다.
+   Root directory 를 제대로 잡는 편이 낫다.
+
 3. 배포되면 **Settings → Variables and Secrets** 에서
    `CRON_TOKEN` 을 **Secret** 으로 추가하고 다시 **Deploy**
    (`SITE_URL` 과 Cron Trigger 는 `wrangler.toml` 에 있으므로 따로 넣지 않아도 된다)
