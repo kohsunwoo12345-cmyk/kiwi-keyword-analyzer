@@ -7,6 +7,13 @@
 #
 # 배포:  cd workers/cron && npx wrangler deploy
 # 토큰:  npx wrangler secret put CRON_TOKEN     (Pages 에 넣은 값과 똑같이)
+#
+# ⚠ Cloudflare Workers Builds(저장소 연결)로 배포할 때, 루트 디렉터리를 저장소 최상단(/)
+#   으로 두었다면 배포 명령이 반드시 이 설정 파일을 가리켜야 한다:
+#       npx wrangler deploy -c workers/cron/wrangler.toml
+#   그냥 `npx wrangler deploy` 로 두면 최상단 wrangler.toml(= Pages 설정)을 읽고
+#   "Missing entry-point to Worker script" 로 죽는다. 아래 main 은 이 파일 위치를
+#   기준으로 풀리므로, -c 만 붙으면 최상단에서 실행해도 정상 동작한다.
 
 name = "bygency-cron"
 main = "src/index.js"
