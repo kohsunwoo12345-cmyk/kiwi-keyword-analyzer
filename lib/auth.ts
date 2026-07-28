@@ -1565,7 +1565,8 @@ export interface CronStatus {
   ok: boolean; now?: string
   health?: 'ok' | 'warn' | 'down' | 'idle'
   failLimit?: number
-  totals?: { total: number; enabled: number; autoStopped: number; due: number }
+  totals?: { total: number; enabled: number; ended: number; failed: number; autoStopped: number; due: number }
+  listLimit?: number; truncated?: boolean
   lastRunAt?: string; lastRunAgeMin?: number | null
   schedules?: CronScheduleRow[]; failures?: CronFailureRow[]
   error?: string

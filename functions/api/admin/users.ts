@@ -84,6 +84,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       db.prepare('DELETE FROM transactions WHERE user_id = ?').bind(id),
       db.prepare('DELETE FROM activity_log WHERE user_id = ?').bind(id),
       db.prepare('DELETE FROM notifications WHERE user_id = ?').bind(id),
+      // 예약을 남기면 크론이 회원을 못 찾아 영영 못 돌리고, 관리자 화면의 멈춤 경보가 헛울린다
+      db.prepare('DELETE FROM studio_schedules WHERE user_id = ?').bind(id),
+      db.prepare('DELETE FROM studio_brandkit WHERE user_id = ?').bind(id),
       db.prepare('DELETE FROM users WHERE id = ?').bind(id),
     ])
   } else if (action === 'plan') {

@@ -7,6 +7,7 @@ import { ensureSchedules, FAIL_LIMIT, computeNextRun } from '../studio/schedules
 //  "돌고 있는 줄 알았는데 아무것도 안 되고 있었다"가 이 시스템의 가장 큰 위험이라 만든 페이지.
 
 const MIN = 60_000
+const LIST_LIMIT = 500   // 목록으로 내려주는 최대 건수. 넘으면 잘렸다고 알린다(조용히 자르지 않는다)
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env)
@@ -21,11 +22,17 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const one = async (sql: string, ...b: any[]) => ((await db.prepare(sql).bind(...b).first().catch(() => null)) as any) || {}
 
   const [tot, due, lastRun, schedules, fails] = await Promise.all([
+    // 탭 배지는 이 집계를 쓴다 — 목록은 상한에 걸려 잘릴 수 있어 그걸로 세면 숫자가 틀린다
     one(`SELECT COUNT(*) AS total,
                 SUM(CASE WHEN enabled = 1 THEN 1 ELSE 0 END) AS enabled,
+                SUM(CASE WHEN enabled = 0 THEN 1 ELSE 0 END) AS ended,
+                SUM(CASE WHEN last_status LIKE '실패%' OR last_status LIKE '실행 불가%' THEN 1 ELSE 0 END) AS failed,
                 SUM(CASE WHEN enabled = 0 AND fail_streak >= ? THEN 1 ELSE 0 END) AS autoStopped
          FROM studio_schedules`, FAIL_LIMIT),
-    one('SELECT COUNT(*) AS c FROM studio_schedules WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ?', nowIso),
+    // ⚠ 크론과 똑같은 조건이어야 한다(회원 JOIN 포함). 회원이 없는 예약까지 세면
+    //   크론이 영영 집어갈 수 없는 건수가 "실행 대기"로 잡혀 멈춤 경보가 헛울린다.
+    one(`SELECT COUNT(*) AS c FROM studio_schedules s JOIN users u ON u.id = s.user_id
+          WHERE s.enabled = 1 AND s.next_run_at IS NOT NULL AND s.next_run_at <= ?`, nowIso),
     // 크론이 살아 있는지 판정하는 근거 — 어떤 예약이든 마지막으로 실행된 시각
     one('SELECT MAX(last_run_at) AS at FROM studio_schedules WHERE last_run_at IS NOT NULL'),
     // 관리자 화면에서 "누가 무엇을 예약해 뒀는지"를 그대로 볼 수 있어야 한다 →
@@ -36,7 +43,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
                  u.name AS user_name, u.email AS user_email, u.credits AS user_credits,
                  (u.mcp_token IS NOT NULL AND u.mcp_token != '') AS has_token
             FROM studio_schedules s LEFT JOIN users u ON u.id = s.user_id
-           ORDER BY s.enabled DESC, s.next_run_at ASC LIMIT 500`),
+           ORDER BY s.enabled DESC, s.next_run_at ASC LIMIT ?`, LIST_LIMIT),
     rows(`SELECT s.id, s.name, s.last_run_at, s.last_status, s.fail_streak, s.enabled,
                  u.name AS user_name, u.email AS user_email
             FROM studio_schedules s LEFT JOIN users u ON u.id = s.user_id
@@ -63,9 +70,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     totals: {
       total: Number(tot.total) || 0,
       enabled: Number(tot.enabled) || 0,
+      ended: Number(tot.ended) || 0,
+      failed: Number(tot.failed) || 0,
       autoStopped: Number(tot.autoStopped) || 0,
       due: Number(due.c) || 0,
     },
+    // 목록이 잘렸는지 알려 준다 — 모르면 관리자는 "예약이 사라졌다"고 오해한다
+    listLimit: LIST_LIMIT,
+    truncated: (Number(tot.total) || 0) > schedules.length,
     lastRunAt: lastRun.at || '',
     lastRunAgeMin: ageMin,
     schedules: schedules.map((s: any) => {

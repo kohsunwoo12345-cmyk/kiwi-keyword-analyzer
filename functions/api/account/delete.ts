@@ -49,6 +49,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await del('DELETE FROM credit_requests WHERE user_id = ?', uid)
   await del('DELETE FROM credit_orders WHERE user_id = ?', uid)
   await del('DELETE FROM sender_numbers WHERE user_id = ?', uid)
+  // 예약은 남겨 두면 크론이 회원을 못 찾아 영영 처리하지 못하고,
+  //  관리자 화면에는 "실행 대기"로 계속 잡혀 멈춤 경보가 헛울린다.
+  await del('DELETE FROM studio_schedules WHERE user_id = ?', uid)
+  await del('DELETE FROM studio_brandkit WHERE user_id = ?', uid)
   // 추천 관계 정리: 이 사용자를 추천인으로 둔 회원은 추천인 해제
   await del("UPDATE users SET referred_by = '' WHERE referred_by = ?", uid)
   await del('DELETE FROM referral_rewards WHERE referrer_id = ? OR friend_id = ?', uid, uid)
