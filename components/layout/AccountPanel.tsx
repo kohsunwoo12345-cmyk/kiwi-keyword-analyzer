@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X, LogOut, Shield, Moon, Sun, Monitor, CreditCard, Settings } from 'lucide-react'
-import { useAuth, logout } from '@/lib/auth'
+import { useAuth, logout, planActive } from '@/lib/auth'
 import { useDashTheme } from '@/components/dash/DashThemeProvider'
 import { cn } from '@/lib/utils'
 
@@ -65,7 +65,8 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
   useEffect(() => setMounted(true), [])
   const name = user?.name || '마케터'
   const isAdmin = user?.role === 'admin'
-  const sub = isAdmin ? 'ADMIN' : (!user?.plan || user.plan === '없음' ? '요금제 미가입' : `${user.plan} 플랜`)
+  // 만료된 플랜을 "Pro 플랜" 이라고 계속 보여 주지 않도록 유효기간까지 본다
+  const sub = isAdmin ? 'ADMIN' : (planActive(user?.plan, user?.planUntil) ? `${user!.plan} 플랜` : '요금제 미가입')
 
   if (!mounted) return null
   // 사이드바(sticky=스태킹 컨텍스트) 밖 document.body 로 포털 → z-index 가 페이지 콘텐츠 위에서 정상 동작
@@ -136,7 +137,7 @@ export function AccountTrigger() {
   const { user } = useAuth()
   const [open, setOpen] = useState(false)
   const name = user?.name || '마케터'
-  const sub = user?.role === 'admin' ? 'ADMIN' : (!user?.plan || user.plan === '없음' ? '요금제 미가입' : `${user.plan} 플랜`)
+  const sub = user?.role === 'admin' ? 'ADMIN' : (planActive(user?.plan, user?.planUntil) ? `${user!.plan} 플랜` : '요금제 미가입')
   return (
     <>
       <button

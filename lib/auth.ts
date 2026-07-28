@@ -40,6 +40,24 @@ export interface User {
   lastActive: string | null
 }
 
+/**
+ * 플랜이 "지금" 유효한가.
+ *  ⚠ plan !== '없음' 만 보면 안 된다. 만료일이 지난 플랜도 이름은 그대로 남아 있어서,
+ *    어제 만료된 회원에게 "Pro 플랜" 이라고 표시하고 영상 스튜디오 입구까지 열어 주게 된다.
+ *    서버가 내려주는 hasPlan 은 만료를 반영하는데 화면 곳곳이 그걸 안 쓰고 있었다.
+ *  until 이 비어 있으면 무기한으로 본다(관리자가 개월 수 0으로 준 경우).
+ */
+export function planActive(plan?: string | null, until?: string | null, now?: string): boolean {
+  if (!plan || plan === '없음') return false
+  if (!until) return true
+  return until > (now || new Date().toISOString())
+}
+
+/** 화면에 표시할 플랜 이름 — 만료됐으면 '미가입' 으로 보여 준다 */
+export function planLabelOf(plan?: string | null, until?: string | null, now?: string): string {
+  return planActive(plan, until, now) ? String(plan) : '미가입'
+}
+
 export interface Tx {
   kind: 'point' | 'credit' | 'purchase'
   amount: number

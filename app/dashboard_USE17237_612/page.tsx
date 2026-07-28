@@ -21,7 +21,7 @@ import { Card, EmptyState, Metric, Spark, BarTrend, ListRow } from '@/components
 import { Button } from '@/components/ui'
 import { Counter } from '@/components/motion'
 import { FEATURES } from '@/lib/features'
-import { accountOverview, useAuth, type Tx, type ActivityRow } from '@/lib/auth'
+import { accountOverview, useAuth, planActive, planLabelOf, type Tx, type ActivityRow } from '@/lib/auth'
 import { kstDateTime } from '@/lib/time'
 
 // 한국시간(KST) 고정 표기
@@ -57,7 +57,8 @@ export default function DashboardHome() {
   )
   const name = user?.name || '마케터'
   const hasPlan = user?.role === 'admin' || user?.hasPlan === 1
-  const videoPlan = user?.role === 'admin' || (!!user?.videoPlan && user.videoPlan !== '없음')
+  // ⚠ 이름만 보면 안 된다 — 만료일이 지난 플랜도 이름은 그대로 남는다(planActive 주석 참고)
+  const videoPlan = user?.role === 'admin' || planActive(user?.videoPlan, user?.videoPlanUntil)
 
   // 최근 14일 크레딧 사용 추이 (실데이터)
   const trend = useMemo(() => {
@@ -81,7 +82,7 @@ export default function DashboardHome() {
   const used14 = trend.reduce((s, d) => s + d.used, 0)
   const avg14 = Math.round(used14 / 14)
   const activeDays = trend.filter((d) => d.used > 0).length
-  const planLabel = !user?.plan || user.plan === '없음' ? '미가입' : user.plan
+  const planLabel = user?.role === 'admin' ? 'ADMIN' : planLabelOf(user?.plan, user?.planUntil)
 
   return (
     <div className="animate-fade-in">
