@@ -1183,7 +1183,22 @@ const LUMA_RES = { "540p": "540p", "720p": "720p", "1080p": "1080p",
                    // 노드에서 4K 를 고르면 지원 최대치인 1080p 로 내린다(없는 값을 보내지 않기 위함)
                    "4K": "1080p", "4k": "1080p" };
 const LUMA_SECS = [5, 10];
-export const LUMA_RATIOS = ["9:16", "3:4", "1:1", "4:3", "16:9", "21:9"];
+export const LUMA_RATIOS = ["9:16", "3:4", "1:1", "4:3", "16:9", "21:9"];          // 영상(ray-3.2) 6종
+/* 이미지(uni-1·uni-1-max) 9종 — 영상과 겹치는 값이 1:1·16:9·9:16 뿐이다.
+   4:3·3:4·21:9 는 이미지에 없고, 3:1·2:1·3:2·2:3·1:2·1:3 은 이미지에만 있다.
+   "영상의 6종은 이미지 9종의 부분집합일 것" 이라고 넘겨짚었다가 절반이 틀렸다. */
+export const LUMA_IMG_RATIOS = ["3:1", "2:1", "16:9", "3:2", "1:1", "2:3", "9:16", "1:2", "1:3"];
+// style="manga" 는 세로 비율만 허용한다. 가로·정사각과 함께 보내면 제출 단계에서 422 다.
+const LUMA_MANGA_RATIOS = ["2:3", "9:16", "1:2", "1:3"];
+/* image_ref 한 장. 문서상 url · data(+media_type) · file_id 중 정확히 하나만 담아야 한다. */
+function lumaImageRef(v) {
+  const t = String(v || "").trim();
+  if (/^data:image\//i.test(t)) {
+    const m = /^data:(image\/[a-z0-9.+-]+);base64,/i.exec(t);
+    return { data: t.split(",").pop(), media_type: (m && m[1]) || "image/png" };
+  }
+  return { url: t };
+}
 /* 영상 편집·비율 변경의 source. 문서상 셋 중 하나다.
      generation_id  이전 루마 생성물을 그대로 가리킨다(업로드 불필요·가장 안전)
      url            외부에 호스팅된 영상
@@ -1210,7 +1225,19 @@ export function buildLumaPayload(b) {
        문서: 텍스트→이미지는 image_ref 최대 9장, 편집은 원본이 별도 슬롯을 차지해 최대 8장.
        예전엔 첫 장만 쓰고 나머지를 버렸다 — 노드는 여러 장을 받고 요금까지 가산하는데
        실제 요청에는 한 장만 실렸다. */
-    const p = { model: id, prompt: cut(b.prompt, 1200), aspect_ratio: b.ratio || "16:9" };
+    // 프롬프트 한도는 문서상 6,000자다(1,200 으로 잘라 길게 쓴 설명이 통째로 날아가고 있었다).
+    const p = { model: id, prompt: cut(b.prompt, 6000) };
+    /* 비율은 생략 가능하고, 생략하면 모델이 프롬프트에 맞춰 고른다.
+       허용 9종 밖이면 보내지 않는다 — 없는 값을 보내 반려당하는 것보다 모델에 맡기는 편이 낫다. */
+    const ir = String(b.ratio || "").trim();
+    if (LUMA_IMG_RATIOS.indexOf(ir) >= 0) p.aspect_ratio = ir;
+    /* 스타일 프리셋. manga 는 세로 비율 전용이라, 가로·정사각과 함께 보내면 422 로 반려된다.
+       그 조합이면 비율을 빼서 모델이 세로 중에서 고르게 한다(요청이 통째로 실패하지 않도록). */
+    const st2 = String(b.lumaStyle || "").trim().toLowerCase();
+    if (st2 === "manga") {
+      p.style = "manga";
+      if (p.aspect_ratio && LUMA_MANGA_RATIOS.indexOf(p.aspect_ratio) < 0) delete p.aspect_ratio;
+    }
     const refs = [];
     const add = (v) => { const t = v && String(v).trim(); if (t && refs.indexOf(t) < 0) refs.push(t); };
     if (Array.isArray(b.refImages)) b.refImages.forEach(add);
@@ -1219,9 +1246,9 @@ export function buildLumaPayload(b) {
       p.type = "image_edit";
       p.source = { url: refs[0] };
       const extra = refs.slice(1, 9);                 // 원본 1 + 참조 8
-      if (extra.length) p.image_ref = extra.map((url) => ({ url }));
+      if (extra.length) p.image_ref = extra.map(lumaImageRef);
     } else if (Array.isArray(b.styleRefs) && b.styleRefs.length) {
-      p.image_ref = b.styleRefs.slice(0, 9).map((url) => ({ url }));   // 생성 시 스타일 참조(최대 9)
+      p.image_ref = b.styleRefs.slice(0, 9).map(lumaImageRef);         // 생성 시 스타일 참조(최대 9)
     }
     if (b.webSearch === true) p.web_search = true;    // 생성 전 웹에서 시각 참조 검색
     const fmt = String(b.imgFormat || "").toLowerCase();
