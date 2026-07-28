@@ -2041,17 +2041,39 @@ async function handle(context) {
        청구를 바꾸면 루마 때처럼 건당 손실이 난다. 배포된 서버는 문서를 읽을 수 있으므로
        여러 곳을 한 번에 받아 "단가로 보이는 줄" 만 추려 준다. 주소를 하나씩 넣을 필요가 없다. */
     if (u.searchParams.get("diag") === "prices") {
+      /* 한 곳당 주소를 여러 개 둔다 — 첫 번째가 404 이거나 자바스크립트로 그리는 문서면
+         다음 후보로 넘어간다. 지난 실행에서 런웨이는 404, 클링·미니맥스·BFL 은 본문이
+         1~2KB 짜리 껍데기였다. 문서 도구를 만들었으면 그 실패도 도구가 흡수해야 한다. */
       const TARGETS = [
-        { 제공사: "Google Veo · 나노바나나", url: "https://ai.google.dev/gemini-api/docs/pricing", 말: ["Veo", "Nano Banana", "Imagen"] },
-        { 제공사: "BFL Flux",               url: "https://docs.bfl.ai/pricing",                    말: ["per image", "FLUX.2", "megapixel"] },
-        { 제공사: "MiniMax Hailuo",         url: "https://platform.minimaxi.com/document/price",   말: ["Hailuo", "video", "price"] },
-        { 제공사: "Runway",                 url: "https://docs.runwayml.com/pricing",              말: ["credit", "Gen-4", "per second"] },
-        { 제공사: "Kling",                  url: "https://app.klingai.com/global/dev/document-api/apiReference/commonInfo", 말: ["price", "credit"] },
+        { 제공사: "Google Veo · 나노바나나", 말: ["Veo", "Nano Banana", "Imagen"], 넓게: ["Veo"],
+          urls: ["https://ai.google.dev/gemini-api/docs/pricing"] },
+        { 제공사: "BFL Flux", 말: ["per image", "FLUX", "megapixel"],
+          urls: ["https://docs.bfl.ai/pricing.md", "https://docs.bfl.ai/pricing", "https://docs.bfl.ai/quick_start/pricing"] },
+        { 제공사: "MiniMax Hailuo", 말: ["Hailuo", "video", "price"],
+          urls: ["https://platform.minimax.io/document/price", "https://platform.minimaxi.com/document/price",
+                 "https://platform.minimax.io/docs/api-reference/price"] },
+        { 제공사: "Runway", 말: ["credit", "Gen-4", "per second"],
+          urls: ["https://docs.dev.runwayml.com/pricing", "https://docs.dev.runwayml.com/", "https://help.runwayml.com/hc/en-us/articles/pricing"] },
+        { 제공사: "Kling", 말: ["price", "credit", "点"],
+          urls: ["https://app.klingai.com/global/dev/document-api/apiReference/commonInfo"] },
       ];
+      const fetchText = async (url) => {
+        const r = await fetchT(url, { headers: { "accept": "text/html,text/markdown", "user-agent": "Mozilla/5.0" } }, 15000);
+        const raw = await r.text();
+        return { status: r.status, raw };
+      };
       const grab = async (t) => {
         try {
-          const r = await fetchT(t.url, { headers: { "accept": "text/html", "user-agent": "Mozilla/5.0" } }, 15000);
-          const raw = await r.text();
+          // 후보를 순서대로 시도해 "실제 본문이 있는" 첫 응답을 쓴다
+          let picked = null;
+          for (const url of t.urls) {
+            let got; try { got = await fetchText(url); } catch (_e) { continue; }
+            const plain = got.raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+            if (got.status === 200 && plain.length > 3000) { picked = { url, ...got }; break; }
+            if (!picked && got.status === 200) picked = { url, ...got };   // 예비
+          }
+          if (!picked) return { 제공사: t.제공사, 시도한주소: t.urls, 결과: "전부 실패" };
+          const r = { status: picked.status }; const raw = picked.raw; t.url = picked.url;
           const text = raw.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ")
             .replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&")
             .replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
@@ -2060,10 +2082,26 @@ async function handle(context) {
           const priceLines = [...new Set((text.match(/[^\n]{0,120}\$\s?\d[\d.,]*\s?[^\n]{0,120}/g) || []))]
             .filter((ln) => t.말.some((w) => new RegExp(w, "i").test(ln)) || /per (second|image|video|clip|megapixel)/i.test(ln))
             .slice(0, 40);
+          /* 단가 한 줄만 봐서는 어느 모델·해상도인지 모른다 — Veo 가 그랬다
+             ("720p 초당 $0.10" 만 나오고 1080p·4K·모델 구분이 없었다).
+             그래서 지정한 말 주변은 넓게(3,000자) 떠서 표 전체가 보이게 한다. */
+          let 넓게본문 = undefined;
+          if (t.넓게 && t.넓게.length) {
+            넓게본문 = {};
+            for (const w of t.넓게) {
+              const hits = []; const re = new RegExp(w, "gi"); let m3, guard = 0;
+              while ((m3 = re.exec(text)) && guard++ < 4) {
+                hits.push(text.slice(Math.max(0, m3.index - 300), m3.index + 3000));
+                re.lastIndex = m3.index + 3000;
+              }
+              넓게본문[w] = hits.length ? hits : "(못 찾음)";
+            }
+          }
           return { 제공사: t.제공사, url: t.url, httpStatus: r.status, 전체길이: text.length,
                    자바스크립트로그리는문서: spa || undefined,
-                   단가로보이는줄: priceLines.length ? priceLines : "(못 찾음 — 이 문서에서는 값을 추릴 수 없습니다)" };
-        } catch (e) { return { 제공사: t.제공사, url: t.url, httpStatus: 0, 오류: String((e && e.message) || e).slice(0, 140) }; }
+                   단가로보이는줄: priceLines.length ? priceLines : "(못 찾음 — 이 문서에서는 값을 추릴 수 없습니다)",
+                   넓게본문 };
+        } catch (e) { return { 제공사: t.제공사, 시도한주소: t.urls, httpStatus: 0, 오류: String((e && e.message) || e).slice(0, 140) }; }
       };
       const rows = await Promise.all(TARGETS.map(grab));
       return json({ diag: "prices",

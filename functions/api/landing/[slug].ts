@@ -26,8 +26,11 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env, params
   await ensureSchema(db); await ensureLandingSchema(db)
   const me: any = await getSessionUser(request, db)
   if (!me) return j({ success: false, error: '사용자 인증 정보가 없습니다.' }, 401)
-  await db.prepare('DELETE FROM form_submissions WHERE landing_page_id = ?').bind(id).run().catch(() => {})
+  // ⚠ 순서가 중요하다. 예전에는 신청자부터 지우고 나서 페이지를 "본인 것만" 지웠는데,
+  //   남의 페이지 id 를 넣으면 페이지 삭제는 404 로 막히지만 그 페이지의 신청자는
+  //   이미 지워진 뒤였다. 소유권을 먼저 확인한다.
   const r = await db.prepare('DELETE FROM landing_pages WHERE id = ? AND user_id = ?').bind(id, me.id).run()
   if (!r.meta || r.meta.changes === 0) return j({ success: false, error: '삭제할 페이지를 찾을 수 없거나 권한이 없습니다.' }, 404)
+  await db.prepare('DELETE FROM form_submissions WHERE landing_page_id = ?').bind(id).run().catch(() => {})
   return j({ success: true, message: '삭제되었습니다.' })
 }

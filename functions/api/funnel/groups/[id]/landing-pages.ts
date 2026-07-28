@@ -1,16 +1,21 @@
 // SUPERPLACE 퍼널 빌더 이식: GET /api/funnel/groups/:id/landing-pages (그룹별 랜딩페이지 + 신청자 수)
-import { resolveDB } from '../../../_utils'
+import { resolveDB, getSessionUser } from '../../../_utils'
 import { ensureFunnelSchema } from '../../_schema'
+import { ownsGroup, forbidden } from '../../_own'
 
 const j = (o: any, status = 200) =>
   new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
 
-export const onRequestGet: PagesFunction = async ({ env, params }) => {
+export const onRequestGet: PagesFunction = async ({ request, env, params }) => {
   try {
     const db = resolveDB(env)
     if (!db) return j({ success: true, landingPages: [] })
     await ensureFunnelSchema(db)
+    // ⚠ 인증이 없어 그룹 번호만 바꾸면 남의 랜딩페이지 목록이 그대로 나왔다
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const groupId = params.id as string
+    if (!(await ownsGroup(db, me, groupId))) return forbidden()
     const { results } = await db.prepare(`
       SELECT flp.*, COUNT(fa.id) as applicant_count
       FROM funnel_landing_pages flp

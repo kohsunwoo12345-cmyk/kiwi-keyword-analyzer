@@ -1,4 +1,5 @@
 /// <reference types="@cloudflare/workers-types" />
+import { clientIp, rateLimitOk } from './_utils'
 /**
  * 마케팅 자동화 API v2 - Braze 수준 기능 구현
  * GET/POST /api/marketing-automation
@@ -788,6 +789,9 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     return json({ ok: true, key: env.VAPID_PUBLIC_KEY || null });
   }
   if (method === 'POST' && action === 'push_subscribe') {
+    // 로그인 없이 열려 있는 경로다 — 제한이 없으면 아무나 D1 에 무한정 행을 밀어 넣을 수 있다
+    if (!(await rateLimitOk(env.DB as any, `mkt:sub:${clientIp(req)}`, 20, 10)))
+      return json({ok:false,error:'요청이 너무 많습니다.'},429);
     const body: any = await req.json().catch(()=>({}));
     if (!body.endpoint) return json({ok:false,error:'endpoint 필요'},400);
     await env.DB.prepare(`INSERT OR REPLACE INTO push_subscriptions (user_id,endpoint,p256dh,auth,user_agent) VALUES (?,?,?,?,?)`)
@@ -796,6 +800,10 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     return json({ok:true});
   }
   if (method === 'POST' && action === 'track_event') {
+    // ⚠ 인증이 없는 경로라 아무 user_id 나 실어 보낼 수 있다. 제한이 없으면
+    //   남의 접속 횟수를 부풀려 세그먼트를 오염시키거나 D1 을 이벤트로 채워 버릴 수 있다.
+    if (!(await rateLimitOk(env.DB as any, `mkt:evt:${clientIp(req)}`, 120, 1)))
+      return json({ok:false,error:'요청이 너무 많습니다.'},429);
     const body: any = await req.json().catch(()=>({}));
     if (!body.user_id || !body.event_type) return json({ok:false},400);
     await env.DB.prepare(`INSERT INTO user_events (user_id,event_type,event_data) VALUES (?,?,?)`).bind(body.user_id,body.event_type,JSON.stringify(body.meta||{})).run().catch(()=>{});

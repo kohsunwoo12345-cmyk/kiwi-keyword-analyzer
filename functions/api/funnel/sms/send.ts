@@ -2,7 +2,7 @@
 //  퍼널 신청자에게 대량 발송. 전화번호는 문자(SMS/LMS, Aligo), 이메일은 Resend 로 함께 발송.
 //  body: { sender, recipients:[{phone,name,email}], message, msg_type? }
 //  resp: { success, successCount, failCount, results[] }
-import { resolveDB, getSessionUser } from '../../_utils'
+import { resolveDB, getSessionUser, spendCredits, logActivity } from '../../_utils'
 import { ensureFunnelSchema } from '../_schema'
 import { sendSms } from '../../_aligo'
 import { resendEmail, emailShell } from '../../_external'
@@ -26,10 +26,44 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     const recipients: any[] = Array.isArray(body.recipients) ? body.recipients : []
     if (!message) return j({ success: false, error: '발송 내용을 입력하세요.' }, 400)
     if (!recipients.length) return j({ success: false, error: '발송 대상이 없습니다.' }, 400)
+    if (recipients.length > 1000) return j({ success: false, error: '한 번에 최대 1,000명까지 발송할 수 있습니다.' }, 400)
 
     const emailOnly = msgType === 'email'
+
+    // ── 발신번호 검증 ────────────────────────────────────────────────────────
+    //  ⚠ 예전에는 body.sender 를 그대로 알리고에 넘겼다. 남의 번호를 발신번호로 찍어
+    //     문자를 보낼 수 있다는 뜻이고(발신번호 사전등록제 위반), /api/sms/send 는
+    //     이미 본인 승인 번호만 쓰도록 막고 있었다. 같은 기준을 여기에도 적용한다.
+    let from = ''
+    if (!emailOnly) {
+      if (sender) {
+        const r: any = await db.prepare(
+          "SELECT phone FROM sender_numbers WHERE user_id = ? AND status = 'approved' AND REPLACE(REPLACE(phone,'-',''),' ','') = ?",
+        ).bind(me.id, sender).first().catch(() => null)
+        if (r?.phone) from = sender
+      }
+      if (!from) {
+        const r: any = await db.prepare(
+          "SELECT phone FROM sender_numbers WHERE user_id = ? AND status = 'approved' ORDER BY created_at DESC LIMIT 1",
+        ).bind(me.id).first().catch(() => null)
+        if (r?.phone) from = String(r.phone).replace(/[^0-9]/g, '')
+      }
+      if (!from) from = String((env as any)?.ALIGO_SENDER || '').replace(/[^0-9]/g, '')
+    }
+
+    // ── 크레딧 선차감 ────────────────────────────────────────────────────────
+    //  ⚠ 예전에는 이 경로만 과금이 없었다. 크레딧 0인 회원도 대량 문자를 보낼 수 있어
+    //     알리고 요금이 그대로 우리 쪽 손실이 됐다. /api/sms/send 와 같이 건당 1 크레딧.
+    //     이메일은 다른 경로와 마찬가지로 과금하지 않는다.
+    const smsTargets = emailOnly ? 0 : recipients.filter((r: any) => digits(r.phone).length >= 10).length
+    if (smsTargets > 0) {
+      const spend = await spendCredits(db, me.id, smsTargets, '퍼널 문자 발송', `SMS ${smsTargets}건`)
+      if (!spend.ok) return j({ success: false, error: spend.error }, 402)
+    }
+
     let successCount = 0
     let failCount = 0
+    let smsFailed = 0
     const results: any[] = []
 
     for (const r of recipients) {
@@ -43,14 +77,15 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
 
       // 1) 문자 발송 (이메일 전용 모드가 아니고 번호가 있을 때)
       if (!emailOnly && phone) {
-        if (!sender) { reason = '발신번호 미지정' }
+        if (!from) { reason = '승인된 발신번호가 없습니다. 발신번호를 등록하고 관리자 승인을 받아주세요.' }
         else {
           try {
-            const sr = await sendSms(env, phone, personalized, { from: sender })
+            const sr = await sendSms(env, phone, personalized, { from })
             smsOk = !!sr.sent
             if (!smsOk) reason = sr.reason || '문자 발송 실패'
           } catch (e: any) { reason = String(e?.message || e).slice(0, 80) }
         }
+        if (!smsOk && phone.length >= 10) smsFailed++
       }
 
       // 2) 이메일 발송 (수신 이메일이 유효하면 항상 함께 발송) — 등록한 이메일로 발송까지 지원
@@ -69,6 +104,17 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
       else failCount++
       results.push({ phone: r.phone || '', email: r.email || '', sms: smsOk, email_sent: emailOk, reason: ok ? '' : reason })
     }
+
+    // 실패분 크레딧 환불 — 나가지 않은 문자까지 받을 이유가 없다(/api/sms/send 와 동일)
+    if (smsFailed > 0) {
+      await db.prepare('UPDATE users SET credits = ROUND(credits + ?, 2) WHERE id = ?').bind(smsFailed, me.id).run().catch(() => {})
+      await db.prepare(
+        `INSERT INTO transactions (id, user_id, kind, amount, balance_after, memo, created_at)
+         SELECT ?, ?, 'credit', ?, credits, ?, ? FROM users WHERE id = ?`,
+      ).bind('t_' + crypto.randomUUID().slice(0, 16), me.id, smsFailed,
+        `퍼널 문자 발송 실패 ${smsFailed}건 환불`, new Date().toISOString(), me.id).run().catch(() => {})
+    }
+    if (smsTargets > 0) await logActivity(db, me.id, 'sms', `퍼널 문자 발송 ${smsTargets - smsFailed}/${smsTargets}건`).catch(() => {})
 
     return j({ success: successCount > 0, successCount, failCount, results })
   } catch (error: any) {

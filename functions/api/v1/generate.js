@@ -13,8 +13,12 @@ async function commitCharge(db, me, c, units) {
   const balance = Number(me.credits) || 0;
   const charged = Math.round(Math.min(balance, c.credits) * 100) / 100;
   if (charged > 0) {
-    const after = Math.round((balance - charged) * 100) / 100;
-    await db.prepare("UPDATE users SET credits = ? WHERE id = ?").bind(after, me.id).run();
+    // ⚠ 읽은 잔액으로 계산한 절대값을 덮어쓰면, 동시에 진행 중인 다른 생성의 차감이 지워진다.
+    //   (API 는 동시 생성을 허용하므로 실제로 일어난다 — 둘 다 100을 읽고 각각 30을 빼면 70이 된다)
+    //   상대 차감으로 바꾸고, 기록용 잔액은 차감 뒤에 다시 읽는다.
+    await db.prepare("UPDATE users SET credits = ROUND(COALESCE(credits,0) - ?, 2) WHERE id = ?").bind(charged, me.id).run();
+    const freshRow = await db.prepare("SELECT credits FROM users WHERE id = ?").bind(me.id).first().catch(() => null);
+    const after = Math.round((Number(freshRow && freshRow.credits) || 0) * 100) / 100;
     try {
       await db.prepare(
         "INSERT INTO transactions (id,user_id,kind,amount,balance_after,memo,created_at) VALUES (?,?,'credit',?,?,?,?)"

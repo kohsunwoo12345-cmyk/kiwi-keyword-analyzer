@@ -1,5 +1,6 @@
 // Ported from SUPERPLACE: POST /api/funnel/ab-tests (Hono → CF Pages Functions)
-import { resolveDB } from '../_utils'
+import { resolveDB, getSessionUser } from '../_utils'
+import { ownsPage, forbidden } from './_own'
 import { ensureFunnelSchema } from './_schema'
 
 const j = (o: any, status = 200) =>
@@ -11,19 +12,12 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 500)
     await ensureFunnelSchema(db)
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const { landing_page_id, name, traffic_split_a, traffic_split_b, variant_type, variant_html } = (await request.json()) as any
 
-    // 권한 확인 (페이지 존재 여부)
-    const page: any = await db.prepare(`
-      SELECT flp.id
-      FROM funnel_landing_pages flp
-      INNER JOIN funnel_groups fg ON flp.group_id = fg.id
-      WHERE flp.id = ?
-    `).bind(landing_page_id).first()
-
-    if (!page) {
-      return j({ success: false, error: '권한이 없습니다.' }, 403)
-    }
+    // 권한 확인 — 예전에는 "페이지가 존재하는가"만 봐서 남의 페이지에도 A/B 테스트를 걸 수 있었다
+    if (!(await ownsPage(db, me, landing_page_id))) return forbidden()
 
     const result = await db.prepare(`
       INSERT INTO funnel_ab_tests (

@@ -59,20 +59,47 @@ export async function validateCoupon(
   return { ok: true, coupon: c, original, discount, final, label }
 }
 
-/** 쿠폰 사용 확정 — 사용횟수 +1, redemption 기록. 검증은 호출 전에 완료돼 있어야 함. */
+/** 쿠폰 사용 확정 — 사용횟수 +1, redemption 기록.
+ *
+ *  ⚠ validateCoupon 의 한도 검사는 읽기 시점 기준이라 동시 요청을 막지 못한다.
+ *     같은 코드를 여러 창에서 동시에 넣으면 1회짜리 쿠폰도 전부 통과해 버린다.
+ *     그래서 여기서 한도를 "조건부로" 다시 확인한다 —
+ *      · 전체 한도(max_uses): used_count < max_uses 일 때만 +1 되는 UPDATE
+ *      · 1인 한도(per_user_limit): 그 회원의 기존 사용 건수를 세는 조건부 INSERT
+ *     둘 중 하나라도 통과하지 못하면 앞 단계를 되돌리고 false 를 돌려준다.
+ *  반환값이 false 면 호출부는 쿠폰 없이 진행하지 말고 요청 자체를 거절해야 한다.
+ */
 export async function redeemCoupon(
   db: D1Database,
   calc: CouponCalc,
   ctx: { userId: string; planRequestId: string; track: string; plan: string; months: number },
-): Promise<void> {
-  if (!calc.ok || !calc.coupon) return
+): Promise<boolean> {
+  if (!calc.ok || !calc.coupon) return false
   const now = new Date().toISOString()
+  const c = calc.coupon
   try {
-    await db.prepare('UPDATE coupons SET used_count = used_count + 1 WHERE id = ?').bind(calc.coupon.id).run()
-    await db.prepare(
+    const upd: any = await db.prepare(
+      `UPDATE coupons SET used_count = COALESCE(used_count, 0) + 1
+        WHERE id = ? AND (max_uses IS NULL OR max_uses <= 0 OR COALESCE(used_count, 0) < max_uses)`,
+    ).bind(c.id).run()
+    if (!upd || Number(upd.meta?.changes || 0) === 0) return false
+
+    const perUser = Number(c.per_user_limit) || 0
+    const ins: any = await db.prepare(
       `INSERT INTO coupon_redemptions (id, coupon_id, code, user_id, plan_request_id, track, plan, months, original_krw, discount_krw, final_krw, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind('cr_' + crypto.randomUUID().replace(/-/g, '').slice(0, 16), calc.coupon.id, calc.coupon.code, ctx.userId, ctx.planRequestId,
-      ctx.track, ctx.plan, ctx.months, calc.original, calc.discount, calc.final, now).run()
-  } catch { /* 사용 기록 실패는 신청을 막지 않음 */ }
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        WHERE ? <= 0 OR (SELECT COUNT(*) FROM coupon_redemptions WHERE coupon_id = ? AND user_id = ?) < ?`,
+    ).bind('cr_' + crypto.randomUUID().replace(/-/g, '').slice(0, 16), c.id, c.code, ctx.userId, ctx.planRequestId,
+      ctx.track, ctx.plan, ctx.months, calc.original, calc.discount, calc.final, now,
+      perUser, c.id, ctx.userId, perUser).run()
+    if (!ins || Number(ins.meta?.changes || 0) === 0) {
+      // 1인 한도에 걸렸다 → 방금 올린 전체 사용횟수를 되돌린다
+      await db.prepare('UPDATE coupons SET used_count = COALESCE(used_count, 0) - 1 WHERE id = ? AND COALESCE(used_count, 0) > 0')
+        .bind(c.id).run().catch(() => {})
+      return false
+    }
+    return true
+  } catch {
+    return false
+  }
 }

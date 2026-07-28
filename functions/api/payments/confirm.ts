@@ -23,11 +23,23 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
 
   const conf = await tossConfirm(env, { paymentKey, orderId, amount })
   if (!conf.ok) {
-    await db.prepare("UPDATE credit_orders SET status = 'failed' WHERE order_id = ?").bind(orderId).run()
+    // ⚠ status != 'paid' 조건이 반드시 필요하다. 같은 주문으로 confirm 이 두 번 들어오면
+    //   (더블클릭·새로고침·자동 재시도) 뒤늦게 도착한 쪽은 토스에서 "이미 승인된 결제"로 거절당하는데,
+    //   조건 없이 덮어쓰면 결제도 되고 크레딧도 지급된 주문이 '실패'로 기록돼 매출 집계에서 사라진다.
+    await db.prepare("UPDATE credit_orders SET status = 'failed' WHERE order_id = ? AND status != 'paid'").bind(orderId).run()
     return json({ ok: false, error: conf.error || '결제 승인 실패' }, 402)
   }
 
-  await db.prepare("UPDATE credit_orders SET status = 'paid', payment_key = ?, paid_at = ? WHERE order_id = ?").bind(paymentKey, new Date().toISOString(), orderId).run()
+  // ── 지급 선점 ────────────────────────────────────────────────────────────────
+  //  위의 status 검사는 읽기 시점 기준이라 동시 요청을 막지 못한다(TOCTOU).
+  //  "아직 지급 전인 주문일 때만" paid 로 바꾸고, 그 한 번만 크레딧을 준다.
+  //  이 조건부 UPDATE 가 없으면 confirm 이 두 번 성공했을 때 크레딧이 두 배로 지급된다.
+  const claim: any = await db.prepare(
+    "UPDATE credit_orders SET status = 'paid', payment_key = ?, paid_at = ? WHERE order_id = ? AND status != 'paid'",
+  ).bind(paymentKey, new Date().toISOString(), orderId).run().catch(() => null)
+  if (!claim || Number(claim.meta?.changes || 0) === 0)
+    return json({ ok: false, error: '이미 처리된 주문입니다.' }, 409)
+
   await applyBalance(db, me.id, 'credit', order.credits, `카드 결제 충전 (${amount.toLocaleString()}원)`)
   await addNotification(db, me.id, '크레딧이 충전되었습니다', `카드 결제로 크레딧 ${order.credits.toLocaleString()}개가 충전되었습니다. 감사합니다!`)
   await logActivity(db, me.id, 'credit', `카드 충전 +${order.credits} 크레딧`)

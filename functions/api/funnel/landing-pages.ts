@@ -1,6 +1,7 @@
 // Ported from SUPERPLACE: POST /api/funnel/landing-pages (Hono → CF Pages Functions)
-import { resolveDB } from '../_utils'
+import { resolveDB, getSessionUser } from '../_utils'
 import { ensureFunnelSchema } from './_schema'
+import { ownsGroup, isAdminUser, forbidden } from './_own'
 
 const j = (o: any, status = 200) =>
   new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
@@ -11,18 +12,30 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     const db = resolveDB(env)
     if (!db) return j({ success: true, pages: [] })
     await ensureFunnelSchema(db)
+    // ⚠ 인증이 없어 groupId 없이 부르면 전 회원의 랜딩페이지 500건이 그대로 나왔다
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const url = new URL(request.url)
     const groupId = url.searchParams.get('groupId')
     let rows: any[] = []
     if (groupId) {
+      if (!(await ownsGroup(db, me, groupId))) return forbidden()
       const r = await db.prepare(
         `SELECT id, group_id, title, slug, description, status, created_at, updated_at FROM funnel_landing_pages WHERE group_id = ? ORDER BY created_at DESC`,
       ).bind(groupId).all()
       rows = (r.results as any[]) || []
-    } else {
+    } else if (isAdminUser(me)) {
       const r = await db.prepare(
         `SELECT id, group_id, title, slug, description, status, created_at, updated_at FROM funnel_landing_pages ORDER BY created_at DESC LIMIT 500`,
       ).all()
+      rows = (r.results as any[]) || []
+    } else {
+      // 그룹을 지정하지 않으면 "내 그룹의" 페이지만 돌려준다
+      const r = await db.prepare(
+        `SELECT p.id, p.group_id, p.title, p.slug, p.description, p.status, p.created_at, p.updated_at
+           FROM funnel_landing_pages p JOIN funnel_groups g ON g.id = p.group_id
+          WHERE g.user_id = ? ORDER BY p.created_at DESC LIMIT 500`,
+      ).bind(me.id).all()
       rows = (r.results as any[]) || []
     }
     for (const p of rows) {
@@ -44,12 +57,16 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 500)
     await ensureFunnelSchema(db)
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const body = (await request.json()) as any
     const { groupId, title, description, formFields } = body
 
     if (!groupId || !title) {
       return j({ success: false, error: '필수 정보를 입력해주세요.' }, 400)
     }
+    // ⚠ groupId 를 그대로 믿으면 남의 퍼널에 랜딩페이지를 만들어 넣을 수 있다
+    if (!(await ownsGroup(db, me, groupId))) return forbidden()
 
     // 고유한 slug 생성 (짧고 기억하기 쉬운 형태)
     const slug = `f-${Math.random().toString(36).substr(2, 8)}`

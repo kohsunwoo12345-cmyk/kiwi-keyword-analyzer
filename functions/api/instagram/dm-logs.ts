@@ -1,4 +1,4 @@
-import { Env, resolveDB } from '../_utils'
+import { Env, resolveDB, getSessionUser } from '../_utils'
 import { ensureIgSchema } from './_ig'
 
 const j = (obj: any, status = 200) =>
@@ -9,6 +9,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   try {
     const db = resolveDB(env)
     if (!db) return j({ success: false, logs: [], error: 'DB 바인딩 없음' }, 200)
+    // ⚠ 인증이 없어 로그인하지 않아도 조회됐다. 형제 엔드포인트(dm-rules)는 이미 세션을 요구한다 —
+    //   같은 기준을 맞춘다. (이 기능은 아직 회원별로 나뉘어 있지 않아, 로그인한 회원끼리는 같은 내용을 본다)
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, logs: [], error: '로그인이 필요합니다.' }, 401)
     await ensureIgSchema(db)
     const params = new URL(request.url).searchParams
     const limit = parseInt(params.get('limit') || '50')

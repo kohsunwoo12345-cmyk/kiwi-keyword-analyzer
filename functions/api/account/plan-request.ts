@@ -45,12 +45,17 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const prId = 'pr_' + crypto.randomUUID().slice(0, 14)
   const now = new Date().toISOString()
+  // 쿠폰 사용 확정을 신청 저장보다 "먼저" 한다.
+  //  한도를 확정적으로 잡은 뒤에 신청을 넣어야, 한도가 소진된 쿠폰으로 할인된 금액의
+  //  신청이 남는 일이 없다(동시에 여러 창에서 같은 코드를 넣는 경우).
+  if (couponCalc?.ok) {
+    const redeemed = await redeemCoupon(db, couponCalc, { userId: me.id, planRequestId: prId, track, plan: to, months: Math.max(1, months) })
+    if (!redeemed) return json({ ok: false, error: '쿠폰 사용 한도가 모두 소진되었습니다.' }, 400)
+  }
   await db
     .prepare(`INSERT INTO plan_requests (id, user_id, track, from_plan, to_plan, status, memo, months, amount, coupon_code, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`)
     .bind(prId, me.id, track, current, to, String(body.memo || ''), months, amount, couponCode, now)
     .run()
-  // 쿠폰 사용 확정(사용횟수 +1, 기록)
-  if (couponCalc?.ok) await redeemCoupon(db, couponCalc, { userId: me.id, planRequestId: prId, track, plan: to, months: Math.max(1, months) })
   const label = track === 'video' ? 'AI 영상' : '마케터'
   await logActivity(db, me.id, 'plan', `${label} 플랜 신청: ${current} → ${to}${months ? ` (${months}개월)` : ''}${couponCode ? ` · 쿠폰 ${couponCode}` : ''}`)
   return json({ ok: true, amount, coupon: couponCode })

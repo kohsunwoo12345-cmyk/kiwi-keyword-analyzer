@@ -1,9 +1,14 @@
 // SUPERPLACE 이식: POST /api/landing/form-submit — 외부 임베드/랜딩 폼 제출 공개 엔드포인트
 //  1) funnel_landing_pages(active) 매칭 시 → DB중복방지 후 funnel_applicants 저장 + 자동응답(문자/이메일) 발송
 //  2) 아니면 landing_pages → form_submissions 폴백
-import { resolveDB, ensureSchema } from '../_utils'
+import { resolveDB, ensureSchema, clientIp, rateLimitOk } from '../_utils'
 import { ensureFunnelSchema } from '../funnel/_schema'
 import { fireAutoResponses } from '../funnel/_autofire'
+
+// 공개 엔드포인트 남용 한도 — funnel/apply 와 같은 기준(제출 1건 = 유료 문자 1건)
+const IP_LIMIT = 20
+const PHONE_LIMIT = 1
+const WINDOW_MIN = 10
 
 const j = (o: any, status = 200) =>
   new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' } })
@@ -21,6 +26,15 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     const body: any = await request.json().catch(() => ({}))
     const { landing_slug, name, phone, email, grade, message, ...rest } = body
     if (!landing_slug) return j({ success: false, error: 'landing_slug is required' })
+
+    // ── 남용·중복 제출 차단 ──────────────────────────────────────────────────
+    //  자동응답 문자는 건당 유료 → 로그인 없는 이 경로를 막지 않으면 요금이 그대로 새어 나간다.
+    const ip = clientIp(request)
+    if (!(await rateLimitOk(db, `apply:ip:${ip}`, IP_LIMIT, WINDOW_MIN)))
+      return j({ success: false, error: '잠시 후 다시 시도해 주세요.' }, 429)
+    const phoneDigits = digits(phone)
+    if (phoneDigits && !(await rateLimitOk(db, `apply:slug:${landing_slug}:${phoneDigits}`, PHONE_LIMIT, WINDOW_MIN)))
+      return j({ success: false, duplicate: true, message: '이미 신청이 접수되었습니다.' })
 
     const additionalData = JSON.stringify({ grade: grade || null, message: message || null, ...rest })
 
