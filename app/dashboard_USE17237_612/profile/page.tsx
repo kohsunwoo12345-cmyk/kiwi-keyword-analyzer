@@ -69,8 +69,9 @@ function fmtDate(iso: string): string {
 function relTime(iso: string): string {
   return relAgo(iso)
 }
-function ko(n: number) {
-  return n.toLocaleString('ko-KR')
+/** 서버 응답에 값이 빠져 있어도 페이지 전체가 죽지 않도록 방어한다 */
+function ko(n: number | null | undefined) {
+  return typeof n === 'number' && Number.isFinite(n) ? n.toLocaleString('ko-KR') : '-'
 }
 
 /* ---------- plan meta ---------- */
@@ -79,43 +80,43 @@ const PLAN_META: Record<
   { badge: string; perks: string[] }
 > = {
   '없음': {
-    badge: 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600',
+    badge: 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-dim)]',
     perks: ['가입된 플랜이 없습니다', '플랜에 가입하고 더 많은 기능을 이용하세요'],
   },
   Plus: {
-    badge: 'border-sky-500/30 bg-sky-500/12 text-sky-600',
+    badge: 'border-sky-500/30 bg-sky-500/12 text-sky-500',
     perks: ['기본 기능 이용', '월 표준 사용량', '이메일 지원'],
   },
   Pro: {
-    badge: 'border-violet-500/30 bg-violet-500/12 text-violet-600',
+    badge: 'border-violet-500/30 bg-violet-500/12 text-violet-400',
     perks: ['확장 사용량', '우선 지원', '고급 기능 이용'],
   },
   Max: {
-    badge: 'border-amber-500/30 bg-amber-500/12 text-amber-600',
+    badge: 'border-amber-500/30 bg-amber-500/12 text-amber-500',
     perks: ['모든 Pro 기능', '최대 사용량', '전담 매니저', '최우선 지원'],
   },
 }
 
 /* ---------- request/sender status meta ---------- */
 const STATUS_META: Record<string, { label: string; badge: string }> = {
-  pending: { label: '대기', badge: 'border-amber-500/30 bg-amber-500/12 text-amber-600' },
-  approved: { label: '승인', badge: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-600' },
-  rejected: { label: '거절', badge: 'border-rose-500/30 bg-rose-500/12 text-rose-600' },
+  pending: { label: '대기', badge: 'border-amber-500/30 bg-amber-500/12 text-amber-500' },
+  approved: { label: '승인', badge: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-500' },
+  rejected: { label: '거절', badge: 'border-rose-500/30 bg-rose-500/12 text-rose-500' },
 }
 function statusMeta(s: string) {
-  return STATUS_META[s] || { label: s || '-', badge: 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600' }
+  return STATUS_META[s] || { label: s || '-', badge: 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-dim)]' }
 }
 
 const ALL_PLANS = ['Plus', 'Pro', 'Max'] as const
 type PlanTier = (typeof ALL_PLANS)[number]
 
 const TRACK_META: Record<PlanTrack, { label: string; short: string; icon: typeof Megaphone; badge: string }> = {
-  marketer: { label: '마케터 전용', short: '마케터', icon: Megaphone, badge: 'border-violet-500/30 bg-violet-500/12 text-violet-600' },
-  video: { label: 'AI 영상 제작', short: '영상', icon: Video, badge: 'border-fuchsia-500/30 bg-fuchsia-500/12 text-fuchsia-600' },
+  marketer: { label: '마케터 전용', short: '마케터', icon: Megaphone, badge: 'border-violet-500/30 bg-violet-500/12 text-violet-400' },
+  video: { label: 'AI 영상 제작', short: '영상', icon: Video, badge: 'border-fuchsia-500/30 bg-fuchsia-500/12 text-fuchsia-400' },
 }
 
 function trackMeta(t: string) {
-  return TRACK_META[t as PlanTrack] || { label: t || '-', short: t || '-', icon: Megaphone, badge: 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600' }
+  return TRACK_META[t as PlanTrack] || { label: t || '-', short: t || '-', icon: Megaphone, badge: 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-dim)]' }
 }
 
 function planLabel(plan: string) {
@@ -127,19 +128,19 @@ const ACT_META: Record<
   string,
   { label: string; badge: string; icon: typeof LogIn }
 > = {
-  login: { label: '로그인', badge: 'border-sky-500/30 bg-sky-500/12 text-sky-600', icon: LogIn },
-  password: { label: '비밀번호', badge: 'border-rose-500/30 bg-rose-500/12 text-rose-600', icon: KeyRound },
-  point: { label: '포인트', badge: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-600', icon: Coins },
-  credit: { label: '크레딧', badge: 'border-violet-500/30 bg-violet-500/12 text-violet-600', icon: Wallet },
-  plan: { label: '플랜', badge: 'border-amber-500/30 bg-amber-500/12 text-amber-600', icon: Crown },
-  notify: { label: '알림', badge: 'border-fuchsia-500/30 bg-fuchsia-500/12 text-fuchsia-600', icon: Bell },
-  signup: { label: '가입', badge: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-600', icon: Sparkles },
+  login: { label: '로그인', badge: 'border-sky-500/30 bg-sky-500/12 text-sky-500', icon: LogIn },
+  password: { label: '비밀번호', badge: 'border-rose-500/30 bg-rose-500/12 text-rose-500', icon: KeyRound },
+  point: { label: '포인트', badge: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-500', icon: Coins },
+  credit: { label: '크레딧', badge: 'border-violet-500/30 bg-violet-500/12 text-violet-400', icon: Wallet },
+  plan: { label: '플랜', badge: 'border-amber-500/30 bg-amber-500/12 text-amber-500', icon: Crown },
+  notify: { label: '알림', badge: 'border-fuchsia-500/30 bg-fuchsia-500/12 text-fuchsia-400', icon: Bell },
+  signup: { label: '가입', badge: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-500', icon: Sparkles },
 }
 function actMeta(type: string) {
   return (
     ACT_META[type] || {
       label: type || '활동',
-      badge: 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600',
+      badge: 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-dim)]',
       icon: Activity,
     }
   )
@@ -170,14 +171,14 @@ function TxTable({ rows }: { rows: Tx[] }) {
                 <td className="py-2.5 pr-3">{t.memo || '-'}</td>
                 <td
                   className={`py-2.5 pr-3 text-right font-semibold ${
-                    plus ? 'text-emerald-600' : 'text-rose-600'
+                    plus ? 'text-emerald-500' : 'text-rose-500'
                   }`}
                 >
                   {plus ? '+' : '-'}
                   {ko(Math.abs(t.amount))}
                 </td>
                 <td className="py-2.5 text-right text-[var(--text-soft)]">
-                  {t.balance_after === null ? '-' : ko(t.balance_after)}
+                  {t.balance_after == null ? '-' : ko(t.balance_after)}
                 </td>
               </tr>
             )
@@ -205,9 +206,9 @@ function RefUserList({ rows, empty }: { rows: RefUser[]; empty: string }) {
             <p className="truncate text-xs text-[var(--text-dim)]">{u.email}</p>
           </div>
           {u.paid ? (
-            <Badge className="border-emerald-500/30 bg-emerald-500/12 text-emerald-600">결제완료</Badge>
+            <Badge className="border-emerald-500/30 bg-emerald-500/12 text-emerald-500">결제완료</Badge>
           ) : (
-            <Badge className="border-[var(--border)] bg-[var(--panel-2)] text-slate-500">미결제</Badge>
+            <Badge className="border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-dim)]">미결제</Badge>
           )}
         </li>
       ))}
@@ -215,7 +216,16 @@ function RefUserList({ rows, empty }: { rows: RefUser[]; empty: string }) {
   )
 }
 
+type TabKey = 'account' | 'billing' | 'activity'
+const TABS: { key: TabKey; label: string; icon: typeof UserCircle }[] = [
+  { key: 'account', label: '계정·플랜', icon: UserCircle },
+  { key: 'billing', label: '신청·결제', icon: Receipt },
+  { key: 'activity', label: '알림·활동', icon: Bell },
+]
+
 export default function ProfilePage() {
+  /** 한 화면에 11개 패널이 끝없이 이어져 원하는 항목을 찾기 어려웠다 → 세 갈래로 나눈다 */
+  const [tab, setTab] = useState<TabKey>('account')
   const [loading, setLoading] = useState(true)
   const [ok, setOk] = useState(true)
   const [user, setUser] = useState<User | null>(null)
@@ -569,14 +579,14 @@ export default function ProfilePage() {
         accent="#7c3aed"
       />
 
-      <div className="space-y-6 p-6 lg:p-8">
+      <div className="space-y-5 p-5 pb-24 lg:p-7 lg:pb-24">
         {loading ? (
           <div className="flex items-center justify-center py-24 text-sm text-[var(--text-dim)]">
             불러오는 중...
           </div>
         ) : !ok || !user ? (
           <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
-            <span className="grid h-14 w-14 place-items-center rounded-2xl bg-violet-500/12 text-violet-600">
+            <span className="grid h-14 w-14 place-items-center rounded-2xl bg-violet-500/12 text-violet-400">
               <Lock size={26} />
             </span>
             <div>
@@ -601,11 +611,11 @@ export default function ProfilePage() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-xl font-bold tracking-tight">{user.name}</h2>
-                      <Badge className={PLAN_META[user.plan]?.badge || 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600'}>
+                      <Badge className={PLAN_META[user.plan]?.badge || 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-dim)]'}>
                         <Crown size={12} /> {planLabel(user.plan)}
                       </Badge>
                       {user.role === 'admin' && (
-                        <Badge className="border-[var(--border)] bg-slate-900 text-white">
+                        <Badge className="border-[var(--border)] bg-[var(--text)] text-[var(--panel)]">
                           <ShieldCheck size={12} /> 관리자
                         </Badge>
                       )}
@@ -626,7 +636,7 @@ export default function ProfilePage() {
                   <div className="card-2 p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-[var(--text-soft)]">보유 포인트</span>
-                      <span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-500/12 text-emerald-600">
+                      <span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-500/12 text-emerald-500">
                         <Coins size={16} />
                       </span>
                     </div>
@@ -638,7 +648,7 @@ export default function ProfilePage() {
                   <div className="card-2 p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-[var(--text-soft)]">보유 크레딧</span>
-                      <span className="grid h-8 w-8 place-items-center rounded-lg bg-violet-500/12 text-violet-600">
+                      <span className="grid h-8 w-8 place-items-center rounded-lg bg-violet-500/12 text-violet-400">
                         <Wallet size={16} />
                       </span>
                     </div>
@@ -651,726 +661,763 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* 1.5 추천인 · 친구 */}
-            <Panel title={<span className="flex items-center gap-2"><Gift size={16} className="text-fuchsia-600" /> 추천인 · 친구</span>}>
-              {refLoading ? (
-                <p className="py-8 text-center text-sm text-[var(--text-dim)]">불러오는 중...</p>
-              ) : !ref || !ref.ok ? (
-                <p className="py-8 text-center text-sm text-[var(--text-dim)]">
-                  {ref?.error || '추천인 정보를 불러오지 못했습니다.'}
-                </p>
-              ) : (
-                <div className="space-y-6">
-                  <div className="grid gap-6 lg:grid-cols-2">
-                    {/* 내 추천인 코드 */}
-                    <div className="card-2 p-5">
-                      <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-soft)]">
-                        <Gift size={14} className="text-fuchsia-600" /> 내 추천인 코드
-                      </p>
-                      <p className="mt-2 select-all font-mono text-3xl font-bold tracking-widest">
-                        {ref.code || '-'}
-                      </p>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          variant="soft"
-                          size="sm"
-                          onClick={() => copyText(ref.code || '', 'code')}
-                          disabled={!ref.code}
-                        >
-                          {copied === 'code' ? <><Check size={14} /> 복사됨</> : <><Copy size={14} /> 복사</>}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="soft"
-                          size="sm"
-                          onClick={() => copyText(`https://nextbygency.com/signup?ref=${ref.code || ''}`, 'link')}
-                          disabled={!ref.code}
-                        >
-                          {copied === 'link' ? <><Check size={14} /> 복사됨</> : <><Link2 size={14} /> 초대 링크 복사</>}
-                        </Button>
-                      </div>
-                      {ref.referredByName ? (
-                        <p className="mt-4 text-sm text-[var(--text-soft)]">
-                          추천인: <span className="font-medium text-[var(--text)]">{ref.referredByName}</span>
+
+            {/* 탭 */}
+            <div className="flex flex-wrap gap-1.5 rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-1.5">
+              {TABS.map((t) => {
+                const Icon = t.icon
+                const on = tab === t.key
+                return (
+                  <button
+                    key={t.key}
+                    onClick={() => setTab(t.key)}
+                    className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-[13px] font-semibold transition ${
+                      on ? 'bg-violet-500/15 text-violet-400' : 'text-[var(--text-dim)] hover:bg-[var(--panel-2)]'
+                    }`}
+                  >
+                    <Icon size={15} />
+                    {t.label}
+                    {t.key === 'activity' && unread > 0 && (
+                      <span className="ml-0.5 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{unread}</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            {tab === 'account' && (
+              <>
+              {/* 1.5 추천인 · 친구 */}
+              <Panel title={<span className="flex items-center gap-2"><Gift size={16} className="text-fuchsia-400" /> 추천인 · 친구</span>}>
+                {refLoading ? (
+                  <p className="py-8 text-center text-sm text-[var(--text-dim)]">불러오는 중...</p>
+                ) : !ref || !ref.ok ? (
+                  <p className="py-8 text-center text-sm text-[var(--text-dim)]">
+                    {ref?.error || '추천인 정보를 불러오지 못했습니다.'}
+                  </p>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="grid gap-6 lg:grid-cols-2">
+                      {/* 내 추천인 코드 */}
+                      <div className="card-2 p-5">
+                        <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-soft)]">
+                          <Gift size={14} className="text-fuchsia-400" /> 내 추천인 코드
                         </p>
-                      ) : null}
-                    </div>
-
-                    {/* 친구 추가 */}
-                    <div className="card-2 p-5">
-                      <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-soft)]">
-                        <UserPlus size={14} className="text-violet-600" /> 친구 추가
-                      </p>
-                      <p className="mt-2 text-sm text-[var(--text-soft)]">
-                        친구의 추천인 코드를 입력하면 친구로 추가돼요.
-                      </p>
-                      <form onSubmit={submitFriend} className="mt-3 flex gap-2">
-                        <input
-                          value={friendCode}
-                          onChange={(e) => setFriendCode(e.target.value)}
-                          className={inputCls}
-                          placeholder="추천인 코드 입력"
-                        />
-                        <Button type="submit" disabled={friendBusy} className="flex-shrink-0">
-                          {friendBusy ? '추가 중...' : <><UserPlus size={15} /> 추가</>}
-                        </Button>
-                      </form>
-                      {friendMsg && (
-                        <div
-                          className={`mt-3 flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm ${
-                            friendMsg.ok
-                              ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-600'
-                              : 'border-rose-500/30 bg-rose-500/12 text-rose-600'
-                          }`}
-                        >
-                          {friendMsg.ok ? <Check size={15} /> : <AlertCircle size={15} />} {friendMsg.text}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 목록 */}
-                  <div className="grid gap-6 lg:grid-cols-2">
-                    <div>
-                      <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
-                        <Users size={13} /> 내 친구 목록 ({ref.friendCount ?? ref.friends?.length ?? 0})
-                      </p>
-                      <RefUserList rows={ref.friends || []} empty="아직 친구가 없어요" />
-                    </div>
-                    <div>
-                      <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
-                        <Gift size={13} /> 내가 추천한 회원 ({ref.referredCount ?? ref.referred?.length ?? 0})
-                      </p>
-                      <RefUserList rows={ref.referred || []} empty="아직 추천한 회원이 없어요" />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </Panel>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              {/* 2. 비밀번호 변경 (간편로그인 계정은 최초 설정) */}
-              <Panel title={<span className="flex items-center gap-2"><Lock size={16} className="text-violet-600" /> {socialNoPw ? '비밀번호 설정' : '비밀번호 변경'}</span>}>
-                <form onSubmit={submitPassword} className="space-y-3">
-                  {socialNoPw ? (
-                    <p className="rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm text-[var(--text-soft)]">
-                      간편로그인({user.provider === 'google' ? '구글' : user.provider}) 계정이에요. 비밀번호를 설정하면 이메일+비밀번호로도 로그인할 수 있어요.
-                    </p>
-                  ) : (
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">현재 비밀번호</label>
-                      <input
-                        type="password"
-                        value={cur}
-                        onChange={(e) => setCur(e.target.value)}
-                        className={inputCls}
-                        placeholder="현재 비밀번호"
-                        autoComplete="current-password"
-                      />
-                    </div>
-                  )}
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">새 비밀번호</label>
-                    <input
-                      type="password"
-                      value={next}
-                      onChange={(e) => setNext(e.target.value)}
-                      className={inputCls}
-                      placeholder="6자 이상"
-                      autoComplete="new-password"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">새 비밀번호 확인</label>
-                    <input
-                      type="password"
-                      value={confirm}
-                      onChange={(e) => setConfirm(e.target.value)}
-                      className={inputCls}
-                      placeholder="새 비밀번호 재입력"
-                      autoComplete="new-password"
-                    />
-                  </div>
-
-                  {pwOk && (
-                    <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-600">
-                      <Check size={15} /> 비밀번호가 변경되었습니다
-                    </div>
-                  )}
-                  {pwErr && (
-                    <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-600">
-                      <AlertCircle size={15} /> {pwErr}
-                    </div>
-                  )}
-
-                  <Button type="submit" disabled={pwBusy} className="w-full">
-                    {pwBusy ? '처리 중...' : socialNoPw ? '비밀번호 설정' : '변경'}
-                  </Button>
-                </form>
-              </Panel>
-
-              {/* 3. 현재 플랜 (2트랙) */}
-              <Panel title={<span className="flex items-center gap-2"><Crown size={16} className="text-amber-500" /> 현재 플랜</span>}>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {(['marketer', 'video'] as PlanTrack[]).map((t) => {
-                    const tm = TRACK_META[t]
-                    const TIcon = tm.icon
-                    const plan = t === 'marketer' ? user.plan : user.videoPlan
-                    return (
-                      <div key={t} className="card-2 flex flex-col gap-2 p-4">
-                        <div className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-soft)]">
-                          <TIcon size={14} /> {tm.label}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xl font-bold tracking-tight">{planLabel(plan)}</span>
-                          <Badge className={PLAN_META[plan]?.badge || 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600'}>
-                            <Crown size={12} /> {planLabel(plan)}
-                          </Badge>
-                        </div>
-                        <ul className="mt-1 space-y-1.5">
-                          {(PLAN_META[plan]?.perks || ['기본 기능 이용']).map((p) => (
-                            <li key={p} className="flex items-center gap-2 text-xs text-[var(--text-soft)]">
-                              <Check size={13} className="flex-shrink-0 text-emerald-600" /> {p}
-                            </li>
-                          ))}
-                        </ul>
-                        {plan !== '없음' && (
-                          <button
+                        <p className="mt-2 select-all font-mono text-3xl font-bold tracking-widest">
+                          {ref.code || '-'}
+                        </p>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <Button
                             type="button"
-                            onClick={() => setCancelTrack(t)}
-                            className="mt-auto self-start pt-1.5 text-[10px] text-[var(--text-dim)] opacity-45 underline decoration-dotted underline-offset-2 transition-opacity hover:opacity-90"
+                            variant="soft"
+                            size="sm"
+                            onClick={() => copyText(ref.code || '', 'code')}
+                            disabled={!ref.code}
                           >
-                            구독 취소
-                          </button>
+                            {copied === 'code' ? <><Check size={14} /> 복사됨</> : <><Copy size={14} /> 복사</>}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="soft"
+                            size="sm"
+                            onClick={() => copyText(`https://nextbygency.com/signup?ref=${ref.code || ''}`, 'link')}
+                            disabled={!ref.code}
+                          >
+                            {copied === 'link' ? <><Check size={14} /> 복사됨</> : <><Link2 size={14} /> 초대 링크 복사</>}
+                          </Button>
+                        </div>
+                        {ref.referredByName ? (
+                          <p className="mt-4 text-sm text-[var(--text-soft)]">
+                            추천인: <span className="font-medium text-[var(--text)]">{ref.referredByName}</span>
+                          </p>
+                        ) : null}
+                      </div>
+
+                      {/* 친구 추가 */}
+                      <div className="card-2 p-5">
+                        <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-soft)]">
+                          <UserPlus size={14} className="text-violet-400" /> 친구 추가
+                        </p>
+                        <p className="mt-2 text-sm text-[var(--text-soft)]">
+                          친구의 추천인 코드를 입력하면 친구로 추가돼요.
+                        </p>
+                        <form onSubmit={submitFriend} className="mt-3 flex gap-2">
+                          <input
+                            value={friendCode}
+                            onChange={(e) => setFriendCode(e.target.value)}
+                            className={inputCls}
+                            placeholder="추천인 코드 입력"
+                          />
+                          <Button type="submit" disabled={friendBusy} className="flex-shrink-0">
+                            {friendBusy ? '추가 중...' : <><UserPlus size={15} /> 추가</>}
+                          </Button>
+                        </form>
+                        {friendMsg && (
+                          <div
+                            className={`mt-3 flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm ${
+                              friendMsg.ok
+                                ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-500'
+                                : 'border-rose-500/30 bg-rose-500/12 text-rose-500'
+                            }`}
+                          >
+                            {friendMsg.ok ? <Check size={15} /> : <AlertCircle size={15} />} {friendMsg.text}
+                          </div>
                         )}
                       </div>
-                    )
-                  })}
-                </div>
-                {user.videoPlan === 'Max' && (
-                  <p className="mt-4 flex items-center gap-1.5 rounded-xl border border-fuchsia-500/30 bg-fuchsia-500/12 px-3.5 py-2.5 text-xs text-fuchsia-600">
-                    <Video size={14} className="flex-shrink-0" /> AI 영상 Max 가입자는 홈에서 노드 스튜디오로 자동 이동합니다.
-                  </p>
-                )}
-                <div className="mt-4">
-                  <Button href="/#pricing" variant="soft" className="w-full">
-                    <ArrowUpCircle size={16} /> 요금제 안내 보기
-                  </Button>
-                </div>
-              </Panel>
-            </div>
-
-            {/* 3.5 플랜 업그레이드 신청 & 발신번호 등록 */}
-            <div className="grid gap-6 lg:grid-cols-2">
-              {/* A) 플랜 신청 (2트랙) */}
-              <Panel title={<span className="flex items-center gap-2"><ArrowUpCircle size={16} className="text-violet-600" /> 플랜 신청</span>}>
-                <form onSubmit={submitPlan} className="space-y-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">플랜 종류</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {(['marketer', 'video'] as PlanTrack[]).map((t) => {
-                        const tm = TRACK_META[t]
-                        const TIcon = tm.icon
-                        const active = planTrack === t
-                        return (
-                          <button
-                            key={t}
-                            type="button"
-                            onClick={() => setPlanTrack(t)}
-                            className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors ${
-                              active
-                                ? 'border-violet-500/40 bg-violet-500/12 text-violet-600'
-                                : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-violet-500/40'
-                            }`}
-                          >
-                            <TIcon size={15} /> {tm.label}
-                          </button>
-                        )
-                      })}
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm">
-                    <span className="text-[var(--text-soft)]">현재 {TRACK_META[planTrack].label}</span>
-                    <Badge className={PLAN_META[curTier]?.badge || 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600'}>
-                      <Crown size={12} /> {planLabel(curTier)}
-                    </Badge>
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">신청 등급</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {ALL_PLANS.map((p) => {
-                        const active = toPlan === p
-                        const isCurrent = curTier === p
-                        return (
-                          <button
-                            key={p}
-                            type="button"
-                            disabled={isCurrent}
-                            onClick={() => setToPlan(p)}
-                            className={`rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors ${
-                              isCurrent
-                                ? 'cursor-not-allowed border-[var(--border-soft)] bg-[var(--panel-2)] text-[var(--text-dim)]'
-                                : active
-                                ? 'border-violet-500/40 bg-violet-500/12 text-violet-600'
-                                : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-violet-500/40'
-                            }`}
-                          >
-                            {p}
-                            {isCurrent ? <span className="ml-1 text-[10px] font-normal">(현재)</span> : null}
-                          </button>
-                        )
-                      })}
+                    {/* 목록 */}
+                    <div className="grid gap-6 lg:grid-cols-2">
+                      <div>
+                        <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
+                          <Users size={13} /> 내 친구 목록 ({ref.friendCount ?? ref.friends?.length ?? 0})
+                        </p>
+                        <RefUserList rows={ref.friends || []} empty="아직 친구가 없어요" />
+                      </div>
+                      <div>
+                        <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
+                          <Gift size={13} /> 내가 추천한 회원 ({ref.referredCount ?? ref.referred?.length ?? 0})
+                        </p>
+                        <RefUserList rows={ref.referred || []} empty="아직 추천한 회원이 없어요" />
+                      </div>
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">
-                      메모 <span className="text-[var(--text-dim)]">(선택)</span>
-                    </label>
-                    <input
-                      value={planMemo}
-                      onChange={(e) => setPlanMemo(e.target.value)}
-                      className={inputCls}
-                      placeholder="요청 사항을 남겨주세요"
-                    />
-                  </div>
-
-                  {planOk && (
-                    <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-600">
-                      <Check size={15} /> 신청이 접수되었습니다. 관리자 승인 후 반영됩니다.
-                    </div>
-                  )}
-                  {planErr && (
-                    <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-600">
-                      <AlertCircle size={15} /> {planErr}
-                    </div>
-                  )}
-
-                  <Button type="submit" disabled={planBusy || curTier === toPlan} className="w-full">
-                    {planBusy ? '신청 중...' : curTier === toPlan ? '이미 이용 중인 등급입니다' : '승인 신청 (계좌이체)'}
-                  </Button>
-                  {curTier !== toPlan && (
-                    <Button
-                      href={`/activate?track=${planTrack}&plan=${toPlan}`}
-                      variant="soft"
-                      className="w-full"
-                    >
-                      <ArrowUpCircle size={16} /> 결제하고 바로 업그레이드
-                    </Button>
-                  )}
-                </form>
-
-                {toast && (
-                  <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-600 animate-fade-in">
-                    <Check size={15} /> {toast}
                   </div>
                 )}
-
-                <div className="mt-5">
-                  <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
-                    <Clock size={13} /> 신청 내역
-                  </p>
-                  {planReqs.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-[var(--text-dim)]">신청 내역이 없습니다</p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {planReqs.map((r, i) => {
-                        const m = statusMeta(r.status)
-                        const tm = trackMeta(r.track)
-                        return (
-                          <li
-                            key={i}
-                            className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-soft)] px-3.5 py-2.5"
-                          >
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <Badge className={tm.badge}>{tm.short}</Badge>
-                                <p className="text-sm font-medium">
-                                  {planLabel(r.from_plan)} → {planLabel(r.to_plan)}
-                                </p>
-                              </div>
-                              <p className="mt-0.5 text-xs text-[var(--text-dim)]">{fmtDate(r.created_at)}</p>
-                            </div>
-                            <Badge className={m.badge}>{m.label}</Badge>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
-                </div>
               </Panel>
 
-              {/* B) 발신번호 등록 */}
-              <Panel title={<span className="flex items-center gap-2"><MessageSquare size={16} className="text-sky-600" /> 발신번호 등록</span>}>
-                <p className="mb-3 rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm text-[var(--text-soft)]">
-                  문자 발송에 사용할 발신번호를 등록하면 관리자 승인 후 사용할 수 있어요.
-                </p>
-                <form onSubmit={submitSender} className="space-y-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">전화번호</label>
-                    <div className="relative">
-                      <Phone
-                        size={16}
-                        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-dim)]"
-                      />
-                      <input
-                        value={senderPhone}
-                        onChange={(e) => setSenderPhone(e.target.value)}
-                        className={inputCls + ' pl-10'}
-                        placeholder="010-0000-0000"
-                        inputMode="tel"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">
-                      라벨 <span className="text-[var(--text-dim)]">(선택)</span>
-                    </label>
-                    <input
-                      value={senderLabel}
-                      onChange={(e) => setSenderLabel(e.target.value)}
-                      className={inputCls}
-                      placeholder="예: 대표번호, 마케팅팀"
-                    />
-                  </div>
-
-                  {senderOk && (
-                    <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-600">
-                      <Check size={15} /> 발신번호가 접수되었습니다. 관리자 승인 후 사용할 수 있어요.
-                    </div>
-                  )}
-                  {senderErr && (
-                    <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-600">
-                      <AlertCircle size={15} /> {senderErr}
-                    </div>
-                  )}
-
-                  <Button type="submit" disabled={senderBusy} className="w-full">
-                    {senderBusy ? '등록 중...' : '등록 신청'}
-                  </Button>
-                </form>
-
-                <div className="mt-5">
-                  <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
-                    <Phone size={13} /> 등록 목록
-                  </p>
-                  {senders.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-[var(--text-dim)]">등록된 발신번호가 없습니다</p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {senders.map((s) => {
-                        const m = statusMeta(s.status)
-                        return (
-                          <li
-                            key={s.id}
-                            className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-soft)] px-3.5 py-2.5"
-                          >
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium">
-                                {s.phone}
-                                {s.label ? <span className="ml-1.5 text-[var(--text-soft)]">· {s.label}</span> : null}
-                              </p>
-                              <p className="mt-0.5 text-xs text-[var(--text-dim)]">{fmtDate(s.created_at)}</p>
-                            </div>
-                            <Badge className={m.badge}>{m.label}</Badge>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
-                </div>
-              </Panel>
-            </div>
-
-            {/* 포인트 지급 제도 종료 — 신청 패널 제거됨 */}
-
-            {/* 3.7 크레딧 충전 신청 */}
-            <Panel title={<span className="flex items-center gap-2"><Coins size={16} className="text-amber-500" /> 크레딧 충전 신청</span>}>
-              <p className="mb-3 rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm text-[var(--text-soft)]">
-                필요한 크레딧을 신청하면 관리자 승인 후 충전됩니다. (현재 보유: <b className="text-amber-600">{ko(user.credits)}개</b>)
-              </p>
               <div className="grid gap-6 lg:grid-cols-2">
-                <form onSubmit={submitCredit} className="space-y-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">패키지 선택</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {CREDIT_PACKAGES.map((pkg) => {
-                        const active = creditAmount === String(pkg.credits) && creditPrice === pkg.price
-                        return (
-                          <button
-                            key={pkg.credits}
-                            type="button"
-                            onClick={() => {
-                              setCreditAmount(String(pkg.credits))
-                              setCreditPrice(pkg.price)
-                            }}
-                            className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                              active
-                                ? 'border-amber-500/40 bg-amber-500/12 text-amber-600'
-                                : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-amber-500/40 hover:text-amber-600'
-                            }`}
-                          >
-                            +{ko(pkg.credits)} / {pkg.price.toLocaleString()}원
-                            {pkg.badge ? <span className="ml-1 text-[10px] text-amber-500">{pkg.badge}</span> : null}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">신청 크레딧</label>
-                    <input
-                      value={creditAmount}
-                      onChange={(e) => setCreditAmount(e.target.value)}
-                      className={inputCls}
-                      placeholder="예: 50"
-                      inputMode="numeric"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">
-                      메모 <span className="text-[var(--text-dim)]">(선택)</span>
-                    </label>
-                    <input
-                      value={creditMemo}
-                      onChange={(e) => setCreditMemo(e.target.value)}
-                      className={inputCls}
-                      placeholder="신청 사유를 남겨주세요"
-                    />
-                  </div>
-
-                  {creditOk && (
-                    <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-600">
-                      <Check size={15} /> 신청이 접수되었습니다. 관리자 승인 후 충전됩니다.
-                    </div>
-                  )}
-                  {creditErr && (
-                    <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-600">
-                      <AlertCircle size={15} /> {creditErr}
-                    </div>
-                  )}
-
-                  <Button type="submit" disabled={creditBusy} className="w-full">
-                    {creditBusy ? '신청 중...' : '충전 신청'}
-                  </Button>
-                </form>
-
-                <div>
-                  <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
-                    <Clock size={13} /> 신청 내역
-                  </p>
-                  {creditReqs.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-[var(--text-dim)]">신청 내역이 없습니다</p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {creditReqs.map((r, i) => {
-                        const m = statusMeta(r.status)
-                        return (
-                          <li
-                            key={i}
-                            className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-soft)] px-3.5 py-2.5"
-                          >
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium">
-                                {ko(r.amount)}개
-                                {r.price > 0 ? <span className="ml-1.5 text-[var(--text-soft)]">· {r.price.toLocaleString()}원</span> : null}
-                              </p>
-                              <p className="mt-0.5 text-xs text-[var(--text-dim)]">
-                                {fmtDate(r.created_at)}
-                                {r.memo ? <span className="ml-1">· {r.memo}</span> : null}
-                              </p>
-                            </div>
-                            <Badge className={m.badge}>{m.label}</Badge>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            </Panel>
-
-            {/* 4. 포인트·크레딧 내역 */}
-            <div className="grid gap-6 lg:grid-cols-2">
-              <Panel title={<span className="flex items-center gap-2"><Coins size={16} className="text-emerald-600" /> 포인트 내역</span>}>
-                <TxTable rows={pointTx} />
-              </Panel>
-              <Panel title={<span className="flex items-center gap-2"><Wallet size={16} className="text-violet-600" /> 크레딧 내역</span>}>
-                <TxTable rows={creditTx} />
-              </Panel>
-            </div>
-
-            {/* 5. 결제 내역 (팝업) */}
-            <Panel
-              title={<span className="flex items-center gap-2"><Receipt size={16} className="text-sky-600" /> 결제 내역</span>}
-              action={
-                <Button variant="ghost" size="sm" onClick={() => setPayOpen(true)}>
-                  전체 보기
-                </Button>
-              }
-            >
-              <button
-                onClick={() => setPayOpen(true)}
-                className="flex w-full items-center justify-between rounded-xl border border-[var(--border-soft)] bg-white px-4 py-3.5 text-left transition-colors hover:border-sky-500/40 hover:bg-sky-50/40"
-              >
-                <div>
-                  <p className="text-sm font-semibold">플랜·크레딧 결제 내역 보기</p>
-                  <p className="mt-0.5 text-xs text-[var(--text-dim)]">
-                    총 {payItems.length}건 · 누적 결제 {ko(payTotal)}원
-                  </p>
-                </div>
-                <span className="grid h-9 w-9 place-items-center rounded-full bg-sky-500/10 text-sky-600">
-                  <Receipt size={16} />
-                </span>
-              </button>
-            </Panel>
-
-            {/* 6. 알림 */}
-            <Panel
-              title={<span className="flex items-center gap-2"><Bell size={16} className="text-fuchsia-600" /> 알림{unread > 0 ? ` (${unread})` : ''}</span>}
-              action={
-                notifications.length > 0 && unread > 0 ? (
-                  <Button variant="ghost" size="sm" onClick={readAll}>
-                    모두 읽음
-                  </Button>
-                ) : undefined
-              }
-            >
-              {notifications.length === 0 ? (
-                <p className="py-8 text-center text-sm text-[var(--text-dim)]">알림이 없습니다</p>
-              ) : (
-                <ul className="space-y-2">
-                  {notifications.map((n, i) => {
-                    const isUnread = !n.read
-                    return (
-                      <li
-                        key={n.id || i}
-                        className={`flex items-start gap-3 rounded-xl border px-3.5 py-3 ${
-                          isUnread ? 'border-violet-500/30 bg-violet-50/50' : 'border-[var(--border-soft)] bg-white'
-                        }`}
-                      >
-                        <span
-                          className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${
-                            isUnread ? 'bg-violet-500' : 'bg-slate-300'
-                          }`}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="truncate text-sm font-semibold">{n.title || '알림'}</p>
-                            <span className="flex-shrink-0 text-xs text-[var(--text-dim)]">{relTime(n.created_at)}</span>
-                          </div>
-                          {n.body && <p className="mt-0.5 text-sm text-[var(--text-soft)]">{n.body}</p>}
-                          <p className="mt-0.5 text-xs text-[var(--text-dim)]">{fmtDate(n.created_at)}</p>
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </Panel>
-
-            {/* 7. 활동 로그 */}
-            <Panel title={<span className="flex items-center gap-2"><Activity size={16} className="text-slate-600" /> 활동 로그</span>}>
-              {activity.length === 0 ? (
-                <p className="py-8 text-center text-sm text-[var(--text-dim)]">활동 내역이 없습니다</p>
-              ) : (
-                <ul className="space-y-1">
-                  {activity.map((a, i) => {
-                    const m = actMeta(a.type)
-                    const Icon = m.icon
-                    return (
-                      <li
-                        key={i}
-                        className="flex items-center gap-3 rounded-xl px-2 py-2.5 hover:bg-[var(--panel-2)]"
-                      >
-                        <span className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg border ${m.badge}`}>
-                          <Icon size={15} />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm">
-                            <span className="font-semibold">{m.label}</span>
-                            {a.detail ? <span className="text-[var(--text-soft)]"> · {a.detail}</span> : null}
-                          </p>
-                        </div>
-                        <span
-                          className="flex-shrink-0 text-xs text-[var(--text-dim)]"
-                          title={fmtDate(a.created_at)}
-                        >
-                          {relTime(a.created_at)}
-                        </span>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </Panel>
-
-            {/* 8. 계정 삭제 — 아주 작게 노출 */}
-            <div className="pt-2 pb-4 text-center">
-              {!delOpen ? (
-                <button
-                  onClick={() => { setDelOpen(true); setDelErr(null) }}
-                  className="text-[11px] text-[var(--text-dim)] underline decoration-dotted underline-offset-2 transition-colors hover:text-rose-400"
-                >
-                  계정 삭제
-                </button>
-              ) : (
-                <div className="mx-auto max-w-md rounded-xl border border-rose-500/30 bg-rose-50/40 p-4 text-left">
-                  <p className="flex items-center gap-1.5 text-sm font-semibold text-rose-600">
-                    <Trash2 size={14} /> 계정 삭제
-                  </p>
-                  <p className="mt-1 text-xs text-[var(--text-soft)]">
-                    계정을 삭제하면 모든 데이터가 영구히 삭제되며 되돌릴 수 없습니다.
-                    {socialNoPw ? ' 확인을 위해 계정 이메일 주소를 입력해 주세요.' : ' 확인을 위해 비밀번호를 입력해 주세요.'}
-                  </p>
-                  <form onSubmit={submitDelete} className="mt-3 space-y-2">
+                {/* 2. 비밀번호 변경 (간편로그인 계정은 최초 설정) */}
+                <Panel title={<span className="flex items-center gap-2"><Lock size={16} className="text-violet-400" /> {socialNoPw ? '비밀번호 설정' : '비밀번호 변경'}</span>}>
+                  <form onSubmit={submitPassword} className="space-y-3">
                     {socialNoPw ? (
-                      <input
-                        type="email"
-                        value={delEmail}
-                        onChange={(e) => setDelEmail(e.target.value)}
-                        className={inputCls}
-                        placeholder={user.email}
-                        autoComplete="off"
-                      />
+                      <p className="rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm text-[var(--text-soft)]">
+                        간편로그인({user.provider === 'google' ? '구글' : user.provider}) 계정이에요. 비밀번호를 설정하면 이메일+비밀번호로도 로그인할 수 있어요.
+                      </p>
                     ) : (
-                      <input
-                        type="password"
-                        value={delPw}
-                        onChange={(e) => setDelPw(e.target.value)}
-                        className={inputCls}
-                        placeholder="비밀번호 입력"
-                        autoComplete="current-password"
-                      />
-                    )}
-                    {delErr && (
-                      <div className="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/12 px-3 py-2 text-xs text-rose-600">
-                        <AlertCircle size={13} /> {delErr}
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">현재 비밀번호</label>
+                        <input
+                          type="password"
+                          value={cur}
+                          onChange={(e) => setCur(e.target.value)}
+                          className={inputCls}
+                          placeholder="현재 비밀번호"
+                          autoComplete="current-password"
+                        />
                       </div>
                     )}
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => { setDelOpen(false); setDelPw(''); setDelEmail(''); setDelErr(null) }}
-                        className="flex-1 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-soft)] transition-colors hover:bg-[var(--panel-2)]"
-                      >
-                        취소
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={delBusy}
-                        className="flex-1 rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700 disabled:opacity-60"
-                      >
-                        {delBusy ? '삭제 중...' : '영구 삭제'}
-                      </button>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">새 비밀번호</label>
+                      <input
+                        type="password"
+                        value={next}
+                        onChange={(e) => setNext(e.target.value)}
+                        className={inputCls}
+                        placeholder="6자 이상"
+                        autoComplete="new-password"
+                      />
                     </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">새 비밀번호 확인</label>
+                      <input
+                        type="password"
+                        value={confirm}
+                        onChange={(e) => setConfirm(e.target.value)}
+                        className={inputCls}
+                        placeholder="새 비밀번호 재입력"
+                        autoComplete="new-password"
+                      />
+                    </div>
+
+                    {pwOk && (
+                      <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-500">
+                        <Check size={15} /> 비밀번호가 변경되었습니다
+                      </div>
+                    )}
+                    {pwErr && (
+                      <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-500">
+                        <AlertCircle size={15} /> {pwErr}
+                      </div>
+                    )}
+
+                    <Button type="submit" disabled={pwBusy} className="w-full">
+                      {pwBusy ? '처리 중...' : socialNoPw ? '비밀번호 설정' : '변경'}
+                    </Button>
                   </form>
+                </Panel>
+
+                {/* 3. 현재 플랜 (2트랙) */}
+                <Panel title={<span className="flex items-center gap-2"><Crown size={16} className="text-amber-500" /> 현재 플랜</span>}>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {(['marketer', 'video'] as PlanTrack[]).map((t) => {
+                      const tm = TRACK_META[t]
+                      const TIcon = tm.icon
+                      const plan = t === 'marketer' ? user.plan : user.videoPlan
+                      return (
+                        <div key={t} className="card-2 flex flex-col gap-2 p-4">
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-soft)]">
+                            <TIcon size={14} /> {tm.label}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl font-bold tracking-tight">{planLabel(plan)}</span>
+                            <Badge className={PLAN_META[plan]?.badge || 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-dim)]'}>
+                              <Crown size={12} /> {planLabel(plan)}
+                            </Badge>
+                          </div>
+                          <ul className="mt-1 space-y-1.5">
+                            {(PLAN_META[plan]?.perks || ['기본 기능 이용']).map((p) => (
+                              <li key={p} className="flex items-center gap-2 text-xs text-[var(--text-soft)]">
+                                <Check size={13} className="flex-shrink-0 text-emerald-500" /> {p}
+                              </li>
+                            ))}
+                          </ul>
+                          {plan !== '없음' && (
+                            <button
+                              type="button"
+                              onClick={() => setCancelTrack(t)}
+                              className="mt-auto self-start pt-1.5 text-[10px] text-[var(--text-dim)] opacity-45 underline decoration-dotted underline-offset-2 transition-opacity hover:opacity-90"
+                            >
+                              구독 취소
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {user.videoPlan === 'Max' && (
+                    <p className="mt-4 flex items-center gap-1.5 rounded-xl border border-fuchsia-500/30 bg-fuchsia-500/12 px-3.5 py-2.5 text-xs text-fuchsia-400">
+                      <Video size={14} className="flex-shrink-0" /> AI 영상 Max 가입자는 홈에서 노드 스튜디오로 자동 이동합니다.
+                    </p>
+                  )}
+                  <div className="mt-4">
+                    <Button href="/#pricing" variant="soft" className="w-full">
+                      <ArrowUpCircle size={16} /> 요금제 안내 보기
+                    </Button>
+                  </div>
+                </Panel>
+              </div>
+
+              {/* 8. 계정 삭제 — 아주 작게 노출 */}
+              <div className="pt-2 pb-4 text-center">
+                {!delOpen ? (
+                  <button
+                    onClick={() => { setDelOpen(true); setDelErr(null) }}
+                    className="text-[11px] text-[var(--text-dim)] underline decoration-dotted underline-offset-2 transition-colors hover:text-rose-400"
+                  >
+                    계정 삭제
+                  </button>
+                ) : (
+                  <div className="mx-auto max-w-md rounded-xl border border-rose-500/30 bg-rose-500/[0.08] p-4 text-left">
+                    <p className="flex items-center gap-1.5 text-sm font-semibold text-rose-500">
+                      <Trash2 size={14} /> 계정 삭제
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--text-soft)]">
+                      계정을 삭제하면 모든 데이터가 영구히 삭제되며 되돌릴 수 없습니다.
+                      {socialNoPw ? ' 확인을 위해 계정 이메일 주소를 입력해 주세요.' : ' 확인을 위해 비밀번호를 입력해 주세요.'}
+                    </p>
+                    <form onSubmit={submitDelete} className="mt-3 space-y-2">
+                      {socialNoPw ? (
+                        <input
+                          type="email"
+                          value={delEmail}
+                          onChange={(e) => setDelEmail(e.target.value)}
+                          className={inputCls}
+                          placeholder={user.email}
+                          autoComplete="off"
+                        />
+                      ) : (
+                        <input
+                          type="password"
+                          value={delPw}
+                          onChange={(e) => setDelPw(e.target.value)}
+                          className={inputCls}
+                          placeholder="비밀번호 입력"
+                          autoComplete="current-password"
+                        />
+                      )}
+                      {delErr && (
+                        <div className="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/12 px-3 py-2 text-xs text-rose-500">
+                          <AlertCircle size={13} /> {delErr}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => { setDelOpen(false); setDelPw(''); setDelEmail(''); setDelErr(null) }}
+                          className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel)] px-3 py-2 text-sm font-medium text-[var(--text-soft)] transition-colors hover:bg-[var(--panel-2)]"
+                        >
+                          취소
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={delBusy}
+                          className="flex-1 rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700 disabled:opacity-60"
+                        >
+                          {delBusy ? '삭제 중...' : '영구 삭제'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+              </div>
+              </>
+            )}
+
+            {tab === 'billing' && (
+              <>
+              {/* 3.5 플랜 업그레이드 신청 & 발신번호 등록 */}
+              <div className="grid gap-6 lg:grid-cols-2">
+                {/* A) 플랜 신청 (2트랙) */}
+                <Panel title={<span className="flex items-center gap-2"><ArrowUpCircle size={16} className="text-violet-400" /> 플랜 신청</span>}>
+                  <form onSubmit={submitPlan} className="space-y-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">플랜 종류</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(['marketer', 'video'] as PlanTrack[]).map((t) => {
+                          const tm = TRACK_META[t]
+                          const TIcon = tm.icon
+                          const active = planTrack === t
+                          return (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => setPlanTrack(t)}
+                              className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors ${
+                                active
+                                  ? 'border-violet-500/40 bg-violet-500/12 text-violet-400'
+                                  : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-violet-500/40'
+                              }`}
+                            >
+                              <TIcon size={15} /> {tm.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm">
+                      <span className="text-[var(--text-soft)]">현재 {TRACK_META[planTrack].label}</span>
+                      <Badge className={PLAN_META[curTier]?.badge || 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-dim)]'}>
+                        <Crown size={12} /> {planLabel(curTier)}
+                      </Badge>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">신청 등급</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {ALL_PLANS.map((p) => {
+                          const active = toPlan === p
+                          const isCurrent = curTier === p
+                          return (
+                            <button
+                              key={p}
+                              type="button"
+                              disabled={isCurrent}
+                              onClick={() => setToPlan(p)}
+                              className={`rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors ${
+                                isCurrent
+                                  ? 'cursor-not-allowed border-[var(--border-soft)] bg-[var(--panel-2)] text-[var(--text-dim)]'
+                                  : active
+                                  ? 'border-violet-500/40 bg-violet-500/12 text-violet-400'
+                                  : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-violet-500/40'
+                              }`}
+                            >
+                              {p}
+                              {isCurrent ? <span className="ml-1 text-[10px] font-normal">(현재)</span> : null}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">
+                        메모 <span className="text-[var(--text-dim)]">(선택)</span>
+                      </label>
+                      <input
+                        value={planMemo}
+                        onChange={(e) => setPlanMemo(e.target.value)}
+                        className={inputCls}
+                        placeholder="요청 사항을 남겨주세요"
+                      />
+                    </div>
+
+                    {planOk && (
+                      <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-500">
+                        <Check size={15} /> 신청이 접수되었습니다. 관리자 승인 후 반영됩니다.
+                      </div>
+                    )}
+                    {planErr && (
+                      <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-500">
+                        <AlertCircle size={15} /> {planErr}
+                      </div>
+                    )}
+
+                    <Button type="submit" disabled={planBusy || curTier === toPlan} className="w-full">
+                      {planBusy ? '신청 중...' : curTier === toPlan ? '이미 이용 중인 등급입니다' : '승인 신청 (계좌이체)'}
+                    </Button>
+                    {curTier !== toPlan && (
+                      <Button
+                        href={`/activate?track=${planTrack}&plan=${toPlan}`}
+                        variant="soft"
+                        className="w-full"
+                      >
+                        <ArrowUpCircle size={16} /> 결제하고 바로 업그레이드
+                      </Button>
+                    )}
+                  </form>
+
+                  {toast && (
+                    <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-500 animate-fade-in">
+                      <Check size={15} /> {toast}
+                    </div>
+                  )}
+
+                  <div className="mt-5">
+                    <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
+                      <Clock size={13} /> 신청 내역
+                    </p>
+                    {planReqs.length === 0 ? (
+                      <p className="py-6 text-center text-sm text-[var(--text-dim)]">신청 내역이 없습니다</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {planReqs.map((r, i) => {
+                          const m = statusMeta(r.status)
+                          const tm = trackMeta(r.track)
+                          return (
+                            <li
+                              key={i}
+                              className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-soft)] px-3.5 py-2.5"
+                            >
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <Badge className={tm.badge}>{tm.short}</Badge>
+                                  <p className="text-sm font-medium">
+                                    {planLabel(r.from_plan)} → {planLabel(r.to_plan)}
+                                  </p>
+                                </div>
+                                <p className="mt-0.5 text-xs text-[var(--text-dim)]">{fmtDate(r.created_at)}</p>
+                              </div>
+                              <Badge className={m.badge}>{m.label}</Badge>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                </Panel>
+
+                {/* B) 발신번호 등록 */}
+                <Panel title={<span className="flex items-center gap-2"><MessageSquare size={16} className="text-sky-500" /> 발신번호 등록</span>}>
+                  <p className="mb-3 rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm text-[var(--text-soft)]">
+                    문자 발송에 사용할 발신번호를 등록하면 관리자 승인 후 사용할 수 있어요.
+                  </p>
+                  <form onSubmit={submitSender} className="space-y-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">전화번호</label>
+                      <div className="relative">
+                        <Phone
+                          size={16}
+                          className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-dim)]"
+                        />
+                        <input
+                          value={senderPhone}
+                          onChange={(e) => setSenderPhone(e.target.value)}
+                          className={inputCls + ' pl-10'}
+                          placeholder="010-0000-0000"
+                          inputMode="tel"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">
+                        라벨 <span className="text-[var(--text-dim)]">(선택)</span>
+                      </label>
+                      <input
+                        value={senderLabel}
+                        onChange={(e) => setSenderLabel(e.target.value)}
+                        className={inputCls}
+                        placeholder="예: 대표번호, 마케팅팀"
+                      />
+                    </div>
+
+                    {senderOk && (
+                      <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-500">
+                        <Check size={15} /> 발신번호가 접수되었습니다. 관리자 승인 후 사용할 수 있어요.
+                      </div>
+                    )}
+                    {senderErr && (
+                      <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-500">
+                        <AlertCircle size={15} /> {senderErr}
+                      </div>
+                    )}
+
+                    <Button type="submit" disabled={senderBusy} className="w-full">
+                      {senderBusy ? '등록 중...' : '등록 신청'}
+                    </Button>
+                  </form>
+
+                  <div className="mt-5">
+                    <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
+                      <Phone size={13} /> 등록 목록
+                    </p>
+                    {senders.length === 0 ? (
+                      <p className="py-6 text-center text-sm text-[var(--text-dim)]">등록된 발신번호가 없습니다</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {senders.map((s) => {
+                          const m = statusMeta(s.status)
+                          return (
+                            <li
+                              key={s.id}
+                              className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-soft)] px-3.5 py-2.5"
+                            >
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium">
+                                  {s.phone}
+                                  {s.label ? <span className="ml-1.5 text-[var(--text-soft)]">· {s.label}</span> : null}
+                                </p>
+                                <p className="mt-0.5 text-xs text-[var(--text-dim)]">{fmtDate(s.created_at)}</p>
+                              </div>
+                              <Badge className={m.badge}>{m.label}</Badge>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                </Panel>
+              </div>
+
+              {/* 포인트 지급 제도 종료 — 신청 패널 제거됨 */}
+
+              {/* 3.7 크레딧 충전 신청 */}
+              <Panel title={<span className="flex items-center gap-2"><Coins size={16} className="text-amber-500" /> 크레딧 충전 신청</span>}>
+                <p className="mb-3 rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm text-[var(--text-soft)]">
+                  필요한 크레딧을 신청하면 관리자 승인 후 충전됩니다. (현재 보유: <b className="text-amber-500">{ko(user.credits)}개</b>)
+                </p>
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <form onSubmit={submitCredit} className="space-y-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">패키지 선택</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {CREDIT_PACKAGES.map((pkg) => {
+                          const active = creditAmount === String(pkg.credits) && creditPrice === pkg.price
+                          return (
+                            <button
+                              key={pkg.credits}
+                              type="button"
+                              onClick={() => {
+                                setCreditAmount(String(pkg.credits))
+                                setCreditPrice(pkg.price)
+                              }}
+                              className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                                active
+                                  ? 'border-amber-500/40 bg-amber-500/12 text-amber-500'
+                                  : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-amber-500/40 hover:text-amber-500'
+                              }`}
+                            >
+                              +{ko(pkg.credits)} / {pkg.price.toLocaleString()}원
+                              {pkg.badge ? <span className="ml-1 text-[10px] text-amber-500">{pkg.badge}</span> : null}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">신청 크레딧</label>
+                      <input
+                        value={creditAmount}
+                        onChange={(e) => setCreditAmount(e.target.value)}
+                        className={inputCls}
+                        placeholder="예: 50"
+                        inputMode="numeric"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">
+                        메모 <span className="text-[var(--text-dim)]">(선택)</span>
+                      </label>
+                      <input
+                        value={creditMemo}
+                        onChange={(e) => setCreditMemo(e.target.value)}
+                        className={inputCls}
+                        placeholder="신청 사유를 남겨주세요"
+                      />
+                    </div>
+
+                    {creditOk && (
+                      <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-500">
+                        <Check size={15} /> 신청이 접수되었습니다. 관리자 승인 후 충전됩니다.
+                      </div>
+                    )}
+                    {creditErr && (
+                      <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/12 px-3 py-2.5 text-sm text-rose-500">
+                        <AlertCircle size={15} /> {creditErr}
+                      </div>
+                    )}
+
+                    <Button type="submit" disabled={creditBusy} className="w-full">
+                      {creditBusy ? '신청 중...' : '충전 신청'}
+                    </Button>
+                  </form>
+
+                  <div>
+                    <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-dim)]">
+                      <Clock size={13} /> 신청 내역
+                    </p>
+                    {creditReqs.length === 0 ? (
+                      <p className="py-6 text-center text-sm text-[var(--text-dim)]">신청 내역이 없습니다</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {creditReqs.map((r, i) => {
+                          const m = statusMeta(r.status)
+                          return (
+                            <li
+                              key={i}
+                              className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-soft)] px-3.5 py-2.5"
+                            >
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium">
+                                  {ko(r.amount)}개
+                                  {r.price > 0 ? <span className="ml-1.5 text-[var(--text-soft)]">· {r.price.toLocaleString()}원</span> : null}
+                                </p>
+                                <p className="mt-0.5 text-xs text-[var(--text-dim)]">
+                                  {fmtDate(r.created_at)}
+                                  {r.memo ? <span className="ml-1">· {r.memo}</span> : null}
+                                </p>
+                              </div>
+                              <Badge className={m.badge}>{m.label}</Badge>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
+              </Panel>
+
+              {/* 4. 포인트·크레딧 내역 */}
+              <div className="grid gap-6 lg:grid-cols-2">
+                <Panel title={<span className="flex items-center gap-2"><Coins size={16} className="text-emerald-500" /> 포인트 내역</span>}>
+                  <TxTable rows={pointTx} />
+                </Panel>
+                <Panel title={<span className="flex items-center gap-2"><Wallet size={16} className="text-violet-400" /> 크레딧 내역</span>}>
+                  <TxTable rows={creditTx} />
+                </Panel>
+              </div>
+
+              {/* 5. 결제 내역 (팝업) */}
+              <Panel
+                title={<span className="flex items-center gap-2"><Receipt size={16} className="text-sky-500" /> 결제 내역</span>}
+                action={
+                  <Button variant="ghost" size="sm" onClick={() => setPayOpen(true)}>
+                    전체 보기
+                  </Button>
+                }
+              >
+                <button
+                  onClick={() => setPayOpen(true)}
+                  className="flex w-full items-center justify-between rounded-xl border border-[var(--border-soft)] bg-[var(--panel)] px-4 py-3.5 text-left transition-colors hover:border-sky-500/40 hover:bg-[var(--panel-2)]"
+                >
+                  <div>
+                    <p className="text-sm font-semibold">플랜·크레딧 결제 내역 보기</p>
+                    <p className="mt-0.5 text-xs text-[var(--text-dim)]">
+                      총 {payItems.length}건 · 누적 결제 {ko(payTotal)}원
+                    </p>
+                  </div>
+                  <span className="grid h-9 w-9 place-items-center rounded-full bg-sky-500/10 text-sky-500">
+                    <Receipt size={16} />
+                  </span>
+                </button>
+              </Panel>
+              </>
+            )}
+
+            {tab === 'activity' && (
+              <>
+              {/* 6. 알림 */}
+              <Panel
+                title={<span className="flex items-center gap-2"><Bell size={16} className="text-fuchsia-400" /> 알림{unread > 0 ? ` (${unread})` : ''}</span>}
+                action={
+                  notifications.length > 0 && unread > 0 ? (
+                    <Button variant="ghost" size="sm" onClick={readAll}>
+                      모두 읽음
+                    </Button>
+                  ) : undefined
+                }
+              >
+                {notifications.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-[var(--text-dim)]">알림이 없습니다</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {notifications.map((n, i) => {
+                      const isUnread = !n.read
+                      return (
+                        <li
+                          key={n.id || i}
+                          className={`flex items-start gap-3 rounded-xl border px-3.5 py-3 ${
+                            isUnread ? 'border-violet-500/30 bg-violet-500/[0.08]' : 'border-[var(--border-soft)] bg-[var(--panel)]'
+                          }`}
+                        >
+                          <span
+                            className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${
+                              isUnread ? 'bg-violet-500' : 'bg-[var(--text-dim)]'
+                            }`}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="truncate text-sm font-semibold">{n.title || '알림'}</p>
+                              <span className="flex-shrink-0 text-xs text-[var(--text-dim)]">{relTime(n.created_at)}</span>
+                            </div>
+                            {n.body && <p className="mt-0.5 text-sm text-[var(--text-soft)]">{n.body}</p>}
+                            <p className="mt-0.5 text-xs text-[var(--text-dim)]">{fmtDate(n.created_at)}</p>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </Panel>
+
+              {/* 7. 활동 로그 */}
+              <Panel title={<span className="flex items-center gap-2"><Activity size={16} className="text-[var(--text-dim)]" /> 활동 로그</span>}>
+                {activity.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-[var(--text-dim)]">활동 내역이 없습니다</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {activity.map((a, i) => {
+                      const m = actMeta(a.type)
+                      const Icon = m.icon
+                      return (
+                        <li
+                          key={i}
+                          className="flex items-center gap-3 rounded-xl px-2 py-2.5 hover:bg-[var(--panel-2)]"
+                        >
+                          <span className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg border ${m.badge}`}>
+                            <Icon size={15} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm">
+                              <span className="font-semibold">{m.label}</span>
+                              {a.detail ? <span className="text-[var(--text-soft)]"> · {a.detail}</span> : null}
+                            </p>
+                          </div>
+                          <span
+                            className="flex-shrink-0 text-xs text-[var(--text-dim)]"
+                            title={fmtDate(a.created_at)}
+                          >
+                            {relTime(a.created_at)}
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </Panel>
+              </>
+            )}
+
           </>
         )}
       </div>
@@ -1420,51 +1467,51 @@ export default function ProfilePage() {
           onClick={() => setPayOpen(false)}
          variant="center" onClose={() => setPayOpen(false)}>
           <div
-            className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0e1626] text-slate-100 shadow-2xl"
+            className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)] text-[var(--text)] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
               <div className="flex items-center gap-2.5">
-                <span className="grid h-9 w-9 place-items-center rounded-xl bg-sky-500/15 text-sky-400">
+                <span className="grid h-9 w-9 place-items-center rounded-xl bg-sky-500/15 text-sky-500">
                   <Receipt size={18} />
                 </span>
                 <div>
                   <p className="text-sm font-bold">결제 내역</p>
-                  <p className="text-[11px] text-slate-400">플랜 결제 · 크레딧 충전 전체</p>
+                  <p className="text-[11px] text-[var(--text-dim)]">플랜 결제 · 크레딧 충전 전체</p>
                 </div>
               </div>
-              <button onClick={() => setPayOpen(false)} className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white">
+              <button onClick={() => setPayOpen(false)} className="grid h-8 w-8 place-items-center rounded-lg text-[var(--text-dim)] transition hover:bg-[var(--panel-2)] hover:text-[var(--text)]">
                 <X size={18} />
               </button>
             </div>
 
             <div className="grid grid-cols-2 gap-3 px-5 py-4">
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                <p className="text-[11px] text-slate-400">총 결제 금액</p>
-                <p className="mt-0.5 text-lg font-extrabold text-sky-300">{ko(payTotal)}원</p>
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-4 py-3">
+                <p className="text-[11px] text-[var(--text-dim)]">총 결제 금액</p>
+                <p className="mt-0.5 text-lg font-extrabold text-sky-500">{ko(payTotal)}원</p>
               </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                <p className="text-[11px] text-slate-400">결제 건수</p>
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-4 py-3">
+                <p className="text-[11px] text-[var(--text-dim)]">결제 건수</p>
                 <p className="mt-0.5 text-lg font-extrabold">{ko(payItems.length)}건</p>
               </div>
             </div>
 
-            <p className="px-5 pb-2 text-xs font-semibold text-slate-300">결제·충전 내역</p>
+            <p className="px-5 pb-2 text-xs font-semibold text-[var(--text-soft)]">결제·충전 내역</p>
             <div className="flex-1 overflow-y-auto px-5 pb-5">
               {payItems.length === 0 ? (
-                <p className="py-10 text-center text-sm text-slate-500">결제 내역이 없습니다</p>
+                <p className="py-10 text-center text-sm text-[var(--text-dim)]">결제 내역이 없습니다</p>
               ) : (
                 <ul className="space-y-2">
                   {payItems.map((p, i) => (
-                    <li key={i} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-3">
-                      <span className={`grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg ${p.type === 'plan' ? 'bg-amber-500/15 text-amber-300' : 'bg-violet-500/15 text-violet-300'}`}>
+                    <li key={i} className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-3">
+                      <span className={`grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg ${p.type === 'plan' ? 'bg-amber-500/15 text-amber-500' : 'bg-violet-500/15 text-violet-400'}`}>
                         {p.type === 'plan' ? <Crown size={16} /> : <Coins size={16} />}
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold">{p.title}</p>
-                        <p className="text-[11px] text-slate-400">{fmtDate(p.at)}{p.memo ? ` · ${p.memo}` : ''}</p>
+                        <p className="text-[11px] text-[var(--text-dim)]">{fmtDate(p.at)}{p.memo ? ` · ${p.memo}` : ''}</p>
                       </div>
-                      <span className="flex-shrink-0 text-sm font-bold text-sky-300">{ko(p.amountKrw)}원</span>
+                      <span className="flex-shrink-0 text-sm font-bold text-sky-500">{ko(p.amountKrw)}원</span>
                     </li>
                   ))}
                 </ul>
