@@ -127,14 +127,19 @@ def down2(x):
     return x.reshape(n, h // 2, 2, w // 2, 2, c).mean(axis=(2, 4))
 
 def up2_bilinear(x):
-    """2배 확대(양선형, half_pixel) — ONNX Resize(linear) 와 결과가 같아야 한다"""
+    """2배 확대(양선형, half_pixel) — ONNX Resize(linear) 와 결과가 '완전히' 같아야 한다.
+
+    ⚠ 가장자리 처리가 핵심이다. 원래 좌표를 먼저 [0, 크기-1] 안으로 잘라 넣어야 한다.
+      자르지 않고 가중치만 계산하면 맨 위·왼쪽 줄에서 엉뚱한 비율로 섞여, 학습 때와
+      배포된 ONNX 의 결과가 가장자리에서 달라진다(타일 이음매로 드러난다).
+    """
     n, h, w, c = x.shape
-    oy = (np.arange(2 * h) + 0.5) / 2.0 - 0.5
-    ox = (np.arange(2 * w) + 0.5) / 2.0 - 0.5
-    y0 = np.clip(np.floor(oy), 0, h - 1).astype(int); y1 = np.clip(y0 + 1, 0, h - 1)
-    x0 = np.clip(np.floor(ox), 0, w - 1).astype(int); x1 = np.clip(x0 + 1, 0, w - 1)
-    wy = np.clip(oy - np.floor(oy), 0, 1)[None, :, None, None]
-    wx = np.clip(ox - np.floor(ox), 0, 1)[None, None, :, None]
+    oy = np.clip((np.arange(2 * h) + 0.5) / 2.0 - 0.5, 0, h - 1)
+    ox = np.clip((np.arange(2 * w) + 0.5) / 2.0 - 0.5, 0, w - 1)
+    y0 = np.floor(oy).astype(int); y1 = np.minimum(y0 + 1, h - 1)
+    x0 = np.floor(ox).astype(int); x1 = np.minimum(x0 + 1, w - 1)
+    wy = (oy - y0)[None, :, None, None]
+    wx = (ox - x0)[None, None, :, None]
     a = x[:, y0][:, :, x0]; b = x[:, y0][:, :, x1]
     c_ = x[:, y1][:, :, x0]; d = x[:, y1][:, :, x1]
     return (a * (1 - wy) * (1 - wx) + b * (1 - wy) * wx + c_ * wy * (1 - wx) + d * wy * wx).astype(np.float32)

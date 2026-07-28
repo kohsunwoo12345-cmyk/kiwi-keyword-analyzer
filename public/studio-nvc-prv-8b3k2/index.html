@@ -4213,7 +4213,7 @@ function getUpscaler(factor, onStage){
   function own(){
     stage('BYGENCY 자체 모델');
     return ensureOwnSr().then(function(sess){
-      return _smokeTest({ factor:2, tile:192, name:'BYGENCY SR', note:'(자체 모델)',
+      return _smokeTest({ factor:2, tile:192, pad:0.20, edge:6, name:'BYGENCY SR', note:'(자체 모델)',
         run:function(cv){ return _esrRunTile(sess, cv); } });
     });
   }
@@ -4262,9 +4262,15 @@ function _srCanvas2(runner, srcCanvas, onProg){
   var factor=runner.factor||2, W=srcCanvas.width, H=srcCanvas.height;
   var out=document.createElement('canvas'); out.width=Math.max(1,Math.round(W*factor)); out.height=Math.max(1,Math.round(H*factor));
   var octx=out.getContext('2d');
-  var TILE=runner.tile||256, PAD=Math.max(8, Math.min(24, Math.round(TILE*0.12))), CORE=Math.max(16, TILE-2*PAD);
+  // 큰 그림은 한 번에 못 넣어 타일로 쪼개 돌린다.
+  //  겹침(PAD) 은 '버리는 여유분' 이다 — 모델은 타일 바깥을 검정으로 여겨 가장자리 값이 틀리는데,
+  //  그 틀린 띠가 실제로 쓰는 심지(CORE) 밖에 오도록 밀어낸다. 좁으면 타일 경계가 줄로 보인다.
+  //  모델마다 가장자리에서의 버릇이 달라, 러너가 원하는 겹침을 지정할 수 있게 한다(기본 16%).
+  var TILE=runner.tile||256;
+  var PAD=Math.max(12, Math.min(40, Math.round(TILE*(runner.pad||0.16))));
+  var CORE=Math.max(16, TILE-2*PAD);
   var jobs=[]; for(var cy=0;cy<H;cy+=CORE)for(var cx=0;cx<W;cx+=CORE) jobs.push([cx,cy]);
-  var i=0, scratch=document.createElement('canvas'), tmp=document.createElement('canvas');
+  var i=0, scratch=document.createElement('canvas');
   function step(){
     if(i>=jobs.length) return Promise.resolve(out);
     var cx=jobs[i][0], cy=jobs[i][1]; i++;
@@ -4275,22 +4281,21 @@ function _srCanvas2(runner, srcCanvas, onProg){
     scratch.getContext('2d').drawImage(srcCanvas, wx,wy,ww,wh, 0,0,ww,wh);
     return Promise.resolve().then(function(){ return runner.run(scratch); }).then(function(rc){
       if(rc && rc.width){
-        var ow=Math.round(ww*factor), oh=Math.round(wh*factor);
-        // 모델이 8의 배수로 패딩해 더 크게 내놓을 수 있다 → 늘리지 말고 좌상단을 잘라 쓴다.
-        var cw=Math.min(rc.width, ow), chh=Math.min(rc.height, oh);
-        tmp.width=ow; tmp.height=oh;
-        var tx=tmp.getContext('2d');
-        tx.clearRect(0,0,ow,oh);
-        tx.drawImage(rc, 0,0, cw,chh, 0,0, cw,chh);
-        var rampL = cx>0 ? Math.min(PAD*factor, Math.round(ow/3)) : 0;
-        var rampT = cy>0 ? Math.min(PAD*factor, Math.round(oh/3)) : 0;
-        if(rampL||rampT){
-          tx.globalCompositeOperation='destination-in';
-          if(rampL){ var gl=tx.createLinearGradient(0,0,rampL,0); gl.addColorStop(0,'rgba(0,0,0,0)'); gl.addColorStop(1,'rgba(0,0,0,1)'); tx.fillStyle=gl; tx.fillRect(0,0,ow,oh); }
-          if(rampT){ var gt=tx.createLinearGradient(0,0,0,rampT); gt.addColorStop(0,'rgba(0,0,0,0)'); gt.addColorStop(1,'rgba(0,0,0,1)'); tx.fillStyle=gt; tx.fillRect(0,0,ow,oh); }
-          tx.globalCompositeOperation='source-over';
+        // ⚠ 겹친 부분을 '반투명으로 섞어' 이으면, 서로 다른 두 결과가 8비트로 반올림된 채 섞여
+        //   그 구간에만 미세한 얼룩이 남는다(실측: 이음매 주변에서만 잡음이 2배로 튐).
+        //   그래서 섞지 않는다. 결과의 각 점은 '오직 한 타일' 에서만 가져온다.
+        //   겹침(PAD)은 이제 섞기용이 아니라, 모델이 타일 바깥을 검정으로 오해해 생기는
+        //   가장자리 오차를 심지(CORE) 밖으로 밀어내기 위한 여유분이다.
+        var sx0=cx-wx, sy0=cy-wy;                          // 이 타일 안에서 '내 몫' 이 시작하는 위치
+        var sw=Math.min(CORE, W-cx), sh=Math.min(CORE, H-cy);
+        if(sw>0 && sh>0){
+          var sX=Math.round(sx0*factor), sY=Math.round(sy0*factor);
+          var sW=Math.round(sw*factor),  sH=Math.round(sh*factor);
+          // 모델이 8의 배수로 패딩해 더 크거나 작게 내놓을 수 있다 → 있는 만큼만 쓴다.
+          sW=Math.min(sW, Math.max(0, rc.width-sX));
+          sH=Math.min(sH, Math.max(0, rc.height-sY));
+          if(sW>0 && sH>0) octx.drawImage(rc, sX,sY, sW,sH, Math.round(cx*factor), Math.round(cy*factor), sW,sH);
         }
-        octx.drawImage(tmp, Math.round(wx*factor), Math.round(wy*factor));
       }
       if(onProg){ try{ onProg(i/jobs.length); }catch(_){} }
       return _srTick().then(step);
