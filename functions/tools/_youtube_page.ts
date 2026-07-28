@@ -84,8 +84,8 @@ export const youtubeUnifiedPage = `<!DOCTYPE html>
     .kw-hover-btn:hover{background:#ff0000!important;color:#fff!important;}
     .detail-tag{display:inline-block;background:#f1f5f9;color:#475569;border-radius:6px;padding:2px 8px;font-size:11px;margin:2px;}
     @media(max-width:768px){
-      .sidebar{transform:translateX(-100%);}
-      .sidebar.open{transform:translateX(0);}
+      .sidebar{transform:translateX(-100%);visibility:hidden;}
+      .sidebar.open{transform:translateX(0);visibility:visible;}
       .main-area{margin-left:0;}
       .hamburger{display:flex;}
     }

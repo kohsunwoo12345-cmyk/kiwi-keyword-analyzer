@@ -63,6 +63,15 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
   const { user } = useAuth()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
+
+  // 앱의 다른 모달(Overlay)은 모두 Esc 로 닫힌다. 이 패널만 포털을 직접 만들면서 빠져 있었다.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
   const name = user?.name || '마케터'
   const isAdmin = user?.role === 'admin'
   const sub = isAdmin ? 'ADMIN' : (!user?.plan || user.plan === '없음' ? '요금제 미가입' : `${user.plan} 플랜`)
@@ -77,9 +86,13 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
         onClick={onClose}
       />
       <aside
+        aria-hidden={!open}
         className={cn(
-          'fixed right-0 top-0 z-[61] flex h-full w-[320px] max-w-[86vw] flex-col border-l border-[var(--border)] bg-[var(--bg-soft)] shadow-2xl transition-transform',
-          open ? 'translate-x-0' : 'translate-x-full',
+          // 닫힌 패널은 화면 밖으로 밀리기만 할 뿐 탭 순서에는 남는다 —
+          // 키보드로 훑으면 안 보이는 "로그아웃" 까지 포커스가 갔다. visibility 로 순서에서 뺀다.
+          // (visibility 는 전이 중 계속 보이다가 끝에서 숨으므로 슬라이드는 그대로다.)
+          'fixed right-0 top-0 z-[61] flex h-full w-[320px] max-w-[86vw] flex-col border-l border-[var(--border)] bg-[var(--bg-soft)] shadow-2xl transition-[transform,visibility]',
+          open ? 'visible translate-x-0' : 'invisible translate-x-full',
         )}
       >
         <div className="flex items-center justify-between border-b border-[var(--border)] p-4">

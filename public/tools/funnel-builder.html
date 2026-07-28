@@ -181,7 +181,7 @@
 
     /* ── 사이드패널 ── */
     #sidePanel {
-      position: absolute; right: 0; top: 0; bottom: 0; width: 400px;
+      position: absolute; right: 0; top: 0; bottom: 0; width: 400px; max-width: 100%;
       background: #fff; border-left: 1.5px solid var(--border);
       transform: translateX(100%); transition: transform .25s ease;
       overflow: hidden; z-index: 50; display: flex; flex-direction: column;
@@ -382,7 +382,7 @@
 </header>
 
 <!-- ══════════ 레이아웃 래퍼 ══════════ -->
-<div id="appLayout" style="position:relative;height:calc(100vh - 48px);display:flex;">
+<div id="appLayout" style="position:relative;height:calc(100vh - 48px);display:flex;overflow:hidden;">
 
   <!-- 좌측 아이콘 패널 -->
   <div id="leftPanel">

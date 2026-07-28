@@ -298,8 +298,8 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
 
     /* ── RESPONSIVE ── */
     @media(max-width:960px){
-      .sidebar{transform:translateX(-100%);}
-      .sidebar.open{transform:translateX(0);box-shadow:var(--shadow-lg);}
+      .sidebar{transform:translateX(-100%);visibility:hidden;}
+      .sidebar.open{transform:translateX(0);visibility:visible;box-shadow:var(--shadow-lg);}
       .main-area{margin-left:0;}
       .hamburger{display:flex;align-items:center;justify-content:center;}
       .stat-grid{grid-template-columns:repeat(2,1fr);}

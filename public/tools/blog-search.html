@@ -11,8 +11,8 @@
     *{box-sizing:border-box;margin:0;padding:0;}
     body{font-family:'Inter','Pretendard','Noto Sans KR',-apple-system,sans-serif;background:#f0f4f8;color:#1e293b;min-height:100vh;}
     .wrap{display:flex;min-height:100vh;}
-    .sidebar{width:248px;height:100vh;background:#fff;border-right:1px solid #e2e8f0;position:fixed;top:0;left:0;z-index:50;display:flex;flex-direction:column;overflow:hidden;transition:transform .25s;box-shadow:2px 0 8px rgba(0,0,0,.06);}
-    .main-area{margin-left:248px;flex:1;display:flex;flex-direction:column;}
+    .sidebar{width:248px;height:100vh;background:#fff;border-right:1px solid #e2e8f0;position:fixed;top:0;left:0;z-index:50;display:flex;flex-direction:column;overflow:hidden;transition:transform .25s,visibility .25s;box-shadow:2px 0 8px rgba(0,0,0,.06);}
+    .main-area{margin-left:248px;flex:1;min-width:0;display:flex;flex-direction:column;}
     .sb-header{padding:20px 18px 16px;border-bottom:1px solid #f1f5f9;}
     .sb-logo{display:flex;align-items:center;gap:10px;}
     .sb-logo-icon{width:38px;height:38px;background:linear-gradient(135deg,#6366f1,#4f46e5);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
@@ -30,9 +30,9 @@
     .sb-footer{padding:16px;border-top:1px solid #f1f5f9;}
     .topbar{background:#fff;border-bottom:1px solid #e2e8f0;padding:14px 24px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:40;box-shadow:0 1px 4px rgba(0,0,0,.05);}
     .topbar-title{font-size:18px;font-weight:800;color:#1e293b;white-space:nowrap;}
-    .global-search{flex:1;max-width:420px;display:flex;align-items:center;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;overflow:hidden;transition:border-color .2s;}
+    .global-search{flex:1;min-width:0;max-width:420px;display:flex;align-items:center;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;overflow:hidden;transition:border-color .2s;}
     .global-search:focus-within{border-color:#6366f1;background:#fff;}
-    .global-search input{flex:1;padding:9px 14px;background:transparent;border:none;outline:none;font-size:14px;color:#1e293b;}
+    .global-search input{flex:1;min-width:0;padding:9px 14px;background:transparent;border:none;outline:none;font-size:14px;color:#1e293b;}
     .global-search button{padding:9px 16px;background:#6366f1;color:#fff;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:background .2s;}
     .global-search button:hover{background:#4f46e5;}
     .hamburger{display:none;background:none;border:none;cursor:pointer;padding:6px;color:#64748b;}
@@ -96,11 +96,13 @@
     .hero-chip{padding:6px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:20px;font-size:12px;color:#fff;cursor:pointer;transition:all .18s;}
     .hero-chip:hover{background:rgba(255,255,255,.3);}
     @media(max-width:768px){
-      .sidebar{transform:translateX(-100%);}
-      .sidebar.open{transform:translateX(0);}
+      /* 화면 밖으로 민 사이드바가 탭 순서에 남아, 키보드로 훑으면 안 보이는 링크에 포커스가 갔다.
+         visibility 로 순서에서 뺀다 — 전이 중에는 계속 보이므로 슬라이드는 그대로다. */
+      .sidebar{transform:translateX(-100%);visibility:hidden;}
+      .sidebar.open{transform:translateX(0);visibility:visible;}
       .main-area{margin-left:0;}
       .hamburger{display:flex;}
-      .hero-section{padding:28px 16px;}
+      .hero-section{padding:28px 16px;margin:-16px -16px 16px;}
       .hero-title{font-size:22px;}
       .content{padding:16px;}
     }
