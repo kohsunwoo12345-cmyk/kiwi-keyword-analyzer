@@ -1,19 +1,24 @@
 // SUPERPLACE 퍼널 빌더 이식: GET /api/funnels/:funnelId/applicants (퍼널 전체 신청자)
-import { resolveDB } from '../../_utils'
+import { resolveDB, getSessionUser } from '../../_utils'
+import { ownsFunnel, forbidden } from '../../funnel/_own'
 import { ensureFunnelSchema } from '../../funnel/_schema'
 import { normalizeApplicants } from '../../funnel/_applicants'
 
 const j = (o: any, status = 200) =>
   new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
 
-export const onRequestGet: PagesFunction = async ({ env, params }) => {
+export const onRequestGet: PagesFunction = async ({ request, env, params }) => {
   try {
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 500)
     await ensureFunnelSchema(db)
+    // ⚠ 인증이 없어 퍼널 번호만 바꾸면 남의 신청자 이름·전화번호·이메일이 전부 나왔다
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const funnelId = params.id as string
     const funnel = await db.prepare(`SELECT id FROM funnels WHERE id=?`).bind(funnelId).first()
     if (!funnel) return j({ success: false, error: '퍼널을 찾을 수 없습니다.' }, 404)
+    if (!(await ownsFunnel(db, me, funnelId))) return forbidden()
     const res = await db.prepare(`
       SELECT fa.*, flp.title as page_title, fg.name as group_name
       FROM funnel_applicants fa

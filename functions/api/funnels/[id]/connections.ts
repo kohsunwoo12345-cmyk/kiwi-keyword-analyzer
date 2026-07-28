@@ -1,5 +1,6 @@
 // SUPERPLACE 퍼널 빌더 이식: POST /api/funnels/:funnelId/connections (그룹 연결선 저장)
-import { resolveDB } from '../../_utils'
+import { resolveDB, getSessionUser } from '../../_utils'
+import { ownsFunnel, forbidden } from '../../funnel/_own'
 import { ensureFunnelSchema } from '../../funnel/_schema'
 
 const j = (o: any, status = 200) =>
@@ -10,10 +11,13 @@ export const onRequestPost: PagesFunction = async ({ request, env, params }) => 
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 500)
     await ensureFunnelSchema(db)
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const funnelId = params.id as string
     const { connections } = (await request.json()) as any
     const funnel = await db.prepare(`SELECT id FROM funnels WHERE id=?`).bind(funnelId).first()
     if (!funnel) return j({ success: false, error: '퍼널을 찾을 수 없습니다.' }, 404)
+    if (!(await ownsFunnel(db, me, funnelId))) return forbidden()
     // 기존 연결 삭제 후 재삽입
     await db.prepare(`DELETE FROM funnel_group_connections WHERE funnel_id=?`).bind(funnelId).run()
     const now = new Date().toISOString()

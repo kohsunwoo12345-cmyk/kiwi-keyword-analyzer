@@ -1,6 +1,7 @@
 // SUPERPLACE 퍼널 빌더 이식: POST /api/funnel/applicants (엑셀 직접등록)
 import { resolveDB, getSessionUser } from '../_utils'
 import { ensureFunnelSchema } from './_schema'
+import { ownsGroup, forbidden } from './_own'
 
 const j = (o: any, status = 200) =>
   new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
@@ -15,6 +16,8 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     const body = (await request.json()) as any
     const { group_id, name, phone, extra } = body
     if (!group_id || !phone) return j({ success: false, error: 'group_id와 phone이 필요합니다.' }, 400)
+    // ⚠ group_id 를 그대로 믿으면 남의 퍼널에 신청자를 밀어 넣을 수 있다
+    if (!(await ownsGroup(db, me, group_id))) return forbidden()
 
     // group_id에 속한 "엑셀 전용" 대표 랜딩페이지를 1회 생성 후 재사용 (실제 페이지 있으면 우선 사용)
     const slug = 'excel-import-group-' + group_id

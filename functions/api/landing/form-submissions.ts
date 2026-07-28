@@ -1,6 +1,7 @@
 // SUPERPLACE 이식: GET /api/landing/form-submissions?slug=... — 랜딩 최근 신청자 목록
 //  퍼널 랜딩페이지면 funnel_applicants, 아니면 form_submissions 조회.
-import { resolveDB, ensureSchema } from '../_utils'
+import { resolveDB, ensureSchema, getSessionUser } from '../_utils'
+import { ownsPage, isAdminUser, forbidden } from '../funnel/_own'
 import { ensureFunnelSchema } from '../funnel/_schema'
 import { normalizeApplicants } from '../funnel/_applicants'
 
@@ -13,14 +14,19 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     if (!db) return j({ success: true, submissions: [] })
     await ensureSchema(db)
     await ensureFunnelSchema(db)
+    // ⚠ 여기는 신청자의 이름·전화번호·이메일이 그대로 나오는 곳인데 인증이 전혀 없었다.
+    //   slug 는 공개 주소라 누구나 알 수 있으므로, 사실상 전 고객의 개인정보가 열려 있었다.
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const url = new URL(request.url)
     const slug = url.searchParams.get('slug')
-    const limit = parseInt(url.searchParams.get('limit') || '500')
+    const limit = Math.max(1, Math.min(500, parseInt(url.searchParams.get('limit') || '500') || 500))
     if (!slug) return j({ success: true, submissions: [] })
 
     // 1) 퍼널 랜딩페이지
     const fp: any = await db.prepare('SELECT id FROM funnel_landing_pages WHERE slug = ?').bind(slug).first().catch(() => null)
     if (fp) {
+      if (!(await ownsPage(db, me, fp.id))) return forbidden()
       const { results } = await db.prepare(`
         SELECT fa.* FROM funnel_applicants fa WHERE fa.landing_page_id = ? ORDER BY fa.created_at DESC LIMIT ?
       `).bind(fp.id, limit).all()
@@ -28,8 +34,9 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     }
 
     // 2) 일반 landing_pages → form_submissions
-    const page: any = await db.prepare('SELECT id FROM landing_pages WHERE slug = ?').bind(slug).first().catch(() => null)
+    const page: any = await db.prepare('SELECT id, user_id FROM landing_pages WHERE slug = ?').bind(slug).first().catch(() => null)
     if (!page) return j({ success: true, submissions: [] })
+    if (!isAdminUser(me) && String(page.user_id || '') !== String(me.id)) return forbidden()
     const { results } = await db.prepare(`
       SELECT id, name, phone, email, additional_data, created_at, landing_slug, landing_title
       FROM form_submissions WHERE landing_page_id = ? ORDER BY created_at DESC LIMIT ?

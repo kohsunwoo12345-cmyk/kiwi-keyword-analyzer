@@ -1,6 +1,7 @@
 // SUPERPLACE 퍼널 빌더 이식: DELETE /api/funnel/applicants/bulk-delete (선택 신청자 일괄 삭제)
 import { resolveDB, getSessionUser } from '../../_utils'
 import { ensureFunnelSchema } from '../_schema'
+import { ownsApplicants, forbidden } from '../_own'
 
 const j = (o: any, status = 200) =>
   new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
@@ -14,6 +15,9 @@ export const onRequestDelete: PagesFunction = async ({ request, env }) => {
     if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const { ids } = (await request.json()) as any
     if (!Array.isArray(ids) || !ids.length) return j({ success: false, error: '삭제할 항목을 선택하세요.' }, 400)
+    if (ids.length > 1000) return j({ success: false, error: '한 번에 최대 1,000건까지 삭제할 수 있습니다.' }, 400)
+    // 하나라도 남의 것이면 통째로 거절한다 — 일부만 지우면 뒷수습이 불가능하다
+    if (!(await ownsApplicants(db, me, ids))) return forbidden()
     const placeholders = ids.map(() => '?').join(',')
     await db.prepare(`DELETE FROM funnel_applicants WHERE id IN (${placeholders})`).bind(...ids).run()
     return j({ success: true, message: '삭제되었습니다.' })

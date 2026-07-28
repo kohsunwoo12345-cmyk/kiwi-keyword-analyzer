@@ -1,17 +1,23 @@
 // Ported from SUPERPLACE: GET/PUT /api/funnel/landing-pages/:id (Hono → CF Pages Functions)
-import { resolveDB } from '../../_utils'
+import { resolveDB, getSessionUser } from '../../_utils'
 import { ensureFunnelSchema } from '../_schema'
+import { ownsPage, forbidden } from '../_own'
 
 const j = (o: any, status = 200) =>
   new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
 
 // 랜딩페이지 상세 조회
-export const onRequestGet: PagesFunction = async ({ env, params }) => {
+export const onRequestGet: PagesFunction = async ({ request, env, params }) => {
   try {
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 500)
     await ensureFunnelSchema(db)
+    // ⚠ 이식 과정에서 소유자 조건(fg.user_id)이 빠져 있었다. id 는 연속된 정수라
+    //   숫자만 바꾸면 남의 랜딩페이지를 그대로 읽을 수 있었다.
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const pageId = params.id as string
+    if (!(await ownsPage(db, me, pageId))) return forbidden()
 
     const page: any = await db.prepare(`
       SELECT flp.*
@@ -37,7 +43,12 @@ export const onRequestPut: PagesFunction = async ({ request, env, params }) => {
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 500)
     await ensureFunnelSchema(db)
+    // ⚠ 소유권 확인이 없어 누구나 남의 랜딩페이지 내용과 헤더 스크립트를 바꿀 수 있었다
+    //   (page_header_scripts 는 그 페이지에 그대로 삽입된다).
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const pageId = params.id as string
+    if (!(await ownsPage(db, me, pageId))) return forbidden()
     const body = (await request.json()) as any
     const { title, description, status, og_title, og_description, thumbnail_url, form_fields_json, page_header_scripts } = body
 
@@ -139,18 +150,15 @@ export const onRequestPut: PagesFunction = async ({ request, env, params }) => {
 }
 
 // 랜딩페이지 삭제
-export const onRequestDelete: PagesFunction = async ({ env, params }) => {
+export const onRequestDelete: PagesFunction = async ({ request, env, params }) => {
   try {
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 500)
     await ensureFunnelSchema(db)
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const pageId = params.id as string
-    const page: any = await db.prepare(`
-      SELECT flp.id FROM funnel_landing_pages flp
-      INNER JOIN funnel_groups fg ON flp.group_id = fg.id
-      WHERE flp.id = ?
-    `).bind(pageId).first()
-    if (!page) return j({ success: false, error: '권한이 없습니다.' }, 403)
+    if (!(await ownsPage(db, me, pageId))) return forbidden()
     await db.prepare(`DELETE FROM funnel_applicants WHERE landing_page_id = ?`).bind(pageId).run().catch(() => {})
     await db.prepare(`DELETE FROM funnel_landing_pages WHERE id = ?`).bind(pageId).run()
     return j({ success: true, message: '랜딩페이지가 삭제되었습니다.' })
