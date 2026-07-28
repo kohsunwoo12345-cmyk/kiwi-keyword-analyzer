@@ -46,9 +46,37 @@ Cloudflare 대시보드 → Workers & Pages → 해당 Pages 프로젝트 →
 
 > 환경변수는 새로 배포해야 반영된다. 넣기만 하고 재배포를 안 하면 계속 401 이 난다.
 
-### 3. 워커 배포 — 방법 A: GitHub Actions (권장)
+### 3. 워커 배포 — 방법 A: Cloudflare 에 GitHub 저장소 연결 (권장)
 
+Pages 처럼 Workers 도 저장소를 연결해 두면 푸시할 때마다 Cloudflare 가 알아서
+빌드·배포한다(Workers Builds). API 토큰도, GitHub Secrets 도, 터미널도 필요 없다.
+
+1. **Workers & Pages → Create → Workers → Import a repository**
+   (처음이면 GitHub 앱 설치·권한 승인 화면이 뜬다)
+2. 이 저장소를 고르고 아래처럼 설정한다 — **루트 디렉터리 지정이 핵심이다.**
+   저장소 최상단에는 Next.js 사이트가 있어서, 그대로 두면 엉뚱한 걸 빌드한다.
+
+   | 항목 | 값 |
+   |---|---|
+   | Root directory | `workers/cron` |
+   | Build command | `npm install` |
+   | Deploy command | `npx wrangler deploy` |
+
+3. 배포되면 **Settings → Variables and Secrets** 에서
+   `CRON_TOKEN` 을 **Secret** 으로 추가하고 다시 **Deploy**
+   (`SITE_URL` 과 Cron Trigger 는 `wrangler.toml` 에 있으므로 따로 넣지 않아도 된다)
+4. `https://bygency-cron.<계정서브도메인>.workers.dev/health` 로 확인
+
+이후 `workers/cron/` 아래를 고쳐 main 에 푸시하면 자동으로 재배포된다.
+
+> 빌드 시간은 무료 플랜에도 월 한도가 포함되어 있다. 이 워커는 `npm install` 한 번에
+> 수십 초라 사실상 신경 쓸 일이 없다. 정확한 한도는 대시보드의 Builds 화면에 표시된다.
+
+### 3. 워커 배포 — 방법 B: GitHub Actions
+
+Cloudflare 에 저장소를 연결할 수 없을 때(권한 문제 등) 쓰는 우회로.
 로컬에 wrangler 를 깔거나 브라우저로 로그인할 필요가 없다.
+⚠ 방법 A 와 동시에 쓰면 푸시 한 번에 두 번 배포된다. 하나만 골라 쓴다.
 
 GitHub → Settings → Secrets and variables → **Actions** 에 등록:
 
@@ -64,7 +92,7 @@ GitHub → Settings → Secrets and variables → **Actions** 에 등록:
 전부 검사하고, 어긋나면 어디가 문제인지 에러로 알려준다.
 이후 `workers/cron/` 아래가 바뀌어 main 에 푸시되면 자동으로 재배포된다.
 
-### 3. 워커 배포 — 방법 C: 브라우저만으로 (터미널·GitHub 없이)
+### 3. 워커 배포 — 방법 C: 대시보드 편집기에 복붙 (터미널·GitHub 없이)
 
 `src/index.js` 를 일부러 TypeScript 가 아니라 평범한 JS 로 둔 이유가 이것이다.
 Cloudflare 대시보드 편집기에 **그대로 복붙**하면 된다.
@@ -86,9 +114,9 @@ Cloudflare 대시보드 편집기에 **그대로 복붙**하면 된다.
    → `{"ok":true,...,"tokenSet":true}` 가 나오면 끝
 
 > 이 방법으로 만들면 이후 저장소의 `src/index.js` 를 고쳐도 자동 반영되지 않는다.
-> 고칠 일이 생기면 편집기에 다시 붙여넣거나, 방법 A(GitHub Actions)로 전환하면 된다.
+> 고칠 일이 생기면 편집기에 다시 붙여넣거나, 방법 A(저장소 연결)로 전환하면 된다.
 
-### 3. 워커 배포 — 방법 B: 로컬에서 직접
+### 3. 워커 배포 — 방법 D: 로컬에서 직접
 
 ```bash
 cd workers/cron

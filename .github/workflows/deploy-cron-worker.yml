@@ -1,8 +1,12 @@
 # 크론 워커 배포 (workers/cron)
 #
-# Cloudflare Workers 는 Pages 와 달리 Git 연동 자동 배포가 없다. 누군가 wrangler deploy 를
-# 실행해 줘야 한다. 그 "누군가"를 이 워크플로가 맡는다 — 로컬에 wrangler 를 깔거나
-# 브라우저로 로그인할 필요가 없다.
+# 이건 우회로다. 기본은 Cloudflare 대시보드에서 이 저장소를 Workers 에 연결하는 것
+# (Workers Builds — Root directory: workers/cron). 그러면 푸시할 때마다 Cloudflare 가
+# 알아서 빌드·배포하므로 이 워크플로도, API 토큰도 필요 없다.
+# 저장소를 연결할 수 없을 때(권한 문제 등)만 이 워크플로를 쓴다.
+#
+# ⚠ Workers Builds 와 이 워크플로를 동시에 켜 두면 푸시 한 번에 두 번 배포된다.
+#   하나만 골라 쓸 것. 자세한 건 workers/cron/README.md 참고.
 #
 # ── 준비물 (GitHub → Settings → Secrets and variables → Actions) ──────────────
 #  Secrets (필수)

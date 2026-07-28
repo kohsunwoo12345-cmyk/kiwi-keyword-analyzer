@@ -1,0 +1,13 @@
+{
+  "name": "bygency-cron",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BYGENCY 정기 실행(크론) 워커 — Pages 크론 엔드포인트를 정해진 시각에 두드린다",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
