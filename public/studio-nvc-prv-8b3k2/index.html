@@ -2564,17 +2564,22 @@ var VIDEO_MODEL_SPEC = {
   'Seedance 1.0 Lite (텍스트→영상)': { secs:[5,10], ratios:['16:9','9:16','1:1'], res:['720p','1080p'], audio:false, watermark:false, neg:true, cfg:false, seed:false },
   'Seedance 1.0 Lite (이미지→영상)': { secs:[5,10], ratios:['16:9','9:16','1:1'], res:['720p','1080p'], audio:false, watermark:false, neg:true, cfg:false, seed:false },
   // Kling — 공식 API 의 duration 은 전 모델 "5"·"10" 두 값뿐이다(3.0 포함). cfg_scale(0~1) 지원.
+  //  ※ 이미지→영상은 ratios 를 비워 둔다. 클링 공식 API 의 image2video 에는 aspect_ratio
+  //     파라미터가 아예 없고(결과 비율은 넣은 이미지를 따라간다), 우리 빌더도 text2video
+  //     에서만 aspect_ratio 를 싣는다. 그런데 노드에는 비율 선택기가 떠 있어서, 회원이
+  //     9:16 을 골라도 아무 데도 전달되지 않고 원본 이미지 비율로 나왔다.
+  //     선택기 자체를 감춰 "고를 수 있는데 안 먹는" 상태를 없앤다.
   'Kling 3.0 Pro (텍스트→영상)':    { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
-  'Kling 3.0 Pro (이미지→영상)':    { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 3.0 Pro (이미지→영상)':    { secs:[5,10], ratios:[], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
   'Kling 3.0 Fast (텍스트→영상)':   { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
-  'Kling 3.0 Fast (이미지→영상)':   { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 3.0 Fast (이미지→영상)':   { secs:[5,10], ratios:[], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
   'Kling 2.1 Master (텍스트→영상)': { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
-  'Kling 2.1 Master (이미지→영상)': { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 2.1 Master (이미지→영상)': { secs:[5,10], ratios:[], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
   'Kling 2.0 Master (텍스트→영상)': { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
-  'Kling 2.0 Master (이미지→영상)': { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 2.0 Master (이미지→영상)': { secs:[5,10], ratios:[], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
   'Kling 1.6 Pro (텍스트→영상)':    { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
-  'Kling 1.6 Pro (이미지→영상)':    { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
-  'Kling 1.6 Standard (이미지→영상)':{ secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 1.6 Pro (이미지→영상)':    { secs:[5,10], ratios:[], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 1.6 Standard (이미지→영상)':{ secs:[5,10], ratios:[], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
   // Runway — Gen-4/Gen-3 모두 5·10초. seed 전달, 네거티브 필드 없음.
   'Runway Gen-4':                { secs:[5,10], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], res:[], audio:false, watermark:false, neg:false, cfg:false, seed:true },
   'Runway Gen-3 Alpha Turbo':    { secs:[5,10], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], res:[], audio:false, watermark:false, neg:false, cfg:false, seed:true },
