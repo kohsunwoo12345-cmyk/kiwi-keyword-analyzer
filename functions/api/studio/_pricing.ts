@@ -101,7 +101,12 @@ export async function getUsdKrw(db: D1Database): Promise<number> {
   return last && Number(last.usd_krw) > 0 ? Number(last.usd_krw) : USD_KRW
 }
 
-const RES_MULT: Record<string, number> = { '720p': 0.6, '1080p': 1.0, '4K': 2.6 }
+/* 1080p 기준 해상도 배율.
+   540p 는 표에 없어 배율 1(=1080p)로 잡혔다. 루마에 540p 를 노출하면서 생긴 구멍으로,
+   회원이 540p 를 골라도 1080p 와 같은 금액이 청구된다 — 화질만 낮추고 요금은 그대로다.
+   화소는 1080p 의 1/4, 720p 의 약 56% 다. 720p 가 0.6 이므로 비례해 0.35 를 잠정값으로 둔다.
+   ※ 제공사 가격표를 확인하면 실측값으로 교체할 것. */
+const RES_MULT: Record<string, number> = { '540p': 0.35, '720p': 0.6, '1080p': 1.0, '4K': 2.6 }
 
 // 모델 표시명 → 단가.  u:'sec'(영상 초당) | 'img'(이미지 장당), usd, audio(오디오 초당 추가), prov(집계용)
 export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?: number; prov: string }> = {

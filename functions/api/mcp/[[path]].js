@@ -27,10 +27,35 @@ const SERVER_INFO = { name: "bygency-studio", version: "1.1.0" };
    노드 스튜디오에서 쓸 수 있는 모델 = MCP 로 쓸 수 있는 모델 이 되도록 단일 소스로 묶는다.
    (예전에는 veo/runway/seedance 3종만 하드코딩되어 있어 씨드림·Flux·Kling 등을 Claude 로 부를 수 없었고,
     게다가 body 에 model 을 싣지 않아 씨댄스가 항상 1.0 Pro 로 고정되었다.) */
-const slug = (s) => String(s).toLowerCase()
-  .replace(/\([^)]*\)/g, " ")            // 괄호 설명 제거
-  .replace(/[^a-z0-9가-힣]+/g, "-")
-  .replace(/^-+|-+$/g, "");
+/* 표시명 → 짧은 식별자.
+   예전엔 괄호를 통째로 지웠는데, 변형을 가르는 정보가 바로 그 괄호 안에 있었다.
+   그래서 12개 조합이 같은 ID 로 뭉개졌다 — 예를 들어 kling-3-0-pro 하나가
+   (텍스트→영상)과 (이미지→영상)을 동시에 가리켰고, 목록에서 앞선 쪽만 잡혀
+   나머지 13개 모델은 짧은 ID 로는 아예 부를 수 없었다. 게다가 잘못 잡힌 채로
+   생성·과금까지 진행된다(텍스트→영상을 부르려다 이미지→영상이 도는 식).
+   이제 괄호 안 수식어를 짧은 접미사로 바꿔 유일성을 지킨다. */
+const QUALIFIER = [
+  [/텍스트\s*→\s*영상/, "t2v"], [/이미지\s*→\s*영상/, "i2v"],
+  [/레퍼런스\s*편집/, "edit"], [/영상\s*편집/, "edit"], [/비율\s*변경/, "reframe"],
+  [/영상→실사|V2V/i, "v2v"], [/3D\s*생성/, "3d"], [/^영상$/, "video"],
+];
+const slug = (s) => {
+  const str = String(s);
+  let tail = "";
+  const inParen = str.match(/\(([^)]*)\)/);
+  if (inParen) {
+    const inner = inParen[1].trim();
+    const hit = QUALIFIER.find(([re]) => re.test(inner));
+    // 아는 수식어면 짧은 접미사, 모르는 수식어면 원문을 그대로 붙여 유일성을 잃지 않는다
+    tail = "-" + (hit ? hit[1] : inner.toLowerCase().replace(/[^a-z0-9가-힣]+/g, "-").replace(/^-+|-+$/g, ""));
+  }
+  const base = str.toLowerCase().replace(/\([^)]*\)/g, " ")
+    .replace(/[^a-z0-9가-힣]+/g, "-").replace(/^-+|-+$/g, "");
+  return (base + tail).replace(/-+/g, "-").replace(/^-+|-+$/g, "");
+};
+// 괄호를 지운 예전 방식의 ID — 이미 쓰고 있는 쪽이 깨지지 않도록 마지막 후보로만 쓴다.
+const legacySlug = (s) => String(s).toLowerCase()
+  .replace(/\([^)]*\)/g, " ").replace(/[^a-z0-9가-힣]+/g, "-").replace(/^-+|-+$/g, "");
 
 const CATALOG = Object.keys(MODEL_COST).map((name) => {
   const m = MODEL_COST[name];
@@ -69,6 +94,9 @@ function resolveModel(input, kind) {
   return pool.find((x) => x.name === want)
       || pool.find((x) => x.name.toLowerCase() === want.toLowerCase())
       || pool.find((x) => x.id === slug(want))
+      // 예전 방식(괄호 제거) ID 로 물어보면 그 이름을 가진 첫 항목으로 — 기존 사용자 호환.
+      //  같은 이름의 변형이 여럿이면 어느 쪽인지 알 수 없으므로, 정확히 부르려면 위의 유일 ID 를 쓴다.
+      || pool.find((x) => legacySlug(x.name) === legacySlug(want))
       || null;
 }
 
