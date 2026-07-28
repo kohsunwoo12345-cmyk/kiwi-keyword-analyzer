@@ -1604,42 +1604,54 @@ async function handle(context) {
           :                                  "❓ 예상 밖 응답";
         return { model: name, endpoint: ep, httpStatus: x.status, 판정: verdict, 응답: x.body };
       }));
-      /* 4) 파라미터 수용 여부 — 우리가 보내는 필드를 그 엔드포인트가 정말 받는가?
-         BFL 은 pydantic 검증이라 모르는 필드에 422 extra_forbidden 을 돌려준다.
-         output_format 을 일부러 틀리게 넣어 두 오류가 함께 나오므로, 작업은 생성되지 않는다.
-         ※ 지금 코드는 FLUX.2(max/pro/flex)에 width/height 를 보낸다. 만약 이 계열이
-            aspect_ratio 만 받는다면 비율 지정이 통째로 무시되고 전부 기본 비율로 나온다 —
-            Nano Banana 에서 이미 겪은 것과 같은 유형의 버그다. 여기서 사실로 확정한다. */
+      /* 4) 파라미터를 "정말 읽는가" — 무시되는 필드를 잡아낸다.
+         1차 시도는 잘못된 방법이었다. 올바른 값(width:1344 / aspect_ratio:"16:9")을 넣고
+         "오류가 안 났으니 수용됐다" 고 판정했는데, BFL 은 모르는 필드를 반려하지 않고
+         그냥 버린다(extra=ignore). 그래서 aspect_ratio 전용인 1.1-ultra 에서조차
+         width/height 가 "수용됨" 으로 나왔다 — 무시와 수용을 구분하지 못한 것이다.
+
+         그래서 값을 "일부러 틀리게" 넣는다. 엔드포인트가 그 필드를 실제로 파싱한다면
+         반드시 그 필드 이름이 담긴 검증 오류가 돌아온다. 파싱하지 않고 버린다면
+         output_format 오류만 온다. 이 차이로 무시 여부가 확정된다.
+         output_format 을 항상 틀리게 두므로 어느 쪽이든 작업은 생성되지 않는다.
+
+         이게 중요한 이유: 지금 코드는 FLUX.2(max/pro/flex)에 width/height 를 보낸다.
+         이 계열이 aspect_ratio 전용이라면 비율 지정이 통째로 무시되고 전부 기본 비율로
+         나온다 — 나노바나나에서 겪은 것과 같은 유형의 버그다. */
       const FIELD_CASES = [
-        { 이름: "width/height", extra: { width: 1344, height: 768 } },
-        { 이름: "aspect_ratio", extra: { aspect_ratio: "16:9" } },
+        // 32의 배수·256~1440 범위를 벗어난 값 → 파싱한다면 width/height 오류가 뜬다
+        { 이름: "width/height", 필드: ["width", "height"], extra: { width: 7, height: 7 } },
+        // 존재할 수 없는 비율 문자열 → 파싱한다면 aspect_ratio 오류가 뜬다
+        { 이름: "aspect_ratio", 필드: ["aspect_ratio"], extra: { aspect_ratio: "__probe_invalid__" } },
       ];
       const paramCheck = await Promise.all(
         Object.entries(FLUX_ENDPOINTS).map(async ([name, ep]) => {
           const rows = await Promise.all(FIELD_CASES.map(async (c) => {
             const x = await call(FLUX_BASE + ep, useHdr,
               Object.assign({ prompt: "probe", output_format: "__probe_invalid__" }, c.extra));
-            // 422 상세에서 "이 필드" 에 대한 불만이 있는지만 본다.
             const det = JSON.stringify((x.body && x.body.detail) || x.body || "");
-            const keys = Object.keys(c.extra);
-            const rejected = keys.some(kf =>
-              new RegExp('"' + kf + '"').test(det) &&
-              /extra_forbidden|unexpected|not permitted|unknown field|extra fields/i.test(det));
+            // 검증 오류의 loc 안에 그 필드 이름이 있으면 = 실제로 읽고 있다.
+            const parsed = c.필드.some(kf => new RegExp('"' + kf + '"').test(det));
             const created = x.status >= 200 && x.status < 300;
             return { 필드: c.이름, httpStatus: x.status,
                      판정: created ? "⚠️ 작업 생성됨(진단 제외)"
-                          : rejected ? "❌ 이 엔드포인트는 이 필드를 받지 않음"
-                          : (x.status === 422 || x.status === 400) ? "✅ 필드는 수용됨(output_format 만 반려)"
+                          : parsed ? "✅ 실제로 읽는다 (이 필드로 오류가 났다)"
+                          : (x.status === 422 || x.status === 400) ? "❌ 무시된다 (틀린 값인데 아무 말이 없다)"
                           : "❓ " + x.status,
                      상세: det.slice(0, 300) };
           }));
           const wh = rows[0], ar = rows[1];
+          const P = (r) => /실제로 읽는다/.test(r.판정), N = (r) => /무시된다/.test(r.판정);
           const 결론 =
-            /받지 않음/.test(wh.판정) && /수용됨/.test(ar.판정) ? "⚠️ aspect_ratio 만 받는다 — 지금 코드가 width/height 를 보내면 비율이 무시된다"
-            : /수용됨/.test(wh.판정) && /받지 않음/.test(ar.판정) ? "width/height 만 받는다 (현재 코드와 일치)"
-            : /수용됨/.test(wh.판정) && /수용됨/.test(ar.판정) ? "둘 다 받는다"
+            N(wh) && P(ar) ? "⚠️ aspect_ratio 전용 — 지금 코드가 width/height 를 보내면 비율이 무시된다"
+            : P(wh) && N(ar) ? "width/height 전용"
+            : P(wh) && P(ar) ? "둘 다 읽는다"
+            : N(wh) && N(ar) ? "⚠️ 둘 다 무시 — 이 엔드포인트의 비율 지정 방법을 다시 찾아야 한다"
             : "판정 불가 — 상세 확인 필요";
-          return { model: name, endpoint: ep, 결론, 검사: rows };
+          // 현재 코드가 이 엔드포인트에 실제로 무엇을 보내는지 함께 싣는다(대조용).
+          const sent = buildFluxPayload({ model: name, prompt: "x", ratio: "16:9" });
+          const 우리가보내는것 = Object.keys(sent.body).filter(kf => /^(width|height|aspect_ratio)$/.test(kf)).join(", ") || "(비율 필드 없음)";
+          return { model: name, endpoint: ep, 결론, 우리가보내는것, 검사: rows };
         }));
 
       return json({ diag: "flux-check",
@@ -1672,6 +1684,23 @@ async function handle(context) {
       };
       // 읽기 전용: 생성 목록 1건 조회. 키가 살아 있으면 200(빈 배열이어도), 죽었으면 401/403.
       const list = await call("/generations?limit=1");
+      /* 403 "Not authenticated" 는 보통 "자격증명 자체를 못 읽었다" 는 뜻이다
+         (계정 거부라면 보통 다른 문구가 온다). 헤더 방식이 틀린 것인지, 키가 죽은 것인지
+         가르기 위해 다른 표기법도 읽기 전용으로 시도한다. 전부 GET 이라 과금이 없다. */
+      const hdrVariants = await Promise.all([
+        { 이름: "Authorization: Bearer <key>", h: { "Authorization": "Bearer " + kv } },
+        { 이름: "Authorization: <key> (Bearer 없음)", h: { "Authorization": kv } },
+        { 이름: "x-api-key", h: { "x-api-key": kv } },
+        { 이름: "x-api-key + Bearer 동시", h: { "x-api-key": kv, "Authorization": "Bearer " + kv } },
+      ].map(async (v) => {
+        try {
+          const r = await fetchT(LUMA_BASE + "/generations?limit=1",
+            { headers: Object.assign({ "accept": "application/json" }, v.h) }, 12000);
+          const t = await r.text(); let j2 = null; try { j2 = JSON.parse(t); } catch { /* 비JSON */ }
+          return { 방식: v.이름, httpStatus: r.status, 응답: j2 || String(t).slice(0, 200) };
+        } catch (e) { return { 방식: v.이름, httpStatus: 0, 응답: String((e && e.message) || e).slice(0, 120) }; }
+      }));
+      const anyOK = hdrVariants.find(v => v.httpStatus === 200);
       const per = await Promise.all(Object.entries(LUMA_IDS).map(async ([name, id]) => {
         const x = await call("/generations", { model: id, prompt: "" });   // prompt 비움 → 파라미터 반려
         const created = !!(x.body && x.body.id);
@@ -1688,10 +1717,13 @@ async function handle(context) {
       return json({ diag: "luma-check",
         note: "목록 조회는 읽기 전용, 모델 확인은 prompt 를 비운 반려 요청입니다. 생성물·과금이 없습니다.",
         키형태: { length: kv.length, prefix: kv.slice(0, 6), suffix: kv.slice(-4), hasWhitespace: /\s/.test(kv) },
+        헤더방식별: hdrVariants,
         키유효성: { httpStatus: list.status, 응답: list.body,
           결론: list.status === 200 ? "키는 유효합니다 — 모델별 결과가 실제 원인입니다."
+              : anyOK ? ("헤더 표기법이 문제입니다 — '" + anyOK.방식 + "' 로 보내면 통과합니다. 코드를 그 방식으로 고쳐야 합니다.")
+              : /not authenticated/i.test(JSON.stringify(list.body || ""))
+                ? "모든 표기법에서 자격증명 자체가 거부됩니다 — 키가 폐기·만료됐거나 API 접근이 열려 있지 않은 계정입니다. Luma 대시보드에서 키를 재발급하고 API 사용이 활성화돼 있는지 확인하세요."
               : list.status === 401 ? "키가 잘못됐거나 만료됐습니다 — 재발급 필요."
-              : list.status === 403 ? "키는 인식되지만 계정이 거부됩니다 — Luma 대시보드에서 결제수단/플랜을 확인하세요."
               : "예상 밖 응답 — 아래 원문을 확인하세요." },
         모델별: per });
     }
@@ -1700,10 +1732,47 @@ async function handle(context) {
        ModelArk 가 text:"" 를 반려하지 않고 수락해 실제 3D 작업이 생성됐다
        (cgt-20260728090647-cp2rb). "필수 필드를 비우면 반려된다" 는 전제가 이 제공사에서
        또 깨진 것이다(앞서 Flux 에서도 같은 일이 있었다).
-       요청 형식은 이미 확인됐으므로 더 탐색할 이유도 없다:
-         POST /contents/generations/tasks
-         { model, content: [{ type:"text", text:"..." }] }   ← Seedance 와 동일한 형식
-       앞으로 형식 탐색이 필요하면 "빈 값" 이 아니라 "존재하지 않는 열거값" 으로만 시도할 것. */
+       ── 그 작업을 조회한 결과(diag=ark-task)로 밝혀진 것 ──
+         status: "failed", error.code: "InvalidParameter"
+       즉 게이트웨이는 봉투(envelope)만 보고 접수했고, 모델 단계에서 반려됐다.
+       따라서 "요청 형식을 확인했다" 고 말할 수 없다. 확인된 것은 이것뿐이다:
+         · POST /contents/generations/tasks 경로와 { model, content:[...] } 봉투는 맞다
+         · content:[{type:"text", text:""}] 만으로는 3D 생성에 부족하다(필수 파라미터 누락)
+       Hyper3D 계열은 이미지→3D 가 기본이므로 image_url 이 필수일 가능성이 크지만,
+       그것도 추측이다 — 유료 작업을 또 만들지 않고 확인할 방법으로만 좁혀야 한다.
+       먼저 읽기 전용인 diag=ark-model 로 모델 정보에 입력 규격이 있는지 본다.
+       앞으로 형식 탐색이 필요하면 "빈 값" 이 아니라 "존재하지 않는 열거값" 으로만 시도할 것.
+       (빈 값은 접수돼 버린다는 것이 이 사고로 확정됐다.) */
+
+    /* ══ ModelArk 모델 정보 조회 (읽기 전용·무과금) ══
+       /api/generate?diag=ark-model&id=hyper3d-gen2-260112
+       모델 카드에 입력 규격(필수 파라미터)이 실려 있는지 본다. GET 이라 생성이 없다. */
+    if (u.searchParams.get("diag") === "ark-model") {
+      if (!k.seedance) return json({ diag: "ark-model", error: "Seedance_API_KEY 미설정" });
+      const id = String(u.searchParams.get("id") || "").trim();
+      if (!id) return json({ diag: "ark-model", error: "id 파라미터가 필요합니다 (예: &id=hyper3d-gen2-260112)" });
+      const H = { "Authorization": "Bearer " + k.seedance };
+      const tryGet = async (path) => {
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + path, { headers: H }, 12000);
+          const t = await r.text(); let j2 = null; try { j2 = JSON.parse(t); } catch { /* 비JSON */ }
+          return { path, httpStatus: r.status, 응답: j2 || String(t).slice(0, 800) };
+        } catch (e) { return { path, httpStatus: 0, 응답: String((e && e.message) || e).slice(0, 150) }; }
+      };
+      const rows = await Promise.all([
+        tryGet("/models/" + encodeURIComponent(id)),
+        tryGet("/models?page_size=200"),
+      ]);
+      // 목록 응답에서 이 모델 항목만 뽑아 준다(전체는 너무 길다).
+      let 해당모델 = null;
+      const listBody = rows[1] && rows[1].응답;
+      const arr = listBody && (listBody.data || listBody.items || listBody.models);
+      if (Array.isArray(arr)) 해당모델 = arr.filter(x => JSON.stringify(x).indexOf(id) >= 0);
+      return json({ diag: "ark-model", id,
+        note: "GET 조회만 합니다 — 생성·과금이 없습니다.",
+        모델단건: rows[0], 목록에서찾은항목: 해당모델 || "(목록 형식이 배열이 아니라 추출 못함)",
+        목록httpStatus: rows[1].httpStatus });
+    }
 
     /* ══ 전체 모델 소환 확인 (무과금) ══
        /api/generate?diag=probe-all            모든 제공사·모든 모델
