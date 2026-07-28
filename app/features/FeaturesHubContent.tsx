@@ -10,6 +10,7 @@ import { LogoMark } from '@/components/Brand'
 import { FEATURES } from '@/lib/features'
 import { useT, type Dict } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
+import { FeaturesHubShowcase } from '@/components/features/FeaturesHubShowcase'
 
 const M: Dict = {
   '노드형 AI 영상 스튜디오': { en: 'Node-based AI video studio', ja: 'ノード型AI動画スタジオ', zh: '节点式 AI 视频工作室' },
@@ -199,6 +200,9 @@ export function FeaturesHubContent() {
       </section>
 
       {/* ===== CTA ===== */}
+      {/* ===== 파이프라인 · 목표별 기능 ===== */}
+      <FeaturesHubShowcase />
+
       <section className="px-5 py-24">
         <Reveal variant="scale" className="mx-auto max-w-5xl">
           <div

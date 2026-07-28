@@ -10,10 +10,38 @@ import {
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { useT, type Dict } from '@/lib/i18n'
+import { CodeBlock } from '@/components/docs/DocsKit'
 
 const STUDIO_URL = '/studio-nvc-prv-8b3k2/'
 
 const M: Dict = {
+  '문제 해결': { en: 'Troubleshooting', ja: 'トラブルシューティング', zh: '排查问题' },
+  '연결이 안 될 때 이 순서로 확인하세요.': { en: 'When it will not connect, check in this order.', ja: 'つながらないときは、この順に確認してください。', zh: '连不上时，请按这个顺序检查。' },
+  '커넥터 목록에 서버가 안 뜬다': { en: 'The server does not show up in the connector list', ja: 'コネクター一覧にサーバーが出ない', zh: '连接器列表里看不到服务器' },
+  '주소 끝의 슬래시까지 그대로 넣었는지, 플랜이 커스텀 커넥터를 지원하는지 확인하세요.': {
+    en: 'Check that you pasted the address exactly (including the trailing slash) and that your plan supports custom connectors.',
+    ja: '末尾のスラッシュまでそのまま入力したか、プランがカスタムコネクターに対応しているかを確認してください。',
+    zh: '确认地址（含结尾斜杠）原样粘贴，且你的套餐支持自定义连接器。',
+  },
+  '401 이 돌아온다': { en: 'You get a 401', ja: '401 が返る', zh: '返回 401' },
+  '로그인 세션이 끊겼거나 토큰이 틀린 경우입니다. 커넥터를 지우고 다시 연결하면 로그인 창이 다시 뜹니다.': {
+    en: 'Your login session expired or the token is wrong. Remove the connector and add it again — the login window will reappear.',
+    ja: 'ログインセッションが切れたか、トークンが誤っています。コネクターを削除して再接続すると、ログイン画面が再度表示されます。',
+    zh: '登录会话已过期或令牌不对。删除连接器后重新连接，登录窗口会再次出现。',
+  },
+  '도구는 보이는데 호출이 실패한다': { en: 'Tools appear but calls fail', ja: 'ツールは見えるが呼び出しが失敗する', zh: '能看到工具但调用失败' },
+  '크레딧 잔액과 플랜을 먼저 확인하세요. 잔액이 부족하면 402, 플랜이 없으면 403 이 돌아옵니다.': {
+    en: 'Check your credit balance and plan first: 402 means not enough credits, 403 means no eligible plan.',
+    ja: 'まずクレジット残高とプランを確認してください。残高不足なら 402、プランがなければ 403 が返ります。',
+    zh: '先检查额度余额和套餐：余额不足返回 402，没有相应套餐返回 403。',
+  },
+  '영상이 계속 generating 이다': { en: 'A video stays in generating', ja: '動画がずっと generating のまま', zh: '视频一直处于 generating' },
+  '모델에 따라 1~5분이 걸립니다. check_video_status 를 15~30초 간격으로 부르면 되고, 반복 호출에는 과금이 없습니다.': {
+    en: 'Depending on the model it takes 1–5 minutes. Call check_video_status every 15–30 seconds — repeat calls are not billed.',
+    ja: 'モデルにより1〜5分かかります。check_video_status を15〜30秒間隔で呼べば十分で、繰り返し呼び出しに課金はありません。',
+    zh: '视模型不同需要 1~5 分钟。每 15~30 秒调用一次 check_video_status 即可，重复调用不计费。',
+  },
+  '연결 상태 확인': { en: 'Check the connection', ja: '接続の確認', zh: '检查连接状态' },
   // ===== Shared / buttons =====
   '복사됨': { en: 'Copied', ja: 'コピー済み', zh: '已复制' },
   '복사': { en: 'Copy', ja: 'コピー', zh: '复制' },
@@ -141,24 +169,9 @@ const M: Dict = {
   '내 주소 발급': { en: 'Get my URL', ja: 'アドレスを発行', zh: '获取我的地址' },
 }
 
-/* 복사 가능한 코드 블록 */
+/* 코드 블록 — 공용 DocsKit 위임 (언어 라벨 + 복사 버튼) */
 function Code({ children, label }: { children: string; label?: string }) {
-  const t = useT(M)
-  const [ok, setOk] = useState(false)
-  function copy() {
-    try {
-      navigator.clipboard.writeText(children).then(() => { setOk(true); setTimeout(() => setOk(false), 1400) })
-    } catch { /* noop */ }
-  }
-  return (
-    <div className="group relative my-3 overflow-hidden rounded-xl border border-[var(--border-soft)] bg-[#0b0f1a]">
-      {label && <div className="border-b border-[var(--border-soft)] px-4 py-2 font-mono text-[11px] uppercase tracking-wide text-[var(--text-dim)]">{label}</div>}
-      <button onClick={copy} className="absolute right-2.5 top-2.5 z-10 flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-slate-300 opacity-0 transition group-hover:opacity-100 hover:bg-white/10">
-        {ok ? <><Check size={12} /> {t('복사됨')}</> : <><Copy size={12} /> {t('복사')}</>}
-      </button>
-      <pre className="overflow-x-auto px-4 py-3.5 font-mono text-[12.5px] leading-relaxed text-slate-200"><code>{children}</code></pre>
-    </div>
-  )
+  return <CodeBlock code={children} lang={label} />
 }
 
 function Anchor({ id }: { id: string }) { return <span id={id} className="relative -top-24 block" aria-hidden /> }
@@ -190,7 +203,7 @@ export default function McpDocsPage() {
 
   const nav = [
     ['overview', t('개요')], ['oneclick', t('원클릭 연결')], ['token', t('토큰 방식(대안)')], ['connect', t('연결 방법')],
-    ['tools', t('도구(Tools)')], ['examples', t('요청 예시')], ['ads', t('광고 집행 연계')], ['credits', t('크레딧·과금')], ['errors', t('오류')],
+    ['tools', t('도구(Tools)')], ['examples', t('요청 예시')], ['ads', t('광고 집행 연계')], ['credits', t('크레딧·과금')], ['errors', t('오류')], ['trouble', t('문제 해결')],
   ]
 
   return (
@@ -234,7 +247,7 @@ export default function McpDocsPage() {
           {/* 개요 */}
           <section>
             <Anchor id="overview" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><Cpu size={20} className="text-violet-400" /> {t('개요')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('개요')}</h2>
             <p className="text-[14.5px] leading-relaxed text-[var(--text-soft)]">
               {t('MCP(Model Context Protocol)는 Claude 같은 AI에 외부 도구를 연결하는 표준입니다. BYGENCY MCP 서버는 ')}<b className="text-slate-200">{t(' Streamable HTTP(무상태)')}</b>{t(' 방식이며, 아래 4개 도구를 제공합니다.')}
             </p>
@@ -256,7 +269,7 @@ export default function McpDocsPage() {
           {/* 원클릭 연결 (권장) */}
           <section>
             <Anchor id="oneclick" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><Plug size={20} className="text-violet-400" /> {t('1. 원클릭 연결 (권장)')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('1. 원클릭 연결 (권장)')}</h2>
             <p className="text-[14.5px] leading-relaxed text-[var(--text-soft)]">
               {t('토큰 발급·복사 없이, 서버 주소 한 줄로 연결합니다. Claude가 자동으로 BYGENCY 로그인·승인 창을 띄우고(OAuth), 승인하면 그 계정으로 연결됩니다.')}
             </p>
@@ -275,7 +288,7 @@ export default function McpDocsPage() {
           {/* 토큰 발급 (대안) */}
           <section>
             <Anchor id="token" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><KeyRound size={20} className="text-violet-400" /> {t('1-b. 개인 토큰 방식 (대안)')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('1-b. 개인 토큰 방식 (대안)')}</h2>
             <p className="mb-2 text-[13px] text-[var(--text-dim)]">{t('로그인 창을 띄울 수 없는 환경(서버 스크립트·자동화·Claude API)에서 사용하는 방식입니다. 일반적인 Claude 연결은 위 원클릭 연결을 쓰세요.')}</p>
             <p className="text-[14.5px] leading-relaxed text-[var(--text-soft)]">
               {t('연결 주소에는 ')}<b className="text-slate-200">{t('본인 개인 토큰')}</b>{t('이 포함됩니다. 이 주소로 생성하면 ')}<b className="text-violet-300">{t('본인 계정 크레딧')}</b>{t('에서 차감됩니다.')}
@@ -302,14 +315,14 @@ export default function McpDocsPage() {
           {/* 연결 방법 */}
           <section>
             <Anchor id="connect" />
-            <h2 className="mb-4 flex items-center gap-2 text-2xl font-bold text-white"><Plug size={20} className="text-violet-400" /> {t('2. 연결 방법')}</h2>
+            <h2 className="mb-4 text-2xl font-bold text-white">{t('2. 연결 방법')}</h2>
 
-            <h3 className="mb-1 flex items-center gap-2 text-[15px] font-bold text-slate-100"><Globe size={16} className="text-violet-400" /> {t('Claude 데스크톱 · claude.ai (커스텀 커넥터)')}</h3>
+            <h3 className="mb-1 text-[15px] font-bold text-slate-100">{t('Claude 데스크톱 · claude.ai (커스텀 커넥터)')}</h3>
             <p className="text-[13.5px] leading-relaxed text-[var(--text-soft)]">
               {t('설정(Settings) → ')}<b className="text-slate-200">{t('커넥터(Connectors)')}</b> → <b className="text-slate-200">{t('커스텀 커넥터 추가')}</b>{t(' → ')}<code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[12px] text-slate-200">{base}</code>{t(' 입력 → 자동으로 뜨는 로그인 창에서 “연결 허용”. 토큰이 필요 없습니다(원클릭 연결). 개인 토큰 주소를 넣어도 동일하게 동작합니다. ')}<span className="text-[var(--text-dim)]">{t('※ Pro/Team/Enterprise 플랜에서 커스텀 커넥터가 지원됩니다.')}</span>
             </p>
 
-            <h3 className="mb-1 mt-6 flex items-center gap-2 text-[15px] font-bold text-slate-100"><Code2 size={16} className="text-violet-400" /> Cursor</h3>
+            <h3 className="mb-1 mt-6 text-[15px] font-bold text-slate-100">Cursor</h3>
             <p className="text-[13.5px] leading-relaxed text-[var(--text-soft)]">Settings → <b className="text-slate-200">MCP</b> → <b className="text-slate-200">Add new MCP server</b>{t(' → Type을 ')}<b>HTTP</b>{t('로 두고 URL에 내 연결 주소 입력. 또는 ')}<code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[12px] text-slate-200">~/.cursor/mcp.json</code>{t(' 에 아래 추가:')}</p>
             <Code label="~/.cursor/mcp.json">{`{
   "mcpServers": {
@@ -317,11 +330,11 @@ export default function McpDocsPage() {
   }
 }`}</Code>
 
-            <h3 className="mb-1 mt-6 flex items-center gap-2 text-[15px] font-bold text-slate-100"><Terminal size={16} className="text-violet-400" /> {t('Claude Code (터미널)')}</h3>
+            <h3 className="mb-1 mt-6 text-[15px] font-bold text-slate-100">{t('Claude Code (터미널)')}</h3>
             <Code label="shell">{`claude mcp add --transport http bygency ${shownUrl}`}</Code>
             <p className="text-[13px] text-[var(--text-soft)]">{t('추가 후 ')}<code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[12px] text-slate-200">/mcp</code>{t(' 명령으로 연결 상태를 확인하세요.')}</p>
 
-            <h3 className="mb-1 mt-6 flex items-center gap-2 text-[15px] font-bold text-slate-100"><Code2 size={16} className="text-violet-400" /> Claude API (Messages)</h3>
+            <h3 className="mb-1 mt-6 text-[15px] font-bold text-slate-100">Claude API (Messages)</h3>
             <p className="text-[13.5px] leading-relaxed text-[var(--text-soft)]">{t('요청에 ')}<code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[12px] text-slate-200">mcp_servers</code>{t(' 를 추가하고 ')}<code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[12px] text-slate-200">anthropic-beta: mcp-client-2025-04-04</code>{t(' 헤더를 넣으세요.')}</p>
             <Code label="curl">{`curl https://api.anthropic.com/v1/messages \\
   -H "x-api-key: $ANTHROPIC_API_KEY" \\
@@ -344,7 +357,7 @@ export default function McpDocsPage() {
           {/* 도구 */}
           <section>
             <Anchor id="tools" />
-            <h2 className="mb-4 flex items-center gap-2 text-2xl font-bold text-white"><Code2 size={20} className="text-violet-400" /> {t('3. 도구 레퍼런스')}</h2>
+            <h2 className="mb-4 text-2xl font-bold text-white">{t('3. 도구 레퍼런스')}</h2>
 
             <ToolDoc name="generate_image" desc={t('이미지를 생성하고 즉시 URL을 반환합니다.')}>
 {`{
@@ -392,7 +405,7 @@ export default function McpDocsPage() {
           {/* 예시 */}
           <section>
             <Anchor id="examples" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><Terminal size={20} className="text-violet-400" /> {t('4. 원시 JSON-RPC 예시')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('4. 원시 JSON-RPC 예시')}</h2>
             <p className="text-[13.5px] text-[var(--text-soft)]">{t('MCP는 JSON-RPC 2.0을 씁니다. 직접 호출해 연결을 테스트할 수 있습니다.')}</p>
             <Code label={t('tools/list — 도구 목록')}>{`curl -X POST "${shownUrl}" \\
   -H "content-type: application/json" \\
@@ -410,7 +423,7 @@ export default function McpDocsPage() {
           {/* 광고 집행 연계 (Meta Ads MCP 조합) */}
           <section>
             <Anchor id="ads" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><Zap size={20} className="text-violet-400" /> {t('5. 광고 집행까지 — Meta Ads MCP 조합')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('5. 광고 집행까지 — Meta Ads MCP 조합')}</h2>
             <p className="text-[14.5px] leading-relaxed text-[var(--text-soft)]">
               {t('Meta(페이스북·인스타그램)의 공식 광고 MCP를 함께 연결하면, 별도 개발 없이 Claude 대화 하나로 ')}
               <b className="text-slate-200">{t('소재 생성 → 캠페인 생성 → 집행')}</b>{t('까지 이어집니다. BYGENCY가 생성한 영상 URL은 영구 보관본(R2)이라 광고 소재로 바로 전달됩니다.')}
@@ -435,7 +448,7 @@ export default function McpDocsPage() {
           {/* 크레딧 */}
           <section>
             <Anchor id="credits" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><Coins size={20} className="text-violet-400" /> {t('5. 크레딧·과금')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('5. 크레딧·과금')}</h2>
             <ul className="space-y-2.5 text-[14px] leading-relaxed text-[var(--text-soft)]">
               <li className="flex gap-2.5"><Check size={17} className="mt-0.5 flex-shrink-0 text-violet-400" />{t(' 생성 1건마다 ')}<b className="text-slate-200">{t('연결된 본인 계정')}</b>{t('에서 크레딧이 차감됩니다(스튜디오와 동일 단가·배수).')}</li>
               <li className="flex gap-2.5"><Check size={17} className="mt-0.5 flex-shrink-0 text-violet-400" />{t(' 생성 ')}<b className="text-slate-200">{t('전에 잔액을 확인')}</b>{t('해 부족하면 생성을 거부합니다(크레딧 마이너스 없음).')}</li>
@@ -453,7 +466,7 @@ export default function McpDocsPage() {
           {/* 오류 */}
           <section>
             <Anchor id="errors" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><ShieldCheck size={20} className="text-violet-400" /> {t('6. 오류')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('6. 오류')}</h2>
             <div className="overflow-hidden rounded-xl border border-[var(--border-soft)]">
               <table className="w-full text-left text-[13px]">
                 <thead className="bg-white/[.03] text-[var(--text-dim)]">
@@ -482,6 +495,33 @@ export default function McpDocsPage() {
               <a href="#token" className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-5 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10">{t('내 주소 발급')} <KeyRound size={14} /></a>
             </div>
           </div>
+          {/* 문제 해결 */}
+          <section>
+            <Anchor id="trouble" />
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('문제 해결')}</h2>
+            <p className="mb-4 text-[13.5px] text-[var(--text-soft)]">{t('연결이 안 될 때 이 순서로 확인하세요.')}</p>
+            <div className="space-y-3">
+              {[
+                ['커넥터 목록에 서버가 안 뜬다', '주소 끝의 슬래시까지 그대로 넣었는지, 플랜이 커스텀 커넥터를 지원하는지 확인하세요.'],
+                ['401 이 돌아온다', '로그인 세션이 끊겼거나 토큰이 틀린 경우입니다. 커넥터를 지우고 다시 연결하면 로그인 창이 다시 뜹니다.'],
+                ['도구는 보이는데 호출이 실패한다', '크레딧 잔액과 플랜을 먼저 확인하세요. 잔액이 부족하면 402, 플랜이 없으면 403 이 돌아옵니다.'],
+                ['영상이 계속 generating 이다', '모델에 따라 1~5분이 걸립니다. check_video_status 를 15~30초 간격으로 부르면 되고, 반복 호출에는 과금이 없습니다.'],
+              ].map(([q, a]) => (
+                <div key={q} className="rounded-xl border border-[var(--border-soft)] bg-white/[.02] p-4">
+                  <div className="text-[13.5px] font-semibold text-slate-100">{t(q)}</div>
+                  <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--text-soft)]">{t(a)}</p>
+                </div>
+              ))}
+            </div>
+
+            <h3 className="mb-1 mt-6 text-[15px] font-bold text-slate-100">{t('연결 상태 확인')}</h3>
+            <Code label="bash">{`# 브라우저로 열어도 되고, 터미널에서 확인해도 된다
+curl -s "${base}"
+
+# 정상이면 아래처럼 돌아온다
+{ "status": "ok", "authenticated": true, "credits": 1982 }`}</Code>
+          </section>
+
         </main>
       </div>
 

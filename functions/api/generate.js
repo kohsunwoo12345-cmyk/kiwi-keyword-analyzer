@@ -617,7 +617,19 @@ export const FLUX_ENDPOINTS = {
   "Flux Kontext Max (레퍼런스 편집)": "flux-kontext-max",
   "Flux Kontext Pro (레퍼런스 편집)": "flux-kontext-pro"
 };
-const FLUX_DIMS = { "16:9":[1344,768], "9:16":[768,1344], "1:1":[1024,1024], "4:5":[896,1120] };
+/* width/height 로 크기를 지정하는 Flux 모델용 치수표.
+   ── 제공사가 직접 알려 준 제약(diag=flux-check 로 확인) ──
+     · flux-pro-1.1 · flux-dev  : width·height 가 32의 배수여야 한다(multiple_of 32)
+     · flux-2-max/pro/flex      : 64 이상이기만 하면 된다(32배수·상한 제약 없음)
+   두 집합을 모두 만족하려면 32의 배수를 쓰면 된다.
+
+   16:9 가 1344x768 이었는데 이 값은 1.750, 즉 실제로는 7:4 다(16:9 = 1.7778).
+   비율을 "16:9" 라고 표시해 놓고 다른 비율을 내보내고 있었다 — 768 높이에서 12px 어긋난다.
+   32의 배수이면서 정확히 16:9 인 조합은 1024x576(화소 43% 손실)이나 1536x864(1.x 상한 초과)
+   뿐이라 둘 다 대가가 크다. 대신 오차가 가장 작은 32배수 조합을 골랐다:
+     1312x736 = 1.7826 → 오차 0.27% (기존 1.56% 의 1/6). 화소는 0.97MP 로 거의 그대로.
+   1:1(1024x1024)·4:5(896x1120)은 원래 정확했으므로 그대로 둔다. */
+const FLUX_DIMS = { "16:9":[1312,736], "9:16":[736,1312], "1:1":[1024,1024], "4:5":[896,1120] };
 export function buildFluxPayload(b) {
   let ep = FLUX_ENDPOINTS[b.model] || "flux-pro-1.1";
   const prompt = cut(b.prompt, 1000);
@@ -991,6 +1003,27 @@ export function buildHailuoPayload(b) {
 /* ── Luma Dream Machine 영상 생성 ── */
 const LUMA_BASE = "https://api.lumalabs.ai/dream-machine/v1";
 
+/* ── 루마: 키가 "있는가" 가 아니라 "통하는가" 를 본다 ──
+   예전엔 health 가 !!k.luma 로만 답했다. 그런데 키는 설정돼 있는데 루마가 모든 요청을
+   403 "Not authenticated" 로 거부하는 상태였다(헤더 표기법 4가지를 모두 시도해 확인).
+   그 결과 스튜디오에 루마 모델이 계속 보였고, 회원이 고르면 선차감 → 생성 실패 → 환불이
+   반복된다. 그래서 읽기 전용 목록 조회로 실제 통용 여부를 확인한다.
+     · 401/403(자격증명 명시적 거부)일 때만 "사용 불가" 로 본다
+     · 5xx·타임아웃은 일시 장애일 수 있으므로 사용 가능으로 남겨 둔다(멀쩡한 제공사를 숨기지 않기 위함)
+   10분 캐시라 부팅 지연이 없고, 키를 고치면 다음 만료 때 자동으로 되살아난다. */
+let _lumaOk = { at: 0, ok: true };
+async function lumaUsable(key) {
+  if (!key) return false;
+  const now = Date.now();
+  if (_lumaOk.at && now - _lumaOk.at < 600000) return _lumaOk.ok;
+  try {
+    const r = await fetchT(LUMA_BASE + "/generations?limit=1",
+      { headers: { "Authorization": "Bearer " + key, "accept": "application/json" } }, 6000);
+    _lumaOk = { at: now, ok: !(r.status === 401 || r.status === 403) };
+  } catch (_e) { _lumaOk = { at: now, ok: true }; }
+  return _lumaOk.ok;
+}
+
 /* ── 카메라 모션 프리셋 (힉스필드 DoP 스타일) ──
    프롬프트에 시네마틱 카메라 지시문을 주입한다. 모든 영상 모델(씨댄스·Kling·Veo·Runway 등)이
    프롬프트의 카메라 언어에 반응하므로 모델 무관하게 동작한다. b.camera 에 프리셋 이름을 넣으면 적용. */
@@ -1214,6 +1247,8 @@ async function handle(context) {
   /* ══ GET: 상태 폴링 / 파일 프록시 ══ */
   if (request.method === "GET") {
     if (u.searchParams.has("health")) { // 제공사 키 설정 여부 점검 (키 값은 절대 노출 안 함) — ?health 또는 ?health=1 모두 허용
+      // 루마는 "키가 있다" 와 "그 키가 통한다" 가 다르다 — 실제로 확인한다(아래 lumaUsable 주석 참조)
+      const lumaOk = await lumaUsable(k.luma);
       return json({
         version:  "2026-07-13-v56 (remove-keys-page)", // 이 필드가 보이면 최신 코드가 프로덕션에 반영된 것
         build:    "2026-07-13-v56",                      // 스튜디오 STUDIO_BUILD 와 정확히 일치해야 최신
@@ -1224,7 +1259,8 @@ async function handle(context) {
         seedream: !!k.seedance,   // 씨드림 = ByteDance ModelArk 이미지, 씨댄스와 같은 키 공유
         flux:     !!k.flux,
         hailuo:   !!k.hailuo,
-        luma:     !!k.luma,
+        luma:     lumaOk,          // 키 유무가 아니라 "그 키가 실제로 통하는가"
+        lumaKeySet: !!k.luma,      // 키 자체는 있는지(진단용) — 키는 있는데 luma:false 면 키가 거부된 것
         fal:      !!k.fal,
         kling:    !!(klingCreds(env) || k.fal),
         klingOfficial: !!klingCreds(env),   // true=클링 공식 API, false=공식키 없음(→ fal 폴백으로 감)
@@ -1695,14 +1731,27 @@ async function handle(context) {
       /* 403 "Not authenticated" 는 보통 "자격증명 자체를 못 읽었다" 는 뜻이다
          (계정 거부라면 보통 다른 문구가 온다). 헤더 방식이 틀린 것인지, 키가 죽은 것인지
          가르기 위해 다른 표기법도 읽기 전용으로 시도한다. 전부 GET 이라 과금이 없다. */
+      /* 프로젝트 ID — 루마 콘솔에 프로젝트 ID 라는 값이 있다. 이게 API 호출에 필요한지는
+         문서를 못 봐서 단정할 수 없으므로, 추측 대신 실제로 시도해 본다.
+         Luma_PROJECT_ID 환경변수를 넣어 두면 아래 표기법들을 전부 읽기 전용으로 시험하고,
+         그중 200 이 나오는 게 있으면 그 방식을 실제 호출에도 반영하면 된다.
+         값이 없으면 이 시험은 건너뛴다(그 자체로 "안 넣어도 되는지" 는 판정 못 함). */
+      const proj = pick(env, ["Luma_PROJECT_ID", "LUMA_PROJECT_ID", "luma_project_id"]);
+      const projCases = proj ? [
+        { 이름: "헤더 X-Project-Id",  h: { "Authorization": "Bearer " + kv, "X-Project-Id": proj } },
+        { 이름: "헤더 Luma-Project-Id", h: { "Authorization": "Bearer " + kv, "Luma-Project-Id": proj } },
+        { 이름: "헤더 X-Luma-Project", h: { "Authorization": "Bearer " + kv, "X-Luma-Project": proj } },
+        { 이름: "쿼리 project_id",    h: { "Authorization": "Bearer " + kv }, q: "&project_id=" + encodeURIComponent(proj) },
+      ] : [];
       const hdrVariants = await Promise.all([
         { 이름: "Authorization: Bearer <key>", h: { "Authorization": "Bearer " + kv } },
         { 이름: "Authorization: <key> (Bearer 없음)", h: { "Authorization": kv } },
         { 이름: "x-api-key", h: { "x-api-key": kv } },
         { 이름: "x-api-key + Bearer 동시", h: { "x-api-key": kv, "Authorization": "Bearer " + kv } },
+        ...projCases,
       ].map(async (v) => {
         try {
-          const r = await fetchT(LUMA_BASE + "/generations?limit=1",
+          const r = await fetchT(LUMA_BASE + "/generations?limit=1" + (v.q || ""),
             { headers: Object.assign({ "accept": "application/json" }, v.h) }, 12000);
           const t = await r.text(); let j2 = null; try { j2 = JSON.parse(t); } catch { /* 비JSON */ }
           return { 방식: v.이름, httpStatus: r.status, 응답: j2 || String(t).slice(0, 200) };
@@ -1725,6 +1774,12 @@ async function handle(context) {
       return json({ diag: "luma-check",
         note: "목록 조회는 읽기 전용, 모델 확인은 prompt 를 비운 반려 요청입니다. 생성물·과금이 없습니다.",
         키형태: { length: kv.length, prefix: kv.slice(0, 6), suffix: kv.slice(-4), hasWhitespace: /\s/.test(kv) },
+        프로젝트ID: proj
+          ? { 설정됨: true, 값앞자리: String(proj).slice(0, 8) + "…",
+              안내: "아래 '헤더방식별' 에서 프로젝트 ID 를 붙인 4가지 표기법 결과를 보세요. 200 이 나오는 게 있으면 그 방식이 정답입니다." }
+          : { 설정됨: false,
+              안내: "Luma_PROJECT_ID 환경변수가 없습니다. 프로젝트 ID 가 필요한지 시험하려면 그 값을 넣고 다시 실행하세요. "
+                  + "다만 Bearer 키만으로 200 이 나온다면 프로젝트 ID 는 애초에 필요 없습니다." },
         헤더방식별: hdrVariants,
         키유효성: { httpStatus: list.status, 응답: list.body,
           결론: list.status === 200 ? "키는 유효합니다 — 모델별 결과가 실제 원인입니다."
