@@ -38,6 +38,15 @@ const EMAIL_LOGO_URL = 'https://bygency.co/brand/app-icon.png'
 const KAKAO_CHANNEL_URL = 'http://pf.kakao.com/_cxdNfX'
 
 /** 브랜드 이메일 공통 셸 — 상단 로고 + 본문 + 푸터. innerHtml 만 넣으면 로고가 포함된 메일이 완성된다. */
+/** 이메일 본문에 사용자 입력(이름 등)을 넣을 때 쓰는 이스케이프.
+ *  ⚠ 안 하면 가입 이름에 태그를 넣어 우리가 보내는 메일에 링크·이미지를 심을 수 있다.
+ *     "BYGENCY 에서 온 메일" 로 보이는 안에 남의 링크가 들어가는 셈이라 그대로 피싱에 쓰인다. */
+export function escHtml(v: any): string {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string
+  ))
+}
+
 export function emailShell(innerHtml: string): string {
   return `
   <div style="background:#f6f7fb;padding:32px 0;font-family:system-ui,-apple-system,'Segoe UI','Malgun Gothic',sans-serif">

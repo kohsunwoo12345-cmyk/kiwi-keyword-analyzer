@@ -11,7 +11,7 @@ import {
   autoBlockIp,
   rateLimitOk,
 } from '../_utils'
-import { resendEmail, emailShell } from '../_external'
+import { resendEmail, emailShell, escHtml } from '../_external'
 
 // 15분 내 이 횟수 초과로 인증요청을 반복하면 해당 IP 자동 차단(실제 접속 차단)
 const REQUEST_ABUSE_LIMIT = 8
@@ -103,7 +103,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
     const html = emailShell(`
         <h1 style="font-size:19px;margin:16px 0 8px">비밀번호 재설정 인증코드</h1>
         <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 18px">
-          안녕하세요${user.name ? ` ${user.name}님` : ''}. 아래 6자리 인증코드를 입력해 비밀번호를 재설정하세요.
+          안녕하세요${user.name ? ` ${escHtml(user.name)}님` : ''}. 아래 6자리 인증코드를 입력해 비밀번호를 재설정하세요.
           이 코드는 <b>3분간</b> 유효합니다.
         </p>
         <div style="font-size:34px;font-weight:800;letter-spacing:0.35em;background:#eff6ff;color:#1d4ed8;text-align:center;padding:18px 0;border-radius:14px;border:1px solid #dbeafe">

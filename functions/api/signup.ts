@@ -15,7 +15,7 @@ import {
   geoFrom,
   ensureReferralCode,
 } from './_utils'
-import { resendEmail, emailShell } from './_external'
+import { resendEmail, emailShell, escHtml } from './_external'
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env)
@@ -79,7 +79,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const html = emailShell(`
         <h1 style="font-size:19px;margin:16px 0 8px">가입을 환영합니다 🎉</h1>
         <p style="color:#475569;font-size:14px;line-height:1.7;margin:0 0 16px">
-          안녕하세요 ${name}님, BYGENCY 가입이 완료되었어요.<br/>
+          안녕하세요 ${escHtml(name)}님, BYGENCY 가입이 완료되었어요.<br/>
           요금제를 활성화하면 <b>마케팅 대시보드</b>와 <b>노드형 AI 영상 제작</b>을 모두 사용할 수 있습니다.
         </p>
         <a href="https://bygency.co/activate" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:12px">요금제 활성화하기</a>
