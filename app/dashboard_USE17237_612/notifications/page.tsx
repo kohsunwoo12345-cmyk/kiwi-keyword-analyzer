@@ -1,10 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Bell, CheckCircle2, Circle, ExternalLink, RefreshCw } from 'lucide-react'
+import { Bell, CheckCircle2, Circle, ExternalLink, RefreshCw, MailOpen } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Panel } from '@/components/ui'
-import { Reveal } from '@/components/motion'
+import { Card, EmptyState, Metric } from '@/components/dash/Kit'
 import { fetchNoticeHistory, type NoticeHistoryItem } from '@/lib/auth'
 import { kstDateTime } from '@/lib/time'
 import { NoticeMedia } from '@/components/NoticeMedia'
@@ -14,12 +13,16 @@ const ACCENT = '#6366f1'
 export default function NotificationsPage() {
   const [items, setItems] = useState<NoticeHistoryItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [onlyUnread, setOnlyUnread] = useState(false)
 
   function load() {
     setLoading(true)
     fetchNoticeHistory().then((d) => { setItems(d.history || []); setLoading(false) })
   }
   useEffect(() => { load() }, [])
+
+  const unread = items.filter((n) => !n.read).length
+  const shown = onlyUnread ? items.filter((n) => !n.read) : items
 
   return (
     <div className="animate-fade-in">
@@ -36,21 +39,37 @@ export default function NotificationsPage() {
         }
       />
 
-      <div className="p-6 lg:p-8">
-        <Reveal>
-          <Panel title={<span className="flex items-center gap-2"><Bell size={16} className="text-indigo-500" /> 받은 알림 <span className="text-xs font-normal text-[var(--text-dim)]">({items.length}건)</span></span>}>
+      <div className="space-y-5 p-5 lg:p-7">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Metric label="전체 알림" icon={Bell} accent="#6366f1" value={`${items.length}건`} sub="공지·프로모션 팝업 기록" />
+          <Metric label="안 읽음" icon={Circle} accent="#f59e0b" value={`${unread}건`} sub={unread ? '확인하지 않은 알림이 있습니다' : '모두 확인했습니다'} />
+          <Metric label="읽음" icon={MailOpen} accent="#10b981" value={`${items.length - unread}건`} sub="읽은 시각까지 기록됩니다" />
+        </div>
+
+        <Card
+          title="받은 알림"
+          desc={`${shown.length}건 표시 중`}
+          action={
+            <button
+              onClick={() => setOnlyUnread((v) => !v)}
+              className={`rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition ${onlyUnread ? 'border-indigo-500 bg-indigo-500/15 text-indigo-400' : 'border-[var(--border)] text-[var(--text-dim)] hover:bg-[var(--panel-2)]'}`}
+            >
+              안 읽음만
+            </button>
+          }
+        >
             {loading ? (
               <div className="flex items-center justify-center gap-2 py-16 text-sm text-[var(--text-dim)]"><RefreshCw size={16} className="animate-spin" /> 불러오는 중…</div>
-            ) : items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <span className="grid h-14 w-14 place-items-center rounded-2xl bg-indigo-500/12 text-indigo-500"><Bell size={26} /></span>
-                <p className="mt-4 font-semibold">아직 받은 알림이 없습니다.</p>
-                <p className="mt-1 text-sm text-[var(--text-dim)]">공지·프로모션 알림이 오면 여기에 모두 기록됩니다.</p>
-              </div>
+            ) : shown.length === 0 ? (
+              <EmptyState
+                icon={Bell}
+                title={onlyUnread ? '안 읽은 알림이 없습니다' : '아직 받은 알림이 없습니다'}
+                hint={onlyUnread ? '모든 알림을 확인했습니다.' : '공지·프로모션 알림이 오면 여기에 모두 기록됩니다.'}
+              />
             ) : (
               <div className="space-y-3">
-                {items.map((n) => (
-                  <div key={n.id + n.receivedAt} className="overflow-hidden rounded-xl border border-[var(--border)]">
+                {shown.map((n) => (
+                  <div key={n.id + n.receivedAt} className={`overflow-hidden rounded-xl border ${n.read ? 'border-[var(--border)]' : 'border-indigo-500/40 bg-indigo-500/[0.04]'}`}>
                     {(n.videoUrl || n.imageUrl) && (
                       <div className="max-h-56 overflow-hidden">
                         <NoticeMedia imageUrl={n.imageUrl} videoUrl={n.videoUrl} />
@@ -63,15 +82,15 @@ export default function NotificationsPage() {
                           {n.body && <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-[var(--text-soft)]">{n.body}</p>}
                         </div>
                         {n.read
-                          ? <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-[11px] font-semibold text-emerald-600"><CheckCircle2 size={12} /> 읽음</span>
-                          : <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-indigo-500/12 px-2 py-0.5 text-[11px] font-semibold text-indigo-600"><Circle size={12} /> 새 알림</span>}
+                          ? <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-[11px] font-semibold text-emerald-500"><CheckCircle2 size={12} /> 읽음</span>
+                          : <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-indigo-500/15 px-2 py-0.5 text-[11px] font-semibold text-indigo-400"><Circle size={12} /> 새 알림</span>}
                       </div>
                       <div className="mt-2 flex items-center gap-3 text-[11px] text-[var(--text-dim)]">
                         <span>받은 시각: {kstDateTime(n.receivedAt)}</span>
                         {n.read && n.readAt && <span>· 읽은 시각: {kstDateTime(n.readAt)}</span>}
                         {n.ctaLabel && n.ctaUrl && (
                           <a href={n.ctaUrl} target={/^https?:\/\//.test(n.ctaUrl) ? '_blank' : undefined} rel="noopener noreferrer"
-                            className="ml-auto inline-flex items-center gap-1 font-semibold text-indigo-600 hover:underline">
+                            className="ml-auto inline-flex items-center gap-1 font-semibold text-indigo-400 hover:underline">
                             {n.ctaLabel} <ExternalLink size={12} />
                           </a>
                         )}
@@ -81,8 +100,7 @@ export default function NotificationsPage() {
                 ))}
               </div>
             )}
-          </Panel>
-        </Reveal>
+        </Card>
       </div>
     </div>
   )
