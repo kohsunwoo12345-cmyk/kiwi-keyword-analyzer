@@ -2122,10 +2122,13 @@ var MODEL_COST = {
   'MiniMax Hailuo 02':               { u:'sec', usd:0.048, prov:'hailuo' },
   'MiniMax T2V-01 Director':         { u:'sec', usd:0.043, prov:'hailuo' },
   'MiniMax I2V-01 Director':         { u:'sec', usd:0.043, prov:'hailuo' },
-  // Luma Agents API — 구세대 Ray 2/1.6 은 이 계정 키로 호출되지 않아 제거했다. 단가는 잠정값.
-  'Luma Ray 3.2':                    { u:'sec', usd:0.08,  prov:'luma' },
-  'Luma Ray 3.2 (영상 편집)':          { u:'sec', usd:0.08,  prov:'luma' },
-  'Luma Ray 3.2 (비율 변경)':          { u:'sec', usd:0.04,  prov:'luma' },
+  /* Luma Agents API — 초당 정액이 아니라 LUMA_P 표(종류·해상도·길이)로 값이 정해지고,
+     lumaUsd() 가 이 usd 를 무시하고 그 표로 계산한다. 여기 적힌 값은 화면 표시용인데
+     실제와 3~9배 어긋나 있었다 → 대표 조건(1080p·5초)의 초당 환산값으로 맞춘다.
+     (구세대 Ray 2/1.6 은 노드 목록에 없다. 서버는 그 이름도 현행 ray-3.2 로 보낸다.) */
+  'Luma Ray 3.2':                    { u:'sec', usd:0.24,  prov:'luma' },
+  'Luma Ray 3.2 (영상 편집)':          { u:'sec', usd:0.432, prov:'luma' },
+  'Luma Ray 3.2 (비율 변경)':          { u:'sec', usd:0.36,  prov:'luma' },
   'Luma Uni 1':                      { u:'img', usd:0.04,  prov:'luma' },
   'Luma Uni 1 Max':                  { u:'img', usd:0.08,  prov:'luma' },
   'Kling 3.0 Pro (텍스트→영상)':       { u:'sec', usd:0.11,  prov:'kling' },

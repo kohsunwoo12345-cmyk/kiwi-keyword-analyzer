@@ -1,5 +1,5 @@
 // SUPERPLACE 이식: GET /api/admin/landing-traffic — 랜딩 유입 경로(채널/UTM/지역/트렌드) 분석
-import { Env, resolveDB, ensureSchema, requireAdminUser } from '../_utils'
+import { Env, resolveDB, ensureSchema, getSessionUser } from '../_utils'
 import { ensureLandingSchema } from '../landing/_lschema'
 
 const j = (o: any, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } })
@@ -8,8 +8,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env)
   if (!db) return j({ ok: false, error: 'DB 바인딩 없음' }, 500)
   await ensureSchema(db); await ensureLandingSchema(db)
-  const guard = await requireAdminUser(request, db)
-  if (guard.error) return j({ ok: false, error: '관리자 권한이 필요합니다.' }, 403)
+  // ⚠ 이 화면은 회원 대시보드의 "랜딩 경로 분석"(/dashboard/landing/analytics) 이 그대로 띄우는데
+  //   관리자만 통과시켜, 회원은 열자마자 "관리자 권한이 필요합니다" 만 봤다 = 기능이 죽어 있었다.
+  //   그렇다고 그냥 열면 남의 랜딩 유입까지 다 보이므로, 회원은 자기 페이지로 범위를 좁힌다.
+  const me: any = await getSessionUser(request, db)
+  if (!me) return j({ ok: false, error: '로그인이 필요합니다.' }, 401)
+  const isAdmin = me.role === 'admin' || me.role === 'superadmin'
 
   try {
     const url = new URL(request.url)
@@ -21,6 +25,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     if (slug) { conditions.push('v.landing_slug = ?'); binds.push(slug) }
     if (dateFrom) { conditions.push('v.created_at >= ?'); binds.push(dateFrom + ' 00:00:00') }
     if (dateTo) { conditions.push('v.created_at <= ?'); binds.push(dateTo + ' 23:59:59') }
+    // 회원은 자기 랜딩페이지의 유입만 — 남의 slug 를 넣어도 빈 결과가 된다.
+    const mineOnly = 'v.landing_slug IN (SELECT slug FROM landing_pages WHERE user_id = ?)'
+    if (!isAdmin) { conditions.push(mineOnly); binds.push(String(me.id)) }
     const whereClause = conditions.length ? conditions.join(' AND ') : '1=1'
     const bw = (stmt: any) => (binds.length ? stmt.bind(...binds) : stmt)
 
@@ -75,10 +82,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
              CASE WHEN utm_medium!='' AND utm_medium IS NOT NULL THEN utm_medium ELSE '-' END as medium, COUNT(*) as cnt
       FROM landing_page_views v WHERE ${whereClause} GROUP BY utm_source, utm_medium ORDER BY cnt DESC LIMIT 30`)).all()
 
-    const slugRows = await db.prepare(`
+    // 필터 드롭다운도 같은 범위여야 한다 — 아니면 남의 slug 목록이 그대로 노출된다.
+    const slugSql = `
       SELECT DISTINCT v.landing_slug as slug, lp.title
       FROM landing_page_views v LEFT JOIN landing_pages lp ON lp.slug = v.landing_slug
-      WHERE v.landing_slug IS NOT NULL AND v.landing_slug != '' ORDER BY v.landing_slug ASC LIMIT 100`).all()
+      WHERE v.landing_slug IS NOT NULL AND v.landing_slug != ''${isAdmin ? '' : ` AND ${mineOnly}`}
+      ORDER BY v.landing_slug ASC LIMIT 100`
+    const slugStmt = db.prepare(slugSql)
+    const slugRows = await (isAdmin ? slugStmt : slugStmt.bind(String(me.id))).all()
 
     const countryRows = await bw(db.prepare(`
       SELECT CASE WHEN country!='' AND country IS NOT NULL THEN country ELSE '알 수 없음' END as country, COUNT(*) as cnt

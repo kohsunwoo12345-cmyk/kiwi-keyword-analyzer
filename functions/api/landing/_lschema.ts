@@ -105,6 +105,34 @@ export function randSlug(): string {
   return Math.random().toString(36).substring(2, 10)
 }
 
+/**
+ * landing_pages 는 두 곳에서 만들어진다.
+ *  - _utils.ensureSchema      : id TEXT PRIMARY KEY,          created_at TEXT NOT NULL (기본값 없음)
+ *  - 이 파일 ensureLandingSchema: id INTEGER PK AUTOINCREMENT, created_at 기본값 있음
+ * CREATE TABLE IF NOT EXISTS 라 "먼저 만든 쪽" 이 이긴다. ensureSchema 는 로그인·/api/me 등
+ * 거의 모든 요청에서 도니 실제 배포본은 TEXT id 쪽이다. 그런데 create.ts 는 INTEGER 쪽을
+ * 가정해 id·created_at 을 넣지 않았고, 그래서 랜딩 "새로 만들기" 가 통째로 실패했다.
+ * 어느 모양이든 동작하도록 실제 컬럼 정의를 읽어서 판단한다.
+ */
+export async function landingIdShape(db: D1Database): Promise<{ textId: boolean; needsCreatedAt: boolean }> {
+  try {
+    const { results } = await db.prepare(`PRAGMA table_info(landing_pages)`).all()
+    const cols = (results as any[]) || []
+    const id = cols.find((c) => String(c.name) === 'id')
+    const created = cols.find((c) => String(c.name) === 'created_at')
+    // INTEGER PRIMARY KEY 만 rowid 별칭(자동 채번)이다. 그 외에는 우리가 값을 만들어 넣어야 한다.
+    const textId = !(id && String(id.type || '').toUpperCase() === 'INTEGER' && Number(id.pk) === 1)
+    const needsCreatedAt = !!created && Number(created.notnull) === 1 && created.dflt_value == null
+    return { textId, needsCreatedAt }
+  } catch {
+    return { textId: true, needsCreatedAt: true }
+  }
+}
+
+export function newLandingId(): string {
+  return 'lp_' + crypto.randomUUID().replace(/-/g, '').slice(0, 16)
+}
+
 /** HTML 폼에서 필드명 추출 (name 속성) */
 export function extractFormFields(html: string): string | null {
   try {

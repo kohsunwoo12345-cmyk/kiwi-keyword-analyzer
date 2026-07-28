@@ -1,5 +1,6 @@
 import { resolveDB, ensureSchema, getSessionUser } from '../api/_utils'
 import { ensureFunnelSchema } from '../api/funnel/_schema'
+import { buildShareHead, injectHead } from '../api/_htmlmeta'
 
 // 공개 퍼널 랜딩페이지 렌더 (/f/{slug}) — 신청 폼은 /api/funnel/apply 로 제출 → 자동응답(문자/알림톡) 실행
 const esc = (s: string) => String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
@@ -43,6 +44,30 @@ export const onRequestGet: PagesFunction<any> = async ({ request, params, env })
   // 조회수 증가 (분석용, best-effort)
   await db.prepare('UPDATE funnel_landing_pages SET views = COALESCE(views,0) + 1 WHERE id = ?').bind(page.id).run().catch(() => {})
 
+  // ⚠ 퍼널 빌더는 통짜 HTML 편집기다. 회원이 만든 html_content 를 저장은 하는데
+  //   여기서는 한 번도 쓰지 않고 늘 아래 기본 히어로+폼만 그렸다(76행이 빈 삼항이었다).
+  //   페이지 디자인·헤더 스크립트·OG 가 전부 버려져, "저장 & 배포" 를 눌러도
+  //   공개 주소에는 아무것도 반영되지 않았다. 저장된 HTML 이 있으면 그걸 그대로 서빙한다.
+  //   (폼은 빌더의 "폼 삽입" 이 html_content 안에 넣어 두고, 그 폼은 /api/landing/form-submit 으로
+  //    직접 제출한다 — 이 파일이 만드는 폼과 별개로 자립한다.)
+  //   단, 생성 시 서버가 넣어 두는 기본 조각(<section><h1>제목</h1></section>)까지 그대로 내보내면
+  //   폼도 스타일도 없는 맨몸 페이지가 된다. 회원이 실제로 편집한 흔적 —
+  //   통짜 문서이거나 폼이 들어 있을 때 — 만 저장본을 쓴다.
+  const saved = String(page.html_content || '')
+  const looksBuilt = /<!doctype|<html[\s>]|<body[\s>]|<form[\s>]/i.test(saved)
+  if (looksBuilt) {
+    const origin = new URL(request.url).origin
+    const out = injectHead(saved, buildShareHead(saved, {
+      title: page.title,
+      ogTitle: page.og_title,
+      ogDescription: page.og_description,
+      imageUrl: page.thumbnail_url,
+      canonicalUrl: origin + '/f/' + slug,
+      headerScript: page.page_header_scripts,
+    }))
+    return new Response(out, { headers: { 'content-type': 'text/html; charset=utf-8' } })
+  }
+
   let fields: any[] = []
   try { fields = JSON.parse(page.form_fields_json || '[]') } catch { fields = [] }
   const names: string[] = fields.length ? fields.map((f: any) => (typeof f === 'string' ? f : f.name)).filter(Boolean) : ['name', 'phone', 'email']
@@ -73,7 +98,6 @@ button:disabled{opacity:.6}
 </style></head><body>
 <div class="hero"><div class="brand">BYGENCY</div><h1>${esc(page.title)}</h1>${page.description ? `<p>${esc(page.description)}</p>` : ''}</div>
 <div class="card">
-  ${page.html_content && /<(form|input|button|section|div)/i.test(page.html_content) ? '' : ''}
   <form id="f">${inputs}<button type="submit" id="b">신청하기</button></form>
 </div>
 <div class="foot">Powered by <b>BYGENCY</b> · (주)넥스트 바이전시</div>
@@ -128,5 +152,14 @@ f.addEventListener('submit',async function(e){e.preventDefault();b.disabled=true
 })();</script>
 <script src="/emoji-parser.js" defer></script>
 </body></html>`
-  return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } })
+  // 기본 페이지에도 공유 미리보기는 붙여 준다.
+  const withMeta = injectHead(html, buildShareHead(html, {
+    title: page.title,
+    ogTitle: page.og_title,
+    ogDescription: page.og_description || page.description,
+    imageUrl: page.thumbnail_url,
+    canonicalUrl: new URL(request.url).origin + '/f/' + slug,
+    headerScript: page.page_header_scripts,
+  }))
+  return new Response(withMeta, { headers: { 'content-type': 'text/html; charset=utf-8' } })
 }

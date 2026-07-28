@@ -1,13 +1,17 @@
 // SUPERPLACE 이식: 공개 랜딩페이지 렌더 (/landing/:slug) — landing_pages.html_content 그대로 서빙 + 조회 기록
 import { Env, resolveDB, ensureSchema, geoFrom, clientIp } from '../api/_utils'
 import { ensureLandingSchema } from '../api/landing/_lschema'
+import { buildShareHead, injectHead, injectBodyTop } from '../api/_htmlmeta'
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env, params }) => {
   const slug = String((params as any).slug || '')
   const db = resolveDB(env)
   if (!db) return new Response('DB 미연결', { status: 500 })
   await ensureSchema(db); await ensureLandingSchema(db)
-  const page: any = await db.prepare(`SELECT id, html_content, status FROM landing_pages WHERE slug = ?`).bind(slug).first().catch(() => null)
+  const page: any = await db.prepare(
+    `SELECT id, html_content, status, title, og_title, og_description, thumbnail_url, header_script, header_pixel, body_pixel
+       FROM landing_pages WHERE slug = ?`,
+  ).bind(slug).first().catch(() => null)
   if (!page || !page.html_content) {
     return new Response(
       `<!doctype html><meta charset="utf-8"><title>페이지 없음</title><body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#0a0f1e;color:#e5e7eb"><div style="text-align:center"><h1>페이지를 찾을 수 없습니다</h1><p style="color:#94a3b8">삭제되었거나 잘못된 주소입니다.</p></div></body>`,
@@ -24,5 +28,21 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, params })
     .bind(page.id, slug, request.headers.get('user-agent') || '', request.headers.get('referer') || '',
       qp('utm_source'), qp('utm_medium'), qp('utm_campaign'), qp('utm_content'), qp('utm_term'),
       clientIp(request) || '', geo.country || '', geo.region || '', geo.city || '').run().catch(() => {})
-  return new Response(String(page.html_content), { headers: { 'content-type': 'text/html; charset=utf-8' } })
+
+  // ⚠ 예전에는 html_content 만 그대로 뱉었다. 빌더의 "공유 설정" 탭에서 넣은
+  //   OG 제목/설명/썸네일과 헤더 스크립트(픽셀)가 DB 에는 저장되고 편집기에도 다시 보이는데,
+  //   정작 공개 페이지에는 하나도 들어가지 않았다 —
+  //   카톡·문자로 공유해도 미리보기가 안 뜨고, 붙여 넣은 추적 픽셀은 한 번도 실행되지 않았다.
+  let html = String(page.html_content)
+  html = injectHead(html, buildShareHead(html, {
+    title: page.title,
+    ogTitle: page.og_title,
+    ogDescription: page.og_description,
+    imageUrl: page.thumbnail_url,
+    canonicalUrl: url.origin + '/landing/' + slug,
+    headerScript: [page.header_pixel, page.header_script].filter(Boolean).join(''),
+  }))
+  if (page.body_pixel) html = injectBodyTop(html, String(page.body_pixel))
+
+  return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } })
 }

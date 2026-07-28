@@ -130,6 +130,17 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
   'Runway Gen-4': { u: 'sec', usd: 0.05, prov: 'runway' },
   'Runway Gen-3 Alpha Turbo': { u: 'sec', usd: 0.05, prov: 'runway' },
   'Grok Imagine (영상)': { u: 'sec', usd: 0.10, prov: 'xai' },
+  /* ⚠ 씨댄스 2.0 단가는 미확인이고, 반대 방향 신호가 하나 있다.
+     런웨이 공식 표(docs.dev.runwayml.com/guides/pricing.md)는 남의 모델도 재판매하는데
+     거기서 `seedance2` (1080p) 가 초당 40크레딧 = $0.40 이다. 우리 값의 6.5배다.
+     같은 표의 `veo3.1 (audio)` 는 초당 40크레딧 = $0.40 으로 구글 공식가와 정확히 같다
+     — 런웨이가 원가 그대로 파는 항목이 있다는 뜻이라, 씨댄스도 그럴 가능성이 있다.
+     다만 같은 표의 `seedream5_pro` 는 1K 장당 5크레딧($0.05)로 우리 값($0.075)보다 오히려 싸다.
+     한 표 안에서 어떤 건 우리보다 비싸고 어떤 건 싸므로 "런웨이 = 원가" 라고 단정할 수 없다.
+     → 값을 바꾸지 않는다. BytePlus 공식 단가를 봐야 한다.
+     확인 방법: 배포 서버에서 /api/generate?diag=ark-pricing (제공사 API 에 직접 질의).
+     만약 실제로 초당 $0.40 이라면 마크업 2.5배(매출 $0.155)로도 초당 $0.245 손실 —
+     10초 한 편에 약 3,400원 적자다. 이 항목이 현재 남은 위험 중 가장 크다. */
   'Seedance 2.0': { u: 'sec', usd: 0.062, audio: 0.02, prov: 'seedance' },
   'Seedance 2.0 Fast': { u: 'sec', usd: 0.036, audio: 0.02, prov: 'seedance' },
   'Seedance 2.0 Mini': { u: 'sec', usd: 0.028, audio: 0.02, prov: 'seedance' },
@@ -143,14 +154,22 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
   'MiniMax I2V-01 Director': { u: 'sec', usd: 0.043, prov: 'hailuo' },
   // Luma Agents API. 구세대 Ray 2/Flash 2/1.6 은 이 계정 키로 호출되지 않으므로 노드에서 뺐지만,
   //  예전 그래프가 그대로 요청할 수 있어 단가는 남겨 둔다(없으면 이미지 기본값 $0.05 로 잘못 청구된다).
-  'Luma Ray 3.2': { u: 'sec', usd: 0.08, prov: 'luma' },
-  'Luma Ray 3.2 (영상 편집)': { u: 'sec', usd: 0.08, prov: 'luma' },
-  'Luma Ray 3.2 (비율 변경)': { u: 'sec', usd: 0.04, prov: 'luma' },
+  /* 루마는 초당 정액이 아니라 "종류·해상도·길이" 표로 값이 정해진다(아래 LUMA_* 표가 실제 기준이고,
+     lumaUsd() 가 이 항목의 usd 를 무시하고 그 표로 계산한다).
+     그런데 이 표시값이 실제와 3~9배 어긋나 있었다 — 관리자 "AI 모델별 단가" 화면이
+     이 값을 그대로 보여주므로, 초당 $0.08 로 적혀 있으면 원가를 그만큼으로 오해하게 된다.
+     대표 조건(1080p·5초)의 실제 초당 환산값으로 맞춘다.
+       생성 $1.20/5초 = 초당 $0.24 · 편집 $2.16/5초 = 초당 $0.432 · 비율변경 초당 $0.36 */
+  'Luma Ray 3.2': { u: 'sec', usd: 0.24, prov: 'luma' },
+  'Luma Ray 3.2 (영상 편집)': { u: 'sec', usd: 0.432, prov: 'luma' },
+  'Luma Ray 3.2 (비율 변경)': { u: 'sec', usd: 0.36, prov: 'luma' },
   'Luma Uni 1': { u: 'img', usd: 0.04, prov: 'luma' },
   'Luma Uni 1 Max': { u: 'img', usd: 0.08, prov: 'luma' },
-  'Luma Ray 2': { u: 'sec', usd: 0.08, prov: 'luma' },
-  'Luma Ray Flash 2': { u: 'sec', usd: 0.04, prov: 'luma' },
-  'Luma Ray 1.6': { u: 'sec', usd: 0.06, prov: 'luma' },
+  /* 예전 그래프 호환용 이름 — 지금 노드 목록에는 없다. 서버가 전부 현행 ray-3.2 로 보내므로
+     요금도 같아야 한다(예전엔 초당 $0.08·$0.04·$0.06 으로 제각각이었다). */
+  'Luma Ray 2': { u: 'sec', usd: 0.24, prov: 'luma' },
+  'Luma Ray Flash 2': { u: 'sec', usd: 0.24, prov: 'luma' },
+  'Luma Ray 1.6': { u: 'sec', usd: 0.24, prov: 'luma' },
   /* ── Kling (클링) — 텍스트→영상 / 이미지→영상 / 영상→영상 ──
      ⚠ 미검증 단가. 공식 문서(klingai.com/global/dev/pricing, app.klingai.com/global/docs/point-policy)가
      개발 환경에서 403 이라 아직 원문을 못 봤다. 검색으로는 2.1 Master 5초가
