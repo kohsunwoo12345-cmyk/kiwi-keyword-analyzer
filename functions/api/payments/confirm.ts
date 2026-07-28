@@ -1,5 +1,6 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB, applyBalance, addNotification, logActivity, publicUser } from '../_utils'
 import { tossConfirm } from '../_external'
+import { recordPayment } from '../_billing'
 
 // POST /api/payments/confirm { paymentKey, orderId, amount } → Toss 승인 후 크레딧 즉시 지급
 export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
@@ -41,6 +42,15 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
     return json({ ok: false, error: '이미 처리된 주문입니다.' }, 409)
 
   await applyBalance(db, me.id, 'credit', order.credits, `카드 결제 충전 (${amount.toLocaleString()}원)`)
+  // ⚠ 결제 원장(payments)은 "모든 실입금의 단일 소스" 인데 카드 결제만 빠져 있었다.
+  //   세금계산서·현금영수증·환불이 전부 이 원장을 기준으로 도는데, 카드로 낸 회원은
+  //   원장에 아예 없어서 세금계산서를 끊을 수 없었고 관리자 결제 화면 합계에서도 빠졌다.
+  await recordPayment(db, {
+    userId: me.id, name: me.name || '', email: me.email || '',
+    source: 'credit_order', refId: orderId,
+    description: `크레딧 ${Number(order.credits).toLocaleString()}개 충전 (카드)`,
+    amount, method: 'card', pgKey: paymentKey,
+  })
   await addNotification(db, me.id, '크레딧이 충전되었습니다', `카드 결제로 크레딧 ${order.credits.toLocaleString()}개가 충전되었습니다. 감사합니다!`)
   await logActivity(db, me.id, 'credit', `카드 충전 +${order.credits} 크레딧`)
 
