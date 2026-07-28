@@ -12,6 +12,7 @@ import {
   applyBalance,
   addNotification,
   rewardReferralFirstPaid,
+  purgeUserData,
 } from '../_utils'
 import { getPlanConfig } from '../_plans'
 import { sendSms, aligoAlimtalk } from '../_aligo'
@@ -79,16 +80,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     await db.prepare("UPDATE users SET status = 'active' WHERE id = ?").bind(id).run()
     await logActivity(db, id, 'status', '관리자에 의해 정지 해제')
   } else if (action === 'delete') {
-    await db.batch([
-      db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
-      db.prepare('DELETE FROM transactions WHERE user_id = ?').bind(id),
-      db.prepare('DELETE FROM activity_log WHERE user_id = ?').bind(id),
-      db.prepare('DELETE FROM notifications WHERE user_id = ?').bind(id),
-      // 예약을 남기면 크론이 회원을 못 찾아 영영 못 돌리고, 관리자 화면의 멈춤 경보가 헛울린다
-      db.prepare('DELETE FROM studio_schedules WHERE user_id = ?').bind(id),
-      db.prepare('DELETE FROM studio_brandkit WHERE user_id = ?').bind(id),
-      db.prepare('DELETE FROM users WHERE id = ?').bind(id),
-    ])
+    // 지울 목록은 purgeUserData 한 곳에서만 관리한다(본인 탈퇴 경로와 동일).
+    //  예전에는 여기 목록이 짧아, 관리자가 지운 회원의 연락처·신청자·발송 이력이 그대로 남았다.
+    await purgeUserData(db, id)
+    await db.prepare('DELETE FROM users WHERE id = ?').bind(id).run()
   } else if (action === 'plan') {
     const plan = ['없음', 'Plus', 'Pro', 'Max'].includes(body.plan) ? body.plan : '없음'
     const track = body.track === 'video' ? 'video' : 'marketer'

@@ -60,6 +60,7 @@ import {
   type MySender,
   type RefUser,
   type ReferralInfo,
+  planActive,
 } from '@/lib/auth'
 
 /* ---------- date helpers (KST 고정) ---------- */
@@ -558,7 +559,10 @@ export default function ProfilePage() {
 
 
   const socialNoPw = !!user?.provider && user.provider !== 'email' && !user.passwordSet
-  const curTier = planTrack === 'marketer' ? (user?.plan ?? '없음') : (user?.videoPlan ?? '없음')
+  // 만료된 플랜을 "현재 등급" 으로 잡으면 같은 등급 재신청이 막힌다(이미 사용 중인 플랜입니다)
+  const curTier = planTrack === 'marketer'
+    ? (planActive(user?.plan, user?.planUntil) ? user!.plan : '없음')
+    : (planActive(user?.videoPlan, user?.videoPlanUntil) ? user!.videoPlan : '없음')
   const pointTx = transactions.filter((t) => t.kind === 'point')
   const creditTx = transactions.filter((t) => t.kind === 'credit')
   const unread = notifications.filter((n) => !n.read).length
@@ -605,8 +609,8 @@ export default function ProfilePage() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-xl font-bold tracking-tight">{user.name}</h2>
-                      <Badge className={PLAN_META[user.plan]?.badge || 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-dim)]'}>
-                        <Crown size={12} /> {planLabel(user.plan)}
+                      <Badge className={PLAN_META[planActive(user.plan, user.planUntil) ? user.plan : '없음']?.badge || 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-dim)]'}>
+                        <Crown size={12} /> {planLabel(planActive(user.plan, user.planUntil) ? user.plan : '없음')}
                       </Badge>
                       {user.role === 'admin' && (
                         <Badge className="border-[var(--border)] bg-[var(--text)] text-[var(--panel)]">
@@ -846,7 +850,11 @@ export default function ProfilePage() {
                     {(['marketer', 'video'] as PlanTrack[]).map((t) => {
                       const tm = TRACK_META[t]
                       const TIcon = tm.icon
-                      const plan = t === 'marketer' ? user.plan : user.videoPlan
+                      // ⚠ 이름만 보면 만료된 플랜도 그대로 표시된다 — 유효기간까지 본다
+                      const raw = t === 'marketer' ? user.plan : user.videoPlan
+                      const until = t === 'marketer' ? user.planUntil : user.videoPlanUntil
+                      const active = planActive(raw, until)
+                      const plan = (active ? raw : '없음') as typeof raw
                       return (
                         <div key={t} className="card-2 flex flex-col gap-2 p-4">
                           <div className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-soft)]">
@@ -878,7 +886,7 @@ export default function ProfilePage() {
                       )
                     })}
                   </div>
-                  {user.videoPlan === 'Max' && (
+                  {user.videoPlan === 'Max' && planActive(user.videoPlan, user.videoPlanUntil) && (
                     <p className="mt-4 flex items-center gap-1.5 rounded-xl border border-fuchsia-500/30 bg-fuchsia-500/12 px-3.5 py-2.5 text-xs text-fuchsia-400">
                       <Video size={14} className="flex-shrink-0" /> AI 영상 Max 가입자는 홈에서 노드 스튜디오로 자동 이동합니다.
                     </p>

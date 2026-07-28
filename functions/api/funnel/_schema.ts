@@ -87,11 +87,26 @@ export async function ensureFunnelSchema(db: D1Database) {
     const cols = new Set((info.results || []).map((r: any) => r.name))
     if (!cols.has('tpl_code')) await db.prepare(`ALTER TABLE funnel_auto_responses ADD COLUMN tpl_code TEXT`).run().catch(() => {})
   } catch { /* ignore */ }
-  try {
-    const info = await db.prepare(`PRAGMA table_info(funnel_landing_pages)`).all()
-    const cols = new Set((info.results || []).map((r: any) => r.name))
-    if (!cols.has('views')) await db.prepare(`ALTER TABLE funnel_landing_pages ADD COLUMN views INTEGER DEFAULT 0`).run().catch(() => {})
-  } catch { /* ignore */ }
+  // ⚠ 위 CREATE TABLE 은 테이블이 "없을 때만" 돈다. 이미 예전 형태로 만들어진 배포본에는
+  //   아무 영향이 없으므로, 코드가 읽고 쓰는 컬럼은 여기서 전부 보강해 줘야 한다.
+  //   예전에는 views 하나만 보강해서, 구버전 테이블에서는 랜딩페이지 저장이
+  //   css_content/status 때문에 통째로 500 이 났다(빌더에서 저장을 눌러도 아무 일이 없다).
+  //   og_*·page_header_scripts 는 호출부가 try/catch 로 감싸 조용히 건너뛰고 있었는데,
+  //   그건 "저장했는데 반영이 안 된다"는 더 알아채기 어려운 고장이다.
+  for (const col of [
+    'views INTEGER DEFAULT 0', 'css_content TEXT', "status TEXT DEFAULT 'active'",
+    'og_title TEXT', 'og_description TEXT', 'thumbnail_url TEXT',
+    'page_header_scripts TEXT', 'form_fields_json TEXT', 'description TEXT', 'updated_at TEXT',
+  ]) {
+    await db.prepare(`ALTER TABLE funnel_landing_pages ADD COLUMN ${col}`).run().catch(() => {})
+  }
+  for (const col of ['funnel_id INTEGER', 'group_type TEXT', 'sort_order INTEGER DEFAULT 0',
+    'pos_x INTEGER DEFAULT 0', 'pos_y INTEGER DEFAULT 0', 'color TEXT', 'updated_at TEXT']) {
+    await db.prepare(`ALTER TABLE funnel_groups ADD COLUMN ${col}`).run().catch(() => {})
+  }
+  for (const col of ['name TEXT', 'phone TEXT', 'email TEXT', 'additional_data TEXT']) {
+    await db.prepare(`ALTER TABLE funnel_applicants ADD COLUMN ${col}`).run().catch(() => {})
+  }
   // SUPERPLACE 퍼널 계층: funnels(부모) — 랜딩 분석/빌더가 funnels→groups→pages 구조를 사용
   await db.prepare(`CREATE TABLE IF NOT EXISTS funnels (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

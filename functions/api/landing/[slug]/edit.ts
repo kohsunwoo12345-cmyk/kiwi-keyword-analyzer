@@ -16,6 +16,11 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env, params })
   if (!b) return j({ success: false, error: 'JSON 파싱 오류(내용이 너무 크거나 형식 오류).' }, 200)
   const page: any = await db.prepare('SELECT * FROM landing_pages WHERE slug = ?').bind(slug).first().catch(() => null)
   if (!page) return j({ success: false, error: '랜딩페이지를 찾을 수 없습니다.' }, 200)
+  // ⚠ 로그인만 확인하고 주인은 안 봤다 — 남의 페이지 내용과 픽셀/헤더 스크립트를
+  //   바꿔 넣을 수 있었다(그 스크립트는 공개 페이지에 그대로 삽입된다).
+  const isAdmin = me.role === 'admin' || me.role === 'superadmin'
+  if (!isAdmin && String(page.user_id || '') !== String(me.id))
+    return j({ success: false, error: '권한이 없습니다.' }, 403)
 
   const hasNewHtml = b.html_content != null && b.html_content !== ''
   const html = hasNewHtml ? String(b.html_content) : (page.html_content || '')

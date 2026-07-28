@@ -20,9 +20,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
      통과시킨 뒤 실제 차감에서 훨씬 큰 금액이 빠져 잔액이 음수가 된다(안내와 결과가 어긋난다). */
   const mcP = (MODEL_COST as any)[model]
   const kindP = mcP ? (mcP.u === 'sec' ? 'video' : 'image') : (String(b.kind || '') === 'image' ? 'image' : 'video')
-  const c = computeCharge({ model, units: Number(b.units) || 0, kind: kindP, res: b.res, audio: !!b.audio }, rate, markup, creditKrw)
+  /* refs·hdr·exr 는 원가 자체를 바꾸는 값이다(루마 이미지·루마 영상 HDR·FLUX.2 입력 MP).
+     예전엔 사전 확인에서 이걸 빼고 계산해, 통과시켜 놓고 실제 차감은 더 크게 빠졌다. */
+  const refCount = Math.max(0, Number(b.refs) || 0)
+  const c = computeCharge(
+    { model, units: Number(b.units) || 0, kind: kindP, res: b.res, audio: !!b.audio,
+      refs: refCount, hdr: !!b.hdr, exr: !!b.exr },
+    rate, markup, creditKrw)
   const surPct = await resolveRefSurcharge(db, me.id)
-  const refMult = 1 + (surPct / 100) * Math.max(0, Number(b.refs) || 0)
+  const refMult = 1 + (surPct / 100) * refCount
   const cnCount = Math.max(0, Number(b.cn) || 0)
   const cnPct = cnCount > 0 ? await resolveCnSurcharge(db) : 0
   const cnMult = cnCount > 0 ? 1 + cnPct / 100 : 1

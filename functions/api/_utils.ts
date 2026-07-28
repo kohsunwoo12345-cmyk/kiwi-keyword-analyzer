@@ -742,6 +742,79 @@ export function planPriceKrw(track: string, plan: string): number {
  * 피추천인(친구)이 유료 요금제에 처음 가입했을 때 추천인에게 결제액의 1%를 크레딧으로 지급.
  * referral_rewards 테이블의 friend_id UNIQUE 로 1인 1회만 지급.
  */
+/**
+ * 회원 탈퇴·삭제 시 그 회원의 데이터를 지운다 (users 행 자체는 호출부에서 지운다).
+ *
+ * ⚠ 한 곳에 모은 이유: 예전에는 본인 탈퇴(account/delete)와 관리자 삭제(admin/users)가
+ *   각자 지울 테이블 목록을 들고 있었고, 한쪽에만 추가되는 일이 반복됐다.
+ *   그 결과 탈퇴한 뒤에도 연락처 그룹(다른 사람의 전화번호!), 신청자 명단, 문자·메일 발송
+ *   이력, 퍼널·랜딩페이지가 그대로 남아 있었다. 목록은 이제 여기서만 관리한다.
+ *
+ * 결제 원장(payments)은 일부러 남긴다 — 매출·정산·세금계산서의 단일 소스라
+ *   지우면 과거 매출이 통째로 사라진다(회원 식별 정보는 users 삭제로 끊긴다).
+ */
+export async function purgeUserData(db: D1Database, uid: string): Promise<void> {
+  const del = async (sql: string, ...b: any[]) => {
+    try { await db.prepare(sql).bind(...b).run() } catch { /* 없는 테이블/컬럼은 무시 */ }
+  }
+  // 계정·활동
+  await del('DELETE FROM sessions WHERE user_id = ?', uid)
+  await del('DELETE FROM transactions WHERE user_id = ?', uid)
+  await del('DELETE FROM notifications WHERE user_id = ?', uid)
+  await del('DELETE FROM activity_log WHERE user_id = ?', uid)
+  await del('DELETE FROM ai_usage WHERE user_id = ?', uid)
+  // 신청·주문
+  await del('DELETE FROM plan_requests WHERE user_id = ?', uid)
+  await del('DELETE FROM point_requests WHERE user_id = ?', uid)
+  await del('DELETE FROM credit_requests WHERE user_id = ?', uid)
+  await del('DELETE FROM credit_orders WHERE user_id = ?', uid)
+  await del('DELETE FROM team_orders WHERE user_id = ?', uid)
+  await del('DELETE FROM coupon_redemptions WHERE user_id = ?', uid)
+  // 발송 관련(연락처는 남의 개인정보다 — 반드시 함께 지운다)
+  await del('DELETE FROM sender_numbers WHERE user_id = ?', uid)
+  await del('DELETE FROM contact_group_members WHERE group_id IN (SELECT id FROM contact_groups WHERE user_id = ?)', uid)
+  await del('DELETE FROM contact_groups WHERE user_id = ?', uid)
+  await del('DELETE FROM sms_templates WHERE user_id = ?', uid)
+  await del('DELETE FROM sms_logs WHERE user_id = ?', uid)
+  await del('DELETE FROM email_log WHERE user_id = ?', uid)
+  await del('DELETE FROM kakao_templates WHERE user_id = ?', uid)
+  await del('DELETE FROM kakao_channels WHERE user_id = ?', uid)
+  await del('DELETE FROM kakao_alimtalk_logs WHERE user_id = ?', uid)
+  // 스튜디오
+  await del('DELETE FROM studio_schedules WHERE user_id = ?', uid)
+  await del('DELETE FROM studio_brandkit WHERE user_id = ?', uid)
+  await del('DELETE FROM api_calls WHERE user_id = ?', uid)
+  await del('DELETE FROM api_keys WHERE user_id = ?', uid)
+  await del('DELETE FROM video_gallery WHERE CAST(user_id AS TEXT) = CAST(? AS TEXT)', uid)
+  // 퍼널 — 신청자(이름·전화·이메일)까지 아래에서 위로 지운다
+  await del(`DELETE FROM funnel_applicants WHERE landing_page_id IN (
+               SELECT p.id FROM funnel_landing_pages p JOIN funnel_groups g ON g.id = p.group_id WHERE g.user_id = ?)`, uid)
+  await del('DELETE FROM funnel_landing_pages WHERE group_id IN (SELECT id FROM funnel_groups WHERE user_id = ?)', uid)
+  await del('DELETE FROM funnel_auto_responses WHERE user_id = ?', uid)
+  await del('DELETE FROM funnel_flows WHERE user_id = ?', uid)
+  await del('DELETE FROM funnel_group_connections WHERE funnel_id IN (SELECT id FROM funnels WHERE user_id = ?)', uid)
+  await del('DELETE FROM funnel_groups WHERE user_id = ?', uid)
+  await del('DELETE FROM funnels WHERE user_id = ?', uid)
+  // 랜딩(비퍼널)
+  await del('DELETE FROM form_submissions WHERE landing_page_id IN (SELECT id FROM landing_pages WHERE user_id = ?)', uid)
+  await del('DELETE FROM landing_pages WHERE user_id = ?', uid)
+  await del('DELETE FROM landing_folders WHERE user_id = ?', uid)
+  // 순위 추적
+  await del('DELETE FROM naver_place_tracking WHERE user_id = ?', uid)
+  await del('DELETE FROM blog_rank_track_history WHERE track_id IN (SELECT id FROM blog_rank_tracks WHERE user_id = ?)', uid)
+  await del('DELETE FROM blog_rank_tracks WHERE user_id = ?', uid)
+  // 소통
+  await del('DELETE FROM support_chats WHERE conv_id = ?', uid)
+  await del('DELETE FROM dm_messages WHERE from_id = ? OR to_id = ?', uid, uid)
+  await del('DELETE FROM friend_aliases WHERE owner_id = ? OR friend_id = ?', uid, uid)
+  await del('DELETE FROM friendships WHERE user_id = ? OR friend_id = ?', uid, uid)
+  await del('DELETE FROM team_members WHERE user_id = ?', uid)
+  await del('DELETE FROM team_invites WHERE from_user_id = ? OR to_user_id = ?', uid, uid)
+  // 추천 관계
+  await del("UPDATE users SET referred_by = '' WHERE referred_by = ?", uid)
+  await del('DELETE FROM referral_rewards WHERE referrer_id = ? OR friend_id = ?', uid, uid)
+}
+
 export async function rewardReferralFirstPaid(db: D1Database, friendId: string, track: string, plan: string): Promise<void> {
   try {
     if (!plan || plan === '없음') return

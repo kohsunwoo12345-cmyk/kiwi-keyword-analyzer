@@ -45,7 +45,10 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     const timestamp = Date.now()
     const ext = 'mp4'
     const contentType = 'video/mp4'
-    const key = `videos/${userId}/${timestamp}.${ext}`
+    // ⚠ 예전 키는 videos/<회원id>/<밀리초>.mp4 로 추측 가능한 값만 들어 있었다.
+    //   영상 서빙(/api/videos/file/:key)은 키만 알면 누구나 열 수 있는 구조라,
+    //   업로드 시각을 대충 아는 사람이 남의 영상을 찾아낼 수 있다. 무작위 조각을 넣는다.
+    const key = `videos/${userId}/${timestamp}-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}.${ext}`
     const sizeMb = parseFloat(((file as any).size / 1024 / 1024).toFixed(2))
 
     const bytes = await (file as any).arrayBuffer()

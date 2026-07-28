@@ -1,6 +1,7 @@
 // SUPERPLACE 퍼널 빌더 이식: PUT/DELETE /api/funnels/:funnelId/groups/:groupId
 import { resolveDB, getSessionUser } from '../../../_utils'
 import { ensureFunnelSchema } from '../../../funnel/_schema'
+import { ownsGroup, forbidden } from '../../../funnel/_own'
 
 const j = (o: any, status = 200) =>
   new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
@@ -11,8 +12,12 @@ export const onRequestPut: PagesFunction = async ({ request, env, params }) => {
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 500)
     await ensureFunnelSchema(db)
+    // ⚠ 인증이 없어 누구나 남의 그룹을 수정할 수 있었다
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const funnelId = params.id as string
     const groupId = params.groupId as string
+    if (!(await ownsGroup(db, me, groupId))) return forbidden()
     const { name, description, color, group_type, sort_order, pos_x, pos_y } = (await request.json()) as any
     try {
       await db.prepare(`
@@ -41,6 +46,8 @@ export const onRequestDelete: PagesFunction = async ({ request, env, params }) =
     if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const funnelId = params.id as string
     const groupId = params.groupId as string
+    // ⚠ 로그인만 하면 남의 그룹을 지울 수 있었다 — 딸린 페이지·신청자까지 함께 사라진다
+    if (!(await ownsGroup(db, me, groupId))) return forbidden()
     try { await db.prepare(`DELETE FROM funnel_group_connections WHERE funnel_id=? AND (from_group_id=? OR to_group_id=?)`).bind(funnelId, groupId, groupId).run() } catch (e) {}
     try { await db.prepare(`DELETE FROM funnel_applicants WHERE landing_page_id IN (SELECT id FROM funnel_landing_pages WHERE group_id=?)`).bind(groupId).run() } catch (e) {}
     try { await db.prepare(`DELETE FROM funnel_landing_pages WHERE group_id=?`).bind(groupId).run() } catch (e) {}

@@ -5,7 +5,7 @@
 import { onRequest as generateApi, effectiveUnits, effectiveRes } from "../generate.js";
 import { resolveDB, ensureSchema, json } from "../_utils";
 import { getUserByApiKey, logApiCall, hasVideoApiAccess, ensureApiKeysSchema, enforceRateLimit, beginApiCall, finishApiCall, attachApiCallTask, refundFailedTask } from "../_apikeys";
-import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage } from "../studio/_pricing";
+import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage, MODEL_COST } from "../studio/_pricing";
 
 // 크레딧 차감 + 사용/거래 기록 (스튜디오 usage/record 와 동일)
 async function commitCharge(db, me, c, units) {
@@ -62,7 +62,16 @@ export const onRequestPost = async ({ request, env }) => {
   const body = await request.json().catch(() => ({}));
   const provider = String(body.provider || "");
   const model = String(body.model || "");
-  const kind = String(body.kind || (/image|nano|gpt|grok|flux/i.test(provider + model) ? "image" : "video"));
+  /* 과금 종류는 단가표에서 정한다 — 호출자가 보낸 kind 를 믿으면 안 된다.
+     ① kind:"image" 를 붙여 보내면 units 가 1로 고정돼 8초 영상을 1초 값으로 청구했다.
+     ② 스스로 추측하는 정규식도 틀렸다 — "Grok Imagine (영상)" 이 /grok/ 에 걸려
+        영상인데 이미지로 잡혔고(초당 $0.10 × 5초 대신 $0.10), 같은 이유로
+        "Flux …" 이름을 가진 영상 모델이 생기면 그대로 새어 나간다.
+     단가표에 있는 모델은 그 u 값이 유일한 기준이고, 모르는 모델일 때만 예전 추측을 쓴다.
+     (스튜디오의 precheck·usage/record 도 같은 방식으로 이미 굳혀 두었다.) */
+  const mcV = MODEL_COST[model];
+  const kind = mcV ? (mcV.u === "sec" ? "video" : "image")
+                   : String(body.kind || (/image|nano|gpt|grok|flux/i.test(provider + model) ? "image" : "video"));
   //  과금 단위는 "요청한 길이"가 아니라 "실제로 생성될 길이" 여야 한다 — 빌더가 모델별
   //  허용값으로 스냅하므로(Veo 7→6초, Seedance 1.x 8→10초 등) 요청값으로 청구하면 어긋난다.
   const units = kind === "image" ? 1 : effectiveUnits(body, env);
@@ -78,7 +87,12 @@ export const onRequestPost = async ({ request, env }) => {
   try {
     const rate = await getUsdKrw(db);
     const markup = await resolveMarkup(db, me.id, model, Number(me.credit_markup) || 0);
-    est = computeCharge({ model, units, kind, res: billRes, audio: !!body.audio }, rate, markup);
+    /* 레퍼런스 장수·HDR·EXR 은 원가 자체를 바꾼다(루마 이미지·루마 영상 HDR·FLUX.2 입력 MP).
+       스튜디오는 refs 를 넘기는데 이 경로만 빠져 있어, API 로 부르면 같은 생성이 더 싸게 나갔다. */
+    const refsV = Array.isArray(body.refImages) ? body.refImages.length
+                : Math.max(0, Number(body.refs) || 0);
+    est = computeCharge({ model, units, kind, res: billRes, audio: !!body.audio,
+                          refs: refsV, hdr: !!body.lumaHdr, exr: !!body.lumaExr }, rate, markup);
     if (!isAdmin && (Number(me.credits) || 0) < (est?.credits || 0)) {
       return json({ ok: false, error: "크레딧이 부족합니다.", need: est?.credits, have: Number(me.credits) || 0, needPlan: true }, 402);
     }

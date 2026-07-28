@@ -32,7 +32,18 @@ export async function ensureLandingSchema(db: D1Database) {
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_lp_user ON landing_pages(user_id)`).run().catch(() => {})
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_lp_slug ON landing_pages(slug)`).run().catch(() => {})
   // 누락 컬럼 보강(구버전 대응)
-  for (const col of ['subtitle TEXT', 'thumbnail_url TEXT', 'form_fields TEXT', 'header_script TEXT', 'header_pixel TEXT', 'body_pixel TEXT', 'conversion_pixel TEXT', 'folder_id INTEGER', 'form_id INTEGER']) {
+  //  ⚠ 위 CREATE TABLE 은 테이블이 "없을 때만" 만든다. 이미 예전 형태로 만들어져 있는
+  //     배포본에는 아무 영향이 없으므로, 코드가 읽고 쓰는 컬럼은 여기에 전부 있어야 한다.
+  //     예전에는 html_content·content·status·og_* 가 빠져 있었다. 그 결과 구버전 테이블에서는
+  //     랜딩 저장/편집(/api/landing/:slug/edit, /api/landing/create)이 통째로 500 이 났다 —
+  //     빌더에서 "저장"을 눌러도 아무 일도 일어나지 않는 상태가 된다.
+  for (const col of [
+    'subtitle TEXT', 'thumbnail_url TEXT', 'form_fields TEXT', 'header_script TEXT',
+    'header_pixel TEXT', 'body_pixel TEXT', 'conversion_pixel TEXT', 'folder_id INTEGER', 'form_id INTEGER',
+    'academy_id TEXT', 'template_type TEXT', 'content_json TEXT', 'content TEXT', 'html_content TEXT',
+    "status TEXT DEFAULT 'published'", 'view_count INTEGER DEFAULT 0', 'qr_code_url TEXT',
+    'og_title TEXT', 'og_description TEXT',
+  ]) {
     await db.prepare(`ALTER TABLE landing_pages ADD COLUMN ${col}`).run().catch(() => {})
   }
   await db.prepare(`CREATE TABLE IF NOT EXISTS form_submissions (

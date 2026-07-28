@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { Sparkles, ArrowRight, Clapperboard } from 'lucide-react'
-import { useAuth, type User } from '@/lib/auth'
+import { useAuth, planActive, type User } from '@/lib/auth'
 
 const HOME = '/dashboard_USE17237_612'
 const STUDIO = '/studio-nvc-prv-8b3k2/#chat'
@@ -21,12 +21,6 @@ function allowedWithoutPlan(pathname: string | null) {
 }
 
 /** 플랜이 활성(존재 + 미만료)인지. until 빈값 = 무기한. */
-function planActive(plan?: string, until?: string | null, now?: string): boolean {
-  if (!plan || plan === '없음') return false
-  if (!until) return true
-  return until > (now || new Date().toISOString())
-}
-
 export type GateResult =
   | { kind: 'loading' }
   | { kind: 'redirect'; to: string }   // SPA 라우팅(로그인·프로필 완성)

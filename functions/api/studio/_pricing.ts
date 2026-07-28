@@ -112,10 +112,14 @@ const RES_MULT: Record<string, number> = { '540p': 0.35, '720p': 0.6, '1080p': 1
 // u:'sec'(영상 초당) | 'img'(이미지 장당) | '3d'(모델 1개당) | 'tok'(호출 1회당), usd, audio(오디오 초당 추가), prov(집계용)
 export type CostUnit = 'sec' | 'img' | '3d' | 'tok'
 export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: number; prov: string }> = {
+  /* 런웨이는 크레딧제다 — 1크레딧 = $0.01 (docs.dev.runwayml.com/guides/pricing).
+     Gen-4 Turbo·Gen-3 Alpha Turbo = 초당 5크레딧 = $0.05, Aleph = 초당 15크레딧 = $0.15.
+     아래 세 값이 그 환산과 정확히 일치한다 — 런웨이 계열은 확인 완료. */
   'Runway Aleph (영상→실사 V2V)': { u: 'sec', usd: 0.15, prov: 'runway_aleph' },
   'V2V 자동 (최고정확도·모델 자동선택)': { u: 'sec', usd: 0.15, prov: 'v2v_auto' },
   '모션 전이 (원본 움직임 유지·Motion Transfer)': { u: 'sec', usd: 0.12, prov: 'motion' },
-  'Google Veo 3.1': { u: 'sec', usd: 0.40, audio: 0.35, prov: 'google' },
+  // 오디오는 단가에 포함이다(위 VEO_PRICE 주석 참조) — audio 가산을 두면 이중 청구가 된다
+  'Google Veo 3.1': { u: 'sec', usd: 0.40, prov: 'google' },
   'Runway Gen-4': { u: 'sec', usd: 0.05, prov: 'runway' },
   'Runway Gen-3 Alpha Turbo': { u: 'sec', usd: 0.05, prov: 'runway' },
   'Grok Imagine (영상)': { u: 'sec', usd: 0.10, prov: 'xai' },
@@ -140,7 +144,14 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
   'Luma Ray 2': { u: 'sec', usd: 0.08, prov: 'luma' },
   'Luma Ray Flash 2': { u: 'sec', usd: 0.04, prov: 'luma' },
   'Luma Ray 1.6': { u: 'sec', usd: 0.06, prov: 'luma' },
-  // ── Kling (클링) — 텍스트→영상 / 이미지→영상 / 영상→영상 ──
+  /* ── Kling (클링) — 텍스트→영상 / 이미지→영상 / 영상→영상 ──
+     ⚠ 미검증 단가. 공식 문서(klingai.com/global/dev/pricing, app.klingai.com/global/docs/point-policy)가
+     개발 환경에서 403 이라 아직 원문을 못 봤다. 검색으로는 2.1 Master 5초가
+     $0.475(우리 값) · $0.80 · $1.40 · $1.70 로 제각각인데, 대부분은 재판매 사이트 가격이다.
+     그런 값으로 청구를 바꾸면 루마 때처럼 반대 방향으로 틀릴 수 있어 손대지 않았다.
+     확인 방법: 배포된 서버에서 /api/generate?diag=prices 를 열면 위 주소들을 서버가 대신 읽어
+     "단가로 보이는 줄" 과 현재 우리 단가를 나란히 보여준다. 원문 확인 후 이 값들을 고칠 것.
+     최악의 경우(실제 $0.28/초) 2.1 Master 는 마크업 3배를 붙여도 본전 근처다. */
   'Kling 3.0 Pro (텍스트→영상)': { u: 'sec', usd: 0.11, prov: 'kling' },
   'Kling 3.0 Pro (이미지→영상)': { u: 'sec', usd: 0.11, prov: 'kling' },
   'Kling 3.0 Fast (텍스트→영상)': { u: 'sec', usd: 0.055, prov: 'kling' },
@@ -312,6 +323,49 @@ function lumaUsd(input: ChargeInput): number | null {
   return pick(LUMA_VIDEO_GEN)
 }
 
+/* ══ Google Veo 실측 요금표 (ai.google.dev/gemini-api/docs/pricing) ══
+   문서 원문: "Veo 3.1 Standard video with audio price (default) — $0.40 (720p and 1080p), $0.60 (4k)"
+   여기서 두 가지가 우리 계산과 달랐다.
+     ① 오디오가 기본 포함이다. 우리는 초당 $0.35 를 따로 더하고 있었다.
+     ② 720p 와 1080p 가 같은 값이다. 우리는 720p 에 0.6 배율을 적용해 40% 덜 받았고,
+        4K 는 2.6 배율이라 실제(1.5배)보다 훨씬 많이 받았다.
+   8초 오디오 영상 기준 오차: 720p 1.47배 과다 · 1080p 1.88배 과다 · 4K 2.32배 과다.
+   (초기 검색에서 본 "초당 $0.10" 은 Standard 가 아니라 Fast 였다 — 한 줄만 보고 바꿨으면
+    정반대로 틀릴 뻔했다.)
+   참고: Fast 는 $0.10/$0.12/$0.30, Lite 는 $0.05/$0.08(4K 미지원)로 훨씬 싸다. 아직 미노출. */
+const VEO_PRICE: Record<string, number> = { '720p': 0.40, '1080p': 0.40, '4K': 0.60 }
+function veoUsd(input: ChargeInput): number | null {
+  if (!/^Google Veo/.test(String(input.model || ''))) return null
+  const res = String(input.res || '1080p')
+  const perSec = VEO_PRICE[res] != null ? VEO_PRICE[res] : VEO_PRICE['1080p']
+  return perSec * Math.max(1, Number(input.units) || 8)      // 오디오 포함 단가라 추가 가산이 없다
+}
+
+/* ══ BFL FLUX.2 실측 요금 (docs.bfl.ai/quick_start/pricing) ══
+   FLUX.2 는 "장당 정액" 이 아니라 메가픽셀 단가다. 출력은 첫 1MP 가 기본 요금이고,
+   레퍼런스(입력) 이미지는 장마다 별도로 과금된다.
+     max  — 출력 첫 1MP $0.07 / 이후 MP $0.03 · 입력 $0.03/MP
+     pro  — 출력 첫 1MP $0.03 / 이후 MP $0.015 · 입력 $0.015/MP
+     flex — 입출력 모두 $0.06/MP
+   우리 기본 단가($0.07·$0.03·$0.06)는 "첫 1MP 출력" 값과 정확히 일치했고,
+   실제로 보내는 해상도도 전부 1MP 이하(1344×756·1024×1024·896×1120·736×1312)라
+   출력 쪽은 맞았다. 문제는 입력이었다 — FLUX.2 는 레퍼런스를 최대 8장까지 받는데
+   (buildFluxPayload 의 input_image ~ input_image_8) 그 비용을 한 푼도 안 받고 있었다.
+   flex 에 8장을 붙이면 원가 $0.06+$0.48=$0.54, 청구는 $0.06 — 9배 손실이다.
+   FLUX 1.x·Kontext 는 장당 정액이라 해당 없음(레퍼런스도 1장뿐). */
+const FLUX2_INPUT_MP: Record<string, number> = {
+  'Flux 2 Max': 0.03, 'Flux 2 Pro': 0.015, 'Flux 2 Flex': 0.06,
+}
+const FLUX2_MAX_REFS = 8            // buildFluxPayload 가 실제로 싣는 최대 장수와 같아야 한다
+function fluxUsd(input: ChargeInput): number | null {
+  const model = String(input.model || '')
+  const perMp = FLUX2_INPUT_MP[model]
+  if (perMp == null) return null
+  const base = MODEL_COST[model] ? MODEL_COST[model].usd : 0.06     // 첫 1MP 출력
+  const refs = Math.min(FLUX2_MAX_REFS, Math.max(0, Number(input.refs) || 0))
+  return base + perMp * refs        // 레퍼런스 1장 ≒ 1MP 로 본다(우리가 보내는 이미지가 그 크기다)
+}
+
 /** 소수 2자리 반올림 (크레딧 정밀도) */
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100
 
@@ -327,7 +381,7 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
   const isFlat = m ? (m.u === 'img' || m.u === '3d' || m.u === 'tok') : input.kind === 'image'
   const isImg = isFlat
   let usd: number
-  const lu = lumaUsd(input)      // 루마는 실측 요금표가 있다(위 주석 참조)
+  const lu = lumaUsd(input) ?? veoUsd(input) ?? fluxUsd(input)   // 실측 요금표가 있는 제공사 우선
   if (lu != null) {
     usd = lu
   } else if (isImg) {

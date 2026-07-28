@@ -1,6 +1,7 @@
 // SUPERPLACE 퍼널 빌더 이식: POST /api/funnels/:funnelId/groups (퍼널 소속 그룹 생성)
 import { resolveDB, getSessionUser } from '../../_utils'
 import { ensureFunnelSchema } from '../../funnel/_schema'
+import { ownsFunnel, forbidden } from '../../funnel/_own'
 
 const j = (o: any, status = 200) =>
   new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
@@ -17,6 +18,8 @@ export const onRequestPost: PagesFunction = async ({ request, env, params }) => 
     if (!name) return j({ success: false, error: '그룹 이름을 입력해주세요.' }, 400)
     const funnel = await db.prepare(`SELECT id FROM funnels WHERE id=?`).bind(funnelId).first()
     if (!funnel) return j({ success: false, error: '퍼널을 찾을 수 없습니다.' }, 404)
+    // "퍼널이 있는가" 만 봤다 — 남의 퍼널에도 그룹을 만들어 넣을 수 있었다
+    if (!(await ownsFunnel(db, me, funnelId))) return forbidden()
     const now = new Date().toISOString()
     let result: any
     try {
