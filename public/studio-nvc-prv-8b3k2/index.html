@@ -1968,7 +1968,7 @@ var MODELS = [
  ['영상','Seedance 2.0'],['영상','Seedance 2.0 Fast'],['영상','Seedance 2.0 Mini'],['영상','Seedance 1.5 Pro'],
  ['영상','Seedance 1.0 Pro'],['영상','Seedance 1.0 Pro Fast'],
  ['영상','MiniMax Hailuo 02'],['영상','MiniMax T2V-01 Director'],['영상','MiniMax I2V-01 Director'],
- ['영상','Luma Ray 2'],['영상','Luma Ray Flash 2'],['영상','Luma Ray 1.6'],
+ ['영상','Luma Ray 3.2'],
  ['영상 · Kling','Kling 3.0 Pro (텍스트→영상)'],['영상 · Kling','Kling 3.0 Pro (이미지→영상)'],
  ['영상 · Kling','Kling 3.0 Fast (텍스트→영상)'],['영상 · Kling','Kling 3.0 Fast (이미지→영상)'],
  ['영상 · Kling','Kling 2.1 Master (텍스트→영상)'],['영상 · Kling','Kling 2.1 Master (이미지→영상)'],
@@ -1988,6 +1988,7 @@ var MODELS = [
  // FLUX.2 는 API 제공분이 max·pro·flex 셋이다(dev 는 오픈웨이트라 API 없음) — 셋 다 422 확인됨.
  ['이미지','Flux 2 Max'],['이미지','Flux 2 Pro'],['이미지','Flux 2 Flex'],
  ['이미지','Flux 1.1 Pro Ultra'],['이미지','Flux 1.1 Pro'],['이미지','Flux Dev'],
+ ['이미지','Luma Uni 1'],['이미지','Luma Uni 1 Max'],
  ['이미지','Grok Imagine']
 ];
 // 영상 제작 노드 전용 목록(영상 모델만) — 카테고리가 '영상'으로 시작하는 항목
@@ -2007,6 +2008,7 @@ var IMG_MODELS = [
  // FLUX.2 는 API 제공분이 max·pro·flex 셋이다(dev 는 오픈웨이트라 API 없음) — 셋 다 422 확인됨.
  ['이미지','Flux 2 Max'],['이미지','Flux 2 Pro'],['이미지','Flux 2 Flex'],
  ['이미지','Flux 1.1 Pro Ultra'],['이미지','Flux 1.1 Pro'],['이미지','Flux Dev'],
+ ['이미지','Luma Uni 1'],['이미지','Luma Uni 1 Max'],
  ['이미지','Grok Imagine']
 ];
 /* 프롬프트 작성 노드 모델 — GPT/Gemini 전 모델 (제공사는 이름 접두사로 자동 판별) */
@@ -2092,9 +2094,10 @@ var MODEL_COST = {
   'MiniMax Hailuo 02':               { u:'sec', usd:0.048, prov:'hailuo' },
   'MiniMax T2V-01 Director':         { u:'sec', usd:0.043, prov:'hailuo' },
   'MiniMax I2V-01 Director':         { u:'sec', usd:0.043, prov:'hailuo' },
-  'Luma Ray 2':                      { u:'sec', usd:0.08,  prov:'luma' },
-  'Luma Ray Flash 2':                { u:'sec', usd:0.04,  prov:'luma' },
-  'Luma Ray 1.6':                    { u:'sec', usd:0.06,  prov:'luma' },
+  // Luma Agents API — 구세대 Ray 2/1.6 은 이 계정 키로 호출되지 않아 제거했다. 단가는 잠정값.
+  'Luma Ray 3.2':                    { u:'sec', usd:0.08,  prov:'luma' },
+  'Luma Uni 1':                      { u:'img', usd:0.04,  prov:'luma' },
+  'Luma Uni 1 Max':                  { u:'img', usd:0.08,  prov:'luma' },
   'Kling 3.0 Pro (텍스트→영상)':       { u:'sec', usd:0.11,  prov:'kling' },
   'Kling 3.0 Pro (이미지→영상)':       { u:'sec', usd:0.11,  prov:'kling' },
   'Kling 3.0 Fast (텍스트→영상)':      { u:'sec', usd:0.055, prov:'kling' },
@@ -2423,7 +2426,8 @@ var MODEL_PROVIDER = {
   'Flux Kontext Max (레퍼런스 편집)':'flux','Flux Kontext Pro (레퍼런스 편집)':'flux',
   'Hyper3D Gen-2 (3D 생성)':'ark3d','Hitem3D 2.0 (3D 생성)':'ark3d',
   'MiniMax Hailuo 02':'hailuo','MiniMax T2V-01 Director':'hailuo','MiniMax I2V-01 Director':'hailuo','Hailuo MiniMax':'hailuo',
-  'Luma Ray 2':'luma','Luma Ray Flash 2':'luma','Luma Ray 1.6':'luma','Luma Ray2':'luma',
+  'Luma Ray 3.2':'luma','Luma Uni 1':'luma','Luma Uni 1 Max':'luma',
+  'Luma Ray 2':'luma','Luma Ray Flash 2':'luma','Luma Ray 1.6':'luma','Luma Ray2':'luma',   // 예전 그래프 호환
   // Kling — 서버 프록시가 클링 공식 API(KLING_ACCESS_KEY/KLING_SECRET_KEY 또는 KLING_API_KEY)로 호출
   'Kling 3.0 Pro (텍스트→영상)':'kling','Kling 3.0 Pro (이미지→영상)':'kling',
   'Kling 3.0 Fast (텍스트→영상)':'kling','Kling 3.0 Fast (이미지→영상)':'kling',
@@ -2589,9 +2593,8 @@ var VIDEO_MODEL_SPEC = {
   'Runway Gen-4':                { secs:[5,10], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], res:[], audio:false, watermark:false, neg:false, cfg:false, seed:true },
   'Runway Gen-3 Alpha Turbo':    { secs:[5,10], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], res:[], audio:false, watermark:false, neg:false, cfg:false, seed:true },
   // Luma — Ray 2 계열 5·9초, 비율 5종. Ray 1.6 은 구세대로 5초 고정.
-  'Luma Ray 2':                  { secs:[5,9], ratios:['16:9','9:16','1:1','4:3','3:4','21:9','9:21'], res:['720p','1080p','4K'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
-  'Luma Ray Flash 2':            { secs:[5,9], ratios:['16:9','9:16','1:1','4:3','3:4','21:9','9:21'], res:['720p','1080p','4K'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
-  'Luma Ray 1.6':                { secs:[5,9], ratios:['16:9','9:16','1:1','4:3','3:4','21:9','9:21'], res:['720p','1080p','4K'], audio:false, watermark:false, neg:false, cfg:false, seed:false },   // 공식 MCP: 모델별 길이 제한 없음
+  // Luma Agents API — video.duration 은 "5s"·"9s" 문자열 열거값, resolution 은 540p~4k
+  'Luma Ray 3.2':                { secs:[5,9], ratios:['16:9','9:16','1:1','4:3','3:4','21:9','9:21'], res:['720p','1080p','4K'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
   // MiniMax — Hailuo 02 는 6·10초(1080P 는 6초), 01 Director 계열은 6초 고정. 비율 필드 없음(프롬프트로 전달).
   //  해상도는 "1080P 는 6초까지" 라는 제약 때문에 길이에서 자동 결정된다(사용자 선택 항목이 아니라 res:[]).
   'MiniMax Hailuo 02':           { secs:[6,10], ratios:['16:9','9:16'], res:[], audio:false, watermark:false, neg:false, cfg:false, seed:false },
@@ -8243,7 +8246,7 @@ pfHandleTossReturn();
   function fillModels(force){
     var sel=chEl('chModel'); if(!sel) return; if(sel._filledMode===chMode && !force) return;
     var list = chMode==='image' ? imgModels() : chModels();
-    var pref = chMode==='image' ? ['Nano Banana','GPT Image 2','GPT Image','Flux 1.1 Pro'] : ['Google Veo 3.1','Kling 2.1 Master (텍스트→영상)','Seedance 2.0','Luma Ray 2'];
+    var pref = chMode==='image' ? ['Nano Banana','GPT Image 2','GPT Image','Flux 1.1 Pro'] : ['Google Veo 3.1','Kling 2.1 Master (텍스트→영상)','Seedance 2.0','Luma Ray 3.2'];
     sel.innerHTML=list.map(function(n){ return '<option value="'+n.replace(/"/g,'&quot;')+'">'+n+'</option>'; }).join('');
     for(var i=0;i<pref.length;i++){ if(list.indexOf(pref[i])>=0){ sel.value=pref[i]; break; } }
     sel._filledMode=chMode;
@@ -8442,7 +8445,7 @@ pfHandleTossReturn();
   function imgModels(){ return availModels(MODELS).filter(function(m){ return m[0].indexOf('이미지')===0; }).map(function(m){return m[1];}); }
   function fillModels(force){ var sel=el('crModel'); if(!sel)return; if(sel._m===crMode&&!force)return;
     var list=crMode==='image'?imgModels():vidModels();
-    var pref=crMode==='image'?['Nano Banana','GPT Image 2','GPT Image','Flux 1.1 Pro']:['Google Veo 3.1','Kling 2.1 Master (텍스트→영상)','Seedance 2.0','Luma Ray 2'];
+    var pref=crMode==='image'?['Nano Banana','GPT Image 2','GPT Image','Flux 1.1 Pro']:['Google Veo 3.1','Kling 2.1 Master (텍스트→영상)','Seedance 2.0','Luma Ray 3.2'];
     sel.innerHTML=list.map(function(n){return '<option value="'+n.replace(/"/g,'&quot;')+'">'+n+'</option>';}).join('');
     for(var i=0;i<pref.length;i++){ if(list.indexOf(pref[i])>=0){ sel.value=pref[i]; break; } }
     sel._m=crMode; syncCr();
