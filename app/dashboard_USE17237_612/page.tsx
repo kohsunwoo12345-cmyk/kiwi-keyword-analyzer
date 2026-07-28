@@ -2,9 +2,23 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { Wallet, Coins, TrendingDown, Activity as ActivityIcon, ArrowRight, Sparkles, Clapperboard } from 'lucide-react'
+import {
+  Wallet,
+  Coins,
+  TrendingDown,
+  Activity as ActivityIcon,
+  ArrowRight,
+  Sparkles,
+  Clapperboard,
+  BarChart3,
+  Inbox,
+  Send,
+  FileText,
+  Video,
+} from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { StatCard, Panel, Button } from '@/components/ui'
+import { Card, EmptyState, Metric, Spark, BarTrend, ListRow } from '@/components/dash/Kit'
+import { Button } from '@/components/ui'
 import { Counter } from '@/components/motion'
 import { FEATURES } from '@/lib/features'
 import { accountOverview, useAuth, type Tx, type ActivityRow } from '@/lib/auth'
@@ -12,6 +26,16 @@ import { kstDateTime } from '@/lib/time'
 
 // 한국시간(KST) 고정 표기
 const fmtDate = (iso: string) => kstDateTime(iso)
+
+/** 활동 종류에 맞는 아이콘·색 — 목록만 봐도 무슨 일이 있었는지 구분된다 */
+function activityLook(text: string): { icon: typeof ActivityIcon; accent: string } {
+  const s = text || ''
+  if (/영상|video/i.test(s)) return { icon: Video, accent: '#a855f7' }
+  if (/발송|문자|알림톡|메일/i.test(s)) return { icon: Send, accent: '#0ea5e9' }
+  if (/블로그|글|콘텐츠/i.test(s)) return { icon: FileText, accent: '#10b981' }
+  if (/분석|리포트|지수/i.test(s)) return { icon: BarChart3, accent: '#f59e0b' }
+  return { icon: ActivityIcon, accent: '#6366f1' }
+}
 
 export default function DashboardHome() {
   const { user } = useAuth()
@@ -33,6 +57,7 @@ export default function DashboardHome() {
   )
   const name = user?.name || '마케터'
   const hasPlan = user?.role === 'admin' || user?.hasPlan === 1
+  const videoPlan = user?.role === 'admin' || (!!user?.videoPlan && user.videoPlan !== '없음')
 
   // 최근 14일 크레딧 사용 추이 (실데이터)
   const trend = useMemo(() => {
@@ -52,7 +77,11 @@ export default function DashboardHome() {
     }
     return days
   }, [tx])
-  const maxUsed = Math.max(1, ...trend.map((d) => d.used))
+
+  const used14 = trend.reduce((s, d) => s + d.used, 0)
+  const avg14 = Math.round(used14 / 14)
+  const activeDays = trend.filter((d) => d.used > 0).length
+  const planLabel = !user?.plan || user.plan === '없음' ? '미가입' : user.plan
 
   return (
     <div className="animate-fade-in">
@@ -60,21 +89,31 @@ export default function DashboardHome() {
         icon={Sparkles}
         eyebrow="Overview"
         title={`안녕하세요, ${name}님 👋`}
-        desc="내 계정의 실제 크레딧·활동 현황입니다."
+        desc="내 계정의 크레딧과 활동 현황입니다."
         accent="#6366f1"
         action={
           hasPlan ? (
-            <Button href="/dashboard_USE17237_612/credits" size="sm">
-              크레딧 충전 <ArrowRight size={16} />
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {videoPlan && (
+                <a
+                  href="/studio-nvc-prv-8b3k2/#chat"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--panel)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--panel-2)]"
+                >
+                  <Clapperboard size={15} /> 영상 스튜디오
+                </a>
+              )}
+              <Button href="/dashboard_USE17237_612/credits" size="sm">
+                크레딧 충전 <ArrowRight size={16} />
+              </Button>
+            </div>
           ) : undefined
         }
       />
 
-      <div className="space-y-6 p-6 lg:p-8">
+      <div className="space-y-5 p-5 lg:p-7">
         {/* 플랜 미보유 → 요금제 활성화 유도 (도구는 숨김, 홈만 노출) */}
         {ready && !hasPlan && (
-          <div className="card relative overflow-hidden p-6">
+          <div className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-6">
             <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-indigo-500/15 blur-3xl" />
             <div className="relative flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
               <div>
@@ -93,105 +132,134 @@ export default function DashboardHome() {
           </div>
         )}
 
-        {/* 노드형 영상 스튜디오 바로가기 — AI 영상 플랜 구독자(또는 관리자)에게만 노출 */}
-        {(user?.role === 'admin' || (!!user?.videoPlan && user.videoPlan !== '없음')) && (
-          <a
-            href="/studio-nvc-prv-8b3k2/#chat"
-            className="card hover-lift group relative flex items-center justify-between gap-4 overflow-hidden p-5"
-          >
-            <div className="pointer-events-none absolute inset-0 opacity-[0.06] [background-image:linear-gradient(var(--text)_1px,transparent_1px),linear-gradient(90deg,var(--text)_1px,transparent_1px)] [background-size:26px_26px]" />
-            <div className="relative flex items-center gap-4">
-              <span className="brand-gradient grid h-12 w-12 flex-shrink-0 place-items-center rounded-xl text-white shadow-lg shadow-indigo-500/25">
-                <Clapperboard size={22} />
-              </span>
-              <div>
-                <h3 className="text-sm font-bold">노드형 AI 영상 스튜디오</h3>
-                <p className="mt-0.5 text-xs text-[var(--text-soft)]">블록을 연결하듯 광고·숏폼 영상을 생성하세요.</p>
-              </div>
-            </div>
-            <span className="brand-gradient relative inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition group-hover:brightness-105">
-              영상 스튜디오 열기 <ArrowRight size={15} />
-            </span>
-          </a>
-        )}
-
-        {/* 실데이터 스탯 */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="보유 크레딧" value={(<Counter to={user?.credits ?? 0} />) as unknown as string} icon={Wallet} accent="#f59e0b" />
-          <StatCard label="보유 포인트" value={(<Counter to={user?.points ?? 0} />) as unknown as string} icon={Coins} accent="#6366f1" />
-          <StatCard label="총 사용 크레딧" value={(<Counter to={usedCredit} />) as unknown as string} icon={TrendingDown} accent="#ef4444" />
-          <StatCard label="현재 플랜" value={!user?.plan || user.plan === '없음' ? '미가입' : user.plan} icon={Sparkles} accent="#0ea5e9" />
+        {/* 지표 4종 */}
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Metric
+            label="보유 크레딧"
+            icon={Wallet}
+            accent="#f59e0b"
+            value={<Counter to={user?.credits ?? 0} />}
+            sub={
+              <Link href="/dashboard_USE17237_612/credits" className="inline-flex items-center gap-1 hover:text-[var(--text-soft)]">
+                충전·사용 내역 <ArrowRight size={11} />
+              </Link>
+            }
+          />
+          <Metric label="보유 포인트" icon={Coins} accent="#6366f1" value={<Counter to={user?.points ?? 0} />} sub="크레딧 전환에 사용" />
+          <Metric
+            label="총 사용 크레딧"
+            icon={TrendingDown}
+            accent="#ef4444"
+            value={<Counter to={usedCredit} />}
+            sub={`최근 14일 ${used14.toLocaleString('ko-KR')} 사용`}
+            chart={<Spark data={trend.map((d) => d.used)} accent="#ef4444" />}
+          />
+          <Metric
+            label="현재 플랜"
+            icon={Sparkles}
+            accent="#0ea5e9"
+            value={<span className="text-[22px]">{planLabel}</span>}
+            sub={user?.planUntil ? `${kstDateTime(user.planUntil).slice(0, 10)}까지` : '요금제를 활성화하면 도구가 열립니다'}
+          />
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-5 xl:grid-cols-3">
           {/* 크레딧 사용 추이 (실데이터) */}
-          <Panel title="최근 14일 크레딧 사용 (실데이터)" className="lg:col-span-2">
-            {usedCredit === 0 ? (
-              <div className="flex h-[180px] flex-col items-center justify-center gap-2 text-center">
-                <p className="text-sm text-[var(--text-soft)]">아직 크레딧 사용 내역이 없습니다.</p>
-                <p className="text-xs text-[var(--text-dim)]">유튜브·블로그 분석, 문자·이메일 발송 등 도구를 사용하면 여기에 실제 사용량이 기록됩니다.</p>
-              </div>
+          <Card
+            title="최근 14일 크레딧 사용"
+            desc={used14 > 0 ? `합계 ${used14.toLocaleString('ko-KR')} · 하루 평균 ${avg14.toLocaleString('ko-KR')} · 사용일 ${activeDays}일` : '실제 사용량이 그대로 집계됩니다'}
+            className="xl:col-span-2"
+            action={
+              <Link
+                href="/dashboard_USE17237_612/credits#history"
+                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11.5px] font-semibold text-[var(--text-soft)] transition hover:bg-[var(--panel-2)]"
+              >
+                전체 내역 <ArrowRight size={12} />
+              </Link>
+            }
+          >
+            {used14 === 0 ? (
+              <EmptyState
+                icon={BarChart3}
+                title="아직 크레딧 사용 내역이 없습니다"
+                hint="유튜브·블로그 분석, 문자·알림톡 발송, AI 영상 제작을 실행하면 여기에 하루 단위로 쌓입니다."
+                action={
+                  hasPlan ? (
+                    <Link
+                      href="/dashboard_USE17237_612/blog"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] px-3.5 py-2 text-[12.5px] font-semibold transition hover:bg-[var(--panel-2)]"
+                    >
+                      도구 둘러보기 <ArrowRight size={13} />
+                    </Link>
+                  ) : undefined
+                }
+              />
             ) : (
-              <div className="flex items-end gap-1.5 pt-4" style={{ height: 180 }}>
-                {trend.map((d, i) => (
-                  <div key={d.key} className="flex flex-1 flex-col items-center gap-1.5">
-                    <div className="flex w-full flex-1 items-end">
-                      <div
-                        className="w-full origin-bottom rounded-t brand-gradient"
-                        style={{ height: `${(d.used / maxUsed) * 100}%`, minHeight: d.used > 0 ? 4 : 0, animation: `fadeInUp 0.5s ease ${i * 0.03}s both` }}
-                        title={`${d.used} 크레딧`}
-                      />
-                    </div>
-                    <span className="text-[9px] text-[var(--text-dim)]">{d.label}</span>
-                  </div>
-                ))}
-              </div>
+              <BarTrend data={trend.map((d) => ({ label: d.label, value: d.used }))} accent="#6366f1" unit=" 크레딧" />
             )}
-          </Panel>
+          </Card>
 
           {/* 최근 활동 (실데이터) */}
-          <Panel title="최근 활동 (실데이터)">
-            <div className="max-h-[220px] space-y-1 overflow-y-auto no-scrollbar">
-              {activity.slice(0, 12).map((a, i) => (
-                <div key={i} className="flex items-start gap-2.5 rounded-lg p-2 transition-colors hover:bg-[var(--panel-2)]">
-                  <span className="mt-0.5 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-[var(--panel-2)] text-[var(--text-dim)]">
-                    <ActivityIcon size={13} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs">{a.detail || a.type}</p>
-                    <p className="text-[10px] text-[var(--text-dim)]">{fmtDate(a.created_at)}</p>
-                  </div>
-                </div>
-              ))}
-              {ready && activity.length === 0 && (
-                <p className="py-8 text-center text-sm text-[var(--text-dim)]">활동 기록이 없습니다.</p>
-              )}
-            </div>
-          </Panel>
+          <Card title="최근 활동" desc="계정에서 일어난 일" bodyClassName="p-3">
+            {ready && activity.length === 0 ? (
+              <EmptyState icon={Inbox} title="활동 기록이 없습니다" hint="도구를 사용하면 실행 기록이 이곳에 남습니다." />
+            ) : (
+              <div className="no-scrollbar max-h-[268px] space-y-0.5 overflow-y-auto">
+                {activity.slice(0, 12).map((a, i) => {
+                  const look = activityLook(a.detail || a.type)
+                  return (
+                    <ListRow
+                      key={i}
+                      icon={look.icon}
+                      accent={look.accent}
+                      title={a.detail || a.type}
+                      meta={fmtDate(a.created_at)}
+                    />
+                  )
+                })}
+              </div>
+            )}
+          </Card>
         </div>
 
-        {/* feature quick links — 유료 플랜에서만 노출 */}
+        {/* 도구 바로가기 — 유료 플랜에서만 노출 */}
         {hasPlan && (
-          <div>
-            <div className="mb-4 flex items-center gap-2">
-              <span className="h-4 w-1 rounded-full brand-gradient" />
-              <h3 className="text-sm font-bold tracking-tight">마케팅 도구 바로가기</h3>
+          <section>
+            <div className="mb-3 flex items-center gap-2">
+              <h3 className="text-[14px] font-bold tracking-tight">마케팅 도구 바로가기</h3>
+              <span className="text-[11.5px] text-[var(--text-dim)]">{FEATURES.length}개</span>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {FEATURES.map((f) => {
                 const Icon = f.icon
                 return (
-                  <Link key={f.slug} href={`/dashboard_USE17237_612/${f.slug}`} className="group card hover-lift p-5">
-                    <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${f.color} shadow-sm`}>
-                      <Icon size={18} className="text-white" />
-                    </div>
-                    <h4 className="mt-3 text-sm font-semibold transition-colors group-hover:text-[var(--brand)]">{f.title}</h4>
-                    <p className="mt-1 line-clamp-2 text-xs text-[var(--text-soft)]">{f.desc}</p>
+                  <Link
+                    key={f.slug}
+                    href={`/dashboard_USE17237_612/${f.slug}`}
+                    className="group relative flex items-start gap-3.5 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-4 transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-24px_rgba(0,0,0,0.4)]"
+                  >
+                    <span
+                      className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl text-white transition-transform duration-300 group-hover:scale-105"
+                      style={{ background: `linear-gradient(135deg, ${f.accent}, ${f.accent}bb)` }}
+                    >
+                      <Icon size={19} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-1.5">
+                        <span className="truncate text-[13.5px] font-semibold">{f.title}</span>
+                        <ArrowRight
+                          size={13}
+                          className="-translate-x-1 flex-shrink-0 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100"
+                          style={{ color: f.accent }}
+                        />
+                      </span>
+                      <span className="mt-1 line-clamp-2 block text-[12px] leading-relaxed text-[var(--text-soft)]">{f.desc}</span>
+                    </span>
                   </Link>
                 )
               })}
             </div>
-          </div>
+          </section>
         )}
       </div>
     </div>
