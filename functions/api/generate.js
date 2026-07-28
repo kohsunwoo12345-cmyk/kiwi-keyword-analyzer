@@ -1110,7 +1110,10 @@ async function lumaUsable(key) {
   const now = Date.now();
   if (_lumaOk.at && now - _lumaOk.at < 600000) return _lumaOk.ok;
   try {
-    const r = await fetchT(LUMA_BASE + "/generations?limit=1",
+    /* Agents API 의 /generations 는 POST 전용이라 GET 에는 405 가 온다 — 이건 "살아 있다" 는 뜻이다.
+       그래서 401/403(자격증명 명시적 거부)일 때만 사용 불가로 본다. 405·404·5xx·타임아웃은
+       사용 가능으로 남긴다(멀쩡한 제공사를 숨겨 회원이 못 고르게 되는 쪽이 더 나쁘다). */
+    const r = await fetchT(LUMA_BASE + "/generations",
       { headers: { "Authorization": "Bearer " + key, "accept": "application/json" } }, 6000);
     _lumaOk = { at: now, ok: !(r.status === 401 || r.status === 403) };
   } catch (_e) { _lumaOk = { at: now, ok: true }; }
@@ -1965,7 +1968,11 @@ async function handle(context) {
       const baseOK = baseRows.find(x => x.httpStatus === 200);
       const anyOK = hdrVariants.find(v => v.httpStatus === 200);
       const per = await Promise.all(Object.entries(LUMA_IDS).map(async ([name, id]) => {
-        const x = await call("/generations", { model: id, prompt: "" });   // prompt 비움 → 파라미터 반려
+        // 실제 빌더가 만드는 본문 그대로 보내되 prompt 만 비운다 — 그래야 "우리가 진짜 보내는 요청"
+        //  을 시험한다. (예전엔 {model,prompt:""} 를 직접 만들어 보내, ray-3.2 가 영상 모델인데도
+        //   type 이 빠져 "Type 'image' is not supported" 라는 엉뚱한 오류가 났다.)
+        const probeBody = buildLumaPayload({ model: name, prompt: "", ratio: "16:9", seconds: 5, res: "720p" });
+        const x = await call("/generations", probeBody);
         const created = !!(x.body && x.body.id);
         const verdict =
           created                                ? "⚠️ 작업이 생성됨 — 진단에서 제외해야 함"
@@ -1993,10 +2000,12 @@ async function handle(context) {
                             : "시도한 주소 중 200 을 주는 곳이 없습니다 — 대시보드의 'show snippet' cURL 이 정확한 주소를 알려 줍니다.",
                     상태코드별요약: byStatus, 시도: baseRows },
         현재코드: { LUMA_BASE, 쓰는모델: LUMA_IDS,
-                    문제: "대시보드는 영상 ray-3.2 · 이미지 uni-1/uni-1-max 라고 표시합니다. 우리가 쓰는 ray-2 계열은 구세대 ID 입니다." },
+                    비고: "Agents API 로 교체 완료. 구세대 dream-machine/v1 주소가 위 '주소탐색' 에 403 으로 남는 건 그 API 가 이 키를 모르기 때문이며 정상이다." },
         헤더방식별: hdrVariants,
         키유효성: { httpStatus: list.status, 응답: list.body,
-          결론: list.status === 200 ? "키는 유효합니다 — 모델별 결과가 실제 원인입니다."
+          결론: list.status === 405
+                ? "정상입니다. Agents API 의 /generations 는 POST 전용이라 GET 조회에는 405 가 옵니다(인증 거부가 아님). 실제 판정은 아래 '모델별' 을 보세요."
+              : list.status === 200 ? "키는 유효합니다 — 모델별 결과가 실제 원인입니다."
               : anyOK ? ("헤더 표기법이 문제입니다 — '" + anyOK.방식 + "' 로 보내면 통과합니다. 코드를 그 방식으로 고쳐야 합니다.")
               : /not authenticated/i.test(JSON.stringify(list.body || ""))
                 ? "자격증명이 거부됩니다. 지금까지 배제된 것: (1) 주소 — /generations 가 404 가 아니라 403 이므로 "
