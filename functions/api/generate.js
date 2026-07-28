@@ -1954,8 +1954,33 @@ async function handle(context) {
           return { model: name, endpoint: ep, 결론, 우리가보내는것, 검사: rows };
         }));
 
+      /* ── 아직 안 쓰는 BFL 엔드포인트 탐색 ──
+         가격 페이지에 FLUX 3 · FLUX.2 klein · Outpainting · Eraser · VTO 가 보였다.
+         우리 목록에 없는 것들이라 실재하는지 확인한다. output_format 을 틀리게 두므로
+         있으면 422(검증 반려), 없으면 404 다 — 어느 쪽이든 작업은 생기지 않는다. */
+      const CANDIDATES = [
+        "flux-3", "flux-3-pro", "flux-3-max",
+        "flux-2-klein", "flux-2-klein-4b", "flux-2-klein-9b", "flux-2-dev",
+        "flux-pro-1.0-fill", "flux-pro-1.0-expand", "flux-pro-1.0-canny", "flux-pro-1.0-depth",
+        "flux-outpainting", "flux-eraser", "flux-vto", "flux-fill", "flux-expand",
+      ];
+      const known = new Set(Object.values(FLUX_ENDPOINTS));
+      const 미사용탐색 = await Promise.all(CANDIDATES.filter(ep => !known.has(ep)).map(async (ep) => {
+        const x = await call(FLUX_BASE + ep, useHdr, { prompt: "probe", output_format: "__probe_invalid__" });
+        const created = x.status >= 200 && x.status < 300;
+        return { endpoint: ep, httpStatus: x.status,
+          판정: created ? "⚠️ 작업 생성됨(진단 제외)"
+               : (x.status === 422 || x.status === 400) ? "✅ 있음 — 우리 목록에 없는 모델"
+               : x.status === 404 ? "· 없음"
+               : x.status === 403 ? "❌ 권한 없음(플랜 필요)"
+               : "❓ " + x.status,
+          응답: typeof x.body === "string" ? x.body.slice(0, 120) : JSON.stringify(x.body).slice(0, 200) };
+      }));
+
       return json({ diag: "flux-check",
         note: "전부 읽기 전용이거나 '존재하지 않는 열거값' 요청이라 생성물·과금이 없습니다.",
+        미사용탐색: 미사용탐색.filter(x => !/· 없음/.test(x.판정)).length
+          ? 미사용탐색 : [{ 결과: "후보 " + 미사용탐색.length + "개 모두 없음(404) — 추가할 것 없음" }],
         파라미터수용: paramCheck,
         키형태: shape,
         인증확인: { 사용헤더: hdrName,

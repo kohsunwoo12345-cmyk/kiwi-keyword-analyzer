@@ -1,6 +1,8 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB } from '../_utils'
 import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup } from './_pricing'
 import { creditPriceFor } from '../payments/prepare'
+// @ts-ignore — 과금 기준을 생성 API 와 "완전히 같은 함수"로 맞춘다(아래 설명 참고)
+import { effectiveUnits, effectiveRes } from '../generate.js'
 
 // 정기 자동 생성 — "매주 월요일 오전 9시에 신제품 영상" 같은 반복 제작을 서버가 대신 돌린다.
 //  Figma Weave 는 API 가 없어(공식 헬프센터 명시) 이런 자동화를 아예 할 수 없다.
@@ -143,11 +145,27 @@ export function scheduleModelIssue(model: string): string | null {
  *  (키가 빠졌거나 크레딧이 없는 예약이 매일 조용히 실패하며 로그만 쌓이는 걸 막는다) */
 export const FAIL_LIMIT = 3
 
+/** 이 예약이 제공사에 "실제로 보내질" 길이·화질.
+ *
+ *  ⚠ 요청값을 그대로 믿으면 안 된다. 제공사마다 받는 값이 정해져 있어 빌더가 조정한다 —
+ *     Kling·Runway 는 5초/10초만, Veo 는 최대 8초, 해상도를 아예 안 받는 제공사는 1080p 고정,
+ *     루마는 4K 를 1080p 로 내린다. 생성 API 의 과금도 이 조정된 값으로 계산한다.
+ *     예약 게이트가 요청값으로 계산하면 216개 조합 중 151개가 실제 청구액과 어긋난다
+ *     (예: Runway 8초 요청 → 실제 10초 → 8.4크레딧 과소추정).
+ *     그래서 생성 API 와 똑같은 함수를 그대로 쓴다. */
+export function scheduleEffective(env: any, model: string, seconds: number, res: string) {
+  const prov = String((MODEL_COST as any)[model]?.prov || '')
+  const body = { provider: prov, model, kind: 'video', prompt: 't', seconds, ratio: '16:9', res }
+  try {
+    return { seconds: Math.max(1, Number(effectiveUnits(body, env)) || seconds), res: String(effectiveRes(body, env) || res) }
+  } catch { return { seconds, res } }
+}
+
 /** 이 예약을 한 번 돌리는 데 드는 크레딧(추정).
- *  생성 API 의 사전 잔액 게이트와 같은 공식(computeCharge)을 쓴다 —
+ *  생성 API 의 사전 잔액 게이트와 같은 공식(computeCharge) + 같은 입력(effective 값)을 쓴다 —
  *  여기서 통과했는데 실행 단계에서 막히면 사용자는 이유를 알 수 없다. */
 export async function estimateScheduleCredits(
-  db: D1Database, user: any, s: { model: string; seconds?: number; res?: string },
+  db: D1Database, user: any, s: { model: string; seconds?: number; res?: string }, env?: any,
 ): Promise<number> {
   try {
     const m = (MODEL_COST as any)[s.model]
@@ -156,10 +174,10 @@ export async function estimateScheduleCredits(
     const mk = await resolveMarkup(db, String(user.id), s.model, Number(user.credit_markup) || 0)
     const ckw = await creditPriceFor(db, user)
     const isImg = m.u === 'img'
-    const cc = computeCharge(
-      { model: s.model, units: isImg ? 1 : Math.max(1, Number(s.seconds) || 5), res: isImg ? undefined : (s.res || '1080p') },
-      rate, mk, ckw,
-    )
+    const eff = isImg
+      ? { seconds: 1, res: undefined as any }
+      : scheduleEffective(env || {}, s.model, Math.max(1, Number(s.seconds) || 5), s.res || '1080p')
+    const cc = computeCharge({ model: s.model, units: eff.seconds, res: eff.res }, rate, mk, ckw)
     return Math.round(Number(cc.credits) * 100) / 100
   } catch { return 0 }   // 추정 실패 시 막지 않는다(락아웃 방지) — 실행 단계 게이트가 다시 잡는다
 }
@@ -198,8 +216,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const minute = Math.min(59, Math.max(0, Number(b.minute) || 0))
   const weekday = Math.min(6, Math.max(0, Number(b.weekday) || 0))
   const tz = normalizeTz(b.tz)
-  const seconds = Math.max(1, Number(b.seconds) || 5)
-  const res = String(b.res || '1080p')
+  // 저장값도 "제공사가 실제로 받는 값"으로 맞춘다. 요청대로 적어 두면
+  //  관리자 화면·목록에 표시되는 길이·화질이 실제 결과물과 달라진다.
+  const _eff = scheduleEffective(env, model, Math.max(1, Number(b.seconds) || 5), String(b.res || '1080p'))
+  const seconds = _eff.seconds
+  const res = _eff.res
 
   // 크레딧이 모자라면 저장 자체를 막는다.
   //  안 막으면 "예약해 뒀는데 매번 조용히 실패" 가 되고, 3회 실패 후 자동 중지될 때까지

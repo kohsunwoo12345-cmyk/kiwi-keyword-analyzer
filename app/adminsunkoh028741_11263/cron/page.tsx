@@ -91,12 +91,14 @@ export default function CronPage() {
   }, [])
 
   const all = useMemo(() => d?.schedules ?? [], [d])
+  // 탭 배지는 서버 집계를 쓴다 — 목록은 상한(기본 500건)에 걸려 잘릴 수 있어
+  //  그걸로 세면 "예약이 사라진 것처럼" 보인다. 집계가 없으면 목록으로 대체.
   const counts = useMemo(() => ({
-    active: all.filter((s) => s.enabled).length,
-    ended: all.filter((s) => !s.enabled).length,
-    failed: all.filter((s) => s.failed).length,
-    all: all.length,
-  }), [all])
+    active: d?.totals?.enabled ?? all.filter((s) => s.enabled).length,
+    ended: d?.totals?.ended ?? all.filter((s) => !s.enabled).length,
+    failed: d?.totals?.failed ?? all.filter((s) => s.failed).length,
+    all: d?.totals?.total ?? all.length,
+  }), [all, d])
 
   const rows = useMemo(() => {
     const byTab = all.filter((s) =>
@@ -147,6 +149,13 @@ export default function CronPage() {
               )}
             </div>
           </div>
+
+          {d.truncated && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+              예약이 {(d.totals?.total ?? 0).toLocaleString('ko-KR')}건이라 최근 {(d.listLimit ?? 500).toLocaleString('ko-KR')}건만 표에 표시합니다.
+              위 탭의 숫자는 전체 기준이며, 나머지는 검색으로 찾아 주세요.
+            </div>
+          )}
 
           {msg && (
             <div className={cn('rounded-lg border px-4 py-2 text-sm',

@@ -43,6 +43,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       ORDER BY s.next_run_at ASC LIMIT ?`,
   ).bind(nowIso, MAX_PER_TICK).all().catch(() => ({ results: [] }))
 
+  // ── 고아 예약 정리 ──────────────────────────────────────────────────────────
+  //  회원이 삭제됐는데 예약만 남으면, 아래 JOIN 에서 걸러져 영원히 처리되지 않는다.
+  //  그 사이 관리자 화면은 "실행 대기 N건"으로 잡아 멈춤 경보가 계속 울린다(헛경보).
+  //  삭제 경로에서 함께 지우지만, 과거 데이터와 예외 경로를 위한 방어선으로 여기서도 끈다.
+  await db.prepare(
+    `UPDATE studio_schedules SET enabled = 0, last_status = ?
+      WHERE enabled = 1 AND user_id NOT IN (SELECT id FROM users)`,
+  ).bind('중지: 회원 계정이 없습니다').run().catch(() => {})
+
   const origin = new URL(request.url).origin
   const results: any[] = []
 
@@ -83,7 +92,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     //  생성 API 안에도 같은 게이트가 있지만, 여기서 먼저 잡아야 사유가 명확히 남는다.
     if (String(s.role || '') !== 'admin') {
       const need = await estimateScheduleCredits(db, { id: s.user_id, credits: s.credits, credit_markup: s.credit_markup },
-        { model: String(s.model), seconds: Number(s.seconds) || 5, res: String(s.res || '1080p') })
+        { model: String(s.model), seconds: Number(s.seconds) || 5, res: String(s.res || '1080p') }, env)
       const have = Number(s.credits) || 0
       if (have <= 0 || (need > 0 && have < need)) {
         const msg = `실패: 크레딧 부족 (필요 ${need.toLocaleString('ko-KR')} · 보유 ${have.toLocaleString('ko-KR')})`
@@ -152,8 +161,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!expected || (request.headers.get('X-Cron-Token') || '') !== expected)
     return json({ ok: false, error: '인증 실패' }, 401)
   await ensureSchedules(db)
+  // POST 가 실제로 집어가는 조건과 동일하게 센다(회원 JOIN 포함) —
+  //  숫자가 다르면 워커가 "할 일 있음"으로 보고 매번 헛돈다.
   const r: any = await db.prepare(
-    'SELECT COUNT(*) AS c FROM studio_schedules WHERE enabled = 1 AND next_run_at <= ?',
+    `SELECT COUNT(*) AS c FROM studio_schedules s JOIN users u ON u.id = s.user_id
+      WHERE s.enabled = 1 AND s.next_run_at IS NOT NULL AND s.next_run_at <= ?`,
   ).bind(new Date().toISOString()).first().catch(() => ({ c: 0 }))
   return json({ ok: true, due: Number(r?.c) || 0 })
 }
