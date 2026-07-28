@@ -65,13 +65,14 @@ async function runVideoSchedules(env) {
 /** 네이버 플레이스 추적 — hasMore 가 false 가 될 때까지 배치를 이어서 돈다. */
 async function runNaverTracking(env) {
   const steps = []
-  let offset = 0
+  // ⚠ offset 을 올리지 않는다. 서버가 "아직 안 본 것부터" 집어오는 커서 방식이라
+  //   매번 같은 파라미터로 부르면 자연히 다음 묶음이 처리된다.
+  //   예전처럼 offset 을 올리면 방금 처리한 묶음을 다시 집어와 같은 항목만 반복해서 긁었다.
   for (let i = 0; i < MAX_NAVER_BATCHES; i++) {
-    const r = await hit(env, `/api/naver-place/update-all-tracking?offset=${offset}&limit=${NAVER_BATCH}`, 'POST')
+    const r = await hit(env, `/api/naver-place/update-all-tracking?limit=${NAVER_BATCH}`, 'POST')
     steps.push(r)
     if (!r.ok) break
     if (!/"hasMore"\s*:\s*true/.test(r.body)) break
-    offset += NAVER_BATCH
   }
   // 상한에 걸려 중간에 끊겼다면 로그로 남긴다(조용히 잘리면 "다 돈 줄" 안다)
   if (steps.length >= MAX_NAVER_BATCHES) console.warn(`[cron] 네이버 추적: 배치 상한 ${MAX_NAVER_BATCHES}개에 도달 — 남은 건 다음 실행으로`)
@@ -98,7 +99,7 @@ export default {
       new Response(JSON.stringify(o, null, 2), { status: s, headers: { 'content-type': 'application/json; charset=utf-8' } })
 
     if (url.pathname === '/' || url.pathname === '/health')
-      return jsonRes({ ok: true, worker: 'bygency-cron', site: siteUrl(env), tokenSet: !!env.CRON_TOKEN })
+      return jsonRes({ ok: true, worker: 'kiwi-keyword-analyzer', site: siteUrl(env), tokenSet: !!env.CRON_TOKEN })
 
     if (url.pathname !== '/run') return jsonRes({ ok: false, error: 'not found' }, 404)
     if (!env.CRON_TOKEN || (request.headers.get('X-Cron-Token') || '') !== env.CRON_TOKEN)
