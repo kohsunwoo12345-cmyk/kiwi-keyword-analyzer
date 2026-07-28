@@ -1,0 +1,112 @@
+# 크론 워커 배포 (workers/cron)
+#
+# Cloudflare Workers 는 Pages 와 달리 Git 연동 자동 배포가 없다. 누군가 wrangler deploy 를
+# 실행해 줘야 한다. 그 "누군가"를 이 워크플로가 맡는다 — 로컬에 wrangler 를 깔거나
+# 브라우저로 로그인할 필요가 없다.
+#
+# ── 준비물 (GitHub → Settings → Secrets and variables → Actions) ──────────────
+#  Secrets (필수)
+#    CLOUDFLARE_API_TOKEN  Cloudflare 대시보드 → My Profile → API Tokens →
+#                          Create Token → 템플릿 "Edit Cloudflare Workers"
+#    CRON_TOKEN            openssl rand -hex 32 로 만든 임의 문자열.
+#                          ⚠ Pages 프로젝트 환경변수에 넣은 값과 반드시 같아야 한다.
+#  Secrets (선택)
+#    CLOUDFLARE_ACCOUNT_ID 토큰이 여러 계정에 접근 가능할 때만 필요
+#  Variables (선택)
+#    SITE_URL              기본값은 wrangler.toml 의 https://bygency.co
+#
+# 준비되면 Actions 탭 → "deploy cron worker" → Run workflow 로 배포한다.
+# workers/cron 아래가 바뀌어 main 에 푸시될 때도 자동으로 배포된다.
+
+name: deploy cron worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'workers/cron/**'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-cron-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: workers/cron
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      - name: 준비물 확인
+        env:
+          CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
+        run: |
+          # 토큰이 없으면 wrangler 가 알아보기 힘든 에러를 뱉는다 → 먼저 명확히 실패시킨다
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error::CLOUDFLARE_API_TOKEN 시크릿이 없습니다."; exit 1; }
+          [ -n "$CRON_TOKEN" ] || { echo "::error::CRON_TOKEN 시크릿이 없습니다."; exit 1; }
+          npx --yes wrangler@4 whoami
+
+      - name: 워커 배포
+        id: deploy
+        run: |
+          set -eo pipefail   # tee 때문에 wrangler 실패가 성공으로 보이면 안 된다
+          SITE="${{ vars.SITE_URL }}"
+          ARGS=""
+          if [ -n "$SITE" ]; then ARGS="--var SITE_URL:$SITE"; fi
+          npx --yes wrangler@4 deploy $ARGS 2>&1 | tee deploy.log
+          # 배포 출력에서 워커 주소를 뽑아 뒤 단계에서 검증에 쓴다
+          URL=$(grep -oE 'https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev' deploy.log | head -1)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "배포된 주소: ${URL:-(출력에서 찾지 못함)}"
+
+      - name: 워커에 CRON_TOKEN 심기
+        env:
+          CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
+        run: |
+          # 대화형 입력 없이 stdin 으로 넣는다(따옴표가 든 값도 안전). 값은 로그에 찍히지 않는다.
+          printf '%s' "$CRON_TOKEN" | npx --yes wrangler@4 secret put CRON_TOKEN
+
+      - name: 등록된 크론 확인
+        run: |
+          # wrangler deploy 가 이미 Cron Trigger 를 적용한다. 배포 출력에서 그 부분만 다시 보여준다.
+          grep -iA4 -E 'schedule|cron' deploy.log || echo '(배포 출력에 크론 표기가 없습니다 — wrangler.toml 의 [triggers] 확인)'
+
+      - name: 배포 검증 (/health)
+        if: steps.deploy.outputs.url != ''
+        run: |
+          URL="${{ steps.deploy.outputs.url }}"
+          # 배포 직후 전파에 몇 초 걸릴 수 있어 재시도한다
+          for i in 1 2 3 4 5; do
+            body=$(curl -sS --max-time 20 "$URL/health" || true)
+            echo "[$i] $body"
+            echo "$body" | grep -q '"tokenSet":true' && OK=1 && break
+            sleep 5
+          done
+          [ -n "$OK" ] || { echo "::error::워커가 응답하지 않거나 CRON_TOKEN 이 설정되지 않았습니다."; exit 1; }
+          echo "::notice::워커 정상 — $URL"
+
+      - name: Pages 연결 확인 (토큰 일치 여부)
+        env:
+          CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
+        run: |
+          # 워커는 살아 있어도 Pages 쪽 CRON_TOKEN 이 다르면 매번 401 로 튕긴다.
+          # 그 상태를 배포 시점에 잡아 준다 — 안 그러면 "돌고 있는 줄" 알게 된다.
+          SITE="${{ vars.SITE_URL }}"; SITE="${SITE:-https://bygency.co}"
+          code=$(curl -s -o /tmp/r.txt -w '%{http_code}' --max-time 20 \
+                   -H "X-Cron-Token: $CRON_TOKEN" "$SITE/api/cron/video-schedules" || true)
+          echo "GET $SITE/api/cron/video-schedules → HTTP $code"; cat /tmp/r.txt; echo
+          if [ "$code" = "401" ]; then
+            echo "::error::Pages 쪽 CRON_TOKEN 이 다르거나 아직 재배포되지 않았습니다. Pages → Settings → Variables and Secrets 확인 후 재배포하세요."
+            exit 1
+          fi
+          [ "$code" = "200" ] || { echo "::error::예상치 못한 응답($code) — Pages 배포 상태를 확인하세요."; exit 1; }
+          echo "::notice::Pages 연동 정상 — 크론이 예약을 집어갈 수 있습니다."
