@@ -1857,11 +1857,15 @@ async function handle(context) {
          그래서 주소 후보를 GET 으로만 훑어 어디가 200 을 주는지 찾는다. */
       const BASES = [
         "https://api.lumalabs.ai/dream-machine/v1",
+        "https://api.lumalabs.ai/dream-machine/v2",
         "https://api.lumalabs.ai/v1",
+        "https://api.lumalabs.ai/v2",
         "https://api.lumalabs.ai/api/v1",
-        "https://api.lumalabs.ai/dream-machine/v1beta",
+        "https://api.luma.ai/v1",
       ];
-      const PATHS = ["/generations?limit=1", "/generations/video?limit=1", "/models", "/credits"];
+      const PATHS = ["/generations?limit=1", "/generations/video?limit=1", "/models", "/credits",
+        // 프로젝트가 경로에 들어가는 형태일 수도 있다
+        ...(proj ? ["/projects/" + encodeURIComponent(proj) + "/generations?limit=1"] : [])];
       const baseProbe = [];
       for (const base of BASES) for (const path of PATHS) {
         baseProbe.push((async () => {
@@ -1874,7 +1878,12 @@ async function handle(context) {
           } catch (e) { return { 주소: base + path, httpStatus: 0, 응답: String((e && e.message) || e).slice(0, 80) }; }
         })());
       }
-      const baseRows = (await Promise.all(baseProbe)).filter(x => x.httpStatus !== 404 || x.httpStatus === 200);
+      /* 앞 버전은 404 행을 걸러 냈는데, 그 바람에 "어떤 주소가 존재조차 안 하는지" 가
+         응답에서 사라져 판단 근거가 잘렸다. 전부 싣고, 대신 상태코드별로 묶어 보여 준다. */
+      const allRows = await Promise.all(baseProbe);
+      const byStatus = {};
+      allRows.forEach(x => { (byStatus[x.httpStatus] = byStatus[x.httpStatus] || []).push(x.주소); });
+      const baseRows = allRows.filter(x => x.httpStatus !== 404);   // 상세는 404 제외(요약에는 남는다)
       const baseOK = baseRows.find(x => x.httpStatus === 200);
       const anyOK = hdrVariants.find(v => v.httpStatus === 200);
       const per = await Promise.all(Object.entries(LUMA_IDS).map(async ([name, id]) => {
@@ -1901,7 +1910,7 @@ async function handle(context) {
                   + "다만 Bearer 키만으로 200 이 나온다면 프로젝트 ID 는 애초에 필요 없습니다." },
         주소탐색: { 결론: baseOK ? ("이 주소가 키를 받습니다 → " + baseOK.주소 + " · 여기에 맞춰 LUMA_BASE 와 모델 ID 를 바꿔야 합니다.")
                             : "시도한 주소 중 200 을 주는 곳이 없습니다 — 대시보드의 'show snippet' cURL 이 정확한 주소를 알려 줍니다.",
-                    시도: baseRows },
+                    상태코드별요약: byStatus, 시도: baseRows },
         현재코드: { LUMA_BASE, 쓰는모델: LUMA_IDS,
                     문제: "대시보드는 영상 ray-3.2 · 이미지 uni-1/uni-1-max 라고 표시합니다. 우리가 쓰는 ray-2 계열은 구세대 ID 입니다." },
         헤더방식별: hdrVariants,
