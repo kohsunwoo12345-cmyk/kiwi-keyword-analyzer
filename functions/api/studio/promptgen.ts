@@ -21,7 +21,12 @@ async function promptMarkup(db: any): Promise<number> {
   try { const v = await getSetting(db, 'promptgen_markup'); const n = Number(v); if (v != null && v !== '' && isFinite(n)) return Math.max(1, n) } catch {}
   return 2.5
 }
-// 실제 차감 크레딧 = 원가(USD) × 환율 / 크레딧단가 × 배수
+/* 실제 차감 크레딧 = 원가(USD) × 환율 / 크레딧단가 × 배수
+   ※ 여기서는 _pricing.ts 의 MODEL_COST 를 쓰지 않는다. 모델이 무엇이든 같은 정액이다.
+      그래서 관리자 '단가 조정' 화면에서는 프롬프트 LLM 을 빼고 이 패널에서만 조정하게 했다
+      (모델별 배수를 띄워 두면 조정해도 청구가 그대로라 오해를 부른다).
+      모델별 단가를 실제로 반영하려면 이 함수가 MODEL_COST[model] 을 읽도록 바꿔야 하는데,
+      그건 회원 청구액이 모델에 따라 달라지는 변경이라 별도 판단이 필요하다. */
 async function promptCost(db: any): Promise<number> {
   const markup = await promptMarkup(db)
   let rate = 1350

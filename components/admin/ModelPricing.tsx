@@ -52,8 +52,12 @@ export function ModelPricing() {
     const g: Record<string, typeof models> = {}
     // kind 는 image·video 외에 3d(3D 파일 1개당)·llm(프롬프트 작성 호출 1회당)도 있다.
     //  예전엔 image 가 아니면 전부 '영상' 으로 묶어, 3D·LLM 이 영상으로 잘못 표시됐다.
-    const LABEL: Record<string, string> = { image: '이미지', video: '영상', '3d': '3D 생성', llm: '프롬프트 작성 LLM' }
-    for (const m of models) { (g[LABEL[m.kind] || '기타'] ||= []).push(m) }
+    const LABEL: Record<string, string> = { image: '이미지', video: '영상', '3d': '3D 생성' }
+    /* 프롬프트 작성 LLM 은 여기서 빼고 아래 [프롬프트 작성 단가] 패널에서만 조정한다.
+       실제 차감이 promptgen 의 정액 단가(PROMPT_BASE_USD × 배수)를 따르기 때문이다 —
+       여기에 모델별 배수를 띄워 두면 조정해도 청구가 그대로라 관리자를 속이게 된다.
+       모델 자체는 [AI 모델 목록] 화면에 그대로 나온다. */
+    for (const m of models) { if (m.kind === 'llm') continue; (g[LABEL[m.kind] || '기타'] ||= []).push(m) }
     return g
   }, [models])
 
