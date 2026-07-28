@@ -9,7 +9,7 @@
 # 토큰:  npx wrangler secret put CRON_TOKEN     (Pages 에 넣은 값과 똑같이)
 
 name = "bygency-cron"
-main = "src/index.ts"
+main = "src/index.js"
 compatibility_date = "2026-07-01"
 
 # ⚠ Cloudflare 의 cron 표현식은 GitHub 과 마찬가지로 항상 UTC 다.

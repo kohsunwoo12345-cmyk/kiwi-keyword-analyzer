@@ -1829,7 +1829,16 @@ async function handle(context) {
          Luma_PROJECT_ID 환경변수를 넣어 두면 아래 표기법들을 전부 읽기 전용으로 시험하고,
          그중 200 이 나오는 게 있으면 그 방식을 실제 호출에도 반영하면 된다.
          값이 없으면 이 시험은 건너뛴다(그 자체로 "안 넣어도 되는지" 는 판정 못 함). */
-      const proj = pick(env, ["Luma_PROJECT_ID", "LUMA_PROJECT_ID", "luma_project_id"]);
+      /* 환경변수 이름은 대소문자·밑줄 표기가 조금만 달라도 pick() 이 못 찾는다.
+         (Luma_PROJECT_ID / LUMA_PROJECT_ID / luma_project_id 만 후보였다.)
+         정규화해서(소문자·밑줄 제거) 비교하면 LumaProjectId·LUMA-PROJECT-ID 도 잡힌다. */
+      const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+      const projKey = Object.keys(env || {}).find(n => norm(n) === "lumaprojectid" && env[n]);
+      const proj = projKey ? String(env[projKey]).trim() : null;
+      // 값은 절대 싣지 않고 "이름" 만 보여 준다 — 어떤 이름으로 들어가 있는지 확인용.
+      const envNames = Object.keys(env || {})
+        .filter(n => /luma|proj/i.test(n))
+        .map(n => n + (env[n] ? " (값 있음)" : " (값 비어 있음)"));
       const projCases = proj ? [
         { 이름: "헤더 X-Project-Id",  h: { "Authorization": "Bearer " + kv, "X-Project-Id": proj } },
         { 이름: "헤더 Luma-Project-Id", h: { "Authorization": "Bearer " + kv, "Luma-Project-Id": proj } },
@@ -1903,11 +1912,14 @@ async function handle(context) {
         note: "목록 조회는 읽기 전용, 모델 확인은 prompt 를 비운 반려 요청입니다. 생성물·과금이 없습니다.",
         키형태: { length: kv.length, prefix: kv.slice(0, 6), suffix: kv.slice(-4), hasWhitespace: /\s/.test(kv) },
         프로젝트ID: proj
-          ? { 설정됨: true, 값앞자리: String(proj).slice(0, 8) + "…",
+          ? { 설정됨: true, 읽은변수이름: projKey, 값앞자리: String(proj).slice(0, 8) + "…",
               안내: "아래 '헤더방식별' 에서 프로젝트 ID 를 붙인 4가지 표기법 결과를 보세요. 200 이 나오는 게 있으면 그 방식이 정답입니다." }
           : { 설정됨: false,
-              안내: "Luma_PROJECT_ID 환경변수가 없습니다. 프로젝트 ID 가 필요한지 시험하려면 그 값을 넣고 다시 실행하세요. "
-                  + "다만 Bearer 키만으로 200 이 나온다면 프로젝트 ID 는 애초에 필요 없습니다." },
+              루마·proj가들어간환경변수이름: envNames.length ? envNames : "(하나도 없음)",
+              안내: envNames.length
+                ? "비슷한 이름은 있는데 'lumaprojectid' 로 정규화했을 때 일치하는 게 없습니다. 위 목록의 철자를 확인하세요."
+                : "이 배포에 루마 관련 환경변수가 하나도 안 보입니다. Cloudflare Pages 는 환경변수를 배포 시점에 묶으므로, "
+                  + "값을 넣은 뒤 재배포(또는 새 커밋)가 있어야 반영됩니다. 또 Production/Preview 환경을 각각 확인하세요." },
         주소탐색: { 결론: baseOK ? ("이 주소가 키를 받습니다 → " + baseOK.주소 + " · 여기에 맞춰 LUMA_BASE 와 모델 ID 를 바꿔야 합니다.")
                             : "시도한 주소 중 200 을 주는 곳이 없습니다 — 대시보드의 'show snippet' cURL 이 정확한 주소를 알려 줍니다.",
                     상태코드별요약: byStatus, 시도: baseRows },
@@ -1918,10 +1930,12 @@ async function handle(context) {
           결론: list.status === 200 ? "키는 유효합니다 — 모델별 결과가 실제 원인입니다."
               : anyOK ? ("헤더 표기법이 문제입니다 — '" + anyOK.방식 + "' 로 보내면 통과합니다. 코드를 그 방식으로 고쳐야 합니다.")
               : /not authenticated/i.test(JSON.stringify(list.body || ""))
-                ? "모든 표기법에서 자격증명이 거부됩니다. 참고로 'Bearer 없음' 에서 403 이 아니라 500 이 온다면, "
-                  + "요청은 루마 앱까지 도달하고 있다는 뜻입니다(주소·헤더 전달 문제가 아님). "
-                  + "서로 다른 키로 바꿔도 같은 결과라면 키가 아니라 계정 쪽입니다 — 루마는 API 사용에 "
-                  + "유효한 결제수단 등록을 요구합니다. 잔액이 남아 있어도 결제수단이 없으면 API 가 잠깁니다."
+                ? "자격증명이 거부됩니다. 지금까지 배제된 것: (1) 주소 — /generations 가 404 가 아니라 403 이므로 "
+                  + "그 엔드포인트는 존재하고, v2·/v1·/api/v1 은 전부 404 라 살아 있는 API 는 여기뿐이다. "
+                  + "(2) 헤더 전달 — 'Bearer 없음' 에서만 500 이 오므로 요청은 루마 앱까지 도달한다. "
+                  + "(3) 키 — 서로 다른 키 두 개가 같은 결과였다. (4) 잔액·결제 — 대시보드에 $10 과 Add funds 완료가 확인됐다. "
+                  + "남은 것은 프로젝트 ID 다. Luma_PROJECT_ID 가 비어 있으면 위 '헤더방식별' 의 프로젝트 표기법 4가지가 "
+                  + "통째로 건너뛰어지므로, 그 값을 넣고 다시 실행해야 판정할 수 있다."
               : list.status === 401 ? "키가 잘못됐거나 만료됐습니다 — 재발급 필요."
               : "예상 밖 응답 — 아래 원문을 확인하세요." },
         모델별: per });
