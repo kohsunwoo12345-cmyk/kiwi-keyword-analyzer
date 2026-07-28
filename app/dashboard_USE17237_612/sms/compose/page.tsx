@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { PenSquare, Trash2, Check, Smartphone, Plus, FileText, Copy } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Card, EmptyState } from '@/components/dash/Kit'
+import { Card, EmptyState, Field, Section } from '@/components/dash/Kit'
 import { Button, Badge } from '@/components/ui'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
@@ -201,21 +201,23 @@ export default function SmsComposePage() {
 
           {/* 편집 */}
           <Card title="템플릿 편집" desc={editingId ? '기존 템플릿 수정 중' : '새 템플릿 작성 중'}>
-            <div className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-[var(--text-soft)]">템플릿 이름</label>
+            <Section label="기본 정보" first>
+              <Field label="템플릿 이름">
                 <input value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 예약확인" className={inputCls} />
-              </div>
+              </Field>
+            </Section>
 
-              <div>
-                <div className="mb-1.5 flex items-end justify-between">
-                  <label className="text-xs font-medium text-[var(--text-soft)]">본문</label>
-                  <span className="text-[11px] tabular-nums text-[var(--text-dim)]">
-                    <span className={cn('font-bold', over ? 'text-rose-500' : kind.tone)}>{kind.label}</span>
+            <Section label="본문" hint="90byte를 넘으면 LMS로 발송되어 건당 요금이 올라갑니다.">
+              <Field
+                label="메시지 내용"
+                right={
+                  <>
+                    <span className={cn('font-semibold', over ? 'text-rose-500' : kind.tone)}>{kind.label}</span>
                     {' · '}
-                    <span className={over ? 'font-bold text-rose-500' : ''}>{bytes}</span>/{kind.limit} byte
-                  </span>
-                </div>
+                    <span className={over ? 'font-semibold text-rose-500' : ''}>{bytes}</span>/{kind.limit} byte
+                  </>
+                }
+              >
                 <textarea
                   ref={bodyRef}
                   value={body}
@@ -224,43 +226,39 @@ export default function SmsComposePage() {
                   placeholder="메시지 본문을 입력하세요."
                   className={cn(inputCls, 'resize-none leading-relaxed')}
                 />
-                <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[var(--panel-2)]">
+                <div className="mt-2 h-[3px] overflow-hidden rounded-full bg-[var(--panel-2)]">
                   <div
-                    className="h-full rounded-full transition-all"
+                    className="h-full rounded-full transition-all duration-300"
                     style={{
                       width: `${Math.min(100, (bytes / kind.limit) * 100)}%`,
                       background: over ? '#ef4444' : bytes > 90 ? '#0ea5e9' : ACCENT,
                     }}
                   />
                 </div>
-                <p className="mt-1.5 text-[11px] text-[var(--text-dim)]">
-                  90byte를 넘으면 LMS로 발송되어 건당 요금이 올라갑니다.
-                </p>
-              </div>
+              </Field>
+            </Section>
 
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-[var(--text-soft)]">변수 삽입 (커서 위치에 들어갑니다)</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {VARIABLES.map((v) => (
-                    <button
-                      key={v}
-                      onClick={() => insertVariable(v)}
-                      className="rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-400 transition-colors hover:bg-indigo-500/20"
-                    >
-                      {v}
-                    </button>
-                  ))}
-                </div>
+            <Section label="변수" hint="누르면 커서 위치에 들어갑니다.">
+              <div className="flex flex-wrap gap-1.5">
+                {VARIABLES.map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => insertVariable(v)}
+                    className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-[12px] font-medium text-[var(--text-soft)] transition-colors hover:border-indigo-500/50 hover:text-indigo-400"
+                  >
+                    {v}
+                  </button>
+                ))}
               </div>
+            </Section>
 
-              <div className="flex gap-2">
-                <Button onClick={save} disabled={!name.trim() || !body.trim()} className="flex-1 justify-center">
-                  <Check size={16} /> 템플릿 저장
-                </Button>
-                <Button onClick={copyBody} disabled={!body.trim()} variant="outline">
-                  <Copy size={16} /> 문구 복사
-                </Button>
-              </div>
+            <div className="mt-6 flex gap-2 border-t border-[var(--border-soft)] pt-5">
+              <Button onClick={save} disabled={!name.trim() || !body.trim()} className="flex-1 justify-center">
+                <Check size={16} /> 템플릿 저장
+              </Button>
+              <Button onClick={copyBody} disabled={!body.trim()} variant="outline">
+                <Copy size={16} /> 문구 복사
+              </Button>
             </div>
           </Card>
 
