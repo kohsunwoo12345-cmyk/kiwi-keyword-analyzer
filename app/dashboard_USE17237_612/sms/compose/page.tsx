@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
-import { PenSquare, Trash2, Check, Smartphone, Plus } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { PenSquare, Trash2, Check, Smartphone, Plus, FileText, Copy } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Panel, Button, Badge } from '@/components/ui'
+import { Card, EmptyState } from '@/components/dash/Kit'
+import { Button, Badge } from '@/components/ui'
 import { useLocalStorage } from '@/lib/useLocalStorage'
+import { cn } from '@/lib/utils'
 
 const ACCENT = '#6366f1'
 
@@ -50,12 +52,27 @@ function renderPreview(body: string): string {
   return out
 }
 
+/** 통신사 기준 바이트 수 — 한글·이모지 2바이트, ASCII 1바이트 */
+function byteLength(s: string): number {
+  let n = 0
+  for (const ch of s) n += ch.charCodeAt(0) > 0x7f ? 2 : 1
+  return n
+}
+
+/** 90바이트까지 SMS, 그 이상은 LMS로 나간다 (요금이 달라진다) */
+function msgKind(bytes: number): { label: string; tone: string; limit: number } {
+  return bytes <= 90
+    ? { label: 'SMS', tone: 'text-indigo-500', limit: 90 }
+    : { label: 'LMS', tone: 'text-sky-500', limit: 2000 }
+}
+
 export default function SmsComposePage() {
   const [templates, setTemplates] = useLocalStorage<Template[]>('bivience_sms_templates', SEED)
   const [name, setName] = useState('')
   const [body, setBody] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [toast, setToast] = useState('')
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
 
   function loadTemplate(t: Template) {
     setEditingId(t.id)
@@ -63,8 +80,21 @@ export default function SmsComposePage() {
     setBody(t.body)
   }
 
+  /** 커서 위치에 변수를 끼워 넣는다 (예전엔 무조건 맨 뒤에 붙었다) */
   function insertVariable(v: string) {
-    setBody((prev) => (prev ? `${prev} ${v}` : v))
+    const el = bodyRef.current
+    if (!el) {
+      setBody((prev) => (prev ? `${prev} ${v}` : v))
+      return
+    }
+    const start = el.selectionStart ?? body.length
+    const end = el.selectionEnd ?? body.length
+    const next = body.slice(0, start) + v + body.slice(end)
+    setBody(next)
+    requestAnimationFrame(() => {
+      el.focus()
+      el.setSelectionRange(start + v.length, start + v.length)
+    })
   }
 
   function newTemplate() {
@@ -91,13 +121,31 @@ export default function SmsComposePage() {
     setTimeout(() => setToast(''), 3000)
   }
 
+  function copyBody() {
+    if (!body) return
+    try {
+      navigator.clipboard.writeText(renderPreview(body)).then(() => {
+        setToast('샘플값이 적용된 문구를 복사했습니다')
+        setTimeout(() => setToast(''), 2500)
+      })
+    } catch {
+      /* noop */
+    }
+  }
+
+  const bytes = useMemo(() => byteLength(body), [body])
+  const kind = msgKind(bytes)
+  const over = bytes > kind.limit
+  const inputCls =
+    'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-indigo-500'
+
   return (
     <div className="animate-fade-in">
       <PageHeader
         icon={PenSquare}
         eyebrow="문자 (SMS)"
         title="문자 작성"
-        desc="자주 쓰는 문구를 템플릿으로 저장하고 변수를 넣어 개인화 메시지를 만듭니다."
+        desc="자주 쓰는 문구를 템플릿으로 저장하고, 변수를 넣어 개인화 메시지를 만듭니다."
         accent={ACCENT}
         action={
           <Button onClick={newTemplate} variant="outline">
@@ -106,77 +154,98 @@ export default function SmsComposePage() {
         }
       />
 
-      <div className="space-y-6 p-6 lg:p-8">
+      <div className="space-y-5 p-5 lg:p-7">
         {toast && (
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-600 animate-fade-in">
-            {toast}
+          <div className="animate-fade-in flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/12 px-3.5 py-2.5 text-sm text-emerald-500">
+            <Check size={15} /> {toast}
           </div>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_1.6fr_1fr]">
-          {/* Saved templates */}
-          <Panel title="저장된 템플릿">
-            <div className="space-y-2">
-              {templates.length === 0 && (
-                <p className="py-6 text-center text-sm text-[var(--text-dim)]">저장된 템플릿이 없습니다.</p>
-              )}
-              {templates.map((t) => (
-                <div
-                  key={t.id}
-                  className={`group flex items-start gap-2 rounded-xl border p-3 transition-colors ${
-                    editingId === t.id
-                      ? 'border-indigo-500/40 bg-indigo-50'
-                      : 'border-[var(--border)] hover:bg-[var(--panel-2)]'
-                  }`}
-                >
-                  <button onClick={() => loadTemplate(t)} className="min-w-0 flex-1 text-left">
-                    <p className="text-sm font-semibold">{t.name}</p>
-                    <p className="mt-0.5 truncate text-xs text-[var(--text-dim)]">{t.body}</p>
-                  </button>
-                  <button
-                    onClick={() => deleteTemplate(t.id)}
-                    className="flex-shrink-0 rounded-lg p-1.5 text-[var(--text-dim)] hover:bg-rose-500/12 hover:text-rose-500"
-                    aria-label="삭제"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </Panel>
+        <div className="grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
+          {/* 저장된 템플릿 */}
+          <Card title="저장된 템플릿" desc={`${templates.length}개`} bodyClassName="p-3">
+            {templates.length === 0 ? (
+              <EmptyState icon={FileText} title="저장된 템플릿이 없습니다" hint="자주 쓰는 문구를 저장해두면 발송할 때 바로 불러올 수 있습니다." />
+            ) : (
+              <div className="space-y-1.5">
+                {templates.map((t) => {
+                  const on = editingId === t.id
+                  return (
+                    <div
+                      key={t.id}
+                      className={cn(
+                        'group flex items-start gap-2 rounded-xl border p-3 transition-colors',
+                        on ? 'border-indigo-500/50 bg-indigo-500/10' : 'border-[var(--border)] hover:bg-[var(--panel-2)]',
+                      )}
+                    >
+                      <button onClick={() => loadTemplate(t)} className="min-w-0 flex-1 text-left">
+                        <p className="flex items-center gap-1.5 text-[13px] font-semibold">
+                          {t.name}
+                          <span className="text-[10px] font-medium text-[var(--text-dim)]">{byteLength(t.body)}byte</span>
+                        </p>
+                        <p className="mt-0.5 truncate text-[11.5px] text-[var(--text-dim)]">{t.body}</p>
+                      </button>
+                      <button
+                        onClick={() => deleteTemplate(t.id)}
+                        className="flex-shrink-0 rounded-lg p-1.5 text-[var(--text-dim)] opacity-0 transition-opacity hover:bg-rose-500/12 hover:text-rose-500 group-hover:opacity-100"
+                        aria-label="삭제"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </Card>
 
-          {/* Editor */}
-          <Panel title="템플릿 편집">
+          {/* 편집 */}
+          <Card title="템플릿 편집" desc={editingId ? '기존 템플릿 수정 중' : '새 템플릿 작성 중'}>
             <div className="space-y-4">
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-[var(--text-soft)]">템플릿 이름</label>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="예: 예약확인"
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-violet-500"
-                />
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 예약확인" className={inputCls} />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-[var(--text-soft)]">본문</label>
+                <div className="mb-1.5 flex items-end justify-between">
+                  <label className="text-xs font-medium text-[var(--text-soft)]">본문</label>
+                  <span className="text-[11px] tabular-nums text-[var(--text-dim)]">
+                    <span className={cn('font-bold', over ? 'text-rose-500' : kind.tone)}>{kind.label}</span>
+                    {' · '}
+                    <span className={over ? 'font-bold text-rose-500' : ''}>{bytes}</span>/{kind.limit} byte
+                  </span>
+                </div>
                 <textarea
+                  ref={bodyRef}
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
-                  rows={7}
+                  rows={8}
                   placeholder="메시지 본문을 입력하세요."
-                  className="w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-violet-500"
+                  className={cn(inputCls, 'resize-none leading-relaxed')}
                 />
+                <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[var(--panel-2)]">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(100, (bytes / kind.limit) * 100)}%`,
+                      background: over ? '#ef4444' : bytes > 90 ? '#0ea5e9' : ACCENT,
+                    }}
+                  />
+                </div>
+                <p className="mt-1.5 text-[11px] text-[var(--text-dim)]">
+                  90byte를 넘으면 LMS로 발송되어 건당 요금이 올라갑니다.
+                </p>
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-[var(--text-soft)]">변수 삽입</label>
+                <label className="mb-1.5 block text-xs font-medium text-[var(--text-soft)]">변수 삽입 (커서 위치에 들어갑니다)</label>
                 <div className="flex flex-wrap gap-1.5">
                   {VARIABLES.map((v) => (
                     <button
                       key={v}
                       onClick={() => insertVariable(v)}
-                      className="rounded-lg border border-indigo-500/30 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-100"
+                      className="rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-400 transition-colors hover:bg-indigo-500/20"
                     >
                       {v}
                     </button>
@@ -184,32 +253,35 @@ export default function SmsComposePage() {
                 </div>
               </div>
 
-              <Button
-                onClick={save}
-                disabled={!name.trim() || !body.trim()}
-                className="w-full !bg-gradient-to-br !from-indigo-500 !to-violet-500"
-              >
-                <Check size={16} /> 템플릿 저장
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={save} disabled={!name.trim() || !body.trim()} className="flex-1 justify-center">
+                  <Check size={16} /> 템플릿 저장
+                </Button>
+                <Button onClick={copyBody} disabled={!body.trim()} variant="outline">
+                  <Copy size={16} /> 문구 복사
+                </Button>
+              </div>
             </div>
-          </Panel>
+          </Card>
 
-          {/* Preview */}
-          <Panel title="미리보기">
-            <div className="flex justify-center py-2">
-              <div className="w-full max-w-[280px] rounded-[2.2rem] border border-[var(--border)] bg-[var(--panel-2)] p-3 shadow-sm">
-                <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-300" />
-                <div className="rounded-2xl bg-white p-4">
+          {/* 미리보기 */}
+          <Card title="미리보기" desc="변수에 샘플값을 넣은 결과">
+            <div className="flex justify-center py-1">
+              <div className="w-full max-w-[280px] rounded-[2.2rem] border border-[var(--border)] bg-[var(--panel-2)] p-3">
+                <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-[var(--text-dim)] opacity-40" />
+                <div className="rounded-2xl bg-[var(--panel)] p-4">
                   <div className="mb-2 flex items-center gap-2">
                     <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 text-white">
                       <Smartphone size={15} />
                     </span>
-                    <div>
-                      <p className="text-xs font-semibold">{name || '템플릿 미리보기'}</p>
-                      <p className="text-[10px] text-[var(--text-dim)]">샘플값 적용</p>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold">{name || '템플릿 미리보기'}</p>
+                      <p className="text-[10px] text-[var(--text-dim)]">
+                        {kind.label} · {bytes}byte
+                      </p>
                     </div>
                   </div>
-                  <div className="whitespace-pre-wrap break-words rounded-2xl rounded-tl-sm bg-indigo-50 px-3.5 py-2.5 text-sm text-[var(--text)]">
+                  <div className="whitespace-pre-wrap break-words rounded-2xl rounded-tl-sm bg-indigo-500/12 px-3.5 py-2.5 text-sm leading-relaxed">
                     {body ? renderPreview(body) : '본문을 입력하면 변수가 샘플값으로 치환되어 표시됩니다.'}
                   </div>
                 </div>
@@ -222,7 +294,7 @@ export default function SmsComposePage() {
                 </Badge>
               ))}
             </div>
-          </Panel>
+          </Card>
         </div>
       </div>
     </div>
