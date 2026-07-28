@@ -27,6 +27,7 @@ import { Button, SectionTag } from '@/components/ui'
 import { Reveal, Counter } from '@/components/motion'
 import { LogoMark } from '@/components/Brand'
 import { useT, type Dict } from '@/lib/i18n'
+import { AboutShowcase } from '@/components/features/AboutShowcase'
 
 const M: Dict = {
   // ===== STATS =====
@@ -402,6 +403,9 @@ export default function AboutPage() {
           </div>
         </div>
       </section>
+
+      {/* ===== 연결 맵 · 마케터의 하루 ===== */}
+      <AboutShowcase />
 
       {/* ===== CORE VALUES ===== */}
       <section className="border-y border-white/10 bg-white/[0.015] py-24">

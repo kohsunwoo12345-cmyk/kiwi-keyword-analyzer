@@ -29,6 +29,7 @@ import { Reveal } from '@/components/motion'
 import { LogoMark } from '@/components/Brand'
 import { cn } from '@/lib/utils'
 import { useT, type Dict } from '@/lib/i18n'
+import { PricingShowcase } from '@/components/features/PricingShowcase'
 
 const M: Dict = {
   /* ===== HERO ===== */
@@ -782,6 +783,9 @@ export default function PricingPage() {
           </Reveal>
         </div>
       </section>
+
+      {/* ===== 비용 계산기 · 플랜 찾기 ===== */}
+      <PricingShowcase />
 
       {/* ===== FAQ ===== */}
       <section className="border-y border-white/10 bg-white/[0.015] py-24">
