@@ -5489,12 +5489,21 @@ function widgetHTML(n,w){
   }
   if(w.t==='schedule'){   // 정기 자동 생성 — 서버가 정해진 시각에 대신 만들어 둔다
     var sc=n.w.sc||{}, DAYS=['일','월','화','수','목','금','토'];
+    // 예약 목록 — 노드 폭이 좁아 이름이 글자 단위로 꺾이고 삭제 버튼이 노드 밖으로 밀리던 문제 →
+    //  이름은 한 줄로 말줄임, 상세는 아래 줄, 삭제 버튼은 오른쪽 상단에 고정 크기로.
     var list=(n.w.scList||[]).map(function(x){
-      return '<div class="seedopt-row" style="align-items:center;"><span class="seedopt-tx" style="flex:1;">'
-        +'<b>'+esc(x.name||'(이름 없음)')+'</b>'
-        +'<i>'+(x.freq==='daily'?'매일':'매주 '+DAYS[x.weekday||0]+'요일')+' '+(x.hour||0)+'시 · '+esc(x.model||'')
-        +(x.enabled?'':' · 꺼짐')+(x.lastStatus?' · '+esc(String(x.lastStatus).slice(0,40)):'')+'</i></span>'
-        +'<button class="wbtn" data-scdel="'+esc(x.id)+'" style="flex:0 0 auto;padding:4px 8px;">삭제</button></div>';
+      var when=(x.freq==='daily'?'매일':'매주 '+DAYS[x.weekday||0]+'요일')+' '+(x.hour||0)+'시';
+      return '<div style="display:flex;align-items:flex-start;gap:6px;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);">'
+        +'<div style="flex:1 1 auto;min-width:0;">'
+          +'<div style="font-size:11px;font-weight:600;color:#e6e6ea;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+            +esc(x.name||'(이름 없음)')+(x.enabled?'':' <span style="color:#8b8fa3;">· 꺼짐</span>')+'</div>'
+          +'<div style="font-size:9.5px;color:#7a7c84;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+            +esc(when)+' · '+esc(x.model||'')+'</div>'
+          +(x.lastStatus?'<div style="font-size:9.5px;color:#7fd1a6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+            +esc(String(x.lastStatus).slice(0,60))+'</div>':'')
+        +'</div>'
+        +'<button class="wbtn" data-scdel="'+esc(x.id)+'" style="flex:0 0 auto;width:auto;padding:3px 9px;font-size:10px;">삭제</button>'
+        +'</div>';
     }).join('');
     return '<div class="seedopts-wrap"><div class="seedopts-hd">'+ICON.gear+' 정기 자동 생성</div>'
       +'<div class="refcnt" style="margin:-2px 0 4px;">정한 시각에 서버가 대신 영상을 만들어 <b>보관함</b>에 넣어 둡니다. 실행될 때마다 크레딧이 듭니다.</div>'
