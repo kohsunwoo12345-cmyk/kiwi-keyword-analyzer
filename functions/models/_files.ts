@@ -4,7 +4,7 @@
 export const MODEL_FILES: string[] = [
   '/models/lib/transformers',
   '/models/lib/vision',
-  '/models/lib/ortweb',   // onnxruntime-web (Real-ESRGAN raw ONNX 실행용 · 0.5MB)
+  '/models/lib/ortweb',   // onnxruntime-web — BYGENCY 자체 모델과 Real-ESRGAN 실행용 (0.5MB)
   // Depth-Anything V2 base 양자화 — 1순위. (fp32 model.onnx 는 ≈380MB로 미사용)
   '/models/hf/onnx-community/depth-anything-v2-base/resolve/main/config.json',
   '/models/hf/onnx-community/depth-anything-v2-base/resolve/main/preprocessor_config.json',
@@ -42,12 +42,21 @@ export const MODEL_FILES: string[] = [
   '/models/hf/Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr/resolve/main/onnx/model_quantized.onnx',
 ]
 
-/** 업스케일이 우리 것만으로 돌기 위해 반드시 R2 에 있어야 하는 파일 */
-export const SR_REQUIRED = MODEL_FILES.filter((p) => /swin2SR|\/models\/lib\/transformers$|\/models\/ort\//.test(p))
+/** 자체 초해상 모델(BYGENCY SR) — 우리가 직접 학습시켜 사이트에 함께 배포한다.
+ *  R2 가 아니라 public/ 에 들어 있어 배포물의 일부다. 따라서 502 로 실패할 일이 없다. */
+export const OWN_SR_FILES: string[] = [
+  '/models-own/bygency-sr-x2/model.onnx',
+  '/models-own/bygency-sr-x2/model.json',
+]
 
-/** Real-ESRGAN 전용 런타임 wasm (약 36MB) — 가중치가 실제로 있을 때만 적재한다.
- *  운영 확인 결과 아래 후보 repo 가 모두 없어(502), 이 파일들은 받아봐야 쓰이지 않는다.
- *  나중에 가중치를 확보하면 캐시 채우기가 자동으로 함께 받아온다. */
+/** 업스케일이 우리 것만으로 돌기 위해 반드시 R2 에 있어야 하는 파일.
+ *  ortweb·ortw 는 자체 모델을 돌리는 실행기라 이제 '있으면 좋은 것' 이 아니라 필수다. */
+export const SR_REQUIRED = MODEL_FILES.filter(
+  (p) => /swin2SR|\/models\/lib\/(transformers|ortweb)$|\/models\/ort\//.test(p),
+).concat(['/models/ortw/ort-wasm-simd.wasm'])
+
+/** raw ONNX 실행기용 wasm — 자체 모델과 Real-ESRGAN 이 함께 쓴다.
+ *  브라우저는 이 중 하나만 골라 받는다(보통 simd 판 1개). */
 export const ESRGAN_RUNTIME_FILES: string[] = [
   '/models/ortw/ort-wasm-simd-threaded.wasm',
   '/models/ortw/ort-wasm-simd.wasm',

@@ -34,6 +34,9 @@ const server = http.createServer((req, res) => {
   if (process.env.DEBUG_REQ) console.log('  req', p)
   const send = (code, body, ct) => { res.writeHead(code, { 'content-type': ct || 'application/json', 'cache-control': 'no-store' }); res.end(body) }
 
+  // 이 테스트는 'Real-ESRGAN(raw ONNX) 경로' 를 검증한다 → 자체 모델은 일부러 막아 그 경로로 보낸다.
+  //  (자체 모델 자체의 검증은 scripts/own-model-test.mjs 가 따로 한다)
+  if (p.startsWith('/models-own/')) return send(404, 'no', 'text/plain')
   if (p === '/models/lib/ortweb') return send(200, fs.readFileSync(ORT_ESM), 'text/javascript')
   if (p.startsWith('/models/ortw/')) {                    // 런타임 자기 버전 wasm (버전 정합 확인 지점)
     // BREAK_WASM: 버전이 안 맞는 wasm 을 물렸을 때(예전 상태) 조용히 넘어가지 않는지 확인하는 시나리오

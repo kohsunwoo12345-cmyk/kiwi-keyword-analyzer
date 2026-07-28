@@ -4133,6 +4133,21 @@ function ensureEsrgan(){
   });
   return _esrTry;
 }
+/* ══════ BYGENCY 자체 초해상 모델 ══════
+   우리가 직접 학습시켜 사이트에 함께 배포하는 모델(scripts/train-sr-model.py 로 만든다).
+   · 남의 저장소에서 받아오지 않는다 — 사이트 파일이므로 항상 있고, 502 로 실패하지 않는다.
+   · 크기가 작아 첫 실행이 곧바로 시작된다(큰 모델은 처음 한 번 수십 MB 를 받아야 한다).
+   · 입출력은 Real-ESRGAN 과 같은 NCHW float[0,1] 이라 같은 실행 코드를 그대로 쓴다. */
+var OWN_SR_URL='/models-own/bygency-sr-x2/model.onnx';
+var _ownSess=null, _ownTry=null;
+function ensureOwnSr(){
+  if(_ownSess) return Promise.resolve(_ownSess);
+  if(_ownTry) return _ownTry;
+  _ownTry=ensureOrt().then(function(ort){
+    return ort.InferenceSession.create(location.origin+OWN_SR_URL, { executionProviders:['wasm'], graphOptimizationLevel:'all' });
+  }).then(function(s){ _ownSess=s; return s; }).catch(function(e){ _ownTry=null; throw e; });
+  return _ownTry;
+}
 function _c255(v){ v=v*255; return v<0?0:v>255?255:v; }
 // 타일 캔버스 → Real-ESRGAN(×4) → 출력 캔버스. NCHW float[0,1] 입출력.
 function _esrRunTile(sess, cv){
@@ -4195,14 +4210,28 @@ function getUpscaler(factor, onStage){
     //   (결과가 단순 확대와 구분되지 않는다). x4 로 키운 뒤 목표 크기로 줄이는 편이 훨씬 선명하다.
     return swinWith(4).catch(function(){ return swinWith(2); });
   }
-  // 기본은 Swin2SR — 가중치가 확실히 존재하는 엔진이라 첫 실행이 곧장 돌아간다.
-  //  Real-ESRGAN 은 '가중치가 있다고 확인된 경우' 에만 우선한다(아래 _esrganWatch 가 하루 한 번 확인).
+  function own(){
+    stage('BYGENCY 자체 모델');
+    return ensureOwnSr().then(function(sess){
+      return _smokeTest({ factor:2, tile:192, name:'BYGENCY SR', note:'(자체 모델)',
+        run:function(cv){ return _esrRunTile(sess, cv); } });
+    });
+  }
+  // 순서: 우리 자체 모델 → Swin2SR → Real-ESRGAN
+  //  자체 모델은 사이트에 함께 배포돼 항상 있고 작아서 곧바로 시작된다.
+  //  더 큰 모델이 준비돼 있으면 그쪽이 화질은 더 좋으므로, 자체 모델이 안 될 때 이어서 시도한다.
   var swinFirst = _srRecall('esrgan')!=='yes';
-  var first = swinFirst? swin : esr, second = swinFirst? esr : swin;
-  return first().catch(function(e1){
-    return second().catch(function(e2){ throw new Error(String(e1&&e1.message||e1)+' / '+String(e2&&e2.message||e2)); });
+  var big1 = swinFirst? swin : esr, big2 = swinFirst? esr : swin;
+  var useOwn = _srRecall('engine')!=='big';   // 관리자가 큰 모델을 선호하도록 바꾼 경우 제외
+  var chain = useOwn ? [own, big1, big2] : [big1, big2, own];
+  return chain[0]().catch(function(e1){
+    return chain[1]().catch(function(e2){
+      return chain[2]().catch(function(e3){
+        throw new Error([e1,e2,e3].map(function(e){ return String(e&&e.message||e); }).join(' / '));
+      });
+    });
   }).then(function(r){
-    _srRemember('best', /ESRGAN/.test(r.engine)?'esrgan':'swin');
+    _srRemember('best', /BYGENCY/.test(r.engine)?'own':/ESRGAN/.test(r.engine)?'esrgan':'swin');
     if(!/ESRGAN/.test(r.engine)) setTimeout(_esrganWatch, 3000);   // 작업 끝난 뒤 조용히 확인
     return r;
   });
