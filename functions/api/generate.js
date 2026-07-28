@@ -11,6 +11,7 @@ import { getSessionUser, resolveDB, getUserByMcpToken } from "./_utils";
 import { getUserByApiKey, enforceRateLimit, ensureApiKeysSchema } from "./_apikeys";
 import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from "./studio/_pricing";
 import { getBrandKit, applyBrandKit } from "./studio/brandkit";
+import { MODEL_COST as MODEL_COST_SRV } from "./studio/_pricing";
 import { creditPriceFor } from "./payments/prepare";
 
 const RUNWAY_VER = "2024-11-06";
@@ -630,6 +631,16 @@ export const FLUX_ENDPOINTS = {
      1312x736 = 1.7826 → 오차 0.27% (기존 1.56% 의 1/6). 화소는 0.97MP 로 거의 그대로.
    1:1(1024x1024)·4:5(896x1120)은 원래 정확했으므로 그대로 둔다. */
 const FLUX_DIMS = { "16:9":[1312,736], "9:16":[736,1312], "1:1":[1024,1024], "4:5":[896,1120] };
+/* FLUX.2 전용 치수. diag=flux-check 로 확정했다 — flux-2-max/pro/flex 는 하한 64 뿐이고
+   32배수 제약도 상한도 없다(1000·99999 를 넣어도 width/height 오류가 나지 않았다).
+   그래서 1.x 때문에 감수했던 0.27% 오차를 여기서는 감수할 이유가 없다.
+     1344x756 = 정확히 16:9, 1.016MP — 32배수 조합(1312x736)보다 화소도 조금 많다.
+   1:1·4:5 는 32배수 조합이 이미 정확해 그대로 쓴다. */
+const FLUX2_DIMS = { "16:9":[1344,756], "9:16":[756,1344], "1:1":[1024,1024], "4:5":[896,1120] };
+const fluxDims = (ep, ratio) => {
+  const t = /^flux-2-/.test(String(ep)) ? FLUX2_DIMS : FLUX_DIMS;
+  return t[ratio] || t["16:9"];
+};
 export function buildFluxPayload(b) {
   let ep = FLUX_ENDPOINTS[b.model] || "flux-pro-1.1";
   const prompt = cut(b.prompt, 1000);
@@ -694,7 +705,7 @@ export function buildFluxPayload(b) {
       return { endpoint: "flux-pro-1.1-ultra-finetuned",
                body: withRefs({ prompt, aspect_ratio: b.ratio || "16:9", output_format: "png",
                        safety_tolerance: 6, finetune_id: loraId, finetune_strength: loraStrength }) };
-    const [w, h] = FLUX_DIMS[b.ratio] || FLUX_DIMS["16:9"];
+    const [w, h] = fluxDims(ep, b.ratio);
     return { endpoint: "flux-pro-finetuned",
              body: withRefs({ prompt, width: w, height: h, output_format: "png",
                      safety_tolerance: 6, finetune_id: loraId, finetune_strength: loraStrength }) };
@@ -704,7 +715,7 @@ export function buildFluxPayload(b) {
   if (ep === "flux-pro-1.1-ultra")
     return { endpoint: ep, body: withRefs({ prompt, aspect_ratio: b.ratio || "16:9",
              output_format: "png", safety_tolerance: 6 }) };
-  const [w, h] = FLUX_DIMS[b.ratio] || FLUX_DIMS["16:9"];
+  const [w, h] = fluxDims(ep, b.ratio);
   return { endpoint: ep, body: withRefs({ prompt, width: w, height: h,
            output_format: "png", safety_tolerance: 6 }) };
 }
@@ -2019,6 +2030,49 @@ async function handle(context) {
         결론: hit.length ? "단가로 보이는 정보가 있는 경로: " + hit.map(x => x.path).join(", ")
                         : "계정 API 에서 단가 정보를 찾지 못했습니다 — 콘솔 가격표를 직접 봐야 합니다.",
         시도: rows });
+    }
+
+    /* ══ 제공사 단가 한 번에 모아 읽기 (읽기 전용·무과금) ══
+       /api/generate?diag=prices
+
+       왜 필요한가: 개발 환경에서는 제공사 문서가 전부 403 이라 내가 직접 못 본다.
+       검색으로는 값이 서로 어긋난다 — Veo 만 해도 $0.40/초 와 토큰 기준 $0.10/초 가
+       같이 나오고, 씨댄스는 $0.045 · $0.03 · $0.01 세 가지가 돌아다닌다. 그런 값으로
+       청구를 바꾸면 루마 때처럼 건당 손실이 난다. 배포된 서버는 문서를 읽을 수 있으므로
+       여러 곳을 한 번에 받아 "단가로 보이는 줄" 만 추려 준다. 주소를 하나씩 넣을 필요가 없다. */
+    if (u.searchParams.get("diag") === "prices") {
+      const TARGETS = [
+        { 제공사: "Google Veo · 나노바나나", url: "https://ai.google.dev/gemini-api/docs/pricing", 말: ["Veo", "Nano Banana", "Imagen"] },
+        { 제공사: "BFL Flux",               url: "https://docs.bfl.ai/pricing",                    말: ["per image", "FLUX.2", "megapixel"] },
+        { 제공사: "MiniMax Hailuo",         url: "https://platform.minimaxi.com/document/price",   말: ["Hailuo", "video", "price"] },
+        { 제공사: "Runway",                 url: "https://docs.runwayml.com/pricing",              말: ["credit", "Gen-4", "per second"] },
+        { 제공사: "Kling",                  url: "https://app.klingai.com/global/dev/document-api/apiReference/commonInfo", 말: ["price", "credit"] },
+      ];
+      const grab = async (t) => {
+        try {
+          const r = await fetchT(t.url, { headers: { "accept": "text/html", "user-agent": "Mozilla/5.0" } }, 15000);
+          const raw = await r.text();
+          const text = raw.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ")
+            .replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&")
+            .replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
+          const spa = /enable JavaScript|__NEXT_DATA__/i.test(raw) && text.length < 6000;
+          // "$0.40" 처럼 값이 있는 줄만 추린다 — 전체를 실으면 응답이 감당이 안 된다
+          const priceLines = [...new Set((text.match(/[^\n]{0,120}\$\s?\d[\d.,]*\s?[^\n]{0,120}/g) || []))]
+            .filter((ln) => t.말.some((w) => new RegExp(w, "i").test(ln)) || /per (second|image|video|clip|megapixel)/i.test(ln))
+            .slice(0, 40);
+          return { 제공사: t.제공사, url: t.url, httpStatus: r.status, 전체길이: text.length,
+                   자바스크립트로그리는문서: spa || undefined,
+                   단가로보이는줄: priceLines.length ? priceLines : "(못 찾음 — 이 문서에서는 값을 추릴 수 없습니다)" };
+        } catch (e) { return { 제공사: t.제공사, url: t.url, httpStatus: 0, 오류: String((e && e.message) || e).slice(0, 140) }; }
+      };
+      const rows = await Promise.all(TARGETS.map(grab));
+      return json({ diag: "prices",
+        note: "문서를 GET 으로만 읽습니다 — 생성·과금이 없습니다.",
+        // 대조 편하도록 우리 표에서 직접 읽어 싣는다(외워서 적으면 여기서부터 틀어진다)
+        현재우리단가: Object.keys(MODEL_COST_SRV || {}).filter((n) => (MODEL_COST_SRV[n] || {}).u === "sec")
+          .reduce((o, n) => { const m = MODEL_COST_SRV[n];
+            o[n] = "초당 $" + m.usd + (m.audio ? " + 오디오 초당 $" + m.audio : ""); return o; }, {}),
+        결과: rows });
     }
 
     /* ══ 제공사 문서 대신 읽어오기 (읽기 전용·무과금) ══
