@@ -826,6 +826,10 @@ export async function rateLimitOk(db: D1Database, key: string, limit: number, wi
     }
     return true
   } catch {
+    // 테이블이 아직 없을 수 있다(ensureSchema 를 거치지 않는 경로) → 만들어 두고 이번 요청은 통과시킨다.
+    //  이게 없으면 그런 경로에서는 제한이 영영 걸리지 않는다(조용히 무제한).
+    await db.prepare(`CREATE TABLE IF NOT EXISTS rate_hits (k TEXT NOT NULL, at TEXT NOT NULL)`).run().catch(() => {})
+    await db.prepare(`CREATE INDEX IF NOT EXISTS idx_rate_hits ON rate_hits(k, at)`).run().catch(() => {})
     return true
   }
 }
