@@ -172,6 +172,13 @@ export async function gcpToken(email, pem) {
 const VERTEX_LOC = "us-central1";
 // Veo 3.0 계열(veo-3.0-generate-001)은 2026-06-30 부로 지원 종료 → 현행 3.1 로 고정.
 const VEO_MODEL = "veo-3.1-generate-001";
+/* Vertex(GA)와 Gemini 개발자 API(AI Studio)는 같은 모델을 다른 이름으로 부른다.
+   구글 공식 단가 문서(ai.google.dev/gemini-api/docs/pricing)의 Veo 3.1 항목에 적힌 ID 는
+   veo-3.1-generate-preview · veo-3.1-fast-generate-preview · veo-3.1-lite-generate-preview 다.
+   Vertex 쪽은 -001 로 부르지만, AI Studio 폴백에 -001 을 그대로 보내면 모르는 모델이라 실패한다
+   (그래서 두 Vertex 경로가 막힌 계정에서는 폴백이 아무 소용이 없었다).
+   문서에 적힌 이름을 먼저 쓰고, 계정에 따라 GA 이름만 열려 있을 수 있으니 -001 로도 한 번 더 시도한다. */
+const VEO_AISTUDIO_MODELS = ["veo-3.1-generate-preview", "veo-3.1-generate-001"];
 function vertexBase(pid) {
   return "https://" + VERTEX_LOC + "-aiplatform.googleapis.com/v1/projects/" + pid +
          "/locations/" + VERTEX_LOC + "/publishers/google/models/" + VEO_MODEL;
@@ -1186,6 +1193,14 @@ export const LUMA_IDS = {
   "Luma Ray 3.2 (비율 변경)":      "ray-3.2",
   "Luma Uni 1":                   "uni-1",
   "Luma Uni 1 Max":               "uni-1-max",
+  /* 예전 그래프 호환 — 지금 노드 목록에는 없지만 저장해 둔 워크플로우에는 남아 있을 수 있다.
+     여기에 없으면 아래 기본값(uni-1)으로 떨어지는데, 그건 이미지 모델이다.
+     즉 "영상을 만들라" 고 저장해 둔 그래프가 이미지를 만들면서 요금은 영상 기준으로
+     붙었다(5초 1080p $1.20 vs 실제 이미지 원가 $0.04 — 30배). 전부 현행 영상 모델로 보낸다. */
+  "Luma Ray 2":                   "ray-3.2",
+  "Luma Ray2":                    "ray-3.2",
+  "Luma Ray Flash 2":             "ray-3.2",
+  "Luma Ray 1.6":                 "ray-3.2",
 };
 /* 같은 ray-3.2 라도 type 에 따라 하는 일과 받는 필드가 다르다.
      video         텍스트/이미지 → 영상. start_frame·end_frame·keyframes·loop 사용
@@ -2389,6 +2404,52 @@ async function handle(context) {
        먼저 읽기 전용인 diag=ark-model 로 모델 정보에 입력 규격이 있는지 본다.
        앞으로 형식 탐색이 필요하면 "빈 값" 이 아니라 "존재하지 않는 열거값" 으로만 시도할 것.
        (빈 값은 접수돼 버린다는 것이 이 사고로 확정됐다.) */
+
+    /* ══ ModelArk 단가를 제공사 API 에 직접 묻기 (읽기 전용·무과금) ══
+       /api/generate?diag=ark-pricing
+
+       왜: BytePlus 단가 문서(docs.byteplus.com/.../Pricing)가 자바스크립트로 그려져
+       .md·llms.txt 로도 본문이 안 온다. 그래서 씨댄스·씨드림·3D 단가를 문서로는 확인할 수 없다.
+       그런데 우리는 이미 그 계정의 API 키를 갖고 있다 — 문서를 긁는 것보다 제공사 API 가
+       스스로 알려 주는 값이 확실하다. 모델 목록 응답 원문을 그대로 실어, 단가처럼 보이는
+       키(price·cost·billing·unit…)가 있으면 뽑아 준다. GET 만 하므로 생성·과금이 없다. */
+    if (u.searchParams.get("diag") === "ark-pricing") {
+      if (!k.seedance) return json({ diag: "ark-pricing", error: "Seedance_API_KEY 미설정" });
+      const paths = ["/models?page_size=200", "/models", "/foundation_models", "/endpoints", "/billing/price", "/prices"];
+      const out = [];
+      for (const p of paths) {
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + p, { headers: { "Authorization": "Bearer " + k.seedance } }, 10000);
+          const t = await r.text();
+          let j = null; try { j = JSON.parse(t); } catch (_e) { /* JSON 이 아니면 원문만 */ }
+          // 단가처럼 보이는 키를 경로째로 모은다(이름을 미리 알 필요가 없게)
+          const hits = [];
+          (function walk(v, path) {
+            if (v == null || hits.length > 60) return;
+            if (typeof v === "object") {
+              for (const kk of Object.keys(v)) {
+                const np = path ? path + "." + kk : kk;
+                if (/price|cost|billing|fee|rate|unit|quota|credit/i.test(kk) && typeof v[kk] !== "object")
+                  hits.push(np + " = " + String(v[kk]).slice(0, 80));
+                walk(v[kk], np);
+              }
+            } else if (Array.isArray(v)) v.forEach((x, i) => walk(x, path + "[" + i + "]"));
+          })(j, "");
+          out.push({ 경로: p, httpStatus: r.status, 바이트: t.length,
+                     단가로보이는키: hits.length ? hits : "(없음)",
+                     // 구조를 봐야 다음 수를 정할 수 있으므로 앞부분 원문을 그대로 싣는다
+                     응답앞부분: String(t).slice(0, 2500) });
+          if (r.ok && hits.length) break;   // 단가를 찾았으면 더 볼 필요 없다
+        } catch (e) { out.push({ 경로: p, 오류: String((e && e.message) || e).slice(0, 120) }); }
+      }
+      return json({ diag: "ark-pricing",
+        note: "GET 만 합니다 — 생성·과금이 없습니다.",
+        현재우리단가: Object.keys(MODEL_COST_SRV || {})
+          .filter((n) => ["seedance", "seedream", "ark3d"].includes((MODEL_COST_SRV[n] || {}).prov))
+          .reduce((o, n) => { const m = MODEL_COST_SRV[n];
+            o[n] = (m.u === "sec" ? "초당 $" + m.usd : "1개당 $" + m.usd); return o; }, {}),
+        결과: out });
+    }
 
     /* ══ 지난 작업 목록 조회 (읽기 전용·무과금) ══
        /api/generate?diag=ark-tasks[&filter=hyper3d]
@@ -3953,14 +4014,19 @@ async function handle(context) {
     if (vr.ok && vj.name)
       return json({ statusUrl: "/api/generate?provider=google&vop=" + encodeURIComponent(vj.name) });
     // ② AI Studio 폴백 — generateAudio/resolution 은 Gemini API 가 모르는 필드라 빼고 보낸다
-    const r = await fetchT(
-      "https://generativelanguage.googleapis.com/v1beta/models/veo-3.1-generate-001:predictLongRunning?key=" + encodeURIComponent(k.google),
-      { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildVeoPayload(b, { noVertexOnly: true })) });
-    const j = await r.json();
-    if (j.error) return json({ error: "Veo: " + (vj.error?.message || "") + " / " + j.error.message }, 502);
-    if (!j.name) return json({ error: "Veo: no operation" }, 502);
-    return json({ statusUrl: "/api/generate?provider=google&op=" + encodeURIComponent(j.name) });
+    const aiBody = JSON.stringify(buildVeoPayload(b, { noVertexOnly: true }));
+    let lastErr = "no operation";
+    for (const mid of VEO_AISTUDIO_MODELS) {
+      const r = await fetchT(
+        "https://generativelanguage.googleapis.com/v1beta/models/" + mid + ":predictLongRunning?key=" + encodeURIComponent(k.google),
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: aiBody });
+      const j = await r.json().catch(() => ({}));
+      if (j.name) return json({ statusUrl: "/api/generate?provider=google&op=" + encodeURIComponent(j.name), modelId: mid });
+      lastErr = "[" + mid + "] " + String((j.error && j.error.message) || "no operation");
+      // 모델 이름 문제가 아니면(키·할당량·검열) 다른 이름으로 바꿔도 결과가 같다
+      if (!/model|not found|unsupported|invalid/i.test(lastErr)) break;
+    }
+    return json({ error: "Veo: " + (vj.error?.message || "") + " / " + lastErr }, 502);
   }
 
   /* ── 3D 생성 제출 (Hyper3D / Hitem3D) ──
