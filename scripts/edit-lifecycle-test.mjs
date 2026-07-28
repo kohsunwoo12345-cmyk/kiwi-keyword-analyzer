@@ -176,17 +176,20 @@ const twice = await pg.evaluate(async () => {
   S.links.push({ from:src.id, to:up.id, fromPort:'out', toPort:'in' })
   C.render()
   const btn=()=>document.getElementById('nd-'+up.id).querySelector('[data-tool="upscale"]')
+  // ① '처리 중' 상태에서 누르면 무시되는가 — 타이밍에 기대지 않고 상태를 직접 만들어 확인한다
+  up.w.toolBusy=true
   btn().click()
-  await new Promise(r=>setTimeout(r,40))
-  const busyNow = !!up.w.toolBusy
-  let secondIgnored = true
-  try { const b2=btn(); if(b2){ b2.click() } } catch { /* 버튼이 로더로 바뀌어 없을 수도 있다(그것도 정상) */ }
-  const t0=Date.now(); while(up.w.toolBusy && Date.now()-t0<90000) await new Promise(r=>setTimeout(r,150))
+  await new Promise(r=>setTimeout(r,400))
+  const guarded = !up.w.img          // 처리 중이었으므로 아무 일도 일어나지 않아야 한다
+  up.w.toolBusy=false
+  // ② 정상 상태에서 한 번 눌러 결과를 얻는다
+  btn().click()
+  const t0=Date.now(); while(up.w.toolBusy && Date.now()-t0<90000) await new Promise(r=>setTimeout(r,100))
   const dim = up.w.img ? await new Promise(r=>{ const i=new Image(); i.onload=()=>r(i.width+'x'+i.height); i.onerror=()=>r(null); i.src=up.w.img }) : null
-  return { busyNow, secondIgnored, dim, info:up.w.toolInfo }
+  return { guarded, dim, info:up.w.toolInfo }
 })
-ok('실행 중에는 다시 눌러도 중복 실행되지 않음', twice.busyNow===true && !!twice.dim, `결과 ${twice.dim}`)
-ok('연타해도 결과가 한 번만 적용됨(4배 그대로)', twice.dim==='2400x1600', String(twice.dim))
+ok('실행 중에는 다시 눌러도 중복 실행되지 않음', twice.guarded===true, twice.guarded?'무시됨':'중복 실행됨')
+ok('한 번 실행하면 요청한 4배 그대로 나옴', twice.dim==='2400x1600', String(twice.dim))
 
 // 5) 파일로 내보내고 다시 불러오기
 const io = await pg.evaluate(async () => {

@@ -102,7 +102,12 @@ const checks = [
   ['백그라운드 가중치 확인 동작', requests.some((u) => u.includes('probe=1')), '있음'],
   ['Real-ESRGAN 없음 → Swin2SR 자동 채택', engine.ok === true && /Swin2SR/.test(engine.engine), JSON.stringify(engine)],
   // 이름표가 실제 배율과 일치해야 한다 — 기록·화면이 거짓말하지 않는다는 보장
-  ['엔진 이름표 = 측정된 배율', engine.engine === 'Swin2SR x' + engine.factor, engine.engine + ' / factor=' + engine.factor],
+  // 이름표는 '측정된 배율' 과 반드시 같아야 한다(뒤에 붙는 (실사)/(클래식)/(양자화) 는 어떤 가중치인지 알리는 표시)
+  ['엔진 이름표 = 측정된 배율',
+   Number((/^Swin2SR x(\d+)/.exec(engine.engine) || [])[1]) === engine.factor,
+   engine.engine + ' / factor=' + engine.factor],
+  // 어떤 가중치를 쓰는지 이름표에 드러나야 한다 — 실사 학습본인지 클래식인지가 화질을 좌우한다
+  ['어떤 가중치인지 이름표에 표시', /\((실사|클래식)/.test(engine.engine), engine.engine],
   ['초해상 파이프라인 완주(2배)', upscaled.dim === '240×160' && upscaled.fallback === false, JSON.stringify(upscaled)],
   ['결과가 PNG 데이터로 생성됨', upscaled.isPng === true, String(upscaled.isPng)],
   ['페이지 스크립트 오류 없음', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | ') || '없음'],

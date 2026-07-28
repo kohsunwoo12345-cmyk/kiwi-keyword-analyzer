@@ -229,6 +229,50 @@ for (const scale of [2, 4]) {
      (vid4k.w === 3840) || /낮췄습니다/.test(vid4k.note), vid4k.note || '낮추지 않음')
 }
 
+// ── 2-c) 초해상에 '원본 그대로' 가 들어가는가 (여기가 화질을 좌우한다) ──
+//   모델에 넣기 전에 원본을 줄이면 진짜 디테일을 버리고 시작하므로 결과가 흐릿해진다.
+//   실제로 모델에 들어간 캔버스 크기를 가로채서 확인한다.
+{
+  const spy = await page.evaluate(async () => {
+    const C = window.__cn
+    // 모델에 넣는 지점을 감싸서 '실제 입력 크기' 를 기록한다
+    const seen = []
+    const orig = window.__srSpyOrig || null
+    if (!orig) {
+      // _srCanvas2 는 내부 함수라 직접 못 잡는다 → 업스케일 전후로 캔버스 생성 크기를 추적
+      const origDraw = CanvasRenderingContext2D.prototype.drawImage
+      window.__srSpyOrig = origDraw
+    }
+    // 실행 중 만들어진 캔버스 중 '모델 입력' 후보를 잡기 위해 createElement 를 감싼다
+    const origCreate = document.createElement.bind(document)
+    document.createElement = function (tag) {
+      const el = origCreate(tag)
+      if (tag === 'canvas') seen.push(el)
+      return el
+    }
+    let res
+    try {
+      // 1920×1080 원본을 5K 목표로 — 예전 규칙이라면 1280×720 까지 줄여서 넣었다
+      const c = origCreate('canvas'); c.width = 1920; c.height = 1080
+      const x = c.getContext('2d')
+      const g = x.createLinearGradient(0, 0, 1920, 1080); g.addColorStop(0, '#123a7a'); g.addColorStop(1, '#d8c070')
+      x.fillStyle = g; x.fillRect(0, 0, 1920, 1080)
+      const src = c.toDataURL('image/png')
+      seen.length = 0
+      res = await C.upscaleImageURL(src, 4, { longTarget: 5120 })
+    } finally { document.createElement = origCreate }
+    // 모델에 넣힌 입력 캔버스 = 결과보다 작으면서 가장 큰 것(타일 작업용 임시 캔버스 제외)
+    const inputs = seen.filter(c => c.width > 200 && c.width < 6000).map(c => c.width + '×' + c.height)
+    return { dim: res.dim, engine: res.engine, note: res.note || '', inputs }
+  })
+  // 원본 1920 이 그대로 들어갔는지 — 1280(예전 규칙) 이 아니라 1920 이 보여야 한다
+  ok('초해상 입력이 원본 해상도 그대로', spy.inputs.some(s => s.startsWith('1920×')),
+     '모델에 들어간 크기: ' + [...new Set(spy.inputs)].slice(0, 4).join(' , '))
+  ok('예전처럼 미리 줄여 넣지 않음', !spy.inputs.some(s => s === '1280×720'),
+     spy.inputs.includes('1280×720') ? '1280×720 로 줄여 넣음(예전 문제)' : '줄이지 않음')
+  ok('5K 목표 크기에 도달', /5120×2880/.test(spy.dim), spy.dim + (spy.note ? ' · ' + spy.note : ''))
+}
+
 // ── 3) 영상 업스케일 — 여기가 한 번도 실제 모델로 확인되지 않았던 부분 ──
 const vid = await page.evaluate(async () => {
   // 사진과 똑같은 디테일을 가진 영상을 그 자리에서 만든다

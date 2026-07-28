@@ -118,6 +118,37 @@ for (const label of ['4×', '4K', '5K']) {
 }
 await page.getByRole('button', { name: '2×', exact: true }).click()   // 기본값으로 되돌림
 
+// 2-c) 화질 점수(PSNR) 패널 — 측정 자체가 옳은지까지 확인한다
+await page.getByRole('button', { name: /화질 점수 측정/ }).click()
+await page.waitForFunction(() => /판정/.test(document.body.innerText), null, { timeout: 120000 }).catch(() => {})
+await page.waitForTimeout(600)
+{
+  const t = await page.locator('body').innerText()
+  const seg = ((t.split('2-b. 진짜 초해상인지')[1] || '').split('3. 편집 기능')[0])
+  const num = (label) => {
+    const m = new RegExp(label + '\\s*\\n?\\s*(-?[\\d.]+) dB').exec(seg)
+    return m ? Number(m[1]) : NaN
+  }
+  const plain = num('단순 확대 점수'), sr = num('AI 초해상 점수')
+  ok('2-b. 화질 점수가 두 가지 모두 측정됨', Number.isFinite(plain) && Number.isFinite(sr),
+     `단순 확대 ${plain}dB · AI ${sr}dB`)
+  // PSNR 은 '원본과 얼마나 같은가' 다 — 흐리게 만든 그림을 되살린 것이므로 15~45dB 사이가 정상 범위
+  ok('   점수가 상식적인 범위(15~45dB)', plain > 15 && plain < 45 && sr > 15 && sr < 45,
+     `${plain} / ${sr}`)
+  ok('   판정 문장이 점수와 일치',
+     (sr - plain >= 0.5 ? /더 가깝습니다/ : sr > plain ? /아주 조금/ : /낫지 않습니다/).test(seg),
+     (seg.match(/판정\s*\n?([^\n]*)/) || [])[1] || '')
+  ok('   흐린 입력·AI 결과·정답 세 장이 나란히 표시',
+     await page.locator('img[alt="흐리게 만든 입력"], img[alt="AI 초해상 결과"], img[alt="정답(원본)"]').count() === 3)
+  ok('   숫자의 뜻을 설명함', /PSNR = 되살린 그림이 원본과 얼마나 같은지/.test(seg))
+  // 측정이 스스로를 점검하는가 — 더 나쁜 그림이 더 낮게 나와야 이 숫자를 믿을 수 있다
+  ok('   측정 자체 점검이 정상', /정상 — 일부러 더 나쁘게 만든 그림이 더 낮게/.test(seg),
+     (seg.match(/측정 자체 점검\s*\n?([^\n]*)/) || [])[1] || '')
+  // 이 테스트 환경의 '가짜 모델' 은 단순 확대와 다를 바 없다 → 판정이 그것을 잡아내야 한다
+  ok('   나쁜 모델을 통과시키지 않음', sr <= plain ? /낫지 않습니다|아주 조금/.test(seg) : true,
+     sr <= plain ? '가짜 모델을 정확히 탈락시킴' : 'AI 가 더 높음')
+}
+
 // 3) 편집 기능 — 실제 스튜디오 함수를 불러 픽셀로 판정하는 패널
 await page.getByRole('button', { name: /편집 기능 전체 테스트/ }).click()
 await page.waitForFunction(() => /외부 서버 호출/.test(document.body.innerText.split('편집 기능이 진짜로')[1] || ''),

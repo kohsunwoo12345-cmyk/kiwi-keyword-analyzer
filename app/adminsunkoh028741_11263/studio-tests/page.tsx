@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   FlaskConical, Play, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Loader2,
-  Server, Sparkles, Film, ExternalLink, Upload, Scissors,
+  Server, Sparkles, Film, ExternalLink, Upload, Scissors, Gauge,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button } from '@/components/ui'
@@ -143,6 +143,113 @@ export default function StudioTestsPage() {
     }
     setUp([...out]); setUpBusy(false)
   }, [ownImg, scale])
+
+  // ── 화질 점수(PSNR) — "진짜 초해상인가" 를 숫자로 판정 ──
+  //  원본을 일부러 흐리게(축소+압축) 만든 뒤 되살려서, 되살린 그림이 원본에 얼마나 가까운지 잰다.
+  //  단순 확대와 같은 방식으로 함께 재서 비교하면, AI 가 실제로 복원을 하는지 아닌지가 숫자로 드러난다.
+  //  PSNR: 원본과 얼마나 같은지(dB). 높을수록 원본에 가깝다. 같은 그림이면 무한대.
+  const [qa, setQa] = useState<Line[]>([])
+  const [qaBusy, setQaBusy] = useState(false)
+  const [qaShots, setQaShots] = useState<{ label: string; url: string }[]>([])
+
+  function psnr(a: Uint8ClampedArray, b: Uint8ClampedArray): number {
+    let se = 0, n = 0
+    for (let i = 0; i < a.length; i += 4) {
+      for (let k = 0; k < 3; k++) { const d = a[i + k] - b[i + k]; se += d * d; n++ }
+    }
+    const mse = se / Math.max(1, n)
+    return mse <= 0 ? Infinity : 10 * Math.log10(255 * 255 / mse)
+  }
+  function pixelsOf(img: HTMLImageElement | HTMLCanvasElement, w: number, h: number): Uint8ClampedArray {
+    const c = document.createElement('canvas'); c.width = w; c.height = h
+    const x = c.getContext('2d')!; x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'
+    x.drawImage(img as any, 0, 0, w, h)
+    return x.getImageData(0, 0, w, h).data
+  }
+  const loadImg = (u: string) => new Promise<HTMLImageElement>((res, rej) => {
+    const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('이미지 로드 실패')); i.src = u
+  })
+
+  const runQuality = useCallback(async () => {
+    const w: any = frame.current?.contentWindow
+    if (!w?.__cn?.upscaleImageURL) { setQa([{ label: '스튜디오 로드', value: '아직 준비되지 않았습니다.', state: 'fail' }]); return }
+    setQaBusy(true); setQa([{ label: '화질 점수 측정 중', value: '원본을 흐리게 만든 뒤 되살리는 중…', state: 'run' }]); setQaShots([])
+    const out: Line[] = []
+    try {
+      // 1) 정답 그림 — 가는 선·글자·격자가 있어 '복원됐는지' 가 드러난다
+      const S = 640
+      const t = document.createElement('canvas'); t.width = S; t.height = S
+      const x = t.getContext('2d')!
+      const g = x.createLinearGradient(0, 0, S, S); g.addColorStop(0, '#12306e'); g.addColorStop(1, '#d8b070')
+      x.fillStyle = g; x.fillRect(0, 0, S, S)
+      x.strokeStyle = '#fff'; x.lineWidth = 1
+      for (let i = 0; i < 30; i++) { x.beginPath(); x.moveTo(20 + i * 20, 20); x.lineTo(20 + i * 20, 300); x.stroke() }
+      for (let i = 0; i < 14; i++) { x.beginPath(); x.arc(60 + (i % 7) * 80, 380 + Math.floor(i / 7) * 90, 26, 0, Math.PI * 2); x.stroke() }
+      x.fillStyle = '#fff'; x.font = 'bold 34px sans-serif'; x.fillText('BYGENCY 화질 검사', 24, S - 40)
+      x.font = '16px sans-serif'; x.fillText('가는 선과 작은 글자가 얼마나 살아나는지 봅니다', 24, S - 14)
+      const truthUrl = t.toDataURL('image/png')
+
+      // 2) 실제 사용자 그림처럼 열화 — 절반으로 줄이고 JPEG 로 압축
+      const half = document.createElement('canvas'); half.width = S / 2; half.height = S / 2
+      const hx = half.getContext('2d')!; hx.imageSmoothingEnabled = true; hx.imageSmoothingQuality = 'high'
+      hx.drawImage(t, 0, 0, S / 2, S / 2)
+      const degraded = half.toDataURL('image/jpeg', 0.6)
+
+      // 3) 되살리기 — AI 초해상 / 단순 확대 두 가지로
+      const t0 = Date.now()
+      const res = await w.__cn.upscaleImageURL(degraded, 2)
+      const secs = ((Date.now() - t0) / 1000).toFixed(1)
+      const [truthImg, srImg, degImg] = await Promise.all([loadImg(truthUrl), loadImg(res.url), loadImg(degraded)])
+
+      const truthPx = pixelsOf(truthImg, S, S)
+      const srPx = pixelsOf(srImg, S, S)
+      const plainPx = pixelsOf(degImg, S, S)          // 같은 크기로 단순 확대한 것
+
+      const pSr = psnr(truthPx, srPx)
+      const pPlain = psnr(truthPx, plainPx)
+      const gain = pSr - pPlain
+
+      setQaShots([
+        { label: '흐리게 만든 입력', url: degraded },
+        { label: 'AI 초해상 결과', url: res.url },
+        { label: '정답(원본)', url: truthUrl },
+      ])
+
+      // 측정 자체가 옳은지 스스로 점검 — 일부러 더 나쁘게 만든 그림은 반드시 더 낮은 점수가 나와야 한다.
+      //  이 줄이 '이상' 이면 아래 점수들은 믿을 수 없다.
+      const q = document.createElement('canvas'); q.width = S / 4; q.height = S / 4
+      const qx = q.getContext('2d')!; qx.imageSmoothingEnabled = true; qx.imageSmoothingQuality = 'high'
+      qx.drawImage(t, 0, 0, S / 4, S / 4)
+      const pWorse = psnr(truthPx, pixelsOf(q, S, S))
+      out.push({
+        label: '측정 자체 점검',
+        value: pWorse < pPlain
+          ? `정상 — 일부러 더 나쁘게 만든 그림이 더 낮게(${pWorse.toFixed(2)} < ${pPlain.toFixed(2)}dB) 나왔습니다`
+          : `이상 — 측정이 잘못됐습니다 (${pWorse.toFixed(2)} ≥ ${pPlain.toFixed(2)}dB). 아래 점수를 믿지 마세요`,
+        state: pWorse < pPlain ? 'pass' : 'fail',
+      })
+      out.push({ label: '사용한 엔진', value: `${res.engine}${res.fallback ? ' — AI 초해상이 아니라 단순 확대입니다' : ''}`, state: res.fallback ? 'fail' : 'pass' })
+      out.push({ label: '단순 확대 점수', value: `${pPlain.toFixed(2)} dB (기준선)`, state: 'idle' })
+      out.push({ label: 'AI 초해상 점수', value: `${pSr.toFixed(2)} dB · ${secs}초`, state: 'idle' })
+      out.push({
+        label: '판정',
+        value: gain >= 0.5
+          ? `AI가 단순 확대보다 원본에 ${gain.toFixed(2)}dB 더 가깝습니다 — 진짜 복원이 일어났습니다`
+          : gain > 0
+            ? `AI가 아주 조금(${gain.toFixed(2)}dB)만 낫습니다 — 체감 차이가 거의 없습니다`
+            : `AI 결과가 단순 확대보다 낫지 않습니다 (${gain.toFixed(2)}dB) — 모델이 제 역할을 못 하고 있습니다`,
+        state: gain >= 0.5 ? 'pass' : gain > 0 ? 'warn' : 'fail',
+      })
+      out.push({
+        label: '이 숫자의 뜻',
+        value: 'PSNR = 되살린 그림이 원본과 얼마나 같은지(dB). 높을수록 원본에 가깝습니다. 단순 확대보다 높아야 “초해상” 이라 부를 수 있습니다.',
+        state: 'idle',
+      })
+    } catch (e: any) {
+      out.push({ label: '측정 실패', value: String(e?.message || e), state: 'fail' })
+    }
+    setQa([...out]); setQaBusy(false)
+  }, [])
 
   // ── 편집 기능 실동작 ──
   //  스튜디오 안의 진짜 함수를 그대로 호출하고, 결과 이미지의 픽셀을 읽어 '정말 그렇게 됐는지' 를 숫자로 확인한다.
@@ -405,6 +512,35 @@ export default function StudioTestsPage() {
           두 이미지를 확대해 비교해 보세요. 가는 선과 작은 글자가 뭉개지지 않고 또렷하면 초해상이 제대로 동작한 것입니다.
           최초 1회는 모델을 내려받느라 오래 걸리고, 그 다음부터는 빨라집니다.
         </p>
+      </Panel>
+
+      {/* 2-c. 화질 점수 */}
+      <div className="mt-5" />
+      <Panel
+        title={<span className="flex items-center gap-2"><Gauge size={16} className="text-violet-500" /> 2-b. 진짜 초해상인지 숫자로 판정 (화질 점수)</span>}
+        action={
+          <Button size="sm" onClick={runQuality} disabled={qaBusy}>
+            {qaBusy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} 화질 점수 측정
+          </Button>
+        }
+      >
+        <p className="mb-3 text-sm leading-relaxed text-[var(--text-soft)]">
+          원본을 <b>일부러 흐리게</b>(절반 축소 + 압축) 만든 뒤 되살려서, 되살린 그림이 원본에 얼마나 가까운지 잽니다.
+          같은 그림을 <b>단순 확대</b>로도 되살려 함께 재기 때문에, AI가 실제로 복원을 하는지가 숫자로 드러납니다.
+        </p>
+        <div className="px-1">{qa.map((l, i) => <Row key={i} {...l} />)}</div>
+        {qaShots.length > 0 && (
+          <div className="mt-3 grid grid-cols-3 gap-3">
+            {qaShots.map((sh, i) => (
+              <div key={i}>
+                <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel-2)]">
+                  <img src={sh.url} alt={sh.label} className="block w-full" />
+                </div>
+                <div className="mt-1 text-center text-[11px] text-[var(--text-dim)]">{sh.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </Panel>
 
       {/* 3. 편집 기능 */}
