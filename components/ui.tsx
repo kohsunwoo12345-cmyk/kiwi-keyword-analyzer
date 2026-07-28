@@ -43,6 +43,9 @@ interface BtnProps {
   className?: string
   type?: 'button' | 'submit'
   disabled?: boolean
+  /** 아이콘만 있는 버튼은 읽을 텍스트가 없으므로 반드시 넣어준다 */
+  'aria-label'?: string
+  title?: string
 }
 
 export function Button({
@@ -54,6 +57,8 @@ export function Button({
   className,
   type = 'button',
   disabled,
+  'aria-label': ariaLabel,
+  title,
 }: BtnProps) {
   const cls = cn(btnBase, btnVariants[variant], btnSizes[size], className)
   if (href) {
@@ -62,18 +67,18 @@ export function Button({
     // 클릭 시에도 클라이언트 라우팅 실패 후 하드 이동으로 되돌아가 지연이 생긴다. → 순수 <a>
     if (isPlainHref(href))
       return (
-        <a href={href} className={cls}>
+        <a href={href} className={cls} aria-label={ariaLabel} title={title}>
           {children}
         </a>
       )
     return (
-      <Link href={href} className={cls}>
+      <Link href={href} className={cls} aria-label={ariaLabel} title={title}>
         {children}
       </Link>
     )
   }
   return (
-    <button type={type} onClick={onClick} disabled={disabled} className={cls}>
+    <button type={type} onClick={onClick} disabled={disabled} className={cls} aria-label={ariaLabel} title={title}>
       {children}
     </button>
   )
