@@ -24,10 +24,11 @@ import { kstDateTime } from '@/lib/time'
 const ACCENT = '#8b5cf6'
 
 const KIND_LABEL: Record<string, string> = { point: '포인트', credit: '크레딧', purchase: '구매' }
-const KIND_TONE: Record<string, string> = {
-  credit: 'border-amber-500/30 bg-amber-500/12 text-amber-500',
-  point: 'border-violet-500/30 bg-violet-500/12 text-violet-400',
-  purchase: 'border-sky-500/30 bg-sky-500/12 text-sky-500',
+/** 표에서 줄마다 반복되는 값이라 알약 대신 점 하나로 구분한다 */
+const KIND_DOT: Record<string, string> = {
+  credit: '#f59e0b',
+  point: '#8b5cf6',
+  purchase: '#0ea5e9',
 }
 
 /** 기간 선택 — 추이 차트와 표를 같은 기준으로 자른다 */
@@ -211,8 +212,9 @@ export default function ReportPage() {
                     {rangedTx.map((t, i) => (
                       <tr key={i} className="border-b border-[var(--border)] last:border-0">
                         <td className="whitespace-nowrap px-5 py-2.5 tabular-nums text-[var(--text-soft)]">{kstDateTime(t.created_at)}</td>
-                        <td className="px-5 py-2.5">
-                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${KIND_TONE[t.kind] || 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)]'}`}>
+                        <td className="whitespace-nowrap px-5 py-2.5">
+                          <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--text-soft)]">
+                            <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ background: KIND_DOT[t.kind] || 'var(--text-dim)' }} />
                             {KIND_LABEL[t.kind] || t.kind}
                           </span>
                         </td>

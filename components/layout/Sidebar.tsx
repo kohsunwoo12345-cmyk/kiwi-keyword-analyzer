@@ -34,26 +34,19 @@ function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
         href={NAV_HOME.href}
         onClick={onNavigate}
         className={cn(
-          'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all',
+          'group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors',
           homeActive
-            ? 'bg-gradient-to-r from-indigo-500/12 to-transparent text-indigo-600'
+            ? 'bg-[var(--panel-2)] font-semibold text-[var(--text)]'
             : 'text-[var(--text-soft)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]',
         )}
       >
-        <span
-          className={cn(
-            'grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg',
-            homeActive ? 'brand-gradient text-white' : 'bg-[var(--panel-2)] text-[var(--text-dim)]',
-          )}
-        >
-          <HomeIcon size={15} />
-        </span>
+        <HomeIcon size={15} strokeWidth={2} className={cn('flex-shrink-0', homeActive ? 'text-indigo-400' : 'text-[var(--text-dim)]')} />
         홈
       </Link>
 
       {hasPlan ? (
         <>
-          <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-widest text-[var(--text-dim)]">
+          <p className="px-3 pb-1.5 pt-5 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">
             마케팅 도구
           </p>
 
@@ -73,9 +66,9 @@ function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
         <Link
           href="/activate"
           onClick={onNavigate}
-          className="mt-4 flex items-center gap-2.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-2.5 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-500/15"
+          className="mt-4 flex items-center gap-2.5 rounded-lg border border-indigo-500/30 px-3 py-2 text-[13px] font-semibold text-indigo-400 transition hover:bg-indigo-500/10"
         >
-          <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg brand-gradient text-white">
+          <span className="grid h-6 w-6 flex-shrink-0 place-items-center rounded-md bg-indigo-500/15 text-indigo-400">
             <Sparkles size={14} />
           </span>
           요금제 활성화하기
@@ -106,22 +99,17 @@ function CategoryBlock({
       <button
         onClick={onToggle}
         className={cn(
-          'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
-          hasActive ? 'text-[var(--text)]' : 'text-[var(--text-soft)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]',
+          'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-colors',
+          hasActive ? 'font-semibold text-[var(--text)]' : 'font-medium text-[var(--text-soft)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]',
         )}
       >
-        <span
-          className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg"
-          style={{ background: `${cat.accent}18`, color: cat.accent }}
-        >
-          <CatIcon size={15} />
-        </span>
+        <CatIcon size={15} strokeWidth={2} className="flex-shrink-0" style={{ color: hasActive ? cat.accent : undefined }} />
         <span className="truncate">{cat.title}</span>
         {cat.badge && (
           <span
             className={cn(
               'rounded px-1.5 py-0.5 text-[9px] font-bold',
-              cat.badge === 'HOT' ? 'bg-rose-500/15 text-rose-600' : 'bg-emerald-500/15 text-emerald-600',
+              cat.badge === 'HOT' ? 'bg-rose-500/15 text-rose-500' : 'bg-emerald-500/15 text-emerald-500',
             )}
           >
             {cat.badge}
@@ -144,13 +132,13 @@ function CategoryBlock({
                 href={it.href}
                 onClick={onNavigate}
                 className={cn(
-                  'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-all',
+                  'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12.5px] transition-colors',
                   active
-                    ? 'bg-indigo-500/12 text-indigo-600'
-                    : 'text-[var(--text-soft)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]',
+                    ? 'bg-indigo-500/[0.10] font-semibold text-indigo-400'
+                    : 'font-medium text-[var(--text-soft)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]',
                 )}
               >
-                <ItIcon size={14} className={active ? 'text-indigo-600' : 'text-[var(--text-dim)]'} />
+                <ItIcon size={13} strokeWidth={2} className={active ? 'text-indigo-400' : 'text-[var(--text-dim)]'} />
                 <span className="truncate">{it.title}</span>
               </Link>
             )

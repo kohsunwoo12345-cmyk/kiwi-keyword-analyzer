@@ -143,7 +143,7 @@ export default function AlimtalkTemplatesPage() {
 
       <div className="space-y-5 p-5 pb-24 lg:p-7 lg:pb-24">
         {msg && (
-          <div className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-sm ${msg.ok ? 'border-emerald-500/30 bg-emerald-500/12 text-emerald-600' : 'border-rose-500/30 bg-rose-500/12 text-rose-600'}`}>
+          <div className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-sm ${msg.ok ? 'border-emerald-500/30 bg-emerald-500/12 text-emerald-500' : 'border-rose-500/30 bg-rose-500/12 text-rose-500'}`}>
             {msg.ok ? <Check size={16} /> : <AlertCircle size={16} />} {msg.text}
           </div>
         )}

@@ -19,19 +19,20 @@ export function isPlainHref(href: string): boolean {
 type BtnVariant = 'primary' | 'ghost' | 'outline' | 'soft'
 type BtnSize = 'sm' | 'md' | 'lg'
 
+// 컬러 그림자(shadow-blue-500/25)를 걷어내고 면과 글자만 남긴다.
+// 버튼이 화면마다 떠 보이던 것을 눌러 대시보드 톤과 맞췄다.
 const btnBase =
-  'inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap'
+  'inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-colors duration-200 disabled:opacity-45 disabled:pointer-events-none whitespace-nowrap'
 const btnVariants: Record<BtnVariant, string> = {
-  primary:
-    'brand-gradient text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:brightness-[1.05]',
-  soft: 'bg-indigo-500/12 text-indigo-600 border border-indigo-500/25 hover:bg-indigo-500/15',
-  outline: 'border border-[var(--border)] bg-[var(--panel)] text-[var(--text)] hover:border-indigo-400/60 hover:bg-[var(--panel-2)]',
+  primary: 'brand-gradient text-white hover:brightness-[1.06]',
+  soft: 'bg-indigo-500/12 text-indigo-400 border border-indigo-500/25 hover:bg-indigo-500/[0.16]',
+  outline: 'border border-[var(--border)] bg-[var(--panel)] text-[var(--text)] hover:border-[var(--text-dim)] hover:bg-[var(--panel-2)]',
   ghost: 'text-[var(--text-soft)] hover:text-[var(--text)] hover:bg-[var(--panel-2)]',
 }
 const btnSizes: Record<BtnSize, string> = {
-  sm: 'text-sm px-3.5 py-2',
-  md: 'text-sm px-5 py-2.5',
-  lg: 'text-base px-7 py-3.5',
+  sm: 'text-[12.5px] px-3.5 py-2',
+  md: 'text-[13px] px-4 py-2.5',
+  lg: 'text-[15px] px-6 py-3',
 }
 
 interface BtnProps {
