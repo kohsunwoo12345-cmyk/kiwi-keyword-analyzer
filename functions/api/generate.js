@@ -2065,13 +2065,33 @@ async function handle(context) {
             if (r2.ok) { const t2 = await r2.text(); if (t2 && !/^\s*</.test(t2)) mdText = t2.slice(0, 12000); }
           } catch (_e) { /* 없으면 그만 */ }
         }
+        /* 긴 문서는 앞 12,000자에서 잘려 정작 필요한 표가 안 보인다(구글 가격표가 55KB 였다).
+           q= 로 찾을 말을 주면 그 주변만 잘라 준다. 여러 개는 쉼표로 구분한다. */
+        const q = String(u.searchParams.get("q") || "").trim();
+        let 발췌 = undefined;
+        if (q) {
+          const terms = q.split(",").map((x) => x.trim()).filter(Boolean);
+          발췌 = {};
+          for (const term of terms) {
+            const hits = [];
+            const re = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+            let m2, guard = 0;
+            while ((m2 = re.exec(text)) && guard++ < 8) {
+              hits.push(text.slice(Math.max(0, m2.index - 200), m2.index + 1600));
+              re.lastIndex = m2.index + 1600;        // 겹치지 않게 건너뛴다
+            }
+            발췌[term] = hits.length ? hits : "(이 문서에서 못 찾음)";
+          }
+        }
         return json({ diag: "doc", url: target, httpStatus: r.status,
           자바스크립트로그리는문서: spa || undefined,
+          발췌,
+          전체길이: text.length,
           안내: spa && !mdText
             ? "이 문서는 본문을 자바스크립트로 그려서 서버가 받아온 HTML 에는 표가 없습니다. 화면에서 직접 복사해 주셔야 합니다."
             : undefined,
           마크다운판본: mdText || undefined,
-          길이: text.length, 본문: text.slice(0, 12000), 링크: links });
+          본문: q ? "(발췌 모드 — 위 발췌만 실었습니다)" : text.slice(0, 12000), 링크: q ? undefined : links });
       } catch (e) { return json({ diag: "doc", url: target, error: String((e && e.message) || e).slice(0, 200) }); }
     }
 
