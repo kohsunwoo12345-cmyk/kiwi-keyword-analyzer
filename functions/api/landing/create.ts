@@ -19,7 +19,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const og_title = b.og_title || null
   const og_description = b.og_description || null
   const thumbnail_url = b.thumbnail_url || null
-  const folder_id = b.folder_id || null
+  // ⚠ folder_id 를 그대로 믿었다 — 남의 폴더 번호를 적어 그 폴더 안에 페이지를 만들 수 있었다
+  //   (move-to-folder 와 같은 문제). 내 폴더가 아니면 폴더 없음으로 만든다.
+  let folder_id = b.folder_id || null
+  if (folder_id) {
+    const own = await db.prepare('SELECT id FROM landing_folders WHERE id = ? AND user_id = ?').bind(folder_id, me.id).first().catch(() => null)
+    if (!own) folder_id = null
+  }
   const form_id = b.form_id || null
 
   // 커스텀 빌더: input_data.html 을 그대로 저장
