@@ -172,7 +172,7 @@ function GrowthChart({ feature }: { feature: Feature }) {
   }, [auto, inView])
 
   return (
-    <section className="relative overflow-hidden py-20">
+    <section className="relative overflow-hidden py-24">
       <div
         className="animate-drift pointer-events-none absolute left-1/2 top-4 h-[360px] w-[820px] -translate-x-1/2 rounded-full blur-[140px]"
         style={{ background: `${s.color}1f` }}
@@ -180,7 +180,7 @@ function GrowthChart({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('채널 성장 리포트')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
             {t('성장 변곡점은 그래프에 먼저 나타납니다')}
           </h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
@@ -406,7 +406,7 @@ function ViralGauge({ feature }: { feature: Feature }) {
   }, [auto, inView])
 
   return (
-    <section className="relative overflow-hidden border-y border-white/10 bg-white/[0.015] py-20">
+    <section className="relative overflow-hidden border-y border-white/10 bg-white/[0.015] py-24">
       <div
         className="animate-drift-slow pointer-events-none absolute right-0 top-10 h-[340px] w-[520px] rounded-full blur-[140px]"
         style={{ background: `${tone}1f` }}
@@ -414,7 +414,7 @@ function ViralGauge({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('떡상 예측')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('올리기 전에 터질지 먼저 계산합니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('올리기 전에 터질지 먼저 계산합니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('썸네일·제목·업로드 시간·키워드 경쟁도를 뜯어 떡상 확률을 점수로 냅니다. 낮게 나오면 무엇을 고칠지도 함께 알려줍니다.')}
           </p>
@@ -580,7 +580,7 @@ function ChannelRace({ feature }: { feature: Feature }) {
   const max = sorted[0].value
 
   return (
-    <section className="relative overflow-hidden py-20">
+    <section className="relative overflow-hidden py-24">
       <div
         className="animate-drift pointer-events-none absolute left-1/2 top-0 h-[320px] w-[760px] -translate-x-1/2 rounded-full blur-[140px]"
         style={{ background: `${feature.accent}1f` }}
@@ -588,7 +588,7 @@ function ChannelRace({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-5xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('경쟁 채널 벤치마킹')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('경쟁 채널이 지금 어디까지 왔는지')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('경쟁 채널이 지금 어디까지 왔는지')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('같은 주제를 다루는 채널들의 구독자 추이를 나란히 세워 추적합니다. 누가 치고 올라오는지 순위가 실시간으로 바뀝니다.')}
           </p>

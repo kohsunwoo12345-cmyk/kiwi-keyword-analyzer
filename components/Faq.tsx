@@ -81,7 +81,7 @@ export function Faq() {
       <div className="mx-auto max-w-3xl px-5">
         <div className="mb-10 text-center">
           <SectionTag>FAQ</SectionTag>
-          <h2 className="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">{t('자주 묻는 질문')}</h2>
+          <h2 className="mt-4 text-4xl font-bold tracking-tight text-white sm:text-5xl">{t('자주 묻는 질문')}</h2>
           <p className="mt-3 text-slate-400">{t('AI 광고 영상 제작, 궁금한 점을 모았어요')}</p>
         </div>
         <div className="space-y-3">

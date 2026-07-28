@@ -131,7 +131,7 @@ function PipelineFunnel({ feature }: { feature: Feature }) {
   const { ref, inView } = useInView<HTMLDivElement>(0.25)
 
   return (
-    <section className="relative overflow-hidden py-20">
+    <section className="relative overflow-hidden py-24">
       <div
         className="animate-drift pointer-events-none absolute left-1/2 top-4 h-[340px] w-[800px] -translate-x-1/2 rounded-full blur-[140px]"
         style={{ background: `${feature.accent}1f` }}
@@ -139,7 +139,7 @@ function PipelineFunnel({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('세일즈 파이프라인')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('엑셀에서 잠자던 DB가 매출로 흐릅니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('엑셀에서 잠자던 DB가 매출로 흐릅니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('신규부터 계약까지 단계를 눈으로 보면, 어디서 리드가 새는지 바로 드러납니다. 각 단계의 건수와 예상 매출이 함께 집계됩니다.')}
           </p>
@@ -278,7 +278,7 @@ function SegmentBuilder({ feature }: { feature: Feature }) {
   }
 
   return (
-    <section className="relative overflow-hidden border-y border-white/10 bg-white/[0.015] py-20">
+    <section className="relative overflow-hidden border-y border-white/10 bg-white/[0.015] py-24">
       <div
         className="animate-drift-slow pointer-events-none absolute left-0 top-8 h-[340px] w-[520px] rounded-full blur-[140px]"
         style={{ background: `${feature.accent}20` }}
@@ -286,7 +286,7 @@ function SegmentBuilder({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('고객 세그먼트')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('모두에게 뿌리는 대신, 될 사람에게만')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('모두에게 뿌리는 대신, 될 사람에게만')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('조건을 켜고 끄면 대상 고객 수가 즉시 다시 계산됩니다. 딱 맞는 사람만 골라 문자·알림톡을 보내세요.')}
           </p>
@@ -454,7 +454,7 @@ function AutomationSequence({ feature }: { feature: Feature }) {
   const bubbles = NODES.filter((n, i) => n.msg && i <= active)
 
   return (
-    <section className="relative overflow-hidden py-20">
+    <section className="relative overflow-hidden py-24">
       <div
         className="animate-drift pointer-events-none absolute left-1/2 top-0 h-[320px] w-[760px] -translate-x-1/2 rounded-full blur-[140px]"
         style={{ background: `${feature.accent}1a` }}
@@ -462,7 +462,7 @@ function AutomationSequence({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('자동 발송 시퀀스')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('타이밍을 놓쳐 잃던 고객을 붙잡습니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('타이밍을 놓쳐 잃던 고객을 붙잡습니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('조건이 충족되면 정해둔 순서대로 알림톡과 문자가 자동으로 나갑니다. 사람이 기억하지 않아도 됩니다.')}
           </p>

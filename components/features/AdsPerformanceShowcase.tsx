@@ -144,7 +144,7 @@ function UnifiedDashboard({ feature }: { feature: Feature }) {
   const blended = Math.round((totalRev / totalSpend) * 100) / 100
 
   return (
-    <section className="relative overflow-hidden py-20">
+    <section className="relative overflow-hidden py-24">
       <div
         className="animate-drift pointer-events-none absolute left-1/2 top-4 h-[340px] w-[820px] -translate-x-1/2 rounded-full blur-[140px]"
         style={{ background: `${feature.accent}1f` }}
@@ -152,7 +152,7 @@ function UnifiedDashboard({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('통합 대시보드')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('세 채널을 한 화면에서 동시에 지켜봅니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('세 채널을 한 화면에서 동시에 지켜봅니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('메타·구글·네이버 성과가 실시간으로 갱신됩니다. 채널별 리포트를 짜 맞추는 동안 놓치던 타이밍을 되찾으세요.')}
           </p>
@@ -317,7 +317,7 @@ function CreativeDuel({ feature }: { feature: Feature }) {
   const winner = pair[0].roas >= pair[1].roas ? 0 : 1
 
   return (
-    <section className="relative overflow-hidden border-y border-white/10 bg-white/[0.015] py-20">
+    <section className="relative overflow-hidden border-y border-white/10 bg-white/[0.015] py-24">
       <div
         className="animate-drift-slow pointer-events-none absolute right-0 top-8 h-[340px] w-[520px] rounded-full blur-[140px]"
         style={{ background: `${feature.accent}22` }}
@@ -325,7 +325,7 @@ function CreativeDuel({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-5xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('소재 A/B 대결')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('되는 소재에 예산을 몰아줍니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('되는 소재에 예산을 몰아줍니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('같은 예산으로 두 소재를 돌려 CTR·전환율·ROAS를 나란히 비교합니다. 승자가 가려지면 예산이 자동으로 옮겨갑니다.')}
           </p>
@@ -453,7 +453,7 @@ function BudgetOptimizer({ feature }: { feature: Feature }) {
   const roas = applied ? 3.42 : 2.14
 
   return (
-    <section className="relative overflow-hidden py-20">
+    <section className="relative overflow-hidden py-24">
       <div
         className="animate-drift pointer-events-none absolute left-1/2 top-0 h-[320px] w-[760px] -translate-x-1/2 rounded-full blur-[140px]"
         style={{ background: `${feature.accent}1a` }}
@@ -461,7 +461,7 @@ function BudgetOptimizer({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-5xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('AI 예산 최적화')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('감으로 나누던 예산을 숫자로 다시 나눕니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('감으로 나누던 예산을 숫자로 다시 나눕니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('채널별 한계 효율을 계산해 예산을 재배분합니다. 같은 돈으로 얼마나 더 벌 수 있는지 적용 전후로 비교해 보세요.')}
           </p>

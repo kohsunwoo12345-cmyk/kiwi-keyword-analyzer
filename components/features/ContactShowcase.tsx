@@ -132,12 +132,12 @@ function ContactJourney() {
   const progress = Math.min(100, (step / (JOURNEY.length - 1)) * 100)
 
   return (
-    <section className="relative overflow-hidden border-t border-white/10 py-20">
+    <section className="relative overflow-hidden border-t border-white/10 py-24">
       <div className="animate-drift pointer-events-none absolute left-1/2 top-4 h-[300px] w-[760px] -translate-x-1/2 rounded-full bg-blue-600/15 blur-[140px]" />
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('문의 이후')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('보내고 나면 이렇게 진행됩니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('보내고 나면 이렇게 진행됩니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('남겨주신 내용은 담당자가 직접 읽습니다. 어떤 순서로 연락이 가는지 미리 알려드릴게요.')}
           </p>
@@ -227,7 +227,7 @@ function InquiryRouting() {
   }, [inView])
 
   return (
-    <section className="relative overflow-hidden border-t border-white/10 bg-white/[0.015] py-20">
+    <section className="relative overflow-hidden border-t border-white/10 bg-white/[0.015] py-24">
       <div
         className="animate-drift-slow pointer-events-none absolute right-0 top-6 h-[300px] w-[480px] rounded-full blur-[140px]"
         style={{ background: `${ROUTES[active].color}22` }}
@@ -235,7 +235,7 @@ function InquiryRouting() {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('문의 유형')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('어떤 이야기든 맞는 사람에게 갑니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('어떤 이야기든 맞는 사람에게 갑니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('아래 유형 중 하나만 골라 남겨주시면, 그에 맞는 담당자에게 바로 전달됩니다.')}
           </p>

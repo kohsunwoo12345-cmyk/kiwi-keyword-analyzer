@@ -239,3 +239,31 @@ export function Overlay({
     document.body,
   )
 }
+
+/* ---------- Section head (마케팅 페이지 공용) ---------- */
+/**
+ * 홈페이지의 섹션 머리 규격.
+ * SectionTag → h2(4xl/5xl) → 리드 문단 순서와 여백을 한 곳에서 고정한다.
+ * 하위 페이지들이 h2 를 2xl~4xl 로 제각각 쓰면서 홈과 위계가 어긋나 있었다.
+ */
+export function SectionHead({
+  tag,
+  title,
+  lead,
+  align = 'center',
+  className,
+}: {
+  tag?: ReactNode
+  title: ReactNode
+  lead?: ReactNode
+  align?: 'center' | 'left'
+  className?: string
+}) {
+  return (
+    <div className={cn(align === 'center' ? 'mx-auto max-w-2xl text-center' : 'max-w-2xl', className)}>
+      {tag && <SectionTag>{tag}</SectionTag>}
+      <h2 className={cn('text-balance text-4xl font-bold tracking-tight sm:text-5xl', tag && 'mt-5')}>{title}</h2>
+      {lead && <p className="mt-5 text-balance text-lg text-[var(--text-soft)]">{lead}</p>}
+    </div>
+  )
+}

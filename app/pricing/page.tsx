@@ -599,7 +599,7 @@ function TrackSection({
             <Icon size={15} /> {t(tag)}
           </span>
         </div>
-        <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+        <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
           {t(title)} <span className="brand-text">{t(accent)}</span>
         </h2>
         <p className="mt-4 text-balance text-[var(--text-soft)]">{t(desc)}</p>
@@ -738,7 +738,7 @@ export default function PricingPage() {
             <SectionTag>
               <Sparkles size={13} /> {t('크레딧 안내')}
             </SectionTag>
-            <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+            <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
               {t('AI 영상은')} <span className="brand-text">{t('쓴 만큼')}</span> {t('차감되는 크레딧 방식')}
             </h2>
             <p className="mt-5 text-balance text-[var(--text-soft)]">
@@ -792,7 +792,7 @@ export default function PricingPage() {
         <div className="mx-auto max-w-3xl px-5">
           <Reveal className="text-center">
             <SectionTag>{t('자주 묻는 질문')}</SectionTag>
-            <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+            <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
               {t('결정 전에 남은 궁금증, 여기서 풀고 가세요')}
             </h2>
           </Reveal>
@@ -828,7 +828,7 @@ export default function PricingPage() {
                   <LogoMark size={40} />
                 </span>
               </div>
-              <h2 className="text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              <h2 className="text-balance text-4xl font-bold tracking-tight text-white sm:text-5xl">
                 {t('마케팅과 영상, 둘 다 오늘 시작할 수 있습니다')}
               </h2>
               <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-white/85">

@@ -96,12 +96,12 @@ function McpConversation() {
   const at = PHASES.indexOf(phase)
 
   return (
-    <section className="relative overflow-hidden border-t border-white/10 py-20">
+    <section className="relative overflow-hidden border-t border-white/10 py-24">
       <div className="animate-drift pointer-events-none absolute left-1/2 top-4 h-[320px] w-[760px] -translate-x-1/2 rounded-full bg-orange-500/12 blur-[140px]" />
       <div ref={ref} className="relative mx-auto max-w-4xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('대화 한 줄로')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('클로드에게 말하면 여기서 만들어집니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('클로드에게 말하면 여기서 만들어집니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('커넥터를 연결해두면 Claude가 BYGENCY 도구를 직접 호출합니다. 창을 옮겨 다닐 필요 없이, 대화 안에서 결과 링크까지 돌아옵니다.')}
           </p>
@@ -224,7 +224,7 @@ function McpArchitecture() {
   }, [inView])
 
   return (
-    <section className="relative overflow-hidden border-t border-white/10 bg-white/[0.015] py-20">
+    <section className="relative overflow-hidden border-t border-white/10 bg-white/[0.015] py-24">
       <div
         className="animate-drift-slow pointer-events-none absolute left-1/2 top-6 h-[300px] w-[640px] -translate-x-1/2 rounded-full blur-[140px]"
         style={{ background: `${NODES[active].color}20` }}
@@ -234,7 +234,7 @@ function McpArchitecture() {
           <SectionTag>
             <Terminal size={13} /> {t('연결 구조')}
           </SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('토큰 복사 없이, 로그인 한 번이면 끝')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('토큰 복사 없이, 로그인 한 번이면 끝')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('커넥터에 주소를 넣고 로그인만 하면 내 계정으로 안전하게 연결됩니다. 그 뒤로는 Claude가 필요한 도구를 알아서 골라 씁니다.')}
           </p>

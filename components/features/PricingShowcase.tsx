@@ -130,12 +130,12 @@ function SavingsCalculator() {
   ] as const
 
   return (
-    <section className="relative overflow-hidden py-20">
+    <section className="relative overflow-hidden py-24">
       <div className="animate-drift pointer-events-none absolute left-1/2 top-4 h-[340px] w-[800px] -translate-x-1/2 rounded-full bg-blue-600/15 blur-[140px]" />
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('비용 계산기')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('지금 쓰는 방식과 얼마나 차이 나는지')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('지금 쓰는 방식과 얼마나 차이 나는지')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('한 달 작업량을 옮겨보세요. 외주와 개별 툴 구독으로 나가던 비용이 하나의 구독으로 어떻게 바뀌는지 바로 계산됩니다.')}
           </p>
@@ -327,7 +327,7 @@ function PlanFinder() {
   const plan = PLANS[picked]
 
   return (
-    <section className="relative overflow-hidden border-y border-white/10 bg-white/[0.015] py-20">
+    <section className="relative overflow-hidden border-y border-white/10 bg-white/[0.015] py-24">
       <div
         className="animate-drift-slow pointer-events-none absolute right-0 top-8 h-[340px] w-[520px] rounded-full blur-[140px]"
         style={{ background: `${plan.color}22` }}
@@ -335,7 +335,7 @@ function PlanFinder() {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('플랜 찾기')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('세 가지만 고르면 플랜이 정해집니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('세 가지만 고르면 플랜이 정해집니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('팀 규모와 제작량, 필요한 기능을 고르면 지금 상황에 맞는 플랜을 골라드립니다.')}
           </p>

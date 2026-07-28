@@ -104,7 +104,7 @@ function PipelineFlow() {
   }, [inView])
 
   return (
-    <section className="relative overflow-hidden py-20">
+    <section className="relative overflow-hidden py-24">
       <div
         className="animate-drift pointer-events-none absolute left-1/2 top-4 h-[320px] w-[820px] -translate-x-1/2 rounded-full blur-[140px]"
         style={{ background: `${STAGES[active].color}20` }}
@@ -112,7 +112,7 @@ function PipelineFlow() {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('마케팅 파이프라인')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('기능이 아니라 흐름으로 이어집니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('기능이 아니라 흐름으로 이어집니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('수집한 데이터가 분석으로, 분석이 제작으로, 제작이 발송과 리포트로 그대로 넘어갑니다. 중간에 엑셀을 거칠 일이 없습니다.')}
           </p>
@@ -222,7 +222,7 @@ function GoalPicker() {
   }, [auto, inView])
 
   return (
-    <section className="relative overflow-hidden border-y border-white/10 bg-white/[0.015] py-20">
+    <section className="relative overflow-hidden border-y border-white/10 bg-white/[0.015] py-24">
       <div
         className="animate-drift-slow pointer-events-none absolute right-0 top-8 h-[320px] w-[520px] rounded-full blur-[140px]"
         style={{ background: `${goal.color}22` }}
@@ -230,7 +230,7 @@ function GoalPicker() {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('시작점 고르기')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('지금 급한 일부터 고르면 됩니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('지금 급한 일부터 고르면 됩니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('전부 한 번에 켤 필요는 없습니다. 목표를 고르면 그 목표에 필요한 기능만 이어서 보여드립니다.')}
           </p>

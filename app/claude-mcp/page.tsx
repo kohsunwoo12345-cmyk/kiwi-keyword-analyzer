@@ -132,7 +132,7 @@ export default function ClaudeMcpPage() {
         <div className="mx-auto max-w-5xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>{t('어떻게 작동하나요')}</SectionTag>
-            <h2 className="mt-4 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('3단계면 끝납니다')}</h2>
+            <h2 className="mt-4 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('3단계면 끝납니다')}</h2>
           </Reveal>
           <div className="mt-12 grid gap-5 md:grid-cols-3">
             {STEPS.map((s, i) => {

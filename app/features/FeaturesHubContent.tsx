@@ -141,8 +141,8 @@ export function FeaturesHubContent() {
       <section className="pb-8">
         <div className="mx-auto max-w-7xl px-5">
           <Reveal className="mx-auto mb-10 max-w-2xl text-center">
-            <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('마케팅을 완성하는 도구들')}</h2>
-            <p className="mt-4 text-[var(--text-soft)]">{t('영상 제작을 중심으로 수집·분석·전환까지, 각 기능을 눌러 실제 데모를 체험해보세요.')}</p>
+            <h2 className="text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('마케팅을 완성하는 도구들')}</h2>
+            <p className="mt-5 text-balance text-lg text-[var(--text-soft)]">{t('영상 제작을 중심으로 수집·분석·전환까지, 각 기능을 눌러 실제 데모를 체험해보세요.')}</p>
           </Reveal>
           <div className="grid gap-5 md:grid-cols-2">
             {FEATURES.map((f, i) => {
@@ -216,7 +216,7 @@ export function FeaturesHubContent() {
                   <LogoMark size={40} />
                 </span>
               </div>
-              <h2 className="text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              <h2 className="text-balance text-4xl font-bold tracking-tight text-white sm:text-5xl">
                 {t('7가지 기능, 오늘부터 하나의 워크스페이스에서')}
               </h2>
               <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-white/85">

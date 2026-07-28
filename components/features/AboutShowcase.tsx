@@ -123,12 +123,12 @@ function ConnectionMap() {
   }, [inView])
 
   return (
-    <section className="relative overflow-hidden py-20">
+    <section className="relative overflow-hidden py-24">
       <div className="animate-drift pointer-events-none absolute left-1/2 top-4 h-[340px] w-[780px] -translate-x-1/2 rounded-full bg-blue-600/15 blur-[140px]" />
       <div ref={ref} className="relative mx-auto max-w-5xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('하나로 연결')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('흩어져 있던 도구가 한가운데로 모입니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('흩어져 있던 도구가 한가운데로 모입니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('탭을 옮겨 다닐 때마다 데이터도 맥락도 끊겼습니다. BYGENCY는 여섯 갈래로 흩어져 있던 일을 하나의 워크스페이스로 이어 붙입니다.')}
           </p>
@@ -235,12 +235,12 @@ function MarketerDay() {
   const progress = Math.min(100, (step / (DAY.length - 1)) * 100)
 
   return (
-    <section className="relative overflow-hidden py-20">
+    <section className="relative overflow-hidden py-24">
       <div className="animate-drift-slow pointer-events-none absolute left-1/2 top-0 h-[300px] w-[720px] -translate-x-1/2 rounded-full bg-blue-600/12 blur-[140px]" />
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('마케터의 하루')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('하루가 이렇게 달라집니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('하루가 이렇게 달라집니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('도구 사이를 오가느라 흘려보내던 시간을 되돌려 놓으면, 하루의 모양이 이렇게 바뀝니다.')}
           </p>

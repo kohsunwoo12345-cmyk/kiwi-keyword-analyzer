@@ -532,7 +532,7 @@ export function FeatureDetail({ slug }: { slug: string }) {
         <div className="mx-auto max-w-6xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>{t('핵심 역량')}</SectionTag>
-            <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+            <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
               {feature.title}{t('이 해내는 것들')}
             </h2>
           </Reveal>
@@ -571,7 +571,7 @@ export function FeatureDetail({ slug }: { slug: string }) {
         <div className="relative mx-auto max-w-4xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>{t('실제 기능')}</SectionTag>
-            <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+            <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
               {t('설명보다 한 번 써보는 게 빠릅니다')}
             </h2>
             <p className="mt-4 text-[var(--text-soft)]">
@@ -595,7 +595,7 @@ export function FeatureDetail({ slug }: { slug: string }) {
         <div className="mx-auto max-w-6xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>{t('더 알아보기')}</SectionTag>
-            <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+            <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
               {t('다른 기능도 살펴보세요')}
             </h2>
           </Reveal>
@@ -639,7 +639,7 @@ export function FeatureDetail({ slug }: { slug: string }) {
                   <Icon size={34} className="text-white" />
                 </span>
               </div>
-              <h2 className="text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              <h2 className="text-balance text-4xl font-bold tracking-tight text-white sm:text-5xl">
                 {feature.title}{t(', 지금 시작하세요')}
               </h2>
               <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-white/85">
@@ -694,7 +694,7 @@ function VideoWorkflowShowcase({ feature }: { feature: Feature }) {
       <div className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('실제 노드 워크스페이스')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('노드로 그리는 AI 영상 파이프라인')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('노드로 그리는 AI 영상 파이프라인')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">{t('프롬프트 → 모델 → ControlNet → 출력. 흩어진 도구 대신 한 화면에서 연결하고, 각 단계를 실시간으로 확인합니다.')}</p>
         </Reveal>
 

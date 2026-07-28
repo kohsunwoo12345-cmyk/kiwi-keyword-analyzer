@@ -188,7 +188,7 @@ function BlogGrade({ feature }: { feature: Feature }) {
   }, [auto, inView])
 
   return (
-    <section className="relative overflow-hidden py-20">
+    <section className="relative overflow-hidden py-24">
       <div
         className="animate-drift pointer-events-none absolute left-1/2 top-4 h-[340px] w-[760px] -translate-x-1/2 rounded-full blur-[140px]"
         style={{ background: `${tone}1f` }}
@@ -196,7 +196,7 @@ function BlogGrade({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('블로그 지수 진단')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('내 블로그가 지금 몇 등급인지부터')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('내 블로그가 지금 몇 등급인지부터')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('C-Rank와 D.I.A 기준으로 블로그 체력을 등급으로 환산합니다. 어느 항목이 발목을 잡는지까지 한 화면에서 보입니다.')}
           </p>
@@ -383,7 +383,7 @@ function SerpSimulator({ feature }: { feature: Feature }) {
   rows.push({ ...MY_POST, rank: myRank, me: true })
 
   return (
-    <section className="relative overflow-hidden border-y border-white/10 bg-white/[0.015] py-20">
+    <section className="relative overflow-hidden border-y border-white/10 bg-white/[0.015] py-24">
       <div
         className="animate-drift-slow pointer-events-none absolute left-0 top-10 h-[340px] w-[520px] rounded-full blur-[140px]"
         style={{ background: `${feature.accent}20` }}
@@ -391,7 +391,7 @@ function SerpSimulator({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('상위노출 시뮬레이터')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('고치는 순서대로 순위가 올라갑니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('고치는 순서대로 순위가 올라갑니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('알고리즘이 보는 항목을 하나씩 개선하면 검색결과에서 내 글이 어디까지 올라가는지 미리 시뮬레이션합니다.')}
           </p>
@@ -573,7 +573,7 @@ function CompetitionHeatmap({ feature }: { feature: Feature }) {
   const sorted = [...KEYWORDS].sort((a, b) => b.odds - a.odds).slice(0, 4)
 
   return (
-    <section className="relative overflow-hidden py-20">
+    <section className="relative overflow-hidden py-24">
       <div
         className="animate-drift pointer-events-none absolute left-1/2 top-0 h-[320px] w-[760px] -translate-x-1/2 rounded-full blur-[140px]"
         style={{ background: `${feature.accent}1a` }}
@@ -581,7 +581,7 @@ function CompetitionHeatmap({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('경쟁 강도 분석')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('이길 수 있는 키워드부터 고릅니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('이길 수 있는 키워드부터 고릅니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('주차별 경쟁 문서 수와 강도를 색으로 펼쳐 봅니다. 진한 칸은 피하고, 옅은 칸을 노리면 됩니다.')}
           </p>

@@ -199,7 +199,7 @@ function LiveBoard({ feature }: { feature: Feature }) {
   const maxSlot = Math.max(...counts, 1)
 
   return (
-    <section className="relative overflow-hidden py-20">
+    <section className="relative overflow-hidden py-24">
       <div
         className="animate-drift pointer-events-none absolute left-1/2 top-4 h-[340px] w-[820px] -translate-x-1/2 rounded-full blur-[140px]"
         style={{ background: `${feature.accent}1f` }}
@@ -207,7 +207,7 @@ function LiveBoard({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('라이브 협업 보드')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('카드 한 곳에 모이면 놓치는 일이 없습니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('카드 한 곳에 모이면 놓치는 일이 없습니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('메신저와 메모장에 흩어진 업무를 보드 하나로 모읍니다. 담당자와 마감이 붙은 카드가 단계별로 흘러가는 걸 팀 전체가 같이 봅니다.')}
           </p>
@@ -371,7 +371,7 @@ function AiAssistant({ feature }: { feature: Feature }) {
   const showCopies = phase === 'hold' && !!TURNS[turn].copies
 
   return (
-    <section className="relative overflow-hidden border-y border-white/10 bg-white/[0.015] py-20">
+    <section className="relative overflow-hidden border-y border-white/10 bg-white/[0.015] py-24">
       <div
         className="animate-drift-slow pointer-events-none absolute right-0 top-8 h-[340px] w-[520px] rounded-full blur-[140px]"
         style={{ background: `${feature.accent}22` }}
@@ -379,7 +379,7 @@ function AiAssistant({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('AI 마케팅 어시스턴트')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('막히는 순간, 옆자리에 전문가가 앉아 있습니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('막히는 순간, 옆자리에 전문가가 앉아 있습니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('카피 한 줄, 기획 초안, 예산 배분까지 물어보면 바로 답이 나옵니다. 결과는 그대로 카드로 옮겨 팀에 공유하세요.')}
           </p>
@@ -517,7 +517,7 @@ function ActivityFeed({ feature }: { feature: Feature }) {
   }, [inView])
 
   return (
-    <section className="relative overflow-hidden py-20">
+    <section className="relative overflow-hidden py-24">
       <div
         className="animate-drift pointer-events-none absolute left-1/2 top-0 h-[300px] w-[720px] -translate-x-1/2 rounded-full blur-[140px]"
         style={{ background: `${feature.accent}1a` }}
@@ -525,7 +525,7 @@ function ActivityFeed({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-5xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('실시간 활동')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('회의를 잡지 않아도 맥락이 남습니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('회의를 잡지 않아도 맥락이 남습니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('코멘트와 멘션이 카드에 그대로 쌓여, 누가 무엇을 언제 했는지 따로 물어볼 필요가 없습니다.')}
           </p>

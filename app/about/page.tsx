@@ -292,7 +292,7 @@ export default function AboutPage() {
         <div className="mx-auto max-w-6xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>{t('왜 BYGENCY인가')}</SectionTag>
-            <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+            <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
               {t('툴은 늘어나는데')} <span className="brand-text">{t('성과는 제자리인가요?')}</span>
             </h2>
             <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
@@ -381,7 +381,7 @@ export default function AboutPage() {
         <div className="mx-auto max-w-6xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>{t('누구를 위한 서비스인가')}</SectionTag>
-            <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+            <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
               {t('이런 분들께')} <span className="brand-text">{t('가장 잘 맞습니다')}</span>
             </h2>
           </Reveal>
@@ -412,7 +412,7 @@ export default function AboutPage() {
         <div className="mx-auto max-w-6xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>{t('핵심 가치')}</SectionTag>
-            <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+            <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
               {t('우리가 일하는')} <span className="brand-text">{t('기준')}</span>
             </h2>
           </Reveal>
@@ -442,7 +442,7 @@ export default function AboutPage() {
         <div className="mx-auto max-w-6xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>{t('시작은 3분')}</SectionTag>
-            <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+            <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
               {t('도입은')} <span className="brand-text">{t('세 단계면 끝')}</span>
             </h2>
           </Reveal>
@@ -468,7 +468,7 @@ export default function AboutPage() {
         <div className="mx-auto max-w-6xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>{t('본사')}</SectionTag>
-            <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+            <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
               {t('우리가')} <span className="brand-text">{t('일하는 공간')}</span>
             </h2>
           </Reveal>
@@ -499,7 +499,7 @@ export default function AboutPage() {
           <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
             <Reveal variant="left">
               <SectionTag>{t('회사 정보')}</SectionTag>
-              <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+              <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
                 (주)넥스트 바이전시
               </h2>
               <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
@@ -564,7 +564,7 @@ export default function AboutPage() {
                   <LogoMark size={40} />
                 </span>
               </div>
-              <h2 className="text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              <h2 className="text-balance text-4xl font-bold tracking-tight text-white sm:text-5xl">
                 {t('더 나은 도구를 찾는 일은 오늘로 끝내세요')}
               </h2>
               <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-white/85">

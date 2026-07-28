@@ -188,7 +188,7 @@ function ModelRack({ feature }: { feature: Feature }) {
   const rendering = progress < 100
 
   return (
-    <section className="relative overflow-hidden py-20">
+    <section className="relative overflow-hidden py-24">
       <div
         className="animate-drift pointer-events-none absolute right-0 top-16 h-[380px] w-[520px] rounded-full blur-[140px]"
         style={{ background: `${active.accent}22` }}
@@ -196,7 +196,7 @@ function ModelRack({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('모델 라인업')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
             {t('최상위 AI 영상 모델을 한 랙에서')}
           </h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
@@ -421,7 +421,7 @@ function ControlNetScope({ feature }: { feature: Feature }) {
   const op = 0.2 + (strength / 100) * 0.8
 
   return (
-    <section className="relative overflow-hidden border-y border-white/10 bg-white/[0.015] py-20">
+    <section className="relative overflow-hidden border-y border-white/10 bg-white/[0.015] py-24">
       <div
         className="animate-drift-slow pointer-events-none absolute left-0 top-10 h-[360px] w-[520px] rounded-full blur-[140px]"
         style={{ background: `${current.accent}20` }}
@@ -429,7 +429,7 @@ function ControlNetScope({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('정밀 제어')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">
             {t('ControlNet으로 동작 하나하나까지')}
           </h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
@@ -717,7 +717,7 @@ function ShotTimeline({ feature }: { feature: Feature }) {
   })
 
   return (
-    <section className="relative overflow-hidden py-20">
+    <section className="relative overflow-hidden py-24">
       <div
         className="animate-drift pointer-events-none absolute left-1/2 top-0 h-[320px] w-[760px] -translate-x-1/2 rounded-full blur-[140px]"
         style={{ background: `${feature.accent}1f` }}
@@ -725,7 +725,7 @@ function ShotTimeline({ feature }: { feature: Feature }) {
       <div ref={ref} className="relative mx-auto max-w-6xl px-5">
         <Reveal className="mx-auto max-w-2xl text-center">
           <SectionTag>{t('컷 타임라인')}</SectionTag>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight sm:text-4xl">{t('컷을 늘어놓으면 한 편이 됩니다')}</h2>
+          <h2 className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl">{t('컷을 늘어놓으면 한 편이 됩니다')}</h2>
           <p className="mt-5 text-[15px] leading-relaxed text-[var(--text-soft)]">
             {t('노드에서 뽑은 컷을 타임라인에 올리면 렌더 큐가 알아서 돌아갑니다. 컷마다 다른 모델·다른 제어를 써도 톤은 그대로 유지됩니다.')}
           </p>
