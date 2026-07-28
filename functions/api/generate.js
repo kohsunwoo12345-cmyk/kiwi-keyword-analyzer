@@ -1967,6 +1967,35 @@ async function handle(context) {
         모델별: per });
     }
 
+    /* ══ ModelArk 계정 요금 정보 탐색 (읽기 전용·무과금) ══
+       /api/generate?diag=ark-price
+       BytePlus 문서는 자바스크립트로 그려서 서버가 표를 읽을 수 없다. 대신 계정 API 에
+       단가·사용량 정보가 있는지 GET 으로만 훑는다. 있으면 문서보다 정확하다 —
+       추정값이 아니라 이 계정에 실제로 적용되는 값이기 때문이다. */
+    if (u.searchParams.get("diag") === "ark-price") {
+      if (!k.seedance) return json({ diag: "ark-price", error: "Seedance_API_KEY 미설정" });
+      const H = { "Authorization": "Bearer " + k.seedance };
+      const paths = ["/models?page_size=200", "/billing/price", "/prices", "/pricing",
+                     "/account/balance", "/billing/balance", "/usage", "/billing/usage"];
+      const rows = await Promise.all(paths.map(async (path) => {
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + path, { headers: H }, 10000);
+          const t = await r.text(); let j2 = null; try { j2 = JSON.parse(t); } catch { /* 비JSON */ }
+          // 모델 목록은 너무 길다 — 단가로 보이는 필드가 있는지만 본다
+          const hasPrice = /price|cost|billing|unit_price|rate/i.test(t);
+          return { path, httpStatus: r.status, 단가정보포함: hasPrice,
+                   응답: path.indexOf("/models") === 0 ? (hasPrice ? String(t).slice(0, 1500) : "(단가 필드 없음)")
+                                                       : (j2 || String(t).slice(0, 600)) };
+        } catch (e) { return { path, httpStatus: 0, 응답: String((e && e.message) || e).slice(0, 120) }; }
+      }));
+      const hit = rows.filter(x => x.httpStatus === 200 && x.단가정보포함);
+      return json({ diag: "ark-price",
+        note: "GET 조회만 합니다 — 생성·과금이 없습니다.",
+        결론: hit.length ? "단가로 보이는 정보가 있는 경로: " + hit.map(x => x.path).join(", ")
+                        : "계정 API 에서 단가 정보를 찾지 못했습니다 — 콘솔 가격표를 직접 봐야 합니다.",
+        시도: rows });
+    }
+
     /* ══ 제공사 문서 대신 읽어오기 (읽기 전용·무과금) ══
        /api/generate?diag=doc&url=https://docs.agents.lumalabs.ai/...
 
@@ -1982,7 +2011,7 @@ async function handle(context) {
       let host = "";
       try { const t = new URL(target); if (t.protocol !== "https:") throw 0; host = t.hostname; }
       catch { return json({ diag: "doc", error: "https URL 이 아닙니다" }); }
-      const ALLOW = /(^|\.)(lumalabs\.ai|bfl\.ai|byteplus\.com|volcengine\.com|klingai\.com|minimax\.io|runwayml\.com)$/i;
+      const ALLOW = /(^|\.)(lumalabs\.ai|bfl\.ai|byteplus\.com|volcengine\.com|klingai\.com|minimax\.io|minimaxi\.com|runwayml\.com|x\.ai|openai\.com|google\.dev|fal\.ai|elevenlabs\.io)$/i;
       if (!ALLOW.test(host)) return json({ diag: "doc", error: "허용되지 않은 호스트입니다: " + host, 허용: ALLOW.source });
       try {
         const r = await fetchT(target, { headers: { "accept": "text/html,application/json", "user-agent": "Mozilla/5.0" } }, 15000);
@@ -1998,7 +2027,25 @@ async function handle(context) {
         // 문서 안의 링크도 같이 뽑아 준다 — 다음에 어느 페이지를 볼지 정하기 위해
         const links = isHtml ? [...new Set((t.match(/href="([^"]+)"/g) || [])
           .map(x => x.slice(6, -1)).filter(x => /^(https?:|\/)/.test(x)))].slice(0, 60) : [];
+        /* 문서 사이트가 자바스크립트로 본문을 그리면 받아온 HTML 에는 껍데기만 있다
+           (BytePlus 가 그렇다 — "You need to enable JavaScript" 만 오고 표가 없다).
+           그걸 본문으로 착각해 "읽었다" 고 하면 안 되므로, 신호를 보고 사실대로 말한다.
+           같은 페이지라도 .md 판본이 따로 있는 경우가 많아(루마가 그랬다) 그것도 시도한다. */
+        const spa = /enable JavaScript|noscript|__NEXT_DATA__/i.test(t) && text.length < 6000;
+        let mdText = null;
+        if (spa) {
+          const mdUrl = target.replace(/\/+$/, "") + "/index.md";
+          try {
+            const r2 = await fetchT(mdUrl, { headers: { "accept": "text/markdown,text/plain" } }, 12000);
+            if (r2.ok) { const t2 = await r2.text(); if (t2 && !/^\s*</.test(t2)) mdText = t2.slice(0, 12000); }
+          } catch (_e) { /* 없으면 그만 */ }
+        }
         return json({ diag: "doc", url: target, httpStatus: r.status,
+          자바스크립트로그리는문서: spa || undefined,
+          안내: spa && !mdText
+            ? "이 문서는 본문을 자바스크립트로 그려서 서버가 받아온 HTML 에는 표가 없습니다. 화면에서 직접 복사해 주셔야 합니다."
+            : undefined,
+          마크다운판본: mdText || undefined,
           길이: text.length, 본문: text.slice(0, 12000), 링크: links });
       } catch (e) { return json({ diag: "doc", url: target, error: String((e && e.message) || e).slice(0, 200) }); }
     }

@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { PenSquare, Trash2, Check, Smartphone, Plus, FileText, Copy } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Card, EmptyState, Field, Section } from '@/components/dash/Kit'
+import { Card, EmptyState, Field, Section, inputCls } from '@/components/dash/Kit'
 import { Button, Badge } from '@/components/ui'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { cn } from '@/lib/utils'
@@ -136,8 +136,6 @@ export default function SmsComposePage() {
   const bytes = useMemo(() => byteLength(body), [body])
   const kind = msgKind(bytes)
   const over = bytes > kind.limit
-  const inputCls =
-    'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-indigo-500'
 
   return (
     <div className="animate-fade-in">

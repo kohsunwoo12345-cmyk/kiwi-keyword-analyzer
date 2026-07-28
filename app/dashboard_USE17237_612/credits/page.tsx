@@ -17,7 +17,7 @@ import {
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Badge, Button } from '@/components/ui'
 import { Counter } from '@/components/motion'
-import { Card, EmptyState, Field, Metric, Section } from '@/components/dash/Kit'
+import { Card, EmptyState, Field, Metric, Section, inputCls } from '@/components/dash/Kit'
 import { cn } from '@/lib/utils'
 import {
   useAuth,
@@ -160,8 +160,6 @@ export default function CreditsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const inputCls =
-    'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-amber-500'
 
   const creditTx = transactions.filter((t) => t.kind === 'credit')
 

@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Button, Overlay } from '@/components/ui'
-import { Card, EmptyState, Field, Section } from '@/components/dash/Kit'
+import { Card, EmptyState, Field, Section, inputCls } from '@/components/dash/Kit'
 import { isImeEnter } from '@/lib/utils'
 
 const ACCENT = '#0ea5e9'
@@ -44,8 +44,6 @@ const VIS: Record<Visibility, { label: string; badge: string; cls: string; icon:
 }
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
-const calInput =
-  'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-sky-500'
 const MANAGE_HREF = '/dashboard_USE17237_612/team/manage'
 
 interface Member {
@@ -656,10 +654,10 @@ export default function TeamCalendarPage() {
                 <div className="space-y-3">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Field label="날짜">
-                      <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} className={calInput} />
+                      <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} className={inputCls} />
                     </Field>
                     <Field label="분류">
-                      <select value={fColor} onChange={(e) => setFColor(e.target.value as ColorKey)} className={calInput}>
+                      <select value={fColor} onChange={(e) => setFColor(e.target.value as ColorKey)} className={inputCls}>
                         {(Object.keys(COLORS) as ColorKey[]).map((k) => (
                           <option key={k} value={k}>{COLORS[k].label}</option>
                         ))}
@@ -672,7 +670,7 @@ export default function TeamCalendarPage() {
                       onChange={(e) => setFTitle(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter' && !isImeEnter(e)) addEvent() }}
                       placeholder="예: 여름 세일 광고 집행"
-                      className={calInput}
+                      className={inputCls}
                     />
                   </Field>
                   <Field label="메모" optional>
@@ -681,7 +679,7 @@ export default function TeamCalendarPage() {
                       onChange={(e) => setFMemo(e.target.value)}
                       rows={2}
                       placeholder="세부 내용이나 링크"
-                      className={`${calInput} resize-none`}
+                      className={`${inputCls} resize-none`}
                     />
                   </Field>
                 </div>
@@ -717,7 +715,7 @@ export default function TeamCalendarPage() {
                     label="공유할 팀원"
                     hint={otherMembers.length === 0 ? '공유할 팀원이 없습니다. 팀원을 먼저 초대하세요.' : undefined}
                   >
-                    <select value={fTarget} onChange={(e) => setFTarget(e.target.value)} className={calInput}>
+                    <select value={fTarget} onChange={(e) => setFTarget(e.target.value)} className={inputCls}>
                       <option value="">— 팀원 선택 —</option>
                       {otherMembers.map((m) => (
                         <option key={m.id} value={m.id}>{m.name} ({m.email})</option>
@@ -739,7 +737,7 @@ export default function TeamCalendarPage() {
                     </>
                   }
                 >
-                  <select value={fGroup} onChange={(e) => setFGroup(e.target.value)} className={calInput}>
+                  <select value={fGroup} onChange={(e) => setFGroup(e.target.value)} className={inputCls}>
                     <option value="">— 그룹 없음 —</option>
                     {groups.map((g) => (
                       <option key={g.id} value={g.id}>{g.name} ({g.count}명)</option>

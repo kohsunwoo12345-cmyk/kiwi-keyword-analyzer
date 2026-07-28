@@ -4,14 +4,12 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { LayoutTemplate, Plus, Check, Clock, AlertCircle, RefreshCw, MessageSquarePlus, Send, Inbox } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Button, Badge } from '@/components/ui'
-import { Card, EmptyState, Field, Section } from '@/components/dash/Kit'
+import { Card, EmptyState, Field, Section, inputCls } from '@/components/dash/Kit'
 import {
   kakaoChannels, kakaoChannelAuth, kakaoChannelAdd, kakaoTemplates, kakaoTemplateCreate, kakaoTemplateRequest,
   type KakaoChannel, type KakaoTemplate,
 } from '@/lib/auth'
 
-const inputCls =
-  'w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-amber-500'
 
 /** 알리고 템플릿 상태 → 한국어 검수 단계 (승인/검수중/등록됨/반려) */
 function mapStatus(s: string): '승인' | '검수중' | '등록됨' | '반려' {
