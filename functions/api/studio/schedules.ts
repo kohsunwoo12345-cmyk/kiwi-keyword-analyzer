@@ -68,11 +68,13 @@ export async function ensureSchedules(db: D1Database): Promise<void> {
       last_result TEXT NOT NULL DEFAULT '',
       runs INTEGER NOT NULL DEFAULT 0,
       max_runs INTEGER NOT NULL DEFAULT 0,   -- 0=무제한
+      fail_streak INTEGER NOT NULL DEFAULT 0, -- 연속 실패 횟수 (3회면 자동 중지)
       created_at TEXT
     )`,
   ).run().catch(() => {})
-  // 기존 테이블에도 tz 컬럼 추가(이미 있으면 무시)
+  // 기존 테이블에도 나중에 추가된 컬럼을 붙인다(이미 있으면 무시)
   await db.prepare("ALTER TABLE studio_schedules ADD COLUMN tz TEXT NOT NULL DEFAULT 'Asia/Seoul'").run().catch(() => {})
+  await db.prepare('ALTER TABLE studio_schedules ADD COLUMN fail_streak INTEGER NOT NULL DEFAULT 0').run().catch(() => {})
   await db.prepare('CREATE INDEX IF NOT EXISTS idx_sched_due ON studio_schedules (enabled, next_run_at)').run().catch(() => {})
 }
 
@@ -107,7 +109,12 @@ const row2json = (r: any) => ({
   nextRunAt: r.next_run_at || '', lastRunAt: r.last_run_at || '',
   lastStatus: r.last_status || '', lastResult: r.last_result || '',
   runs: Number(r.runs) || 0, maxRuns: Number(r.max_runs) || 0,
+  failStreak: Number(r.fail_streak) || 0,
 })
+
+/** 연속 실패가 이 횟수에 닿으면 예약을 자동으로 끈다.
+ *  (키가 빠졌거나 크레딧이 없는 예약이 매일 조용히 실패하며 로그만 쌓이는 걸 막는다) */
+export const FAIL_LIMIT = 3
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env)
@@ -148,8 +155,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const own: any = await db.prepare('SELECT id FROM studio_schedules WHERE id = ? AND user_id = ?').bind(String(b.id), me.id).first()
     if (!own) return json({ ok: false, error: '없는 예약입니다.' }, 404)
     await db.prepare(
+      // 설정을 고쳐 저장하면 연속 실패 기록은 지운다 — 원인을 고쳤을 수 있으니 다시 3번의 기회를 준다
       `UPDATE studio_schedules SET name=?, enabled=?, freq=?, hour=?, weekday=?, model=?, prompt=?,
-        seconds=?, ratio=?, res=?, tz=?, max_runs=?, next_run_at=? WHERE id=? AND user_id=?`,
+        seconds=?, ratio=?, res=?, tz=?, max_runs=?, next_run_at=?, fail_streak=0 WHERE id=? AND user_id=?`,
     ).bind(String(b.name || '').slice(0, 60), b.enabled === false ? 0 : 1, freq, hour, weekday, model, prompt,
       Math.max(1, Number(b.seconds) || 5), String(b.ratio || '16:9'), String(b.res || '1080p'), tz,
       Math.max(0, Number(b.maxRuns) || 0), next, String(b.id), me.id).run()

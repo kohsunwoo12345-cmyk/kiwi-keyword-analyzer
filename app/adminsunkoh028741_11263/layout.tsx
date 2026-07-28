@@ -28,6 +28,7 @@ import {
   Fuel,
   Bell,
   Boxes,
+  Timer,
   Filter,
   Zap,
   LineChart,
@@ -73,6 +74,7 @@ export const VIDEO_NAV: NavItem[] = [
   { title: 'AI 비용 (원가율)', href: `${ADMIN_BASE}/ai-pricing`, icon: Gauge },
   { title: 'AI API 남은 한도', href: `${ADMIN_BASE}/api-quota`, icon: Fuel },
   { title: '회원 API 키·호출', href: `${ADMIN_BASE}/api-keys`, icon: KeyRound },
+  { title: '정기 실행(크론)', href: `${ADMIN_BASE}/cron`, icon: Timer },
 ]
 
 const NAV_GROUPS: NavGroup[] = [

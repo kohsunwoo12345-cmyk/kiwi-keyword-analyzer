@@ -1544,6 +1544,31 @@ export async function adminNoticeDelete(id: string): Promise<{ ok: boolean; erro
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
 
+/* ───────── 관리자: 정기 실행(크론) 현황 ───────── */
+export interface CronScheduleRow {
+  id: string; name: string; enabled: boolean; freq: string; hour: number; weekday: number
+  tz: string; model: string; nextRunAt: string; lastRunAt: string; lastStatus: string
+  runs: number; maxRuns: number; failStreak: number
+  userName: string; userEmail: string; userCredits: number; hasToken: boolean
+}
+export interface CronFailureRow {
+  id: string; name: string; lastRunAt: string; lastStatus: string
+  failStreak: number; enabled: boolean; userName: string; userEmail: string
+}
+export interface CronStatus {
+  ok: boolean; now?: string
+  health?: 'ok' | 'warn' | 'down' | 'idle'
+  failLimit?: number
+  totals?: { total: number; enabled: number; autoStopped: number; due: number }
+  lastRunAt?: string; lastRunAgeMin?: number | null
+  schedules?: CronScheduleRow[]; failures?: CronFailureRow[]
+  error?: string
+}
+export async function adminCronStatus(): Promise<CronStatus> {
+  try { const r = await fetch('/api/admin/cron-status', { credentials: 'include', cache: 'no-store' }); return await r.json() }
+  catch { return { ok: false, error: '네트워크 오류' } }
+}
+
 /* ───────── 관리자: 노드 스튜디오 감사 ───────── */
 export interface StudioUserRow { userId: string; name: string; email: string; plan: string; nodeCount: number; docCount: number; updatedAt: string | null; creditsUsed: number; genCount: number }
 export interface StudioNodeSummary { id: string; type: string; title: string; prompt?: string; negative?: string; model?: string; sec?: number; ratio?: string; res?: string; imgs?: number; vids?: number; bypass: boolean }
