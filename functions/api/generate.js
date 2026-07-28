@@ -841,7 +841,7 @@ export function buildKlingApiPayload(b, spec) {
 function falV2VModel(env) {
   return pick(env, ["FAL_V2V_MODEL", "V2V_FAL_MODEL", "FAL_MOTION_MODEL", "fal_v2v_model"]) || "fal-ai/wan-vace-14b";
 }
-function buildMotionPayload(b) {
+export function buildMotionPayload(b) {
   const p = {
     prompt: cut(b.prompt, 2500),
     video_url: b.srcVideo || null,
@@ -1386,7 +1386,11 @@ export function effectiveUnits(body, env) {
     }
     if (prov === "google") return num(buildVeoPayload(b).parameters.durationSeconds) || raw;
     if (prov === "runway") return num(buildRunwayPayload(b).duration) || raw;
-    if (prov === "luma")   return num(buildLumaPayload(b).duration) || raw;
+    /* 루마는 길이가 video.duration("5s"/"10s") 안에 있다. 최상위 .duration 을 보고 있어
+       항상 undefined → 요청값을 그대로 썼다. 그래서 7초로 부르면 실제로는 5초가 생성되는데
+       요금은 (units>5 라서) 10초 요금이 붙었다 — 1080p 기준 $1.20 짜리에 $3.60 을 물린 셈.
+       비율 변경(초당 과금)은 20초로 부르면 10초만 만들고 20초치를 물렸다. */
+    if (prov === "luma") { const lp = buildLumaPayload(b); return num(lp.video && lp.video.duration) || raw; }
     if (prov === "hailuo") return num(buildHailuoPayload(b).duration) || raw;
     if (prov === "kling")  return num(buildKlingApiPayload(b, klingApiSpec(b)).duration) || raw;
     if (prov === "xai")    return num(buildXaiVideoPayload(b, env).duration) || raw;
@@ -3894,6 +3898,16 @@ async function handle(context) {
   }
 
   if (provider === "google") {
+    /* Veo 는 이미지를 base64(bytesBase64Encoded)로만 받는다. 그런데 스튜디오는 google 을
+       "URL 로 보내는 제공사" 목록에도, "base64 로 인라인하는 제공사" 목록에도 넣지 않아
+       값이 들어온 그대로 흘러간다 — 파일을 방금 올린 경우는 data:URI 라 괜찮지만,
+       앞 노드에서 생성된 결과를 첫 프레임으로 이으면 R2 의 https 주소라서 조용히 버려졌다.
+       (노드에는 첫/끝 프레임 포트가 열려 있고 요금도 그대로 붙는데 이미지→영상이 아니라
+        텍스트→영상으로 만들어진다.) 여기서 서버가 직접 base64 로 바꾼다 —
+       /api/v1/generate·MCP 로 들어오는 요청까지 한 곳에서 덮인다. */
+    const toData = async (v) => (v && /^https?:\/\//i.test(String(v)) ? (await urlToDataUri(v)) || v : v);
+    b = { ...b, firstFrame: await toData(b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage),
+                lastFrame: await toData(b.lastFrame) };
     const payload = buildVeoPayload(b);
     // ⓪ 서비스 계정(OAuth2) — 정식 Vertex 경로, 지역/키 제약 없음
     const sa = gcpCreds(env);
