@@ -1618,11 +1618,19 @@ async function handle(context) {
          이게 중요한 이유: 지금 코드는 FLUX.2(max/pro/flex)에 width/height 를 보낸다.
          이 계열이 aspect_ratio 전용이라면 비율 지정이 통째로 무시되고 전부 기본 비율로
          나온다 — 나노바나나에서 겪은 것과 같은 유형의 버그다. */
+      /* ※ 이 방법의 한계도 적어 둔다. 제약이 걸린 필드(숫자 범위·열거형)에만 통한다.
+         자유 문자열 필드는 틀린 값을 넣어도 검증기가 잡지 않을 수 있어, "오류가 없다" 가
+         "무시된다" 를 뜻하지 않는다. aspect_ratio 는 형식이 맞되 범위를 벗어난 값
+         ("100:1") 을 써서 의미 검증기라도 걸리게 한다. */
       const FIELD_CASES = [
-        // 32의 배수·256~1440 범위를 벗어난 값 → 파싱한다면 width/height 오류가 뜬다
-        { 이름: "width/height", 필드: ["width", "height"], extra: { width: 7, height: 7 } },
-        // 존재할 수 없는 비율 문자열 → 파싱한다면 aspect_ratio 오류가 뜬다
-        { 이름: "aspect_ratio", 필드: ["aspect_ratio"], extra: { aspect_ratio: "__probe_invalid__" } },
+        // ① 하한 확인 — 파싱한다면 width/height 오류가 뜬다
+        { 이름: "width/height 하한", 필드: ["width", "height"], extra: { width: 7, height: 7 } },
+        // ② 32의 배수 제약이 있는지 — 하한은 넘되 32로 나눠지지 않는 값
+        { 이름: "width/height 32배수", 필드: ["width", "height"], extra: { width: 1000, height: 1000 } },
+        // ③ 상한이 몇인지 — 오류 메시지의 le/lt 값으로 드러난다
+        { 이름: "width/height 상한", 필드: ["width", "height"], extra: { width: 99999, height: 99999 } },
+        // ④ 비율 — 형식은 맞되 범위를 벗어난 값
+        { 이름: "aspect_ratio 범위", 필드: ["aspect_ratio"], extra: { aspect_ratio: "100:1" } },
       ];
       const paramCheck = await Promise.all(
         Object.entries(FLUX_ENDPOINTS).map(async ([name, ep]) => {
@@ -1635,19 +1643,19 @@ async function handle(context) {
             const created = x.status >= 200 && x.status < 300;
             return { 필드: c.이름, httpStatus: x.status,
                      판정: created ? "⚠️ 작업 생성됨(진단 제외)"
-                          : parsed ? "✅ 실제로 읽는다 (이 필드로 오류가 났다)"
-                          : (x.status === 422 || x.status === 400) ? "❌ 무시된다 (틀린 값인데 아무 말이 없다)"
+                          : parsed ? "✅ 이 필드로 오류가 났다 = 실제로 읽는다"
+                          : (x.status === 422 || x.status === 400) ? "· 이 필드에 대한 불만 없음"
                           : "❓ " + x.status,
-                     상세: det.slice(0, 300) };
+                     상세: det.slice(0, 700) };
           }));
-          const wh = rows[0], ar = rows[1];
-          const P = (r) => /실제로 읽는다/.test(r.판정), N = (r) => /무시된다/.test(r.판정);
+          const P = (r) => /실제로 읽는다/.test(r.판정);
+          const whRead = P(rows[0]) || P(rows[1]) || P(rows[2]);
+          const arRead = P(rows[3]);
           const 결론 =
-            N(wh) && P(ar) ? "⚠️ aspect_ratio 전용 — 지금 코드가 width/height 를 보내면 비율이 무시된다"
-            : P(wh) && N(ar) ? "width/height 전용"
-            : P(wh) && P(ar) ? "둘 다 읽는다"
-            : N(wh) && N(ar) ? "⚠️ 둘 다 무시 — 이 엔드포인트의 비율 지정 방법을 다시 찾아야 한다"
-            : "판정 불가 — 상세 확인 필요";
+            whRead && !arRead ? "width/height 로 지정한다"
+            : !whRead && arRead ? "aspect_ratio 로 지정한다"
+            : whRead && arRead ? "둘 다 읽는다"
+            : "width/height 를 읽지 않는다 → aspect_ratio 방식 (자유 문자열이라 오류로는 확인 불가)";
           // 현재 코드가 이 엔드포인트에 실제로 무엇을 보내는지 함께 싣는다(대조용).
           const sent = buildFluxPayload({ model: name, prompt: "x", ratio: "16:9" });
           const 우리가보내는것 = Object.keys(sent.body).filter(kf => /^(width|height|aspect_ratio)$/.test(kf)).join(", ") || "(비율 필드 없음)";
