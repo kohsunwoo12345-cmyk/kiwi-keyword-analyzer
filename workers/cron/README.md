@@ -64,6 +64,30 @@ GitHub → Settings → Secrets and variables → **Actions** 에 등록:
 전부 검사하고, 어긋나면 어디가 문제인지 에러로 알려준다.
 이후 `workers/cron/` 아래가 바뀌어 main 에 푸시되면 자동으로 재배포된다.
 
+### 3. 워커 배포 — 방법 C: 브라우저만으로 (터미널·GitHub 없이)
+
+`src/index.js` 를 일부러 TypeScript 가 아니라 평범한 JS 로 둔 이유가 이것이다.
+Cloudflare 대시보드 편집기에 **그대로 복붙**하면 된다.
+
+1. **Workers & Pages → Create → Workers → Start with Hello World!**
+   이름을 `bygency-cron` 으로 하고 **Deploy**
+2. **Edit code**(또는 Quick edit) → 편집기 내용을 전부 지우고
+   이 저장소의 `workers/cron/src/index.js` 를 통째로 붙여넣기 → **Deploy**
+3. **Settings → Variables and Secrets**
+   | 종류 | 이름 | 값 |
+   |---|---|---|
+   | Text | `SITE_URL` | `https://bygency.co` |
+   | Secret | `CRON_TOKEN` | 1번에서 만든 값 |
+4. **Settings → Trigger Events → Cron Triggers → Add**
+   두 개를 등록한다(둘 다 UTC 기준):
+   - `*/15 * * * *` — 예약 영상 생성
+   - `5 0 * * *` — 네이버 추적 (한국 09:05)
+5. 배포된 주소로 확인: `https://bygency-cron.<계정서브도메인>.workers.dev/health`
+   → `{"ok":true,...,"tokenSet":true}` 가 나오면 끝
+
+> 이 방법으로 만들면 이후 저장소의 `src/index.js` 를 고쳐도 자동 반영되지 않는다.
+> 고칠 일이 생기면 편집기에 다시 붙여넣거나, 방법 A(GitHub Actions)로 전환하면 된다.
+
 ### 3. 워커 배포 — 방법 B: 로컬에서 직접
 
 ```bash
