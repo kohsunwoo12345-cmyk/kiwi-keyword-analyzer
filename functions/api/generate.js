@@ -1001,7 +1001,7 @@ export function buildHailuoPayload(b) {
 }
 
 /* ── Luma Dream Machine 영상 생성 ── */
-const LUMA_BASE = "https://api.lumalabs.ai/dream-machine/v1";
+const LUMA_BASE = "https://agents.lumalabs.ai/v1";   // Luma Agents API (구 dream-machine/v1 은 이 키를 인증하지 않는다)
 
 /* ══ BytePlus ModelArk 3D 생성 (Hyper3D / Hitem3D) ══
    이미지·영상 모델과 달리 "실제 3D 파일(메쉬+텍스처)" 을 만든다.
@@ -1110,7 +1110,10 @@ async function lumaUsable(key) {
   const now = Date.now();
   if (_lumaOk.at && now - _lumaOk.at < 600000) return _lumaOk.ok;
   try {
-    const r = await fetchT(LUMA_BASE + "/generations?limit=1",
+    /* Agents API 의 /generations 는 POST 전용이라 GET 에는 405 가 온다 — 이건 "살아 있다" 는 뜻이다.
+       그래서 401/403(자격증명 명시적 거부)일 때만 사용 불가로 본다. 405·404·5xx·타임아웃은
+       사용 가능으로 남긴다(멀쩡한 제공사를 숨겨 회원이 못 고르게 되는 쪽이 더 나쁘다). */
+    const r = await fetchT(LUMA_BASE + "/generations",
       { headers: { "Authorization": "Bearer " + key, "accept": "application/json" } }, 6000);
     _lumaOk = { at: now, ok: !(r.status === 401 || r.status === 403) };
   } catch (_e) { _lumaOk = { at: now, ok: true }; }
@@ -1137,28 +1140,52 @@ export function applyCameraPreset(b) {
   if (phrase) b.prompt = String(b.prompt || "").trim() + (b.prompt ? ", " : "") + phrase;
   return b;
 }
+/* ── Luma Agents API (문서: docs.agents.lumalabs.ai) ──
+   그동안 우리는 구세대 Dream Machine API(api.lumalabs.ai/dream-machine/v1)에
+   ray-2 계열을 보내고 있었다. 이 계정 키는 새 Agents API 용이라 인증부터 거부됐다
+   (그 API 는 살아 있어서 403 을 주므로 "키가 잘못됐다" 로 보였고, 결제수단·프로젝트 ID
+    같은 엉뚱한 원인을 세 번 짚었다. 결정적 증거는 새 주소에 GET 을 보냈을 때의 405 —
+    404 도 403 도 아닌 405 는 "그 경로는 있고 POST 만 받는다" 는 뜻이다).
+
+   확정된 규격
+     기본 주소   https://agents.lumalabs.ai/v1
+     인증        Authorization: Bearer <키>
+     제출        POST /v1/generations
+     폴링        GET  /v1/generations/{id}   → state: completed|failed, output[0].url
+     이미지      { prompt, aspect_ratio }                      (기본 type=image, uni-1)
+     영상        { model:"ray-3.2", type:"video", prompt, aspect_ratio,
+                   video:{ resolution:"720p", duration:"5s", start_frame, end_frame } }
+     이미지 편집 { type:"image_edit", prompt, source:{ url } } */
 export const LUMA_IDS = {
-  "Luma Ray 2":       "ray-2",
-  "Luma Ray Flash 2": "ray-flash-2",
-  "Luma Ray 1.6":     "ray-1-6",
-  "Luma Ray2":        "ray-2"   // 구버전 표시명 호환
+  "Luma Ray 3.2":     "ray-3.2",
+  "Luma Uni 1":       "uni-1",
+  "Luma Uni 1 Max":   "uni-1-max",
 };
-// 노드의 해상도 선택 → Luma 허용값(540p/720p/1080p/4k). 하드코딩돼 있어 4K 를 골라도 1080p 였다.
+const LUMA_VIDEO_MODELS = { "ray-3.2": 1 };
+// Agents API 의 해상도·길이는 문자열 열거값이다.
 const LUMA_RES = { "540p": "540p", "720p": "720p", "1080p": "1080p", "4K": "4k", "4k": "4k" };
+const LUMA_SECS = [5, 9];
 export function buildLumaPayload(b) {
-  const p = { model: LUMA_IDS[b.model] || "ray-2",
-              prompt: cut(b.prompt, 1200),
-              resolution: LUMA_RES[String(b.res || "").trim()] || "1080p",
-              duration: (Number(b.seconds) || 5) <= 6 ? "5s" : "9s",
-              aspect_ratio: b.ratio || "16:9" };
+  const id = LUMA_IDS[b.model] || "uni-1";
+  const isVideo = !!LUMA_VIDEO_MODELS[id];
   const first = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
-  // Luma 키프레임 — frame0=시작, frame1=끝. 끝 프레임을 주면 두 장 사이를 보간한다(이어보기 안정화).
-  //  노드는 [마지막 프레임] 포트를 열어 두고도 여태 frame1 을 보내지 않아 그 입력이 버려졌다.
-  if (first || b.lastFrame) {
-    p.keyframes = {};
-    if (first) p.keyframes.frame0 = { type: "image", url: first };
-    if (b.lastFrame) p.keyframes.frame1 = { type: "image", url: b.lastFrame };
+  // (다른 세션이 구 API 의 keyframes.frame1 로 '마지막 프레임' 을 추가했었다.
+  //  같은 의도를 Agents API 형식인 video.end_frame 으로 이어받는다.)
+
+  if (!isVideo) {
+    // 이미지 — 레퍼런스가 있으면 편집(image_edit), 없으면 생성
+    const p = { model: id, prompt: cut(b.prompt, 1200), aspect_ratio: b.ratio || "16:9" };
+    if (first) { p.type = "image_edit"; p.source = { url: first }; }
+    return p;
   }
+  // 영상 — 모델이 안 받는 길이를 보내지 않도록 허용값 중 가장 가까운 값으로 스냅한다
+  const raw = Number(b.seconds) || 5;
+  const sec = LUMA_SECS.reduce((a, c) => Math.abs(c - raw) < Math.abs(a - raw) ? c : a, LUMA_SECS[0]);
+  const p = { model: id, type: "video", prompt: cut(b.prompt, 1200),
+              aspect_ratio: b.ratio || "16:9",
+              video: { resolution: LUMA_RES[String(b.res || "").trim()] || "1080p", duration: sec + "s" } };
+  if (first) p.video.start_frame = { url: first };
+  if (b.lastFrame) p.video.end_frame = { url: b.lastFrame };
   return p;
 }
 
@@ -1941,7 +1968,11 @@ async function handle(context) {
       const baseOK = baseRows.find(x => x.httpStatus === 200);
       const anyOK = hdrVariants.find(v => v.httpStatus === 200);
       const per = await Promise.all(Object.entries(LUMA_IDS).map(async ([name, id]) => {
-        const x = await call("/generations", { model: id, prompt: "" });   // prompt 비움 → 파라미터 반려
+        // 실제 빌더가 만드는 본문 그대로 보내되 prompt 만 비운다 — 그래야 "우리가 진짜 보내는 요청"
+        //  을 시험한다. (예전엔 {model,prompt:""} 를 직접 만들어 보내, ray-3.2 가 영상 모델인데도
+        //   type 이 빠져 "Type 'image' is not supported" 라는 엉뚱한 오류가 났다.)
+        const probeBody = buildLumaPayload({ model: name, prompt: "", ratio: "16:9", seconds: 5, res: "720p" });
+        const x = await call("/generations", probeBody);
         const created = !!(x.body && x.body.id);
         const verdict =
           created                                ? "⚠️ 작업이 생성됨 — 진단에서 제외해야 함"
@@ -1969,10 +2000,12 @@ async function handle(context) {
                             : "시도한 주소 중 200 을 주는 곳이 없습니다 — 대시보드의 'show snippet' cURL 이 정확한 주소를 알려 줍니다.",
                     상태코드별요약: byStatus, 시도: baseRows },
         현재코드: { LUMA_BASE, 쓰는모델: LUMA_IDS,
-                    문제: "대시보드는 영상 ray-3.2 · 이미지 uni-1/uni-1-max 라고 표시합니다. 우리가 쓰는 ray-2 계열은 구세대 ID 입니다." },
+                    비고: "Agents API 로 교체 완료. 구세대 dream-machine/v1 주소가 위 '주소탐색' 에 403 으로 남는 건 그 API 가 이 키를 모르기 때문이며 정상이다." },
         헤더방식별: hdrVariants,
         키유효성: { httpStatus: list.status, 응답: list.body,
-          결론: list.status === 200 ? "키는 유효합니다 — 모델별 결과가 실제 원인입니다."
+          결론: list.status === 405
+                ? "정상입니다. Agents API 의 /generations 는 POST 전용이라 GET 조회에는 405 가 옵니다(인증 거부가 아님). 실제 판정은 아래 '모델별' 을 보세요."
+              : list.status === 200 ? "키는 유효합니다 — 모델별 결과가 실제 원인입니다."
               : anyOK ? ("헤더 표기법이 문제입니다 — '" + anyOK.방식 + "' 로 보내면 통과합니다. 코드를 그 방식으로 고쳐야 합니다.")
               : /not authenticated/i.test(JSON.stringify(list.body || ""))
                 ? "자격증명이 거부됩니다. 지금까지 배제된 것: (1) 주소 — /generations 가 404 가 아니라 403 이므로 "
@@ -3106,12 +3139,17 @@ async function handle(context) {
       const r = await fetchT(LUMA_BASE + "/generations/" + encodeURIComponent(task),
         { headers: { "Authorization": "Bearer " + k.luma, "accept": "application/json" } });
       const j = await r.json().catch(() => ({}));
-      if (j.state === "failed") return json({ status: "failed", error: j.failure_reason || "Luma 생성 실패" });
+      if (j.state === "failed")
+        return json({ status: "failed", error: (j.failure_reason || "Luma 생성 실패") + (j.failure_code ? " (" + j.failure_code + ")" : "") });
       if (j.state === "completed") {
-        const url = j.assets && j.assets.video;
-        return url ? json({ url, kind: "video" }) : json({ status: "failed", error: "no video in assets" });
+        // Agents API 는 output 배열로 준다(구 API 의 assets.video 가 아니다).
+        const out = Array.isArray(j.output) ? j.output : [];
+        const url = (out[0] && out[0].url) || (j.assets && (j.assets.video || j.assets.image)) || null;
+        if (!url) return json({ status: "failed", error: "결과에 URL 이 없습니다", raw: j });
+        const isVid = /\.(mp4|mov|webm)(\?|#|$)/i.test(url) || String(j.type || "").indexOf("video") >= 0;
+        return json({ url, kind: isVid ? "video" : "image" });
       }
-      return json({ status: j.state || "dreaming" });
+      return json({ status: j.state || "queued" });
     }
     if (provider === "falq") {
       // 범용 fal 큐 폴링 (모션 전이 등)
