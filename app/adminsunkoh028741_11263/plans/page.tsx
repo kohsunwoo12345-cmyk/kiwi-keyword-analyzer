@@ -49,7 +49,7 @@ export default function AdminPlansPage() {
 
   return (
     <div>
-      <PageHeader icon={Tag} title="요금제 관리" description="플랜별 가격·할인율·제공 크레딧·최대 노드 수·서비스 항목을 수정합니다. 저장 시 요금제 페이지·홈·결제에 그대로 반영됩니다." />
+      <PageHeader eyebrow="ADMIN" icon={Tag} title="요금제 관리" desc="플랜별 가격·할인율·제공 크레딧·최대 노드 수·서비스 항목을 수정합니다. 저장 시 요금제 페이지·홈·결제에 그대로 반영됩니다." />
 
       <div className="mb-4 flex items-center gap-2">
         <Button variant="soft" size="sm" onClick={load} disabled={loading}><RefreshCw size={14} className={cn(loading && 'animate-spin')} /> 새로고침</Button>

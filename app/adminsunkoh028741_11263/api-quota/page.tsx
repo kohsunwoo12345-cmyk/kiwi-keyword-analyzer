@@ -52,8 +52,8 @@ export default function ApiQuotaPage() {
 
   return (
     <div>
-      <PageHeader icon={Gauge} title="AI API 남은 한도"
-        description="각 AI 제공사의 연동 상태와 잔여 한도를 표시합니다. 키가 설정되면 연동됨으로 확인하고, 잔액 API 를 제공하는 곳(Runway·Luma·ElevenLabs)은 실시간 잔액까지 조회합니다." />
+      <PageHeader icon={Gauge} eyebrow="ADMIN" title="AI API 남은 한도"
+        desc="각 AI 제공사의 연동 상태와 잔여 한도를 표시합니다. 키가 설정되면 연동됨으로 확인하고, 잔액 API 를 제공하는 곳(Runway·Luma·ElevenLabs)은 실시간 잔액까지 조회합니다." />
 
       <div className="mb-4 flex items-center justify-between">
         <p className="text-xs text-[var(--text-dim)]">

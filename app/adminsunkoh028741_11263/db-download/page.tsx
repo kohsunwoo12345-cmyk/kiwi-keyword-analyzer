@@ -44,9 +44,9 @@ export default function AdminDbDownloadPage() {
   return (
     <div>
       <PageHeader
-        icon={Download}
+eyebrow="ADMIN"         icon={Download}
         title="회원 DB 다운로드"
-        description="국가·요금제·접속/결제 상태로 타깃을 좁혀 목록을 불러오고, 각 타깃마다 CSV 또는 XLSX(엑셀)로 따로 다운로드합니다."
+        desc="국가·요금제·접속/결제 상태로 타깃을 좁혀 목록을 불러오고, 각 타깃마다 CSV 또는 XLSX(엑셀)로 따로 다운로드합니다."
       />
 
       {/* 세그먼트 타깃 */}

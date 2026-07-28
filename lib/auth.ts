@@ -503,8 +503,10 @@ export interface AiModelRow {
   modelId: string
   provider: string
   providerLabel: string
-  kind: 'image' | 'video'
-  unit: 'img' | 'sec'
+  // 서버(_pricing.ts)가 내려주는 종류는 넷이다. 예전엔 둘만 선언돼 있어
+  //  3D·프롬프트 LLM 모델이 타입상 존재하지 않는 것처럼 취급됐다.
+  kind: 'image' | 'video' | '3d' | 'llm'
+  unit: 'img' | 'sec' | '3d' | 'tok'
   usd: number
   audioUsd: number
   credits: number
