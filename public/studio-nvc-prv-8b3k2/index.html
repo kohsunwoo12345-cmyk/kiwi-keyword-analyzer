@@ -700,6 +700,20 @@ input.wurl:focus{ border-color:#4fb0a5; }
   box-shadow:0 8px 24px rgba(0,0,0,.5); cursor:pointer; }
 #minimap canvas{ display:block; width:200px; height:130px; }
 @media (max-width:760px){ #minimap{ display:none; } }
+/* 좁은 화면에서 상단 오른쪽 묶음(580px)이 줄어들지 않아 화면 밖으로 잘렸다.
+   프로필·로그아웃·영상 넣기·보관함이 손에 닿지 않는다 — 위 .mb-tabs 와 같은 방식으로 가로 스크롤을 준다. */
+@media (max-width:760px){
+  /* 오른쪽 묶음을 줄이면 아바타가 조각으로 남는다. 대신 상단바 전체를 가로로 넘겨
+     본래 크기 그대로 모든 컨트롤에 닿게 한다. */
+  .top{ overflow-x:auto; overflow-y:hidden; scrollbar-width:none; }
+  .top::-webkit-scrollbar{ display:none; }
+  .top-right{ flex:0 0 auto; }
+  /* 가운데 정렬된 하단 툴바(525px)도 좁은 화면에서는 좌우로 넘쳐 양 끝 버튼이 잘렸다. */
+  #botbar{ left:8px; right:8px; transform:none; justify-content:flex-start;
+           overflow-x:auto; overflow-y:hidden; scrollbar-width:none; }
+  #botbar::-webkit-scrollbar{ display:none; }
+  #botbar .tb{ flex:0 0 auto; }
+}
 #apiModal{ position:fixed; inset:0; z-index:120; display:none; align-items:center; justify-content:center;
   background:rgba(0,0,0,.62); backdrop-filter:blur(3px); }
 #apiModal.show{ display:flex; }

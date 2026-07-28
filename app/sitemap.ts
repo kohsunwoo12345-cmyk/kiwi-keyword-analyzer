@@ -18,6 +18,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: '/pricing', priority: 0.9, freq: 'weekly' },
     { path: '/about', priority: 0.6, freq: 'monthly' },
     { path: '/claude-mcp', priority: 0.7, freq: 'monthly' },
+    // 공개 문서 두 쪽이 빠져 있었다 — 검색으로 들어오는 개발자용 진입점이다
+    { path: '/docs/api', priority: 0.7, freq: 'monthly' },
+    { path: '/docs/mcp', priority: 0.6, freq: 'monthly' },
     { path: '/contact', priority: 0.5, freq: 'monthly' },
     { path: '/activate', priority: 0.5, freq: 'monthly' },
     { path: '/login', priority: 0.3, freq: 'yearly' },
