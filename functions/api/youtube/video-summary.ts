@@ -1,5 +1,8 @@
 // Ported from SUPERPLACE: GET /api/youtube/video-summary
+import { ytGuard } from './_guard'
 export const onRequestGet: PagesFunction = async ({ request, env }) => {
+  const denied = await ytGuard(request, env)
+  if (denied) return denied
   const j = (obj: any) => new Response(JSON.stringify(obj), { headers: { 'content-type': 'application/json' } })
   const apiKey = (env as any)?.YouTube_Data_API_v3
   if(!apiKey) return j({ok:false, error:'API 키 없음'})
