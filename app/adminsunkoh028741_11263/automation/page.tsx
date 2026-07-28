@@ -193,8 +193,13 @@ function CrmCampaign() {
     setBusy(true); setMsg('')
     const r = await crmSend({ segment: seg, plan: seg === 'plan' ? plan : undefined, channel, content: content.trim(), subject: subject.trim() || undefined, sender: sender.trim(), scheduleAt: scheduleAt || undefined, tplCode: tplCode.trim() || undefined, test, testPhone: testPhone.trim(), testEmail: testEmail.trim() })
     setBusy(false)
-    if (r.ok) { setMsg(test ? `✅ 테스트 발송 완료 (${r.sent || 0}건)` : `✅ ${r.reserved ? `예약 ${r.reserved}건 (${r.reservedAtKst} KST)` : `발송 ${r.sent}건`} · 실패 ${r.errors || 0}`); if (!test) load() }
-    else setMsg('❌ ' + (r.error || '발송 실패'))
+    // 일부만 성공한 경우도 초록으로 뭉뚱그리지 않는다 — 실패 건수가 있으면 경고로 보여준다
+    if (r.ok) {
+      const okTx = test ? `테스트 발송 완료 (${r.sent || 0}건)`
+        : `${r.reserved ? `예약 ${r.reserved}건 (${r.reservedAtKst} KST)` : `발송 ${r.sent}건`}`
+      setMsg((r.errors ? `⚠️ ${okTx} · 실패 ${r.errors}건` : `✅ ${okTx}`))
+      if (!test) load()
+    } else setMsg('❌ ' + (r.error || '발송 실패') + (r.errors ? ` (실패 ${r.errors}건)` : ''))
   }
 
   return (

@@ -1,6 +1,6 @@
 import { Env, json, ensureSchema, resolveDB, requireAdminUser, sameOriginOk, logAudit, clientIp } from '../_utils'
 import { ensureFunnelSchema } from '../funnel/_schema'
-import { sendSms, aligoAlimtalk, kstStringToReserve } from '../_aligo'
+import { sendSms, aligoAlimtalk, kstStringToReserve, kstStringToUtcMs } from '../_aligo'
 import { resendBatch, emailShell } from '../_external'
 
 const isEmail = (s: any) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(s || ''))
@@ -73,6 +73,23 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const now = new Date().toISOString()
 
+  // ── 예약 시각 검증 ──────────────────────────────────────────────────────────
+  //  입력은 관리자가 고른 "한국시간 벽시계"다(화면 안내도 KST).
+  //  ⚠ 못 읽는 값을 그냥 넘기면 예약이 아니라 "즉시 발송"이 된다 —
+  //     광고 문자가 수천 명에게 곧바로 나가는 사고다. 반드시 막는다.
+  //  ⚠ 과거 시각도 막는다. 제공사가 거부하거나 즉시 발송해 버리는데,
+  //     우리 기록에는 '예약됨'으로 남아 무슨 일이 있었는지 알 수 없게 된다.
+  let scheduleUtcMs: number | null = null
+  if (scheduleAt) {
+    scheduleUtcMs = kstStringToUtcMs(scheduleAt)
+    if (scheduleUtcMs === null) {
+      return json({ ok: false, error: '예약 시각 형식이 올바르지 않습니다. (예: 2026-07-30T09:00)' }, 400)
+    }
+    if (scheduleUtcMs <= Date.now() + 60_000) {
+      return json({ ok: false, error: '예약 시각은 지금부터 최소 1분 뒤여야 합니다. (입력한 한국시간: ' + scheduleAt + ')' }, 400)
+    }
+  }
+
   // ─────────── 이메일(Resend) 채널 — 마케팅 수신동의 회원 대상 ───────────
   if (channel === 'email') {
     let emailRecipients: { email: string; name: string }[]
@@ -89,7 +106,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     // 광고성 표기(정보통신망법) — 테스트 제외. 제목 (광고) 접두 + 본문 하단 수신거부 안내(emailShell 푸터)
     const subj = isTest ? (subject || 'BYGENCY 안내') : `(광고) ${subject}`
     const willSchedule = !!scheduleAt
-    const scheduledAt = willSchedule ? new Date(new Date(scheduleAt.replace(' ', 'T')).getTime()).toISOString() : undefined
+    // 문자·알림톡과 같은 기준(한국시간)으로 맞춘다. 예전엔 실행 환경 시간대로 해석돼
+    //  같은 "09:00" 입력이 문자는 09:00 KST, 이메일은 18:00 KST 로 9시간 어긋났다.
+    const scheduledAt = scheduleUtcMs !== null ? new Date(scheduleUtcMs).toISOString() : undefined
 
     let esent = 0, efail = 0
     for (let i = 0; i < emailRecipients.length; i += 100) {
@@ -135,8 +154,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (recipients.length === 0) return json({ ok: false, error: '대상(마케팅 수신동의) 회원이 없습니다.' }, 400)
   if (recipients.length > 20000) return json({ ok: false, error: '한 번에 최대 20,000명까지 발송할 수 있습니다.' }, 400)
 
-  // 예약(KST) 계산
+  // 예약(KST) 계산 — 위에서 형식·과거 검증을 마쳤으므로 여기서는 분해만 한다
   const rv = scheduleAt ? kstStringToReserve(scheduleAt) : null
+  if (scheduleAt && !rv) return json({ ok: false, error: '예약 시각을 읽지 못했습니다.' }, 400)
   const willReserve = !!rv
 
   let sent = 0, reserved = 0, errors = 0
@@ -164,5 +184,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       .bind(uid('cc_'), guard.me.id, segment, plan || null, channel, rawContent.slice(0, 500), sender || null, scheduleAt || null, recipients.length, sent, reserved, status, now).run().catch(() => {})
     await logAudit(db, { id: guard.me.id, email: guard.me.email }, 'crm_campaign', `${segment}:${recipients.length}`, `${channel} ${status}`, 'info', clientIp(request))
   }
-  return json({ ok: sent > 0 || willReserve, total: recipients.length, sent, reserved, errors, status, reservedAtKst: scheduleAt || null })
+  // ⚠ ok 는 "실제로 성공한 게 있는가"여야 한다.
+  //   예전엔 예약을 걸기만 하면(willReserve) 전송이 전부 실패해도 ok:true 라,
+  //   화면에 초록 체크로 "발송 0건 · 실패 N" 이 떴다 — 관리자는 나간 줄 안다.
+  const anySuccess = willReserve ? reserved > 0 : sent > 0
+  return json({
+    ok: anySuccess, total: recipients.length, sent, reserved, errors, status,
+    reservedAtKst: scheduleAt || null,
+    error: anySuccess ? undefined : (errors > 0 ? '발송에 실패했습니다. 발신번호·연동 설정을 확인하세요.' : '발송된 건이 없습니다.'),
+  })
 }

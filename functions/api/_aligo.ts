@@ -34,11 +34,26 @@ export function kstSenddate(offsetMinutes: number): string {
   const t = new Date(Date.now() + offsetMinutes * 60_000 + 9 * 3600_000)
   return `${t.getUTCFullYear()}${_pad(t.getUTCMonth() + 1)}${_pad(t.getUTCDate())}${_pad(t.getUTCHours())}${_pad(t.getUTCMinutes())}${_pad(t.getUTCSeconds())}`
 }
-/** 관리자가 고른 KST 벽시계 문자열("YYYY-MM-DDTHH:MM") → 예약 값. 이미 KST 라 시차 계산 없이 분해만. */
+/** 관리자가 고른 KST 벽시계 문자열("YYYY-MM-DDTHH:MM" 또는 공백 구분) → 예약 값.
+ *  이미 KST 라 시차 계산 없이 분해만 한다.
+ *  ⚠ 공백 구분("2026-07-30 09:00")도 받아야 한다 — 예전엔 null 을 돌려줬고,
+ *     호출부는 null 을 "예약 안 함"으로 읽어 광고 문자를 즉시 대량 발송했다. */
 export function kstStringToReserve(s: string): { rdate: string; rtime: string; senddate: string } | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(s || ''))
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(String(s || '').trim())
   if (!m) return null
   return { rdate: m[1] + m[2] + m[3], rtime: m[4] + m[5], senddate: m[1] + m[2] + m[3] + m[4] + m[5] + '00' }
+}
+
+/** KST 벽시계 문자열을 실제 UTC 시각(ms)으로. 못 읽으면 null.
+ *  ⚠ new Date("2026-07-30T09:00") 을 쓰면 안 된다 — 실행 환경의 시간대로 해석되어
+ *     Cloudflare(UTC)에서는 09:00 UTC(=18:00 KST)가 된다. 문자는 KST 로 나가는데
+ *     이메일만 9시간 뒤에 나가는 사고가 실제로 이 코드에서 났다.
+ *     KST 는 서머타임이 없으므로 고정 +9 로 환산하면 정확하다. */
+export function kstStringToUtcMs(s: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(String(s || '').trim())
+  if (!m) return null
+  const asUtc = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], 0)
+  return asUtc - 9 * 3600_000
 }
 /** timing 키워드 → 분 오프셋 (즉시/N분/N시간/N일) */
 export function timingToMinutes(timing: string): number {
