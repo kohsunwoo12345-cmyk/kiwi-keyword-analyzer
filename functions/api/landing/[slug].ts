@@ -13,9 +13,19 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, params })
   const db = resolveDB(env)
   if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 500)
   await ensureSchema(db); await ensureLandingSchema(db)
+  // ⚠ 이건 빌더의 "편집용 불러오기" 다(공개 페이지는 /landing/:slug 와 /l/:slug 가 따로 그린다).
+  //   그런데 인증이 없어, 주소만 알면 남의 랜딩페이지 원본 HTML·헤더 스크립트·픽셀 ID 까지
+  //   그대로 가져갈 수 있었다. slug 는 공개 주소라 누구나 안다.
+  const me: any = await getSessionUser(request, db)
+  if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
   const page: any = await db.prepare('SELECT * FROM landing_pages WHERE slug = ?').bind(slug).first().catch(() => null)
   if (!page) return j({ success: false, error: '페이지를 찾을 수 없습니다.' }, 404)
-  db.prepare('UPDATE landing_pages SET view_count = view_count + 1 WHERE slug = ?').bind(slug).run().catch(() => {})
+  const isAdmin = me.role === 'admin' || me.role === 'superadmin'
+  if (!isAdmin && String(page.user_id || '') !== String(me.id))
+    return j({ success: false, error: '권한이 없습니다.' }, 403)
+  // ⚠ 조회수는 올리지 않는다. 여기는 편집기를 열 때 도는 곳이라,
+  //   주인이 편집할 때마다 "조회수" 가 올라가 실제 방문 수와 어긋났다.
+  //   공개 페이지 렌더(functions/landing/[slug].ts)에서 이미 세고 있다.
   return j({ success: true, page })
 }
 
