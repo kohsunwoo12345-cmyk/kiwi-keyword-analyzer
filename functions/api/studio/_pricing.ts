@@ -112,11 +112,18 @@ const RES_MULT: Record<string, number> = { '540p': 0.35, '720p': 0.6, '1080p': 1
 // u:'sec'(영상 초당) | 'img'(이미지 장당) | '3d'(모델 1개당) | 'tok'(호출 1회당), usd, audio(오디오 초당 추가), prov(집계용)
 export type CostUnit = 'sec' | 'img' | '3d' | 'tok'
 export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: number; prov: string }> = {
-  /* 런웨이는 크레딧제다 — 1크레딧 = $0.01 (docs.dev.runwayml.com/guides/pricing).
-     Gen-4 Turbo·Gen-3 Alpha Turbo = 초당 5크레딧 = $0.05, Aleph = 초당 15크레딧 = $0.15.
-     아래 세 값이 그 환산과 정확히 일치한다 — 런웨이 계열은 확인 완료. */
-  'Runway Aleph (영상→실사 V2V)': { u: 'sec', usd: 0.15, prov: 'runway_aleph' },
-  'V2V 자동 (최고정확도·모델 자동선택)': { u: 'sec', usd: 0.15, prov: 'v2v_auto' },
+  /* 런웨이 공식 표 원문 확인 (docs.dev.runwayml.com/guides/pricing.md) — 1크레딧 = $0.01.
+       gen4_turbo    초당  5크레딧 = $0.05   ← 현재 값과 일치
+       gen3a_turbo   초당  5크레딧 = $0.05   ← 현재 값과 일치 (단 2026-07-30 종료)
+       gen4_aleph    초당 15크레딧 = $0.15   ← 예전 값 (2026-07-30 종료)
+       aleph2        초당 28크레딧 = $0.28   ← 후속. 생성당 최소 56크레딧($0.56)
+       참고(미노출): gen4.5 초당 12크레딧 = $0.12
+     Aleph 는 후속 모델로 갈아타면서 단가가 1.87배 올랐다. gen4_aleph 값($0.15)을
+     그대로 두면 aleph2 로 나가는 요청마다 원가의 절반만 받는다. */
+  'Runway Aleph (영상→실사 V2V)': { u: 'sec', usd: 0.28, prov: 'runway_aleph' },
+  /* V2V 자동은 1순위가 Aleph 이고(런웨이 키가 있으면 거의 항상 여기로 간다)
+     실패했을 때만 씨댄스로 내려간다 → 기대값을 Aleph 기준으로 잡는다. */
+  'V2V 자동 (최고정확도·모델 자동선택)': { u: 'sec', usd: 0.28, prov: 'v2v_auto' },
   '모션 전이 (원본 움직임 유지·Motion Transfer)': { u: 'sec', usd: 0.12, prov: 'motion' },
   // 오디오는 단가에 포함이다(위 VEO_PRICE 주석 참조) — audio 가산을 두면 이중 청구가 된다
   'Google Veo 3.1': { u: 'sec', usd: 0.40, prov: 'google' },
@@ -373,6 +380,18 @@ function fluxUsd(input: ChargeInput): number | null {
   return (Number(input.refs) || 0) > 0 ? p.edit : p.t2i
 }
 
+/* ══ 런웨이 Aleph 2.0 의 "생성당 최소 요금" ══
+   공식 표: `aleph2` 는 초당 28크레딧이면서 "56 credit minimum per generation" 이다.
+   즉 1초짜리를 만들어도 $0.28 이 아니라 $0.56 이 나간다. 초당 정액만으로는 표현이 안 된다. */
+const ALEPH2_MIN_USD = 0.56
+function runwayUsd(input: ChargeInput): number | null {
+  const m = String(input.model || '')
+  if (!/^Runway Aleph|^V2V 자동/.test(m)) return null
+  const per = MODEL_COST[m] ? MODEL_COST[m].usd : 0.28
+  const secs = Math.max(1, Number(input.units) || 5)
+  return Math.max(ALEPH2_MIN_USD, per * secs)
+}
+
 /** 소수 2자리 반올림 (크레딧 정밀도) */
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100
 
@@ -388,7 +407,7 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
   const isFlat = m ? (m.u === 'img' || m.u === '3d' || m.u === 'tok') : input.kind === 'image'
   const isImg = isFlat
   let usd: number
-  const lu = lumaUsd(input) ?? veoUsd(input) ?? fluxUsd(input)   // 실측 요금표가 있는 제공사 우선
+  const lu = lumaUsd(input) ?? veoUsd(input) ?? fluxUsd(input) ?? runwayUsd(input)   // 공식 요금표가 있는 제공사 우선
   if (lu != null) {
     usd = lu
   } else if (isImg) {

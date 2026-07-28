@@ -229,6 +229,12 @@ export const RUNWAY_MODELS = {
   "Runway Gen-4": "gen4_turbo",
   "Runway Gen-3 Alpha Turbo": "gen3a_turbo",
 };
+/* gen3a_turbo 도 2026-07-30 에 종료된다(공식 표: "Gen-3 Alpha Turbo and Gen-4 Aleph are
+   deprecated and will be officially sunset on July 30th, 2026 — upgrade Gen-3 Alpha Turbo
+   to Gen-4.5 or Gen-4 Turbo"). 그날이 지나면 이 ID 로 보낸 요청은 그냥 실패한다.
+   gen4_turbo 는 같은 초당 5크레딧이라 갈아타도 요금이 달라지지 않는다 → 안전한 대체다.
+   Aleph 과 같은 방식으로, 모델 이름 문제일 때만 다음 후보로 물러난다. */
+export const RUNWAY_ALT = { gen3a_turbo: ["gen3a_turbo", "gen4_turbo"] };
 export function buildRunwayPayload(b) {
   // Runway 허용 비율 전체 — 4:3·3:4·21:9 가 빠져 있어 16:9 로 폴백되고 있었다.
   const ratioMap = { "16:9": "1280:720", "9:16": "720:1280", "1:1": "960:960",
@@ -3627,14 +3633,23 @@ async function handle(context) {
     if (!k.runway) return json({ error: "Runway 연동이 설정되지 않았습니다" }, 500);
     const payload = buildRunwayPayload(b);
     if (!payload.promptImage) return json({ error: "Runway(gen4_turbo)는 첫 프레임 또는 레퍼런스 이미지가 필요합니다. 레퍼런스 노드를 연결하세요." }, 400);
-    const r = await fetchT("https://api.dev.runwayml.com/v1/image_to_video", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + k.runway, "X-Runway-Version": RUNWAY_VER, "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.id) return json({ error: "Runway HTTP " + r.status + ": " + String(j.error || j.message || JSON.stringify(j)).slice(0, 220) }, 502);
-    return json({ statusUrl: "/api/generate?provider=runway&task=" + encodeURIComponent(j.id) });
+    // 종료 예정 ID(gen3a_turbo)는 실패 시 같은 요금의 후속(gen4_turbo)으로 물러난다
+    const rwIds = RUNWAY_ALT[payload.model] || [payload.model];
+    let rwStatus = 502, rwMsg = "요청 실패";
+    for (const mid of rwIds) {
+      const r = await fetchT("https://api.dev.runwayml.com/v1/image_to_video", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + k.runway, "X-Runway-Version": RUNWAY_VER, "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, model: mid })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.id) return json({ statusUrl: "/api/generate?provider=runway&task=" + encodeURIComponent(j.id), modelId: mid });
+      rwStatus = r.status;
+      rwMsg = "[" + mid + "] " + String(j.error || j.message || JSON.stringify(j)).slice(0, 200);
+      // 모델 이름 문제가 아니면(잔액·검열·파라미터) 다른 ID 로 바꿔도 결과가 같다
+      if (!/model|not\s*found|invalid|unsupported|deprecat|sunset/i.test(rwMsg)) break;
+    }
+    return json({ error: "Runway HTTP " + rwStatus + ": " + rwMsg }, 502);
   }
 
   /* ── V2V 자동 라우팅 (정확도 최상) ──
