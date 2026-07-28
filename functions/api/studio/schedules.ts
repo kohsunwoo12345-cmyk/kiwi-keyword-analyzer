@@ -25,8 +25,8 @@ function tzOffsetMs(utcMs: number, tz: string): number {
 
 /** 그 지역의 "벽시계 시각"(예: 서울 9시)을 실제 UTC 시각으로 변환.
  *  오프셋이 변환 대상 시각에 따라 달라지므로(서머타임 경계) 두 번 보정한다. */
-function wallToUtc(y: number, m: number, d: number, h: number, tz: string): number {
-  const naive = Date.UTC(y, m, d, h, 0, 0)
+function wallToUtc(y: number, m: number, d: number, h: number, mi: number, tz: string): number {
+  const naive = Date.UTC(y, m, d, h, mi, 0)
   let guess = naive - tzOffsetMs(naive, tz)
   guess = naive - tzOffsetMs(guess, tz)
   return guess
@@ -54,7 +54,8 @@ export async function ensureSchedules(db: D1Database): Promise<void> {
       name TEXT NOT NULL DEFAULT '',
       enabled INTEGER NOT NULL DEFAULT 1,
       freq TEXT NOT NULL DEFAULT 'weekly',   -- daily | weekly
-      hour INTEGER NOT NULL DEFAULT 9,       -- 0~23 (KST)
+      hour INTEGER NOT NULL DEFAULT 9,       -- 0~23 (해당 tz 기준)
+      minute INTEGER NOT NULL DEFAULT 0,     -- 0~59 (해당 tz 기준)
       weekday INTEGER NOT NULL DEFAULT 1,    -- 0=일 … 6=토 (freq=weekly 일 때)
       model TEXT NOT NULL DEFAULT '',
       prompt TEXT NOT NULL DEFAULT '',
@@ -75,6 +76,7 @@ export async function ensureSchedules(db: D1Database): Promise<void> {
   // 기존 테이블에도 나중에 추가된 컬럼을 붙인다(이미 있으면 무시)
   await db.prepare("ALTER TABLE studio_schedules ADD COLUMN tz TEXT NOT NULL DEFAULT 'Asia/Seoul'").run().catch(() => {})
   await db.prepare('ALTER TABLE studio_schedules ADD COLUMN fail_streak INTEGER NOT NULL DEFAULT 0').run().catch(() => {})
+  await db.prepare('ALTER TABLE studio_schedules ADD COLUMN minute INTEGER NOT NULL DEFAULT 0').run().catch(() => {})
   await db.prepare('CREATE INDEX IF NOT EXISTS idx_sched_due ON studio_schedules (enabled, next_run_at)').run().catch(() => {})
 }
 
@@ -82,9 +84,10 @@ export async function ensureSchedules(db: D1Database): Promise<void> {
  *  사용자가 고른 "그 지역 현지 시각"(tz) 기준으로 지금 이후 가장 가까운 때를 구한다.
  *  서머타임이 있는 지역(미국·유럽 등)도 그 시점의 실제 오프셋으로 계산하므로,
  *  현지에서는 언제나 같은 시계 시각(예: 매일 오전 9시)에 실행된다. */
-export function computeNextRun(freq: string, hour: number, weekday: number, fromMs: number, tz?: string): string {
+export function computeNextRun(freq: string, hour: number, minute: number, weekday: number, fromMs: number, tz?: string): string {
   const zone = normalizeTz(tz)
   const h = Math.min(23, Math.max(0, Math.round(hour) || 0))
+  const mi = Math.min(59, Math.max(0, Math.round(minute) || 0))
   const wd = Math.min(6, Math.max(0, Math.round(weekday) || 0))
   const now = wallNow(fromMs, zone)
 
@@ -94,7 +97,7 @@ export function computeNextRun(freq: string, hour: number, weekday: number, from
   if (freq !== 'daily') addDays = (wd - now.wd + 7) % 7
   for (let i = 0; i < 400; i++) {
     const t = new Date(Date.UTC(now.y, now.m, now.d + addDays, 12, 0, 0))   // 정오 기준으로 날짜만 안전하게 이동
-    const utc = wallToUtc(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), h, zone)
+    const utc = wallToUtc(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), h, mi, zone)
     if (utc > fromMs) return new Date(utc).toISOString()
     addDays += (freq === 'daily') ? 1 : 7
   }
@@ -103,7 +106,8 @@ export function computeNextRun(freq: string, hour: number, weekday: number, from
 
 const row2json = (r: any) => ({
   id: r.id, name: r.name || '', enabled: Number(r.enabled) === 1,
-  freq: r.freq || 'weekly', hour: Number(r.hour) || 0, weekday: Number(r.weekday) || 0,
+  freq: r.freq || 'weekly', hour: Number(r.hour) || 0, minute: Number(r.minute) || 0,
+  weekday: Number(r.weekday) || 0,
   model: r.model || '', prompt: r.prompt || '', seconds: Number(r.seconds) || 5,
   ratio: r.ratio || '16:9', res: r.res || '1080p', tz: r.tz || DEFAULT_TZ,
   nextRunAt: r.next_run_at || '', lastRunAt: r.last_run_at || '',
@@ -146,9 +150,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!(MODEL_COST as any)[model]) return json({ ok: false, error: '알 수 없는 모델입니다: ' + model }, 400)
   const freq = b.freq === 'daily' ? 'daily' : 'weekly'
   const hour = Math.min(23, Math.max(0, Number(b.hour) || 0))
+  const minute = Math.min(59, Math.max(0, Number(b.minute) || 0))
   const weekday = Math.min(6, Math.max(0, Number(b.weekday) || 0))
   const tz = normalizeTz(b.tz)
-  const next = computeNextRun(freq, hour, weekday, Date.now(), tz)
+  const next = computeNextRun(freq, hour, minute, weekday, Date.now(), tz)
   const now = new Date().toISOString()
 
   if (b.id) {
@@ -156,9 +161,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (!own) return json({ ok: false, error: '없는 예약입니다.' }, 404)
     await db.prepare(
       // 설정을 고쳐 저장하면 연속 실패 기록은 지운다 — 원인을 고쳤을 수 있으니 다시 3번의 기회를 준다
-      `UPDATE studio_schedules SET name=?, enabled=?, freq=?, hour=?, weekday=?, model=?, prompt=?,
+      `UPDATE studio_schedules SET name=?, enabled=?, freq=?, hour=?, minute=?, weekday=?, model=?, prompt=?,
         seconds=?, ratio=?, res=?, tz=?, max_runs=?, next_run_at=?, fail_streak=0 WHERE id=? AND user_id=?`,
-    ).bind(String(b.name || '').slice(0, 60), b.enabled === false ? 0 : 1, freq, hour, weekday, model, prompt,
+    ).bind(String(b.name || '').slice(0, 60), b.enabled === false ? 0 : 1, freq, hour, minute, weekday, model, prompt,
       Math.max(1, Number(b.seconds) || 5), String(b.ratio || '16:9'), String(b.res || '1080p'), tz,
       Math.max(0, Number(b.maxRuns) || 0), next, String(b.id), me.id).run()
     return json({ ok: true, id: b.id, nextRunAt: next, tz })
@@ -169,9 +174,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: `예약은 최대 ${MAX_PER_USER}개까지 만들 수 있습니다.` }, 400)
   const id = 'sc_' + crypto.randomUUID().slice(0, 12)
   await db.prepare(
-    `INSERT INTO studio_schedules (id,user_id,name,enabled,freq,hour,weekday,model,prompt,seconds,ratio,res,tz,next_run_at,max_runs,created_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-  ).bind(id, me.id, String(b.name || '').slice(0, 60), b.enabled === false ? 0 : 1, freq, hour, weekday, model, prompt,
+    `INSERT INTO studio_schedules (id,user_id,name,enabled,freq,hour,minute,weekday,model,prompt,seconds,ratio,res,tz,next_run_at,max_runs,created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  ).bind(id, me.id, String(b.name || '').slice(0, 60), b.enabled === false ? 0 : 1, freq, hour, minute, weekday, model, prompt,
     Math.max(1, Number(b.seconds) || 5), String(b.ratio || '16:9'), String(b.res || '1080p'), tz, next,
     Math.max(0, Number(b.maxRuns) || 0), now).run()
   return json({ ok: true, id, nextRunAt: next, tz })

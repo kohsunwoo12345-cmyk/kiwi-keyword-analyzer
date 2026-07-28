@@ -1,10 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Timer, RefreshCw, AlertTriangle, CheckCircle2, PauseCircle, Loader2, Coins, KeyRound } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  Timer, RefreshCw, AlertTriangle, CheckCircle2, PauseCircle, Loader2,
+  Coins, KeyRound, Search, ChevronDown, ChevronRight, ExternalLink,
+} from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel } from '@/components/ui'
-import { adminCronStatus, type CronStatus } from '@/lib/auth'
+import { adminCronStatus, type CronStatus, type CronScheduleRow } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 // 정기 실행(크론) 현황.
@@ -32,6 +35,8 @@ const ago = (min?: number | null) => {
   if (min < 60 * 48) return `${Math.round(min / 60)}시간 전`
   return `${Math.round(min / 1440)}일 전`
 }
+const when = (s: CronScheduleRow) =>
+  `${s.freq === 'daily' ? '매일' : `매주 ${DAYS[s.weekday]}요일`} ${s.hour}:${String(s.minute).padStart(2, '0')}`
 
 const HEALTH: Record<string, { label: string; desc: string; cls: string; icon: typeof CheckCircle2 }> = {
   ok: { label: '정상', desc: '스케줄러가 돌고 있습니다.', cls: 'text-emerald-600 bg-emerald-50 border-emerald-200', icon: CheckCircle2 },
@@ -40,9 +45,27 @@ const HEALTH: Record<string, { label: string; desc: string; cls: string; icon: t
   idle: { label: '대기', desc: '켜져 있는 예약이 없습니다. 판정할 근거가 없습니다.', cls: 'text-slate-500 bg-slate-50 border-slate-200', icon: PauseCircle },
 }
 
+/** 꺼진 이유는 대응이 다르다 — 사용자가 끈 것 / 서버가 끈 것 / 다 쓴 것 */
+const STATE_BADGE: Record<string, { label: string; cls: string }> = {
+  autoStopped: { label: '자동 중지', cls: 'bg-rose-100 text-rose-700' },
+  exhausted: { label: '횟수 소진', cls: 'bg-slate-100 text-slate-600' },
+  off: { label: '꺼짐', cls: 'bg-slate-100 text-slate-600' },
+}
+
+type Tab = 'active' | 'ended' | 'failed' | 'all'
+const TABS: { v: Tab; label: string }[] = [
+  { v: 'active', label: '진행 중' },
+  { v: 'ended', label: '종료' },
+  { v: 'failed', label: '실패' },
+  { v: 'all', label: '전체' },
+]
+
 export default function CronPage() {
   const [d, setD] = useState<CronStatus | null>(null)
   const [loading, setLoading] = useState(false)
+  const [tab, setTab] = useState<Tab>('active')
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState<string | null>(null)
 
   const load = () => { setLoading(true); adminCronStatus().then((r) => { setD(r); setLoading(false) }) }
   useEffect(() => {
@@ -50,6 +73,25 @@ export default function CronPage() {
     const t = setInterval(load, 60_000)   // 1분마다 자동 갱신 — 지켜보는 화면이므로
     return () => clearInterval(t)
   }, [])
+
+  const all = useMemo(() => d?.schedules ?? [], [d])
+  const counts = useMemo(() => ({
+    active: all.filter((s) => s.enabled).length,
+    ended: all.filter((s) => !s.enabled).length,
+    failed: all.filter((s) => s.failed).length,
+    all: all.length,
+  }), [all])
+
+  const rows = useMemo(() => {
+    const byTab = all.filter((s) =>
+      tab === 'active' ? s.enabled : tab === 'ended' ? !s.enabled : tab === 'failed' ? s.failed : true)
+    const k = q.trim().toLowerCase()
+    if (!k) return byTab
+    // 프롬프트까지 검색 대상 — "누가 무엇을 예약해 뒀는지" 찾는 화면이므로
+    return byTab.filter((s) =>
+      (s.name + ' ' + s.userName + ' ' + s.userEmail + ' ' + s.prompt + ' ' + s.model + ' ' + s.tz)
+        .toLowerCase().includes(k))
+  }, [all, tab, q])
 
   const t = d?.totals
   const h = HEALTH[d?.health || 'idle'] || HEALTH.idle
@@ -60,7 +102,7 @@ export default function CronPage() {
       <PageHeader
         icon={Timer} eyebrow="CRON" accent="#7c3aed"
         title="정기 실행 현황"
-        desc="예약 자동 생성이 실제로 돌고 있는지, 조용히 실패하는 예약은 없는지 확인합니다. 스케줄러는 Cloudflare Workers Cron Trigger 가 15분마다 호출합니다."
+        desc="예약 자동 생성이 실제로 돌고 있는지, 조용히 실패하는 예약은 없는지 확인합니다. 스케줄러는 Cloudflare Workers Cron Trigger 가 1분마다 호출합니다."
         action={
           <button onClick={load} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--text-soft)] hover:bg-slate-50">
             <RefreshCw size={14} className={cn(loading && 'animate-spin')} /> 새로고침
@@ -84,7 +126,7 @@ export default function CronPage() {
               </div>
               {d.health === 'down' && (
                 <div className="mt-1 opacity-80">
-                  워커가 살아 있는지 확인: <code className="rounded bg-white/60 px-1">curl https://bygency-cron.&lt;계정&gt;.workers.dev/health</code>
+                  워커가 살아 있는지 확인: <code className="rounded bg-white/60 px-1">curl https://kiwi-keyword-analyzer.kohsunwoo12345.workers.dev/health</code>
                 </div>
               )}
             </div>
@@ -97,94 +139,67 @@ export default function CronPage() {
             <Stat label={`자동 중지(${d.failLimit ?? 3}회 연속 실패)`} value={t?.autoStopped ?? 0} warn={(t?.autoStopped ?? 0) > 0} />
           </div>
 
-          {(d.failures?.length ?? 0) > 0 && (
-            <Panel title={`최근 실패 ${d.failures!.length}건`}>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-xs text-[var(--text-dim)]">
-                    <tr className="border-b border-[var(--border)]">
-                      <th className="px-3 py-2 text-left font-semibold">예약</th>
-                      <th className="px-3 py-2 text-left font-semibold">회원</th>
-                      <th className="px-3 py-2 text-left font-semibold">사유</th>
-                      <th className="px-3 py-2 text-right font-semibold">연속</th>
-                      <th className="px-3 py-2 text-right font-semibold">시각(KST)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {d.failures!.map((f) => (
-                      <tr key={f.id} className="border-b border-[var(--border)] last:border-0">
-                        <td className="px-3 py-2">
-                          {f.name || '(이름 없음)'}
-                          {!f.enabled && <span className="ml-1.5 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] text-rose-700">중지됨</span>}
-                        </td>
-                        <td className="px-3 py-2 text-[var(--text-soft)]">{f.userName || '-'}<div className="text-xs text-[var(--text-dim)]">{f.userEmail}</div></td>
-                        <td className="px-3 py-2 text-rose-600">{f.lastStatus}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{f.failStreak}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-[var(--text-dim)]">{kst(f.lastRunAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          <Panel
+            title={
+              <div className="flex flex-wrap items-center gap-1">
+                {TABS.map((x) => (
+                  <button
+                    key={x.v} onClick={() => { setTab(x.v); setOpen(null) }}
+                    className={cn(
+                      'rounded-lg px-3 py-1.5 text-sm font-medium transition',
+                      tab === x.v ? 'bg-[var(--accent,#7c3aed)] text-white' : 'text-[var(--text-soft)] hover:bg-slate-100',
+                    )}
+                    style={tab === x.v ? { background: '#7c3aed' } : undefined}
+                  >
+                    {x.label}
+                    <span className={cn('ml-1.5 tabular-nums', tab === x.v ? 'opacity-80' : 'text-[var(--text-dim)]')}>
+                      {counts[x.v]}
+                    </span>
+                  </button>
+                ))}
               </div>
-            </Panel>
-          )}
-
-          <Panel title={`예약 전체 ${d.schedules?.length ?? 0}건`}>
-            {(d.schedules?.length ?? 0) === 0 ? (
-              <div className="py-10 text-center text-sm text-[var(--text-dim)]">등록된 예약이 없습니다.</div>
+            }
+            action={
+              <div className="relative w-full max-w-xs">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" />
+                <input
+                  value={q} onChange={(e) => setQ(e.target.value)}
+                  placeholder="회원·예약명·프롬프트 검색"
+                  className="input w-full pl-9 text-sm"
+                />
+              </div>
+            }
+          >
+            {rows.length === 0 ? (
+              <div className="py-10 text-center text-sm text-[var(--text-dim)]">
+                {q ? '검색 결과가 없습니다.' : tab === 'active' ? '진행 중인 예약이 없습니다.'
+                  : tab === 'ended' ? '종료된 예약이 없습니다.' : tab === 'failed' ? '실패한 예약이 없습니다.' : '등록된 예약이 없습니다.'}
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-xs text-[var(--text-dim)]">
                     <tr className="border-b border-[var(--border)]">
+                      <th className="w-6 px-2 py-2"></th>
                       <th className="px-3 py-2 text-left font-semibold">예약</th>
                       <th className="px-3 py-2 text-left font-semibold">회원</th>
+                      <th className="px-3 py-2 text-left font-semibold">프롬프트</th>
                       <th className="px-3 py-2 text-left font-semibold">주기 · 시간대</th>
-                      <th className="px-3 py-2 text-left font-semibold">모델</th>
                       <th className="px-3 py-2 text-left font-semibold">다음 실행(현지)</th>
                       <th className="px-3 py-2 text-left font-semibold">마지막 상태</th>
                       <th className="px-3 py-2 text-right font-semibold">실행</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {d.schedules!.map((s) => {
+                    {rows.map((s) => {
                       const dueNow = s.enabled && s.nextRunAt && Date.parse(s.nextRunAt) <= Date.now()
-                      const failed = /^(실패|실행 불가)/.test(s.lastStatus)
+                      const badge = s.enabled ? null : STATE_BADGE[s.state] || STATE_BADGE.off
+                      const isOpen = open === s.id
                       return (
-                        <tr key={s.id} className={cn('border-b border-[var(--border)] last:border-0', !s.enabled && 'opacity-60')}>
-                          <td className="px-3 py-2">
-                            {s.name || '(이름 없음)'}
-                            {!s.enabled && (
-                              <span className={cn('ml-1.5 rounded px-1.5 py-0.5 text-[10px]',
-                                s.failStreak >= (d.failLimit ?? 3) ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600')}>
-                                {s.failStreak >= (d.failLimit ?? 3) ? '자동 중지' : '꺼짐'}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-[var(--text-soft)]">
-                            {s.userName || '-'}
-                            <div className="flex items-center gap-2 text-xs text-[var(--text-dim)]">
-                              <span className="inline-flex items-center gap-0.5"><Coins size={11} />{s.userCredits.toLocaleString('ko-KR')}</span>
-                              {/* 토큰이 없으면 크론이 회원 자격으로 호출할 수 없어 매번 실패한다 */}
-                              {!s.hasToken && <span className="inline-flex items-center gap-0.5 text-rose-600"><KeyRound size={11} />토큰 없음</span>}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 text-[var(--text-soft)]">
-                            {s.freq === 'daily' ? '매일' : `매주 ${DAYS[s.weekday]}요일`} {s.hour}시
-                            <div className="text-xs text-[var(--text-dim)]">{s.tz}</div>
-                          </td>
-                          <td className="px-3 py-2 text-xs text-[var(--text-soft)]">{s.model}</td>
-                          <td className={cn('px-3 py-2 tabular-nums', dueNow ? 'font-semibold text-amber-600' : 'text-[var(--text-dim)]')}>
-                            {inTz(s.nextRunAt, s.tz)}{dueNow && ' · 대기 중'}
-                          </td>
-                          <td className={cn('px-3 py-2 text-xs', failed ? 'text-rose-600' : 'text-[var(--text-soft)]')}>
-                            {s.lastStatus || '-'}
-                            {s.lastRunAt && <div className="text-[var(--text-dim)]">{kst(s.lastRunAt)} KST</div>}
-                          </td>
-                          <td className="px-3 py-2 text-right tabular-nums text-[var(--text-dim)]">
-                            {s.runs}{s.maxRuns > 0 ? ` / ${s.maxRuns}` : ''}
-                          </td>
-                        </tr>
+                        <FragmentRow
+                          key={s.id} s={s} isOpen={isOpen} dueNow={!!dueNow} badge={badge}
+                          onToggle={() => setOpen(isOpen ? null : s.id)}
+                        />
                       )
                     })}
                   </tbody>
@@ -194,6 +209,107 @@ export default function CronPage() {
           </Panel>
         </div>
       )}
+    </div>
+  )
+}
+
+function FragmentRow({
+  s, isOpen, dueNow, badge, onToggle,
+}: {
+  s: CronScheduleRow; isOpen: boolean; dueNow: boolean
+  badge: { label: string; cls: string } | null; onToggle: () => void
+}) {
+  return (
+    <>
+      <tr
+        onClick={onToggle}
+        className={cn('cursor-pointer border-b border-[var(--border)] hover:bg-slate-50', !s.enabled && 'opacity-70')}
+      >
+        <td className="px-2 py-2 text-[var(--text-dim)]">
+          {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </td>
+        <td className="px-3 py-2">
+          {s.name || '(이름 없음)'}
+          {badge && <span className={cn('ml-1.5 rounded px-1.5 py-0.5 text-[10px]', badge.cls)}>{badge.label}</span>}
+          <div className="text-xs text-[var(--text-dim)]">{s.model}</div>
+        </td>
+        <td className="px-3 py-2 text-[var(--text-soft)]">
+          {s.userName || '-'}
+          <div className="text-xs text-[var(--text-dim)]">{s.userEmail}</div>
+          <div className="flex items-center gap-2 text-xs text-[var(--text-dim)]">
+            <span className="inline-flex items-center gap-0.5"><Coins size={11} />{s.userCredits.toLocaleString('ko-KR')}</span>
+            {/* 토큰이 없으면 크론이 회원 자격으로 호출할 수 없어 매번 실패한다 */}
+            {!s.hasToken && <span className="inline-flex items-center gap-0.5 text-rose-600"><KeyRound size={11} />토큰 없음</span>}
+          </div>
+        </td>
+        <td className="max-w-[22rem] px-3 py-2 text-[var(--text-soft)]">
+          <div className={cn('text-xs', !isOpen && 'line-clamp-2')}>{s.prompt || '-'}</div>
+        </td>
+        <td className="px-3 py-2 text-[var(--text-soft)]">
+          {when(s)}
+          <div className="text-xs text-[var(--text-dim)]">{s.tz}</div>
+        </td>
+        <td className={cn('px-3 py-2 tabular-nums', dueNow ? 'font-semibold text-amber-600' : 'text-[var(--text-dim)]')}>
+          {s.enabled ? inTz(s.nextRunAt, s.tz) : '-'}{dueNow && ' · 대기 중'}
+        </td>
+        <td className={cn('px-3 py-2 text-xs', s.failed ? 'text-rose-600' : 'text-[var(--text-soft)]')}>
+          {s.lastStatus || '-'}
+          {s.lastRunAt && <div className="text-[var(--text-dim)]">{kst(s.lastRunAt)} KST</div>}
+          {s.failed && s.failStreak > 0 && <div className="text-rose-500">연속 {s.failStreak}회</div>}
+        </td>
+        <td className="px-3 py-2 text-right tabular-nums text-[var(--text-dim)]">
+          {s.runs}{s.maxRuns > 0 ? ` / ${s.maxRuns}` : ''}
+        </td>
+      </tr>
+
+      {isOpen && (
+        <tr className="border-b border-[var(--border)] bg-slate-50/60">
+          <td></td>
+          <td colSpan={7} className="px-3 py-3">
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div>
+                <div className="mb-1 text-xs font-semibold text-[var(--text-dim)]">프롬프트 전문</div>
+                <div className="whitespace-pre-wrap rounded-lg border border-[var(--border)] bg-white p-3 text-xs text-[var(--text-soft)]">
+                  {s.prompt || '(비어 있음)'}
+                </div>
+              </div>
+              <div className="space-y-1 text-xs text-[var(--text-soft)]">
+                <Kv k="모델" v={s.model} />
+                <Kv k="생성 옵션" v={`${s.seconds}초 · ${s.ratio} · ${s.res}`} />
+                <Kv k="시간대" v={s.tz} />
+                <Kv k="주기" v={when(s)} />
+                <Kv k="다음 실행" v={s.enabled ? `${inTz(s.nextRunAt, s.tz)} (${s.tz}) · ${kst(s.nextRunAt)} KST` : '중지됨'} />
+                <Kv k="마지막 실행" v={s.lastRunAt ? `${kst(s.lastRunAt)} KST` : '없음'} />
+                <Kv k="마지막 상태" v={s.lastStatus || '-'} />
+                {s.lastResult && (
+                  <div className="flex gap-2">
+                    <span className="w-20 flex-shrink-0 text-[var(--text-dim)]">마지막 결과</span>
+                    <a href={s.lastResult} target="_blank" rel="noreferrer"
+                       className="inline-flex items-center gap-1 break-all text-blue-600 hover:underline">
+                      {s.lastResult.slice(0, 70)}{s.lastResult.length > 70 ? '…' : ''}<ExternalLink size={11} />
+                    </a>
+                  </div>
+                )}
+                <Kv k="실행 횟수" v={`${s.runs}${s.maxRuns > 0 ? ` / ${s.maxRuns} (제한)` : ' (무제한)'}`} />
+                <Kv k="연속 실패" v={String(s.failStreak)} />
+                <Kv k="회원" v={`${s.userName || '-'} · ${s.userEmail} · 크레딧 ${s.userCredits.toLocaleString('ko-KR')}`} />
+                <Kv k="MCP 토큰" v={s.hasToken ? '있음' : '없음 — 크론이 회원 자격으로 호출할 수 없어 매번 실패합니다'} />
+                <Kv k="만든 날짜" v={s.createdAt ? kst(s.createdAt) : '-'} />
+                <Kv k="예약 ID" v={s.id} />
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+function Kv({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex gap-2">
+      <span className="w-20 flex-shrink-0 text-[var(--text-dim)]">{k}</span>
+      <span className="break-all">{v}</span>
     </div>
   )
 }

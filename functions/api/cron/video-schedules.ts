@@ -87,7 +87,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
 
     // 다음 실행 시각 재계산 — 실패해도 다음 주기로 넘긴다(같은 틱에서 재시도해 과금이 반복되지 않게)
-    const next = computeNextRun(String(s.freq || 'weekly'), Number(s.hour) || 0, Number(s.weekday) || 0, Date.now(), String(s.tz || 'Asia/Seoul'))
+    const next = computeNextRun(String(s.freq || 'weekly'), Number(s.hour) || 0, Number(s.minute) || 0,
+      Number(s.weekday) || 0, Date.now(), String(s.tz || 'Asia/Seoul'))
     const failed = /^실패/.test(status)
     const streak = failed ? (Number(s.fail_streak) || 0) + 1 : 0
     // 연속 실패가 한계에 닿으면 끈다 — 키가 빠졌거나 크레딧이 없는 예약이
