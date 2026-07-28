@@ -3,11 +3,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Contact, Upload, Plus, Trash2, Users, FileSpreadsheet, Loader2, Pencil,
-  Check, X, AlertCircle,
+  Check, X, AlertCircle, Search,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Button, Panel } from '@/components/ui'
+import { Button } from '@/components/ui'
+import { Card, EmptyState, Metric } from '@/components/dash/Kit'
 import { isImeEnter } from '@/lib/utils'
+import { kstDate } from '@/lib/time'
 
 const ACCENT = '#0ea5e9'
 
@@ -28,21 +30,24 @@ declare global {
 
 function fmtDate(iso: string) {
   if (!iso) return '-'
-  try {
-    return new Date(iso).toLocaleDateString('ko-KR', {
-      timeZone: 'Asia/Seoul',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    })
-  } catch {
-    return iso
-  }
+  return kstDate(iso)
 }
 
-// digits-only phone; require >= 10 digits (matches server normalization)
+/** 서버가 한 번에 받는 최대 행 수 (functions/api/groups.ts 와 동일) */
+const MAX_IMPORT = 10000
+
+/**
+ * 숫자만 남긴 전화번호. 10자리 미만은 버린다 (서버 기준과 동일).
+ *
+ * 엑셀에서 휴대폰 열을 숫자 서식으로 저장하면 앞자리 0이 사라져
+ * 01022222222 가 1022222222 로 읽힌다. 그대로 보내면 서버는 10자리라
+ * 통과시켜 "0이 빠진 다른 번호"를 저장하고, 나중에 발송이 실패한다.
+ * 국내 번호는 항상 0으로 시작하므로 9~10자리이면서 0으로 시작하지 않으면
+ * 앞자리 0을 되살린다.
+ */
 function normPhone(v: unknown): string {
-  const d = String(v ?? '').replace(/\D/g, '')
+  let d = String(v ?? '').replace(/\D/g, '')
+  if (d && d[0] !== '0' && (d.length === 9 || d.length === 10)) d = `0${d}`
   return d.length >= 10 ? d : ''
 }
 
@@ -92,6 +97,7 @@ export default function TargetGroupsPage() {
   const [renameBusy, setRenameBusy] = useState(false)
   const [delBusy, setDelBusy] = useState(false)
   const [memberDelBusy, setMemberDelBusy] = useState<Record<string, boolean>>({})
+  const [memberQuery, setMemberQuery] = useState('')
 
   // excel import flow
   const fileRef = useRef<HTMLInputElement>(null)
@@ -164,6 +170,7 @@ export default function TargetGroupsPage() {
     setSelId(gid)
     setRenaming(false)
     setMembers([])
+    setMemberQuery('')
     loadMembers(gid)
   }
 
@@ -328,12 +335,33 @@ export default function TargetGroupsPage() {
         .filter((r) => r.phone)
     : []
 
-  // dedupe preview count by phone
-  const validCount = new Set(parsedRows.map((r) => r.phone)).size
+  /**
+   * 서버는 같은 번호를 건너뛰고, 한 요청에 10,000행까지만 받는다.
+   * 예전에는 미리보기만 중복을 세고 전송은 원본 그대로여서,
+   * "9,000명 추가"라고 안내한 뒤 12,000행을 보내 서버에 거절당했다.
+   */
+  const uniqueRows: ParsedRow[] = (() => {
+    const seen = new Set<string>()
+    const out: ParsedRow[] = []
+    for (const r of parsedRows) {
+      if (seen.has(r.phone)) continue
+      seen.add(r.phone)
+      out.push(r)
+    }
+    return out
+  })()
+  const validCount = uniqueRows.length
+  const dupCount = parsedRows.length - uniqueRows.length
+  const invalidCount = Math.max(0, rawRows.length - parsedRows.length)
+  const overLimit = validCount > MAX_IMPORT
 
   async function doImport() {
-    if (!parsedRows.length) {
+    if (!uniqueRows.length) {
       pushToast('추가할 유효한 연락처가 없습니다.', 'err')
+      return
+    }
+    if (overLimit) {
+      pushToast(`한 번에 최대 ${MAX_IMPORT.toLocaleString('ko-KR')}명까지 가져올 수 있습니다.`, 'err')
       return
     }
     const targetId = importTargetId
@@ -344,13 +372,19 @@ export default function TargetGroupsPage() {
     }
     setImportBusy(true)
     try {
-      const body: Record<string, unknown> = { action: 'import', rows: parsedRows }
+      const body: Record<string, unknown> = { action: 'import', rows: uniqueRows }
       if (targetId) body.groupId = targetId
       else body.name = targetName
       const d = await post(body)
       if (d && d.ok) {
-        const added = typeof d.added === 'number' ? d.added : parsedRows.length
-        pushToast(`${added}명 추가됨`, 'ok')
+        const added = typeof d.added === 'number' ? d.added : uniqueRows.length
+        const skipped = uniqueRows.length - added
+        pushToast(
+          skipped > 0
+            ? `${added.toLocaleString('ko-KR')}명 추가 · 이미 있던 번호 ${skipped.toLocaleString('ko-KR')}건은 건너뛰었습니다.`
+            : `${added.toLocaleString('ko-KR')}명을 추가했습니다.`,
+          'ok',
+        )
         resetImport()
         const gs = await loadGroups()
         const gid = d.groupId || targetId
@@ -370,6 +404,17 @@ export default function TargetGroupsPage() {
   }
 
   const totalContacts = groups.reduce((s, g) => s + (g.count || 0), 0)
+  const biggest = groups.length ? groups.reduce((a, b) => ((b.count || 0) > (a.count || 0) ? b : a)) : null
+
+  /** 연락처가 많은 그룹에서 특정 번호를 찾을 수 있게 한다 */
+  const shownMembers = (() => {
+    const q = memberQuery.trim().replace(/\s/g, '').toLowerCase()
+    if (!q) return members
+    const qDigits = q.replace(/\D/g, '')
+    return members.filter(
+      (m) => m.name.toLowerCase().includes(q) || (qDigits && m.phone.includes(qDigits)),
+    )
+  })()
 
   return (
     <div className="animate-fade-in">
@@ -399,49 +444,47 @@ export default function TargetGroupsPage() {
       />
 
       {/* toasts */}
-      <div className="pointer-events-none fixed bottom-6 right-6 z-50 flex w-[320px] flex-col gap-2">
+      <div className="pointer-events-none fixed bottom-24 right-6 z-50 flex w-[340px] max-w-[calc(100vw-3rem)] flex-col gap-2">
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-sm shadow-lg ${
+            className={`animate-fade-in pointer-events-auto flex items-start gap-2 rounded-xl border bg-[var(--panel)] px-3.5 py-2.5 text-[13px] shadow-xl ${
               t.kind === 'ok'
-                ? 'border-emerald-500/30 bg-emerald-500/12 text-emerald-600'
+                ? 'border-emerald-500/40 text-emerald-500'
                 : t.kind === 'err'
-                  ? 'border-rose-500/30 bg-rose-500/12 text-rose-600'
-                  : 'border-sky-500/30 bg-sky-500/12 text-sky-600'
+                  ? 'border-rose-500/40 text-rose-500'
+                  : 'border-sky-500/40 text-sky-500'
             }`}
           >
-            {t.kind === 'ok' ? <Check size={16} /> : t.kind === 'err' ? <AlertCircle size={16} /> : <FileSpreadsheet size={16} />}
+            {t.kind === 'ok' ? <Check size={15} className="mt-0.5 flex-shrink-0" /> : t.kind === 'err' ? <AlertCircle size={15} className="mt-0.5 flex-shrink-0" /> : <FileSpreadsheet size={15} className="mt-0.5 flex-shrink-0" />}
             <span className="flex-1">{t.text}</span>
           </div>
         ))}
       </div>
 
-      <div className="space-y-6 p-6 lg:p-8">
-        {/* stat row */}
-        <div className="flex flex-wrap items-center gap-x-8 gap-y-2 text-sm text-[var(--text-soft)]">
-          <span className="inline-flex items-center gap-2">
-            <Users size={15} className="text-sky-500" />
-            타깃 그룹 <b className="text-[var(--text)]">{groups.length}</b>개
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <Contact size={15} className="text-sky-500" />
-            전체 연락처 <b className="text-[var(--text)]">{totalContacts.toLocaleString('ko-KR')}</b>명
-          </span>
+      <div className="space-y-5 p-5 pb-24 lg:p-7 lg:pb-24">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Metric label="타깃 그룹" icon={Users} accent="#0ea5e9" value={loading ? '—' : `${groups.length}개`} sub="저장된 재사용 그룹" />
+          <Metric label="전체 연락처" icon={Contact} accent="#6366f1" value={loading ? '—' : `${totalContacts.toLocaleString('ko-KR')}명`} sub="모든 그룹의 합계" />
+          <Metric
+            label="가장 큰 그룹"
+            icon={FileSpreadsheet}
+            accent="#22c55e"
+            value={loading || !biggest ? '—' : `${(biggest.count || 0).toLocaleString('ko-KR')}명`}
+            sub={biggest ? biggest.name : '그룹이 없습니다'}
+          />
         </div>
 
         {/* import wizard (shown after parsing a file) */}
         {(parsing || headers.length > 0) && (
-          <Panel
+          <Card
             title={
               <span className="inline-flex items-center gap-2">
-                <FileSpreadsheet size={18} className="text-sky-500" />
+                <FileSpreadsheet size={17} className="text-sky-500" />
                 엑셀에서 가져오기
-                {importFileName && (
-                  <span className="text-xs font-normal text-[var(--text-dim)]">{importFileName}</span>
-                )}
               </span>
             }
+            desc={importFileName || undefined}
             action={
               <button
                 onClick={resetImport}
@@ -491,20 +534,34 @@ export default function TargetGroupsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-4 py-3 text-sm">
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-4 py-3 text-[13px]">
                   {phoneCol ? (
-                    <span className="text-[var(--text-soft)]">
-                      유효한 연락처{' '}
-                      <b className="text-emerald-600">{validCount.toLocaleString('ko-KR')}</b>건
-                      <span className="text-[var(--text-dim)]"> / 전체 {rawRows.length.toLocaleString('ko-KR')}행</span>
-                    </span>
+                    <>
+                      <span className="text-[var(--text-soft)]">
+                        추가할 연락처 <b className="text-emerald-500">{validCount.toLocaleString('ko-KR')}</b>건
+                        <span className="text-[var(--text-dim)]"> / 읽은 행 {rawRows.length.toLocaleString('ko-KR')}개</span>
+                      </span>
+                      {(dupCount > 0 || invalidCount > 0) && (
+                        <p className="mt-1 text-[11.5px] text-[var(--text-dim)]">
+                          {invalidCount > 0 && `번호가 없거나 10자리 미만 ${invalidCount.toLocaleString('ko-KR')}행 제외`}
+                          {invalidCount > 0 && dupCount > 0 && ' · '}
+                          {dupCount > 0 && `파일 안 중복 번호 ${dupCount.toLocaleString('ko-KR')}건 제외`}
+                        </p>
+                      )}
+                      {overLimit && (
+                        <p className="mt-1.5 flex items-start gap-1.5 text-[11.5px] font-semibold text-rose-500">
+                          <AlertCircle size={12} className="mt-0.5 flex-shrink-0" />
+                          한 번에 최대 {MAX_IMPORT.toLocaleString('ko-KR')}명까지 가져올 수 있습니다. 파일을 나눠서 올려주세요.
+                        </p>
+                      )}
+                    </>
                   ) : (
                     <span className="text-[var(--text-dim)]">전화번호 컬럼을 선택하세요.</span>
                   )}
                 </div>
 
                 {/* preview first few rows */}
-                {parsedRows.length > 0 && (
+                {uniqueRows.length > 0 && (
                   <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
                     <table className="w-full text-sm">
                       <thead>
@@ -514,7 +571,7 @@ export default function TargetGroupsPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {parsedRows.slice(0, 5).map((r, i) => (
+                        {uniqueRows.slice(0, 5).map((r, i) => (
                           <tr key={i} className="border-b border-[var(--border)] last:border-0">
                             <td className="px-3 py-1.5">{r.name || <span className="text-[var(--text-dim)]">-</span>}</td>
                             <td className="px-3 py-1.5 tabular-nums">{fmtPhone(r.phone)}</td>
@@ -522,9 +579,9 @@ export default function TargetGroupsPage() {
                         ))}
                       </tbody>
                     </table>
-                    {parsedRows.length > 5 && (
+                    {uniqueRows.length > 5 && (
                       <div className="bg-[var(--panel-2)] px-3 py-1.5 text-center text-xs text-[var(--text-dim)]">
-                        외 {(parsedRows.length - 5).toLocaleString('ko-KR')}건 더
+                        외 {(uniqueRows.length - 5).toLocaleString('ko-KR')}건 더
                       </div>
                     )}
                   </div>
@@ -571,7 +628,7 @@ export default function TargetGroupsPage() {
                   <Button variant="ghost" onClick={resetImport}>취소</Button>
                   <Button
                     onClick={doImport}
-                    disabled={importBusy || validCount === 0 || (!importTargetId && !importNewName.trim())}
+                    disabled={importBusy || validCount === 0 || overLimit || (!importTargetId && !importNewName.trim())}
                     className="!bg-gradient-to-br !from-sky-500 !to-blue-500"
                   >
                     {importBusy ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
@@ -580,13 +637,13 @@ export default function TargetGroupsPage() {
                 </div>
               </div>
             )}
-          </Panel>
+          </Card>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
+        <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
           {/* left: group list + create */}
-          <div className="space-y-4">
-            <Panel title="새 그룹 만들기">
+          <div className="space-y-5 self-start">
+            <Card title="새 그룹 만들기" desc="엑셀 없이 빈 그룹부터 만들 수 있습니다">
               <div className="flex items-center gap-2">
                 <input
                   value={newName}
@@ -602,17 +659,27 @@ export default function TargetGroupsPage() {
                   만들기
                 </Button>
               </div>
-            </Panel>
+            </Card>
 
-            <Panel title={`그룹 목록 (${groups.length})`}>
+            <Card title="그룹 목록" desc={`${groups.length}개`} bodyClassName="p-3">
               {loading ? (
                 <div className="flex items-center gap-2 py-8 text-sm text-[var(--text-soft)]">
                   <Loader2 size={16} className="animate-spin" /> 불러오는 중...
                 </div>
               ) : groups.length === 0 ? (
-                <div className="py-10 text-center text-sm text-[var(--text-dim)]">
-                  그룹이 없습니다. 위에서 새 그룹을 만들거나 엑셀을 업로드하세요.
-                </div>
+                <EmptyState
+                  icon={Users}
+                  title="그룹이 없습니다"
+                  hint="위에서 새 그룹을 만들거나, 엑셀을 업로드해 한 번에 채울 수 있습니다."
+                  action={
+                    <button
+                      onClick={() => fileRef.current?.click()}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] px-3.5 py-2 text-[12.5px] font-semibold transition hover:bg-[var(--panel-2)]"
+                    >
+                      <Upload size={14} /> 엑셀 업로드
+                    </button>
+                  }
+                />
               ) : (
                 <ul className="space-y-2">
                   {groups.map((g) => {
@@ -623,8 +690,8 @@ export default function TargetGroupsPage() {
                           onClick={() => selectGroup(g.id)}
                           className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-left transition ${
                             active
-                              ? 'border-sky-400/70 bg-sky-50/60 dark:bg-sky-500/10'
-                              : 'border-[var(--border)] hover:border-sky-300/60 hover:bg-[var(--panel-2)]'
+                              ? 'border-sky-500/50 bg-sky-500/[0.08]'
+                              : 'border-[var(--border)] hover:border-sky-500/40 hover:bg-[var(--panel-2)]'
                           }`}
                         >
                           <div className="min-w-0">
@@ -643,20 +710,22 @@ export default function TargetGroupsPage() {
                   })}
                 </ul>
               )}
-            </Panel>
+            </Card>
           </div>
 
           {/* right: detail */}
           <div>
             {!selected ? (
-              <div className="card grid min-h-[300px] place-items-center p-8 text-center">
-                <div className="text-sm text-[var(--text-dim)]">
-                  <Contact size={40} className="mx-auto mb-3 opacity-40" />
-                  왼쪽에서 그룹을 선택하면 연락처를 확인할 수 있습니다.
-                </div>
-              </div>
+              <Card title="그룹 상세" className="self-start">
+                <EmptyState
+                  icon={Contact}
+                  title="그룹을 선택하세요"
+                  hint="왼쪽 목록에서 그룹을 고르면 저장된 연락처를 확인하고 관리할 수 있습니다."
+                />
+              </Card>
             ) : (
-              <Panel
+              <Card
+                className="self-start"
                 title={
                   renaming ? (
                     <div className="flex items-center gap-2">
@@ -679,14 +748,13 @@ export default function TargetGroupsPage() {
                     </div>
                   ) : (
                     <span className="inline-flex items-center gap-2">
-                      <Contact size={18} className="text-sky-500" />
+                      <Contact size={17} className="text-sky-500" />
                       {selected.name}
-                      <span className="text-xs font-normal text-[var(--text-dim)]">
-                        {(selected.count || 0).toLocaleString('ko-KR')}명
-                      </span>
                     </span>
                   )
                 }
+                desc={renaming ? undefined : `${(selected.count || 0).toLocaleString('ko-KR')}명 · ${fmtDate(selected.created_at)} 생성`}
+                bodyClassName="p-0"
                 action={
                   !renaming && (
                     <div className="flex items-center gap-1">
@@ -713,38 +781,67 @@ export default function TargetGroupsPage() {
                 }
               >
                 {membersLoading ? (
-                  <div className="flex items-center gap-2 py-10 text-sm text-[var(--text-soft)]">
-                    <Loader2 size={16} className="animate-spin" /> 연락처를 불러오는 중...
+                  <div className="flex items-center justify-center gap-2 py-14 text-sm text-[var(--text-dim)]">
+                    <Loader2 size={16} className="animate-spin" /> 연락처를 불러오는 중…
                   </div>
                 ) : members.length === 0 ? (
-                  <div className="py-12 text-center text-sm text-[var(--text-dim)]">
-                    이 그룹에는 아직 연락처가 없습니다. 엑셀을 업로드해 추가하세요.
-                  </div>
+                  <EmptyState
+                    icon={Contact}
+                    title="이 그룹에는 아직 연락처가 없습니다"
+                    hint="엑셀을 업로드하면 이 그룹에 한 번에 담을 수 있습니다."
+                    action={
+                      <button
+                        onClick={() => fileRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] px-3.5 py-2 text-[12.5px] font-semibold transition hover:bg-[var(--panel-2)]"
+                      >
+                        <Upload size={14} /> 엑셀 업로드
+                      </button>
+                    }
+                  />
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-[var(--border)] text-left text-xs text-[var(--text-soft)]">
-                          <th className="px-3 py-2 font-semibold">이름</th>
-                          <th className="px-3 py-2 font-semibold">연락처</th>
-                          <th className="w-10 px-3 py-2" />
+                  <>
+                    <div className="flex items-center gap-2 border-b border-[var(--border)] px-5 py-3">
+                      <div className="relative flex-1">
+                        <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" />
+                        <input
+                          value={memberQuery}
+                          onChange={(e) => setMemberQuery(e.target.value)}
+                          placeholder="이름 또는 번호로 찾기"
+                          className="w-full rounded-lg border border-[var(--border)] bg-[var(--panel-2)] py-1.5 pl-8 pr-2.5 text-[12.5px] outline-none transition-colors focus:border-sky-500"
+                        />
+                      </div>
+                      <span className="flex-shrink-0 text-[11.5px] text-[var(--text-dim)]">
+                        {shownMembers.length.toLocaleString('ko-KR')} / {members.length.toLocaleString('ko-KR')}명
+                      </span>
+                    </div>
+
+                    {shownMembers.length === 0 ? (
+                      <EmptyState icon={Search} title="검색 결과가 없습니다" hint="이름 일부 또는 숫자만 입력해도 찾을 수 있습니다." />
+                    ) : (
+                  <div className="max-h-[520px] overflow-auto">
+                    <table className="w-full text-[13px]">
+                      <thead className="sticky top-0 z-10 bg-[var(--panel)]">
+                        <tr className="border-b border-[var(--border)] text-left text-[11.5px] text-[var(--text-dim)]">
+                          <th className="px-5 py-2.5 font-semibold">이름</th>
+                          <th className="px-5 py-2.5 font-semibold">연락처</th>
+                          <th className="w-12 px-5 py-2.5" />
                         </tr>
                       </thead>
                       <tbody>
-                        {members.map((m) => (
+                        {shownMembers.map((m) => (
                           <tr
                             key={m.id}
-                            className="group border-b border-[var(--border)] last:border-0 hover:bg-[var(--panel-2)]"
+                            className="group border-b border-[var(--border)] transition-colors last:border-0 hover:bg-[var(--panel-2)]"
                           >
-                            <td className="px-3 py-2">
+                            <td className="px-5 py-2">
                               {m.name || <span className="text-[var(--text-dim)]">-</span>}
                             </td>
-                            <td className="px-3 py-2 tabular-nums">{fmtPhone(m.phone)}</td>
-                            <td className="px-3 py-2 text-right">
+                            <td className="px-5 py-2 tabular-nums">{fmtPhone(m.phone)}</td>
+                            <td className="px-5 py-2 text-right">
                               <button
                                 onClick={() => delMember(m.id)}
                                 disabled={!!memberDelBusy[m.id]}
-                                className="grid h-7 w-7 place-items-center rounded-lg text-[var(--text-dim)] opacity-0 transition hover:bg-white/60 hover:text-rose-500 group-hover:opacity-100 disabled:opacity-50 dark:hover:bg-white/10"
+                                className="grid h-7 w-7 place-items-center rounded-lg text-[var(--text-dim)] opacity-0 transition hover:bg-rose-500/12 hover:text-rose-500 focus:opacity-100 group-hover:opacity-100 disabled:opacity-50"
                                 aria-label="연락처 삭제"
                               >
                                 {memberDelBusy[m.id] ? (
@@ -759,8 +856,10 @@ export default function TargetGroupsPage() {
                       </tbody>
                     </table>
                   </div>
+                    )}
+                  </>
                 )}
-              </Panel>
+              </Card>
             )}
           </div>
         </div>

@@ -2728,12 +2728,12 @@ var IMG_MODEL_RATIOS = {
   'Nano Banana':['1:1','16:9','9:16','4:3','3:4','3:2','2:3','4:5','5:4','21:9'],
   // Grok 이미지 API 는 비율 필드가 없어 프롬프트 문구로만 전달 — 선택지는 흔한 3종만
   'Grok Imagine':['1:1','16:9','9:16'],
-  /* Luma Uni — 문서는 uni-1/uni-1-max 가 12종 중 9종을 허용한다고만 밝히고 목록을 이 페이지에
-     싣지 않는다. 확인된 6종(ray-3.2 와 공유하는 값)만 노출한다. 없는 값을 골라 제공사가
-     반려하는 것보다, 고를 수 있는 것이 조금 적은 편이 낫다.
-     guides/images/generation#aspect_ratio 를 확인하면 나머지 3종을 채운다. */
-  'Luma Uni 1':['1:1','16:9','9:16','4:3','3:4','21:9'],
-  'Luma Uni 1 Max':['1:1','16:9','9:16','4:3','3:4','21:9'],
+  /* Luma Uni — 문서(guides/images/generation)의 확정 9종.
+     영상(ray-3.2)의 6종과 겹치는 건 1:1·16:9·9:16 뿐이다. 4:3·3:4·21:9 는 이미지에 없고,
+     3:1·2:1·3:2·2:3·1:2·1:3 은 이미지에만 있다 — "영상 6종이 이미지 9종의 부분집합" 이라고
+     넘겨짚었다가 절반이 틀렸다. 이제 문서 값 그대로 쓴다. */
+  'Luma Uni 1':['1:1','16:9','9:16','3:2','2:3','2:1','1:2','3:1','1:3'],
+  'Luma Uni 1 Max':['1:1','16:9','9:16','3:2','2:3','2:1','1:2','3:1','1:3'],
 };
 function imgModelRatios(model){ return IMG_MODEL_RATIOS[String(model||'').trim()] || ['1:1','16:9','9:16','4:5']; }
 /* 이미지 모델별 레퍼런스 최대 장수 — 실제 API가 다중 이미지를 받는 모델만 12장, 나머지는 1장 */
@@ -8551,6 +8551,7 @@ pfHandleTossReturn();
     var ta=el('crText'); if(ta){ta.value=it.prompt||'';grow(ta);} crAttach=null;
     if(it.refs&&it.refs.length){var r0=it.refs[0]; if(r0&&r0.kind==='image'&&r0.dataUrl)crAttach={kind:'image',dataUrl:r0.dataUrl,name:r0.name||'참조 이미지'}; else if(r0&&r0.kind==='video'&&r0.url)crAttach={kind:'video',url:r0.url,name:r0.name||'참조 영상'};}
     renderAttach(); try{toast('프롬프트·설정을 불러왔습니다');}catch(e){} if(ta)ta.focus(); }
+  /* (지금은 호출하지 않는다 — 위 resetHome 주석 참조. 지난 생성물은 [보관함] 에서 본다.) */
   function renderGrid(){ var w=resWrap(); if(!w)return; loadGallery().then(function(list){ w.innerHTML=''; (list||[]).forEach(function(g){ w.appendChild(makeCard(g)); }); if((list||[]).length)showResults(); }).catch(function(){}); }
 
   async function genOnce(params, model, isImage, sec, ratio, res, att, recipe){
@@ -8587,7 +8588,16 @@ pfHandleTossReturn();
 
   // 라우팅: #create (노드 스튜디오와 별도 URL)
   function isCreate(){ return (location.hash||'').toLowerCase()==='#chat'; }   // 제작 화면의 URL 은 #chat
-  function applyOpen(){ if(home.classList.contains('on'))return; fillModels(); renderGrid(); home.classList.add('on'); document.body.classList.add('create-open'); try{ if(typeof I18N_LANG!=='undefined' && I18N_LANG!=='ko') applyI18n(home); }catch(e){} setTimeout(function(){var t=el('crText'); if(t)t.focus();},50); }
+  /* 열 때는 항상 소개 화면(사진 + 안내 문구)으로 시작한다.
+     예전엔 renderGrid() 로 지난 생성물을 전부 불러와 그리드를 채웠고, 항목이 하나라도 있으면
+     showResults() 가 소개 화면을 숨겼다 — 한 번이라도 만든 뒤로는 들어올 때마다 지난 목록만
+     길게 나오고 원래 화면을 다시 볼 수 없었다. 지난 생성물은 [보관함] 버튼에 이미 다 있으므로
+     여기서 또 보여 줄 이유가 없다. 이번에 만든 결과만 아래에 쌓인다. */
+  function resetHome(){
+    var w=resWrap(); if(w) w.innerHTML='';
+    var hero=el('crHero'); if(hero) hero.style.display='';
+  }
+  function applyOpen(){ if(home.classList.contains('on'))return; fillModels(); resetHome(); home.classList.add('on'); document.body.classList.add('create-open'); try{ if(typeof I18N_LANG!=='undefined' && I18N_LANG!=='ko') applyI18n(home); }catch(e){} setTimeout(function(){var t=el('crText'); if(t)t.focus();},50); }
   function applyClose(){ home.classList.remove('on'); document.body.classList.remove('create-open'); }
   function open(){ try{ showNavLoader('제작 준비 중'); }catch(e){} if(!isCreate())location.hash='chat'; applyOpen(); }   // 제작 화면 URL = #chat
   function close(){ try{ showNavLoader('스튜디오로 이동 중'); }catch(e){} if(isCreate())history.replaceState(null,'',location.pathname+location.search); applyClose(); }
