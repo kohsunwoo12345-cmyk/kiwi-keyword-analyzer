@@ -57,6 +57,7 @@ export const blogAnalysisPage = `<!DOCTYPE html>
     <h2 class="text-xl font-bold text-gray-800 mb-4">🔍 블로그 분석 시작</h2>
     <div class="flex gap-3">
       <input type="text" id="blogUrlInput" placeholder="blog.naver.com/아이디 또는 https://blog.naver.com/아이디"
+        style="min-width:0"
         class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-violet-500 focus:outline-none text-base"
         onkeypress="if(event.key==='Enter') startAnalysis()">
       <button onclick="startAnalysis()" id="analyzeBtn"

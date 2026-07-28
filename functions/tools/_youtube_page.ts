@@ -193,7 +193,7 @@ export const youtubeUnifiedPage = `<!DOCTYPE html>
           <div style="font-size:14px;opacity:.85;margin-bottom:18px;">채널 검색 또는 키워드 분석을 시작하세요</div>
           <div style="display:flex;gap:10px;">
             <input id="home-search-input" type="text" placeholder="채널명 또는 키워드 입력..." 
-              style="flex:1;border:none;border-radius:10px;padding:12px 16px;font-size:15px;outline:none;font-family:inherit;"
+              style="flex:1;min-width:0;border:none;border-radius:10px;padding:12px 16px;font-size:15px;outline:none;font-family:inherit;"
               onkeydown="if(event.key==='Enter')homeSearch()">
             <button onclick="homeSearch()" style="background:rgba(255,255,255,.25);color:#fff;border:2px solid rgba(255,255,255,.5);border-radius:10px;padding:12px 24px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;">검색하기</button>
           </div>
