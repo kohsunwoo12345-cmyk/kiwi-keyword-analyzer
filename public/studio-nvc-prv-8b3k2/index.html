@@ -5484,6 +5484,17 @@ function tzWhen(iso,tz){   // UTC ISO → 그 시간대의 읽기 좋은 표기
   }catch(e){ return String(iso).slice(0,16).replace('T',' '); }
 }
 
+/** 정기 자동 생성으로 쓸 수 있는 모델인가.
+ *  서버(functions/api/studio/schedules.ts 의 scheduleModelIssue)와 같은 규칙이어야 한다 —
+ *  목록에 있는데 저장이 거부되면 사용자는 영문을 모른다. */
+function schedulableModel(m){
+  var nm = m && m[1] ? String(m[1]) : String(m||'');
+  if(/영상 편집|비율 변경/.test(nm)) return false;          // 원본 영상 필요
+  if(/이미지→영상|I2V/i.test(nm)) return false;             // 시작 이미지 필요
+  if(/V2V|모션 전이|업스케일|Aleph|립싱크/i.test(nm)) return false;  // 원본 영상 필요
+  return true;
+}
+
 /* ════════ 렌더 ════════ */
 function widgetHTML(n,w){
   var v=n.w[w.k];
@@ -5682,7 +5693,10 @@ function widgetHTML(n,w){
       +'<div class="refcnt" style="margin:-2px 0 4px;">위 시각은 <b>'+esc(curTz)+'</b> 현지 시각 기준입니다'
         + (tzOffsetTx(curTz)?' ('+esc(tzOffsetTx(curTz))+')':'') + '. 서머타임은 자동 반영됩니다.</div>'
       +'<div class="vo-row"><label class="vo-sel" style="flex:1 1 100%;"><span class="vo-k">모델</span><select data-sc="model">'
-        + VIDEO_MODELS.map(function(m){ var nm=m[1]; return '<option value="'+esc(nm)+'"'+((sc.model||'Seedance 2.0')===nm?' selected':'')+'>'+esc(nm)+'</option>'; }).join('')
+        // 예약은 프롬프트 하나로 혼자 돌기 때문에, 원본 영상이나 시작 이미지가 반드시 필요한
+        //  모델(V2V·업스케일·모션전이·루마 편집/비율변경·이미지→영상)은 고를 수 없게 뺀다.
+        //  서버도 같은 규칙으로 저장을 거부하므로, 목록에 두면 고르고 나서야 거부당한다.
+        + VIDEO_MODELS.filter(schedulableModel).map(function(m){ var nm=m[1]; return '<option value="'+esc(nm)+'"'+((sc.model||'Seedance 2.0')===nm?' selected':'')+'>'+esc(nm)+'</option>'; }).join('')
         +'</select><span class="vo-caret">▼</span></label></div>'
       +'<div class="up-row" style="margin-top:6px;"><button class="wbtn" data-scsave>'+ICON.check+' 예약 저장</button>'
       +'<button class="wbtn" data-scload>'+ICON.fit+' 목록 새로고침</button></div>'

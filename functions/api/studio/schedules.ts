@@ -117,6 +117,28 @@ const row2json = (r: any) => ({
   failStreak: Number(r.fail_streak) || 0,
 })
 
+/** 정기 자동 생성으로 쓸 수 없는 모델이면 그 이유를, 쓸 수 있으면 null.
+ *
+ *  예약은 프롬프트 하나만 들고 혼자 돌기 때문에, "입력 미디어가 반드시 있어야 하는" 모델은
+ *  무엇을 해도 매번 실패한다. 저장은 되는데 실행만 계속 실패하면 사용자는 이유를 알 수 없고
+ *  3회 뒤 자동 중지될 뿐이다 → 고를 수 없게 하는 편이 낫다.
+ *
+ *  실제로 31개 영상 모델을 하나씩 크론으로 돌려 확인한 결과를 규칙으로 옮긴 것이다. */
+export function scheduleModelIssue(model: string): string | null {
+  const m = String(model || '')
+  const mc = (MODEL_COST as any)[m]
+  if (!mc) return '알 수 없는 모델입니다'
+  if (mc.u !== 'sec') return '영상 모델이 아닙니다'
+  // 원본 영상이 있어야 하는 것들 — V2V·모션전이·업스케일·립싱크·루마 편집/비율변경
+  if (/^(v2v_auto|motion|upscale|runway_aleph|lipsync)$/.test(String(mc.prov))) {
+    return '원본 영상이 필요한 모델이라 예약할 수 없습니다'
+  }
+  if (/영상 편집|비율 변경/.test(m)) return '원본 영상이 필요한 모델이라 예약할 수 없습니다'
+  // 첫 프레임 이미지가 있어야 하는 것들
+  if (/이미지→영상|I2V/i.test(m)) return '시작 이미지가 필요한 모델이라 예약할 수 없습니다'
+  return null
+}
+
 /** 연속 실패가 이 횟수에 닿으면 예약을 자동으로 끈다.
  *  (키가 빠졌거나 크레딧이 없는 예약이 매일 조용히 실패하며 로그만 쌓이는 걸 막는다) */
 export const FAIL_LIMIT = 3
@@ -168,14 +190,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!prompt) return json({ ok: false, error: '프롬프트를 입력하세요.' }, 400)
   const model = String(b.model || '').trim().slice(0, 80)
   if (!model) return json({ ok: false, error: '모델을 선택하세요.' }, 400)
-  // 단가표에 없는 모델은 실행 시점에 provider 를 못 찾아 매번 실패한다 → 저장 단계에서 막는다
-  const mc = (MODEL_COST as any)[model]
-  if (!mc) return json({ ok: false, error: '알 수 없는 모델입니다: ' + model }, 400)
-  // 정기 자동 생성은 영상 전용이다(크론이 kind:'video' 로 호출한다).
-  //  이미지·3D·텍스트 모델을 넣으면 저장은 되지만 실행할 때마다 실패한다 → 여기서 막는다.
-  if (mc.u !== 'sec') {
-    return json({ ok: false, error: `정기 자동 생성은 영상 모델만 예약할 수 있습니다: ${model}` }, 400)
-  }
+  // 저장은 되는데 실행만 매번 실패하는 모델을 여기서 걸러낸다(입력 미디어가 필요한 계열 등)
+  const issue = scheduleModelIssue(model)
+  if (issue) return json({ ok: false, error: `${model} — ${issue}` }, 400)
   const freq = b.freq === 'daily' ? 'daily' : 'weekly'
   const hour = Math.min(23, Math.max(0, Number(b.hour) || 0))
   const minute = Math.min(59, Math.max(0, Number(b.minute) || 0))
