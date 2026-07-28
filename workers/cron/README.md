@@ -58,9 +58,13 @@ Pages 처럼 Workers 도 저장소를 연결해 두면 푸시할 때마다 Cloud
 
    | 항목 | 값 |
    |---|---|
-   | Root directory | `workers/cron` |
-   | Build command | `npm install` |
-   | Deploy command | `npx wrangler deploy` |
+   | **Root directory** | `workers/cron` ← 이걸 안 바꾸면 반드시 실패한다 |
+   | Build command | 비워도 되고 `npm run build` 여도 된다(빈 스크립트를 넣어 뒀다) |
+   | Deploy command | `npx wrangler deploy` (기본값) |
+
+   Root directory 를 `/` 로 두면 Cloudflare 가 최상단의 Next.js 를 빌드한 뒤
+   최상단 `wrangler.toml`(= Pages 설정)로 `wrangler deploy` 를 시도하다 이렇게 죽는다:
+   `▲ you have run wrangler deploy on a Pages project` → `✘ Missing entry-point to Worker script`
 
 3. 배포되면 **Settings → Variables and Secrets** 에서
    `CRON_TOKEN` 을 **Secret** 으로 추가하고 다시 **Deploy**
