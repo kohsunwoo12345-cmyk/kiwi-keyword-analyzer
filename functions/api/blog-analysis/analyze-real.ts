@@ -145,7 +145,7 @@ export const onRequestPost: PagesFunction = async ({ request }) => {
   try {
     // 로그인 불필요 - 모든 사용자 사용 가능
 
-    const { blogUrl } = await request.json() as any
+    const { blogUrl } = (((await request.json().catch(() => null)) as any) || {})
 
     if (!blogUrl || !blogUrl.includes('blog.naver.com')) {
       return j({ success: false, error: '유효한 네이버 블로그 URL을 입력해주세요.' }, 400)

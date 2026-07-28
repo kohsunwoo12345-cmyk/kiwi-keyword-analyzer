@@ -111,7 +111,9 @@ export const onRequestGet: PagesFunction = async (context) => {
 export const onRequestPost: PagesFunction = async (context) => {
   const c: any = makeC(context)
   try {
-    const { placeId, placeUrl, keyword, location } = await c.req.json()
+    const _b: any = await c.req.json().catch(() => null)
+    if (!_b || typeof _b !== 'object') return c.json({ success: false, error: '요청 형식이 올바르지 않습니다.' }, 400)
+    const { placeId, placeUrl, keyword, location } = _b
 
     if (!placeId || !keyword) {
       return c.json({ success: false, error: '필수 정보를 입력해주세요.' }, 400)

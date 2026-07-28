@@ -40,7 +40,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     const user: any = await getSessionUser(request, db)
     if (!user) return json({ success: false, error: '로그인이 필요합니다.' }, 401)
 
-    const { keyword, blogUrl } = await request.json() as any
+    const { keyword, blogUrl } = (((await request.json().catch(() => null)) as any) || {})
 
     if (!keyword || !blogUrl) {
       return json({ success: false, error: '키워드와 블로그 URL을 입력해주세요.' }, 400)

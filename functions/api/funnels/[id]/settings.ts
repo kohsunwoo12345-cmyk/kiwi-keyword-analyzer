@@ -17,7 +17,7 @@ export const onRequestPut: PagesFunction = async ({ request, env, params }) => {
     if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const id = params.id as string
     if (!(await ownsFunnel(db, me, id))) return forbidden()
-    const body = (await request.json()) as any
+    const body = (((await request.json().catch(() => null)) as any) || {})
     const { db_dedup_mode, header_scripts } = body
     const validModes = ['none', 'group', 'funnel']
     const mode = validModes.includes(db_dedup_mode) ? db_dedup_mode : 'none'

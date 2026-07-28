@@ -13,7 +13,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     await ensureFunnelSchema(db)
     const me: any = await getSessionUser(request, db)
     if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
-    const { ids, target_group_id } = (await request.json()) as any
+    const { ids, target_group_id } = (((await request.json().catch(() => null)) as any) || {})
     if (!Array.isArray(ids) || !ids.length || !target_group_id) {
       return j({ success: false, error: '이동할 신청자와 대상 그룹을 지정하세요.' }, 400)
     }

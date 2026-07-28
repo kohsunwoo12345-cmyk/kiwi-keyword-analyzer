@@ -18,7 +18,7 @@ export const onRequestPut: PagesFunction = async ({ request, env, params }) => {
     const funnelId = params.id as string
     const groupId = params.groupId as string
     if (!(await ownsGroup(db, me, groupId))) return forbidden()
-    const { name, description, color, group_type, sort_order, pos_x, pos_y } = (await request.json()) as any
+    const { name, description, color, group_type, sort_order, pos_x, pos_y } = (((await request.json().catch(() => null)) as any) || {})
     try {
       await db.prepare(`
         UPDATE funnel_groups SET name=?, description=?, color=?, group_type=?, sort_order=?, pos_x=?, pos_y=?, updated_at=?

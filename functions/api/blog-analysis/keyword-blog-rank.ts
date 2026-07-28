@@ -11,7 +11,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     const me: any = await getSessionUser(request, db)
     if (!me) return json({ success: false, error: '로그인이 필요합니다.' }, 401)
 
-    const { keyword } = await request.json() as any
+    const { keyword } = (((await request.json().catch(() => null)) as any) || {})
     if (!keyword) return json({ success: false, error: '키워드를 입력해주세요.' }, 400)
 
     let blogResults: any[] = []

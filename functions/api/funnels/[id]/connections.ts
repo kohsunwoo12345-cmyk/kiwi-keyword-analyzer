@@ -14,7 +14,7 @@ export const onRequestPost: PagesFunction = async ({ request, env, params }) => 
     const me: any = await getSessionUser(request, db)
     if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const funnelId = params.id as string
-    const { connections } = (await request.json()) as any
+    const { connections } = (((await request.json().catch(() => null)) as any) || {})
     const funnel = await db.prepare(`SELECT id FROM funnels WHERE id=?`).bind(funnelId).first()
     if (!funnel) return j({ success: false, error: '퍼널을 찾을 수 없습니다.' }, 404)
     if (!(await ownsFunnel(db, me, funnelId))) return forbidden()

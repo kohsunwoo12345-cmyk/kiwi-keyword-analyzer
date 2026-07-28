@@ -29,7 +29,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 200)
     await ensureIgSchema(db)
-    const { appId, appSecret } = (await request.json()) as any
+    const { appId, appSecret } = (((await request.json().catch(() => null)) as any) || {})
     if (!appId) return j({ success: false, error: '앱 ID는 필수입니다' }, 400)
 
     await db

@@ -12,7 +12,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     if (!auth) return json({ success: false, error: '로그인 필요' }, 401)
     await initBrtTables(db)
 
-    const { blog_url, keyword } = await request.json() as any
+    const { blog_url, keyword } = (((await request.json().catch(() => null)) as any) || {})
     const blogId = normalizeNaverBlogId(blog_url)
     const normalizedBlogUrl = canonicalNaverBlogUrl(blog_url)
     const cleanKeyword = String(keyword || '').trim()

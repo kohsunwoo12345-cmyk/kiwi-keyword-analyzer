@@ -48,7 +48,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 200)
     await ensureIgSchema(db)
-    const body = (await request.json()) as any
+    const body = (((await request.json().catch(() => null)) as any) || {})
     const { userId, igBusinessId, igUsername, accessToken } = body
 
     if (!userId || !igBusinessId) {

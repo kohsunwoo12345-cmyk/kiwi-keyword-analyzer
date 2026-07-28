@@ -44,7 +44,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     } else {
       const sigCheck = request.headers.get('x-hub-signature-256') || ''
       if (sigCheck) return text('Forbidden', 403)
-      body = await request.json()
+      body = await request.json().catch(() => ({}))
     }
 
     try {

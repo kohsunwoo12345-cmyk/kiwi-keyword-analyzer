@@ -29,7 +29,10 @@ const puppeteer: any = (globalThis as any).puppeteer
 export const onRequestPost: PagesFunction = async (context) => {
   const c: any = makeC(context)
   try {
-    const { placeId: inputPlaceId, placeUrl, keyword, location } = await c.req.json()
+    // 잘못된 JSON 이 그대로 던져져 500 이 나던 자리 — 파싱 실패는 400 으로 돌려준다
+    const _b: any = await c.req.json().catch(() => null)
+    if (!_b || typeof _b !== 'object') return c.json({ success: false, error: '요청 형식이 올바르지 않습니다.' }, 400)
+    const { placeId: inputPlaceId, placeUrl, keyword, location } = _b
 
     // 실제 세션 인증 — 로그인한 본인만 순위 조회/저장 가능
     const authDb = resolveDB(c.env) || c.env.DB || c.env.marketing

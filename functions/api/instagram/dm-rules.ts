@@ -30,8 +30,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 200)
     await ensureIgSchema(db)
-    const body = (await request.json()) as any
+    const body = (((await request.json().catch(() => null)) as any) || {})
     const { rule, editIdx } = body
+    // rule 이 없으면 아래에서 rule.name 을 읽다가 터진다(500) — 잘못된 요청은 400 으로
+    if (!rule || typeof rule !== 'object' || !String(rule.name || '').trim() || !String(rule.message || '').trim())
+      return j({ success: false, error: '규칙 이름과 메시지를 입력하세요.' }, 400)
 
     if (editIdx !== null && editIdx !== undefined) {
       const existing = (await db

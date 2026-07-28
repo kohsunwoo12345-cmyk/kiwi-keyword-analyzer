@@ -13,7 +13,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     await ensureFunnelSchema(db)
     const me: any = await getSessionUser(request, db)
     if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
-    const body = (await request.json()) as any
+    const body = (((await request.json().catch(() => null)) as any) || {})
     const { group_id, name, phone, extra } = body
     if (!group_id || !phone) return j({ success: false, error: 'group_id와 phone이 필요합니다.' }, 400)
     // ⚠ group_id 를 그대로 믿으면 남의 퍼널에 신청자를 밀어 넣을 수 있다

@@ -67,7 +67,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     await ensureFunnelSchema(db)
     const me: any = await getSessionUser(request, db)
     if (!me) return j({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
-    const { name, description, color } = (await request.json()) as any
+    const { name, description, color } = (((await request.json().catch(() => null)) as any) || {})
     const userId = me.id
 
     if (!name) {

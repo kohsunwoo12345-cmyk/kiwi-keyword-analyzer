@@ -49,7 +49,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     await ensureFunnelSchema(db)
     const me: any = await getSessionUser(request, db)
     if (!me) return j({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
-    const { type, subject, content, timing, trigger, landing_page_id, group_id, sender_number } = (await request.json()) as any
+    const { type, subject, content, timing, trigger, landing_page_id, group_id, sender_number } = (((await request.json().catch(() => null)) as any) || {})
     const userId = me.id
 
     // ── 대상 확인 ────────────────────────────────────────────────────────────

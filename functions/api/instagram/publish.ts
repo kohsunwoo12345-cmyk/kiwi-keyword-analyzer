@@ -15,7 +15,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const creds = await getIgCredentials(db, userId)
   if (!creds) return j({ success: false, error: '연결된 Instagram 계정이 없습니다. 먼저 계정을 연동해주세요.' }, 400)
 
-  const body = (await request.json()) as any
+  const body = (((await request.json().catch(() => null)) as any) || {})
   const { mediaType = 'IMAGE', imageUrl, videoUrl, caption = '', coverUrl, children } = body
 
   if (!mediaType) return j({ success: false, error: 'mediaType은 필수입니다.' }, 400)

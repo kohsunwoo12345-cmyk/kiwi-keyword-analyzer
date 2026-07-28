@@ -10,7 +10,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     const me: any = await getSessionUser(request, db)
     if (!me) return json({ success: false, error: '로그인이 필요합니다.' }, 401)
 
-    const { keyword, blogId } = await request.json() as any
+    const { keyword, blogId } = (((await request.json().catch(() => null)) as any) || {})
     if (!keyword || !blogId) return json({ success: false, error: '키워드와 블로그 ID를 모두 입력해주세요.' }, 400)
 
     const cleanBlogId = normalizeNaverBlogId(blogId)

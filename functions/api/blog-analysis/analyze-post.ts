@@ -4,7 +4,7 @@ const j = (obj: any, status = 200) =>
 
 export const onRequestPost: PagesFunction = async ({ request }) => {
   try {
-    const { postUrl, keyword } = await request.json() as any
+    const { postUrl, keyword } = (((await request.json().catch(() => null)) as any) || {})
     if (!postUrl) return j({ success: false, error: 'postUrl이 필요합니다.' }, 400)
 
     const isNaverBlog = postUrl.includes('blog.naver.com')
