@@ -1537,44 +1537,32 @@ async function handle(context) {
         전체: out });
     }
 
-    /* ══ ModelArk 3D 요청 형식 탐지 (무과금) ══
-       /api/generate?diag=ark3d-spec[&model=hyper3d-gen2-260112]
-       경로 탐지 결과 3D 도 영상과 같은 /contents/generations/tasks 를 쓴다(모델 ID 는 통과하고
-       content 만 없다고 반려됐다). 여기서는 "반드시 반려되는" 본문을 단계적으로 보내
-       그때그때 반려 메시지에서 필요한 파라미터를 읽어 낸다.
-       ※ 프롬프트에 실제 내용을 넣으면 작업이 생성되어 과금되므로, 빈 값·잘못된 값만 보낸다. */
-    if (u.searchParams.get("diag") === "ark3d-spec") {
-      if (!k.seedance) return json({ diag: "ark3d-spec", error: "Seedance_API_KEY 미설정" });
-      const mid = u.searchParams.get("model") || "hyper3d-gen2-260112";
-      const cases = [
-        ["content 없음", { model: mid }],
-        ["content 빈 배열", { model: mid, content: [] }],
-        ["text 빈 값", { model: mid, content: [{ type: "text", text: "" }] }],
-        ["image_url 빈 값", { model: mid, content: [{ type: "image_url", image_url: { url: "" } }] }],
-        ["잘못된 type", { model: mid, content: [{ type: "__probe__", text: "x" }] }],
-        ["텍스트+잘못된 format", { model: mid, content: [{ type: "text", text: "" }], format: "__probe__" }],
-        ["텍스트+잘못된 quality", { model: mid, content: [{ type: "text", text: "" }], quality: "__probe__" }],
-        ["텍스트+잘못된 texture", { model: mid, content: [{ type: "text", text: "" }], texture: "__probe__" }]
-      ];
-      const out = [];
-      for (const [label, body] of cases) {
-        try {
-          const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
-            method: "POST", headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
-            body: JSON.stringify(body) }, 12000);
-          const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch { /* 비JSON */ }
-          const created = !!(j && j.id);
-          out.push({ 단계: label, 보낸본문: body, httpStatus: r.status,
-            code: (j && j.error && j.error.code) || "",
-            message: created ? "⚠️ 작업이 생성됐습니다(id=" + j.id + ") — 이 조합은 진단에서 빼야 합니다"
-                             : String((j && j.error && j.error.message) || t).slice(0, 240) });
-          if (created) break;   // 만에 하나 생성되면 즉시 중단
-        } catch (e) { out.push({ 단계: label, httpStatus: 0, message: String((e && e.message) || e).slice(0, 140) }); }
-      }
-      return json({ diag: "ark3d-spec", model: mid,
-        note: "각 단계의 반려 메시지가 '다음에 무엇이 필요한지' 를 알려 줍니다. 실제 내용을 넣지 않으므로 작업은 생성되지 않습니다(무과금).",
-        결과: out });
+    /* ══ ModelArk 작업 조회 (읽기 전용·무과금) ══
+       /api/generate?diag=ark-task&id=cgt-...
+       이미 만들어진 작업의 상태와 결과 형식을 그대로 본다. GET 이라 아무것도 생성되지 않는다.
+       3D 응답이 어떤 필드에 결과 URL 을 담는지 확인하는 용도. */
+    if (u.searchParams.get("diag") === "ark-task") {
+      if (!k.seedance) return json({ diag: "ark-task", error: "Seedance_API_KEY 미설정" });
+      const id = String(u.searchParams.get("id") || "").trim();
+      if (!id) return json({ diag: "ark-task", error: "id 파라미터가 필요합니다 (예: &id=cgt-...)" });
+      try {
+        const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks/" + encodeURIComponent(id),
+          { headers: { "Authorization": "Bearer " + k.seedance } }, 15000);
+        const t = await r.text(); let j2 = null; try { j2 = JSON.parse(t); } catch { /* 비JSON */ }
+        return json({ diag: "ark-task", id, httpStatus: r.status,
+          note: "GET 조회라 생성·과금이 없습니다. 결과 URL 이 어느 필드에 오는지 확인하세요.",
+          응답: j2 || String(t).slice(0, 1200) });
+      } catch (e) { return json({ diag: "ark-task", id, error: String((e && e.message) || e).slice(0, 200) }); }
     }
+
+    /* ⚠️ diag=ark3d-spec 은 제거했다.
+       ModelArk 가 text:"" 를 반려하지 않고 수락해 실제 3D 작업이 생성됐다
+       (cgt-20260728090647-cp2rb). "필수 필드를 비우면 반려된다" 는 전제가 이 제공사에서
+       또 깨진 것이다(앞서 Flux 에서도 같은 일이 있었다).
+       요청 형식은 이미 확인됐으므로 더 탐색할 이유도 없다:
+         POST /contents/generations/tasks
+         { model, content: [{ type:"text", text:"..." }] }   ← Seedance 와 동일한 형식
+       앞으로 형식 탐색이 필요하면 "빈 값" 이 아니라 "존재하지 않는 열거값" 으로만 시도할 것. */
 
     /* ══ 전체 모델 소환 확인 (무과금) ══
        /api/generate?diag=probe-all            모든 제공사·모든 모델
