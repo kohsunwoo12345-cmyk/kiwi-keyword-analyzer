@@ -1,0 +1,100 @@
+# BYGENCY 정기 실행(크론)
+#
+# Cloudflare Pages Functions 에는 자체 스케줄러가 없다. 그래서 "정해진 시각에 서버가
+# 알아서 도는 일"은 전부 외부에서 HTTP 로 두드려 줘야 한다. 이 워크플로가 그 역할을 한다.
+#
+# ── 비용 ──────────────────────────────────────────────────────────────────────
+#  이 저장소는 공개(public) 저장소이므로 GitHub Actions 사용료가 0원이다.
+#  (공개 저장소의 표준 GitHub 호스팅 러너는 분당 과금 대상이 아니며 사용량 한도가 없다.
+#   비공개 저장소로 바꾸면 그때부터 무료 분(minutes) 한도가 적용되니 주의.)
+#  실행 자체는 curl 한두 번이라 러너 점유 시간도 몇 초 수준이다.
+#  단, 예약 생성이 실제로 영상을 만들면 그건 BYGENCY 크레딧/모델 API 비용이 든다.
+#  ⚠ 스케줄 워크플로는 저장소에 60일간 아무 활동(커밋 등)이 없으면 GitHub 이 자동으로
+#    비활성화한다. 그때는 Actions 탭에서 "Enable workflow" 를 누르면 다시 돈다.
+#
+# ── 준비물(한 번만) ───────────────────────────────────────────────────────────
+#  1) Cloudflare Pages → 프로젝트 → Settings → Environment variables 에
+#     CRON_TOKEN = (아무도 모르는 긴 임의 문자열) 등록 후 재배포
+#  2) GitHub → Settings → Secrets and variables → Actions
+#       Secrets:   CRON_TOKEN  (위와 똑같은 값)
+#       Variables: SITE_URL    (예: https://bygency.co)  — 없으면 아래 기본값 사용
+#
+# ── 시간대에 대하여 ───────────────────────────────────────────────────────────
+#  아래 cron 표현식은 GitHub 규격상 항상 UTC 다. 하지만 "예약 생성"의 실행 시각은
+#  이 워크플로가 정하지 않는다. 회원이 스튜디오에서 고른 나라의 현지 시각(IANA 시간대,
+#  서머타임 포함)으로 서버가 계산해 두고, 이 워크플로는 그저 자주 두드려서
+#  "지금 때가 된 예약"을 서버가 집어가게 할 뿐이다.
+#  그래서 15분마다 호출한다 — 인도(UTC+5:30)·네팔(UTC+5:45)처럼 30·45분 오프셋
+#  지역도 정시에 맞출 수 있다.
+#  ⚠ GitHub 의 스케줄 실행은 혼잡 시 수 분~수십 분 지연될 수 있다(공식 문서 명시).
+#    분 단위 정확도가 필요하면 Cloudflare Workers 의 Cron Triggers(무료)로 옮기는 편이 낫다.
+
+name: cron
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'    # 예약 생성 처리 — 15분마다 (UTC 기준이지만 위 설명 참고)
+    - cron: '5 0 * * *'       # 네이버 플레이스 순위 추적 — 매일 00:05 UTC = 한국 09:05
+  workflow_dispatch:
+    inputs:
+      job:
+        description: '수동 실행할 작업'
+        required: true
+        default: 'video'
+        type: choice
+        options: [video, naver, both]
+
+concurrency:
+  group: bygency-cron-${{ github.event.schedule || github.event.inputs.job }}
+  cancel-in-progress: false
+
+env:
+  SITE_URL: ${{ vars.SITE_URL || 'https://bygency.co' }}
+
+jobs:
+  # ── 예약 영상 생성 ─────────────────────────────────────────────────────────
+  video-schedules:
+    if: github.event.schedule == '*/15 * * * *' || contains(fromJSON('["video","both"]'), github.event.inputs.job)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 실행할 예약이 있는지 확인
+        id: due
+        run: |
+          body=$(curl -sS --max-time 30 -H "X-Cron-Token: ${{ secrets.CRON_TOKEN }}" \
+                   "$SITE_URL/api/cron/video-schedules")
+          echo "$body"
+          echo "count=$(echo "$body" | grep -o '"due":[0-9]*' | cut -d: -f2)" >> "$GITHUB_OUTPUT"
+
+      - name: 예약 처리
+        if: steps.due.outputs.count != '0'
+        run: |
+          # 한 번 호출에 최대 5건만 처리하므로, 밀린 예약이 있으면 몇 번 더 두드린다.
+          for i in 1 2 3 4; do
+            res=$(curl -sS --max-time 120 -X POST \
+                    -H "X-Cron-Token: ${{ secrets.CRON_TOKEN }}" \
+                    "$SITE_URL/api/cron/video-schedules")
+            echo "[$i] $res"
+            echo "$res" | grep -q '"processed":0' && break
+            sleep 3
+          done
+
+  # ── 네이버 플레이스 순위 추적 ──────────────────────────────────────────────
+  naver-place:
+    if: github.event.schedule == '5 0 * * *' || contains(fromJSON('["naver","both"]'), github.event.inputs.job)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: 추적 키워드 순위 갱신(20건씩 배치)
+        run: |
+          offset=0
+          for i in $(seq 1 50); do
+            res=$(curl -sS --max-time 180 -X POST \
+                    -H "X-Cron-Token: ${{ secrets.CRON_TOKEN }}" \
+                    "$SITE_URL/api/naver-place/update-all-tracking?offset=$offset&limit=20")
+            echo "[offset=$offset] $(echo "$res" | head -c 400)"
+            # 더 처리할 게 없으면(hasMore:false 또는 처리 0건) 끝낸다
+            echo "$res" | grep -q '"hasMore":true' || break
+            offset=$((offset + 20))
+            sleep 2
+          done

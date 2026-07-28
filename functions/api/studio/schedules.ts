@@ -7,7 +7,44 @@ import { MODEL_COST } from './_pricing'
 //  (이 저장소의 다른 배치와 동일하게 X-Cron-Token 규약을 쓴다).
 
 const MAX_PER_USER = 10
-const KST_OFFSET_MIN = 9 * 60   // 사용자는 한국 시간으로 시각을 고른다
+export const DEFAULT_TZ = 'Asia/Seoul'
+
+/** 해당 시각(UTC ms)에 그 표준시간대의 UTC 오프셋(ms). 서머타임이 적용된 실제 값을 돌려준다. */
+function tzOffsetMs(utcMs: number, tz: string): number {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })
+  const parts = dtf.formatToParts(new Date(utcMs))
+  const g = (t: string) => Number(parts.find((p) => p.type === t)?.value || 0)
+  // 그 지역의 벽시계 값을 UTC 로 읽었다고 치면, 실제 UTC 와의 차이가 곧 오프셋이다
+  const asUtc = Date.UTC(g('year'), g('month') - 1, g('day'), g('hour') % 24, g('minute'), g('second'))
+  return asUtc - utcMs
+}
+
+/** 그 지역의 "벽시계 시각"(예: 서울 9시)을 실제 UTC 시각으로 변환.
+ *  오프셋이 변환 대상 시각에 따라 달라지므로(서머타임 경계) 두 번 보정한다. */
+function wallToUtc(y: number, m: number, d: number, h: number, tz: string): number {
+  const naive = Date.UTC(y, m, d, h, 0, 0)
+  let guess = naive - tzOffsetMs(naive, tz)
+  guess = naive - tzOffsetMs(guess, tz)
+  return guess
+}
+
+/** 그 지역의 현재 벽시계 날짜/시각 */
+function wallNow(utcMs: number, tz: string) {
+  const off = tzOffsetMs(utcMs, tz)
+  const d = new Date(utcMs + off)
+  return { y: d.getUTCFullYear(), m: d.getUTCMonth(), d: d.getUTCDate(), h: d.getUTCHours(), wd: d.getUTCDay() }
+}
+
+/** 지원되는 표준시간대인지 확인 (알 수 없으면 기본값으로 되돌린다) */
+export function normalizeTz(tz: any): string {
+  const v = String(tz || '').trim()
+  if (!v) return DEFAULT_TZ
+  try { new Intl.DateTimeFormat('en-US', { timeZone: v }); return v } catch { return DEFAULT_TZ }
+}
 
 export async function ensureSchedules(db: D1Database): Promise<void> {
   await db.prepare(
@@ -24,6 +61,7 @@ export async function ensureSchedules(db: D1Database): Promise<void> {
       seconds INTEGER NOT NULL DEFAULT 5,
       ratio TEXT NOT NULL DEFAULT '16:9',
       res TEXT NOT NULL DEFAULT '1080p',
+      tz TEXT NOT NULL DEFAULT 'Asia/Seoul',   -- IANA 표준시간대 (예: Asia/Seoul, America/New_York)
       next_run_at TEXT,
       last_run_at TEXT,
       last_status TEXT NOT NULL DEFAULT '',
@@ -33,32 +71,39 @@ export async function ensureSchedules(db: D1Database): Promise<void> {
       created_at TEXT
     )`,
   ).run().catch(() => {})
+  // 기존 테이블에도 tz 컬럼 추가(이미 있으면 무시)
+  await db.prepare("ALTER TABLE studio_schedules ADD COLUMN tz TEXT NOT NULL DEFAULT 'Asia/Seoul'").run().catch(() => {})
   await db.prepare('CREATE INDEX IF NOT EXISTS idx_sched_due ON studio_schedules (enabled, next_run_at)').run().catch(() => {})
 }
 
-/** 다음 실행 시각(UTC ISO). 사용자가 고른 KST 시각 기준으로 "지금 이후 가장 가까운" 때를 구한다. */
-export function computeNextRun(freq: string, hour: number, weekday: number, fromMs: number): string {
+/** 다음 실행 시각(UTC ISO).
+ *  사용자가 고른 "그 지역 현지 시각"(tz) 기준으로 지금 이후 가장 가까운 때를 구한다.
+ *  서머타임이 있는 지역(미국·유럽 등)도 그 시점의 실제 오프셋으로 계산하므로,
+ *  현지에서는 언제나 같은 시계 시각(예: 매일 오전 9시)에 실행된다. */
+export function computeNextRun(freq: string, hour: number, weekday: number, fromMs: number, tz?: string): string {
+  const zone = normalizeTz(tz)
   const h = Math.min(23, Math.max(0, Math.round(hour) || 0))
   const wd = Math.min(6, Math.max(0, Math.round(weekday) || 0))
-  // KST 기준으로 계산한 뒤 UTC 로 되돌린다
-  const kstNow = new Date(fromMs + KST_OFFSET_MIN * 60000)
-  const cand = new Date(Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate(), h, 0, 0))
-  if (freq === 'daily') {
-    if (cand.getTime() <= kstNow.getTime()) cand.setUTCDate(cand.getUTCDate() + 1)
-  } else {
-    // 이번 주의 해당 요일로 옮기고, 이미 지났으면 다음 주
-    const diff = (wd - cand.getUTCDay() + 7) % 7
-    cand.setUTCDate(cand.getUTCDate() + diff)
-    if (cand.getTime() <= kstNow.getTime()) cand.setUTCDate(cand.getUTCDate() + 7)
+  const now = wallNow(fromMs, zone)
+
+  // 현지 날짜 기준 후보를 만들고, 이미 지났으면 하루/일주일씩 민다.
+  //  날짜를 옮길 때마다 UTC 로 다시 환산해야 서머타임 경계에서도 정확하다.
+  let addDays = 0
+  if (freq !== 'daily') addDays = (wd - now.wd + 7) % 7
+  for (let i = 0; i < 400; i++) {
+    const t = new Date(Date.UTC(now.y, now.m, now.d + addDays, 12, 0, 0))   // 정오 기준으로 날짜만 안전하게 이동
+    const utc = wallToUtc(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), h, zone)
+    if (utc > fromMs) return new Date(utc).toISOString()
+    addDays += (freq === 'daily') ? 1 : 7
   }
-  return new Date(cand.getTime() - KST_OFFSET_MIN * 60000).toISOString()
+  return new Date(fromMs + 86400000).toISOString()   // 도달 불가 — 안전값
 }
 
 const row2json = (r: any) => ({
   id: r.id, name: r.name || '', enabled: Number(r.enabled) === 1,
   freq: r.freq || 'weekly', hour: Number(r.hour) || 0, weekday: Number(r.weekday) || 0,
   model: r.model || '', prompt: r.prompt || '', seconds: Number(r.seconds) || 5,
-  ratio: r.ratio || '16:9', res: r.res || '1080p',
+  ratio: r.ratio || '16:9', res: r.res || '1080p', tz: r.tz || DEFAULT_TZ,
   nextRunAt: r.next_run_at || '', lastRunAt: r.last_run_at || '',
   lastStatus: r.last_status || '', lastResult: r.last_result || '',
   runs: Number(r.runs) || 0, maxRuns: Number(r.max_runs) || 0,
@@ -95,7 +140,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const freq = b.freq === 'daily' ? 'daily' : 'weekly'
   const hour = Math.min(23, Math.max(0, Number(b.hour) || 0))
   const weekday = Math.min(6, Math.max(0, Number(b.weekday) || 0))
-  const next = computeNextRun(freq, hour, weekday, Date.now())
+  const tz = normalizeTz(b.tz)
+  const next = computeNextRun(freq, hour, weekday, Date.now(), tz)
   const now = new Date().toISOString()
 
   if (b.id) {
@@ -103,11 +149,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (!own) return json({ ok: false, error: '없는 예약입니다.' }, 404)
     await db.prepare(
       `UPDATE studio_schedules SET name=?, enabled=?, freq=?, hour=?, weekday=?, model=?, prompt=?,
-        seconds=?, ratio=?, res=?, max_runs=?, next_run_at=? WHERE id=? AND user_id=?`,
+        seconds=?, ratio=?, res=?, tz=?, max_runs=?, next_run_at=? WHERE id=? AND user_id=?`,
     ).bind(String(b.name || '').slice(0, 60), b.enabled === false ? 0 : 1, freq, hour, weekday, model, prompt,
-      Math.max(1, Number(b.seconds) || 5), String(b.ratio || '16:9'), String(b.res || '1080p'),
+      Math.max(1, Number(b.seconds) || 5), String(b.ratio || '16:9'), String(b.res || '1080p'), tz,
       Math.max(0, Number(b.maxRuns) || 0), next, String(b.id), me.id).run()
-    return json({ ok: true, id: b.id, nextRunAt: next })
+    return json({ ok: true, id: b.id, nextRunAt: next, tz })
   }
 
   const cnt: any = await db.prepare('SELECT COUNT(*) AS c FROM studio_schedules WHERE user_id = ?').bind(me.id).first()
@@ -115,12 +161,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: `예약은 최대 ${MAX_PER_USER}개까지 만들 수 있습니다.` }, 400)
   const id = 'sc_' + crypto.randomUUID().slice(0, 12)
   await db.prepare(
-    `INSERT INTO studio_schedules (id,user_id,name,enabled,freq,hour,weekday,model,prompt,seconds,ratio,res,next_run_at,max_runs,created_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO studio_schedules (id,user_id,name,enabled,freq,hour,weekday,model,prompt,seconds,ratio,res,tz,next_run_at,max_runs,created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
   ).bind(id, me.id, String(b.name || '').slice(0, 60), b.enabled === false ? 0 : 1, freq, hour, weekday, model, prompt,
-    Math.max(1, Number(b.seconds) || 5), String(b.ratio || '16:9'), String(b.res || '1080p'), next,
+    Math.max(1, Number(b.seconds) || 5), String(b.ratio || '16:9'), String(b.res || '1080p'), tz, next,
     Math.max(0, Number(b.maxRuns) || 0), now).run()
-  return json({ ok: true, id, nextRunAt: next })
+  return json({ ok: true, id, nextRunAt: next, tz })
 }
 
 export const onRequestDelete: PagesFunction<Env> = async ({ request, env }) => {

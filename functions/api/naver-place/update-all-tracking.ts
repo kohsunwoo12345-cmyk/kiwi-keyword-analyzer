@@ -441,6 +441,11 @@ export const onRequestPost: PagesFunction = async (context) => {
       updated: results.length,
       successCount: successCount,
       errorCount: errorCount,
+      // 외부 스케줄러(.github/workflows/cron.yml)가 다음 배치를 이어서 돌지 판단하는 값.
+      //  이게 없으면 전체 추적 목록의 앞 20건만 갱신되고 나머지는 영영 밀린다.
+      offset: offset,
+      limit: batchSize,
+      hasMore: results.length >= batchSize,
       results: results
     })
   } catch (error) {
