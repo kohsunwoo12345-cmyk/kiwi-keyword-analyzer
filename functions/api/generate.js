@@ -1035,6 +1035,35 @@ export function ark3dModelIds(b, env) {
   if (override) return [override];
   return ARK3D_IDS[b && b.model] || ARK3D_IDS["Hyper3D Gen-2 (3D 생성)"];
 }
+/* 응답 어디에 결과가 있든 찾아낸다 — 필드 이름을 미리 알 필요가 없게.
+   처음엔 model_url·file_url 같은 이름 후보를 훑었는데, 그건 내 추측이라
+   제공사가 다른 이름을 쓰면 결과가 있는데도 "못 찾음" 으로 실패했다.
+   (그걸 확인하려고 유료 생성을 1회 돌릴 참이었다 — 그럴 필요가 없다.)
+   대신 응답 전체를 훑어 http(s) URL 을 전부 모으고, 3D 파일 확장자 → 키 이름 →
+   등장 순서로 골라 준다. 고른 근거와 후보 전체를 함께 돌려줘 판단을 가릴 수 없게 한다. */
+const MESH_EXT = /\.(glb|gltf|obj|fbx|usdz|usd|ply|stl|zip|3mf|blend)(\?|#|$)/i;
+export function findResultUrls(node, path, out) {
+  out = out || []; path = path || "";
+  if (node == null) return out;
+  if (typeof node === "string") {
+    if (/^https?:\/\//i.test(node)) out.push({ url: node, key: path });
+    return out;
+  }
+  if (Array.isArray(node)) { node.forEach((v, i) => findResultUrls(v, path + "[" + i + "]", out)); return out; }
+  if (typeof node === "object") {
+    for (const kk of Object.keys(node)) findResultUrls(node[kk], path ? path + "." + kk : kk, out);
+  }
+  return out;
+}
+export function pickMeshUrl(resp) {
+  const all = findResultUrls(resp);
+  if (!all.length) return null;
+  const byExt = all.find(x => MESH_EXT.test(x.url));
+  if (byExt) return { ...byExt, 근거: "3D 파일 확장자" };
+  const byKey = all.find(x => /(model|mesh|glb|gltf|asset|file|download|result|output)/i.test(x.key));
+  if (byKey) return { ...byKey, 근거: "필드 이름" };
+  return { ...all[0], 근거: "응답에서 처음 발견된 URL" };
+}
 export function buildArk3dPayload(b, env, forceModel) {
   const model = forceModel || ark3dModelIds(b, env)[0];
   // 지시어는 프롬프트 뒤에 붙는다 → cut() 으로 잘려 나가지 않도록 프롬프트만 먼저 줄인다.
@@ -1821,6 +1850,32 @@ async function handle(context) {
           return { 방식: v.이름, httpStatus: r.status, 응답: j2 || String(t).slice(0, 200) };
         } catch (e) { return { 방식: v.이름, httpStatus: 0, 응답: String((e && e.message) || e).slice(0, 120) }; }
       }));
+      /* ── 어느 주소가 이 키를 받아주는가 (읽기 전용·무과금) ──
+         대시보드가 ray-3.2 / uni-1 을 쓴다고 알려 준다. 우리 코드는 ray-2 계열을
+         구세대 dream-machine/v1 에 보내고 있었다 — 키가 새 API 용이면 인증부터 막힌다.
+         결제 문제로 본 앞선 판단은 틀렸다(잔액 $10, Add funds 완료 상태였다).
+         그래서 주소 후보를 GET 으로만 훑어 어디가 200 을 주는지 찾는다. */
+      const BASES = [
+        "https://api.lumalabs.ai/dream-machine/v1",
+        "https://api.lumalabs.ai/v1",
+        "https://api.lumalabs.ai/api/v1",
+        "https://api.lumalabs.ai/dream-machine/v1beta",
+      ];
+      const PATHS = ["/generations?limit=1", "/generations/video?limit=1", "/models", "/credits"];
+      const baseProbe = [];
+      for (const base of BASES) for (const path of PATHS) {
+        baseProbe.push((async () => {
+          const h = { "Authorization": "Bearer " + kv, "accept": "application/json" };
+          if (proj) h["X-Project-Id"] = proj;
+          try {
+            const r = await fetchT(base + path, { headers: h }, 8000);
+            const t = await r.text(); let j2 = null; try { j2 = JSON.parse(t); } catch { /* 비JSON */ }
+            return { 주소: base + path, httpStatus: r.status, 응답: j2 || String(t).slice(0, 120) };
+          } catch (e) { return { 주소: base + path, httpStatus: 0, 응답: String((e && e.message) || e).slice(0, 80) }; }
+        })());
+      }
+      const baseRows = (await Promise.all(baseProbe)).filter(x => x.httpStatus !== 404 || x.httpStatus === 200);
+      const baseOK = baseRows.find(x => x.httpStatus === 200);
       const anyOK = hdrVariants.find(v => v.httpStatus === 200);
       const per = await Promise.all(Object.entries(LUMA_IDS).map(async ([name, id]) => {
         const x = await call("/generations", { model: id, prompt: "" });   // prompt 비움 → 파라미터 반려
@@ -1844,6 +1899,11 @@ async function handle(context) {
           : { 설정됨: false,
               안내: "Luma_PROJECT_ID 환경변수가 없습니다. 프로젝트 ID 가 필요한지 시험하려면 그 값을 넣고 다시 실행하세요. "
                   + "다만 Bearer 키만으로 200 이 나온다면 프로젝트 ID 는 애초에 필요 없습니다." },
+        주소탐색: { 결론: baseOK ? ("이 주소가 키를 받습니다 → " + baseOK.주소 + " · 여기에 맞춰 LUMA_BASE 와 모델 ID 를 바꿔야 합니다.")
+                            : "시도한 주소 중 200 을 주는 곳이 없습니다 — 대시보드의 'show snippet' cURL 이 정확한 주소를 알려 줍니다.",
+                    시도: baseRows },
+        현재코드: { LUMA_BASE, 쓰는모델: LUMA_IDS,
+                    문제: "대시보드는 영상 ray-3.2 · 이미지 uni-1/uni-1-max 라고 표시합니다. 우리가 쓰는 ray-2 계열은 구세대 ID 입니다." },
         헤더방식별: hdrVariants,
         키유효성: { httpStatus: list.status, 응답: list.body,
           결론: list.status === 200 ? "키는 유효합니다 — 모델별 결과가 실제 원인입니다."
@@ -1873,6 +1933,52 @@ async function handle(context) {
        먼저 읽기 전용인 diag=ark-model 로 모델 정보에 입력 규격이 있는지 본다.
        앞으로 형식 탐색이 필요하면 "빈 값" 이 아니라 "존재하지 않는 열거값" 으로만 시도할 것.
        (빈 값은 접수돼 버린다는 것이 이 사고로 확정됐다.) */
+
+    /* ══ 지난 작업 목록 조회 (읽기 전용·무과금) ══
+       /api/generate?diag=ark-tasks[&filter=hyper3d]
+       콘솔 체험(Playground)에서 3D 를 한 번이라도 돌린 적이 있다면 그 작업이 계정에 남아
+       있다. 성공한 작업 하나만 찾으면 결과 형식을 공짜로 확인할 수 있다 — 이걸 보려고
+       유료 생성을 새로 돌릴 이유가 없다. */
+    if (u.searchParams.get("diag") === "ark-tasks") {
+      if (!k.seedance) return json({ diag: "ark-tasks", error: "Seedance_API_KEY 미설정" });
+      const filter = String(u.searchParams.get("filter") || "").trim().toLowerCase();
+      const H = { "Authorization": "Bearer " + k.seedance };
+      const tryGet = async (path) => {
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + path, { headers: H }, 12000);
+          const t = await r.text(); let j2 = null; try { j2 = JSON.parse(t); } catch { /* 비JSON */ }
+          return { path, httpStatus: r.status, body: j2, textHead: j2 ? undefined : String(t).slice(0, 200) };
+        } catch (e) { return { path, httpStatus: 0, textHead: String((e && e.message) || e).slice(0, 120) }; }
+      };
+      // 목록 경로가 어떤 형태인지 모르므로 몇 가지를 GET 으로만 시도한다(생성 없음).
+      const rows = await Promise.all([
+        tryGet("/contents/generations/tasks?page_size=50"),
+        tryGet("/contents/generations/tasks?limit=50"),
+        tryGet("/contents/generations/tasks"),
+      ]);
+      const okRow = rows.find(x => x.httpStatus === 200 && x.body && Object.keys(x.body).length);
+      let 목록 = null, 성공한3D = null;
+      if (okRow) {
+        const arr = okRow.body.items || okRow.body.data || okRow.body.tasks
+          || (Array.isArray(okRow.body) ? okRow.body : null);
+        if (Array.isArray(arr)) {
+          목록 = arr.map(x => ({ id: x.id, model: x.model, status: x.status, created_at: x.created_at }));
+          const want = (x) => (!filter || String(x.model || "").toLowerCase().indexOf(filter) >= 0);
+          const hit = arr.find(x => x.status === "succeeded" && want(x)
+            && /hyper3d|hitem3d|rodin/i.test(String(x.model || "")));
+          // 3D 성공 건이 없으면, 필터에 맞는 성공 건이라도 형식 참고용으로 보여 준다
+          성공한3D = hit || arr.find(x => x.status === "succeeded" && want(x)) || null;
+        }
+      }
+      return json({ diag: "ark-tasks",
+        note: "GET 조회만 합니다 — 생성·과금이 없습니다.",
+        경로시도: rows.map(x => x.path + " → " + x.httpStatus),
+        목록: 목록 || "(목록 조회가 지원되지 않거나 형식을 못 읽었습니다)",
+        결과형식참고: 성공한3D
+          ? { id: 성공한3D.id, model: 성공한3D.model, content: 성공한3D.content,
+              안내: "이 content 구조가 결과 형식입니다. diag=ark-task&id=" + 성공한3D.id + " 로 전체를 볼 수 있습니다." }
+          : "성공한 작업을 못 찾았습니다. 콘솔 체험에서 3D 를 한 번 돌리신 적이 있다면 그 작업 ID 로 diag=ark-task&id=... 를 실행해 주세요." });
+    }
 
     /* ══ 3D 생성 1회 실제 실행 (⚠️ 과금됨 · 명시적 확인 필수) ══
        /api/generate?diag=ark3d-run&confirm=yes[&prompt=...][&model=Hitem3D 2.0 (3D 생성)]
@@ -2847,12 +2953,12 @@ async function handle(context) {
       });
       const j = await r.json().catch(() => ({}));
       if (j.status === "succeeded") {
-        const c = j.content || {};
-        const url = c.model_url || c.file_url || c.mesh_url || c.glb_url || c.url
-          || (Array.isArray(c.files) && c.files[0] && (c.files[0].url || c.files[0].file_url))
-          || (Array.isArray(j.data) && j.data[0] && j.data[0].url) || null;
-        if (url) return json({ url, kind: "model3d", raw: c });
-        return json({ status: "failed", error: "3D 결과 URL 을 못 찾았습니다 — 아래 원본 응답의 필드명을 확인해 코드에 반영해야 합니다.", raw: j });
+        // 필드 이름을 모르는 상태에서도 결과를 꺼낸다(위 pickMeshUrl 주석 참조)
+        const hit = pickMeshUrl(j.content != null ? j.content : j);
+        if (hit) return json({ url: hit.url, kind: "model3d",
+          찾은위치: hit.key, 근거: hit.근거, 후보전체: findResultUrls(j).map(x => x.key), raw: j.content });
+        return json({ status: "failed",
+          error: "생성은 성공했는데 응답에 URL 형태의 값이 하나도 없습니다 — 아래 원본을 확인해야 합니다.", raw: j });
       }
       if (j.status === "failed" || j.error)
         return json({ status: "failed", error: (j.error && j.error.message) || "3D 생성 실패" });
