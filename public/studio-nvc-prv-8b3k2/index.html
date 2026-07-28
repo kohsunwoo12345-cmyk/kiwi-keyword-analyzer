@@ -4467,6 +4467,8 @@ var DEFS = {
                       {k:'img',t:'image',omni:true}] },
  imageref: { cat:'입력', title:'이미지 레퍼런스', hd:'#1f3350', ins:[], outs:[['out','이미지','IMAGE']],
              widgets:[{k:'img',t:'image',imageOnly:true}] },
+ brandkit: { cat:'입력', title:'브랜드 킷 (자동 적용)', hd:'#243a2c', ins:[], outs:[],
+             widgets:[{k:'bkEdit',t:'brandkit'}] },
  charref:  { cat:'입력', title:'캐릭터 (일관된 인물)', hd:'#33244a', ins:[],
              outs:[['out','캐릭터 레퍼런스','IMAGE']],
              widgets:[{k:'charlib',t:'charlib'},
@@ -5485,6 +5487,24 @@ function widgetHTML(n,w){
       (list.length? '<div style="margin-top:5px;font-size:9px;color:#5f7078;line-height:1.4;">'+tr('Depth는 브라우저 근사, Pose는 최초 1회 인식 모델을 불러옵니다. 실제 생성은 fal 정밀 전처리를 사용합니다.')+'</div>':'')+
     '</div>';
   }
+  if(w.t==='brandkit'){   // 브랜드 킷 — 저장하면 이후 모든 생성(스튜디오·API·MCP)에 서버가 자동 적용
+    var bk=n.w.bk||{};
+    var chk=function(k,label){ return '<label class="seedopt-row"><input type="checkbox" data-bk="'+k+'"'+(bk[k]?' checked':'')+'>'
+      +'<span class="seedopt-tx"><b>'+label+'</b></span></label>'; };
+    return '<div class="seedopts-wrap"><div class="seedopts-hd">'+ICON.sparkle+' 브랜드 킷</div>'
+      +'<div class="refcnt" style="margin:-2px 0 4px;">저장하면 이 계정의 <b>모든 생성</b>에 자동으로 적용됩니다 — 스튜디오·API·Claude MCP 공통.</div>'
+      +chk('enabled','자동 적용 켜기')
+      +'<input class="seedid-in" data-bk="name" placeholder="브랜드 이름 (예: BYGENCY)" value="'+esc(bk.name||'')+'">'
+      +'<textarea class="wtext" data-bk="tone" placeholder="톤앤매너 — 예) 시네마틱하고 절제된 톤, 고급스러운 분위기" style="min-height:44px;">'+esc(bk.tone||'')+'</textarea>'
+      +'<textarea class="wtext" data-bk="palette" placeholder="컬러·조명 — 예) 딥블루와 화이트, 부드러운 자연광" style="min-height:40px;">'+esc(bk.palette||'')+'</textarea>'
+      +'<textarea class="wtext" data-bk="negative" placeholder="피해야 할 것 — 예) 워터마크, 과장된 채도, 저품질" style="min-height:40px;">'+esc(bk.negative||'')+'</textarea>'
+      +'<input class="seedid-in" data-bk="logoUrl" placeholder="로고 이미지 공개 URL (선택)" value="'+esc(bk.logoUrl||'')+'">'
+      +chk('useLogo','로고를 레퍼런스로 함께 사용')
+      +'<div class="up-row" style="margin-top:6px;"><button class="wbtn" data-bksave>'+ICON.check+' 저장</button>'
+      +'<button class="wbtn" data-bkload>'+ICON.fit+' 불러오기</button></div>'
+      +(n.w.bkMsg?'<div class="refcnt" style="color:#7fd1a6;">'+esc(n.w.bkMsg)+'</div>':'')
+      +'</div>';
+  }
   if(w.t==='abgen'){   // A/B 소재 배치 생성 — 같은 설정으로 시드를 달리한 변형을 한 번에
     return '<div class="vo-row" style="margin-top:6px;">'
       +'<label class="vo-sel"><span class="vo-k">변형</span><select data-abn>'
@@ -6387,6 +6407,10 @@ canvas.addEventListener('change',function(e){
   var host=e.target.closest('.node'); if(!host)return;
   var n=state.nodes.find(function(x){return x.id===host.dataset.node;}); if(!n)return;
   // 영상 노드 내장 설정(길이·비율) 드롭다운
+  var _bkk=e.target.getAttribute&&e.target.getAttribute('data-bk');
+  if(_bkk){ n.w.bk=n.w.bk||{};
+    n.w.bk[_bkk] = (e.target.type==='checkbox') ? e.target.checked : e.target.value;
+    autosave(); return; }
   if(e.target.hasAttribute('data-abn')){ n.w.abN=+e.target.value; autosave(); return; }
   if(e.target.hasAttribute('data-abscript')){ n.w.abScript=e.target.value; autosave(); return; }
   if(e.target.hasAttribute('data-seqn')){ n.w.seqN=+e.target.value; autosave(); return; }
@@ -6551,6 +6575,29 @@ canvas.addEventListener('click',function(e){
     e.preventDefault();
     if(n2.w.upscaled&&String(n2.w.upscaled).indexOf('blob:')===0){ try{URL.revokeObjectURL(n2.w.upscaled);}catch(_){} }
     n2.w.upscaled=null; n2.w.upKind=null; n2.w.upDim=null; render(); return;
+  }
+  // ── 브랜드 킷 저장/불러오기 ──
+  if(e.target.closest('[data-bksave]')){
+    var _bk=n2.w.bk||{};
+    fetch('/api/studio/brandkit',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
+      body:JSON.stringify({enabled:_bk.enabled!==false,name:_bk.name||'',tone:_bk.tone||'',palette:_bk.palette||'',
+        negative:_bk.negative||'',logoUrl:_bk.logoUrl||'',useLogo:!!_bk.useLogo})})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        n2.w.bkMsg = j&&j.ok ? '저장됨 — 이후 모든 생성에 자동 적용됩니다' : ('저장 실패: '+((j&&j.error)||(j&&j.needLogin?'로그인이 필요합니다':'오류')));
+        render();
+      }).catch(function(){ n2.w.bkMsg='저장 실패(네트워크)'; render(); });
+    return;
+  }
+  if(e.target.closest('[data-bkload]')){
+    fetch('/api/studio/brandkit',{credentials:'include',cache:'no-store'})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j&&j.ok&&j.kit){ n2.w.bk=j.kit; n2.w.bkMsg='계정에서 불러왔습니다'; }
+        else n2.w.bkMsg = (j&&j.needLogin)?'로그인이 필요합니다':'불러오지 못했습니다';
+        render();
+      }).catch(function(){ n2.w.bkMsg='불러오기 실패(네트워크)'; render(); });
+    return;
   }
   // ── A/B 소재 배치 생성 ──
   if(e.target.closest('[data-abgo]')){

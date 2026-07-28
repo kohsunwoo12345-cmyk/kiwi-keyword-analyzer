@@ -10,6 +10,7 @@
 import { getSessionUser, resolveDB, getUserByMcpToken } from "./_utils";
 import { getUserByApiKey, enforceRateLimit, ensureApiKeysSchema } from "./_apikeys";
 import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from "./studio/_pricing";
+import { getBrandKit, applyBrandKit } from "./studio/brandkit";
 import { creditPriceFor } from "./payments/prepare";
 
 const RUNWAY_VER = "2024-11-06";
@@ -1133,10 +1134,12 @@ async function handle(context) {
   //  · 세션 쿠키(스튜디오) · 회원 API키(bg_live_) · 회원 개인 MCP 토큰(bgm_) · 전역 MCP 토큰 순으로 인증.
   //  · ?health 진단(제공사 설정 여부 불리언)만 예외로 허용.
   const method = request.method;
+  let gateUser = null;   // 인증된 회원(브랜드 킷 자동 적용에 사용)
   const gateGet = method === "GET" && ["submit", "media", "file", "op", "task"].some((p) => u.searchParams.has(p));
   if (method === "POST" || gateGet) {
     const db = resolveDB(env);
     let me = db ? await getSessionUser(request, db) : null;
+    // 아래 POST 본문 처리(브랜드 킷 자동 적용)에서 쓰기 위해 인증 결과를 바깥으로 넘긴다.
     if (!me && db) {
       // 회원 API 키(bg_live_) 인증 — 노드형 AI 영상 플랜 사용자의 직접 API 호출
       const ak = await getUserByApiKey(db, request.headers.get("Authorization"));
@@ -1159,6 +1162,7 @@ async function handle(context) {
       if (gtok && bearer && ctEqStr(bearer, String(gtok))) me = { role: "admin", credits: Number.MAX_SAFE_INTEGER };
     }
     if (!me) return json({ error: "로그인이 필요합니다.", needLogin: true }, 401);
+    gateUser = me;
     // 실제 생성(POST)은 크레딧 보유자(또는 관리자)만 — dryRun 검증 요청은 통과
     if (method === "POST") {
       let pbody = {};
@@ -2604,6 +2608,26 @@ async function handle(context) {
     return json({ error: "요청 데이터가 너무 큽니다(" + Math.round(cl / 1024 / 1024) + "MB). 이미지가 R2로 업로드되지 않고 원본이 통째로 실렸습니다 — Ctrl+Shift+R(강력 새로고침) 후 다시 시도하세요." }, 413);
   let b; try { b = await request.json(); } catch { return json({ error: "bad json" }, 400); }
   applyCameraPreset(b);   // 카메라 모션 프리셋(b.camera) → 프롬프트에 시네마틱 지시문 주입
+  // ── 브랜드 킷 자동 적용 ──
+  //  계정에 저장해 둔 톤앤매너·컬러·금지 요소를 모든 생성에 자동으로 얹는다.
+  //  스튜디오·공개 API·Claude MCP 어디서 호출해도 같은 브랜드 룩이 유지된다.
+  //  요청에 brandKit:false 를 주면 이번 생성만 건너뛴다(원본 그대로 뽑고 싶을 때).
+  if (b.brandKit !== false && gateUser && gateUser.id) {
+    try {
+      const db2 = resolveDB(env);
+      const kit = db2 ? await getBrandKit(db2, gateUser.id) : null;
+      if (kit) {
+        const out = applyBrandKit(kit, b.prompt || "", b.negative || "");
+        b.prompt = out.prompt; b.negative = out.negative;
+        // 로고를 레퍼런스로 쓰기로 했다면 레퍼런스 목록 맨 뒤에 붙인다(첫 프레임은 건드리지 않는다)
+        if (kit.useLogo && /^https?:\/\//.test(kit.logoUrl)) {
+          const refs = Array.isArray(b.refImages) ? b.refImages.slice() : [];
+          if (refs.indexOf(kit.logoUrl) < 0) refs.push(kit.logoUrl);
+          b.refImages = refs;
+        }
+      }
+    } catch (_e) { /* 브랜드 킷 실패가 생성을 막지는 않는다 */ }
+  }
   const provider = b.provider;
 
   /* dryRun — 실제 호출 없이 매핑된 페이로드만 반환 (검증용) */
