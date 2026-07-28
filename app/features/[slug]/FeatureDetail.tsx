@@ -27,6 +27,7 @@ import { VideoStudioShowcase } from '@/components/features/VideoStudioShowcase'
 import { YoutubeInsightShowcase } from '@/components/features/YoutubeInsightShowcase'
 import { BlogRankShowcase } from '@/components/features/BlogRankShowcase'
 import { TeamCollabShowcase } from '@/components/features/TeamCollabShowcase'
+import { CrmFlowShowcase } from '@/components/features/CrmFlowShowcase'
 import { cn } from '@/lib/utils'
 import { FEATURES, getFeature, type Feature } from '@/lib/features'
 import { useT, type Dict } from '@/lib/i18n'
@@ -518,6 +519,9 @@ export function FeatureDetail({ slug }: { slug: string }) {
 
       {/* ===== 팀 협업 쇼케이스 ===== */}
       {slug === 'team' && <TeamCollabShowcase feature={feature} />}
+
+      {/* ===== 고객관리 CRM 쇼케이스 ===== */}
+      {slug === 'crm' && <CrmFlowShowcase feature={feature} />}
 
       {/* ===== CAPABILITIES ===== */}
       <section className="relative py-20">
