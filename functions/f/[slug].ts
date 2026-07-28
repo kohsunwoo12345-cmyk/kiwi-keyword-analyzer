@@ -1,4 +1,4 @@
-import { resolveDB, ensureSchema } from '../api/_utils'
+import { resolveDB, ensureSchema, getSessionUser } from '../api/_utils'
 import { ensureFunnelSchema } from '../api/funnel/_schema'
 
 // 공개 퍼널 랜딩페이지 렌더 (/f/{slug}) — 신청 폼은 /api/funnel/apply 로 제출 → 자동응답(문자/알림톡) 실행
@@ -9,13 +9,30 @@ const FIELD: Record<string, { label: string; type: string; ph: string }> = {
   email: { label: '이메일', type: 'email', ph: 'you@example.com' },
 }
 
-export const onRequestGet: PagesFunction<any> = async ({ params, env }) => {
+export const onRequestGet: PagesFunction<any> = async ({ request, params, env }) => {
   const slug = String((params as any).slug || '')
   const db = resolveDB(env)
   if (!db) return new Response('DB 미연결', { status: 500 })
   await ensureSchema(db); await ensureFunnelSchema(db)
 
-  const page: any = await db.prepare('SELECT * FROM funnel_landing_pages WHERE slug = ?').bind(slug).first().catch(() => null)
+  let page: any = await db.prepare('SELECT * FROM funnel_landing_pages WHERE slug = ?').bind(slug).first().catch(() => null)
+  // ⚠ 상태를 안 봐서 초안·중지된 페이지도 공개 주소로 그대로 열렸다.
+  //   접수(/api/funnel/apply)는 이미 활성 페이지만 받으므로, 열리기는 하는데 신청은 안 되는
+  //   깨진 상태이기도 했다. 주인(과 관리자)은 미리보기를 해야 하니 그 경우만 통과시킨다.
+  //   status 가 비어 있는 과거 데이터는 활성으로 본다.
+  if (page && !(page.status == null || page.status === '' || page.status === 'active')) {
+    const me: any = await getSessionUser(request, db).catch(() => null)
+    let owner = false
+    if (me) {
+      if (me.role === 'admin' || me.role === 'superadmin') owner = true
+      else {
+        const g: any = await db.prepare('SELECT 1 AS ok FROM funnel_groups WHERE id = ? AND user_id = ?')
+          .bind(page.group_id, me.id).first().catch(() => null)
+        owner = !!g
+      }
+    }
+    if (!owner) page = null
+  }
   if (!page) {
     return new Response(
       `<!doctype html><meta charset="utf-8"><title>페이지 없음</title><body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#0a0f1e;color:#e5e7eb"><div style="text-align:center"><h1>페이지를 찾을 수 없습니다</h1><p style="color:#94a3b8">삭제되었거나 잘못된 주소입니다.</p></div></body>`,
