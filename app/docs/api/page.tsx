@@ -9,6 +9,7 @@ import {
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { useT, type Dict } from '@/lib/i18n'
+import { CodeBlock, CodeTabs, FieldTable, Note } from '@/components/docs/DocsKit'
 
 const STUDIO_URL = '/studio-nvc-prv-8b3k2/'
 
@@ -205,29 +206,38 @@ const M: Dict = {
   'model/provider 누락 등 잘못된 요청': { en: 'Bad request, e.g. missing model/provider', ja: 'model/provider の欠落など不正なリクエスト', zh: '请求错误，如缺少 model/provider' },
   '제공사 미설정/서버 오류': { en: 'Provider not configured / server error', ja: '提供元未設定／サーバーエラー', zh: '提供方未配置/服务器错误' },
 
+  // quickstart · response
+  '빠른 시작': { en: 'Quickstart', ja: 'クイックスタート', zh: '快速开始' },
+  '키 발급 → 호출 → (영상이면) 상태 확인. 세 줄이면 끝납니다.': {
+    en: 'Issue a key → call → (for video) poll. Three lines and you are done.',
+    ja: 'キー発行 → 呼び出し →（動画なら）ステータス確認。3行で終わります。',
+    zh: '签发密钥 → 调用 →（视频则）查询状态。三行就够了。',
+  },
+  '응답 형식': { en: 'Response format', ja: 'レスポンス形式', zh: '响应格式' },
+  '이미지·영상 요청 모두 아래 공통 필드를 돌려줍니다. 영상은 완료 전까지 url 대신 statusUrl 을 씁니다.': {
+    en: 'Both image and video requests return the common fields below. Until a video finishes, use statusUrl instead of url.',
+    ja: '画像・動画いずれのリクエストも以下の共通フィールドを返します。動画は完了までは url の代わりに statusUrl を使います。',
+    zh: '图像与视频请求都会返回下列公共字段。视频完成前请使用 statusUrl 而非 url。',
+  },
+  '필드': { en: 'Field', ja: 'フィールド', zh: '字段' },
+  '타입': { en: 'Type', ja: '型', zh: '类型' },
+  '필수': { en: 'Required', ja: '必須', zh: '必填' },
+  '요청 성공 여부': { en: 'Whether the request succeeded', ja: 'リクエストの成否', zh: '请求是否成功' },
+  '이미지 결과 URL. 영상은 완료 후에 채워집니다': { en: 'Result URL for images; filled in for video once finished', ja: '画像の結果 URL。動画は完了後に入ります', zh: '图像结果 URL；视频完成后才有' },
+  '영상 상태 확인용 주소. 쿼리를 그대로 GET 에 붙입니다': { en: 'Status-check URL for video — append its query to a GET', ja: '動画のステータス確認用 URL。クエリをそのまま GET に付けます', zh: '视频状态查询地址，把其 query 直接拼到 GET 上' },
+  'generating · succeeded · failed': { en: 'generating · succeeded · failed', ja: 'generating · succeeded · failed', zh: 'generating · succeeded · failed' },
+  '이번 호출로 차감된 크레딧': { en: 'Credits charged for this call', ja: 'この呼び出しで差し引かれたクレジット', zh: '本次调用扣除的额度' },
+  '차감 후 남은 크레딧': { en: 'Credits remaining after the charge', ja: '差し引き後の残りクレジット', zh: '扣除后剩余额度' },
+  '실패 시에만 담기는 오류 메시지': { en: 'Error message, present only on failure', ja: '失敗時のみ入るエラーメッセージ', zh: '仅在失败时出现的错误信息' },
+
   // cta
   '준비됐나요? 스튜디오에서 API 키를 발급하고 바로 호출하세요.': { en: 'Ready? Issue an API key in the studio and start calling right away.', ja: '準備はいいですか？スタジオで API キーを発行して、すぐに呼び出しましょう。', zh: '准备好了吗？在工作室签发 API 密钥并立即调用。' },
   '호출 예시 보기': { en: 'See call examples', ja: '呼び出し例を見る', zh: '查看调用示例' },
 }
 
-/* 복사 가능한 코드 블록 */
+/* 코드 블록 — 공용 DocsKit 위임 (언어 라벨 + 복사 버튼) */
 function Code({ children, label }: { children: string; label?: string }) {
-  const t = useT(M)
-  const [ok, setOk] = useState(false)
-  function copy() {
-    try {
-      navigator.clipboard.writeText(children).then(() => { setOk(true); setTimeout(() => setOk(false), 1400) })
-    } catch { /* noop */ }
-  }
-  return (
-    <div className="group relative my-3 overflow-hidden rounded-xl border border-[var(--border-soft)] bg-[#0b0f1a]">
-      {label && <div className="border-b border-[var(--border-soft)] px-4 py-2 font-mono text-[11px] uppercase tracking-wide text-[var(--text-dim)]">{label}</div>}
-      <button onClick={copy} className="absolute right-2.5 top-2.5 z-10 flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-slate-300 opacity-0 transition group-hover:opacity-100 hover:bg-white/10">
-        {ok ? <><Check size={12} /> {t('복사됨')}</> : <><Copy size={12} /> {t('복사')}</>}
-      </button>
-      <pre className="overflow-x-auto px-4 py-3.5 font-mono text-[12.5px] leading-relaxed text-slate-200"><code>{children}</code></pre>
-    </div>
-  )
+  return <CodeBlock code={children} lang={label} />
 }
 
 function Anchor({ id }: { id: string }) { return <span id={id} className="relative -top-24 block" aria-hidden /> }
@@ -248,9 +258,9 @@ export default function ApiDocsPage() {
   const base = origin + '/api/v1/generate'
 
   const nav = [
-    ['overview', '개요'], ['key', 'API 키 발급'], ['auth', '인증'],
+    ['overview', '개요'], ['quickstart', '빠른 시작'], ['key', 'API 키 발급'], ['auth', '인증'],
     ['image', '이미지 생성'], ['video', '영상 생성'], ['poll', '상태 확인'],
-    ['models', '모델 목록'], ['bymodel', '모델별 호출 예시'], ['sdk', '언어별 예시'],
+    ['response', '응답 형식'], ['models', '모델 목록'], ['bymodel', '모델별 호출 예시'], ['sdk', '언어별 예시'],
     ['limits', '요청 한도'], ['credits', '크레딧·과금'], ['errors', '오류'],
   ]
 
@@ -409,7 +419,7 @@ export default function ApiDocsPage() {
           {/* 개요 */}
           <section>
             <Anchor id="overview" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><Cpu size={20} className="text-blue-400" /> {t('개요')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('개요')}</h2>
             <p className="text-[14.5px] leading-relaxed text-[var(--text-soft)]">
               {t('BYGENCY 생성 API는 단순한')} <b className="text-slate-200">REST(HTTP)</b> {t('엔드포인트입니다. 하나의 엔드포인트로 이미지·영상을 모두 다룹니다.')}
             </p>
@@ -432,10 +442,28 @@ export default function ApiDocsPage() {
             </div>
           </section>
 
+          {/* 빠른 시작 */}
+          <section>
+            <Anchor id="quickstart" />
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('빠른 시작')}</h2>
+            <p className="text-[14.5px] leading-relaxed text-[var(--text-soft)]">{t('키 발급 → 호출 → (영상이면) 상태 확인. 세 줄이면 끝납니다.')}</p>
+            <CodeBlock
+              lang="bash"
+              code={`# 1) 스튜디오에서 발급한 키를 환경변수로 둔다
+export BYGENCY_API_KEY="bg_live_..."
+
+# 2) 이미지 한 장 만들어 보기
+curl -s -X POST "${base}" \\
+  -H "Authorization: Bearer $BYGENCY_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"kind":"image","provider":"nanobanana","model":"Nano Banana","prompt":"노을 지는 해변"}'`}
+            />
+          </section>
+
           {/* 키 발급 */}
           <section>
             <Anchor id="key" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><KeyRound size={20} className="text-blue-400" /> {t('1. API 키 발급')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('1. API 키 발급')}</h2>
             <p className="text-[14.5px] leading-relaxed text-[var(--text-soft)]">
               <a href={STUDIO_URL} className="text-blue-300 underline">{t('스튜디오')}</a> → {t('좌측 하단')} <b className="text-slate-200">{t('프로필')}</b> → <b className="text-slate-200">{t('API 연결')}</b> {t('탭에서 키를 만듭니다.')}
             </p>
@@ -454,7 +482,7 @@ export default function ApiDocsPage() {
           {/* 인증 */}
           <section>
             <Anchor id="auth" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><ShieldCheck size={20} className="text-blue-400" /> {t('2. 인증')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('2. 인증')}</h2>
             <p className="text-[14.5px] leading-relaxed text-[var(--text-soft)]">
               {t('모든 요청 헤더에')} <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[12px] text-slate-200">Authorization: Bearer &lt;API 키&gt;</code> {t('를 넣습니다. 키가 없거나 틀리면')} <b>401</b>, {t('플랜이 없으면')} <b>403</b>{t('으로 거부됩니다.')}
             </p>
@@ -464,7 +492,7 @@ export default function ApiDocsPage() {
           {/* 이미지 */}
           <section>
             <Anchor id="image" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><ImageIcon size={20} className="text-blue-400" /> {t('3. 이미지 생성')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('3. 이미지 생성')}</h2>
             <p className="text-[13.5px] text-[var(--text-soft)]"><code className="font-mono text-[12.5px] text-blue-300">POST /api/v1/generate</code> — {t('이미지는 즉시 결과 URL을 반환합니다.')}</p>
             <Code label={t('POST /api/v1/generate — 이미지')}>{`curl -X POST "${base}" \\
   -H "Authorization: Bearer $BYGENCY_API_KEY" \\
@@ -510,7 +538,7 @@ export default function ApiDocsPage() {
           {/* 영상 */}
           <section>
             <Anchor id="video" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><Video size={20} className="text-blue-400" /> {t('4. 영상 생성')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('4. 영상 생성')}</h2>
             <p className="text-[13.5px] text-[var(--text-soft)]">{t('영상은 즉시 완료되지 않습니다.')} <code className="font-mono text-[12.5px] text-blue-300">POST</code> {t('로 시작하면')} <code className="font-mono text-[12.5px]">task</code>{t('(상태 확인 주소)를 돌려줍니다. 과금은')} <b className="text-slate-200">{t('시작 시 1회')}</b>{t('만 발생합니다.')}</p>
             <Code label={t('POST /api/v1/generate — 영상')}>{`curl -X POST "${base}" \\
   -H "Authorization: Bearer $BYGENCY_API_KEY" \\
@@ -559,7 +587,7 @@ export default function ApiDocsPage() {
           {/* 폴링 */}
           <section>
             <Anchor id="poll" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><ListChecks size={20} className="text-blue-400" /> {t('5. 영상 상태 확인 (폴링)')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('5. 영상 상태 확인 (폴링)')}</h2>
             <p className="text-[13.5px] text-[var(--text-soft)]">{t('응답의')} <code className="font-mono text-[12.5px]">statusUrl</code> {t('쿼리를 그대로')} <code className="font-mono text-[12.5px] text-blue-300">GET /api/v1/generate</code>{t('에 붙여 15~30초 간격으로 확인합니다.')} <b className="text-slate-200">{t('추가 과금 없음.')}</b></p>
             <Code label={t('GET /api/v1/generate — 상태 확인')}>{`curl "${base}?provider=seedance&task=..." \\
   -H "Authorization: Bearer $BYGENCY_API_KEY"
@@ -571,11 +599,33 @@ export default function ApiDocsPage() {
           </section>
 
           {/* 모델 목록 */}
+          {/* 응답 형식 */}
+          <section>
+            <Anchor id="response" />
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('응답 형식')}</h2>
+            <p className="text-[14.5px] leading-relaxed text-[var(--text-soft)]">
+              {t('이미지·영상 요청 모두 아래 공통 필드를 돌려줍니다. 영상은 완료 전까지 url 대신 statusUrl 을 씁니다.')}
+            </p>
+            <FieldTable
+              showRequired={false}
+              labels={[t('필드'), t('타입'), t('필수'), t('설명')]}
+              rows={[
+                { name: 'ok', type: 'boolean', desc: t('요청 성공 여부') },
+                { name: 'url', type: 'string', desc: t('이미지 결과 URL. 영상은 완료 후에 채워집니다') },
+                { name: 'statusUrl', type: 'string', desc: t('영상 상태 확인용 주소. 쿼리를 그대로 GET 에 붙입니다') },
+                { name: 'status', type: 'string', desc: t('generating · succeeded · failed') },
+                { name: 'credits_charged', type: 'number', desc: t('이번 호출로 차감된 크레딧') },
+                { name: 'credits_remaining', type: 'number', desc: t('차감 후 남은 크레딧') },
+                { name: 'error', type: 'string', desc: t('실패 시에만 담기는 오류 메시지') },
+              ]}
+            />
+          </section>
+
           <section>
             <Anchor id="models" />
-            <h2 className="mb-4 flex items-center gap-2 text-2xl font-bold text-white"><Cpu size={20} className="text-blue-400" /> {t('6. 지원 모델')}</h2>
+            <h2 className="mb-4 text-2xl font-bold text-white">{t('6. 지원 모델')}</h2>
 
-            <h3 className="mb-2 flex items-center gap-2 text-[15px] font-bold text-slate-100"><Video size={16} className="text-blue-400" /> {t('영상 모델')}</h3>
+            <h3 className="mb-2 text-[15px] font-bold text-slate-100">{t('영상 모델')}</h3>
             <div className="mb-6 overflow-hidden rounded-xl border border-[var(--border-soft)]">
               <table className="w-full text-left text-[13px]">
                 <thead className="bg-white/[.03] text-[var(--text-dim)]">
@@ -591,7 +641,7 @@ export default function ApiDocsPage() {
               </table>
             </div>
 
-            <h3 className="mb-2 flex items-center gap-2 text-[15px] font-bold text-slate-100"><ImageIcon size={16} className="text-blue-400" /> {t('이미지 모델')}</h3>
+            <h3 className="mb-2 text-[15px] font-bold text-slate-100">{t('이미지 모델')}</h3>
             <div className="overflow-hidden rounded-xl border border-[var(--border-soft)]">
               <table className="w-full text-left text-[13px]">
                 <thead className="bg-white/[.03] text-[var(--text-dim)]">
@@ -612,7 +662,7 @@ export default function ApiDocsPage() {
           {/* 모델별 호출 예시 */}
           <section>
             <Anchor id="bymodel" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><Code2 size={20} className="text-blue-400" /> {t('7. 모델별 호출 예시')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('7. 모델별 호출 예시')}</h2>
             <p className="mb-4 text-[13.5px] text-[var(--text-soft)]">{t('각 모델의')} <code className="font-mono text-[12px]">provider</code>·<code className="font-mono text-[12px]">model</code> {t('값과 자주 쓰는 필드입니다. 모두')} <code className="font-mono text-[12px] text-blue-300">POST {base}</code> {t('에 아래 JSON 바디로 보냅니다.')}</p>
             {modelExamples.map((grp) => (
               <div key={grp.group} className="mb-6">
@@ -643,10 +693,29 @@ export default function ApiDocsPage() {
           {/* 언어별 예시 */}
           <section>
             <Anchor id="sdk" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><Code2 size={20} className="text-blue-400" /> {t('8. 언어별 예시')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('8. 언어별 예시')}</h2>
 
-            <h3 className="mb-1 mt-4 flex items-center gap-2 text-[15px] font-bold text-slate-100"><Code2 size={16} className="text-blue-400" /> JavaScript (fetch)</h3>
-            <Code label="node / browser">{`const KEY = process.env.BYGENCY_API_KEY;
+            <CodeTabs
+              tabs={[
+                { label: 'cURL', code: `BASE="${base}"
+KEY="$BYGENCY_API_KEY"
+
+# 1) 이미지 — 응답에 결과 url 이 바로 담긴다
+curl -s -X POST "$BASE" \\
+  -H "Authorization: Bearer $KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"kind":"image","provider":"nanobanana","model":"Nano Banana","prompt":"노을 지는 해변"}'
+
+# 2) 영상 — 시작하면 statusUrl 을 돌려준다 (과금은 이때 1회)
+curl -s -X POST "$BASE" \\
+  -H "Authorization: Bearer $KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"kind":"video","provider":"seedance","model":"Seedance 2.0","prompt":"질주하는 말","seconds":5}'
+
+# 3) 상태 확인 — statusUrl 의 쿼리를 그대로 붙인다 (추가 과금 없음)
+curl -s "$BASE?provider=seedance&task=TASK_ID" \\
+  -H "Authorization: Bearer $KEY"` },
+                { label: 'JavaScript', code: `const KEY = process.env.BYGENCY_API_KEY;
 const BASE = "${base}";
 
 // 1) 이미지 — 즉시 결과
@@ -671,10 +740,8 @@ while (true) {
   done = await fetch(BASE + "?" + q, { headers: { "Authorization": "Bearer " + KEY } }).then(r => r.json());
   if (done.status === "succeeded" || done.url) break;
 }
-console.log(done.url);`}</Code>
-
-            <h3 className="mb-1 mt-6 flex items-center gap-2 text-[15px] font-bold text-slate-100"><Terminal size={16} className="text-blue-400" /> Python (requests)</h3>
-            <Code label="python">{`import os, time, requests
+console.log(done.url);` },
+                { label: 'Python', code: `import os, time, requests
 
 KEY = os.environ["BYGENCY_API_KEY"]
 BASE = "${base}"
@@ -695,13 +762,15 @@ while True:
     time.sleep(15)
     r = requests.get(f"{BASE}?{q}", headers=H).json()
     if r.get("status") == "succeeded" or r.get("url"):
-        print(r.get("url")); break`}</Code>
+        print(r.get("url")); break` },
+              ]}
+            />
           </section>
 
           {/* 요청 한도 */}
           <section>
             <Anchor id="limits" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><ShieldCheck size={20} className="text-blue-400" /> {t('9. 요청 한도 (남용 방지)')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('9. 요청 한도 (남용 방지)')}</h2>
             <p className="mb-3 text-[13.5px] text-[var(--text-soft)]">{t('서비스 보호를 위해 계정 단위로 요청 한도가 적용됩니다. 초과 시')} <b className="text-slate-200">HTTP 429</b> {t('와')} <code className="font-mono text-[12px]">Retry-After</code>{t('(초) 헤더를 반환합니다. 여러 키를 만들어도 한도는')} <b className="text-slate-200">{t('계정 합산')}</b>{t('으로 계산되어 우회할 수 없습니다.')}</p>
             <div className="overflow-hidden rounded-xl border border-[var(--border-soft)]">
               <table className="w-full text-left text-[13px]">
@@ -733,7 +802,7 @@ while True:
           {/* 크레딧 */}
           <section>
             <Anchor id="credits" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><Coins size={20} className="text-blue-400" /> {t('10. 크레딧·과금')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('10. 크레딧·과금')}</h2>
             <ul className="space-y-2.5 text-[14px] leading-relaxed text-[var(--text-soft)]">
               <li className="flex gap-2.5"><Check size={17} className="mt-0.5 flex-shrink-0 text-blue-400" /> {t('생성 1건마다')} <b className="text-slate-200">{t('키 소유자 본인 계정')}</b>{t('에서 크레딧이 차감됩니다(스튜디오와 동일 단가·배수).')}</li>
               <li className="flex gap-2.5"><Check size={17} className="mt-0.5 flex-shrink-0 text-blue-400" /> {t('생성')} <b className="text-slate-200">{t('전에 잔액을 확인')}</b>{t('해 부족하면')} <b>402</b>{t('로 거부합니다(크레딧 마이너스 없음).')}</li>
@@ -747,7 +816,7 @@ while True:
           {/* 오류 */}
           <section>
             <Anchor id="errors" />
-            <h2 className="mb-3 flex items-center gap-2 text-2xl font-bold text-white"><ShieldCheck size={20} className="text-blue-400" /> {t('11. 오류 코드')}</h2>
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('11. 오류 코드')}</h2>
             <div className="overflow-hidden rounded-xl border border-[var(--border-soft)]">
               <table className="w-full text-left text-[13px]">
                 <thead className="bg-white/[.03] text-[var(--text-dim)]">
