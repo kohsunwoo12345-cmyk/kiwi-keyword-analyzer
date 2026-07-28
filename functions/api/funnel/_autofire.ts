@@ -12,12 +12,18 @@ export async function fireAutoResponses(
   page: { id: number | string; group_id: number | string; title?: string },
   contact: { name?: string; phone?: string; email?: string },
 ): Promise<any[]> {
+  // ⚠ 조건에 "landing_page_id IS NULL / group_id IS NULL 이면 통과" 가 들어 있다.
+  //   즉 대상을 비워 둔 규칙은 이 사이트의 모든 랜딩페이지에 적용된다 —
+  //   남이 만든 규칙이 내 신청자에게 문자를 보내게 된다는 뜻이다.
+  //   그래서 "이 페이지의 주인이 만든 규칙" 으로 한 번 더 좁힌다.
+  //   (규칙 생성 쪽에서도 대상 없는 규칙을 막지만, 과거에 만들어진 데이터가 남아 있을 수 있다)
   const rules = (await db.prepare(
-    `SELECT * FROM funnel_auto_responses
-     WHERE status = 'active' AND trigger = 'form_submit'
-       AND (landing_page_id = ? OR landing_page_id IS NULL)
-       AND (group_id = ? OR group_id IS NULL)`,
-  ).bind(page.id, page.group_id).all().catch(() => ({ results: [] }))).results || []
+    `SELECT far.* FROM funnel_auto_responses far
+      WHERE far.status = 'active' AND far.trigger = 'form_submit'
+        AND (far.landing_page_id = ? OR far.landing_page_id IS NULL)
+        AND (far.group_id = ? OR far.group_id IS NULL)
+        AND far.user_id = (SELECT g.user_id FROM funnel_groups g WHERE g.id = ?)`,
+  ).bind(page.id, page.group_id, page.group_id).all().catch(() => ({ results: [] }))).results || []
 
   const name = String(contact.name || '').slice(0, 60)
   const phone = digits(contact.phone)

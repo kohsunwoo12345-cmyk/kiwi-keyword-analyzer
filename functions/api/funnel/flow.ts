@@ -1,6 +1,7 @@
 // Ported from SUPERPLACE: POST /api/funnel/flow (Hono → CF Pages Functions)
 import { resolveDB, getSessionUser } from '../_utils'
 import { ensureFunnelSchema } from './_schema'
+import { ownsGroup, forbidden } from './_own'
 
 const j = (o: any, status = 200) =>
   new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
@@ -15,6 +16,8 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     if (!me) return j({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
     const { steps, group_id } = (await request.json()) as any
     const userId = me.id
+    // 남의 그룹에 플로우를 저장하지 못하게 한다
+    if (group_id && !(await ownsGroup(db, me, group_id))) return forbidden()
 
     const result = await db.prepare(`
       INSERT INTO funnel_flows (

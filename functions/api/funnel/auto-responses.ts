@@ -1,6 +1,7 @@
 // Ported from SUPERPLACE: GET/POST /api/funnel/auto-responses (Hono → CF Pages Functions)
 import { resolveDB, getSessionUser } from '../_utils'
 import { ensureFunnelSchema } from './_schema'
+import { ownsGroup, ownsPage, forbidden } from './_own'
 
 const j = (o: any, status = 200) =>
   new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
@@ -50,6 +51,16 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     if (!me) return j({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
     const { type, subject, content, timing, trigger, landing_page_id, group_id, sender_number } = (await request.json()) as any
     const userId = me.id
+
+    // ── 대상 확인 ────────────────────────────────────────────────────────────
+    //  ⚠ 예전에는 group_id/landing_page_id 를 그대로 믿었다. 남의 랜딩페이지에
+    //     자동응답을 붙여, 그 페이지로 들어온 신청자에게 내 문구를 보낼 수 있었다.
+    //     둘 다 비워 두는 것도 막는다 — 대상이 없는 규칙은 발송 시점에
+    //     "모든 페이지" 로 해석되어 전 회원의 신청자에게 나간다.
+    if (!group_id && !landing_page_id)
+      return j({ success: false, error: '자동응답을 적용할 그룹 또는 랜딩페이지를 지정하세요.' }, 400)
+    if (landing_page_id && !(await ownsPage(db, me, landing_page_id))) return forbidden()
+    if (group_id && !(await ownsGroup(db, me, group_id))) return forbidden()
 
     const result = await db.prepare(`
       INSERT INTO funnel_auto_responses (
