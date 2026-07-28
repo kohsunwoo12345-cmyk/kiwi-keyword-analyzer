@@ -1,15 +1,18 @@
-import { Env, resolveDB } from '../_utils'
+import { Env, resolveDB, getSessionUser, requireAdminUser } from '../_utils'
 import { ensureIgSchema, getIgAppConfig } from './_ig'
 
 const j = (obj: any, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
 
 // GET /api/instagram/app-config → 앱 ID/시크릿 존재 여부 조회
-export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
+export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   try {
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 200)
     await ensureIgSchema(db)
+    // 앱 ID 앞자리와 설정 여부까지 아무에게나 알려 줄 이유가 없다
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const cfg = await getIgAppConfig(env, db)
     return j({
       success: true,
@@ -29,6 +32,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 200)
     await ensureIgSchema(db)
+    // ⚠ 인증이 아예 없었다. 이 설정은 회원별이 아니라 서비스 전체가 쓰는 메타 앱 자격증명(id=1 한 줄)이라,
+    //   아무나 덮어쓰면 전 회원의 인스타 연동이 끊기고, 공격자 앱으로 바꿔치기하면
+    //   이후 로그인 흐름이 그쪽으로 넘어간다. 관리자만 바꿀 수 있어야 한다.
+    const guard = await requireAdminUser(request, db)
+    if (guard.error) return guard.error
     const { appId, appSecret } = (((await request.json().catch(() => null)) as any) || {})
     if (!appId) return j({ success: false, error: '앱 ID는 필수입니다' }, 400)
 
