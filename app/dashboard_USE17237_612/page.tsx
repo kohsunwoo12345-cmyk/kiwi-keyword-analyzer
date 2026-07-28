@@ -124,7 +124,7 @@ export default function DashboardHome() {
               </div>
               <Link
                 href="/activate"
-                className="brand-gradient inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105"
+                className="brand-gradient inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-white transition hover:brightness-[1.06]"
               >
                 요금제 활성화 <ArrowRight size={15} />
               </Link>

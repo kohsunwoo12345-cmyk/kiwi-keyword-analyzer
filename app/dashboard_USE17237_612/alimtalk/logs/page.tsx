@@ -112,9 +112,9 @@ export default function AlimtalkLogsPage() {
                         <tr key={r.template} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--panel-2)]">
                           <td className="max-w-[240px] truncate px-3 py-3 font-medium" title={r.template}>{r.template}</td>
                           <td className="px-5 py-3 text-[var(--text-soft)]">{formatNumber(r.recipients)}</td>
-                          <td className="px-5 py-3 font-semibold text-emerald-600">{formatNumber(r.sent)}</td>
+                          <td className="px-5 py-3 font-semibold text-emerald-500">{formatNumber(r.sent)}</td>
                           <td className="px-5 py-3 text-rose-500">{r.failed ? formatNumber(r.failed) : '—'}</td>
-                          <td className="px-5 py-3 font-semibold text-sky-600">{r.rate}%</td>
+                          <td className="px-5 py-3 font-semibold text-sky-500">{r.rate}%</td>
                         </tr>
                       ))}
                     </tbody>
@@ -156,7 +156,7 @@ export default function AlimtalkLogsPage() {
                         <td className="max-w-[160px] truncate px-3 py-3 text-[var(--text-soft)]" title={r.templateId}>{r.templateId || '—'}</td>
                         <td className="max-w-[260px] truncate px-3 py-3 text-[var(--text-soft)]" title={r.text}>{r.text || '—'}</td>
                         <td className="px-5 py-3 font-medium">{formatNumber(r.recipients)}</td>
-                        <td className="px-5 py-3 text-emerald-600">{r.sent ? formatNumber(r.sent) : '—'}</td>
+                        <td className="px-5 py-3 text-emerald-500">{r.sent ? formatNumber(r.sent) : '—'}</td>
                         <td className="px-5 py-3 text-rose-500">{r.failed ? formatNumber(r.failed) : '—'}</td>
                       </tr>
                     ))}

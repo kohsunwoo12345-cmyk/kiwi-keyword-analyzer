@@ -456,7 +456,7 @@ export function ChatDock() {
               <div className="flex border-b border-[var(--border)] bg-[var(--bg-soft)]">
                 {([['chats', '채팅'], ['friends', '친구']] as ['chats' | 'friends', string][]).map(([t, l]) => (
                   <button key={t} onClick={() => setTab(t)}
-                    className={cn('flex-1 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors', tab === t ? 'border-blue-500 text-blue-600' : 'border-transparent text-[var(--text-dim)] hover:text-[var(--text)]')}>
+                    className={cn('flex-1 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors', tab === t ? 'border-blue-500 text-blue-500' : 'border-transparent text-[var(--text-dim)] hover:text-[var(--text)]')}>
                     {l}{t === 'friends' && <span className="ml-1 text-xs text-[var(--text-dim)]">{friends.length}</span>}
                   </button>
                 ))}

@@ -61,12 +61,12 @@ function ko(n: number) {
 
 /* ---------- request status meta ---------- */
 const STATUS_META: Record<string, { label: string; badge: string }> = {
-  pending: { label: '대기중', badge: 'border-amber-500/30 bg-amber-500/12 text-amber-600' },
-  approved: { label: '승인됨', badge: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-600' },
-  rejected: { label: '반려됨', badge: 'border-rose-500/30 bg-rose-500/12 text-rose-600' },
+  pending: { label: '대기중', badge: 'border-amber-500/30 bg-amber-500/12 text-amber-500' },
+  approved: { label: '승인됨', badge: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-500' },
+  rejected: { label: '반려됨', badge: 'border-rose-500/30 bg-rose-500/12 text-rose-500' },
 }
 function statusMeta(s: string) {
-  return STATUS_META[s] || { label: s || '-', badge: 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600' }
+  return STATUS_META[s] || { label: s || '-', badge: 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-dim)]' }
 }
 
 interface CreditReqRow {
@@ -260,8 +260,8 @@ export default function CreditsPage() {
 
   const badgeStyle = (badge?: string) =>
     badge === '추천'
-      ? 'border-violet-500/30 bg-violet-500/12 text-violet-600'
-      : 'border-amber-500/30 bg-amber-500/12 text-amber-600'
+      ? 'border-violet-500/30 bg-violet-500/12 text-violet-400'
+      : 'border-amber-500/30 bg-amber-500/12 text-amber-500'
 
   const creditIn = creditTx.filter((t) => t.amount > 0).reduce((a, t) => a + t.amount, 0)
   const creditOut = creditTx.filter((t) => t.amount < 0).reduce((a, t) => a + -t.amount, 0)
