@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB } from '../_utils'
-import { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from './_pricing'
+import { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge, MODEL_COST } from './_pricing'
 import { creditPriceFor } from '../payments/prepare'
 
 // POST /api/studio/precheck { model, units?, kind?, res?, audio? }
@@ -16,7 +16,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const model = String(b.model || '')
   const markup = await resolveMarkup(db, me.id, model, Number(me.credit_markup) || 0)
   const creditKrw = await creditPriceFor(db, me)   // 회원 1크레딧 단가(원). 차감 기준
-  const c = computeCharge({ model, units: Number(b.units) || 0, kind: b.kind, res: b.res, audio: !!b.audio }, rate, markup, creditKrw)
+  /* 사전 확인도 같은 기준으로. 여기서 kind 를 클라이언트 값으로 받으면 "잔액이 충분하다" 고
+     통과시킨 뒤 실제 차감에서 훨씬 큰 금액이 빠져 잔액이 음수가 된다(안내와 결과가 어긋난다). */
+  const mcP = (MODEL_COST as any)[model]
+  const kindP = mcP ? (mcP.u === 'sec' ? 'video' : 'image') : (String(b.kind || '') === 'image' ? 'image' : 'video')
+  const c = computeCharge({ model, units: Number(b.units) || 0, kind: kindP, res: b.res, audio: !!b.audio }, rate, markup, creditKrw)
   const surPct = await resolveRefSurcharge(db, me.id)
   const refMult = 1 + (surPct / 100) * Math.max(0, Number(b.refs) || 0)
   const cnCount = Math.max(0, Number(b.cn) || 0)
