@@ -1872,7 +1872,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 'use strict';
 var STUDIO_BUILD_TAG='2026-07-13-v56';   // 서버 health.build 와 정확히 같아야 최신(캐시/배포지연 아님)
 // (검증용) ?cnexport=1 접속 시 전처리 함수만 window 로 노출 — 순수 이미지 함수라 보안 영향 없음
-try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum, upscaleImageURL:upscaleImageURL, upscaleVideoURL:upscaleVideoURL, removeBackground:removeBackground, fitToRatio:fitToRatio,
+try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum, upscaleImageURL:upscaleImageURL, upscaleVideoURL:upscaleVideoURL, _probeVideoInfo:_probeVideoInfo, _remuxWithAudio:_remuxWithAudio, removeBackground:removeBackground, fitToRatio:fitToRatio,
         addNode:addNode, render:render, state:state, DEFS:DEFS, nodeMedia:nodeMedia, nodeImgs:nodeImgs, upScaleOf:upScaleOf, upScaleHelp:upScaleHelp,
         captionImage:captionImage, captionVideo:captionVideo, drawCaptionOn:drawCaptionOn,
         trimSpeedVideo:trimSpeedVideo, _speedOf:_speedOf,
@@ -4346,6 +4346,102 @@ function upscaleImageURL(src,scale,opts,onProg){
     img.src=sameOriginMedia(src);
   });
 }
+/* ── 원본 영상의 성질 재기 (프레임 수·소리 유무) ──
+   업스케일은 프레임을 하나씩 다시 그려 새 영상을 만든다. 원본이 초당 몇 장인지 모르면
+   임의의 값으로 만들게 되고, 30장짜리 영상이 15장으로 줄어 뚝뚝 끊겨 보인다.
+   소리 유무도 미리 알아야 '소리를 다시 붙이는 작업' 을 할지 정할 수 있다. */
+function _probeVideoInfo(url){
+  return new Promise(function(resolve){
+    var v=document.createElement('video'); v.crossOrigin='anonymous'; v.muted=true; v.playsInline=true; v.preload='auto';
+    var info={ fps:0, hasAudio:false, dur:0 }, done=false;
+    function finish(){ if(done)return; done=true; try{ v.pause(); }catch(_){} try{ v.src=''; }catch(_){} resolve(info); }
+    var tm=setTimeout(finish, 8000);
+    v.addEventListener('loadedmetadata', function(){
+      info.dur = isFinite(v.duration)?v.duration:0;
+      var n=0, t0=0;
+      function checkAudio(){
+        info.hasAudio = (Number(v.webkitAudioDecodedByteCount)||0) > 0 || v.mozHasAudio===true ||
+                        !!(v.audioTracks && v.audioTracks.length);
+      }
+      function tick(now){
+        if(!t0) t0=now;
+        n++;
+        if(now-t0 >= 500 || n>60){
+          var secs=(now-t0)/1000;
+          if(secs>0.15) info.fps=Math.max(1, Math.min(60, Math.round(n/secs)));
+          checkAudio(); clearTimeout(tm); finish(); return;
+        }
+        if(v.requestVideoFrameCallback) v.requestVideoFrameCallback(tick);
+      }
+      function go(){
+        if(v.requestVideoFrameCallback) v.requestVideoFrameCallback(tick);
+        else setTimeout(function(){ checkAudio(); clearTimeout(tm); finish(); }, 700);
+      }
+      var p=v.play();
+      if(p&&p.then) p.then(go).catch(function(){ checkAudio(); clearTimeout(tm); finish(); }); else go();
+    });
+    v.addEventListener('error', function(){ clearTimeout(tm); finish(); });
+    v.src=sameOriginMedia(url);
+  });
+}
+/* ── 업스케일 결과에 원본 소리를 다시 붙인다 ──
+   업스케일은 프레임을 한 장씩 그려 만들기 때문에(실시간이 아니라서) 그 과정에서 소리를 담을 수 없다.
+   그래서 다 만든 뒤 한 번 더, 이번엔 실제 속도로 재생하면서 '화면=결과 영상 · 소리=원본' 으로 다시 녹화한다.
+   영상 길이만큼만 더 걸린다(업스케일 자체보다 훨씬 짧다). 실패하면 소리 없는 원래 결과를 그대로 쓴다. */
+function _remuxWithAudio(videoUrl, audioSrcUrl, fps, onProg){
+  return new Promise(function(resolve){
+    if(typeof MediaRecorder==='undefined'){ resolve(null); return; }
+    var vv=document.createElement('video'), av=document.createElement('video');
+    vv.crossOrigin='anonymous'; vv.muted=true; vv.playsInline=true; vv.preload='auto';
+    av.crossOrigin='anonymous'; av.playsInline=true; av.preload='auto';
+    var actx=null, done=false;
+    function bail(){ if(done)return; done=true; cleanup(); resolve(null); }
+    function cleanup(){ try{ if(actx) actx.close(); }catch(_){} try{ vv.src=''; av.src=''; }catch(_){} }
+    var tm=setTimeout(bail, 900000);
+    vv.addEventListener('loadedmetadata', function(){
+      var W=vv.videoWidth||1280, H=vv.videoHeight||720, dur=isFinite(vv.duration)?vv.duration:0;
+      var c=document.createElement('canvas'); c.width=W; c.height=H;
+      var ctx=c.getContext('2d');
+      var stream=c.captureStream(Math.max(1, Math.min(60, fps||30))), hasAudio=false;
+      try{
+        var AC=window.AudioContext||window.webkitAudioContext;
+        if(AC){
+          actx=new AC();
+          var dest=actx.createMediaStreamDestination();
+          actx.createMediaElementSource(av).connect(dest);   // 스피커에는 연결하지 않는다(소리가 새어 나오지 않게)
+          var atr=dest.stream.getAudioTracks();
+          if(atr.length){ atr.forEach(function(t){ stream.addTrack(t); }); hasAudio=true; av.muted=false; av.volume=1; }
+          if(actx.state==='suspended'){ try{ actx.resume(); }catch(_){} }
+        }
+      }catch(_e){ hasAudio=false; }
+      if(!hasAudio){ clearTimeout(tm); bail(); return; }
+      var mime=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']
+        .filter(function(m){ return MediaRecorder.isTypeSupported(m); })[0]||'video/webm';
+      var rec;
+      try{ rec=new MediaRecorder(stream,{ mimeType:mime, videoBitsPerSecond:Math.min(24000000, Math.round(W*H*(fps||30)*0.10)) }); }
+      catch(e){ clearTimeout(tm); bail(); return; }
+      var chunks=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size)chunks.push(e.data); };
+      rec.onstop=function(){ clearTimeout(tm); cleanup();
+        if(done){ return; } done=true;
+        resolve(chunks.length ? URL.createObjectURL(new Blob(chunks,{type:'video/webm'})) : null); };
+      function draw(){ try{ ctx.drawImage(vv,0,0,W,H); }catch(e){} }
+      function tick(){ if(done)return; draw();
+        if(onProg&&dur) onProg(Math.min(1, vv.currentTime/dur));
+        if(vv.requestVideoFrameCallback) vv.requestVideoFrameCallback(tick); else requestAnimationFrame(tick); }
+      vv.addEventListener('ended', function(){ if(done)return; draw();
+        setTimeout(function(){ try{ rec.stop(); }catch(e){} }, 250); }, { once:true });
+      try{ rec.start(); }catch(e){ clearTimeout(tm); bail(); return; }
+      Promise.all([vv.play().catch(function(){ return null; }), av.play().catch(function(){ return null; })]).then(function(){
+        if(vv.requestVideoFrameCallback) vv.requestVideoFrameCallback(tick); else requestAnimationFrame(tick);
+      });
+    });
+    vv.addEventListener('error', function(){ clearTimeout(tm); bail(); });
+    av.addEventListener('error', function(){ /* 소리 못 읽으면 그냥 소리 없이 간다 */ });
+    av.src=sameOriginMedia(audioSrcUrl);
+    vv.src=videoUrl;
+  });
+}
+
 /* ── 영상 업스케일 ──
    프레임을 하나씩 시킹 → SR → 수동 프레임 인코딩(captureStream(0)+requestFrame).
    프레임마다 모델 추론이라 실시간보다 느림 → 최대 5분(300초)까지. 장시간에도 안 죽도록
@@ -4360,7 +4456,11 @@ function upscaleVideoURL(src,scale,onProg,opts){
     function fallback(reason){ if(settled)return; settled=true;
       _upscaleVideoResample(src,scale,onProg).then(function(r){ r.reason=String(reason||'').slice(0,140); resolve(r); },reject); }
     v.addEventListener('loadedmetadata',function(){
-      var dur=v.duration||0, MAXSEC=300, clip=Math.min(dur||MAXSEC, MAXSEC), FPS=15;   // 최대 5분
+      var dur=v.duration||0, MAXSEC=300, clip=Math.min(dur||MAXSEC, MAXSEC);
+      // 초당 프레임 수는 원본을 그대로 따른다. 예전엔 15로 고정해서 30장짜리 영상이 절반으로
+      //  줄며 뚝뚝 끊겨 보였다. 다만 아주 긴 영상은 프레임 수만큼 시간이 곱해지므로 상한을 둔다.
+      var _srcFps=Number(opts&&opts.srcFps)||0;
+      var FPS=_srcFps>0 ? Math.max(8, Math.min(clip>60?24:30, Math.round(_srcFps))) : 15;
       // 엔진 배율은 '필요한 배율' 기준 — 원본이 크면 x4 에 맞추려 원본을 과하게 줄이게 된다(디테일 손실)
       var _iw0=v.videoWidth||1280, _ih0=v.videoHeight||720;
       var _need=(opts&&opts.longTarget) ? Math.max(1, Math.min(8, opts.longTarget/Math.max(_iw0,_ih0))) : scale;
@@ -4384,8 +4484,28 @@ function upscaleVideoURL(src,scale,onProg,opts){
         var rec; try{ rec=new MediaRecorder(stream,{ mimeType:mime, videoBitsPerSecond:vbps }); }catch(e){ return fallback('레코더 생성 실패'); }
         var chunks=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size)chunks.push(e.data); };
         rec.onstop=function(){ if(settled)return; settled=true;
-          resolve({ url:URL.createObjectURL(new Blob(chunks,{type:'video/webm'})), kind:'video', dim:tw+'×'+th,
-                    srcDim:iw+'×'+ih, sec:Math.round(clip), engine:runner.engine+(srFail?(' · '+srFail+'프레임 리샘플 대체'):''), fallback:false }); };
+          var silent=URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));
+          var _total=Math.max(1, Math.round(clip*FPS));
+          // 프레임 대부분이 AI 처리에 실패했다면 '초해상이 됐다' 고 말하면 안 된다.
+          var mostlyFailed = srFail >= _total*0.5;
+          var note = srFail ? (srFail+'/'+_total+' 프레임은 AI 처리에 실패해 단순 확대로 채웠습니다') : '';
+          function done(url, audioOk){
+            resolve({ url:url, kind:'video', dim:tw+'×'+th, srcDim:iw+'×'+ih, sec:Math.round(clip),
+                      fps:FPS,
+                      engine:runner.engine+(srFail?(' · '+srFail+'프레임 리샘플 대체'):''),
+                      fallback:mostlyFailed,
+                      reason:mostlyFailed?'프레임 대부분이 AI 처리에 실패했습니다':'',
+                      note:(note?note+' · ':'')+(audioOk?'원본 소리 유지':'소리 없음(원본에 소리가 없거나 옮기지 못함)') });
+          }
+          // 프레임을 한 장씩 그려 만든 영상이라 소리가 담기지 않는다 → 원본 소리를 다시 붙인다.
+          if(opts && opts.hasAudio){
+            try{ toast(tr('소리를 다시 입히는 중… (영상 길이만큼 걸립니다)')); }catch(_){}
+            _remuxWithAudio(silent, src, FPS, null).then(function(withAudio){
+              if(withAudio){ try{ URL.revokeObjectURL(silent); }catch(_){} done(withAudio, true); }
+              else done(silent, false);
+            }).catch(function(){ done(silent, false); });
+          } else done(silent, false);
+        };
         try{ rec.start(2000); }catch(e){ try{ rec.start(); }catch(e2){ return fallback('레코더 시작 실패'); } }   // 2초마다 청크 flush
         var total=Math.max(1, Math.round(clip*FPS)), idx=0;
         function seekTo(t){ return new Promise(function(res){ var done2=false; function on(){ if(done2)return; done2=true; v.removeEventListener('seeked',on); res(); } v.addEventListener('seeked',on); setTimeout(on,8000); try{ v.currentTime=Math.min(t, Math.max(0,(dur||clip)-0.02)); }catch(e){ on(); } }); }
@@ -6986,13 +7106,21 @@ canvas.addEventListener('click',function(e){
           (uIsImg?' (조각별로 AI 처리 중)':' (프레임마다 AI 처리 — 길수록 오래)');
       }
       var uLabel=is5k?'5K':(uSet+'×');
-      var uJob=uIsImg ? upscaleImageURL(med.url,uScale,uOpts,toolProg) : upscaleVideoURL(med.url,uScale,toolProg,uOpts);
+      // 영상은 원본의 초당 프레임 수·소리 유무를 먼저 재서 넘긴다
+      //  (안 재면 15fps 로 고정돼 끊겨 보이고, 소리도 사라진다)
+      var uJob = uIsImg
+        ? upscaleImageURL(med.url,uScale,uOpts,toolProg)
+        : _probeVideoInfo(med.url).then(function(inf){
+            var o=Object.assign({}, uOpts||{}, { srcFps:inf.fps, hasAudio:inf.hasAudio });
+            return upscaleVideoURL(med.url,uScale,toolProg,o);
+          });
       uJob.then(function(res){
         upNode.w.toolBusy=false; upNode.w.toolPct=null;
         upNode.w.img=res.url; upNode.w.toolKind=res.kind; upNode.w.toolFallback=!!res.fallback;
         // 실제로 AI 선명화가 됐는지 숨기지 않는다 — 리샘플로 떨어졌으면 그렇게 적는다
         upNode.w.toolInfo=(res.dim||'')+(res.fallback?' · AI 선명화 실패(단순 확대)'
-          :(res.engine?(' · AI 선명화 '+res.engine):''))+(res.clamped?(' · 한계로 실제 '+(Math.round((res.ratio||0)*100)/100)+'배'):'');
+          :(res.engine?(' · AI 선명화 '+res.engine):''))+(res.clamped?(' · 한계로 실제 '+(Math.round((res.ratio||0)*100)/100)+'배'):'')
+          +(res.fps?(' · '+res.fps+'fps'):'')+(res.note?(' · '+res.note):'');
         render(); snapshot();
         if(res.fallback) toast('AI 선명화를 쓰지 못해 단순 확대만 됐습니다 (선명해지지 않음) · '+res.dim);
         else toast('화질 개선 완료 · '+res.dim+' · AI 선명화 적용'+(res.note?(' · '+res.note):''));
@@ -7246,7 +7374,12 @@ canvas.addEventListener('click',function(e){
     // 진행률은 이미지(타일 단위)·영상(프레임 단위) 모두 표시한다
     function uProg(pp){ n2.w.upPct=pp; var hh=document.getElementById('nd-'+n2.id); if(hh){ var bar=hh.querySelector('.up-prog i'); if(bar)bar.style.width=Math.round(pp*100)+'%'; var msg=hh.querySelector('.up-msg'); if(msg)msg.textContent='화질 개선 중… '+Math.round(pp*100)+'%'+(uIsImg?' (조각별로 AI 처리 중)':' (프레임마다 AI 처리 — 길수록 오래)'); } }
     var uSrc = n2.w.vid, uLabel = is5k?'5K':(uSet+'×');
-    var uJob = uIsImg ? upscaleImageURL(n2.w.vid,uScale,uOpts,uProg) : upscaleVideoURL(n2.w.vid,uScale,uProg,uOpts);
+    var uJob = uIsImg
+      ? upscaleImageURL(n2.w.vid,uScale,uOpts,uProg)
+      : _probeVideoInfo(n2.w.vid).then(function(inf){          // 원본 프레임 수·소리 유무를 먼저 잰다
+          var o=Object.assign({}, uOpts||{}, { srcFps:inf.fps, hasAudio:inf.hasAudio });
+          return upscaleVideoURL(n2.w.vid,uScale,uProg,o);
+        });
     uJob.then(function(res){ n2.w.upscaling=false; n2.w.upscaled=res.url; n2.w.upKind=res.kind; n2.w.upDim=res.dim; n2.w.upEngine=res.engine||''; n2.w.upFallback=!!res.fallback; render();
           // 진짜 초해상이 돌았는지 숨기지 않는다 — 리샘플로 떨어졌으면 그렇게 말한다.
           if(res.fallback) toast('AI 선명화를 쓰지 못해 단순 확대만 됐습니다 (선명해지지 않음) · '+res.dim);
