@@ -115,7 +115,8 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
   'Runway Aleph (영상→실사 V2V)': { u: 'sec', usd: 0.15, prov: 'runway_aleph' },
   'V2V 자동 (최고정확도·모델 자동선택)': { u: 'sec', usd: 0.15, prov: 'v2v_auto' },
   '모션 전이 (원본 움직임 유지·Motion Transfer)': { u: 'sec', usd: 0.12, prov: 'motion' },
-  'Google Veo 3.1': { u: 'sec', usd: 0.40, audio: 0.35, prov: 'google' },
+  // 오디오는 단가에 포함이다(위 VEO_PRICE 주석 참조) — audio 가산을 두면 이중 청구가 된다
+  'Google Veo 3.1': { u: 'sec', usd: 0.40, prov: 'google' },
   'Runway Gen-4': { u: 'sec', usd: 0.05, prov: 'runway' },
   'Runway Gen-3 Alpha Turbo': { u: 'sec', usd: 0.05, prov: 'runway' },
   'Grok Imagine (영상)': { u: 'sec', usd: 0.10, prov: 'xai' },
@@ -312,6 +313,24 @@ function lumaUsd(input: ChargeInput): number | null {
   return pick(LUMA_VIDEO_GEN)
 }
 
+/* ══ Google Veo 실측 요금표 (ai.google.dev/gemini-api/docs/pricing) ══
+   문서 원문: "Veo 3.1 Standard video with audio price (default) — $0.40 (720p and 1080p), $0.60 (4k)"
+   여기서 두 가지가 우리 계산과 달랐다.
+     ① 오디오가 기본 포함이다. 우리는 초당 $0.35 를 따로 더하고 있었다.
+     ② 720p 와 1080p 가 같은 값이다. 우리는 720p 에 0.6 배율을 적용해 40% 덜 받았고,
+        4K 는 2.6 배율이라 실제(1.5배)보다 훨씬 많이 받았다.
+   8초 오디오 영상 기준 오차: 720p 1.47배 과다 · 1080p 1.88배 과다 · 4K 2.32배 과다.
+   (초기 검색에서 본 "초당 $0.10" 은 Standard 가 아니라 Fast 였다 — 한 줄만 보고 바꿨으면
+    정반대로 틀릴 뻔했다.)
+   참고: Fast 는 $0.10/$0.12/$0.30, Lite 는 $0.05/$0.08(4K 미지원)로 훨씬 싸다. 아직 미노출. */
+const VEO_PRICE: Record<string, number> = { '720p': 0.40, '1080p': 0.40, '4K': 0.60 }
+function veoUsd(input: ChargeInput): number | null {
+  if (!/^Google Veo/.test(String(input.model || ''))) return null
+  const res = String(input.res || '1080p')
+  const perSec = VEO_PRICE[res] != null ? VEO_PRICE[res] : VEO_PRICE['1080p']
+  return perSec * Math.max(1, Number(input.units) || 8)      // 오디오 포함 단가라 추가 가산이 없다
+}
+
 /** 소수 2자리 반올림 (크레딧 정밀도) */
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100
 
@@ -327,7 +346,7 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
   const isFlat = m ? (m.u === 'img' || m.u === '3d' || m.u === 'tok') : input.kind === 'image'
   const isImg = isFlat
   let usd: number
-  const lu = lumaUsd(input)      // 루마는 실측 요금표가 있다(위 주석 참조)
+  const lu = lumaUsd(input) ?? veoUsd(input)   // 루마·Veo 는 실측 요금표가 있다(위 주석 참조)
   if (lu != null) {
     usd = lu
   } else if (isImg) {

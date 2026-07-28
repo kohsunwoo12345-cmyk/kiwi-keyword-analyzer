@@ -2184,6 +2184,14 @@ var LUMA_P = {
   img:   { 'Luma Uni 1':0.0404, 'Luma Uni 1 Max':0.1000 },
   img1:  { 'Luma Uni 1':0.0434, 'Luma Uni 1 Max':0.1030 }, step:0.0030
 };
+/* Veo 실측 — 720p·1080p 같은 값, 4K 만 1.5배. 오디오는 포함이라 별도 가산이 없다.
+   해상도 배율(RES_MULT)을 태우면 720p 를 40% 덜, 4K 를 73% 더 받게 된다. */
+var VEO_P = { '720p':0.40, '1080p':0.40, '4K':0.60 };
+function veoUsd(model, secs, res){
+  if(!/^Google Veo/.test(String(model||''))) return null;
+  var p = VEO_P[res||'1080p']; if(p==null) p = VEO_P['1080p'];
+  return p * Math.max(1, Number(secs)||8);
+}
 function lumaUsd(model, secs, res, refs, hdr, exr){
   if(!/^Luma /.test(String(model||''))) return null;
   var r = res || '1080p', n = Math.max(0, Number(refs)||0);
@@ -2210,7 +2218,8 @@ function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prom
     if(audioOn && m && m.audio) audioAdd = m.audio*units;   // 오디오 켠 경우만 추가요금
   }
   var usd = (isImg? rate : rate*units) + audioAdd;
-  var _lu = lumaUsd(model, units, res, refCount, hdrOn, exrOn);   // 루마는 실측 표가 우선
+  var _lu = lumaUsd(model, units, res, refCount, hdrOn, exrOn);
+  if(_lu==null) _lu = veoUsd(model, units, res);   // 루마·Veo 는 실측 표가 우선
   if(_lu!=null){ usd=_lu; rate=isImg?_lu:(_lu/Math.max(1,units)); }
   costLog.push({ t:Date.now(), provider:prov, model:model||prov, units:units, unit:isImg?'img':'sec',
                  res:isImg?null:(res||'1080p'), audio:!!audioAdd, rate:rate, usd:usd });
