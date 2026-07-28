@@ -2012,6 +2012,14 @@ var IMG_MODELS = [
  ['이미지','Luma Uni 1'],['이미지','Luma Uni 1 Max'],
  ['이미지','Grok Imagine']
 ];
+/* ── 3D 모델(메시) 생성 — 결과가 이미지가 아니라 .glb 같은 3D 파일이다 ──
+   위의 "3D 변환/3D 이미지 생성" 노드는 이름만 3D 이고 실제로는 이미지 모델에 3D 풍
+   프롬프트를 얹는 것이다. 이건 진짜 메시를 만든다(ModelArk 의 ark3d 제공사).
+   서버는 씨댄스와 같은 봉투(/contents/generations/tasks)를 쓰고 결과는 kind:'model3d'. */
+var MESH3D_MODELS = [
+ ['3D 모델 (메시)','Hyper3D Gen-2 (3D 생성)'],
+ ['3D 모델 (메시)','Hitem3D 2.0 (3D 생성)']
+];
 /* 프롬프트 작성 노드 모델 — GPT/Gemini 전 모델 (제공사는 이름 접두사로 자동 판별) */
 var PROMPT_MODELS = [
  ['GPT','gpt-4o'],['GPT','gpt-4o-mini'],['GPT','gpt-4.1'],['GPT','gpt-4.1-mini'],['GPT','gpt-4.1-nano'],['GPT','gpt-4-turbo'],['GPT','gpt-3.5-turbo'],
@@ -2812,7 +2820,9 @@ var MODEL_REF_LIMIT = {
   // FLUX 1.x 는 image_prompt 로 1장 — 둘 다 서버 페이로드에 실제로 실린다.
   'Flux Kontext Max (레퍼런스 편집)':1,'Flux Kontext Pro (레퍼런스 편집)':1,
   'Flux 2 Max':8,'Flux 2 Pro':8,'Flux 2 Flex':8,
-  'Flux 1.1 Pro Ultra':1,'Flux 1.1 Pro':1,'Flux Pro':1,'Flux Dev':1,'Grok Imagine':1
+  'Flux 1.1 Pro Ultra':1,'Flux 1.1 Pro':1,'Flux Pro':1,'Flux Dev':1,'Grok Imagine':1,
+  // 3D 메시 — buildArk3dPayload 가 image_url 을 4장까지만 싣는다(refs.slice(0,4))
+  'Hyper3D Gen-2 (3D 생성)':4,'Hitem3D 2.0 (3D 생성)':4
 };
 /* 영상 모델의 "이미지 레퍼런스" 최대 장수 — 서버 빌더가 실제로 요청에 싣는 수와 같아야 한다.
    (표에 없으면 1장으로 막힌다. 반대로 실제보다 크게 잡으면 연결은 되는데 조용히 버려진다.) */
@@ -3371,7 +3381,8 @@ async function resolveMediaForProvider(prov, params){
   //  제공사가 그 URL 을 가져오느라 제출이 길어져 타임아웃 → Cloudflare 502 가 재발했다.
   //   → bp 가 우리 R2 를 fetch 하지 않으므로, 갓 올린 이미지의 fetch 지연으로 인한 502 가 사라짐.
   //   (영상 레퍼런스는 base64 가 불가하므로 R2 공개 URL 유지)
-  if(prov==='seedance' || prov==='flux' || prov==='falcontrol' || prov==='nanobanana' || prov==='openai'){
+  //  ark3d(3D 메시)는 씨댄스와 같은 ModelArk 봉투를 쓰므로 같은 base64 경로를 탄다.
+  if(prov==='seedance' || prov==='ark3d' || prov==='flux' || prov==='falcontrol' || prov==='nanobanana' || prov==='openai'){
     // Seedance·Flux·fal·나노바나나·GPT 는 레퍼런스(입력) 이미지를 작은 base64 로 인라인 전송
     // 첫/마지막 프레임은 "이어보기"의 화질을 그대로 결정한다(앞 영상 끝 → 다음 영상 시작).
     //  레퍼런스와 같은 1024/0.8 로 줄이면 이어지는 장면이 눈에 띄게 흐려진다 → 이 두 장만 1280/0.86.
@@ -3422,7 +3433,9 @@ async function generateWithAPI(params){
   params=Object.assign({provider:prov, apiKey:API_CONFIG[prov]||''}, params);
   // ── 크레딧 사전 확인: 잔액 부족 시 생성 차단 + 요금제 유도 ──
   try{
-    var _pcImg = !!(MODEL_COST[params.model] && MODEL_COST[params.model].u==='img');
+    // 'img' 외에 '3d'(모델 1개당)·'tok'(호출 1회당)도 단위 1개 정액 — 서버 computeCharge 와 같은 기준
+    var _pcU = MODEL_COST[params.model] && MODEL_COST[params.model].u;
+    var _pcImg = (_pcU==='img'||_pcU==='3d'||_pcU==='tok');
     var _pc = await fetch('/api/studio/precheck',{ method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
       // hdr·exr 도 원가를 2~3배 바꾼다(루마) — 안 보내면 표준 요금으로 통과시킨 뒤 더 크게 차감된다
       body: JSON.stringify({ model:params.model, units:params.seconds||8, kind:_pcImg?'image':'video', res:params.res||'1080p', audio:!!params.generateAudio, refs:Number(params.refCount)||0, cn:(params.controlnets&&params.controlnets.length)||0, hdr:!!params.lumaHdr, exr:!!params.lumaExr }) });
@@ -4251,6 +4264,58 @@ function autoRefFromResult(n, url){
     }
   }catch(_){}
 }
+/* ── 3D 모델(메시) 생성 ──
+   이미지 생성과 흐름은 같지만 결과가 파일(.glb 등)이라 이미지 칸에 넣지 않는다.
+   레퍼런스는 서버 buildArk3dPayload 가 4장까지만 싣는다 — 그 이상은 여기서 막는다. */
+function generateMesh3dNode(n){
+  if(!n || n.w.meshGenerating) return;
+  var pn=inputNodeOf(n.id,'prompt');
+  var prompt=((pn&&pn.w&&pn.w.text)||n.w.prompt||'').trim();
+  var raw=[];
+  inputNodesOf(n.id,'ref').forEach(function(nd){
+    if(!nd||!nd.w) return;
+    var ims=(nd.w.imgs&&nd.w.imgs.length)?nd.w.imgs.slice():(imgOfNode(nd)?[imgOfNode(nd)]:[]);
+    ims.forEach(function(u){ if(u&&raw.indexOf(u)<0)raw.push(u); });
+  });
+  (n.w.imgs||[]).forEach(function(u){ if(u&&raw.indexOf(u)<0)raw.push(u); });   // 노드에 직접 업로드
+  if(!prompt && !raw.length){ toast('설명을 입력하거나 레퍼런스 사진을 연결하세요'); return; }
+  var limit=modelRefLimit(n.w.model);
+  if(raw.length>limit){
+    var _m='레퍼런스 초과 — '+n.w.model+'은(는) 최대 '+limit+'장까지 넣을 수 있어요. 현재 '+raw.length+'장.';
+    toast(_m); n.w.meshError='레퍼런스 초과 (한도 '+limit+'장 · 현재 '+raw.length+'장)'; render(); return;
+  }
+  n.w.meshGenerating=true; n.w.meshError=null; render();
+  var refCountUsed=0;
+  Promise.all(raw.map(function(r){ return shrinkImageSrc(r,1024,0.85); })).then(function(shr){
+    var refs=shr.filter(Boolean); refCountUsed=refs.length;
+    return generateWithAPI({ model:n.w.model, prompt:prompt,   // 제공사는 MODEL_PROVIDER 가 정한다(ark3d)
+      refImage:refs[0]||null, refImages:refs, refCount:refs.length,
+      meshMode:n.w.meshMode||'Raw', material:n.w.material||'PBR',
+      hdTexture:n.w.hdTexture!==false, taPose:n.w.taPose===true });
+  })
+  .then(function(res){
+    n.w.meshGenerating=false;
+    if(!res || res.error){ n.w.meshError=(res&&res.error)||'생성 실패';
+      var info=showGenError(n.w.meshError, 'ark3d', n.w.model);
+      toast((info&&info.title)||('3D 생성 실패: '+String(n.w.meshError).slice(0,80))); render(); return; }
+    n.w.mesh=res.url; n.w.meshKind=res.kind||'model3d';
+    render();
+    if(res.url){
+      try{ var _on=ensureOutputFor(n);
+        _on.w.generating=false; _on.w.error=null;
+        _on.w.vid=res.url; _on.w.kind=res.kind||'model3d'; _on.w.model=n.w.model;
+      }catch(_e){}
+      // 3D 는 단가표에서 u:'3d' (모델 1개당 정액) — 초당 계산을 타면 안 되므로 seconds 는 0
+      try{ recordCost('ark3d', n.w.model, 0, '3d', null, false, refCountUsed, prompt, raw.slice(0,4), res.url); }catch(_e){}
+      /* 보관함(갤러리)에는 넣지 않는다 — 저장·카드·클릭복원이 전부 이미지/영상 둘 뿐이라
+         3D 파일을 넣으면 깨진 영상 카드가 만들어진다(kind 가 'image' 가 아니면 영상 취급).
+         결과는 이 노드와 출력 블럭의 [3D 파일 저장] 으로 내려받는다. */
+    }
+    toast('3D 모델 생성 완료'); try{ snapshot(); }catch(_e){} render();
+  })
+  .catch(function(e){ n.w.meshGenerating=false; n.w.meshError=String(e&&e.message||e); render();
+    toast('3D 생성 실패: '+String(e&&e.message||e).slice(0,80)); });
+}
 function generateImageNode(n){
   if(!n || n.w.imgGenerating) return;
   var is3D=(n.type==='img3d'||n.type==='gen3d');
@@ -4681,6 +4746,21 @@ var DEFS = {
                       {k:'refup',t:'image'},
                       {k:'gen',t:'imggenbtn',label:'3D 이미지 생성'},
                       {k:'imgout',t:'imagegenout'}] },
+ /* 진짜 3D 메시 생성 — 위 두 노드(3D 변환·3D 이미지 생성)는 이미지 모델에 3D 풍 프롬프트를
+    얹는 것이고, 이건 .glb 같은 3D 파일을 만든다. 결과가 이미지가 아니라 파일이라
+    미리보기 대신 내려받기를 준다(브라우저에서 메시를 그리려면 외부 라이브러리가 필요한데
+    스튜디오는 외부 스크립트를 쓰지 않는다). */
+ mesh3d:   { cat:'모델', title:'3D 모델 생성 (메시 파일)', hd:'#2a3a2a',
+             ins:[['prompt','프롬프트(선택)','TEXT'],['ref','레퍼런스 이미지 (최대 4장)','IMAGE']],
+             outs:[['out','3D 파일','MEDIA']],
+             widgets:[{k:'model',t:'combo',label:'model',opts:'MESH3D_MODELS',def:'Hyper3D Gen-2 (3D 생성)'},
+                      {k:'prompt',t:'textarea',ph:'만들 3D 모델 설명 (예: 손잡이가 달린 도자기 머그컵)\n(또는 왼쪽에 프롬프트 노드 연결 · 사진을 넣으면 그 물체를 3D로)'},
+                      {k:'meshMode',t:'combo',label:'메시',opts:['Raw','Quad'],def:'Raw'},
+                      {k:'material',t:'combo',label:'재질',opts:['PBR','Shaded'],def:'PBR'},
+                      {k:'mesh3dopts',t:'mesh3dopts'},
+                      {k:'refup',t:'image'},
+                      {k:'gen',t:'mesh3dbtn',label:'3D 모델 생성'},
+                      {k:'meshout',t:'mesh3dout'}] },
  video:    { cat:'설정', title:'영상 설정', hd:'#3a3323', ins:[['in','생성물','GEN']], outs:[['out','영상','VIDEO']],
              widgets:[{k:'sec',t:'slider',label:'길이(초)',min:1,max:60,def:8},
                       {k:'ar',t:'combo',label:'ratio',opts:['16:9','9:16','1:1','4:5'],def:'16:9'},
@@ -5799,6 +5879,29 @@ function widgetHTML(n,w){
   if(w.t==='button') return '<button class="wbtn" data-runnode>'+ICON.sparkle+' '+esc(w.label)+'</button>';
   if(w.t==='framebtn') return '<button class="wbtn" data-framego>'+ICON.fit+' '+esc(w.label)+'</button>';
   if(w.t==='imggenbtn') return '<button class="wbtn" data-imggen>'+ICON.sparkle+' '+esc(w.label)+'</button>';
+  if(w.t==='mesh3dbtn') return '<button class="wbtn" data-mesh3d>'+ICON.sparkle+' '+(n.w.meshGenerating?'생성 중…':esc(w.label))+'</button>';
+  if(w.t==='mesh3dopts'){   // 3D 메시 옵션 — 서버 buildArk3dPayload 가 그대로 지시어로 붙인다
+    var _row=function(k,checked,label,hint){
+      return '<label class="seedopt-row"><input type="checkbox" data-w="'+k+'"'+(checked?' checked':'')+'>'+
+        '<span class="seedopt-tx"><b>'+esc(label)+'</b>'+(hint?'<i>'+esc(hint)+'</i>':'')+'</span></label>'; };
+    return '<div class="seedopts-wrap"><div class="seedopts-hd">'+ICON.gear+' 3D 옵션</div>'
+      + _row('hdTexture', n.w.hdTexture!==false, '고해상도 텍스처', '표면 질감을 더 촘촘하게 (기본 켜짐)')
+      + _row('taPose', n.w.taPose===true, 'T/A 포즈', '사람·캐릭터를 팔 벌린 기본 자세로 — 리깅·애니메이션용 (기본 꺼짐)')
+      + '</div>';
+  }
+  if(w.t==='mesh3dout'){
+    if(n.w.meshGenerating) return genLoader('3D 모델 생성 중',100);
+    if(n.w.meshError) return '<div class="wpreview vperr"><span class="vperr-x">'+ICON.close+'</span><b>생성 실패</b><span class="vperr-msg">'+esc(String(n.w.meshError).slice(0,180))+'</span><span class="vperr-hint">3D 키(Seedance_API_KEY)가 없으면 생성이 안 됩니다</span></div>';
+    if(!n.w.mesh) return '';
+    /* 3D 파일은 브라우저에서 바로 못 그린다(외부 뷰어 라이브러리가 필요한데 쓰지 않는다).
+       그래서 "무엇이 만들어졌는지" 를 정확히 적고 내려받기를 준다 — 미리보기처럼 보이게
+       빈 상자를 두면 뷰어가 고장난 것처럼 오해된다. */
+    var _ext=(String(n.w.mesh).match(/\.([a-z0-9]{2,5})(?:\?|#|$)/i)||[])[1];
+    return '<div class="wpreview" style="aspect-ratio:16/9;"><span class="badge">'+esc(n.w.model||'3D')+'</span>'+
+      '<span class="empty">3D 파일이 생성되었습니다'+(_ext?'<br><b>.'+esc(_ext.toLowerCase())+'</b>':'')+'<br>내려받아 3D 뷰어·블렌더에서 열어보세요</span></div>'+
+      '<button class="wbtn" data-dlmesh>'+ICON.dl+' 3D 파일 저장</button>'+
+      '<div class="refcnt">우측 포트 → 출력 블럭에 연결하면 갤러리에도 남습니다</div>';
+  }
   if(w.t==='nmodehint'){
     var lip=/립싱크/.test(n.w.nmode||'');
     return lip
@@ -5973,6 +6076,14 @@ function widgetHTML(n,w){
       '<b>생성 실패</b><span class="vperr-msg">'+esc(String(n.w.error).slice(0,180))+'</span>'+
       '<span class="vperr-hint">API 키가 설정됐는지 확인하세요 (설정 톱니 → API 연결)</span></div>';
     if(!n.w.vid) return '<div class="wpreview"><span class="empty">출력 없음<br>프롬프트 실행 시 결과가 표시됩니다</span></div>';
+    /* 3D 파일(.glb 등)은 <video> 로도 <img> 로도 안 열린다 — 그대로 두면 깨진 플레이어가 나온다.
+       업스케일·이어붙이기 같은 영상 전용 버튼도 3D 에는 의미가 없어 함께 감춘다. */
+    if(n.w.kind==='model3d' || /\.(glb|gltf|obj|fbx|usdz|ply|stl|3mf)(\?|#|$)/i.test(String(n.w.vid))){
+      var _m3=(String(n.w.vid).match(/\.([a-z0-9]{2,5})(?:\?|#|$)/i)||[])[1];
+      return '<div class="wpreview" style="aspect-ratio:16/9;"><span class="badge">'+esc(n.w.model||'3D')+'</span>'+
+        '<span class="empty">3D 파일'+(_m3?' <b>.'+esc(_m3.toLowerCase())+'</b>':'')+'<br>내려받아 3D 뷰어·블렌더에서 열어보세요</span></div>'+
+        '<button class="wbtn" data-dlmesh>'+ICON.dl+' 3D 파일 저장</button>';
+    }
     var up=!!n.w.upscaled, media=up?n.w.upscaled:n.w.vid;
     var isImg = (up?n.w.upKind:n.w.kind)==='image' || /^data:image\//i.test(media) || /\.(png|jpe?g|webp|gif)(\?|$)/i.test(media);
     var sc=n.w.upScale||2;
@@ -6800,6 +6911,17 @@ canvas.addEventListener('click',function(e){
     runQueue(_rn?_rn.dataset.node:undefined); return;
   }
   if(e.target.closest('[data-imggen]')){ generateImageNode(n2); return; }
+  if(e.target.closest('[data-mesh3d]')){ generateMesh3dNode(n2); return; }
+  if(e.target.closest('[data-dlmesh]')){
+    // 3D 노드는 w.mesh, 출력 블럭은 w.vid 에 같은 URL 을 담는다
+    var _mu=n2.w.mesh||n2.w.vid;
+    if(!_mu){ toast('생성된 3D 파일이 없습니다'); return; }
+    // 확장자를 URL 에서 그대로 살린다 — .glb 를 .png 로 저장하면 뷰어가 못 연다
+    var _mx=(String(_mu).match(/\.([a-z0-9]{2,5})(?:\?|#|$)/i)||[])[1]||'glb';
+    var am=document.createElement('a'); am.href=_mu;
+    am.download='nvc-'+String(n2.w.model||'3d').replace(/[^\w가-힣]+/g,'_')+'.'+_mx.toLowerCase();
+    document.body.appendChild(am); am.click(); am.remove(); return;
+  }
   if(e.target.closest('[data-promptgen]')){ generatePromptNode(n2); return; }
   if(e.target.closest('[data-dlimg]')){
     if(!n2.w.img){ toast('생성된 이미지가 없습니다'); return; }
@@ -7048,6 +7170,15 @@ function ddFilter(q){
   });
   if(lastHead) lastHead.style.display=headHasVisible?'':'none';
 }
+/* 모델 목록 위젯의 opts 문자열 → 실제 배열. 콤보 순환·드롭다운·검색이 모두 이 표 하나를 본다
+   (예전엔 세 곳에 같은 삼항 사슬이 흩어져 있어, 목록을 추가할 때 한 곳을 빠뜨리기 쉬웠다). */
+var MODEL_LISTS = {
+  MODELS:        function(){ return MODELS; },
+  VIDEO_MODELS:  function(){ return VIDEO_MODELS; },
+  IMG_MODELS:    function(){ return IMG_MODELS; },
+  PROMPT_MODELS: function(){ return PROMPT_MODELS; },
+  MESH3D_MODELS: function(){ return MESH3D_MODELS; }
+};
 /* 콤보 위젯의 실제 선택지 — 화살표 순환(◀▶)과 드롭다운이 반드시 같은 목록을 써야 한다.
    예전엔 드롭다운만 모델별 비율(imgModelRatios)·사용 가능 모델(availModels)을 적용하고,
    화살표는 DEFS 의 하드코딩 목록을 그대로 돌렸다 → 화살표로는 ①이미지 모델이 지원하지 않는
@@ -7055,21 +7186,18 @@ function ddFilter(q){
 function comboOpts(n,k){
   var wdef=DEFS[n.type].widgets.find(function(w){return w.k===k;});
   if(!wdef) return [];
-  if(wdef.opts==='MODELS'||wdef.opts==='VIDEO_MODELS'||wdef.opts==='IMG_MODELS'||wdef.opts==='PROMPT_MODELS'){
-    var src=wdef.opts==='IMG_MODELS'?IMG_MODELS:wdef.opts==='VIDEO_MODELS'?VIDEO_MODELS:wdef.opts==='PROMPT_MODELS'?PROMPT_MODELS:MODELS;
-    return availModels(src).map(function(m){ return m[1]; });
-  }
+  if(MODEL_LISTS[wdef.opts]) return availModels(MODEL_LISTS[wdef.opts]()).map(function(m){ return m[1]; });
   if(wdef.opts==='STYLE3D') return STYLE3D_OPTS;
   if(k==='ratio' && IMG_RATIO_TYPES[n.type]) return imgModelRatios(n.w.model);
   return wdef.opts||[];
 }
 function openDD(anchor,n,k){
   var wdef=DEFS[n.type].widgets.find(function(w){return w.k===k;});
-  var isModelList=(wdef.opts==='MODELS' || wdef.opts==='VIDEO_MODELS' || wdef.opts==='IMG_MODELS' || wdef.opts==='PROMPT_MODELS');
+  var isModelList=!!MODEL_LISTS[wdef.opts];
   var html='';
   if(isModelList){
     html+='<input class="dd-search" type="text" placeholder="Search" spellcheck="false" autocomplete="off" style="position:sticky;top:0;z-index:1;display:block;width:calc(100% - 12px);margin:6px;padding:6px 9px;border-radius:7px;border:1px solid #34363e;background:#151517;color:#e6e6ea;font-size:11px;outline:none;font-family:inherit;box-sizing:border-box;">';
-    var list=availModels(wdef.opts==='IMG_MODELS'?IMG_MODELS:wdef.opts==='VIDEO_MODELS'?VIDEO_MODELS:wdef.opts==='PROMPT_MODELS'?PROMPT_MODELS:MODELS), cat='';
+    var list=availModels(MODEL_LISTS[wdef.opts]()), cat='';
     list.forEach(function(m){ if(m[0]!==cat){cat=m[0];html+='<div class="dh">'+cat+'</div>';} html+='<div class="di" data-v="'+esc(m[1])+'">'+esc(m[1])+'</div>'; });
   } else { comboOpts(n,k).forEach(function(o){ html+='<div class="di" data-v="'+esc(o)+'">'+esc(o)+'</div>'; }); }
   dd.innerHTML=html;
