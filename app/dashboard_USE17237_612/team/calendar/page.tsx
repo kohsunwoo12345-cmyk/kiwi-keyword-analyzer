@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button, Overlay } from '@/components/ui'
+import { isImeEnter } from '@/lib/utils'
 
 const ACCENT = '#0ea5e9'
 
@@ -433,7 +434,7 @@ export default function TeamCalendarPage() {
                 autoFocus
                 value={newBoardName}
                 onChange={(e) => setNewBoardName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') addBoard(); if (e.key === 'Escape') { setAddingBoard(false); setNewBoardName('') } }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !isImeEnter(e)) addBoard(); if (e.key === 'Escape') { setAddingBoard(false); setNewBoardName('') } }}
                 placeholder="캘린더 이름"
                 className="w-32 rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-2 py-1 text-sm outline-none focus:border-sky-500"
               />
@@ -622,7 +623,7 @@ export default function TeamCalendarPage() {
                 <input
                   value={fTitle}
                   onChange={(e) => setFTitle(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addEvent()}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !isImeEnter(e)) addEvent() }}
                   placeholder="예: 여름 세일 광고 집행"
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none focus:border-sky-500"
                 />

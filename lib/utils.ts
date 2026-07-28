@@ -109,3 +109,12 @@ export function getMonthlyRatio(monthly: number[]): number[] {
 
 export const MONTH_LABELS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
 export const DAY_LABELS = ['월','화','수','목','금','토','일']
+
+/**
+ * 한글·일본어·중국어 입력에서 조합 중(IME) 눌린 Enter인지 판별한다.
+ * 조합 확정용 Enter를 전송으로 오인하면 마지막 글자가 깨지거나
+ * 의도치 않게 전송된다. Enter 제출 핸들러는 반드시 이걸 먼저 확인할 것.
+ */
+export function isImeEnter(e: { nativeEvent?: unknown }): boolean {
+  return (e?.nativeEvent as { isComposing?: boolean } | undefined)?.isComposing === true
+}

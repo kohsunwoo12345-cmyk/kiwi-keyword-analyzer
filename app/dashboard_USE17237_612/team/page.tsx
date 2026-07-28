@@ -22,6 +22,7 @@ import { Button } from '@/components/ui'
 import { EmojiText } from '@/components/Emoji'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { aiGenerate, useAuth } from '@/lib/auth'
+import { isImeEnter } from '@/lib/utils'
 
 const ACCENT = '#0ea5e9'
 /** 서버가 모델 원가로 확정하는 값 — 채팅 1회당 차감된다 */
@@ -182,7 +183,7 @@ export default function TeamPage() {
               <input
                 value={newTask}
                 onChange={(e) => setNewTask(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addTask()}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !isImeEnter(e)) addTask() }}
                 placeholder="새 업무 추가…"
                 className="min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-sky-500"
               />
@@ -343,7 +344,7 @@ export default function TeamPage() {
                 <input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && send()}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !isImeEnter(e)) send() }}
                   placeholder={typing ? '답변을 기다리는 중…' : '메시지를 입력하세요…'}
                   disabled={typing}
                   className="min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-sky-500 disabled:opacity-60"
