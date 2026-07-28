@@ -207,6 +207,20 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   'glm-4-7-251222': { u: 'tok', usd: 0.0015, prov: 'promptgen' },
   'dola-seed-2-1-turbo-260628': { u: 'tok', usd: 0.002, prov: 'promptgen' },
   'gpt-oss-120b-250805': { u: 'tok', usd: 0.0008, prov: 'promptgen' },
+  /* GPT·Gemini 프롬프트 LLM — 노드에는 있는데 이 표에 없어 관리자 '모델 목록' 에서 통째로
+     빠져 있었다. 단가는 프롬프트 작성 1회(입력 ~500 · 출력 ~300 토큰) 기준 잠정 추정값이다.
+     ※ 실제 차감은 이 값이 아니라 promptgen 의 정액 단가를 따른다(아래 주석 참조). */
+  'gpt-4o': { u: 'tok', usd: 0.004, prov: 'promptgen' },
+  'gpt-4o-mini': { u: 'tok', usd: 0.00026, prov: 'promptgen' },
+  'gpt-4.1': { u: 'tok', usd: 0.0034, prov: 'promptgen' },
+  'gpt-4.1-mini': { u: 'tok', usd: 0.00068, prov: 'promptgen' },
+  'gpt-4.1-nano': { u: 'tok', usd: 0.00017, prov: 'promptgen' },
+  'gpt-4-turbo': { u: 'tok', usd: 0.014, prov: 'promptgen' },
+  'gpt-3.5-turbo': { u: 'tok', usd: 0.0007, prov: 'promptgen' },
+  'gemini-3.5-flash': { u: 'tok', usd: 0.0012, prov: 'promptgen' },
+  'gemini-2.5-pro': { u: 'tok', usd: 0.0036, prov: 'promptgen' },
+  'gemini-2.5-flash': { u: 'tok', usd: 0.0009, prov: 'promptgen' },
+  'gemini-2.5-flash-lite': { u: 'tok', usd: 0.00017, prov: 'promptgen' },
 }
 
 export const PROV_LABEL: Record<string, string> = {
