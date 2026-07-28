@@ -2171,7 +2171,32 @@ function fmtKrw(v){ return '₩'+Math.round((v||0)*USD_KRW).toLocaleString('ko-K
 function updateCostChip(){ var c=document.getElementById('costChip'); if(c)c.textContent=fmtKrw(costTotal()); }
 /* 실제 생성 1건 기록. (provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl) */
 function mediaForRecord(u){ if(!u||typeof u!=='string')return ''; if(u.indexOf('data:')===0){ return u.length<=600000?u:''; } return u; }
-function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl, cnCount){
+/* 루마 실측 요금표 — 서버 _pricing.ts 와 같은 값. 루마는 초당 정액이 아니라
+   요청 종류·해상도·길이·HDR 로 정해지는 표라, 일반 공식으로 계산하면 크게 어긋난다
+   (1080p 10초: 공식 $0.80 vs 실제 $3.60). 표시 금액도 같은 표를 써야 청구액과 맞는다. */
+var LUMA_P = {
+  gen:   { '360p':[0.06,0.18], '540p':[0.15,0.45], '720p':[0.30,0.90], '1080p':[1.20,3.60] },
+  genH:  { '720p':0.60, '1080p':2.40 },  genE: { '720p':0.90, '1080p':3.60 },
+  edit:  { '360p':[0.54,1.08], '540p':[0.72,1.44], '720p':[1.08,2.16], '1080p':[2.16,4.32] },
+  editH: { '360p':[1.08,2.16], '540p':[1.44,2.88], '720p':[2.16,4.32], '1080p':[4.32,8.64] },
+  editE: { '360p':[1.62,3.24], '540p':[2.16,4.32], '720p':[3.24,6.48], '1080p':[6.48,12.96] },
+  frame: { '360p':0.03, '540p':0.06, '720p':0.12, '1080p':0.36 },
+  img:   { 'Luma Uni 1':0.0404, 'Luma Uni 1 Max':0.1000 },
+  img1:  { 'Luma Uni 1':0.0434, 'Luma Uni 1 Max':0.1030 }, step:0.0030
+};
+function lumaUsd(model, secs, res, refs, hdr, exr){
+  if(!/^Luma /.test(String(model||''))) return null;
+  var r = res || '1080p', n = Math.max(0, Number(refs)||0);
+  if(LUMA_P.img[model]!=null) return n<=0 ? LUMA_P.img[model] : (LUMA_P.img1[model] + LUMA_P.step*(Math.min(9,n)-1));
+  var slot = (Number(secs)||5) > 5 ? 1 : 0;
+  var pick = function(t){ return (t[r]||t['1080p'])[slot]; };
+  if(/비율 변경/.test(model)) return (LUMA_P.frame[r]||LUMA_P.frame['1080p']) * Math.max(1, Number(secs)||5);
+  if(/영상 편집/.test(model)) return (hdr&&exr)?pick(LUMA_P.editE):(hdr?pick(LUMA_P.editH):pick(LUMA_P.edit));
+  if(hdr&&exr) return LUMA_P.genE[r]||LUMA_P.genE['1080p'];
+  if(hdr)      return LUMA_P.genH[r]||LUMA_P.genH['1080p'];
+  return pick(LUMA_P.gen);
+}
+function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl, cnCount, hdrOn, exrOn){
   var m = MODEL_COST[model];
   var isImg = m ? m.u==='img' : (kind==='image');
   var prov = m ? m.prov : provider;
@@ -2185,6 +2210,8 @@ function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prom
     if(audioOn && m && m.audio) audioAdd = m.audio*units;   // 오디오 켠 경우만 추가요금
   }
   var usd = (isImg? rate : rate*units) + audioAdd;
+  var _lu = lumaUsd(model, units, res, refCount, hdrOn, exrOn);   // 루마는 실측 표가 우선
+  if(_lu!=null){ usd=_lu; rate=isImg?_lu:(_lu/Math.max(1,units)); }
   costLog.push({ t:Date.now(), provider:prov, model:model||prov, units:units, unit:isImg?'img':'sec',
                  res:isImg?null:(res||'1080p'), audio:!!audioAdd, rate:rate, usd:usd });
   saveCostLog(); updateCostChip();
@@ -2192,7 +2219,9 @@ function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prom
   try{
     var _refs=[]; try{ if(refUrls&&refUrls.length){ _refs=refUrls.map(mediaForRecord).filter(Boolean).slice(0,4); } }catch(e){}
     fetch('/api/usage/record',{ method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      // 루마는 HDR 여부로 원가가 2~3배 달라진다 — 안 보내면 표준 요금으로 잡혀 원가를 못 받는다
       body: JSON.stringify({ provider:prov, model:model||prov, kind:isImg?'image':'video', units:units, res:isImg?null:(res||'1080p'), audio:!!audioAdd, usd:usd, refs:Math.max(0,Number(refCount)||0), cn:Math.max(0,Number(cnCount)||0),
+        hdr:!!hdrOn, exr:!!exrOn,
         prompt:(prompt||'').slice(0,4000), refUrls:_refs, resultUrl:mediaForRecord(resultUrl), resultKind:isImg?'image':'video' }) }).catch(function(){});
   }catch(e){}
   // 상세 활동 로그(관리자 감사): "어떤 모델로 무엇을 생성" (정확 크레딧은 ai_usage 에 별도 집계)
@@ -7524,7 +7553,8 @@ function runQueue(onlyId){
               render();
               // ② 부수작업(과금 기록·보관함 저장)은 각각 격리 — 실패해도 UI 에 영향 없음
               try{ if(res.url && res.type!=='error')
-                recordCost(res.type||providerOf(chosenModel), chosenModel, _effSec, res.kind, _effRes, n.w.seedAudio===true, 0, basePrompt, [].concat(refList||[], srcVid?[srcVid]:[]), res.url); }catch(_e){}
+                recordCost(res.type||providerOf(chosenModel), chosenModel, _effSec, res.kind, _effRes, n.w.seedAudio===true, 0, basePrompt, [].concat(refList||[], srcVid?[srcVid]:[]), res.url,
+                  0, n.w.lumaHdr===true, n.w.lumaExr===true); }catch(_e){}
               try{ saveToGallery(res.url, res.kind||'video', chosenModel, vSet?vSet.w.sec:8, res.poster); }catch(_e){}
               var el2=document.getElementById('nd-'+id); if(el2)el2.classList.add('exec');
               // 제공사 프레임이 없을 때만 브라우저에서 뽑는다(폴백).
