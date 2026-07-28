@@ -803,6 +803,11 @@ export async function purgeUserData(db: D1Database, uid: string): Promise<void> 
   await del('DELETE FROM naver_place_tracking WHERE user_id = ?', uid)
   await del('DELETE FROM blog_rank_track_history WHERE track_id IN (SELECT id FROM blog_rank_tracks WHERE user_id = ?)', uid)
   await del('DELETE FROM blog_rank_tracks WHERE user_id = ?', uid)
+  // 인스타그램 DM 자동화 (회원별로 나뉘어 있다 — 규칙·발송내역·웹훅내역·연결 토큰)
+  await del('DELETE FROM instagram_dm_logs WHERE CAST(user_id AS TEXT) = CAST(? AS TEXT)', uid)
+  await del('DELETE FROM instagram_dm_rules WHERE CAST(user_id AS TEXT) = CAST(? AS TEXT)', uid)
+  await del('DELETE FROM instagram_webhook_logs WHERE CAST(user_id AS TEXT) = CAST(? AS TEXT)', uid)
+  await del('DELETE FROM instagram_account_settings WHERE CAST(user_id AS TEXT) = CAST(? AS TEXT)', uid)
   // 소통
   await del('DELETE FROM support_chats WHERE conv_id = ?', uid)
   await del('DELETE FROM dm_messages WHERE from_id = ? OR to_id = ?', uid, uid)

@@ -1,5 +1,5 @@
 import { Env, resolveDB } from '../_utils'
-import { ensureIgSchema } from './_ig'
+import { ensureIgSchema, igOwnerByBusinessId, getIgCredentials } from './_ig'
 
 const text = (body: string, status = 200) =>
   new Response(body, { status, headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
@@ -33,29 +33,46 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (appSecret) {
       const rawBody = await request.text()
       const sigHeader = request.headers.get('x-hub-signature-256') || ''
-      if (sigHeader) {
-        const encoder = new TextEncoder()
-        const key = await crypto.subtle.importKey('raw', encoder.encode(appSecret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
-        const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody))
-        const computed = 'sha256=' + Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, '0')).join('')
-        if (computed !== sigHeader) return text('Forbidden', 403)
-      }
-      body = JSON.parse(rawBody)
+      // ⚠ 예전에는 서명 헤더가 "있을 때만" 검증했다. 즉 헤더를 아예 안 보내면 검사를 건너뛰고
+      //   그대로 처리됐다 — 아무나 가짜 이벤트를 넣어 남의 계정 토큰으로 DM 을 쏘게 만들 수 있다.
+      //   앱 시크릿이 설정돼 있으면 서명은 필수다.
+      if (!sigHeader) return text('Forbidden', 403)
+      const encoder = new TextEncoder()
+      const key = await crypto.subtle.importKey('raw', encoder.encode(appSecret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+      const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody))
+      const computed = 'sha256=' + Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, '0')).join('')
+      // 길이가 다르면 바로 탈락시키고, 같으면 상수시간으로 비교한다(타이밍으로 서명을 캐내지 못하게)
+      if (computed.length !== sigHeader.length) return text('Forbidden', 403)
+      let diff = 0
+      for (let i = 0; i < computed.length; i++) diff |= computed.charCodeAt(i) ^ sigHeader.charCodeAt(i)
+      if (diff !== 0) return text('Forbidden', 403)
+      try { body = JSON.parse(rawBody) } catch { return text('EVENT_RECEIVED', 200) }
     } else {
       const sigCheck = request.headers.get('x-hub-signature-256') || ''
       if (sigCheck) return text('Forbidden', 403)
       body = await request.json().catch(() => ({}))
     }
 
+    // 이 이벤트가 "누구의 인스타 계정" 으로 들어온 것인지 먼저 정한다.
+    //  웹훅 entry.id 는 인스타 비즈니스 계정 ID 이고, 우리는 그걸 회원과 연결해 두었다.
+    //  ⚠ 이 구분이 없어서 예전에는 A 의 게시물 댓글에 B 의 규칙이 돌고,
+    //     B 의 문구가 A 의 댓글 작성자에게 DM 으로 나갔다.
+    const firstEntryId = String((body.entry && body.entry[0] && body.entry[0].id) || '')
+    const ownerId = await igOwnerByBusinessId(db, firstEntryId)
+
     try {
       await db
-        .prepare(`INSERT INTO instagram_webhook_logs (event_type, payload, created_at) VALUES (?, ?, datetime('now'))`)
-        .bind(body.object || 'unknown', JSON.stringify(body).substring(0, 2000))
+        .prepare(`INSERT INTO instagram_webhook_logs (user_id, event_type, payload, created_at) VALUES (?, ?, ?, datetime('now'))`)
+        .bind(ownerId, body.object || 'unknown', JSON.stringify(body).substring(0, 2000))
         .run()
     } catch (_) {}
 
     if (body.object === 'instagram') {
       for (const entry of body.entry || []) {
+        // entry 마다 계정이 다를 수 있으므로 여기서 다시 확인한다
+        const entryOwnerId = String(entry.id || '') === firstEntryId
+          ? ownerId
+          : await igOwnerByBusinessId(db, String(entry.id || ''))
         for (const change of entry.changes || []) {
           if (change.field === 'comments' && change.value) {
             const comment = change.value
@@ -65,7 +82,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
             const mediaId = comment.media?.id
 
             try {
-              const { results: rules } = await db.prepare(`SELECT * FROM instagram_dm_rules WHERE active = 1`).all()
+              // 그 계정 주인의 규칙만 돌린다. 주인을 못 찾으면(연결 정보 없음) 아무것도 하지 않는다 —
+              //  예전처럼 전체 규칙을 돌리면 남의 문구가 이 댓글 작성자에게 나간다.
+              if (!entryOwnerId) continue
+              const { results: rules } = await db.prepare(
+                `SELECT * FROM instagram_dm_rules WHERE active = 1 AND CAST(user_id AS TEXT) = CAST(? AS TEXT)`,
+              ).bind(entryOwnerId).all()
 
               for (const rule of ((rules || []) as any[])) {
                 let keywords: string[] = []
@@ -79,7 +101,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
                 if (rule.cooldown_days > 0 && commenterId) {
                   const recent = await db
                     .prepare(
-                      `SELECT id FROM instagram_dm_logs WHERE rule_id = ? AND recipient_id = ? AND created_at > datetime('now', '-' || ? || ' days') LIMIT 1`,
+                      `SELECT id FROM instagram_dm_logs WHERE rule_id = ? AND recipient_id = ?
+                         AND created_at > datetime('now', '-' || ? || ' days') LIMIT 1`,
                     )
                     .bind(rule.id, commenterId, rule.cooldown_days)
                     .first()
@@ -88,8 +111,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
                 let dmStatus = 'pending'
                 let errorMsg: string | null = null
-                const igToken = (env as any)?.INSTAGRAM_ACCESS_TOKEN
-                const igBusinessId = (env as any)?.Instargram_ID || (env as any)?.Instagram_ID || (env as any)?.INSTAGRAM_BUSINESS_ID
+                // ⚠ 예전에는 환경변수의 계정 토큰 하나로만 보냈다. 회원별로 연결한 계정이 따로 있는데
+                //   엉뚱한 계정에서 DM 이 나가게 된다. 그 회원이 연결해 둔 토큰을 먼저 쓴다.
+                const cred = await getIgCredentials(db, entryOwnerId)
+                const igToken = cred?.token || (env as any)?.INSTAGRAM_ACCESS_TOKEN
+                const igBusinessId =
+                  cred?.igId ||
+                  String(entry.id || '') ||
+                  (env as any)?.Instargram_ID ||
+                  (env as any)?.Instagram_ID ||
+                  (env as any)?.INSTAGRAM_BUSINESS_ID
 
                 if (igToken && igBusinessId && commenterId) {
                   try {
@@ -119,11 +150,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
                 await db
                   .prepare(
                     `INSERT INTO instagram_dm_logs
-                       (rule_id, recipient_id, recipient_username, trigger_keyword,
+                       (user_id, rule_id, recipient_id, recipient_username, trigger_keyword,
                         trigger_comment_id, trigger_post_id, message, status, error_message, created_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
                   )
                   .bind(
+                    entryOwnerId,
                     rule.id,
                     commenterId || null,
                     commenterName || null,

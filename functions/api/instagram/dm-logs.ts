@@ -1,5 +1,5 @@
 import { Env, resolveDB, getSessionUser } from '../_utils'
-import { ensureIgSchema } from './_ig'
+import { ensureIgSchema, isIgAdmin } from './_ig'
 
 const j = (obj: any, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
@@ -18,13 +18,21 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const limit = parseInt(params.get('limit') || '50')
     const offsetRaw = parseInt(params.get('offset') || '0')
     const offset = !isNaN(offsetRaw) && offsetRaw >= 0 ? offsetRaw : 0
+    // ⚠ 예전에는 조건 없이 전부 읽어, 로그인만 하면 남이 보낸 DM 의 수신자·내용이 그대로 보였다
+    const mine = isIgAdmin(me) ? '' : ' WHERE CAST(l.user_id AS TEXT) = CAST(? AS TEXT)'
+    const args: any[] = isIgAdmin(me) ? [limit, offset] : [me.id, limit, offset]
     const logs = await db
       .prepare(
-        `SELECT l.*, r.name as rule_name FROM instagram_dm_logs l LEFT JOIN instagram_dm_rules r ON l.rule_id = r.id ORDER BY l.created_at DESC LIMIT ? OFFSET ?`,
+        `SELECT l.*, r.name as rule_name FROM instagram_dm_logs l
+           LEFT JOIN instagram_dm_rules r ON l.rule_id = r.id${mine}
+          ORDER BY l.created_at DESC LIMIT ? OFFSET ?`,
       )
-      .bind(limit, offset)
+      .bind(...args)
       .all()
-    const total = (await db.prepare(`SELECT COUNT(*) as c FROM instagram_dm_logs`).first()) as any
+    const total = (isIgAdmin(me)
+      ? await db.prepare(`SELECT COUNT(*) as c FROM instagram_dm_logs`).first()
+      : await db.prepare(`SELECT COUNT(*) as c FROM instagram_dm_logs WHERE CAST(user_id AS TEXT) = CAST(? AS TEXT)`)
+          .bind(me.id).first()) as any
     return j({ success: true, logs: logs.results || [], total: total?.c || 0 })
   } catch (e: any) {
     return j({ success: false, logs: [], error: '서버 오류가 발생했습니다.' }, 200)

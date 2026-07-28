@@ -229,6 +229,12 @@ export const RUNWAY_MODELS = {
   "Runway Gen-4": "gen4_turbo",
   "Runway Gen-3 Alpha Turbo": "gen3a_turbo",
 };
+/* gen3a_turbo 도 2026-07-30 에 종료된다(공식 표: "Gen-3 Alpha Turbo and Gen-4 Aleph are
+   deprecated and will be officially sunset on July 30th, 2026 — upgrade Gen-3 Alpha Turbo
+   to Gen-4.5 or Gen-4 Turbo"). 그날이 지나면 이 ID 로 보낸 요청은 그냥 실패한다.
+   gen4_turbo 는 같은 초당 5크레딧이라 갈아타도 요금이 달라지지 않는다 → 안전한 대체다.
+   Aleph 과 같은 방식으로, 모델 이름 문제일 때만 다음 후보로 물러난다. */
+export const RUNWAY_ALT = { gen3a_turbo: ["gen3a_turbo", "gen4_turbo"] };
 export function buildRunwayPayload(b) {
   // Runway 허용 비율 전체 — 4:3·3:4·21:9 가 빠져 있어 16:9 로 폴백되고 있었다.
   const ratioMap = { "16:9": "1280:720", "9:16": "720:1280", "1:1": "960:960",
@@ -2061,24 +2067,28 @@ async function handle(context) {
           urls: ["https://docs.bfl.ai/quick_start/pricing.md", "https://docs.bfl.ml/quick_start/pricing.md",
                  "https://docs.bfl.ai/quick_start/pricing", "https://docs.bfl.ml/quick_start/pricing",
                  "https://docs.bfl.ai/pricing.md", "https://bfl.ai/pricing"] },
+        /* 미니맥스 — 문서 사이트가 자바스크립트로 그려서 본문이 1~2KB 껍데기로만 온다.
+           BFL 이 .md 로 성공했듯 정적 원문을 주는 주소를 먼저 시도한다. */
         { 제공사: "MiniMax Hailuo", 말: ["Hailuo", "video", "price"], 넓게: ["Hailuo"],
-          urls: ["https://platform.minimax.io/document/price", "https://platform.minimaxi.com/document/price",
-                 "https://platform.minimax.io/document/Price", "https://www.minimax.io/price",
-                 "https://platform.minimax.io/docs/api-reference/price"] },
+          urls: ["https://platform.minimax.io/document/price.md", "https://platform.minimaxi.com/document/price.md",
+                 "https://platform.minimax.io/docs/price", "https://platform.minimax.io/document/price",
+                 "https://platform.minimaxi.com/document/price", "https://www.minimax.io/price"] },
+        /* 런웨이 — 실제 단가 페이지는 /guides/pricing/ 이다(루트는 목차만 온다) */
         { 제공사: "Runway", 말: ["credit", "Gen-4", "aleph", "per second"], 넓게: ["credit"],
-          urls: ["https://docs.dev.runwayml.com/pricing", "https://dev.runwayml.com/pricing",
-                 "https://docs.dev.runwayml.com/", "https://help.runwayml.com/hc/en-us/articles/pricing"] },
-        /* 클링은 검색으로는 5초당 $0.475·$0.80·$1.40·$1.70 이 다 나온다(재판매가 섞여 있다).
-           공식 포인트 정책 문서가 유일한 기준이라 후보에 같이 넣는다. */
+          urls: ["https://docs.dev.runwayml.com/guides/pricing.md", "https://docs.dev.runwayml.com/guides/pricing/",
+                 "https://docs.dev.runwayml.com/guides/pricing", "https://docs.dev.runwayml.com/llms.txt",
+                 "https://docs.dev.runwayml.com/pricing"] },
+        /* 클링 — /global/dev/pricing 은 74바이트 리다이렉트 껍데기였다. 다른 경로를 넓게 시도. */
         { 제공사: "Kling", 말: ["price", "credit", "point", "点"], 넓게: ["point", "master"],
-          urls: ["https://klingai.com/global/dev/pricing", "https://app.klingai.com/global/docs/point-policy",
-                 "https://klingai.com/document-api/pricing/base/video",
+          urls: ["https://app.klingai.com/global/docs/point-policy", "https://klingai.com/document-api/pricing/base/video",
                  "https://app.klingai.com/global/dev/document-api/productBilling/prePaidResourcePackage",
-                 "https://app.klingai.com/global/dev/document-api/apiReference/commonInfo"] },
+                 "https://docs.qingque.cn/d/home/eZQDvbNVLLlvsdM4SLmfhLcNn", "https://klingai.com/global/dev/pricing"] },
+        /* BytePlus — 문서가 자바스크립트로 그려진다(본문에 "Copy Page" 만 온다). 원문 주소를 먼저. */
         { 제공사: "BytePlus ModelArk (씨댄스·씨드림)", 말: ["Seedance", "Seedream", "price", "per second"],
           넓게: ["Seedance", "Seedream"],
-          urls: ["https://docs.byteplus.com/en/docs/ModelArk/Pricing", "https://docs.byteplus.com/en/docs/ModelArk/1099320",
-                 "https://docs.byteplus.com/en/docs/ModelArk/Models", "https://www.byteplus.com/en/product/modelark/pricing"] },
+          urls: ["https://docs.byteplus.com/en/docs/ModelArk/Pricing.md", "https://docs.byteplus.com/en/docs/ModelArk/llms.txt",
+                 "https://docs.byteplus.com/en/docs/ModelArk/1099320", "https://www.byteplus.com/en/product/modelark/pricing",
+                 "https://docs.byteplus.com/en/docs/ModelArk/Pricing"] },
       ];
       const fetchText = async (url) => {
         const r = await fetchT(url, { headers: { "accept": "text/html,text/markdown", "user-agent": "Mozilla/5.0" } }, 15000);
@@ -3623,14 +3633,23 @@ async function handle(context) {
     if (!k.runway) return json({ error: "Runway 연동이 설정되지 않았습니다" }, 500);
     const payload = buildRunwayPayload(b);
     if (!payload.promptImage) return json({ error: "Runway(gen4_turbo)는 첫 프레임 또는 레퍼런스 이미지가 필요합니다. 레퍼런스 노드를 연결하세요." }, 400);
-    const r = await fetchT("https://api.dev.runwayml.com/v1/image_to_video", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + k.runway, "X-Runway-Version": RUNWAY_VER, "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.id) return json({ error: "Runway HTTP " + r.status + ": " + String(j.error || j.message || JSON.stringify(j)).slice(0, 220) }, 502);
-    return json({ statusUrl: "/api/generate?provider=runway&task=" + encodeURIComponent(j.id) });
+    // 종료 예정 ID(gen3a_turbo)는 실패 시 같은 요금의 후속(gen4_turbo)으로 물러난다
+    const rwIds = RUNWAY_ALT[payload.model] || [payload.model];
+    let rwStatus = 502, rwMsg = "요청 실패";
+    for (const mid of rwIds) {
+      const r = await fetchT("https://api.dev.runwayml.com/v1/image_to_video", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + k.runway, "X-Runway-Version": RUNWAY_VER, "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, model: mid })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.id) return json({ statusUrl: "/api/generate?provider=runway&task=" + encodeURIComponent(j.id), modelId: mid });
+      rwStatus = r.status;
+      rwMsg = "[" + mid + "] " + String(j.error || j.message || JSON.stringify(j)).slice(0, 200);
+      // 모델 이름 문제가 아니면(잔액·검열·파라미터) 다른 ID 로 바꿔도 결과가 같다
+      if (!/model|not\s*found|invalid|unsupported|deprecat|sunset/i.test(rwMsg)) break;
+    }
+    return json({ error: "Runway HTTP " + rwStatus + ": " + rwMsg }, 502);
   }
 
   /* ── V2V 자동 라우팅 (정확도 최상) ──
