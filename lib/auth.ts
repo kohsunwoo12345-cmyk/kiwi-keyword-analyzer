@@ -1574,6 +1574,17 @@ export async function adminCronStatus(): Promise<CronStatus> {
   try { const r = await fetch('/api/admin/cron-status', { credentials: 'include', cache: 'no-store' }); return await r.json() }
   catch { return { ok: false, error: '네트워크 오류' } }
 }
+/** 관리자가 예약을 켜고 끈다. 다시 켤 때 서버가 다음 실행 시각을 재계산한다. */
+export async function adminCronToggle(id: string, enabled: boolean): Promise<{ ok: boolean; nextRunAt?: string; error?: string }> {
+  try {
+    const r = await fetch('/api/admin/cron-status', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, enabled }),
+    })
+    return await r.json()
+  } catch { return { ok: false, error: '네트워크 오류' } }
+}
 
 /* ───────── 관리자: 노드 스튜디오 감사 ───────── */
 export interface StudioUserRow { userId: string; name: string; email: string; plan: string; nodeCount: number; docCount: number; updatedAt: string | null; creditsUsed: number; genCount: number }

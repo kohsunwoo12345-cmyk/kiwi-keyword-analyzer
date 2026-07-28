@@ -1,5 +1,5 @@
-import { Env, json, ensureSchema, resolveDB, requireAdminUser } from '../_utils'
-import { ensureSchedules, FAIL_LIMIT } from '../studio/schedules'
+import { Env, json, ensureSchema, resolveDB, requireAdminUser, logActivity } from '../_utils'
+import { ensureSchedules, FAIL_LIMIT, computeNextRun } from '../studio/schedules'
 
 // GET /api/admin/cron-status → 정기 실행(크론) 현황
 //  외부 스케줄러(Cloudflare Workers Cron Trigger)가 실제로 돌고 있는지,
@@ -97,4 +97,41 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       userName: f.user_name || '', userEmail: f.user_email || '',
     })),
   })
+}
+
+// POST /api/admin/cron-status  { id, enabled }  → 관리자가 예약을 직접 켜고 끈다
+//  꺼진 예약을 다시 켤 때 next_run_at 을 지금 기준으로 다시 계산한다.
+//  안 그러면 과거 시각이 남아 있어 켜자마자 즉시 실행되고(= 의도치 않은 과금),
+//  연속 실패 기록도 남아 있어 한 번만 더 실패해도 곧장 자동 중지된다.
+export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+  const db = resolveDB(env)
+  if (!db) return json({ ok: false, error: 'DB 바인딩 없음' }, 500)
+  await ensureSchema(db)
+  await ensureSchedules(db)
+  const guard = await requireAdminUser(request, db)
+  if (guard.error) return guard.error
+
+  let b: any = {}
+  try { b = await request.json() } catch { return json({ ok: false, error: '잘못된 요청' }, 400) }
+  const id = String(b.id || '').trim()
+  if (!id) return json({ ok: false, error: 'id 필요' }, 400)
+  const enable = b.enabled !== false
+
+  const row: any = await db.prepare('SELECT * FROM studio_schedules WHERE id = ?').bind(id).first()
+  if (!row) return json({ ok: false, error: '없는 예약입니다.' }, 404)
+
+  if (enable) {
+    const next = computeNextRun(String(row.freq || 'weekly'), Number(row.hour) || 0, Number(row.minute) || 0,
+      Number(row.weekday) || 0, Date.now(), String(row.tz || 'Asia/Seoul'))
+    await db.prepare(
+      'UPDATE studio_schedules SET enabled = 1, fail_streak = 0, next_run_at = ?, last_status = ? WHERE id = ?',
+    ).bind(next, '관리자가 다시 켬', id).run()
+    await logActivity(db, String(row.user_id), 'admin', `예약 재개: ${row.name || id}`).catch(() => {})
+    return json({ ok: true, enabled: true, nextRunAt: next })
+  }
+
+  await db.prepare('UPDATE studio_schedules SET enabled = 0, last_status = ? WHERE id = ?')
+    .bind('관리자가 중지함', id).run()
+  await logActivity(db, String(row.user_id), 'admin', `예약 중지: ${row.name || id}`).catch(() => {})
+  return json({ ok: true, enabled: false })
 }
