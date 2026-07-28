@@ -17,9 +17,11 @@ import {
   Check,
   X,
   Contact,
+  AlertCircle,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Panel, Button, Overlay } from '@/components/ui'
+import { Button, Overlay } from '@/components/ui'
+import { Card, EmptyState } from '@/components/dash/Kit'
 import { isImeEnter } from '@/lib/utils'
 
 const ACCENT = '#0ea5e9'
@@ -28,17 +30,17 @@ type ColorKey = 'violet' | 'sky' | 'emerald' | 'amber' | 'rose'
 type Visibility = 'team' | 'private' | 'user'
 
 const COLORS: Record<ColorKey, { label: string; dot: string; pill: string }> = {
-  violet: { label: '기획', dot: 'bg-violet-500', pill: 'border-violet-500/30 bg-violet-500/12 text-violet-600' },
-  sky: { label: '광고', dot: 'bg-sky-500', pill: 'border-sky-500/30 bg-sky-500/12 text-sky-600' },
-  emerald: { label: '콘텐츠', dot: 'bg-emerald-500', pill: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-600' },
-  amber: { label: '마감', dot: 'bg-amber-500', pill: 'border-amber-500/30 bg-amber-500/12 text-amber-600' },
-  rose: { label: '회의', dot: 'bg-rose-500', pill: 'border-rose-500/30 bg-rose-500/12 text-rose-600' },
+  violet: { label: '기획', dot: 'bg-violet-500', pill: 'border-violet-500/30 bg-violet-500/12 text-violet-400' },
+  sky: { label: '광고', dot: 'bg-sky-500', pill: 'border-sky-500/30 bg-sky-500/12 text-sky-500' },
+  emerald: { label: '콘텐츠', dot: 'bg-emerald-500', pill: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-500' },
+  amber: { label: '마감', dot: 'bg-amber-500', pill: 'border-amber-500/30 bg-amber-500/12 text-amber-500' },
+  rose: { label: '회의', dot: 'bg-rose-500', pill: 'border-rose-500/30 bg-rose-500/12 text-rose-500' },
 }
 
 const VIS: Record<Visibility, { label: string; badge: string; cls: string; icon: typeof Globe }> = {
-  team: { label: '공유(전체)', badge: '공유(전체)', cls: 'border-sky-500/30 bg-sky-500/12 text-sky-600', icon: Globe },
-  private: { label: '나만', badge: '나만', cls: 'border-[var(--border)] bg-[var(--panel-2)] text-slate-600', icon: Lock },
-  user: { label: '개별공유', badge: '개별공유', cls: 'border-amber-500/30 bg-amber-500/12 text-amber-600', icon: UserRound },
+  team: { label: '공유(전체)', badge: '공유(전체)', cls: 'border-sky-500/30 bg-sky-500/12 text-sky-500', icon: Globe },
+  private: { label: '나만', badge: '나만', cls: 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-dim)]', icon: Lock },
+  user: { label: '개별공유', badge: '개별공유', cls: 'border-amber-500/30 bg-amber-500/12 text-amber-500', icon: UserRound },
 }
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
@@ -82,12 +84,20 @@ function ymStr(y: number, m: number) {
   return `${y}-${String(m).padStart(2, '0')}`
 }
 function todayISO() {
-  const p = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }) // YYYY-MM-DD
-  return p
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }) // YYYY-MM-DD
+}
+
+/**
+ * 오늘의 한국시간 기준 연·월.
+ * 격자는 브라우저 로컬 날짜로, 오늘 표시는 KST 로 계산하고 있어서
+ * 시차가 있는 곳에서는 월말·월초에 오늘이 다른 달로 밀려 표시되지 않았다.
+ */
+function todayYM(): { y: number; m: number } {
+  const [y, m] = todayISO().split('-')
+  return { y: Number(y), m: Number(m) }
 }
 
 export default function TeamCalendarPage() {
-  const now = new Date()
   const [loadingTeams, setLoadingTeams] = useState(true)
   const [teams, setTeams] = useState<Team[]>([])
   const [meId, setMeId] = useState('')
@@ -106,7 +116,7 @@ export default function TeamCalendarPage() {
   const [sharing, setSharing] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  const [ym, setYm] = useState({ y: now.getFullYear(), m: now.getMonth() + 1 })
+  const [ym, setYm] = useState(todayYM)
   const [events, setEvents] = useState<CalEvent[]>([])
   const [loadingEvents, setLoadingEvents] = useState(false)
 
@@ -261,8 +271,7 @@ export default function TeamCalendarPage() {
   }
 
   function goToday() {
-    const n = new Date()
-    setYm({ y: n.getFullYear(), m: n.getMonth() + 1 })
+    setYm(todayYM())
   }
 
   // calendar grid
@@ -319,6 +328,7 @@ export default function TeamCalendarPage() {
   }
 
   async function delEvent(eventId: string) {
+    setErr('')
     try {
       const res = await fetch('/api/team', {
         method: 'POST',
@@ -327,9 +337,11 @@ export default function TeamCalendarPage() {
         body: JSON.stringify({ action: 'cal_del', eventId }),
       })
       const d = await res.json()
+      // 실패해도 아무 반응이 없어 "눌러도 안 지워진다"로 보였다
       if (d.ok) loadEvents()
+      else setErr(d.error || '일정을 삭제하지 못했습니다.')
     } catch {
-      /* noop */
+      setErr('네트워크 오류로 일정을 삭제하지 못했습니다.')
     }
   }
 
@@ -354,19 +366,19 @@ export default function TeamCalendarPage() {
     return (
       <div className="animate-fade-in">
         <PageHeader icon={Calendar} eyebrow="TEAM" title="집행 캘린더" desc="팀의 마케팅 집행 일정을 함께 관리하세요." accent={ACCENT} />
-        <div className="p-6 lg:p-8">
-          <div className="card flex flex-col items-center justify-center gap-4 p-12 text-center">
-            <span className="grid h-14 w-14 place-items-center rounded-2xl" style={{ background: `${ACCENT}18`, color: ACCENT }}>
-              <Users size={26} />
-            </span>
-            <div>
-              <p className="text-lg font-semibold">아직 소속된 팀이 없습니다</p>
-              <p className="mt-1 text-sm text-[var(--text-soft)]">먼저 팀을 만들거나 초대를 수락하세요.</p>
-            </div>
-            <Button href={MANAGE_HREF} className="!bg-gradient-to-br !from-sky-500 !to-blue-500">
-              <Users size={16} /> 팀 관리로 이동
-            </Button>
-          </div>
+        <div className="p-5 pb-24 lg:p-7 lg:pb-24">
+          <Card title="집행 캘린더">
+            <EmptyState
+              icon={Users}
+              title="아직 소속된 팀이 없습니다"
+              hint="먼저 팀을 만들거나 받은 초대를 수락하면 집행 캘린더를 함께 쓸 수 있습니다."
+              action={
+                <Button href={MANAGE_HREF} size="sm" className="!bg-gradient-to-br !from-sky-500 !to-blue-500">
+                  <Users size={15} /> 팀 관리로 이동
+                </Button>
+              }
+            />
+          </Card>
         </div>
       </div>
     )
@@ -402,14 +414,14 @@ export default function TeamCalendarPage() {
       />
 
       {/* Calendar tabs (workflow-style) + share */}
-      <div className="flex flex-wrap items-center gap-2 px-6 pt-4 lg:px-8">
+      <div className="flex flex-wrap items-center gap-2 px-5 pt-4 lg:px-7">
         <div className="flex flex-1 flex-wrap items-center gap-1.5">
           {boards.map((bd) => (
             <div
               key={bd.id}
               className={`group flex items-center gap-1 rounded-t-lg border-b-2 px-3 py-1.5 text-sm font-semibold transition-colors ${
                 bd.id === boardId
-                  ? 'border-sky-500 bg-[var(--panel-2)] text-sky-600'
+                  ? 'border-sky-500 bg-[var(--panel-2)] text-sky-500'
                   : 'border-transparent text-[var(--text-soft)] hover:bg-[var(--panel-2)]'
               }`}
             >
@@ -501,9 +513,23 @@ export default function TeamCalendarPage() {
         </Overlay>
       )}
 
-      <div className="grid gap-6 p-6 lg:grid-cols-[1fr_360px] lg:p-8">
+      {err && (
+        <div className="px-5 pt-4 lg:px-7">
+          <div className="flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/12 px-3.5 py-2.5 text-[13px] text-rose-500">
+            <AlertCircle size={15} className="mt-0.5 flex-shrink-0" />
+            <span className="flex-1">{err}</span>
+            <button onClick={() => setErr('')} className="flex-shrink-0 rounded p-0.5 hover:bg-rose-500/20" aria-label="닫기">
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="grid gap-5 p-5 pb-24 lg:grid-cols-[minmax(0,1fr)_360px] lg:p-7 lg:pb-24">
         {/* Calendar grid */}
-        <Panel
+        <Card
+          className="self-start"
+          bodyClassName="p-4"
           title={
             <div className="flex items-center gap-2">
               <button
@@ -579,35 +605,50 @@ export default function TeamCalendarPage() {
                       {d}
                     </div>
                     <div className="space-y-1">
-                      {eventsOn(d).map((e) => (
-                        <div
-                          key={e.id}
-                          className={`group flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-tight ${COLORS[e.color]?.pill || COLORS.sky.pill}`}
-                          title={`${e.title}${e.memo ? '\n' + e.memo : ''}\n· ${e.owner_name} / ${VIS[e.visibility]?.label || ''}`}
-                        >
-                          <span className="truncate">{e.title}</span>
-                          {e.owner_id === meId && (
-                            <button
-                              onClick={() => delEvent(e.id)}
-                              className="ml-auto hidden shrink-0 text-current/70 hover:text-rose-600 group-hover:block"
-                              aria-label="일정 삭제"
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          )}
-                        </div>
-                      ))}
+                      {(() => {
+                        const list = eventsOn(d)
+                        // 일정이 많은 날 때문에 그 주 전체 높이가 늘어나던 문제 —
+                        // 3건까지만 칸에 넣고 나머지는 개수로 알린다 (전체는 우측 월 목록에서 본다)
+                        const shown = list.slice(0, 3)
+                        return (
+                          <>
+                            {shown.map((e) => (
+                              <div
+                                key={e.id}
+                                className={`group flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-tight ${COLORS[e.color]?.pill || COLORS.sky.pill}`}
+                                title={`${e.title}${e.memo ? '\n' + e.memo : ''}\n· ${e.owner_name} / ${VIS[e.visibility]?.label || ''}`}
+                              >
+                                <span className="truncate">{e.title}</span>
+                                {e.owner_id === meId && (
+                                  <button
+                                    onClick={() => delEvent(e.id)}
+                                    className="ml-auto hidden shrink-0 text-current/70 hover:text-rose-500 group-hover:block"
+                                    aria-label="일정 삭제"
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                            {list.length > shown.length && (
+                              <p className="px-1 text-[10.5px] font-semibold text-[var(--text-dim)]">
+                                +{list.length - shown.length}건 더
+                              </p>
+                            )}
+                          </>
+                        )
+                      })()}
                     </div>
                   </>
                 )}
               </div>
             ))}
           </div>
-        </Panel>
+        </Card>
 
         {/* Side panel */}
-        <div className="space-y-6">
-          <Panel title="새 집행 일정">
+        <div className="space-y-5 self-start">
+          <Card title="새 집행 일정" desc="날짜·제목만 있으면 등록됩니다">
             <div className="space-y-3">
               <div>
                 <label className="mb-1 block text-xs text-[var(--text-dim)]">날짜</label>
@@ -665,7 +706,7 @@ export default function TeamCalendarPage() {
                         onClick={() => setFVis(v)}
                         className={`flex flex-col items-center gap-1 rounded-xl border px-2 py-2 text-[11px] font-medium transition-colors ${
                           on
-                            ? 'border-sky-500 bg-sky-500/12 text-sky-600'
+                            ? 'border-sky-500 bg-sky-500/15 text-sky-500'
                             : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-soft)] hover:border-sky-400'
                         }`}
                       >
@@ -713,7 +754,6 @@ export default function TeamCalendarPage() {
                   {' '}<a href="/dashboard_USE17237_612/team/groups" className="text-sky-500 hover:underline">그룹 만들기 →</a>
                 </p>
               </div>
-              {err && <p className="text-xs text-rose-500">{err}</p>}
               <Button
                 onClick={addEvent}
                 disabled={saving}
@@ -722,9 +762,9 @@ export default function TeamCalendarPage() {
                 {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} 일정 추가
               </Button>
             </div>
-          </Panel>
+          </Card>
 
-          <Panel title="공유 범위 안내">
+          <Card title="공유 범위 안내" desc="일정마다 따로 정할 수 있습니다">
             <div className="space-y-2">
               {(['team', 'private', 'user'] as Visibility[]).map((v) => {
                 const Icon = VIS[v].icon
@@ -740,18 +780,22 @@ export default function TeamCalendarPage() {
                 )
               })}
             </div>
-          </Panel>
+          </Card>
 
-          <Panel title={`${ym.m}월 일정 (${monthEvents.length})`}>
+          <Card title={`${ym.m}월 일정`} desc={`${monthEvents.length}건`} bodyClassName="p-3">
             {monthEvents.length === 0 ? (
-              <p className="text-sm text-[var(--text-dim)]">이 달에 등록된 일정이 없습니다.</p>
+              <EmptyState
+                icon={Calendar}
+                title="이 달에 등록된 일정이 없습니다"
+                hint="왼쪽 폼에서 날짜와 제목을 넣어 첫 일정을 추가해 보세요."
+              />
             ) : (
               <div className="space-y-2.5">
                 {monthEvents.map((e) => {
                   const Icon = VIS[e.visibility]?.icon || Globe
                   const dd = Number(e.d.split('-')[2])
                   return (
-                    <div key={e.id} className="card-2 flex items-center gap-3 p-3">
+                    <div key={e.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] p-3">
                       <span
                         className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg text-sm font-bold text-white ${COLORS[e.color]?.dot || COLORS.sky.dot}`}
                       >
@@ -765,7 +809,7 @@ export default function TeamCalendarPage() {
                             <Icon size={9} /> {VIS[e.visibility]?.badge}
                           </span>
                           {e.target_group_name && (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
+                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-500">
                               <Contact size={9} /> {e.target_group_name}
                             </span>
                           )}
@@ -785,7 +829,7 @@ export default function TeamCalendarPage() {
                 })}
               </div>
             )}
-          </Panel>
+          </Card>
         </div>
       </div>
     </div>
