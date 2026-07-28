@@ -2,7 +2,7 @@ import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser } from 
 import { MODEL_COST, PROV_LABEL, computeCharge, getUsdKrw } from '../studio/_pricing'
 import {
   SEEDREAM_IDS, SEEDANCE_IDS, FLUX_ENDPOINTS, OPENAI_IMG_ID,
-  HAILUO_IDS, LUMA_IDS, KLING_API, RUNWAY_MODELS, gcpCreds,
+  HAILUO_IDS, LUMA_IDS, KLING_API, RUNWAY_MODELS, ARK3D_IDS, gcpCreds,
 } from '../generate.js'
 
 // GET /api/admin/ai-models — 연동된 AI 모델 전체 목록.
@@ -28,6 +28,9 @@ const PROVIDER_KEYS: Record<string, string[]> = {
   runway_aleph: ['Runway_API_KEY', 'RUNWAY_API_KEY', 'runway_api_key'],
   hailuo: ['Hailuo_API_KEY', 'HAILUO_API_KEY', 'hailuo_api_key', 'MINIMAX_API_KEY'],
   luma: ['Luma_API_KEY', 'LUMA_API_KEY', 'luma_api_key'],
+  // 3D 생성·프롬프트 작성 LLM 은 씨댄스와 같은 ByteDance ModelArk 키를 쓴다
+  ark3d: ['Seedance_API_KEY', 'SEEDANCE_API_KEY', 'seedance_api_key'],
+  promptgen: ['Seedance_API_KEY', 'SEEDANCE_API_KEY', 'seedance_api_key'],
   kling: ['KLING_ACCESS_KEY', 'Kling_API_KEY', 'KLING_API_KEY', 'Fal_API_KEY', 'FAL_API_KEY', 'FAL_KEY'],
   falcontrol: ['Fal_API_KEY', 'FAL_API_KEY', 'FAL_KEY', 'fal_api_key'],
   motion: ['Fal_API_KEY', 'FAL_API_KEY', 'FAL_KEY', 'fal_api_key'],
@@ -44,6 +47,9 @@ function modelIdOf(model: string): string {
   const o = (OPENAI_IMG_ID as any)[model]; if (o) return o
   const h = (HAILUO_IDS as any)[model]; if (h) return h
   const l = (LUMA_IDS as any)[model]; if (l) return l
+  const t = (ARK3D_IDS as any)[model]; if (t) return Array.isArray(t) ? t[0] : t
+  // 프롬프트 작성 LLM 은 표시명이 곧 모델 ID 다(deepseek-v4-pro-260425 등)
+  if (/^(deepseek|glm|dola-seed|gpt-oss|doubao|skylark|kimi)-/i.test(model)) return model
   const k = (KLING_API as any)[model]; if (k) return `${k.m} (${k.mode}/${k.ep})`
   const r = (RUNWAY_MODELS as any)[model]; if (r) return r
   if (model === 'Google Veo 3.1') return 'veo-3.1-generate-001'
@@ -58,6 +64,10 @@ const UNVERIFIED_IDS = new Set<string>([
   'Seedream 5.0 Pro', 'Seedream 5.0 Pro (레퍼런스 편집)',
   'Seedream 5.0 Lite', 'Seedream 5.0 Lite (레퍼런스 편집)',
   'Seedream 4.5', 'Seedream 4.5 (레퍼런스 편집)',
+  // 3D 는 요청 형식은 확정했으나(콘솔 cURL) 성공 응답을 아직 실물로 못 봤다.
+  'Hyper3D Gen-2 (3D 생성)', 'Hitem3D 2.0 (3D 생성)',
+  // 루마 Agents API 로 막 교체한 신규 모델 — 실제 생성 확인 전.
+  'Luma Ray 3.2', 'Luma Uni 1', 'Luma Uni 1 Max',
 ])
 
 // 여러 제공사를 조합하는 파이프라인(단일 모델 아님)

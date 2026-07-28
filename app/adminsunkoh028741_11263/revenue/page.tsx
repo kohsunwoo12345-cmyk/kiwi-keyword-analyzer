@@ -31,9 +31,9 @@ export default function AdminRevenuePage() {
   return (
     <div>
       <PageHeader
-        icon={Banknote}
+eyebrow="ADMIN"         icon={Banknote}
         title="매출"
-        description="실입금 매출(크레딧 판매·플랜·팀 결제)과 순수익(매출 − AI 원가)을 구분해 봅니다. 포인트·문자·AI 크레딧 소비는 내부 소비(매출 중복 아님)로 별도 표시."
+        desc="실입금 매출(크레딧 판매·플랜·팀 결제)과 순수익(매출 − AI 원가)을 구분해 봅니다. 포인트·문자·AI 크레딧 소비는 내부 소비(매출 중복 아님)로 별도 표시."
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">

@@ -80,8 +80,9 @@ export default function AdminAiGenerationsPage() {
     <div>
       <PageHeader
         icon={Images}
+        eyebrow="ADMIN"
         title="AI 생성 기록"
-        description="사용자별 AI 이미지·영상 생성물 — 프롬프트·레퍼런스·결과 미디어와 크레딧·비용(당일 환율·USD)"
+        desc="사용자별 AI 이미지·영상·3D 생성물 — 프롬프트·레퍼런스·결과 미디어와 크레딧·비용(당일 환율·USD)"
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">

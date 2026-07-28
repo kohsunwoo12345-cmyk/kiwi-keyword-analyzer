@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { Boxes, RefreshCw, Search, CheckCircle2, AlertTriangle, XCircle, Image as ImageIcon, Clapperboard, Zap } from 'lucide-react'
+import { Boxes, RefreshCw, Search, CheckCircle2, AlertTriangle, XCircle, Image as ImageIcon, Clapperboard, Zap, Box, Type } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button, Badge } from '@/components/ui'
 import { adminAiModels, adminVerifyImageModels, type AiModelRow, type AiModelsResp } from '@/lib/auth'
@@ -19,11 +19,15 @@ const STATUS_META: Record<string, { label: string; cls: string; icon: any; desc:
     desc: '해당 제공사 API 키가 서버에 없음 — 키 등록 시 즉시 사용 가능' },
 }
 
+// 모델 종류·과금 단위 라벨. 3d(3D 파일 1개당)·llm(호출 1회당)이 빠져 있어 '영상 · /장' 으로 잘못 표시됐다.
+const KIND_LABEL: Record<string, string> = { image: '이미지', video: '영상', '3d': '3D 생성', llm: '프롬프트 LLM' }
+const UNIT_LABEL: Record<string, string> = { sec: '/초', img: '/장', '3d': '/개', tok: '/회' }
+
 export default function AdminAiModelsPage() {
   const [data, setData] = useState<AiModelsResp | null>(null)
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
-  const [kind, setKind] = useState<'all' | 'image' | 'video'>('all')
+  const [kind, setKind] = useState<'all' | 'image' | 'video' | '3d' | 'llm'>('all')
   const [status, setStatus] = useState<'all' | 'live' | 'unverified' | 'nokey'>('all')
   const [verifying, setVerifying] = useState(false)
   const [verify, setVerify] = useState<Record<string, { ok: boolean; error?: string; modelId?: string }>>({})
@@ -107,7 +111,7 @@ export default function AdminAiModelsPage() {
             <Search size={15} className="text-[var(--text-dim)]" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="모델·모델ID·제공사 검색" className="w-56 bg-transparent text-sm outline-none" />
           </div>
-          <Seg value={kind} onChange={setKind} options={[['all', '전체'], ['image', '이미지'], ['video', '영상']]} />
+          <Seg value={kind} onChange={setKind} options={[['all', '전체'], ['image', '이미지'], ['video', '영상'], ['3d', '3D'], ['llm', '프롬프트']]} />
           <Seg value={status} onChange={setStatus} options={[['all', '전체'], ['live', '정상'], ['unverified', '미확인'], ['nokey', '연동없음']]} />
           <span className="ml-auto text-xs text-[var(--text-dim)]">
             {num(filtered.length)}개 표시{data?.usdKrw ? ` · 환율 $1=₩${num(Math.round(data.usdKrw))}` : ''}
@@ -172,12 +176,12 @@ export default function AdminAiModelsPage() {
                           </td>
                           <td className="px-4 py-2.5">
                             <span className="inline-flex items-center gap-1 text-xs text-[var(--text-soft)]">
-                              {m.kind === 'image' ? <ImageIcon size={13} /> : <Clapperboard size={13} />}
-                              {m.kind === 'image' ? '이미지' : '영상'}
+                              {m.kind === 'image' ? <ImageIcon size={13} /> : m.kind === '3d' ? <Box size={13} /> : m.kind === 'llm' ? <Type size={13} /> : <Clapperboard size={13} />}
+                              {KIND_LABEL[m.kind] || m.kind}
                             </span>
                           </td>
                           <td className="whitespace-nowrap px-4 py-2.5 text-right text-[var(--text-soft)]">
-                            ${m.usd}{m.unit === 'sec' ? '/초' : '/장'}
+                            ${m.usd}{UNIT_LABEL[m.unit] || '/장'}
                             {m.audioUsd > 0 && <span className="text-[11px] text-[var(--text-dim)]"> +${m.audioUsd}/초(음성)</span>}
                           </td>
                           <td className="whitespace-nowrap px-4 py-2.5 text-right font-medium">
