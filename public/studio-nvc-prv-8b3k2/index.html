@@ -2133,12 +2133,16 @@ var MODEL_COST = {
   'Flux Pro':                        { u:'img', usd:0.05,  prov:'flux' },
   'Flux Dev':                        { u:'img', usd:0.025, prov:'flux' },
   'Flux Kontext Max (레퍼런스 편집)':  { u:'img', usd:0.08,  prov:'flux' },
-  'Flux Kontext Pro (레퍼런스 편집)':  { u:'img', usd:0.04,  prov:'flux' }   // BFL 공식 $0.04/장
+  'Flux Kontext Pro (레퍼런스 편집)':  { u:'img', usd:0.04,  prov:'flux' },  // BFL 공식 $0.04/장
+  // 진짜 3D 파일(메쉬+텍스처) 생성 — 이미지가 아니라 .glb 등이 나온다. 단가는 잠정값.
+  'Hyper3D Gen-2 (3D 생성)':          { u:'3d',  usd:0.4,   prov:'ark3d' },
+  'Hitem3D 2.0 (3D 생성)':            { u:'3d',  usd:0.4,   prov:'ark3d' }
 };
 // 제공사 집계 라벨
 var PROV_LABEL = { google:'Google Veo', runway:'Runway', runway_aleph:'Runway Aleph', v2v_auto:'V2V 자동', motion:'모션 전이', narrate:'나레이션', lipsync:'립싱크', music:'음악 생성', upscale:'업스케일',
   seedance:'Seedance', seedream:'Seedream', hailuo:'MiniMax Hailuo', luma:'Luma', xai:'Grok', flux:'Flux',
-  falcontrol:'fal ControlNet', nanobanana:'Nano Banana', openai:'GPT Image', kling:'Kling' };
+  falcontrol:'fal ControlNet', nanobanana:'Nano Banana', openai:'GPT Image', kling:'Kling',
+  ark3d:'3D 생성 (ModelArk)' };
 // 구버전 recordCost(provider,...) 호환용 — 제공사 대표 단가
 var COST_RATES = { google:{unit:'sec'}, runway:{unit:'sec'}, runway_aleph:{unit:'sec'},
   seedance:{unit:'sec'}, hailuo:{unit:'sec'}, luma:{unit:'sec'}, xai:{unit:'img'}, flux:{unit:'img'} };
@@ -2417,6 +2421,7 @@ var MODEL_PROVIDER = {
   'GPT Image 2':'openai','GPT Image 1.5':'openai','GPT Image':'openai','GPT Image Mini':'openai',
   'Flux 1.1 Pro Ultra':'flux','Flux 1.1 Pro':'flux','Flux Pro':'flux','Flux Dev':'flux',
   'Flux Kontext Max (레퍼런스 편집)':'flux','Flux Kontext Pro (레퍼런스 편집)':'flux',
+  'Hyper3D Gen-2 (3D 생성)':'ark3d','Hitem3D 2.0 (3D 생성)':'ark3d',
   'MiniMax Hailuo 02':'hailuo','MiniMax T2V-01 Director':'hailuo','MiniMax I2V-01 Director':'hailuo','Hailuo MiniMax':'hailuo',
   'Luma Ray 2':'luma','Luma Ray Flash 2':'luma','Luma Ray 1.6':'luma','Luma Ray2':'luma',
   // Kling — 서버 프록시가 클링 공식 API(KLING_ACCESS_KEY/KLING_SECRET_KEY 또는 KLING_API_KEY)로 호출

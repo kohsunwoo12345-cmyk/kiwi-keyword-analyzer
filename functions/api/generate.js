@@ -1003,6 +1003,70 @@ export function buildHailuoPayload(b) {
 /* ── Luma Dream Machine 영상 생성 ── */
 const LUMA_BASE = "https://api.lumalabs.ai/dream-machine/v1";
 
+/* ══ BytePlus ModelArk 3D 생성 (Hyper3D / Hitem3D) ══
+   이미지·영상 모델과 달리 "실제 3D 파일(메쉬+텍스처)" 을 만든다.
+
+   요청 형식 — 회원이 콘솔에서 가져온 실제 예시로 확정됐다.
+     POST /contents/generations/tasks
+     { model, content: [{ type:"text", text:"<프롬프트> --옵션 값 --옵션 값 …" }] }
+   씨댄스 1.x 와 같은 "프롬프트 뒤에 지시어를 붙이는" 방식이다.
+   (앞서 text 를 비워 보낸 진단이 InvalidParameter 로 실패했던 건 이미지가 필수라서가
+    아니라 프롬프트 자체가 비어 있었기 때문이다 — 텍스트만으로 생성된다.)
+
+   옵션(콘솔 예시에 나온 것 그대로. Hyper3D/Rodin 계열 파라미터다)
+     --mesh_mode        Quad=사각형 위주 토폴로지(리깅·애니메이션에 유리) / Raw=원본 삼각형 메쉬
+     --hd_texture       고해상도 텍스처
+     --material         PBR=물리기반(금속·거칠기 맵 포함) / Shaded=단순 셰이딩
+     --addons           HighPack 등 부가 산출물 묶음
+     --quality_override 목표 폴리곤 수
+     --use_original_alpha  입력 이미지의 알파(투명) 채널 사용 여부
+     --bbox_condition   [x,y,z] 바운딩 박스 비율 — 물체의 가로세로높이 비를 강제
+     --TAPose           캐릭터를 T/A 포즈로 세운다(리깅용) */
+export const ARK3D_IDS = {
+  "Hyper3D Gen-2 (3D 생성)": ["hyper3d-gen2-260112", "hyper3d-gen2"],
+  "Hitem3D 2.0 (3D 생성)":   ["hitem3d-2-0", "hitem3d-20", "hitem3d-2"],
+};
+const ARK3D_MESH = { "Quad": "Quad", "Raw": "Raw" };
+const ARK3D_MAT  = { "PBR": "PBR", "Shaded": "Shaded" };
+export function ark3dModelIds(b, env) {
+  const custom = b && typeof b.ark3dModel === "string" && b.ark3dModel.trim();
+  if (custom) return [custom];
+  const override = env && pick(env, ["ARK3D_MODEL_ID", "ark3d_model_id"]);
+  if (override) return [override];
+  return ARK3D_IDS[b && b.model] || ARK3D_IDS["Hyper3D Gen-2 (3D 생성)"];
+}
+export function buildArk3dPayload(b, env, forceModel) {
+  const model = forceModel || ark3dModelIds(b, env)[0];
+  // 지시어는 프롬프트 뒤에 붙는다 → cut() 으로 잘려 나가지 않도록 프롬프트만 먼저 줄인다.
+  const flags = [];
+  const push = (k2, v) => { if (v !== undefined && v !== null && v !== "") flags.push("--" + k2 + " " + v); };
+  push("mesh_mode", ARK3D_MESH[String(b.meshMode || "").trim()] || "Raw");
+  push("hd_texture", b.hdTexture === false ? "false" : "true");
+  push("material", ARK3D_MAT[String(b.material || "").trim()] || "PBR");
+  if (b.addons) push("addons", String(b.addons).trim());
+  const q = Number(b.quality);
+  if (Number.isFinite(q) && q > 0) push("quality_override", Math.round(q));
+  push("use_original_alpha", b.useAlpha === true ? "true" : "false");
+  // bbox 는 [x,y,z] 형태. 세 값이 다 있을 때만 보낸다(부분값은 제공사가 반려한다).
+  const bx = [b.bboxX, b.bboxY, b.bboxZ].map(Number);
+  if (bx.every(v => Number.isFinite(v) && v > 0)) push("bbox_condition", "[" + bx.map(Math.round).join(",") + "]");
+  push("TAPose", b.taPose === true ? "true" : "false");
+  // 노드에서 직접 넣은 추가 지시어(우리가 아직 모르는 옵션을 쓰고 싶을 때)
+  const extra = String(b.ark3dFlags || "").trim();
+  if (extra) flags.push(extra);
+  const tail = flags.length ? " " + flags.join(" ") : "";
+  const prompt = cut(String(b.prompt || "").trim(), 1800) + tail;
+  const content = [{ type: "text", text: prompt }];
+  // 레퍼런스 이미지 — 씨댄스와 같은 봉투를 쓰므로 image_url 도 같은 형식일 가능성이 크지만
+  //  아직 확인되지 않았다. 이미지를 실제로 연결한 경우에만 붙인다(텍스트 전용 경로는 확정됐다).
+  const refs = [];
+  const pushImg = (v) => { if (v && String(v).trim()) refs.push(String(v).trim()); };
+  if (Array.isArray(b.refImages)) b.refImages.forEach(pushImg);
+  pushImg(b.firstFrame); pushImg(b.refImage);
+  refs.slice(0, 4).forEach((url) => content.push({ type: "image_url", image_url: { url } }));
+  return { model, content };
+}
+
 /* ── 루마: 키가 "있는가" 가 아니라 "통하는가" 를 본다 ──
    예전엔 health 가 !!k.luma 로만 답했다. 그런데 키는 설정돼 있는데 루마가 모든 요청을
    403 "Not authenticated" 로 거부하는 상태였다(헤더 표기법 4가지를 모두 시도해 확인).
@@ -1806,6 +1870,53 @@ async function handle(context) {
        먼저 읽기 전용인 diag=ark-model 로 모델 정보에 입력 규격이 있는지 본다.
        앞으로 형식 탐색이 필요하면 "빈 값" 이 아니라 "존재하지 않는 열거값" 으로만 시도할 것.
        (빈 값은 접수돼 버린다는 것이 이 사고로 확정됐다.) */
+
+    /* ══ 3D 생성 1회 실제 실행 (⚠️ 과금됨 · 명시적 확인 필수) ══
+       /api/generate?diag=ark3d-run&confirm=yes[&prompt=...][&model=Hitem3D 2.0 (3D 생성)]
+
+       왜 필요한가: 성공한 3D 작업의 응답을 아직 한 번도 못 봤다. 결과 URL 이 어느 필드로
+       오는지 모르면 노드를 붙여도 결과를 꺼낼 수 없다. 폴링 코드는 흔한 이름들을 훑도록
+       해 뒀지만, 그건 추측이고 실물로 확정해야 한다.
+
+       확인 파라미터가 없으면 아무것도 하지 않는다. 앞서 두 번(Flux 3건·3D 1건) 진단이
+       실수로 유료 작업을 만든 적이 있어, 이번엔 과금되는 호출을 우연히 밟을 수 없게 했다. */
+    if (u.searchParams.get("diag") === "ark3d-run") {
+      if (!k.seedance) return json({ diag: "ark3d-run", error: "Seedance_API_KEY 미설정" });
+      if (u.searchParams.get("confirm") !== "yes")
+        return json({ diag: "ark3d-run", 실행안함: true,
+          경고: "이 진단은 실제 3D 모델을 1개 생성합니다 — 과금됩니다(잠정 단가 약 $0.4).",
+          목적: "성공 응답에서 결과 파일 URL 이 어느 필드로 오는지 확인하기 위한 1회 실행입니다.",
+          실행하려면: "같은 주소 끝에 &confirm=yes 를 붙이세요." });
+      const name = u.searchParams.get("model") || "Hyper3D Gen-2 (3D 생성)";
+      const b2 = { model: name,
+        prompt: u.searchParams.get("prompt") || "a simple ceramic coffee mug, plain white, studio lighting",
+        meshMode: "Raw", material: "PBR", hdTexture: true, quality: 200000 };
+      const payload = buildArk3dPayload(b2, env);
+      const t0 = Date.now();
+      try {
+        const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+          method: "POST", headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+          body: JSON.stringify(payload) }, 25000);
+        const j2 = await r.json().catch(() => ({}));
+        if (!r.ok || !j2.id)
+          return json({ diag: "ark3d-run", 보낸본문: payload, httpStatus: r.status, 응답: j2,
+            결과: "제출 실패 — 작업이 만들어지지 않았으므로 과금되지 않습니다." });
+        // 최대 ~50초 동안 상태를 본다. 안 끝나면 task id 로 나중에 조회하면 된다.
+        let last = null;
+        for (let i = 0; i < 10; i++) {
+          await new Promise((res) => setTimeout(res, 5000));
+          const pr = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks/" + encodeURIComponent(j2.id),
+            { headers: { "Authorization": "Bearer " + k.seedance } }, 12000);
+          last = await pr.json().catch(() => ({}));
+          if (last.status === "succeeded" || last.status === "failed") break;
+        }
+        return json({ diag: "ark3d-run", 보낸본문: payload, taskId: j2.id,
+          걸린시간ms: Date.now() - t0, 최종응답: last,
+          안내: last && last.status === "succeeded"
+            ? "성공했습니다. '최종응답.content' 안의 필드명을 보고 폴링 코드에 반영합니다."
+            : "아직 진행 중이거나 실패했습니다. 진행 중이면 diag=ark-task&id=" + j2.id + " 로 나중에 다시 보세요." });
+      } catch (e) { return json({ diag: "ark3d-run", 보낸본문: payload, error: String((e && e.message) || e).slice(0, 200) }); }
+    }
 
     /* ══ ModelArk 모델 정보 조회 (읽기 전용·무과금) ══
        /api/generate?diag=ark-model&id=hyper3d-gen2-260112
@@ -2721,6 +2832,29 @@ async function handle(context) {
       return uri ? json({ url: "/api/generate?provider=google&file=" + encodeURIComponent(uri), kind: "video" })
                  : json({ status: "failed", error: "no video in response" });
     }
+    /* ── 3D 생성 결과 폴링 ──
+       성공 시 결과가 어느 필드로 오는지는 아직 실물을 못 봤다(씨댄스는 content.video_url).
+       그래서 흔한 이름들을 순서대로 훑고, 그래도 못 찾으면 원본 응답을 그대로 실어
+       "무엇이 왔는지" 를 노드에서 바로 확인할 수 있게 한다 — 추측으로 실패를 감추지 않는다. */
+    if (provider === "ark3d") {
+      const task = u.searchParams.get("task");
+      if (!task || !k.seedance) return json({ status: "failed", error: "no task/key" }, 400);
+      const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks/" + encodeURIComponent(task), {
+        headers: { "Authorization": "Bearer " + k.seedance }
+      });
+      const j = await r.json().catch(() => ({}));
+      if (j.status === "succeeded") {
+        const c = j.content || {};
+        const url = c.model_url || c.file_url || c.mesh_url || c.glb_url || c.url
+          || (Array.isArray(c.files) && c.files[0] && (c.files[0].url || c.files[0].file_url))
+          || (Array.isArray(j.data) && j.data[0] && j.data[0].url) || null;
+        if (url) return json({ url, kind: "model3d", raw: c });
+        return json({ status: "failed", error: "3D 결과 URL 을 못 찾았습니다 — 아래 원본 응답의 필드명을 확인해 코드에 반영해야 합니다.", raw: j });
+      }
+      if (j.status === "failed" || j.error)
+        return json({ status: "failed", error: (j.error && j.error.message) || "3D 생성 실패" });
+      return json({ status: j.status || "RUNNING" });
+    }
     if (provider === "seedance") {
       const task = u.searchParams.get("task");
       const hostId = u.searchParams.get("host") === "vc" ? "vc" : "bp";
@@ -3223,6 +3357,54 @@ async function handle(context) {
     return json({ statusUrl: "/api/generate?provider=google&op=" + encodeURIComponent(j.name) });
   }
 
+  /* ── 3D 생성 제출 (Hyper3D / Hitem3D) ──
+     씨댄스와 같은 경로·봉투를 쓰고 키도 같다. 모델 ID 후보를 순서대로 시도하고,
+     전부 "없음" 이면 계정 카탈로그에서 같은 계열 ID 를 찾아 한 번 더 시도한다
+     (콘솔 표기와 실제 ID 의 날짜 접미사 차이를 흡수하기 위함 — 씨댄스와 같은 방식). */
+  if (provider === "ark3d") {
+    if (!k.seedance) return json({ error: "3D 연동이 설정되지 않았습니다(Seedance_API_KEY 공용)" }, 500);
+    if (!String(b.prompt || "").trim() && !(b.refImages || b.firstFrame || b.refImage))
+      return json({ error: "3D 생성에는 설명(프롬프트)이나 레퍼런스 이미지가 필요합니다." }, 400);
+    const candidates = ark3dModelIds(b, env);
+    const tried = [];
+    let lastErr = null;
+    const submit = async (mid, ms) => {
+      const payload = buildArk3dPayload(b, env, mid);
+      const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      }, ms);
+      const j = await r.json().catch(() => ({}));
+      return { r, j };
+    };
+    const BUDGET_MS = 30000, started = Date.now();
+    for (const mid of candidates) {
+      const leftMs = BUDGET_MS - (Date.now() - started);
+      if (leftMs < 4000) { tried.push("(시간부족·중단)"); break; }
+      let out;
+      try { out = await submit(mid, Math.min(22000, leftMs)); }
+      catch (e) { lastErr = "제출 실패: " + String((e && e.message) || e).slice(0, 140); tried.push(mid + "=ERR"); continue; }
+      const { r, j } = out;
+      if (r.ok && j.id) return json({ statusUrl: "/api/generate?provider=ark3d&task=" + encodeURIComponent(j.id), modelId: mid });
+      const eCode = (j.error && j.error.code) || "";
+      const eMsg = (j.error && j.error.message) || String(JSON.stringify(j)).slice(0, 140);
+      lastErr = "HTTP " + r.status + " [" + mid + "]" + (eCode ? " <" + eCode + ">" : "") + " " + eMsg;
+      tried.push(mid + "=" + r.status);
+      if (!(seedreamModelMissing(r.status, j) || r.status >= 500)) break;   // 파라미터·인증 오류는 ID 를 바꿔도 같다
+    }
+    // 후보가 전부 "모델 없음" 이면 계정 카탈로그에서 같은 계열을 찾아 1회 더
+    try {
+      const catalog = await arkModelCatalog(k.seedance);
+      const alt = arkPickByStem(catalog, candidates);
+      if (alt) {
+        const { r, j } = await submit(alt, 15000);
+        if (r.ok && j.id) return json({ statusUrl: "/api/generate?provider=ark3d&task=" + encodeURIComponent(j.id), modelId: alt });
+        tried.push(alt + "=" + r.status);
+      }
+    } catch (_e) { /* 카탈로그 조회 실패는 무시 */ }
+    return json({ error: "3D 생성 제출 실패 — " + (lastErr || "원인 불명"), tried }, 502);
+  }
   if (provider === "seedance") {
     if (!k.seedance) return json({ error: "Seedance 연동이 설정되지 않았습니다" }, 500);
     // 해외(bp) 호스트만 사용. 중국(vc) 호스트는 Cloudflare 글로벌 네트워크에서 무한정 멈춰(hang)
