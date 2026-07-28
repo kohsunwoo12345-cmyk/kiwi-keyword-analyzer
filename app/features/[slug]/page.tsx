@@ -15,12 +15,12 @@ export async function generateMetadata({ params }: { params: Params }) {
   const f = getFeature(slug)
   if (!f) {
     return {
-      title: '기능 | BYGENCY',
+      title: '기능',
       description: 'BYGENCY 올인원 마케팅 그로스 플랫폼의 기능을 살펴보세요.',
     }
   }
   return {
-    title: `${f.title} | BYGENCY`,
+    title: f.title,
     description: f.desc,
   }
 }

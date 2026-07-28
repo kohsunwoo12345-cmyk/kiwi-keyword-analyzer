@@ -286,7 +286,7 @@ function sourceDetailRows(page){
     const channel = normalizeChannelName(item.source || item.referrer || item.url);
     const detail = [item.medium, item.campaign, item.term].filter(Boolean).join(' · ');
     const linkText = item.referrer || item.url || '';
-    return '<tr><td><span class="source-chip">'+escapeHtml(channel)+'</span><div style="margin-top:5px;font-weight:900">'+escapeHtml(item.source || '-').slice(0,80)+'</div></td><td><b>'+num(item.count||0)+'</b><div class="muted">'+rate(item.share||0)+'</div></td><td>'+num(item.applicants||0)+'</td><td>'+escapeHtml(detail || '-')+'</td><td>'+escapeHtml(String(linkText || '-')).slice(0,120)+'</td></tr>';
+    return '<tr><td><span class="source-chip">'+escapeHtml(channel)+'</span><div style="margin-top:5px;font-weight:900">'+escapeHtml(String(item.source || '-').slice(0,80))+'</div></td><td><b>'+num(item.count||0)+'</b><div class="muted">'+rate(item.share||0)+'</div></td><td>'+num(item.applicants||0)+'</td><td>'+escapeHtml(detail || '-')+'</td><td>'+escapeHtml(String(linkText || '-').slice(0,120))+'</td></tr>';
   }).join('');
 }
 function renderLandingDetail(page){
