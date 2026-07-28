@@ -1850,6 +1850,32 @@ async function handle(context) {
           return { 방식: v.이름, httpStatus: r.status, 응답: j2 || String(t).slice(0, 200) };
         } catch (e) { return { 방식: v.이름, httpStatus: 0, 응답: String((e && e.message) || e).slice(0, 120) }; }
       }));
+      /* ── 어느 주소가 이 키를 받아주는가 (읽기 전용·무과금) ──
+         대시보드가 ray-3.2 / uni-1 을 쓴다고 알려 준다. 우리 코드는 ray-2 계열을
+         구세대 dream-machine/v1 에 보내고 있었다 — 키가 새 API 용이면 인증부터 막힌다.
+         결제 문제로 본 앞선 판단은 틀렸다(잔액 $10, Add funds 완료 상태였다).
+         그래서 주소 후보를 GET 으로만 훑어 어디가 200 을 주는지 찾는다. */
+      const BASES = [
+        "https://api.lumalabs.ai/dream-machine/v1",
+        "https://api.lumalabs.ai/v1",
+        "https://api.lumalabs.ai/api/v1",
+        "https://api.lumalabs.ai/dream-machine/v1beta",
+      ];
+      const PATHS = ["/generations?limit=1", "/generations/video?limit=1", "/models", "/credits"];
+      const baseProbe = [];
+      for (const base of BASES) for (const path of PATHS) {
+        baseProbe.push((async () => {
+          const h = { "Authorization": "Bearer " + kv, "accept": "application/json" };
+          if (proj) h["X-Project-Id"] = proj;
+          try {
+            const r = await fetchT(base + path, { headers: h }, 8000);
+            const t = await r.text(); let j2 = null; try { j2 = JSON.parse(t); } catch { /* 비JSON */ }
+            return { 주소: base + path, httpStatus: r.status, 응답: j2 || String(t).slice(0, 120) };
+          } catch (e) { return { 주소: base + path, httpStatus: 0, 응답: String((e && e.message) || e).slice(0, 80) }; }
+        })());
+      }
+      const baseRows = (await Promise.all(baseProbe)).filter(x => x.httpStatus !== 404 || x.httpStatus === 200);
+      const baseOK = baseRows.find(x => x.httpStatus === 200);
       const anyOK = hdrVariants.find(v => v.httpStatus === 200);
       const per = await Promise.all(Object.entries(LUMA_IDS).map(async ([name, id]) => {
         const x = await call("/generations", { model: id, prompt: "" });   // prompt 비움 → 파라미터 반려
@@ -1873,6 +1899,11 @@ async function handle(context) {
           : { 설정됨: false,
               안내: "Luma_PROJECT_ID 환경변수가 없습니다. 프로젝트 ID 가 필요한지 시험하려면 그 값을 넣고 다시 실행하세요. "
                   + "다만 Bearer 키만으로 200 이 나온다면 프로젝트 ID 는 애초에 필요 없습니다." },
+        주소탐색: { 결론: baseOK ? ("이 주소가 키를 받습니다 → " + baseOK.주소 + " · 여기에 맞춰 LUMA_BASE 와 모델 ID 를 바꿔야 합니다.")
+                            : "시도한 주소 중 200 을 주는 곳이 없습니다 — 대시보드의 'show snippet' cURL 이 정확한 주소를 알려 줍니다.",
+                    시도: baseRows },
+        현재코드: { LUMA_BASE, 쓰는모델: LUMA_IDS,
+                    문제: "대시보드는 영상 ray-3.2 · 이미지 uni-1/uni-1-max 라고 표시합니다. 우리가 쓰는 ray-2 계열은 구세대 ID 입니다." },
         헤더방식별: hdrVariants,
         키유효성: { httpStatus: list.status, 응답: list.body,
           결론: list.status === 200 ? "키는 유효합니다 — 모델별 결과가 실제 원인입니다."
