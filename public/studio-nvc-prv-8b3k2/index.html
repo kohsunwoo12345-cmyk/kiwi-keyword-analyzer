@@ -5540,8 +5540,9 @@ function widgetHTML(n,w){
     var _sm=(n.type==='model'?effModel(n):n.w.model)||'';
     var _so=videoModelOpts(_sm);
     var isSeed=/^Seedance/.test(_sm);
+    var isLumaVid = /^Luma Ray 3\.2$/.test(_sm);       // 생성 전용(편집·비율변경 제외)
     // 오디오도 워터마크도 안 받는 모델이면 이 위젯 자체를 숨긴다(Seedance 1.x 만 안내 문구 유지).
-    if(!_so.audio && !_so.watermark && !isSeed) return '';
+    if(!_so.audio && !_so.watermark && !isSeed && !isLumaVid) return '';
     var au = n.w.seedAudio===true, wm = n.w.seedWatermark===true;
     var row=function(k,checked,label,hint){
       return '<label class="seedopt-row"><input type="checkbox" data-w="'+k+'"'+(checked?' checked':'')+'>'+
@@ -5559,6 +5560,12 @@ function widgetHTML(n,w){
         '<input class="seedid-in" data-w="seedAudioUrl" spellcheck="false" placeholder="공개 mp3 URL — 배경음악으로 참조 (비우면 없음)" value="'+esc(n.w.seedAudioUrl||'')+'"></div>';
     if(isSeed && !_so.audio)
       html+='<div class="seedid-hint">이 모델(1.0 계열)은 오디오 생성을 지원하지 않습니다.</div>';
+    /* 루마 전용 — 서버(buildLumaPayload)가 이미 lumaHdr·lumaLoop 를 읽는데 노드에 스위치가 없어
+       설정할 방법이 없었다. 코드만 있고 UI 가 없으면 그 기능은 없는 것과 같다. */
+    if(isLumaVid){
+      html+=row('lumaHdr', n.w.lumaHdr===true, 'HDR 출력', '720p·1080p 에서 넓은 명암 범위로 출력 (기본 꺼짐)');
+      html+=row('lumaLoop', n.w.lumaLoop===true, '끊김 없는 반복', '끝과 처음이 이어지는 루프 영상 (마지막 프레임을 연결하면 적용되지 않음)');
+    }
     html+='<div class="seedid-hint" style="margin-top:6px;">길이·비율·해상도는 <b>영상 설정</b> 노드(또는 아래 드롭다운)에서 조절됩니다.</div>';
     html+='</div>';
     return html;
@@ -7481,6 +7488,9 @@ function runQueue(onlyId){
               seedanceModel: (n.w.seedModel||'').trim() || undefined,
               generateAudio: n.w.seedAudio===true,
               watermark: n.w.seedWatermark===true,
+              // 루마 전용 옵션 — 위젯만 만들고 여기서 안 실으면 켜도 아무 일도 일어나지 않는다
+              lumaHdr: n.w.lumaHdr===true,
+              lumaLoop: n.w.lumaLoop===true,
               audioUrl: (n.w.seedAudioUrl||'').trim() || (audN?audN.w.audio:undefined) || undefined,
               // Flux(비-Kontext) 이미지 모델일 때만 ControlNet·LoRA 적용
               controlnets: (/^Flux/.test(chosenModel||'')&&!/Kontext/.test(chosenModel||'')&&n.w.cnList)?n.w.cnList.slice():[],
