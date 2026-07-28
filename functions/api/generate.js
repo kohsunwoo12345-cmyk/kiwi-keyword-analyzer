@@ -1024,7 +1024,9 @@ const LUMA_BASE = "https://agents.lumalabs.ai/v1";   // Luma Agents API (구 dre
      --TAPose           캐릭터를 T/A 포즈로 세운다(리깅용) */
 export const ARK3D_IDS = {
   "Hyper3D Gen-2 (3D 생성)": ["hyper3d-gen2-260112", "hyper3d-gen2"],
-  "Hitem3D 2.0 (3D 생성)":   ["hitem3d-2-0", "hitem3d-20", "hitem3d-2"],
+  // 실제 ID 는 probe-all 의 계정 카탈로그 조회에서 확인했다(hitem3d-2-0-251223).
+  //  접미사 없는 형태를 앞에 두면 404 두 번을 왕복한 뒤에야 성공한다 — 확인된 ID 를 먼저 쓴다.
+  "Hitem3D 2.0 (3D 생성)":   ["hitem3d-2-0-251223", "hitem3d-2-0", "hitem3d-20"],
 };
 const ARK3D_MESH = { "Quad": "Quad", "Raw": "Raw" };
 const ARK3D_MAT  = { "PBR": "PBR", "Shaded": "Shaded" };
@@ -2403,9 +2405,17 @@ async function handle(context) {
             { forceOk: x.status !== 404 && x.status !== 401 && x.status !== 403 && !bad }); })());
       }
       // ── Luma (프롬프트 비움) ──
+      /* 루마는 실제 빌더가 만드는 본문에서 prompt 만 비워 보낸다.
+         예전엔 {model, prompt:""} 를 직접 조립해, 영상 모델인 ray-3.2 에 type:"video" 가
+         빠진 채로 나갔다 → "Type 'image' is not supported" 라는, 우리 코드와 무관한
+         오류가 진단에 찍혔다. 진단이 실제와 다른 요청을 시험하면 검증이 아니다. */
       if (k.luma && want("luma")) for (const [name, id] of Object.entries(LUMA_IDS)) {
-        jobs.push((async () => { const x = await post(LUMA_BASE + "/generations",
-          { "Authorization": "Bearer " + k.luma, "Content-Type": "application/json" }, { model: id, prompt: "" });
+        jobs.push((async () => {
+          let probeBody;
+          try { probeBody = buildLumaPayload({ model: name, prompt: "", ratio: "16:9", seconds: 5, res: "720p" }); }
+          catch (_e) { probeBody = { model: id, prompt: "" }; }
+          const x = await post(LUMA_BASE + "/generations",
+          { "Authorization": "Bearer " + k.luma, "Content-Type": "application/json" }, probeBody);
           const e = errOf(x);
           // 403 Not authenticated = 키가 없거나 잘못됨. "모델 있음" 이 아니라 "쓸 수 없음" 이다.
           return R(name, "luma", id, x.status, e.code, e.msg,
