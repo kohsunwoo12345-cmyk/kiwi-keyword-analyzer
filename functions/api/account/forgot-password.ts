@@ -9,11 +9,16 @@ import {
   geoFrom,
   logSecurity,
   autoBlockIp,
+  rateLimitOk,
 } from '../_utils'
 import { resendEmail, emailShell } from '../_external'
 
 // 15분 내 이 횟수 초과로 인증요청을 반복하면 해당 IP 자동 차단(실제 접속 차단)
 const REQUEST_ABUSE_LIMIT = 8
+// 한 코드에 허용하는 검증 시도 횟수
+const MAX_CODE_ATTEMPTS = 5
+// 같은 IP 에서 15분간 허용하는 코드 검증 시도 횟수(여러 계정을 돌아가며 찍는 것 방지)
+const VERIFY_IP_LIMIT = 20
 
 // POST /api/account/forgot-password
 //  { action: 'request', email }              → 이메일로 6자리 인증코드 발송 (Resend, 발신 cs@bygency.co)
@@ -129,21 +134,30 @@ async function handle(request: Request, env: Env): Promise<Response> {
     if (!code) return json({ ok: false, error: '인증코드를 입력하세요.' }, 200)
     if (next.length < 8) return json({ ok: false, error: '새 비밀번호는 8자 이상이어야 합니다.' }, 200)
 
+    // ── IP 단위 시도 제한 ──────────────────────────────────────────────────
+    //  코드 검증은 그동안 아무 기록도 남지 않아, 자동 차단 장치가 전혀 작동하지 않았다.
+    if (!(await rateLimitOk(db, `pwverify:${ip}`, VERIFY_IP_LIMIT, 15))) {
+      await logSecurity(db, { ip, method: 'POST', path: '/api/account/forgot-password', status: 429, severity: 'high', detail: `인증코드 검증 반복 시도 (${email})`, country: geo.country, city: geo.city }).catch(() => {})
+      return json({ ok: false, error: '시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.' }, 200)
+    }
+
     const row: any = await db.prepare('SELECT code_hash, expires_at, attempts FROM password_resets WHERE email = ?').bind(email).first()
     if (!row) return json({ ok: false, error: '인증코드를 먼저 요청하세요.' }, 200)
     if (+new Date(row.expires_at) < now) {
       await db.prepare('DELETE FROM password_resets WHERE email = ?').bind(email).run().catch(() => {})
       return json({ ok: false, error: '인증코드가 만료되었습니다. 다시 요청하세요.' }, 200)
     }
-    if (Number(row.attempts) >= 5) {
+    // ⚠ 시도 횟수는 "검사한 뒤 증가" 가 아니라 "증가하면서 검사" 여야 한다.
+    //   예전 방식은 동시에 던진 요청이 전부 attempts=0 을 읽어 통과했다. 즉 한 코드에
+    //   5회가 아니라 수천 번을 병렬로 찍어볼 수 있었고, 6자리 코드는 그렇게 뚫린다.
+    const inc: any = await db.prepare('UPDATE password_resets SET attempts = attempts + 1 WHERE email = ? AND attempts < ?')
+      .bind(email, MAX_CODE_ATTEMPTS).run().catch(() => null)
+    if (!inc || Number(inc.meta?.changes || 0) === 0) {
       await db.prepare('DELETE FROM password_resets WHERE email = ?').bind(email).run().catch(() => {})
       return json({ ok: false, error: '시도 횟수를 초과했습니다. 코드를 다시 요청하세요.' }, 200)
     }
     const okCode = await verifyPassword(code, row.code_hash)
-    if (!okCode) {
-      await db.prepare('UPDATE password_resets SET attempts = attempts + 1 WHERE email = ?').bind(email).run().catch(() => {})
-      return json({ ok: false, error: '인증코드가 올바르지 않습니다.' }, 200)
-    }
+    if (!okCode) return json({ ok: false, error: '인증코드가 올바르지 않습니다.' }, 200)
 
     const user: any = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email).first()
     if (!user) return json({ ok: false, error: '계정을 찾을 수 없습니다.' }, 200)
@@ -152,7 +166,6 @@ async function handle(request: Request, env: Env): Promise<Response> {
     await db.prepare('UPDATE users SET password_hash = ?, password_set = 1 WHERE id = ?').bind(ph, user.id).run()
     await db.prepare('DELETE FROM password_resets WHERE email = ?').bind(email).run().catch(() => {})
     await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id).run().catch(() => {}) // 보안상 전체 세션 무효화
-    const geo = geoFrom(request)
     await logSecurity(db, { ip, method: 'POST', path: '/api/account/forgot-password', status: 200, severity: 'warn', detail: `비밀번호 재설정 완료: ${email}`, country: geo.country, city: geo.city }).catch(() => {})
     return json({ ok: true })
   }
