@@ -15,6 +15,15 @@ const BAD_UA_RE = /(sqlmap|nikto|nmap|masscan|acunetix|nessus|dirbuster|gobuster
 const ATTACK_UA_RE = /(sqlmap|nikto|nmap|masscan|acunetix|nessus|dirbuster|gobuster|wpscan|hydra|zgrab|nuclei|feroxbuster|dirsearch)/i
 // 우리 프로그램 무단 복제/스크래핑·API 남용 임계값: 10분 내 의심요청 이 횟수 초과 시 자동 차단
 const ABUSE_THRESHOLD = 24
+// 정기 실행(크론) 엔드포인트 — 토큰이 맞으면 보안 휴리스틱을 건너뛴다(아래 설명 참고)
+const CRON_PATH_RE = /^\/api\/(cron\/|naver-place\/update-all-tracking)/
+/** 상수시간 문자열 비교 — 타이밍으로 토큰을 캐내지 못하게 */
+function ctEqStr(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
+}
 
 // 화이트리스트 모드에서도 항상 허용해야 관리자가 복구 가능
 const WHITELIST_ALLOW_RE = /^\/(login|api\/(login|me|logout|admin\/)|adminsunkoh028741_11263)/
@@ -49,6 +58,18 @@ export const onRequest: PagesFunction<any> = async (context) => {
   }
 
   if (ASSET_RE.test(path) || path.startsWith('/_next/')) return next()
+
+  // ── 정기 실행(크론) 호출은 보안 휴리스틱을 건너뛴다 ──────────────────────────
+  //  크론은 Cloudflare Workers 가 이 사이트를 HTTP 로 두드리는 구조라, 발신 IP 가
+  //  다른 이용자와 공유될 수 있다. 그 IP 가 어떤 이유로든 자동 차단되면 크론은
+  //  아무 에러도 없이 403 만 받으며 영원히 멈춘다 — 가장 알아채기 어려운 고장이다.
+  //  X-Cron-Token 이 정확히 일치할 때만(= 이미 이 값으로 엔드포인트가 보호된다)
+  //  크론 경로에 한해 통과시킨다. 토큰이 틀리면 아래 검사와 엔드포인트가 그대로 막는다.
+  if (CRON_PATH_RE.test(path)) {
+    const expected = String((env as any).CRON_TOKEN || '')
+    const got = request.headers.get('X-Cron-Token') || ''
+    if (expected && got.length === expected.length && ctEqStr(got, expected)) return next()
+  }
 
   const db = resolveDB(env)
   if (db) {

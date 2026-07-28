@@ -169,7 +169,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const model = String(b.model || '').trim().slice(0, 80)
   if (!model) return json({ ok: false, error: '모델을 선택하세요.' }, 400)
   // 단가표에 없는 모델은 실행 시점에 provider 를 못 찾아 매번 실패한다 → 저장 단계에서 막는다
-  if (!(MODEL_COST as any)[model]) return json({ ok: false, error: '알 수 없는 모델입니다: ' + model }, 400)
+  const mc = (MODEL_COST as any)[model]
+  if (!mc) return json({ ok: false, error: '알 수 없는 모델입니다: ' + model }, 400)
+  // 정기 자동 생성은 영상 전용이다(크론이 kind:'video' 로 호출한다).
+  //  이미지·3D·텍스트 모델을 넣으면 저장은 되지만 실행할 때마다 실패한다 → 여기서 막는다.
+  if (mc.u !== 'sec') {
+    return json({ ok: false, error: `정기 자동 생성은 영상 모델만 예약할 수 있습니다: ${model}` }, 400)
+  }
   const freq = b.freq === 'daily' ? 'daily' : 'weekly'
   const hour = Math.min(23, Math.max(0, Number(b.hour) || 0))
   const minute = Math.min(59, Math.max(0, Number(b.minute) || 0))
