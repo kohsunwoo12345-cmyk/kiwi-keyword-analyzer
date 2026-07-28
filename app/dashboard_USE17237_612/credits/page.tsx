@@ -17,7 +17,7 @@ import {
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Badge, Button } from '@/components/ui'
 import { Counter } from '@/components/motion'
-import { Card, EmptyState, Field, Metric, Section, inputCls } from '@/components/dash/Kit'
+import { Card, EmptyState, Field, Metric, Section, inputCls, statusMeta } from '@/components/dash/Kit'
 import { cn } from '@/lib/utils'
 import {
   useAuth,
@@ -60,14 +60,6 @@ function ko(n: number) {
 }
 
 /* ---------- request status meta ---------- */
-const STATUS_META: Record<string, { label: string; badge: string }> = {
-  pending: { label: '대기중', badge: 'border-amber-500/30 bg-amber-500/12 text-amber-500' },
-  approved: { label: '승인됨', badge: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-500' },
-  rejected: { label: '반려됨', badge: 'border-rose-500/30 bg-rose-500/12 text-rose-500' },
-}
-function statusMeta(s: string) {
-  return STATUS_META[s] || { label: s || '-', badge: 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-dim)]' }
-}
 
 interface CreditReqRow {
   amount: number
@@ -468,7 +460,7 @@ export default function CreditsPage() {
                           <td className="px-5 py-3 text-right font-semibold tabular-nums">{ko(r.amount)}</td>
                           <td className="px-5 py-3 text-right tabular-nums text-[var(--text-soft)]">{r.price ? `${r.price.toLocaleString()}원` : '-'}</td>
                           <td className="px-5 py-3 text-right">
-                            <Badge className={m.badge}>{m.label}</Badge>
+                            <Badge className={m.cls}>{m.label}</Badge>
                           </td>
                         </tr>
                       )

@@ -175,6 +175,36 @@ export function KeyValue({ label, children, className }: { label: ReactNode; chi
   )
 }
 
+/**
+ * 승인 상태 뱃지.
+ * 같은 상태를 화면마다 다른 말로 부르고 있었다 (대기중/승인됨/반려됨 vs 대기/승인/거절).
+ * 라벨과 색을 한 곳에서 정한다.
+ */
+const STATUS_META: Record<string, { label: string; cls: string }> = {
+  pending: { label: '대기중', cls: 'border-amber-500/30 bg-amber-500/12 text-amber-500' },
+  approved: { label: '승인됨', cls: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-500' },
+  rejected: { label: '반려됨', cls: 'border-rose-500/30 bg-rose-500/12 text-rose-500' },
+  registered: { label: '등록됨', cls: 'border-sky-500/30 bg-sky-500/12 text-sky-500' },
+}
+
+export function statusMeta(s: string) {
+  return (
+    STATUS_META[String(s || '').toLowerCase()] || {
+      label: s || '-',
+      cls: 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-dim)]',
+    }
+  )
+}
+
+export function Status({ value, className }: { value: string; className?: string }) {
+  const m = statusMeta(value)
+  return (
+    <span className={cn('inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold', m.cls, className)}>
+      {m.label}
+    </span>
+  )
+}
+
 /** 데이터가 없을 때 — 무엇을 하면 채워지는지까지 알려준다 */
 export function EmptyState({
   icon: Icon,

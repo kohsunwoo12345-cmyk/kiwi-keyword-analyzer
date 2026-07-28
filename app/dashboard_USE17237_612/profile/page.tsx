@@ -32,7 +32,7 @@ import {
   X,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Card, EmptyState, Field, Section, inputCls } from '@/components/dash/Kit'
+import { Card, EmptyState, Field, Section, inputCls, statusMeta } from '@/components/dash/Kit'
 import { Button, Badge, Overlay } from '@/components/ui'
 import {
   accountOverview,
@@ -99,14 +99,6 @@ const PLAN_META: Record<
 }
 
 /* ---------- request/sender status meta ---------- */
-const STATUS_META: Record<string, { label: string; badge: string }> = {
-  pending: { label: '대기', badge: 'border-amber-500/30 bg-amber-500/12 text-amber-500' },
-  approved: { label: '승인', badge: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-500' },
-  rejected: { label: '거절', badge: 'border-rose-500/30 bg-rose-500/12 text-rose-500' },
-}
-function statusMeta(s: string) {
-  return STATUS_META[s] || { label: s || '-', badge: 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-dim)]' }
-}
 
 const ALL_PLANS = ['Plus', 'Pro', 'Max'] as const
 type PlanTier = (typeof ALL_PLANS)[number]
@@ -159,7 +151,7 @@ function TxTable({ rows }: { rows: Tx[] }) {
     <div className="overflow-x-auto">
       <table className="w-full min-w-[420px] text-sm">
         <thead>
-          <tr className="border-b border-[var(--border-soft)] text-left text-xs text-[var(--text-dim)]">
+          <tr className="border-b border-[var(--border)] text-left text-[11.5px] uppercase tracking-wide text-[var(--text-dim)]">
             <th className="pb-2 pr-3 font-medium">일시</th>
             <th className="pb-2 pr-3 font-medium">내용</th>
             <th className="pb-2 pr-3 text-right font-medium">증감</th>
@@ -1100,7 +1092,7 @@ export default function ProfilePage() {
                                 </div>
                                 <p className="mt-0.5 text-xs text-[var(--text-dim)]">{fmtDate(r.created_at)}</p>
                               </div>
-                              <Badge className={m.badge}>{m.label}</Badge>
+                              <Badge className={m.cls}>{m.label}</Badge>
                             </li>
                           )
                         })}
@@ -1181,7 +1173,7 @@ export default function ProfilePage() {
                                 </p>
                                 <p className="mt-0.5 text-xs text-[var(--text-dim)]">{fmtDate(s.created_at)}</p>
                               </div>
-                              <Badge className={m.badge}>{m.label}</Badge>
+                              <Badge className={m.cls}>{m.label}</Badge>
                             </li>
                           )
                         })}
@@ -1289,7 +1281,7 @@ export default function ProfilePage() {
                                   {r.memo ? <span className="ml-1">· {r.memo}</span> : null}
                                 </p>
                               </div>
-                              <Badge className={m.badge}>{m.label}</Badge>
+                              <Badge className={m.cls}>{m.label}</Badge>
                             </li>
                           )
                         })}

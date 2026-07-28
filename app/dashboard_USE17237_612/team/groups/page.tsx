@@ -563,7 +563,7 @@ export default function TargetGroupsPage() {
                   <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-[var(--border)] bg-[var(--panel-2)] text-left text-xs text-[var(--text-soft)]">
+                        <tr className="border-b border-[var(--border)] text-left text-[11.5px] uppercase tracking-wide text-[var(--text-dim)]">
                           <th className="px-3 py-2 font-semibold">이름</th>
                           <th className="px-3 py-2 font-semibold">연락처</th>
                         </tr>
