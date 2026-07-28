@@ -5,8 +5,13 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 /* ============================================================
-   대시보드 공용 UI — 페이지마다 다르게 생기던 카드·지표·빈 상태를
-   한 벌로 통일한다. 토큰(var(--panel) 등) 기반이라 라이트/다크 자동 대응.
+   대시보드 공용 UI
+
+   설계 원칙
+   1) 색보다 여백과 hairline 으로 나눈다. 강조색은 아이콘·수치 한 곳에만.
+   2) 글자 크기 단계를 줄인다 — 제목 13.5 / 본문 13 / 보조 11.5.
+   3) 한 카드에 여러 묶음이 들어가면 Section 으로 잘게 나눈다.
+   토큰(var(--panel) 등) 기반이라 라이트/다크 자동 대응.
    ============================================================ */
 
 /** 지표 타일 — 큰 숫자 하나와 보조 설명 */
@@ -24,22 +29,24 @@ export function Metric({
   accent?: string
   /** 값 아래 보조 설명 (예: 만료일, 전월 대비) */
   sub?: ReactNode
-  /** 우측 하단 미니 차트 */
+  /** 값 아래 미니 차트 */
   chart?: ReactNode
 }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-5 transition-colors hover:border-[var(--border-strong,var(--border))]">
-      <span className="pointer-events-none absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${accent}66, transparent)` }} />
-      <div className="flex items-start justify-between gap-3">
-        <span className="text-[13px] font-medium text-[var(--text-soft)]">{label}</span>
+    <div className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-5 transition-colors duration-300 hover:bg-[var(--panel-2)]">
+      <div className="flex items-center gap-2">
         {Icon && (
-          <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-xl" style={{ background: `${accent}18`, color: accent }}>
-            <Icon size={15} />
-          </span>
+          // 채운 아이콘 타일 대신 선 아이콘 — 지표가 넷씩 늘어서도 화면이 시끄럽지 않다
+          <Icon size={13} strokeWidth={2.25} style={{ color: accent }} className="flex-shrink-0" />
         )}
+        <span className="truncate text-[11px] font-semibold uppercase tracking-[0.09em] text-[var(--text-dim)]">
+          {label}
+        </span>
       </div>
-      <div className="mt-3 text-[26px] font-extrabold leading-none tracking-tight tabular-nums">{value}</div>
-      {sub && <div className="mt-2 text-[11.5px] text-[var(--text-dim)]">{sub}</div>}
+      <div className="mt-3 text-[27px] font-semibold leading-none tracking-[-0.025em] tabular-nums text-[var(--text)]">
+        {value}
+      </div>
+      {sub && <div className="mt-2.5 text-[11.5px] leading-relaxed text-[var(--text-dim)]">{sub}</div>}
       {chart && <div className="mt-3">{chart}</div>}
     </div>
   )
@@ -64,9 +71,9 @@ export function Card({
   return (
     <section className={cn('overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)]', className)}>
       {(title || action) && (
-        <header className="flex items-center gap-3 border-b border-[var(--border)] px-5 py-3.5">
+        <header className="flex items-center gap-3 border-b border-[var(--border-soft)] px-5 py-3.5">
           <div className="min-w-0">
-            {title && <h3 className="truncate text-[14px] font-bold tracking-tight">{title}</h3>}
+            {title && <h3 className="truncate text-[13.5px] font-semibold tracking-[-0.01em] text-[var(--text)]">{title}</h3>}
             {desc && <p className="mt-0.5 truncate text-[11.5px] text-[var(--text-dim)]">{desc}</p>}
           </div>
           {action && <div className="ml-auto flex-shrink-0">{action}</div>}
@@ -74,6 +81,89 @@ export function Card({
       )}
       <div className={cn('p-5', bodyClassName)}>{children}</div>
     </section>
+  )
+}
+
+/**
+ * 카드 안의 작은 묶음.
+ * 입력·목록·안내가 한 카드에 뒤섞여 길어질 때, 작은 라벨과 hairline 으로
+ * 눈에 보이는 단위를 나눈다. 카드의 첫 묶음에는 first 를 준다.
+ */
+export function Section({
+  label,
+  hint,
+  action,
+  children,
+  first,
+  className,
+}: {
+  label: string
+  hint?: ReactNode
+  action?: ReactNode
+  children: ReactNode
+  /** 카드의 첫 묶음이면 위 구분선을 그리지 않는다 */
+  first?: boolean
+  className?: string
+}) {
+  return (
+    <section className={cn(!first && 'mt-6 border-t border-[var(--border-soft)] pt-6', className)}>
+      <div className="mb-3 flex items-start gap-3">
+        <div className="min-w-0">
+          <h4 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">{label}</h4>
+          {hint && <p className="mt-1 text-[11.5px] leading-relaxed text-[var(--text-dim)]">{hint}</p>}
+        </div>
+        {action && <div className="ml-auto flex-shrink-0">{action}</div>}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+/** 입력 한 칸 — 라벨·설명·오류를 같은 규칙으로 붙인다 */
+export function Field({
+  label,
+  hint,
+  error,
+  optional,
+  right,
+  children,
+  className,
+}: {
+  label: string
+  hint?: ReactNode
+  error?: ReactNode
+  optional?: boolean
+  /** 라벨 줄 오른쪽 (글자 수 카운터 등) */
+  right?: ReactNode
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={className}>
+      <div className="mb-1.5 flex items-end justify-between gap-2">
+        <label className="text-[11.5px] font-medium text-[var(--text-soft)]">
+          {label}
+          {optional && <span className="ml-1 font-normal text-[var(--text-dim)]">(선택)</span>}
+        </label>
+        {right && <span className="flex-shrink-0 text-[11px] tabular-nums text-[var(--text-dim)]">{right}</span>}
+      </div>
+      {children}
+      {error ? (
+        <p className="mt-1.5 text-[11.5px] font-medium text-rose-500">{error}</p>
+      ) : hint ? (
+        <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--text-dim)]">{hint}</p>
+      ) : null}
+    </div>
+  )
+}
+
+/** 항목 : 값 한 줄 — 요약 정보를 표 없이 보여줄 때 */
+export function KeyValue({ label, children, className }: { label: ReactNode; children: ReactNode; className?: string }) {
+  return (
+    <div className={cn('flex items-baseline justify-between gap-4 py-2', className)}>
+      <span className="flex-shrink-0 text-[12.5px] text-[var(--text-dim)]">{label}</span>
+      <span className="min-w-0 truncate text-right text-[13px] font-medium tabular-nums text-[var(--text)]">{children}</span>
+    </div>
   )
 }
 
@@ -92,13 +182,11 @@ export function EmptyState({
   className?: string
 }) {
   return (
-    <div className={cn('flex flex-col items-center justify-center gap-2 px-4 py-10 text-center', className)}>
-      <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[var(--panel-2)] text-[var(--text-dim)]">
-        <Icon size={19} />
-      </span>
-      <p className="mt-1 text-[13.5px] font-semibold">{title}</p>
-      {hint && <p className="max-w-sm text-[12px] leading-relaxed text-[var(--text-dim)]">{hint}</p>}
-      {action && <div className="mt-2">{action}</div>}
+    <div className={cn('flex flex-col items-center justify-center gap-1.5 px-4 py-12 text-center', className)}>
+      <Icon size={20} strokeWidth={1.6} className="mb-1.5 text-[var(--text-dim)]" />
+      <p className="text-[13px] font-semibold text-[var(--text)]">{title}</p>
+      {hint && <p className="max-w-xs text-[11.5px] leading-relaxed text-[var(--text-dim)]">{hint}</p>}
+      {action && <div className="mt-3">{action}</div>}
     </div>
   )
 }
@@ -116,21 +204,25 @@ export function Spark({ data, accent = '#6366f1', height = 28 }: { data: number[
     <svg viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none" className="h-7 w-full">
       <defs>
         <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={accent} stopOpacity="0.35" />
+          <stop offset="0%" stopColor={accent} stopOpacity="0.22" />
           <stop offset="100%" stopColor={accent} stopOpacity="0" />
         </linearGradient>
       </defs>
       <path d={area} fill={`url(#${id})`} />
-      <path d={line} fill="none" stroke={accent} strokeWidth="1.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      <path d={line} fill="none" stroke={accent} strokeWidth="1.25" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
     </svg>
   )
 }
 
-/** 막대 추이 차트 — 값이 0인 날도 자리를 지키고, 막대에 올리면 수치를 보여준다 */
+/**
+ * 막대 추이 차트.
+ * 눈금선을 옅게 깔고 막대는 위로 갈수록 진해지는 그라디언트로 채운다.
+ * 값이 0인 날도 자리를 지키고, 막대에 올리면 수치를 보여준다.
+ */
 export function BarTrend({
   data,
   accent = '#6366f1',
-  height = 190,
+  height = 170,
   unit = '',
 }: {
   data: { label: string; value: number }[]
@@ -139,27 +231,44 @@ export function BarTrend({
   unit?: string
 }) {
   const max = Math.max(1, ...data.map((d) => d.value))
+  // 눈금은 최댓값 기준 4등분 — 축 숫자를 왼쪽에 아주 옅게 얹는다
+  const ticks = [1, 0.5, 0]
+  const nice = (v: number) => Math.round(max * v).toLocaleString('ko-KR')
+
   return (
-    <div>
-      <div className="flex items-end gap-1.5" style={{ height }}>
-        {data.map((d, i) => (
-          <div key={d.label + i} className="group/bar flex h-full flex-1 flex-col justify-end gap-1.5">
-            <div
-              className="relative w-full rounded-t-[5px] transition-[height] duration-500"
-              style={{
-                height: `${Math.max(d.value > 0 ? 6 : 2, (d.value / max) * 88)}%`,
-                background: d.value > 0 ? `linear-gradient(180deg, ${accent}, ${accent}88)` : 'var(--panel-2)',
-                animation: `fadeInUp 0.5s cubic-bezier(0.16,1,0.3,1) ${i * 30}ms both`,
-              }}
-            >
-              <span className="pointer-events-none absolute -top-7 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-[var(--text)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--panel)] opacity-0 transition-opacity group-hover/bar:opacity-100">
-                {d.value.toLocaleString('ko-KR')}
-                {unit}
-              </span>
-            </div>
-            <span className="text-center text-[9px] tabular-nums text-[var(--text-dim)]">{d.label}</span>
-          </div>
+    <div className="flex gap-3">
+      <div className="flex flex-col justify-between pb-5 text-right text-[9.5px] tabular-nums text-[var(--text-dim)]" style={{ height }}>
+        {ticks.map((t) => (
+          <span key={t}>{nice(t)}</span>
         ))}
+      </div>
+      <div className="relative min-w-0 flex-1">
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-col justify-between pb-5" style={{ height }}>
+          {ticks.map((t) => (
+            <span key={t} className="h-px w-full bg-[var(--border-soft)]" />
+          ))}
+        </div>
+        <div className="relative flex items-end gap-[3px]" style={{ height }}>
+          {data.map((d, i) => (
+            <div key={d.label + i} className="group/bar flex h-full flex-1 flex-col items-center justify-end gap-2">
+              <div
+                // 막대가 카드 폭을 다 먹어 덩어리처럼 보이던 것을 최대 폭으로 제한한다
+                className="relative w-full max-w-[34px] rounded-t-[2px] transition-[height] duration-500"
+                style={{
+                  height: `${Math.max(d.value > 0 ? 4 : 1.5, (d.value / max) * 88)}%`,
+                  background: d.value > 0 ? `linear-gradient(180deg, ${accent}d9, ${accent}4d)` : 'var(--border-soft)',
+                  animation: `fadeInUp 0.5s cubic-bezier(0.16,1,0.3,1) ${i * 24}ms both`,
+                }}
+              >
+                <span className="pointer-events-none absolute -top-7 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-[var(--text)] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[var(--panel)] opacity-0 transition-opacity group-hover/bar:opacity-100">
+                  {d.value.toLocaleString('ko-KR')}
+                  {unit}
+                </span>
+              </div>
+              <span className="w-full text-center text-[9px] tabular-nums text-[var(--text-dim)]">{d.label}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -180,15 +289,13 @@ export function ListRow({
   right?: ReactNode
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl px-2.5 py-2 transition-colors hover:bg-[var(--panel-2)]">
-      <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg" style={{ background: `${accent}18`, color: accent }}>
-        <Icon size={14} />
-      </span>
+    <div className="flex items-center gap-3 rounded-xl px-2.5 py-2.5 transition-colors hover:bg-[var(--panel-2)]">
+      <Icon size={14} strokeWidth={2} style={{ color: accent }} className="flex-shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[12.5px] font-medium">{title}</p>
-        {meta && <p className="mt-0.5 truncate text-[10.5px] text-[var(--text-dim)]">{meta}</p>}
+        <p className="truncate text-[12.5px] text-[var(--text)]">{title}</p>
+        {meta && <p className="mt-0.5 truncate text-[10.5px] tabular-nums text-[var(--text-dim)]">{meta}</p>}
       </div>
-      {right && <div className="flex-shrink-0 text-[11px] text-[var(--text-dim)]">{right}</div>}
+      {right && <div className="flex-shrink-0 text-[11px] tabular-nums text-[var(--text-dim)]">{right}</div>}
     </div>
   )
 }

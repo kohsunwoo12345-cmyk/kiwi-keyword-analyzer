@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Contact, Users, DollarSign, Repeat, Send, MessageSquare, Search, UserX, Check, TrendingUp } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Card, EmptyState, Metric } from '@/components/dash/Kit'
+import { Card, EmptyState, Field, Metric, Section } from '@/components/dash/Kit'
 import { Button } from '@/components/ui'
 import { crmStages, crmCustomers } from '@/lib/mock'
 import { formatNumber, formatNumberFull, formatWon } from '@/lib/utils'
@@ -199,77 +199,69 @@ export default function CrmPage() {
 
           {/* 캠페인 발송 */}
           <Card title="캠페인 발송" desc="세그먼트를 고르면 목록도 함께 걸러집니다">
-            <div className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-[var(--text-soft)]">대상 세그먼트</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {SEGMENTS.map((s) => {
-                    const n = s === '전체' ? crmCustomers.length : crmCustomers.filter((c) => c.tag === s).length
-                    return (
-                      <button
-                        key={s}
-                        onClick={() => setSegment(s)}
-                        className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                          segment === s
-                            ? 'border-amber-500/40 bg-amber-500/15 text-amber-500'
-                            : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]'
-                        }`}
-                      >
-                        {s} <span className="text-[10px] opacity-70">{n}</span>
-                      </button>
-                    )
-                  })}
-                </div>
+            <Section label="대상" hint={`선택한 세그먼트로 ${formatNumber(reach)}명에게 나갑니다.`} first>
+              <div className="flex flex-wrap gap-1.5">
+                {SEGMENTS.map((s) => {
+                  const n = s === '전체' ? crmCustomers.length : crmCustomers.filter((c) => c.tag === s).length
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => setSegment(s)}
+                      className={`rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition-colors ${
+                        segment === s
+                          ? 'border-amber-500/50 bg-amber-500/[0.12] text-amber-500'
+                          : 'border-[var(--border)] text-[var(--text-soft)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]'
+                      }`}
+                    >
+                      {s} <span className="ml-0.5 text-[10.5px] tabular-nums opacity-70">{n}</span>
+                    </button>
+                  )
+                })}
               </div>
+            </Section>
 
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-[var(--text-soft)]">발송 채널</label>
-                <select value={channel} onChange={(e) => setChannel(e.target.value)} className={inputCls}>
-                  {CHANNELS.map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
-                </select>
+            <Section label="메시지">
+              <div className="space-y-4">
+                <Field label="발송 채널">
+                  <select value={channel} onChange={(e) => setChannel(e.target.value)} className={inputCls}>
+                    {CHANNELS.map((c) => (
+                      <option key={c}>{c}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field
+                  label="내용"
+                  right={isSms ? <><span className={overSms ? 'font-semibold text-rose-500' : ''}>{bytes}</span>/90 byte</> : undefined}
+                  error={overSms ? '90byte를 넘어 LMS로 발송됩니다. 건당 요금이 올라갑니다.' : undefined}
+                >
+                  <textarea
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    rows={4}
+                    className={`${inputCls} resize-none leading-relaxed`}
+                  />
+                </Field>
               </div>
+            </Section>
 
-              <div>
-                <div className="mb-1.5 flex items-end justify-between">
-                  <label className="text-xs font-medium text-[var(--text-soft)]">메시지 내용</label>
-                  {isSms && (
-                    <span className="text-[11px] tabular-nums text-[var(--text-dim)]">
-                      <span className={overSms ? 'font-bold text-rose-500' : ''}>{bytes}</span>/90 byte
-                    </span>
-                  )}
-                </div>
-                <textarea
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  rows={4}
-                  className={`${inputCls} resize-none leading-relaxed`}
-                />
-                {overSms && (
-                  <p className="mt-1.5 text-[11px] font-medium text-rose-500">
-                    90byte를 넘어 LMS로 발송됩니다. 건당 요금이 올라갑니다.
-                  </p>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm">
+            <Section label="발송">
+              <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-[13px]">
                 <span className="flex items-center gap-2 text-[var(--text-soft)]">
-                  <MessageSquare size={15} /> 예상 발송
+                  <MessageSquare size={14} /> 예상 발송
                 </span>
-                <span className="font-bold tabular-nums text-amber-500">{formatNumber(reach)}명</span>
+                <span className="font-semibold tabular-nums text-amber-500">{formatNumber(reach)}명</span>
               </div>
 
-              <Button onClick={sendCampaign} disabled={!canSend} className="w-full justify-center !bg-gradient-to-br !from-amber-500 !to-orange-500">
+              <Button onClick={sendCampaign} disabled={!canSend} className="mt-3 w-full justify-center !bg-gradient-to-br !from-amber-500 !to-orange-500">
                 <Send size={16} /> 캠페인 발송
               </Button>
 
               {sent && (
-                <div className="animate-fade-in flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/12 px-3.5 py-2.5 text-[13px] font-medium text-emerald-500">
+                <div className="animate-fade-in mt-3 flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/12 px-3.5 py-2.5 text-[12.5px] font-medium text-emerald-500">
                   <Check size={15} className="mt-0.5 flex-shrink-0" /> {sent}
                 </div>
               )}
-            </div>
+            </Section>
           </Card>
         </div>
 

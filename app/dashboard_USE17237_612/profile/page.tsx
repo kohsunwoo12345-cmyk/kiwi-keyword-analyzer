@@ -32,7 +32,8 @@ import {
   X,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Panel, Button, Badge, Overlay } from '@/components/ui'
+import { Card, EmptyState, Field, Section } from '@/components/dash/Kit'
+import { Button, Badge, Overlay } from '@/components/ui'
 import {
   accountOverview,
   changePassword,
@@ -137,13 +138,16 @@ const ACT_META: Record<
   signup: { label: '가입', badge: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-500', icon: Sparkles },
 }
 function actMeta(type: string) {
-  return (
-    ACT_META[type] || {
-      label: type || '활동',
-      badge: 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-dim)]',
-      icon: Activity,
-    }
-  )
+  const hit = ACT_META[type]
+  if (hit) return { ...hit, known: true }
+  // 모르는 종류였을 때 서버가 준 영문 type(generate 등)을 그대로 노출하고 있었다.
+  // 사람이 읽을 문장은 detail 쪽에 있으므로 라벨은 생략한다.
+  return {
+    label: '활동',
+    badge: 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text-dim)]',
+    icon: Activity,
+    known: false,
+  }
 }
 
 /* ---------- transaction table ---------- */
@@ -688,7 +692,7 @@ export default function ProfilePage() {
             {tab === 'account' && (
               <>
               {/* 1.5 추천인 · 친구 */}
-              <Panel title={<span className="flex items-center gap-2"><Gift size={16} className="text-fuchsia-400" /> 추천인 · 친구</span>}>
+              <Card title={<>추천인 · 친구</>}>
                 {refLoading ? (
                   <p className="py-8 text-center text-sm text-[var(--text-dim)]">불러오는 중...</p>
                 ) : !ref || !ref.ok ? (
@@ -783,11 +787,11 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 )}
-              </Panel>
+              </Card>
 
               <div className="grid gap-6 lg:grid-cols-2">
                 {/* 2. 비밀번호 변경 (간편로그인 계정은 최초 설정) */}
-                <Panel title={<span className="flex items-center gap-2"><Lock size={16} className="text-violet-400" /> {socialNoPw ? '비밀번호 설정' : '비밀번호 변경'}</span>}>
+                <Card title={<>{socialNoPw ? '비밀번호 설정' : '비밀번호 변경'}</>}>
                   <form onSubmit={submitPassword} className="space-y-3">
                     {socialNoPw ? (
                       <p className="rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm text-[var(--text-soft)]">
@@ -844,10 +848,10 @@ export default function ProfilePage() {
                       {pwBusy ? '처리 중...' : socialNoPw ? '비밀번호 설정' : '변경'}
                     </Button>
                   </form>
-                </Panel>
+                </Card>
 
                 {/* 3. 현재 플랜 (2트랙) */}
-                <Panel title={<span className="flex items-center gap-2"><Crown size={16} className="text-amber-500" /> 현재 플랜</span>}>
+                <Card title={<>현재 플랜</>}>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {(['marketer', 'video'] as PlanTrack[]).map((t) => {
                       const tm = TRACK_META[t]
@@ -894,7 +898,7 @@ export default function ProfilePage() {
                       <ArrowUpCircle size={16} /> 요금제 안내 보기
                     </Button>
                   </div>
-                </Panel>
+                </Card>
               </div>
 
               {/* 8. 계정 삭제 — 아주 작게 노출 */}
@@ -968,7 +972,7 @@ export default function ProfilePage() {
               {/* 3.5 플랜 업그레이드 신청 & 발신번호 등록 */}
               <div className="grid gap-6 lg:grid-cols-2">
                 {/* A) 플랜 신청 (2트랙) */}
-                <Panel title={<span className="flex items-center gap-2"><ArrowUpCircle size={16} className="text-violet-400" /> 플랜 신청</span>}>
+                <Card title={<>플랜 신청</>}>
                   <form onSubmit={submitPlan} className="space-y-3">
                     <div>
                       <label className="mb-1 block text-xs font-medium text-[var(--text-soft)]">플랜 종류</label>
@@ -1105,10 +1109,10 @@ export default function ProfilePage() {
                       </ul>
                     )}
                   </div>
-                </Panel>
+                </Card>
 
                 {/* B) 발신번호 등록 */}
-                <Panel title={<span className="flex items-center gap-2"><MessageSquare size={16} className="text-sky-500" /> 발신번호 등록</span>}>
+                <Card title={<>발신번호 등록</>}>
                   <p className="mb-3 rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm text-[var(--text-soft)]">
                     문자 발송에 사용할 발신번호를 등록하면 관리자 승인 후 사용할 수 있어요.
                   </p>
@@ -1186,13 +1190,13 @@ export default function ProfilePage() {
                       </ul>
                     )}
                   </div>
-                </Panel>
+                </Card>
               </div>
 
               {/* 포인트 지급 제도 종료 — 신청 패널 제거됨 */}
 
               {/* 3.7 크레딧 충전 신청 */}
-              <Panel title={<span className="flex items-center gap-2"><Coins size={16} className="text-amber-500" /> 크레딧 충전 신청</span>}>
+              <Card title={<>크레딧 충전 신청</>}>
                 <p className="mb-3 rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm text-[var(--text-soft)]">
                   필요한 크레딧을 신청하면 관리자 승인 후 충전됩니다. (현재 보유: <b className="text-amber-500">{ko(user.credits)}개</b>)
                 </p>
@@ -1295,21 +1299,20 @@ export default function ProfilePage() {
                     )}
                   </div>
                 </div>
-              </Panel>
+              </Card>
 
               {/* 4. 포인트·크레딧 내역 */}
               <div className="grid gap-6 lg:grid-cols-2">
-                <Panel title={<span className="flex items-center gap-2"><Coins size={16} className="text-emerald-500" /> 포인트 내역</span>}>
+                <Card title={<>포인트 내역</>}>
                   <TxTable rows={pointTx} />
-                </Panel>
-                <Panel title={<span className="flex items-center gap-2"><Wallet size={16} className="text-violet-400" /> 크레딧 내역</span>}>
+                </Card>
+                <Card title={<>크레딧 내역</>}>
                   <TxTable rows={creditTx} />
-                </Panel>
+                </Card>
               </div>
 
               {/* 5. 결제 내역 (팝업) */}
-              <Panel
-                title={<span className="flex items-center gap-2"><Receipt size={16} className="text-sky-500" /> 결제 내역</span>}
+              <Card title={<>결제 내역</>}
                 action={
                   <Button variant="ghost" size="sm" onClick={() => setPayOpen(true)}>
                     전체 보기
@@ -1330,15 +1333,14 @@ export default function ProfilePage() {
                     <Receipt size={16} />
                   </span>
                 </button>
-              </Panel>
+              </Card>
               </>
             )}
 
             {tab === 'activity' && (
               <>
               {/* 6. 알림 */}
-              <Panel
-                title={<span className="flex items-center gap-2"><Bell size={16} className="text-fuchsia-400" /> 알림{unread > 0 ? ` (${unread})` : ''}</span>}
+              <Card title={<>알림{unread > 0 ? ` (${unread})` : ''}</>}
                 action={
                   notifications.length > 0 && unread > 0 ? (
                     <Button variant="ghost" size="sm" onClick={readAll}>
@@ -1378,10 +1380,10 @@ export default function ProfilePage() {
                     })}
                   </ul>
                 )}
-              </Panel>
+              </Card>
 
               {/* 7. 활동 로그 */}
-              <Panel title={<span className="flex items-center gap-2"><Activity size={16} className="text-[var(--text-dim)]" /> 활동 로그</span>}>
+              <Card title={<>활동 로그</>}>
                 {activity.length === 0 ? (
                   <p className="py-8 text-center text-sm text-[var(--text-dim)]">활동 내역이 없습니다</p>
                 ) : (
@@ -1398,9 +1400,16 @@ export default function ProfilePage() {
                             <Icon size={15} />
                           </span>
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm">
-                              <span className="font-semibold">{m.label}</span>
-                              {a.detail ? <span className="text-[var(--text-soft)]"> · {a.detail}</span> : null}
+                            <p className="text-[13px]">
+                              {m.known && <span className="font-semibold">{m.label}</span>}
+                              {a.detail ? (
+                                <span className={m.known ? 'text-[var(--text-soft)]' : undefined}>
+                                  {m.known ? ' · ' : ''}
+                                  {a.detail}
+                                </span>
+                              ) : (
+                                !m.known && <span className="text-[var(--text-soft)]">{m.label}</span>
+                              )}
                             </p>
                           </div>
                           <span
@@ -1414,7 +1423,7 @@ export default function ProfilePage() {
                     })}
                   </ul>
                 )}
-              </Panel>
+              </Card>
               </>
             )}
 

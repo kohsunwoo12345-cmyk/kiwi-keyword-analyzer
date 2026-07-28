@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Mail, Send, Users, Coins, Inbox, AlertCircle, Check } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Button } from '@/components/ui'
-import { Card, Metric } from '@/components/dash/Kit'
+import { Card, Field, Metric, Section } from '@/components/dash/Kit'
 import { formatNumber } from '@/lib/utils'
 import { useAuth, sendEmail } from '@/lib/auth'
 
@@ -123,26 +123,28 @@ export default function EmailSendPage() {
         <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
           {/* Composer */}
           <Card title="이메일 작성" desc="Resend 로 실제 발송됩니다">
-            <div className="space-y-4">
-              <div>
-                <div className="mb-1.5 flex items-end justify-between">
-                  <label className="text-xs font-medium text-[var(--text-soft)]">수신자</label>
-                  <span className="text-[11px] tabular-nums text-[var(--text-dim)]">
-                    유효 <span className="font-bold text-sky-500">{targetCount}</span>
-                    {invalid.length > 0 && <span className="ml-1 font-bold text-rose-500">· 무시 {invalid.length}</span>}
-                  </span>
-                </div>
+            <Section label="받는 사람" first>
+              <Field
+                label="수신자"
+                right={
+                  <>
+                    유효 <span className="font-semibold text-sky-500">{targetCount}</span>
+                    {invalid.length > 0 && <span className="ml-1 font-semibold text-rose-500">· 무시 {invalid.length}</span>}
+                  </>
+                }
+                hint="쉼표 또는 줄바꿈으로 구분합니다."
+              >
                 <textarea
                   value={recipients}
                   onChange={(e) => setRecipients(e.target.value)}
                   rows={3}
-                  placeholder="user@example.com, hello@nextbygency.com (쉼표 또는 줄바꿈으로 구분)"
+                  placeholder="user@example.com, hello@nextbygency.com"
                   className={`${inputClass} resize-none`}
                 />
-              </div>
+              </Field>
 
               {invalid.length > 0 && (
-                <div className="flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/[0.08] px-3.5 py-2.5 text-[12px] text-rose-500">
+                <div className="mt-2.5 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/[0.08] px-3.5 py-2.5 text-[12px] text-rose-500">
                   <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
                   <span className="min-w-0">
                     형식이 맞지 않아 제외된 주소 {invalid.length}건:{' '}
@@ -150,59 +152,55 @@ export default function EmailSendPage() {
                   </span>
                 </div>
               )}
+            </Section>
 
-              <div>
-                <div className="mb-1.5 flex items-end justify-between">
-                  <label className="text-xs font-medium text-[var(--text-soft)]">제목</label>
-                  <span className="text-[11px] tabular-nums text-[var(--text-dim)]">{subject.length}자</span>
-                </div>
-                <input
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder="이메일 제목을 입력하세요"
-                  className={inputClass}
-                />
+            <Section label="내용">
+              <div className="space-y-4">
+                <Field label="제목" right={`${subject.length}자`}>
+                  <input
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    placeholder="이메일 제목을 입력하세요"
+                    className={inputClass}
+                  />
+                </Field>
+                <Field label="본문" right={`${body.length}자`}>
+                  <textarea
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    rows={8}
+                    placeholder="이메일 내용을 입력하세요."
+                    className={`${inputClass} resize-none`}
+                  />
+                </Field>
               </div>
+            </Section>
 
-              <div>
-                <div className="mb-1.5 flex items-end justify-between">
-                  <label className="text-xs font-medium text-[var(--text-soft)]">내용</label>
-                  <span className="text-[11px] tabular-nums text-[var(--text-dim)]">{body.length}자</span>
-                </div>
-                <textarea
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  rows={8}
-                  placeholder="이메일 내용을 입력하세요."
-                  className={`${inputClass} resize-none`}
-                />
-              </div>
-
-              <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm">
+            <Section label="발송">
+              <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3.5 py-2.5 text-[13px]">
                 <span className="flex items-center gap-2 text-[var(--text-soft)]">
-                  <Users size={15} /> 예상 발송
+                  <Users size={14} /> 예상 발송
                 </span>
-                <span className={`font-semibold ${notEnough ? 'text-rose-500' : 'text-sky-500'}`}>
-                  {formatNumber(targetCount)}명 / 차감 {formatNumber(targetCount)} 크레딧
+                <span className={`font-semibold tabular-nums ${notEnough ? 'text-rose-500' : 'text-sky-500'}`}>
+                  {formatNumber(targetCount)}명 · 차감 {formatNumber(targetCount)} 크레딧
                 </span>
               </div>
 
               <Button
                 onClick={send}
                 disabled={busy || targetCount === 0 || !subject.trim() || !body.trim() || notEnough}
-                className="w-full !bg-gradient-to-br !from-sky-500 !to-cyan-500"
+                className="mt-3 w-full !bg-gradient-to-br !from-sky-500 !to-cyan-500"
               >
                 <Send size={16} /> {busy ? '발송 중…' : notEnough ? '크레딧이 부족합니다' : '발송하기'}
               </Button>
               {targetCount > 0 && !notEnough && subject.trim() && body.trim() && (
-                <p className="flex items-center justify-center gap-1.5 text-[11.5px] text-[var(--text-dim)]">
+                <p className="mt-2.5 flex items-center justify-center gap-1.5 text-[11.5px] text-[var(--text-dim)]">
                   <Check size={12} className="text-emerald-500" /> 발송 준비가 끝났습니다. 실패한 건은 자동 환불됩니다.
                 </p>
               )}
-            </div>
+            </Section>
           </Card>
 
-          {/* Preview */}
           <Card title="미리보기" desc="수신함에서 보이는 모습">
             <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)]">
               <div className="flex items-center gap-2.5 border-b border-[var(--border)] bg-[var(--panel-2)] px-4 py-3">

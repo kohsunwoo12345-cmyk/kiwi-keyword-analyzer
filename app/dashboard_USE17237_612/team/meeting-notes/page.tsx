@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ClipboardList, Plus, Check, Users, Trash2, X, ListChecks, CalendarDays, CircleDot } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
-import { Card, EmptyState, Metric } from '@/components/dash/Kit'
+import { Card, EmptyState, Field, Metric, Section } from '@/components/dash/Kit'
 import { Button } from '@/components/ui'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { useAuth } from '@/lib/auth'
@@ -256,8 +256,7 @@ export default function MeetingNotesPage() {
           {creating ? (
             <Card title="새 회의록 작성" desc="제목만 있어도 저장됩니다" className="self-start">
               <div className="space-y-4">
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-[var(--text-soft)]">제목</label>
+                <Field label="제목">
                   <input
                     value={form.title}
                     onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -265,18 +264,16 @@ export default function MeetingNotesPage() {
                     className={inputCls}
                     autoFocus
                   />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-[var(--text-soft)]">참석자 (쉼표로 구분)</label>
+                </Field>
+                <Field label="참석자" optional hint="쉼표로 구분합니다. 비우면 본인만 참석자로 기록됩니다.">
                   <input
                     value={form.attendees}
                     onChange={(e) => setForm({ ...form, attendees: e.target.value })}
                     placeholder="김지훈, 이수민, 박현우"
                     className={inputCls}
                   />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-[var(--text-soft)]">안건 (줄바꿈으로 구분)</label>
+                </Field>
+                <Field label="안건" optional hint="줄바꿈으로 구분합니다. 결정사항과 액션은 저장한 뒤 상세에서 추가할 수 있습니다.">
                   <textarea
                     value={form.content}
                     onChange={(e) => setForm({ ...form, content: e.target.value })}
@@ -284,11 +281,8 @@ export default function MeetingNotesPage() {
                     placeholder={'캠페인 성과 리뷰\n다음 분기 목표 설정'}
                     className={`${inputCls} resize-none leading-relaxed`}
                   />
-                  <p className="mt-1.5 text-[11px] text-[var(--text-dim)]">
-                    결정사항과 액션 아이템은 저장한 뒤 상세 화면에서 추가할 수 있습니다.
-                  </p>
-                </div>
-                <div className="flex gap-2">
+                </Field>
+                <div className="flex gap-2 border-t border-[var(--border-soft)] pt-4">
                   <Button onClick={createMeeting} disabled={!form.title.trim()} className="!bg-gradient-to-br !from-sky-500 !to-blue-500">
                     저장
                   </Button>
@@ -322,9 +316,8 @@ export default function MeetingNotesPage() {
                 ))}
               </div>
 
-              <div className="mt-5 space-y-6">
-                <section>
-                  <h3 className="mb-2 text-[13px] font-bold text-[var(--text-soft)]">안건</h3>
+              <div className="mt-5">
+                <Section label="안건" first>
                   <ul className="space-y-1.5">
                     {selected.agenda.map((a, i) => (
                       <li key={i} className="flex gap-2 text-[13.5px]">
@@ -333,12 +326,9 @@ export default function MeetingNotesPage() {
                       </li>
                     ))}
                   </ul>
-                </section>
+                </Section>
 
-                <section>
-                  <h3 className="mb-2 text-[13px] font-bold text-[var(--text-soft)]">
-                    결정사항 <span className="text-[var(--text-dim)]">{selected.decisions.length}건</span>
-                  </h3>
+                <Section label={`결정사항 ${selected.decisions.length}건`}>
                   {selected.decisions.length > 0 && (
                     <ul className="mb-2 space-y-1.5">
                       {selected.decisions.map((d, i) => (
@@ -372,15 +362,9 @@ export default function MeetingNotesPage() {
                       추가
                     </button>
                   </div>
-                </section>
+                </Section>
 
-                <section>
-                  <h3 className="mb-2 text-[13px] font-bold text-[var(--text-soft)]">
-                    액션 아이템{' '}
-                    <span className="text-[var(--text-dim)]">
-                      {selected.actions.filter((a) => a.done).length}/{selected.actions.length} 완료
-                    </span>
-                  </h3>
+                <Section label={`액션 아이템 ${selected.actions.filter((a) => a.done).length}/${selected.actions.length} 완료`}>
                   {selected.actions.length > 0 && (
                     <div className="mb-2 space-y-2">
                       {selected.actions.map((a) => (
@@ -425,7 +409,7 @@ export default function MeetingNotesPage() {
                       추가
                     </button>
                   </div>
-                </section>
+                </Section>
               </div>
             </Card>
           ) : (
