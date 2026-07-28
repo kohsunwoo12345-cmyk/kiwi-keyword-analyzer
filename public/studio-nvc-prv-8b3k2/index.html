@@ -2204,9 +2204,21 @@ function lumaUsd(model, secs, res, refs, hdr, exr){
   if(hdr)      return LUMA_P.genH[r]||LUMA_P.genH['1080p'];
   return pick(LUMA_P.gen);
 }
+/* FLUX.2 실측 — 장당 정액이 아니라 메가픽셀 단가다(docs.bfl.ai/quick_start/pricing).
+   표의 값은 "첫 1MP 출력" 이고 우리가 보내는 해상도는 전부 1MP 이하라 출력은 맞았는데,
+   레퍼런스(입력) 이미지는 장마다 따로 과금된다 — 최대 8장까지 붙는데 안 받고 있었다.
+   max $0.03/장 · pro $0.015/장 · flex $0.06/장. (1.x·Kontext 는 장당 정액이라 해당 없음) */
+var FLUX2_IN = { 'Flux 2 Max':0.03, 'Flux 2 Pro':0.015, 'Flux 2 Flex':0.06 };
+function fluxUsd(model, refs){
+  var per = FLUX2_IN[String(model||'')]; if(per==null) return null;
+  var m = MODEL_COST[model];
+  return (m?m.usd:0.06) + per * Math.min(8, Math.max(0, Number(refs)||0));
+}
 function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl, cnCount, hdrOn, exrOn){
   var m = MODEL_COST[model];
-  var isImg = m ? m.u==='img' : (kind==='image');
+  /* 'img'(장당) 외에 '3d'(모델 1개당)·'tok'(호출 1회당)도 "단위 1개" 정액이다 — 서버 computeCharge 와 같은 기준.
+     예전엔 'img' 만 봐서 3D·프롬프트 모델이 초당 계산을 타 8배로 표시됐다(청구는 서버 기준이라 정상). */
+  var isImg = m ? (m.u==='img'||m.u==='3d'||m.u==='tok') : (kind==='image');
   var prov = m ? m.prov : provider;
   var rate, units, resMult=1, audioAdd=0;
   if(isImg){ units=1; rate = m?m.usd:0.05; }
@@ -2219,7 +2231,8 @@ function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prom
   }
   var usd = (isImg? rate : rate*units) + audioAdd;
   var _lu = lumaUsd(model, units, res, refCount, hdrOn, exrOn);
-  if(_lu==null) _lu = veoUsd(model, units, res);   // 루마·Veo 는 실측 표가 우선
+  if(_lu==null) _lu = veoUsd(model, units, res);   // 루마·Veo·FLUX.2 는 실측 표가 우선
+  if(_lu==null) _lu = fluxUsd(model, refCount);
   if(_lu!=null){ usd=_lu; rate=isImg?_lu:(_lu/Math.max(1,units)); }
   costLog.push({ t:Date.now(), provider:prov, model:model||prov, units:units, unit:isImg?'img':'sec',
                  res:isImg?null:(res||'1080p'), audio:!!audioAdd, rate:rate, usd:usd });
@@ -2922,8 +2935,12 @@ function portAllowed(node, port){
 /* 모델이 바뀌어 더 이상 지원하지 않는 입력(사진·영상·프레임·오디오) 연결을 정리 */
 /* 모델을 바꿨을 때, 새 모델이 지원하지 않는 비율이 남아 있으면 지원값으로 옮긴다.
    (예: 4:5 로 두고 GPT Image 로 바꾸면 그 모델엔 없는 값이라 그대로 두면 안 된다) */
+/* 비율 선택지가 "모델이 실제로 받는 값" 인 노드 종류.
+   3D 노드(img3d·gen3d)도 IMG_MODELS 로 같은 이미지 제공사를 부른다 — 예전엔 imagegen 만 걸러서
+   3D 노드에서는 그 모델이 안 받는 비율까지 고를 수 있었다. */
+var IMG_RATIO_TYPES = { imagegen:1, img3d:1, gen3d:1 };
 function snapImgRatio(n){
-  if(!n||n.type!=='imagegen') return;
+  if(!n||!IMG_RATIO_TYPES[n.type]) return;
   var allow=imgModelRatios(n.w.model);
   if(allow.indexOf(n.w.ratio)<0) n.w.ratio=allow[0];
 }
@@ -3398,7 +3415,8 @@ async function generateWithAPI(params){
   try{
     var _pcImg = !!(MODEL_COST[params.model] && MODEL_COST[params.model].u==='img');
     var _pc = await fetch('/api/studio/precheck',{ method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
-      body: JSON.stringify({ model:params.model, units:params.seconds||8, kind:_pcImg?'image':'video', res:params.res||'1080p', audio:!!params.generateAudio, refs:Number(params.refCount)||0, cn:(params.controlnets&&params.controlnets.length)||0 }) });
+      // hdr·exr 도 원가를 2~3배 바꾼다(루마) — 안 보내면 표준 요금으로 통과시킨 뒤 더 크게 차감된다
+      body: JSON.stringify({ model:params.model, units:params.seconds||8, kind:_pcImg?'image':'video', res:params.res||'1080p', audio:!!params.generateAudio, refs:Number(params.refCount)||0, cn:(params.controlnets&&params.controlnets.length)||0, hdr:!!params.lumaHdr, exr:!!params.lumaExr }) });
     if(_pc.status===402){
       var _pj={}; try{ _pj=await _pc.json(); }catch(e){}
       if(typeof window!=='undefined' && window.confirm((_pj.error||'크레딧이 부족합니다.')+'\n\n요금제 페이지로 이동할까요?')){ window.location.href='/pricing'; }
@@ -6716,12 +6734,7 @@ canvas.addEventListener('click',function(e){
   var cyc=e.target.closest('[data-cyc]');
   if(cyc){
     var combo=e.target.closest('[data-combo]'), k=combo.dataset.combo;
-    var wdef=DEFS[n2.type].widgets.find(function(w){return w.k===k;});
-    var opts=wdef.opts==='MODELS'?MODELS.map(function(m){return m[1];})
-            :wdef.opts==='VIDEO_MODELS'?VIDEO_MODELS.map(function(m){return m[1];})
-            :wdef.opts==='IMG_MODELS'?IMG_MODELS.map(function(m){return m[1];})
-            :wdef.opts==='PROMPT_MODELS'?PROMPT_MODELS.map(function(m){return m[1];})
-            :wdef.opts==='STYLE3D'?STYLE3D_OPTS:wdef.opts;
+    var opts=comboOpts(n2,k);
     var i=opts.indexOf(String(n2.w[k])); i=(i+(+cyc.dataset.cyc)+opts.length)%opts.length;
     n2.w[k]=opts[i]; combo.querySelector('.wvalue').textContent=opts[i]; autosave();
     if(k==='model'){ snapImgRatio(n2); pruneModelPorts(); render(); }   // 모델 변경 → 비율·포트 정리 + 재렌더
@@ -7026,6 +7039,21 @@ function ddFilter(q){
   });
   if(lastHead) lastHead.style.display=headHasVisible?'':'none';
 }
+/* 콤보 위젯의 실제 선택지 — 화살표 순환(◀▶)과 드롭다운이 반드시 같은 목록을 써야 한다.
+   예전엔 드롭다운만 모델별 비율(imgModelRatios)·사용 가능 모델(availModels)을 적용하고,
+   화살표는 DEFS 의 하드코딩 목록을 그대로 돌렸다 → 화살표로는 ①이미지 모델이 지원하지 않는
+   비율(GPT Image 에 4:5 등)을 고를 수 있고 ②API 키가 없는 모델까지 선택돼 생성이 실패했다. */
+function comboOpts(n,k){
+  var wdef=DEFS[n.type].widgets.find(function(w){return w.k===k;});
+  if(!wdef) return [];
+  if(wdef.opts==='MODELS'||wdef.opts==='VIDEO_MODELS'||wdef.opts==='IMG_MODELS'||wdef.opts==='PROMPT_MODELS'){
+    var src=wdef.opts==='IMG_MODELS'?IMG_MODELS:wdef.opts==='VIDEO_MODELS'?VIDEO_MODELS:wdef.opts==='PROMPT_MODELS'?PROMPT_MODELS:MODELS;
+    return availModels(src).map(function(m){ return m[1]; });
+  }
+  if(wdef.opts==='STYLE3D') return STYLE3D_OPTS;
+  if(k==='ratio' && IMG_RATIO_TYPES[n.type]) return imgModelRatios(n.w.model);
+  return wdef.opts||[];
+}
 function openDD(anchor,n,k){
   var wdef=DEFS[n.type].widgets.find(function(w){return w.k===k;});
   var isModelList=(wdef.opts==='MODELS' || wdef.opts==='VIDEO_MODELS' || wdef.opts==='IMG_MODELS' || wdef.opts==='PROMPT_MODELS');
@@ -7034,9 +7062,7 @@ function openDD(anchor,n,k){
     html+='<input class="dd-search" type="text" placeholder="Search" spellcheck="false" autocomplete="off" style="position:sticky;top:0;z-index:1;display:block;width:calc(100% - 12px);margin:6px;padding:6px 9px;border-radius:7px;border:1px solid #34363e;background:#151517;color:#e6e6ea;font-size:11px;outline:none;font-family:inherit;box-sizing:border-box;">';
     var list=availModels(wdef.opts==='IMG_MODELS'?IMG_MODELS:wdef.opts==='VIDEO_MODELS'?VIDEO_MODELS:wdef.opts==='PROMPT_MODELS'?PROMPT_MODELS:MODELS), cat='';
     list.forEach(function(m){ if(m[0]!==cat){cat=m[0];html+='<div class="dh">'+cat+'</div>';} html+='<div class="di" data-v="'+esc(m[1])+'">'+esc(m[1])+'</div>'; });
-  } else { var arr=(wdef.opts==='STYLE3D')?STYLE3D_OPTS:wdef.opts;
-    if(k==='ratio' && n.type==='imagegen') arr=imgModelRatios(n.w.model);   // 모델이 실제로 지원하는 비율만
-    arr.forEach(function(o){ html+='<div class="di" data-v="'+esc(o)+'">'+esc(o)+'</div>'; }); }
+  } else { comboOpts(n,k).forEach(function(o){ html+='<div class="di" data-v="'+esc(o)+'">'+esc(o)+'</div>'; }); }
   dd.innerHTML=html;
   var r=anchor.getBoundingClientRect();
   dd.style.left=Math.min(r.left,innerWidth-230)+'px'; dd.style.top=Math.min(r.bottom+4,innerHeight-300)+'px';

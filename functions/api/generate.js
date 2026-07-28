@@ -252,9 +252,14 @@ export function buildRunwayPayload(b) {
 /* Runway Gen-4 Aleph — 진짜 V2V(영상→영상). 입력 영상은 반드시 공개 URL(R2). */
 const RUNWAY_RATIOS = { "16:9": "1280:720", "9:16": "720:1280", "1:1": "960:960",
                      "4:3": "1104:832", "3:4": "832:1104", "4:5": "832:1104", "21:9": "1584:672" };
-export function buildAlephPayload(b) {
+/* Aleph 모델 ID 후보. gen4_aleph 는 2026-07-30 종료 예정이고 후속이 aleph2 다
+   (Runway 문서: "Gen-4 Aleph is deprecated and will be officially sunset on July 30th, 2026").
+   그날이 지나면 gen4_aleph 는 죽는다. 새 ID 를 먼저 시도하고, 아직 계정에 안 열려 있으면
+   기존 ID 로 물러난다 — 클링 3.0 때와 같은 방식이다. */
+export const ALEPH_MODELS = ["aleph2", "gen4_aleph"];
+export function buildAlephPayload(b, forceModel) {
   return {
-    model: "gen4_aleph",
+    model: forceModel || ALEPH_MODELS[0],
     videoUri: b.srcVideo || null,
     promptText: cut(b.prompt, 1000),
     ratio: RUNWAY_RATIOS[b.ratio] || "1280:720",
@@ -798,13 +803,13 @@ export const KLING_API = {
   "Kling 2.0": { m: "kling-v2-master", mode: "pro", ep: "image2video" },
   "Kling 1.6": { m: "kling-v1-6", mode: "pro", ep: "image2video" },
 };
-function klingApiSpec(b) {
+export function klingApiSpec(b) {
   const base = KLING_API[b.model] || { m: "kling-v2-master", mode: "pro", ep: "text2video" };
   // 원본 프레임(영상 브리지)이 있으면 image2video 로 강제 → 어떤 클링 모델이든 V2V처럼 변환
   return { ...base, ep: hasSrcFrame(b) ? "image2video" : base.ep };
 }
 function _stripDataUri(v) { return v ? String(v).replace(/^data:[^,]+,/, "") : ""; }
-function buildKlingApiPayload(b, spec) {
+export function buildKlingApiPayload(b, spec) {
   // Kling 공식 API 의 duration 은 text2video·image2video 모두 "5" 또는 "10" 두 값만 받는다.
   //  (한때 3.0 은 3~15 라고 보고 그대로 흘려보냈는데, 3·8·12·15 는 제공사가 거부한다.)
   const rawSec = Number(b.seconds) || 5;
@@ -2047,15 +2052,29 @@ async function handle(context) {
       const TARGETS = [
         { 제공사: "Google Veo · 나노바나나", 말: ["Veo", "Nano Banana", "Imagen"], 넓게: ["Veo"],
           urls: ["https://ai.google.dev/gemini-api/docs/pricing"] },
-        { 제공사: "BFL Flux", 말: ["per image", "FLUX", "megapixel"],
-          urls: ["https://docs.bfl.ai/pricing.md", "https://docs.bfl.ai/pricing", "https://docs.bfl.ai/quick_start/pricing"] },
-        { 제공사: "MiniMax Hailuo", 말: ["Hailuo", "video", "price"],
+        /* FLUX.2 는 "장당" 이 아니라 메가픽셀 단가다(입력 레퍼런스도 과금). 표 전체가 필요하다. */
+        { 제공사: "BFL Flux", 말: ["per image", "FLUX", "megapixel"], 넓게: ["megapixel", "FLUX.2"],
+          urls: ["https://docs.bfl.ai/quick_start/pricing.md", "https://docs.bfl.ml/quick_start/pricing.md",
+                 "https://docs.bfl.ai/quick_start/pricing", "https://docs.bfl.ml/quick_start/pricing",
+                 "https://docs.bfl.ai/pricing.md", "https://bfl.ai/pricing"] },
+        { 제공사: "MiniMax Hailuo", 말: ["Hailuo", "video", "price"], 넓게: ["Hailuo"],
           urls: ["https://platform.minimax.io/document/price", "https://platform.minimaxi.com/document/price",
+                 "https://platform.minimax.io/document/Price", "https://www.minimax.io/price",
                  "https://platform.minimax.io/docs/api-reference/price"] },
-        { 제공사: "Runway", 말: ["credit", "Gen-4", "per second"],
-          urls: ["https://docs.dev.runwayml.com/pricing", "https://docs.dev.runwayml.com/", "https://help.runwayml.com/hc/en-us/articles/pricing"] },
-        { 제공사: "Kling", 말: ["price", "credit", "点"],
-          urls: ["https://app.klingai.com/global/dev/document-api/apiReference/commonInfo"] },
+        { 제공사: "Runway", 말: ["credit", "Gen-4", "aleph", "per second"], 넓게: ["credit"],
+          urls: ["https://docs.dev.runwayml.com/pricing", "https://dev.runwayml.com/pricing",
+                 "https://docs.dev.runwayml.com/", "https://help.runwayml.com/hc/en-us/articles/pricing"] },
+        /* 클링은 검색으로는 5초당 $0.475·$0.80·$1.40·$1.70 이 다 나온다(재판매가 섞여 있다).
+           공식 포인트 정책 문서가 유일한 기준이라 후보에 같이 넣는다. */
+        { 제공사: "Kling", 말: ["price", "credit", "point", "点"], 넓게: ["point", "master"],
+          urls: ["https://klingai.com/global/dev/pricing", "https://app.klingai.com/global/docs/point-policy",
+                 "https://klingai.com/document-api/pricing/base/video",
+                 "https://app.klingai.com/global/dev/document-api/productBilling/prePaidResourcePackage",
+                 "https://app.klingai.com/global/dev/document-api/apiReference/commonInfo"] },
+        { 제공사: "BytePlus ModelArk (씨댄스·씨드림)", 말: ["Seedance", "Seedream", "price", "per second"],
+          넓게: ["Seedance", "Seedream"],
+          urls: ["https://docs.byteplus.com/en/docs/ModelArk/Pricing", "https://docs.byteplus.com/en/docs/ModelArk/1099320",
+                 "https://docs.byteplus.com/en/docs/ModelArk/Models", "https://www.byteplus.com/en/product/modelark/pricing"] },
       ];
       const fetchText = async (url) => {
         const r = await fetchT(url, { headers: { "accept": "text/html,text/markdown", "user-agent": "Mozilla/5.0" } }, 15000);
@@ -2107,9 +2126,11 @@ async function handle(context) {
       return json({ diag: "prices",
         note: "문서를 GET 으로만 읽습니다 — 생성·과금이 없습니다.",
         // 대조 편하도록 우리 표에서 직접 읽어 싣는다(외워서 적으면 여기서부터 틀어진다)
-        현재우리단가: Object.keys(MODEL_COST_SRV || {}).filter((n) => (MODEL_COST_SRV[n] || {}).u === "sec")
-          .reduce((o, n) => { const m = MODEL_COST_SRV[n];
-            o[n] = "초당 $" + m.usd + (m.audio ? " + 오디오 초당 $" + m.audio : ""); return o; }, {}),
+        현재우리단가: Object.keys(MODEL_COST_SRV || {})
+          .reduce((o, n) => { const m = MODEL_COST_SRV[n] || {};
+            o[n] = (m.u === "sec" ? "초당 $" + m.usd + (m.audio ? " + 오디오 초당 $" + m.audio : "")
+                                  : "1" + (m.u === "img" ? "장" : m.u === "3d" ? "개" : "회") + "당 $" + m.usd);
+            return o; }, {}),
         결과: rows });
     }
 
@@ -3577,7 +3598,8 @@ async function handle(context) {
                   : provider === "seedance" ? buildSeedancePayload(b, env)
                   : provider === "seedream" ? buildSeedreamPayload(b, env)
                   : provider === "music"    ? { engines: musicEngines(env, k), prompt: (b.prompt || "").slice(0, 300), seconds: Math.min(Math.max(Number(b.seconds) || 30, 10), 120) }
-                  : provider === "upscale"  ? { model: pick(env, ["FAL_UPSCALE_MODEL", "fal_upscale_model"]) || "fal-ai/topaz/upscale/video", video_url: b.srcVideo || null, factor: (b.res === "4K" ? 4 : 2) }
+                  // 필드명은 실제 제출과 같아야 한다(예전엔 미리보기만 factor 로 찍혀 실제 요청과 달라 보였다)
+                  : provider === "upscale"  ? { model: pick(env, ["FAL_UPSCALE_MODEL", "fal_upscale_model"]) || "fal-ai/topaz/upscale/video", video_url: b.srcVideo || null, upscale_factor: (b.res === "4K" ? 4 : 2) }
                   : provider === "flux"     ? buildFluxPayload(b)
                   : provider === "falcontrol" ? buildFalControlPayload(b)
                   : provider === "nanobanana" ? buildNanoPayload(b)
@@ -3814,17 +3836,25 @@ async function handle(context) {
 
   if (provider === "runway_aleph") {
     if (!k.runway) return json({ error: "Runway 연동이 설정되지 않았습니다" }, 500);
-    const payload = buildAlephPayload(b);
-    if (!payload.videoUri || !/^https?:\/\//.test(payload.videoUri))
+    const srcUri = buildAlephPayload(b).videoUri;
+    if (!srcUri || !/^https?:\/\//.test(srcUri))
       return json({ error: "Runway Aleph(V2V)는 입력 영상의 공개 URL이 필요합니다. 영상을 옴니 레퍼런스에 넣으면 자동 업로드됩니다(R2)." }, 400);
-    const r = await fetchT("https://api.dev.runwayml.com/v1/video_to_video", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + k.runway, "X-Runway-Version": RUNWAY_VER, "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.id) return json({ error: "Runway Aleph HTTP " + r.status + ": " + String(j.error || j.message || JSON.stringify(j)).slice(0, 220) }, 502);
-    return json({ statusUrl: "/api/generate?provider=runway&task=" + encodeURIComponent(j.id) }); // 폴링은 기존 runway 태스크와 동일
+    // 새 모델 ID(aleph2)를 먼저 쓰고, 그 ID 를 모른다는 응답이면 기존 ID 로 한 번 더 시도한다.
+    let lastMsg = "요청 실패", lastStatus = 502;
+    for (const mid of ALEPH_MODELS) {
+      const r = await fetchT("https://api.dev.runwayml.com/v1/video_to_video", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + k.runway, "X-Runway-Version": RUNWAY_VER, "Content-Type": "application/json" },
+        body: JSON.stringify(buildAlephPayload(b, mid))
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.id) return json({ statusUrl: "/api/generate?provider=runway&task=" + encodeURIComponent(j.id), modelId: mid });
+      lastStatus = r.status;
+      lastMsg = "[" + mid + "] " + String(j.error || j.message || JSON.stringify(j)).slice(0, 200);
+      // 모델 이름 문제가 아니면(잔액·검열·파라미터) 다른 ID 를 시도해도 결과가 같다.
+      if (!/model|not\s*found|invalid|unsupported|deprecat/i.test(lastMsg)) break;
+    }
+    return json({ error: "Runway Aleph HTTP " + lastStatus + ": " + lastMsg }, 502);
   }
 
   if (provider === "xai") {
