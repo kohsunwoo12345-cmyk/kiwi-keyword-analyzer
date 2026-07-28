@@ -61,6 +61,55 @@ export async function ensureIgSchema(db: D1Database) {
   } catch (_) {
     /* ignore */
   }
+
+  // ── 회원 구분 컬럼 보강 ────────────────────────────────────────────────────
+  //  이식 당시 이 기능에는 회원 개념이 없어서 규칙·발송내역·웹훅내역이 전부 한 덩어리였다.
+  //  (instagram_dm_rules 에는 user_id 컬럼이 있는데 아무도 쓰지 않았다)
+  //  그래서 로그인만 하면 남의 DM 규칙과 발송 내역이 보였고, 웹훅이 들어오면
+  //  "그 계정 주인의 규칙" 이 아니라 이 사이트의 모든 규칙이 한꺼번에 돌았다.
+  for (const [tbl, col] of [
+    ['instagram_dm_rules', 'user_id TEXT'],
+    ['instagram_dm_logs', 'user_id TEXT'],
+    ['instagram_webhook_logs', 'user_id TEXT'],
+  ]) {
+    await db.prepare(`ALTER TABLE ${tbl} ADD COLUMN ${col}`).run().catch(() => {})
+  }
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_ig_rules_user ON instagram_dm_rules(user_id)`).run().catch(() => {})
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_ig_logs_user ON instagram_dm_logs(user_id)`).run().catch(() => {})
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_ig_wh_user ON instagram_webhook_logs(user_id)`).run().catch(() => {})
+
+  // ── 예전 데이터 귀속 ───────────────────────────────────────────────────────
+  //  주인이 비어 있는 기존 행을 그냥 두면 아무에게도 안 보이고 웹훅도 무시하게 되어
+  //  잘 돌던 설정이 조용히 멈춘다. 연결된 인스타 계정이 "딱 하나" 일 때만 그 회원 것으로 넘긴다.
+  //  둘 이상이면 누구 것인지 알 수 없으므로 손대지 않는다(잘못 넘기면 남의 규칙이 된다).
+  try {
+    const owners: any = await db.prepare(
+      `SELECT DISTINCT user_id FROM instagram_account_settings WHERE is_connected = 1 AND user_id IS NOT NULL AND user_id != ''`,
+    ).all()
+    const list = (owners?.results || []) as any[]
+    if (list.length === 1) {
+      const uid = String(list[0].user_id)
+      for (const tbl of ['instagram_dm_rules', 'instagram_dm_logs', 'instagram_webhook_logs']) {
+        await db.prepare(`UPDATE ${tbl} SET user_id = ? WHERE user_id IS NULL OR user_id = ''`).bind(uid).run().catch(() => {})
+      }
+    }
+  } catch { /* ignore */ }
+}
+
+/** 인스타 비즈니스 계정 ID(웹훅 entry.id) → 우리 회원 id. 연결된 계정이 없으면 null. */
+export async function igOwnerByBusinessId(db: D1Database, igBusinessId: string): Promise<string | null> {
+  if (!igBusinessId) return null
+  try {
+    const row: any = await db.prepare(
+      `SELECT user_id FROM instagram_account_settings WHERE ig_business_id = ? AND is_connected = 1 LIMIT 1`,
+    ).bind(igBusinessId).first()
+    return row?.user_id ? String(row.user_id) : null
+  } catch { return null }
+}
+
+/** 관리자인가 (다른 회원 것까지 볼 수 있는 유일한 예외) */
+export function isIgAdmin(me: any): boolean {
+  return !!me && (me.role === 'admin' || me.role === 'superadmin')
 }
 
 /** 앱 설정 조회 (DB 우선, 없으면 환경변수) */
