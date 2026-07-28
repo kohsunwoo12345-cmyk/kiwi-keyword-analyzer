@@ -5,7 +5,8 @@
   "description": "BYGENCY 정기 실행(크론) 워커 — Pages 크론 엔드포인트를 정해진 시각에 두드린다",
   "scripts": {
     "dev": "wrangler dev --test-scheduled",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "build": "node -e \"console.log('빌드 단계 없음 — wrangler deploy 가 번들까지 함')\""
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
