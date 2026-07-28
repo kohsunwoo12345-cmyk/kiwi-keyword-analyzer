@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, resolveDB, addNotification } from '../_utils'
-import { ensureSchedules, computeNextRun, FAIL_LIMIT } from '../studio/schedules'
+import { ensureSchedules, computeNextRun, FAIL_LIMIT, estimateScheduleCredits } from '../studio/schedules'
 import { MODEL_COST } from '../studio/_pricing'
 // @ts-ignore — 생성 엔드포인트를 내부에서 그대로 재사용(과금·크레딧 게이트·브랜드 킷 전부 동일 적용)
 import { onRequest as generateApi } from '../generate.js'
@@ -36,7 +36,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const nowIso = new Date().toISOString()
 
   const due: any = await db.prepare(
-    `SELECT s.*, u.mcp_token AS mcp_token, u.credits AS credits
+    `SELECT s.*, u.mcp_token AS mcp_token, u.credits AS credits,
+            u.role AS role, u.credit_markup AS credit_markup
        FROM studio_schedules s JOIN users u ON u.id = s.user_id
       WHERE s.enabled = 1 AND s.next_run_at IS NOT NULL AND s.next_run_at <= ?
       ORDER BY s.next_run_at ASC LIMIT ?`,
@@ -61,6 +62,27 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       await notifyFail(db, s, msg, 0)
       results.push({ id: s.id, error: 'no token' })
       continue
+    }
+
+    // 크레딧이 모자라면 제공사 호출 전에 끊는다 — 유료 API 를 때린 뒤 실패하면 돈만 나간다.
+    //  생성 API 안에도 같은 게이트가 있지만, 여기서 먼저 잡아야 사유가 명확히 남는다.
+    if (String(s.role || '') !== 'admin') {
+      const need = await estimateScheduleCredits(db, { id: s.user_id, credits: s.credits, credit_markup: s.credit_markup },
+        { model: String(s.model), seconds: Number(s.seconds) || 5, res: String(s.res || '1080p') })
+      const have = Number(s.credits) || 0
+      if (have <= 0 || (need > 0 && have < need)) {
+        const msg = `실패: 크레딧 부족 (필요 ${need.toLocaleString('ko-KR')} · 보유 ${have.toLocaleString('ko-KR')})`
+        const streak0 = (Number(s.fail_streak) || 0) + 1
+        const stop = streak0 >= FAIL_LIMIT
+        const nextAt = computeNextRun(String(s.freq || 'weekly'), Number(s.hour) || 0, Number(s.minute) || 0,
+          Number(s.weekday) || 0, Date.now(), String(s.tz || 'Asia/Seoul'))
+        await db.prepare(
+          'UPDATE studio_schedules SET last_run_at=?, last_status=?, next_run_at=?, fail_streak=?, enabled=? WHERE id=?',
+        ).bind(nowIso, msg, nextAt, streak0, stop ? 0 : 1, s.id).run().catch(() => {})
+        await notifyFail(db, s, msg, streak0)
+        results.push({ id: s.id, status: msg, nextRunAt: nextAt, failStreak: streak0, disabled: stop })
+        continue
+      }
     }
 
     let status = '', result = ''

@@ -1,5 +1,6 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB } from '../_utils'
-import { MODEL_COST } from './_pricing'
+import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup } from './_pricing'
+import { creditPriceFor } from '../payments/prepare'
 
 // 정기 자동 생성 — "매주 월요일 오전 9시에 신제품 영상" 같은 반복 제작을 서버가 대신 돌린다.
 //  Figma Weave 는 API 가 없어(공식 헬프센터 명시) 이런 자동화를 아예 할 수 없다.
@@ -120,6 +121,27 @@ const row2json = (r: any) => ({
  *  (키가 빠졌거나 크레딧이 없는 예약이 매일 조용히 실패하며 로그만 쌓이는 걸 막는다) */
 export const FAIL_LIMIT = 3
 
+/** 이 예약을 한 번 돌리는 데 드는 크레딧(추정).
+ *  생성 API 의 사전 잔액 게이트와 같은 공식(computeCharge)을 쓴다 —
+ *  여기서 통과했는데 실행 단계에서 막히면 사용자는 이유를 알 수 없다. */
+export async function estimateScheduleCredits(
+  db: D1Database, user: any, s: { model: string; seconds?: number; res?: string },
+): Promise<number> {
+  try {
+    const m = (MODEL_COST as any)[s.model]
+    if (!m) return 0
+    const rate = await getUsdKrw(db)
+    const mk = await resolveMarkup(db, String(user.id), s.model, Number(user.credit_markup) || 0)
+    const ckw = await creditPriceFor(db, user)
+    const isImg = m.u === 'img'
+    const cc = computeCharge(
+      { model: s.model, units: isImg ? 1 : Math.max(1, Number(s.seconds) || 5), res: isImg ? undefined : (s.res || '1080p') },
+      rate, mk, ckw,
+    )
+    return Math.round(Number(cc.credits) * 100) / 100
+  } catch { return 0 }   // 추정 실패 시 막지 않는다(락아웃 방지) — 실행 단계 게이트가 다시 잡는다
+}
+
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env)
   if (!db) return json({ ok: false, error: 'DB 바인딩 없음' }, 500)
@@ -153,6 +175,27 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const minute = Math.min(59, Math.max(0, Number(b.minute) || 0))
   const weekday = Math.min(6, Math.max(0, Number(b.weekday) || 0))
   const tz = normalizeTz(b.tz)
+  const seconds = Math.max(1, Number(b.seconds) || 5)
+  const res = String(b.res || '1080p')
+
+  // 크레딧이 모자라면 저장 자체를 막는다.
+  //  안 막으면 "예약해 뒀는데 매번 조용히 실패" 가 되고, 3회 실패 후 자동 중지될 때까지
+  //  사용자는 영문을 모른다. 지금 이유를 알려주는 편이 낫다. (관리자는 예외)
+  if (me.role !== 'admin') {
+    const need = await estimateScheduleCredits(db, me, { model, seconds, res })
+    const have = Number(me.credits) || 0
+    if (have <= 0) {
+      return json({ ok: false, error: '크레딧이 없어 예약할 수 없습니다. 충전 후 다시 시도하세요.', need, balance: have, needPlan: true }, 402)
+    }
+    if (need > 0 && have < need) {
+      return json({
+        ok: false,
+        error: `크레딧이 부족합니다. 이 예약은 1회당 약 ${need.toLocaleString('ko-KR')}크레딧이 필요한데 보유 ${have.toLocaleString('ko-KR')}크레딧입니다.`,
+        need, balance: have, needPlan: true,
+      }, 402)
+    }
+  }
+
   const next = computeNextRun(freq, hour, minute, weekday, Date.now(), tz)
   const now = new Date().toISOString()
 
@@ -164,7 +207,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       `UPDATE studio_schedules SET name=?, enabled=?, freq=?, hour=?, minute=?, weekday=?, model=?, prompt=?,
         seconds=?, ratio=?, res=?, tz=?, max_runs=?, next_run_at=?, fail_streak=0 WHERE id=? AND user_id=?`,
     ).bind(String(b.name || '').slice(0, 60), b.enabled === false ? 0 : 1, freq, hour, minute, weekday, model, prompt,
-      Math.max(1, Number(b.seconds) || 5), String(b.ratio || '16:9'), String(b.res || '1080p'), tz,
+      seconds, String(b.ratio || '16:9'), res, tz,
       Math.max(0, Number(b.maxRuns) || 0), next, String(b.id), me.id).run()
     return json({ ok: true, id: b.id, nextRunAt: next, tz })
   }
@@ -177,7 +220,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     `INSERT INTO studio_schedules (id,user_id,name,enabled,freq,hour,minute,weekday,model,prompt,seconds,ratio,res,tz,next_run_at,max_runs,created_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
   ).bind(id, me.id, String(b.name || '').slice(0, 60), b.enabled === false ? 0 : 1, freq, hour, minute, weekday, model, prompt,
-    Math.max(1, Number(b.seconds) || 5), String(b.ratio || '16:9'), String(b.res || '1080p'), tz, next,
+    seconds, String(b.ratio || '16:9'), res, tz, next,
     Math.max(0, Number(b.maxRuns) || 0), now).run()
   return json({ ok: true, id, nextRunAt: next, tz })
 }

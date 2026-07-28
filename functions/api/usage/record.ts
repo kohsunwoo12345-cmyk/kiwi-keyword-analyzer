@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity, resolveBucket } from '../_utils'
-import { computeCharge, ensureAiUsage, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from '../studio/_pricing'
+import { computeCharge, ensureAiUsage, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge, MODEL_COST } from '../studio/_pricing'
 import { creditPriceFor } from '../payments/prepare'
 import { effectiveUnits, effectiveRes } from '../generate.js'
 
@@ -67,7 +67,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // 길이·해상도는 클라이언트 값을 그대로 믿지 않는다 — 그 모델로 실제 생성되는 값으로 환산해
   //  과금한다(조작된 요청으로 15초 생성을 1초로 신고하는 것도, 해상도를 못 받는 모델에
   //  4K 배율이 붙는 것도 막는다). 정상 클라이언트는 이미 스냅된 값을 보내므로 결과가 같다.
-  const isImg = String(b.kind || '') === 'image'
+  /* 종류(이미지/영상)도 클라이언트 값을 믿지 않는다.
+     길이·해상도는 이미 서버가 다시 계산하고 있었는데 kind 만 그대로 받아서, 영상 생성에
+     kind:'image' 로 신고하면 units 가 1로 고정돼 effectiveUnits 를 통째로 건너뛰었다.
+     그러면 10초 영상이 1초 요금으로 청구된다(Veo 336 → 33.6 크레딧, 최대 10배 과소청구).
+     단가표가 그 모델의 과금 단위를 알고 있으므로 그 값을 쓴다. 표에 없을 때만 요청값을 본다. */
+  const mc = (MODEL_COST as any)[model]
+  const isImg = mc ? mc.u !== 'sec' : String(b.kind || '') === 'image'
   const eff = { provider: String(b.provider || ''), model, seconds: Number(b.units) || 0, res: b.res }
   const units = isImg ? 1 : effectiveUnits(eff, env)
   const effRes = isImg ? undefined : effectiveRes(eff, env)
@@ -75,7 +81,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     {
       model,
       units,
-      kind: b.kind,
+      kind: isImg ? 'image' : 'video',
       res: effRes,
       audio: !!b.audio,
     },

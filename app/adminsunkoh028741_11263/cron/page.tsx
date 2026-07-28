@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Timer, RefreshCw, AlertTriangle, CheckCircle2, PauseCircle, Loader2,
-  Coins, KeyRound, Search, ChevronDown, ChevronRight, ExternalLink,
+  Coins, KeyRound, Search, ChevronDown, ChevronRight, ExternalLink, Play, Square,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel } from '@/components/ui'
-import { adminCronStatus, type CronStatus, type CronScheduleRow } from '@/lib/auth'
+import { adminCronStatus, adminCronToggle, type CronStatus, type CronScheduleRow } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
 // 정기 실행(크론) 현황.
@@ -66,8 +66,24 @@ export default function CronPage() {
   const [tab, setTab] = useState<Tab>('active')
   const [q, setQ] = useState('')
   const [open, setOpen] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [msg, setMsg] = useState('')
 
   const load = () => { setLoading(true); adminCronStatus().then((r) => { setD(r); setLoading(false) }) }
+
+  // 관리자가 직접 켜고 끈다. 켤 때는 서버가 다음 실행 시각을 다시 잡아 준다
+  //  (과거 시각이 남아 있으면 켜자마자 실행돼 의도치 않게 과금된다).
+  const toggle = async (s: CronScheduleRow) => {
+    const on = !s.enabled
+    if (on && !confirm(`"${s.name || s.id}" 예약을 다시 켤까요?\n다음 실행 시각부터 자동 생성되며 크레딧이 차감됩니다.`)) return
+    setBusy(s.id); setMsg('')
+    const r = await adminCronToggle(s.id, on)
+    setBusy(null)
+    setMsg(r.ok
+      ? (on ? `"${s.name || s.id}" 재개 — 다음 실행 ${inTz(r.nextRunAt, s.tz)} (${s.tz})` : `"${s.name || s.id}" 중지됨`)
+      : `실패: ${r.error || '오류'}`)
+    load()
+  }
   useEffect(() => {
     load()
     const t = setInterval(load, 60_000)   // 1분마다 자동 갱신 — 지켜보는 화면이므로
@@ -132,6 +148,13 @@ export default function CronPage() {
             </div>
           </div>
 
+          {msg && (
+            <div className={cn('rounded-lg border px-4 py-2 text-sm',
+              /^실패/.test(msg) ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700')}>
+              {msg}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat label="전체 예약" value={t?.total ?? 0} />
             <Stat label="켜짐" value={t?.enabled ?? 0} />
@@ -188,6 +211,7 @@ export default function CronPage() {
                       <th className="px-3 py-2 text-left font-semibold">다음 실행(현지)</th>
                       <th className="px-3 py-2 text-left font-semibold">마지막 상태</th>
                       <th className="px-3 py-2 text-right font-semibold">실행</th>
+                      <th className="px-3 py-2 text-right font-semibold">제어</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -198,7 +222,9 @@ export default function CronPage() {
                       return (
                         <FragmentRow
                           key={s.id} s={s} isOpen={isOpen} dueNow={!!dueNow} badge={badge}
-                          onToggle={() => setOpen(isOpen ? null : s.id)}
+                          busy={busy === s.id}
+                          onExpand={() => setOpen(isOpen ? null : s.id)}
+                          onToggle={() => toggle(s)}
                         />
                       )
                     })}
@@ -214,15 +240,15 @@ export default function CronPage() {
 }
 
 function FragmentRow({
-  s, isOpen, dueNow, badge, onToggle,
+  s, isOpen, dueNow, badge, busy, onExpand, onToggle,
 }: {
-  s: CronScheduleRow; isOpen: boolean; dueNow: boolean
-  badge: { label: string; cls: string } | null; onToggle: () => void
+  s: CronScheduleRow; isOpen: boolean; dueNow: boolean; busy: boolean
+  badge: { label: string; cls: string } | null; onExpand: () => void; onToggle: () => void
 }) {
   return (
     <>
       <tr
-        onClick={onToggle}
+        onClick={onExpand}
         className={cn('cursor-pointer border-b border-[var(--border)] hover:bg-slate-50', !s.enabled && 'opacity-70')}
       >
         <td className="px-2 py-2 text-[var(--text-dim)]">
@@ -260,12 +286,28 @@ function FragmentRow({
         <td className="px-3 py-2 text-right tabular-nums text-[var(--text-dim)]">
           {s.runs}{s.maxRuns > 0 ? ` / ${s.maxRuns}` : ''}
         </td>
+        <td className="px-3 py-2 text-right">
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggle() }}
+            disabled={busy}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium transition disabled:opacity-50',
+              s.enabled
+                ? 'border-[var(--border)] text-[var(--text-soft)] hover:bg-slate-100'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+            )}
+          >
+            {busy ? <Loader2 size={12} className="animate-spin" />
+              : s.enabled ? <Square size={12} /> : <Play size={12} />}
+            {busy ? '처리 중' : s.enabled ? '중지' : '켜기'}
+          </button>
+        </td>
       </tr>
 
       {isOpen && (
         <tr className="border-b border-[var(--border)] bg-slate-50/60">
           <td></td>
-          <td colSpan={7} className="px-3 py-3">
+          <td colSpan={8} className="px-3 py-3">
             <div className="grid gap-3 lg:grid-cols-2">
               <div>
                 <div className="mb-1 text-xs font-semibold text-[var(--text-dim)]">프롬프트 전문</div>
