@@ -1,6 +1,7 @@
 // SUPERPLACE 퍼널 빌더 이식: GET/PUT/DELETE /api/funnels/:id
 import { resolveDB, getSessionUser } from '../_utils'
 import { ensureFunnelSchema } from '../funnel/_schema'
+import { ownsFunnel, forbidden } from '../funnel/_own'
 
 const j = (o: any, status = 200) =>
   new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
@@ -11,7 +12,12 @@ export const onRequestGet: PagesFunction = async ({ request, env, params }) => {
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 500)
     await ensureFunnelSchema(db)
+    // ⚠ 인증이 아예 없었다. 퍼널 번호만 바꾸면 남의 그룹 구성과 자동발송 규칙
+    //   (발신번호·문구까지)이 그대로 나왔다.
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const id = params.id as string
+    if (!(await ownsFunnel(db, me, id))) return forbidden()
     const funnel: any = await db.prepare(`SELECT * FROM funnels WHERE id = ?`).bind(id).first()
     if (!funnel) return j({ success: false, error: '퍼널을 찾을 수 없습니다.' }, 404)
     // 그룹 목록 (랜딩페이지 수 + 신청자 수 포함)
@@ -60,7 +66,11 @@ export const onRequestPut: PagesFunction = async ({ request, env, params }) => {
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 500)
     await ensureFunnelSchema(db)
+    // ⚠ 인증이 없어 누구나 남의 퍼널 이름을 바꾸거나 비활성화할 수 있었다
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const id = params.id as string
+    if (!(await ownsFunnel(db, me, id))) return forbidden()
     const { name, description, category, status } = (await request.json()) as any
     await db.prepare(`
       UPDATE funnels SET name=?, description=?, category=?, status=?, updated_at=?
@@ -81,6 +91,9 @@ export const onRequestDelete: PagesFunction = async ({ request, env, params }) =
     const me: any = await getSessionUser(request, db)
     if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const id = params.id as string
+    // ⚠ 로그인만 하면 남의 퍼널을 통째로 지울 수 있었다 —
+    //   딸린 그룹·랜딩페이지·신청자(개인정보)까지 전부 함께 사라진다.
+    if (!(await ownsFunnel(db, me, id))) return forbidden()
     try { await db.prepare(`DELETE FROM funnel_group_connections WHERE funnel_id=?`).bind(id).run() } catch (e) {}
     try { await db.prepare(`DELETE FROM funnel_applicants WHERE landing_page_id IN (SELECT id FROM funnel_landing_pages WHERE group_id IN (SELECT id FROM funnel_groups WHERE funnel_id=?))`).bind(id).run() } catch (e) {}
     try { await db.prepare(`DELETE FROM funnel_landing_pages WHERE group_id IN (SELECT id FROM funnel_groups WHERE funnel_id=?)`).bind(id).run() } catch (e) {}
