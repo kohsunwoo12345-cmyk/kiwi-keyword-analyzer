@@ -15,7 +15,10 @@
 #   "Missing entry-point to Worker script" 로 죽는다. 아래 main 은 이 파일 위치를
 #   기준으로 풀리므로, -c 만 붙으면 최상단에서 실행해도 정상 동작한다.
 
-name = "bygency-cron"
+# ⚠ 이름은 Cloudflare 에 만들어진 Workers 프로젝트 이름과 같아야 한다.
+#   다르면 배포 때 "Failed to match Worker name" 경고가 나고 CI 쪽 이름으로 덮어써진다
+#   (그리고 Cloudflare 가 이걸 고치는 PR 을 열려고 한다).
+name = "kiwi-keyword-analyzer"
 main = "src/index.js"
 compatibility_date = "2026-07-01"
 

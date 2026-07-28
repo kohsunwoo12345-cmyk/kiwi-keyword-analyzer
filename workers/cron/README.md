@@ -58,9 +58,11 @@ Pages 처럼 Workers 도 저장소를 연결해 두면 푸시할 때마다 Cloud
 
    | 항목 | 값 |
    |---|---|
-   | **Root directory** | `workers/cron` ← 이걸 안 바꾸면 반드시 실패한다 |
-   | Build command | 비워도 되고 `npm run build` 여도 된다(빈 스크립트를 넣어 뒀다) |
-   | Deploy command | `npx wrangler deploy` (기본값) |
+   | **경로**(Root directory) | `workers/cron` — 대시보드에서는 「경로」라고 표시된다 |
+   | 빌드 명령 | 비워도 되고 `npm run build` 여도 된다(빈 스크립트를 넣어 뒀다) |
+   | 배포 명령 | `npx wrangler deploy` |
+
+   > 실제 이 프로젝트는 「경로」를 `/` 로 둔 채 배포 명령에 `-c` 를 붙여 쓰고 있다(아래 참고).
 
    Root directory 를 `/` 로 두면 Cloudflare 가 최상단의 Next.js 를 빌드한 뒤
    최상단 `wrangler.toml`(= Pages 설정)로 `wrangler deploy` 를 시도하다 이렇게 죽는다:
@@ -79,7 +81,7 @@ Pages 처럼 Workers 도 저장소를 연결해 두면 푸시할 때마다 Cloud
 3. 배포되면 **Settings → Variables and Secrets** 에서
    `CRON_TOKEN` 을 **Secret** 으로 추가하고 다시 **Deploy**
    (`SITE_URL` 과 Cron Trigger 는 `wrangler.toml` 에 있으므로 따로 넣지 않아도 된다)
-4. `https://bygency-cron.<계정서브도메인>.workers.dev/health` 로 확인
+4. `https://kiwi-keyword-analyzer.kohsunwoo12345.workers.dev/health` 로 확인
 
 이후 `workers/cron/` 아래를 고쳐 main 에 푸시하면 자동으로 재배포된다.
 
@@ -112,7 +114,7 @@ GitHub → Settings → Secrets and variables → **Actions** 에 등록:
 Cloudflare 대시보드 편집기에 **그대로 복붙**하면 된다.
 
 1. **Workers & Pages → Create → Workers → Start with Hello World!**
-   이름을 `bygency-cron` 으로 하고 **Deploy**
+   이름을 정하고 **Deploy** (그 이름을 wrangler.toml 의 name 과 맞춰 둘 것)
 2. **Edit code**(또는 Quick edit) → 편집기 내용을 전부 지우고
    이 저장소의 `workers/cron/src/index.js` 를 통째로 붙여넣기 → **Deploy**
 3. **Settings → Variables and Secrets**
@@ -124,7 +126,7 @@ Cloudflare 대시보드 편집기에 **그대로 복붙**하면 된다.
    두 개를 등록한다(둘 다 UTC 기준):
    - `*/15 * * * *` — 예약 영상 생성
    - `5 0 * * *` — 네이버 추적 (한국 09:05)
-5. 배포된 주소로 확인: `https://bygency-cron.<계정서브도메인>.workers.dev/health`
+5. 배포된 주소로 확인: `https://kiwi-keyword-analyzer.kohsunwoo12345.workers.dev/health`
    → `{"ok":true,...,"tokenSet":true}` 가 나오면 끝
 
 > 이 방법으로 만들면 이후 저장소의 `src/index.js` 를 고쳐도 자동 반영되지 않는다.
@@ -146,19 +148,19 @@ npx wrangler deploy
 
 ```bash
 # 워커가 살아 있고 토큰이 들어갔는지
-curl https://bygency-cron.<계정서브도메인>.workers.dev/health
+curl https://kiwi-keyword-analyzer.kohsunwoo12345.workers.dev/health
 # → {"ok":true,"worker":"bygency-cron","site":"https://bygency.co","tokenSet":true}
 
 # 손으로 한 번 돌려보기
 curl -X POST -H "X-Cron-Token: <토큰>" \
-  "https://bygency-cron.<계정서브도메인>.workers.dev/run?job=video"
+  "https://kiwi-keyword-analyzer.kohsunwoo12345.workers.dev/run?job=video"
 ```
 
 `tokenSet:false` 면 3번의 `secret put` 이 안 된 것이고,
 `/run` 이 401 이면 헤더 토큰이 틀린 것, 응답 안 `steps[].body` 가 401 이면
 **Pages 쪽** 토큰이 다르거나 재배포를 안 한 것이다.
 
-크론이 실제로 도는지는 대시보드 → Workers & Pages → `bygency-cron` →
+크론이 실제로 도는지는 대시보드 → Workers & Pages → `kiwi-keyword-analyzer` →
 **Logs**(또는 Cron Events 탭)에서 확인한다. `[cron] */15 * * * * 완료 — N단계` 로그가 남는다.
 
 ## 손으로 돌리기
