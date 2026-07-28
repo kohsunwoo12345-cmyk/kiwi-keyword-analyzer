@@ -75,6 +75,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   if (action === 'suspend') {
     await db.prepare("UPDATE users SET status = 'suspended' WHERE id = ?").bind(id).run()
+    // 이미 로그인해 둔 세션도 즉시 끊는다 — 세션 검사에서도 막지만, 정지는 "지금 당장" 이어야 한다
+    await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id).run().catch(() => {})
     await logActivity(db, id, 'status', '관리자에 의해 계정 정지')
   } else if (action === 'activate') {
     await db.prepare("UPDATE users SET status = 'active' WHERE id = ?").bind(id).run()
