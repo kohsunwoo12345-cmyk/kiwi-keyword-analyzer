@@ -19,6 +19,10 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     // steps 가 없으면 JSON.stringify(undefined) → undefined 가 되어 DB 바인딩에서 터진다(500).
     //  잘못된 요청은 400 으로 분명히 알려 준다.
     if (!Array.isArray(steps)) return j({ success: false, error: '저장할 단계(steps) 목록이 필요합니다.' }, 400)
+    // 크기 제한 — 없으면 수십만 자짜리 JSON 도 그대로 저장된다(저장 용량 남용)
+    const stepsJson = JSON.stringify(steps)
+    if (stepsJson.length > 200_000)
+      return j({ success: false, error: '플로우가 너무 큽니다. 단계를 줄여 주세요.' }, 400)
     // 남의 그룹에 플로우를 저장하지 못하게 한다
     if (group_id && !(await ownsGroup(db, me, group_id))) return forbidden()
 
@@ -26,7 +30,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
       INSERT INTO funnel_flows (
         user_id, group_id, steps_json, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?)
-    `).bind(userId, group_id || null, JSON.stringify(steps), new Date().toISOString(), new Date().toISOString()).run()
+    `).bind(userId, group_id || null, stepsJson, new Date().toISOString(), new Date().toISOString()).run()
 
     return j({
       success: true,

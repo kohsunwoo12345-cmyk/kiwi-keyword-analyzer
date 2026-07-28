@@ -48,8 +48,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   try {
     await ensureTemplateTable(db)
     const body: any = await request.json().catch(() => ({}))
-    const title = String(body.title || '').trim()
-    const message = String(body.message || '').trim()
+    // 길이 제한 — 예전에는 제한이 없어 20만 자짜리 템플릿도 그대로 저장됐다(저장 용량 남용)
+    const title = String(body.title || '').trim().slice(0, 100)
+    const message = String(body.message || '').trim().slice(0, 2000)
     const receivers = typeof body.receivers === 'string' ? body.receivers : JSON.stringify(body.receivers || [])
     if (!title || !message) return json({ success: false, error: '제목과 메시지를 입력하세요.' }, 400)
     const r = await db
