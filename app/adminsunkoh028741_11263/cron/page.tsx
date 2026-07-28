@@ -60,7 +60,7 @@ export default function CronPage() {
       <PageHeader
         icon={Timer} eyebrow="CRON" accent="#7c3aed"
         title="정기 실행 현황"
-        desc="예약 자동 생성이 실제로 돌고 있는지, 조용히 실패하는 예약은 없는지 확인합니다. 스케줄러는 Cloudflare Workers Cron Trigger 가 15분마다 호출합니다."
+        desc="예약 자동 생성이 실제로 돌고 있는지, 조용히 실패하는 예약은 없는지 확인합니다. 스케줄러는 Cloudflare Workers Cron Trigger 가 1분마다 호출합니다."
         action={
           <button onClick={load} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--text-soft)] hover:bg-slate-50">
             <RefreshCw size={14} className={cn(loading && 'animate-spin')} /> 새로고침
@@ -84,7 +84,7 @@ export default function CronPage() {
               </div>
               {d.health === 'down' && (
                 <div className="mt-1 opacity-80">
-                  워커가 살아 있는지 확인: <code className="rounded bg-white/60 px-1">curl https://bygency-cron.&lt;계정&gt;.workers.dev/health</code>
+                  워커가 살아 있는지 확인: <code className="rounded bg-white/60 px-1">curl https://kiwi-keyword-analyzer.kohsunwoo12345.workers.dev/health</code>
                 </div>
               )}
             </div>
@@ -170,7 +170,7 @@ export default function CronPage() {
                             </div>
                           </td>
                           <td className="px-3 py-2 text-[var(--text-soft)]">
-                            {s.freq === 'daily' ? '매일' : `매주 ${DAYS[s.weekday]}요일`} {s.hour}시
+                            {s.freq === 'daily' ? '매일' : `매주 ${DAYS[s.weekday]}요일`} {s.hour}:{String(s.minute).padStart(2, '0')}
                             <div className="text-xs text-[var(--text-dim)]">{s.tz}</div>
                           </td>
                           <td className="px-3 py-2 text-xs text-[var(--text-soft)]">{s.model}</td>

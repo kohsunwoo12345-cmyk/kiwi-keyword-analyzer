@@ -28,7 +28,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     one('SELECT COUNT(*) AS c FROM studio_schedules WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ?', nowIso),
     // 크론이 살아 있는지 판정하는 근거 — 어떤 예약이든 마지막으로 실행된 시각
     one('SELECT MAX(last_run_at) AS at FROM studio_schedules WHERE last_run_at IS NOT NULL'),
-    rows(`SELECT s.id, s.name, s.enabled, s.freq, s.hour, s.weekday, s.tz, s.model,
+    rows(`SELECT s.id, s.name, s.enabled, s.freq, s.hour, s.minute, s.weekday, s.tz, s.model,
                  s.next_run_at, s.last_run_at, s.last_status, s.runs, s.max_runs, s.fail_streak,
                  u.name AS user_name, u.email AS user_email, u.credits AS user_credits,
                  (u.mcp_token IS NOT NULL AND u.mcp_token != '') AS has_token
@@ -67,7 +67,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     lastRunAgeMin: ageMin,
     schedules: schedules.map((s: any) => ({
       id: s.id, name: s.name || '', enabled: Number(s.enabled) === 1,
-      freq: s.freq || 'weekly', hour: Number(s.hour) || 0, weekday: Number(s.weekday) || 0,
+      freq: s.freq || 'weekly', hour: Number(s.hour) || 0, minute: Number(s.minute) || 0,
+      weekday: Number(s.weekday) || 0,
       tz: s.tz || 'Asia/Seoul', model: s.model || '',
       nextRunAt: s.next_run_at || '', lastRunAt: s.last_run_at || '', lastStatus: s.last_status || '',
       runs: Number(s.runs) || 0, maxRuns: Number(s.max_runs) || 0, failStreak: Number(s.fail_streak) || 0,

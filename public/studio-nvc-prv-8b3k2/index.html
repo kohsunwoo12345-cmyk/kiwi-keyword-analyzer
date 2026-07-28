@@ -5603,7 +5603,8 @@ function widgetHTML(n,w){
     //  이름은 한 줄로 말줄임, 상세는 아래 줄, 삭제 버튼은 오른쪽 상단에 고정 크기로.
     var list=(n.w.scList||[]).map(function(x){
       var xtz=x.tz||'Asia/Seoul';
-      var when=(x.freq==='daily'?'매일':'매주 '+DAYS[x.weekday||0]+'요일')+' '+(x.hour||0)+'시';
+      var when=(x.freq==='daily'?'매일':'매주 '+DAYS[x.weekday||0]+'요일')+' '
+              +(x.hour||0)+':'+('0'+(x.minute||0)).slice(-2);
       // 예약 시각은 그 나라 현지 기준이므로, 어느 시간대인지와 "다음 실행"을 같이 보여준다
       var nx=x.nextRunAt?(' · 다음 '+tzWhen(x.nextRunAt,xtz)):'';
       return '<div style="display:flex;align-items:flex-start;gap:6px;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);">'
@@ -5640,8 +5641,13 @@ function widgetHTML(n,w){
         +'<label class="vo-sel"><span class="vo-k">요일</span><select data-sc="weekday">'
           + DAYS.map(function(d,i){ return '<option value="'+i+'"'+((sc.weekday|0)===i?' selected':'')+'>'+d+'</option>'; }).join('')
           +'</select><span class="vo-caret">▼</span></label>'
-        +'<label class="vo-sel"><span class="vo-k">시각</span><select data-sc="hour">'
+        +'<label class="vo-sel"><span class="vo-k">시</span><select data-sc="hour">'
           + Array.from({length:24},function(_,i){ return '<option value="'+i+'"'+((sc.hour==null?9:sc.hour|0)===i?' selected':'')+'>'+i+'시</option>'; }).join('')
+          +'</select><span class="vo-caret">▼</span></label>'
+        // 분 단위 예약 — 크론이 1분마다 돌기 때문에 분까지 지킬 수 있다
+        +'<label class="vo-sel"><span class="vo-k">분</span><select data-sc="minute">'
+          + [0,5,10,15,20,25,30,35,40,45,50,55].map(function(i){
+              return '<option value="'+i+'"'+((sc.minute|0)===i?' selected':'')+'>'+('0'+i).slice(-2)+'분</option>'; }).join('')
           +'</select><span class="vo-caret">▼</span></label>'
       +'</div>'
       // 시각의 기준이 되는 나라/시간대. 서머타임이 있는 지역도 서버가 그 시점 오프셋으로 계산한다.
@@ -6779,7 +6785,8 @@ canvas.addEventListener('click',function(e){
     var _sctz=_sc.tz||browserTz();
     fetch('/api/studio/schedules',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
       body:JSON.stringify({name:_sc.name||'',prompt:_sc.prompt||'',model:_sc.model||'Seedance 2.0',
-        freq:_sc.freq||'weekly',hour:(_sc.hour==null?9:+_sc.hour),weekday:+(_sc.weekday||0),tz:_sctz})})
+        freq:_sc.freq||'weekly',hour:(_sc.hour==null?9:+_sc.hour),minute:+(_sc.minute||0),
+        weekday:+(_sc.weekday||0),tz:_sctz})})
       .then(function(r){ return r.json(); })
       .then(function(j){
         // 다음 실행은 사용자가 고른 그 나라 현지 시각으로 보여준다(UTC 로 보여주면 헷갈린다)

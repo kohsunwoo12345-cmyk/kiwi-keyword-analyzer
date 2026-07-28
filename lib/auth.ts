@@ -1548,7 +1548,7 @@ export async function adminNoticeDelete(id: string): Promise<{ ok: boolean; erro
 
 /* ───────── 관리자: 정기 실행(크론) 현황 ───────── */
 export interface CronScheduleRow {
-  id: string; name: string; enabled: boolean; freq: string; hour: number; weekday: number
+  id: string; name: string; enabled: boolean; freq: string; hour: number; minute: number; weekday: number
   tz: string; model: string; nextRunAt: string; lastRunAt: string; lastStatus: string
   runs: number; maxRuns: number; failStreak: number
   userName: string; userEmail: string; userCredits: number; hasToken: boolean
