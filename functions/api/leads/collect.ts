@@ -11,9 +11,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: '잠시 후 다시 시도해 주세요.' }, 429)
 
   const body: any = await request.json().catch(() => ({}))
-  const name = String(body.name || '').trim()
-  const phone = String(body.phone || '').replace(/[^0-9]/g, '')
-  const email = String(body.email || '').trim()
+  // 로그인 없이 부를 수 있는 경로라 길이 제한이 특히 중요하다(제한이 없어 20만 자가 들어갔다)
+  const name = String(body.name || '').trim().slice(0, 60)
+  const phone = String(body.phone || '').replace(/[^0-9]/g, '').slice(0, 20)
+  const email = String(body.email || '').trim().slice(0, 120)
   if (!name) return json({ ok: false, error: '이름을 입력하세요.' }, 400)
   if (phone.length < 9 && !email) return json({ ok: false, error: '연락처(전화번호 또는 이메일)를 입력하세요.' }, 400)
 
@@ -30,7 +31,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
   await db
     .prepare(`INSERT INTO public_leads (id, name, phone, email, source, ip, country, landing_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind('ld_' + crypto.randomUUID().slice(0, 14), name, phone, email, String(body.source || 'landing-demo'), clientIp(request), geo.country, landingId, new Date().toISOString())
+    .bind('ld_' + crypto.randomUUID().slice(0, 14), name, phone, email, String(body.source || 'landing-demo').slice(0, 60), clientIp(request), geo.country, landingId, new Date().toISOString())
     .run()
 
   const cnt: any = await db.prepare('SELECT COUNT(*) AS n FROM public_leads').first()

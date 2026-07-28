@@ -67,7 +67,11 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     await ensureFunnelSchema(db)
     const me: any = await getSessionUser(request, db)
     if (!me) return j({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
-    const { name, description, color } = (await request.json()) as any
+    const _b = (((await request.json().catch(() => null)) as any) || {})
+    // 길이 제한 — 없으면 20만 자짜리 그룹 이름도 그대로 저장된다
+    const name = String(_b.name || '').slice(0, 80)
+    const description = String(_b.description || '').slice(0, 500)
+    const color = String(_b.color || '').slice(0, 20)
     const userId = me.id
 
     if (!name) {

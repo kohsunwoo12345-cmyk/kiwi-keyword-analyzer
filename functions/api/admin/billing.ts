@@ -110,17 +110,27 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const rf: any = await db.prepare('SELECT * FROM refunds WHERE id = ?').bind(String(b.id || '')).first().catch(() => null)
     if (!rf) return json({ ok: false, error: '환불 요청을 찾을 수 없습니다.' }, 404)
     if (rf.status !== 'requested') return json({ ok: false, error: '이미 처리된 요청입니다.' }, 400)
+    // ⚠ 위 검사는 읽기 시점 기준이라 승인 버튼을 두 번 누르면 둘 다 통과한다.
+    //   "아직 대기 중일 때만" 상태를 바꾸는 조건부 UPDATE 로 한 번만 통과시킨다
+    //   (안 그러면 환불액이 두 번 더해져 결제액보다 큰 환불이 기록된다).
+    const to = decision === 'approve' ? 'done' : 'rejected'
+    const claim: any = await db.prepare(
+      "UPDATE refunds SET status = ?, admin_email = ?, decided_at = ? WHERE id = ? AND status = 'requested'",
+    ).bind(to, guard.me.email, now, rf.id).run().catch(() => null)
+    if (!claim || Number(claim.meta?.changes || 0) === 0)
+      return json({ ok: false, error: '이미 처리된 요청입니다.' }, 409)
+
     if (decision === 'approve') {
-      await db.prepare("UPDATE refunds SET status = 'done', admin_email = ?, decided_at = ? WHERE id = ?").bind(guard.me.email, now, rf.id).run()
-      const pay = await getPayment(rf.payment_id)
-      if (pay) {
-        const refunded = (Number(pay.refunded_amount) || 0) + (Number(rf.amount) || 0)
-        const newStatus = refunded >= (Number(pay.amount) || 0) ? 'refunded' : 'partial_refund'
-        await db.prepare('UPDATE payments SET refunded_amount = ?, status = ? WHERE id = ?').bind(refunded, newStatus, pay.id).run()
-      }
+      // 누적 환불액도 상대 증가로 더한다 — 읽어서 계산한 절대값을 쓰면
+      //  동시에 처리된 다른 환불의 금액이 지워진다. 결제액을 넘지 않도록 MIN 으로 묶는다.
+      await db.prepare(
+        `UPDATE payments
+            SET refunded_amount = MIN(amount, COALESCE(refunded_amount, 0) + ?),
+                status = CASE WHEN COALESCE(refunded_amount, 0) + ? >= amount THEN 'refunded' ELSE 'partial_refund' END
+          WHERE id = ?`,
+      ).bind(Number(rf.amount) || 0, Number(rf.amount) || 0, rf.payment_id).run().catch(() => {})
       await audit('refund_approve', rf.id, String(rf.amount))
     } else {
-      await db.prepare("UPDATE refunds SET status = 'rejected', admin_email = ?, decided_at = ? WHERE id = ?").bind(guard.me.email, now, rf.id).run()
       await audit('refund_reject', rf.id)
     }
     return json({ ok: true })

@@ -65,12 +65,13 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     if (!me) return cjson({ error: '로그인이 필요합니다.', traceId }, 401)
   } catch { /* DB 미가용 시엔 게이트를 건너뛰지 않고 안전하게 차단 */ return cjson({ error: '인증 확인 실패', traceId }, 401) }
   try {
-    const body = await request.json() as {
+    // 잘못된 JSON 이 그대로 던져져 500 이 나던 자리 — 파싱 실패는 아래 text 검사에서 400 으로 걸린다
+    const body = (await request.json().catch(() => null)) as {
       text?: string
       voice_id?: string
       pitch?: number
       speaking_rate?: number
-    }
+    } | null || {}
 
     const text = (body.text || '').trim()
     if (!text) return cjson({ error: 'text required', traceId }, 400)

@@ -14,7 +14,7 @@ export const onRequestPut: PagesFunction = async ({ request, env, params }) => {
     const me: any = await getSessionUser(request, db)
     if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const id = params.id as string
-    const body = (await request.json()) as any
+    const body = (((await request.json().catch(() => null)) as any) || {})
     const updates: string[] = []
     const p: any[] = []
     for (const f of ['type', 'subject', 'content', 'timing', 'trigger', 'status', 'sender_number', 'tpl_code']) {

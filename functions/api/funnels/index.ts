@@ -44,7 +44,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     await ensureFunnelSchema(db)
     const me: any = await getSessionUser(request, db)
     if (!me) return j({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
-    const { name, description, category } = (await request.json()) as any
+    const { name, description, category } = (((await request.json().catch(() => null)) as any) || {})
     if (!name) return j({ success: false, error: '퍼널 이름을 입력해주세요.' }, 400)
     const now = new Date().toISOString()
     const result = await db.prepare(`

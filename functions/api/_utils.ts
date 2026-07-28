@@ -1218,6 +1218,27 @@ export async function verifyPassword(password: string, stored: string): Promise<
   return timingSafeEqual(check, stored)
 }
 
+/**
+ * 로그인 후 돌아갈 "우리 사이트 안의" 경로인지 확인. 아니면 빈 문자열.
+ *
+ * ⚠ startsWith('/') && !startsWith('//') 만으로는 부족하다.
+ *   브라우저 URL 파서는 역슬래시와 탭/개행을 슬래시로 바꾸거나 지워 버려서
+ *     /\evil.com  →  https://evil.com
+ *     /<TAB>/evil.com → https://evil.com
+ *   처럼 외부 사이트로 튕겨 나간다(오픈 리다이렉트). 로그인 직후 낯선 사이트로
+ *   보내지면 그대로 피싱에 쓰인다. 그래서 최종적으로 만들어지는 주소의 출처까지 확인한다.
+ */
+export function safeNextPath(raw: any, base: string): string {
+  const s = String(raw || '')
+  if (!s.startsWith('/') || s.startsWith('//')) return ''
+  if (/[\\\u0000-\u001f\u007f]/.test(s)) return ''
+  try {
+    const u = new URL(s, base)
+    if (u.origin !== new URL(base).origin) return ''
+    return (u.pathname + u.search + u.hash).slice(0, 300)
+  } catch { return '' }
+}
+
 export function parseCookies(request: Request): Record<string, string> {
   const out: Record<string, string> = {}
   const raw = request.headers.get('Cookie') || ''
@@ -1333,8 +1354,14 @@ export async function getSessionUser(request: Request, db: D1Database) {
   if (!token) return null
   const row = await db
     .prepare(
+      // ⚠ status 검사가 빠져 있었다. 관리자가 계정을 정지시켜도 이미 로그인해 둔 세션은
+      //   그대로 살아 있어서, 그 회원은 계속 크레딧을 쓰고 문자를 보낼 수 있었다
+      //   (로그인 화면에서만 막혔다). 세션을 쓸 때마다 상태를 확인한다.
+      //   status 가 비어 있는 과거 데이터는 정상으로 본다 — IS NULL 을 빼면 SQL 3값 논리 때문에
+      //   그런 회원이 전부 로그아웃된다.
       `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
-       WHERE s.token = ? AND s.expires_at > ?`,
+       WHERE s.token = ? AND s.expires_at > ?
+         AND (u.status IS NULL OR u.status != 'suspended')`,
     )
     .bind(token, new Date().toISOString())
     .first()
@@ -1344,7 +1371,10 @@ export async function getSessionUser(request: Request, db: D1Database) {
 /** MCP 개인 토큰으로 사용자 조회 (본인 계정 기준 크레딧 차감용). 없으면 null. */
 export async function getUserByMcpToken(db: D1Database, token: string | null) {
   if (!token || token.length < 12) return null
-  const row = await db.prepare('SELECT * FROM users WHERE mcp_token = ? LIMIT 1').bind(token).first()
+  // 정지된 계정은 MCP 토큰으로도 들어올 수 없어야 한다(쿠키 세션과 같은 기준)
+  const row = await db.prepare(
+    "SELECT * FROM users WHERE mcp_token = ? AND (status IS NULL OR status != 'suspended') LIMIT 1",
+  ).bind(token).first()
   return row || null
 }
 

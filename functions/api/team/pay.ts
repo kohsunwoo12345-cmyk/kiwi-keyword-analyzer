@@ -1,5 +1,6 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB, addNotification, logActivity, publicUser, ADMIN_EMAIL } from '../_utils'
 import { tossConfirm } from '../_external'
+import { recordPayment } from '../_billing'
 
 // 팀 요금제: 좌석당 단가(원/월)
 export const TEAM_SEAT_KRW = 44000
@@ -82,6 +83,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
     const until = activateUntil(me.team_until, Number(order.months) || 1)
     await db.prepare('UPDATE users SET team_plan = 1, team_seats = ?, team_until = ? WHERE id = ?').bind(Number(order.seats) || 1, until, me.id).run()
+    // 카드 결제도 결제 원장에 남긴다 — 관리자 승인(계좌이체) 경로만 적재하고 있어
+    // 카드로 낸 팀 요금제는 세금계산서·환불·매출 합계에서 통째로 빠져 있었다.
+    await recordPayment(db, {
+      userId: me.id, name: me.name || '', email: me.email || '',
+      source: 'team', refId: orderId,
+      description: `팀 요금제 ${order.seats}좌석·${order.months}개월 (카드)`,
+      amount, method: 'card', pgKey: paymentKey,
+    })
     await addNotification(db, me.id, '팀 요금제가 활성화되었습니다 👥', `${order.seats}좌석 팀 요금제가 활성화되었습니다. 스튜디오 팀워크에서 팀을 만들고 노드를 공유해보세요!`).catch(() => {})
     await logActivity(db, me.id, 'plan', `팀 요금제 결제 완료: ${order.seats}좌석 · ₩${amount.toLocaleString()}`)
 

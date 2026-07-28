@@ -49,7 +49,7 @@ export const onRequestPut: PagesFunction = async ({ request, env, params }) => {
     if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const pageId = params.id as string
     if (!(await ownsPage(db, me, pageId))) return forbidden()
-    const body = (await request.json()) as any
+    const body = (((await request.json().catch(() => null)) as any) || {})
     const { title, description, status, og_title, og_description, thumbnail_url, form_fields_json, page_header_scripts } = body
 
     // html_content_b64 (base64 인코딩, CF WAF 우회) 또는 html_content (레거시) 지원

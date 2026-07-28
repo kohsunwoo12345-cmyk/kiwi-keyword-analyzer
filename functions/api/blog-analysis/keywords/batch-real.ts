@@ -282,7 +282,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
       return j({ ok: false, success: false, error: '조회 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.' }, 429)
   } catch { /* 제한 판단 실패가 기능을 막지는 않는다 */ }
   try {
-    const { keywords } = await request.json() as any
+    const { keywords } = (((await request.json().catch(() => null)) as any) || {})
 
     if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
       return j({ success: false, error: '키워드를 입력해주세요.' }, 400)

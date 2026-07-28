@@ -23,7 +23,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const now = new Date().toISOString()
   await db
     .prepare(`INSERT INTO credit_requests (id, user_id, amount, price, memo, status, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?)`)
-    .bind('cr_' + crypto.randomUUID().slice(0, 14), me.id, amount, price, String(body.memo || ''), now)
+    .bind('cr_' + crypto.randomUUID().slice(0, 14), me.id, amount, price, String(body.memo || '').slice(0, 500), now)
     .run()
   await logActivity(db, me.id, 'credit', `크레딧 충전 신청: ${amount.toLocaleString()}개`)
   return json({ ok: true })

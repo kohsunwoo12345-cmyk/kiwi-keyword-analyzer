@@ -14,7 +14,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     await ensureFunnelSchema(db)
     const me: any = await getSessionUser(request, db)
     if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
-    const { landing_page_id, name, traffic_split_a, traffic_split_b, variant_type, variant_html } = (await request.json()) as any
+    const { landing_page_id, name, traffic_split_a, traffic_split_b, variant_type, variant_html } = (((await request.json().catch(() => null)) as any) || {})
 
     // 권한 확인 — 예전에는 "페이지가 존재하는가"만 봐서 남의 페이지에도 A/B 테스트를 걸 수 있었다
     if (!(await ownsPage(db, me, landing_page_id))) return forbidden()

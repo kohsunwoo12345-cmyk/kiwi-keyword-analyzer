@@ -24,7 +24,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const ct = request.headers.get('content-type') || ''
   try {
     if (ct.includes('application/json')) {
-      const j: any = await request.json()
+      const j: any = await request.json().catch(() => ({}))
       for (const k of Object.keys(j || {})) p[k] = String(j[k])
     } else {
       const f = await request.formData()
@@ -52,13 +52,20 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const h = await sha256(code)
     const row: any = await db.prepare('SELECT * FROM oauth_codes WHERE code_hash = ? LIMIT 1').bind(h).first()
     if (!row) return oerr('invalid_grant', '알 수 없는 코드')
-    // 재사용 시도 → 코드 무효화 + 해당 클라이언트/사용자 토큰 폐기 (재생 공격 방어)
-    if (row.used) {
+    // ── 코드 선점 ────────────────────────────────────────────────────────────
+    //  인가 코드는 "딱 한 번만" 쓸 수 있어야 한다(OAuth 규약).
+    //  ⚠ 예전에는 used 를 읽어 보고 나서 따로 1 로 바꿨다. 같은 코드를 동시에 두 번 내밀면
+    //     둘 다 used=0 을 읽고 둘 다 토큰을 받아 갔다 — 코드를 가로챈 쪽도 토큰을 얻는다.
+    //     "아직 안 쓴 코드일 때만" 사용 처리하는 조건부 UPDATE 로 한 번만 통과시킨다.
+    const claim: any = await db.prepare(
+      'UPDATE oauth_codes SET used = 1 WHERE code_hash = ? AND COALESCE(used, 0) = 0',
+    ).bind(h).run().catch(() => null)
+    if (!claim || Number(claim.meta?.changes || 0) === 0) {
+      // 재사용 시도 → 해당 클라이언트/사용자 토큰 폐기 (재생 공격 방어)
       await db.prepare("UPDATE oauth_tokens SET revoked = 1 WHERE client_id = ? AND user_id = ?")
         .bind(row.client_id, row.user_id).run().catch(() => {})
       return oerr('invalid_grant', '이미 사용된 코드')
     }
-    await db.prepare('UPDATE oauth_codes SET used = 1 WHERE code_hash = ?').bind(h).run()
     if (new Date(row.expires_at).getTime() < Date.now()) return oerr('invalid_grant', '만료된 코드')
     if (!ctEq(row.client_id, clientId)) return oerr('invalid_grant', '코드가 다른 클라이언트의 것입니다')
     if (redirectUri && !ctEq(row.redirect_uri, redirectUri)) return oerr('invalid_grant', 'redirect_uri 불일치')

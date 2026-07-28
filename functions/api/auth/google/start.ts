@@ -1,4 +1,4 @@
-import { Env } from '../../_utils'
+import { Env, safeNextPath } from '../../_utils'
 
 // GET /api/auth/google/start?ref=CODE&next=/path → 구글 동의화면으로 리다이렉트
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
@@ -18,8 +18,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const state = crypto.randomUUID().replace(/-/g, '')
   // 로그인 후 복귀 경로(next) 동봉 — Claude MCP OAuth 승인 화면 복귀에 사용.
   // 오픈 리다이렉터 방지: 같은 사이트 상대경로만 허용.
-  const rawNext = url.searchParams.get('next') || ''
-  const nextPath = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext.slice(0, 300) : ''
+  //  ⚠ / 로 시작하는지만 보면 /\evil.com 같은 값이 통과한다(브라우저가 역슬래시를 슬래시로 바꾼다).
+  //     safeNextPath 로 최종 주소의 출처까지 확인한다.
+  const nextPath = safeNextPath(url.searchParams.get('next') || '', url.origin)
   const statePayload = `${state}.${encodeURIComponent(ref)}.${consent}.${encodeURIComponent(nextPath)}`
 
   const auth = new URL('https://accounts.google.com/o/oauth2/v2/auth')

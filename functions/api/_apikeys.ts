@@ -146,7 +146,10 @@ export async function getUserByApiKey(db: D1Database, authHeader: string | null)
     const h = await hashApiKey(raw)
     const key: any = await db.prepare(`SELECT id, user_id, status FROM api_keys WHERE key_hash = ? LIMIT 1`).bind(h).first()
     if (!key || key.status !== 'active') return null
-    const user: any = await db.prepare(`SELECT * FROM users WHERE id = ? LIMIT 1`).bind(key.user_id).first()
+    // 정지된 계정의 API 키는 통하지 않아야 한다(쿠키 세션·MCP 토큰과 같은 기준)
+    const user: any = await db.prepare(
+      "SELECT * FROM users WHERE id = ? AND (status IS NULL OR status != 'suspended') LIMIT 1",
+    ).bind(key.user_id).first()
     if (!user) return null
     // 사용 기록 갱신 (best-effort)
     await db.prepare(`UPDATE api_keys SET last_used_at = ?, call_count = COALESCE(call_count,0) + 1 WHERE id = ?`)

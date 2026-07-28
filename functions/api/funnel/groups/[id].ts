@@ -17,7 +17,7 @@ export const onRequestPut: PagesFunction = async ({ request, env, params }) => {
     if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     const id = params.id as string
     if (!(await ownsGroup(db, me, id))) return forbidden()
-    const { name, description, color } = (await request.json()) as any
+    const { name, description, color } = (((await request.json().catch(() => null)) as any) || {})
 
     await db.prepare(`
       UPDATE funnel_groups
