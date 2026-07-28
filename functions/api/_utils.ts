@@ -677,9 +677,13 @@ export async function applyBalance(
   const col = kind === 'credit' ? 'credits' : 'points' // purchase 는 포인트 사용으로 기록
   const row: any = await db.prepare(`SELECT ${col} AS bal FROM users WHERE id = ?`).bind(userId).first()
   if (!row) return { ok: false, error: '사용자를 찾을 수 없습니다.' }
-  // 크레딧은 소수 2자리까지 지원 (0.05 등), 포인트는 정수
-  const balanceAfter = Math.round(((Number(row.bal) || 0) + Number(amount)) * 100) / 100
-  await db.prepare(`UPDATE users SET ${col} = ? WHERE id = ?`).bind(balanceAfter, userId).run()
+  // ⚠ 잔액을 읽어 계산한 절대값으로 덮어쓰면 안 된다.
+  //   지급이 처리되는 사이에 생성·발송으로 차감이 일어나면 그 차감이 통째로 지워진다(lost update).
+  //   상대 증감으로 바꾸고, 기록용 잔액은 반영된 뒤 다시 읽는다.
+  //   크레딧은 소수 2자리까지 지원(0.05 등), 포인트는 정수 — ROUND 2 는 정수에 영향이 없다.
+  await db.prepare(`UPDATE users SET ${col} = ROUND(COALESCE(${col}, 0) + ?, 2) WHERE id = ?`).bind(Number(amount), userId).run()
+  const fresh: any = await db.prepare(`SELECT ${col} AS bal FROM users WHERE id = ?`).bind(userId).first().catch(() => null)
+  const balanceAfter = Math.round((Number(fresh?.bal) || 0) * 100) / 100
   await db
     .prepare(`INSERT INTO transactions (id, user_id, kind, amount, balance_after, memo, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
     .bind('t_' + crypto.randomUUID().slice(0, 16), userId, kind, amount, balanceAfter, memo, new Date().toISOString())

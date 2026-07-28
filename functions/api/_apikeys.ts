@@ -215,9 +215,10 @@ export async function refundFailedTask(db: D1Database, taskKey: string, reason?:
     const upd: any = await db.prepare(`UPDATE api_calls SET status = 'refunded', error = ? WHERE id = ? AND status = 'ok'`)
       .bind(String(reason || '생성 실패 — 자동 환불').slice(0, 300), row.id).run()
     if (!upd || !upd.meta || upd.meta.changes !== 1) return 0   // 다른 요청이 먼저 환불함
+    // 상대 증가로 환불한다 — 절대값으로 쓰면 환불 처리 중에 일어난 다른 차감이 지워진다
+    await db.prepare(`UPDATE users SET credits = ROUND(COALESCE(credits,0) + ?, 2) WHERE id = ?`).bind(amt, row.user_id).run()
     const u: any = await db.prepare(`SELECT credits FROM users WHERE id = ? LIMIT 1`).bind(row.user_id).first()
-    const after = Math.round(((Number(u && u.credits) || 0) + amt) * 100) / 100
-    await db.prepare(`UPDATE users SET credits = ? WHERE id = ?`).bind(after, row.user_id).run()
+    const after = Math.round((Number(u && u.credits) || 0) * 100) / 100
     try {
       await db.prepare(
         `INSERT INTO transactions (id,user_id,kind,amount,balance_after,memo,created_at) VALUES (?,?,'credit',?,?,?,?)`,
