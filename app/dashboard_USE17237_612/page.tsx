@@ -110,7 +110,7 @@ export default function DashboardHome() {
         }
       />
 
-      <div className="space-y-5 p-5 lg:p-7">
+      <div className="space-y-5 p-5 pb-24 lg:p-7 lg:pb-24">
         {/* 플랜 미보유 → 요금제 활성화 유도 (도구는 숨김, 홈만 노출) */}
         {ready && !hasPlan && (
           <div className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-6">

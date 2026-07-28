@@ -55,7 +55,7 @@ export default function AlimtalkLogsPage() {
     <div className="animate-fade-in">
       <PageHeader icon={BarChart3} eyebrow="카카오 알림톡" title="발송 통계" desc="알림톡 발송 성과와 템플릿별 발송 지표를 분석합니다." accent={ACCENT} />
 
-      <div className="space-y-5 p-5 lg:p-7">
+      <div className="space-y-5 p-5 pb-24 lg:p-7 lg:pb-24">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Metric label="총 발송" icon={Send} accent={ACCENT} value={formatNumber(stats?.recipients || 0)} sub={`발송 배치 ${formatNumber(stats?.batches || 0)}건`} />
           <Metric label="성공" icon={Check} accent="#22c55e" value={formatNumber(stats?.sent || 0)} sub="수신처 기준" />

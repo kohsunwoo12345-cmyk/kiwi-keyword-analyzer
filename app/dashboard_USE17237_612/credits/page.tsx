@@ -285,7 +285,7 @@ export default function CreditsPage() {
         }
       />
 
-      <div className="space-y-5 p-5 lg:p-7">
+      <div className="space-y-5 p-5 pb-24 lg:p-7 lg:pb-24">
         {/* 1. 지표 */}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Metric
