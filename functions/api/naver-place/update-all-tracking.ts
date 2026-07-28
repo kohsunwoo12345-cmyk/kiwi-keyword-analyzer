@@ -27,6 +27,18 @@ const kvRateLimit = async (..._a: any[]): Promise<boolean> => true
 async function triggerDailyRankUpdateIfNeeded(_env?: any, _ctx?: any): Promise<void> {}
 const puppeteer: any = (globalThis as any).puppeteer
 
+/** 확인 시각(그리고 가능하면 순위)을 남긴다.
+ *  last_rank 컬럼이 없는 배포본에서도 last_check 만은 반드시 기록되도록 두 단계로 시도한다. */
+async function stampChecked(db: any, id: any, rank: number | null): Promise<void> {
+  try {
+    await db.prepare(`UPDATE naver_place_tracking SET last_check = datetime('now'), last_rank = ? WHERE id = ?`)
+      .bind(rank, id).run()
+    return
+  } catch { /* 컬럼이 없을 수 있다 — 아래에서 시각만 기록 */ }
+  await db.prepare(`UPDATE naver_place_tracking SET last_check = datetime('now') WHERE id = ?`)
+    .bind(id).run().catch((e: any) => console.warn('[Cron] last_check 기록 실패:', e))
+}
+
 export const onRequestPost: PagesFunction = async (context) => {
   const c: any = makeC(context)
   try {
@@ -49,20 +61,33 @@ export const onRequestPost: PagesFunction = async (context) => {
       sessionUserId = me.id
     }
 
-    // 배치 처리 지원: offset/limit 쿼리 파라미터
-    const offset = parseInt(c.req.query('offset') || '0', 10)
+    // ── 배치 처리 ─────────────────────────────────────────────────────────────
+    //  ⚠ 예전에는 OFFSET 으로 넘겼는데, 이 루프는 처리한 행의 last_check 를 지금으로 바꾸고
+    //     목록은 그 last_check 오름차순으로 정렬한다. 즉 정렬 기준을 스스로 흔든다.
+    //     20건짜리 배치를 돌고 나면 그 20건이 맨 뒤로 밀리므로, 다음 호출(offset=20)이
+    //     집어오는 건 "방금 처리한 그 20건" 이다. 결과적으로
+    //       · 21번째부터의 키워드는 영영 갱신되지 않고
+    //       · 같은 20건을 배치 상한까지 반복해서 네이버에 긁는다(요금·차단 위험)
+    //     그래서 OFFSET 을 쓰지 않고 "아직 안 본 것부터" 집어오는 커서 방식으로 바꾼다.
+    //     처리하면 last_check 가 갱신되어 자연히 다음 묶음이 올라온다.
     const batchSize = parseInt(c.req.query('limit') || '20', 10)
+    const offset = parseInt(c.req.query('offset') || '0', 10)   // 응답 호환용으로만 유지
+    // 이번 회차에서 이미 본 행을 다시 집지 않도록 하는 기준선(기본 12시간).
+    //  하루 한 번 도는 배치라 12시간이면 매번 전체가 대상이 되고, 한 회차 안에서는 겹치지 않는다.
+    const staleHours = Math.max(1, Math.min(720, parseInt(c.req.query('staleHours') || '12', 10) || 12))
+    const staleBefore = new Date(Date.now() - staleHours * 3600_000).toISOString().replace('T', ' ').slice(0, 19)
 
     // 활성 추적 키워드 가져오기 (세션 fallback이면 본인 것만)
     const userScope = sessionUserId ? ' AND user_id = ?' : ''
-    const bindArgs: any[] = sessionUserId ? [sessionUserId, batchSize, offset] : [batchSize, offset]
+    const staleScope = " AND (last_check IS NULL OR last_check < ?)"
+    const bindArgs: any[] = sessionUserId ? [sessionUserId, staleBefore, batchSize] : [staleBefore, batchSize]
     let trackingList = []
     try {
       const data = await db.prepare(`
         SELECT * FROM naver_place_tracking
-        WHERE status = 'active'${userScope}
+        WHERE status = 'active'${userScope}${staleScope}
         ORDER BY COALESCE(last_check, '1970-01-01') ASC
-        LIMIT ? OFFSET ?
+        LIMIT ?
       `).bind(...bindArgs).all()
       trackingList = data.results || []
     } catch (dbError: any) {
@@ -70,9 +95,9 @@ export const onRequestPost: PagesFunction = async (context) => {
       try {
         const data2 = await db.prepare(`
           SELECT * FROM naver_place_tracking
-          WHERE status = 'active'${userScope}
+          WHERE status = 'active'${userScope}${staleScope}
           ORDER BY last_check ASC
-          LIMIT ? OFFSET ?
+          LIMIT ?
         `).bind(...bindArgs).all()
         trackingList = data2.results || []
       } catch (e2) {
@@ -395,15 +420,11 @@ export const onRequestPost: PagesFunction = async (context) => {
         }
         
         // 마지막 체크 시간 업데이트
-        try {
-          await db.prepare(`
-            UPDATE naver_place_tracking
-            SET last_check = datetime('now'), last_rank = ?
-            WHERE id = ?
-          `).bind(rank, tracking.id).run()
-        } catch (dbError) {
-          console.warn('[Cron] DB update failed:', dbError)
-        }
+        //  ⚠ 배포된 테이블에 last_rank 컬럼이 없는 경우가 있는데, 예전에는 그때 이 UPDATE 가
+        //     통째로 실패하고 경고만 찍혔다. 그러면 last_check 가 영영 갱신되지 않아
+        //     "언제 마지막으로 확인했는지" 를 아무도 알 수 없고, 순서대로 도는 배치도 제자리를 맴돈다.
+        //     컬럼이 있으면 순위까지, 없으면 시각만이라도 반드시 남긴다.
+        await stampChecked(db, tracking.id, rank)
         
         results.push({
           placeId: placeId,
@@ -424,6 +445,9 @@ export const onRequestPost: PagesFunction = async (context) => {
         
       } catch (error) {
         console.error('[Cron] Error updating tracking', tracking.id, error)
+        // ⚠ 실패해도 last_check 는 반드시 옮긴다. 안 그러면 커서가 이 행에 걸려
+        //   같은 항목만 계속 다시 집어 오며 배치가 앞으로 나아가지 못한다.
+        await stampChecked(db, tracking.id, null)
         errorCount++
         results.push({
           placeId: tracking.place_id,
@@ -441,11 +465,13 @@ export const onRequestPost: PagesFunction = async (context) => {
       updated: results.length,
       successCount: successCount,
       errorCount: errorCount,
-      // 외부 스케줄러(.github/workflows/cron.yml)가 다음 배치를 이어서 돌지 판단하는 값.
-      //  이게 없으면 전체 추적 목록의 앞 20건만 갱신되고 나머지는 영영 밀린다.
-      offset: offset,
+      // 스케줄러가 다음 배치를 이어서 돌지 판단하는 값.
+      //  이제는 offset 을 올릴 필요가 없다 — 처리한 행의 last_check 가 갱신되면서
+      //  다음 호출이 자연히 그다음 묶음을 집어 온다(같은 파라미터로 다시 부르면 된다).
+      offset: offset,          // 옛 호출 호환용. 조회에는 쓰지 않는다.
       limit: batchSize,
-      hasMore: results.length >= batchSize,
+      staleHours,
+      hasMore: trackingList.length >= batchSize,
       results: results
     })
   } catch (error) {
