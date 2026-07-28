@@ -1,4 +1,4 @@
-import { Env, json, ensureSchema, getSessionUser, resolveDB, verifyPassword, hashPassword, logActivity, sameOriginOk } from '../_utils'
+import { Env, json, ensureSchema, getSessionUser, resolveDB, verifyPassword, hashPassword, logActivity, sameOriginOk, parseCookies, SESSION_COOKIE } from '../_utils'
 
 // POST /api/account/password  { current, next } → 본인 비밀번호 변경
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -27,6 +27,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const ph = await hashPassword(next)
   await db.prepare('UPDATE users SET password_hash = ?, password_set = 1 WHERE id = ?').bind(ph, me.id).run()
+  // ⚠ 비밀번호를 바꾸는 가장 큰 이유는 "누가 내 계정을 쓰고 있는 것 같다" 이다.
+  //   그런데 다른 기기의 세션이 그대로 살아 있으면 비밀번호를 바꿔도 그 사람은 계속 들어와 있다.
+  //   관리자 비밀번호 변경·비밀번호 재설정 경로는 이미 세션을 끊고 있었는데 이 경로만 빠져 있었다.
+  //   지금 쓰고 있는 브라우저까지 로그아웃시키면 불편하므로 현재 세션만 남긴다.
+  const cur = parseCookies(request)[SESSION_COOKIE] || ''
+  await db.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').bind(me.id, cur).run().catch(() => {})
   await logActivity(db, me.id, 'password', firstTimeSocialSet ? '비밀번호 최초 설정' : '비밀번호 변경')
   return json({ ok: true, firstTimeSet: firstTimeSocialSet })
 }

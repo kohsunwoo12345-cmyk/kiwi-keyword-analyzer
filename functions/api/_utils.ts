@@ -1218,6 +1218,27 @@ export async function verifyPassword(password: string, stored: string): Promise<
   return timingSafeEqual(check, stored)
 }
 
+/**
+ * 로그인 후 돌아갈 "우리 사이트 안의" 경로인지 확인. 아니면 빈 문자열.
+ *
+ * ⚠ startsWith('/') && !startsWith('//') 만으로는 부족하다.
+ *   브라우저 URL 파서는 역슬래시와 탭/개행을 슬래시로 바꾸거나 지워 버려서
+ *     /\evil.com  →  https://evil.com
+ *     /<TAB>/evil.com → https://evil.com
+ *   처럼 외부 사이트로 튕겨 나간다(오픈 리다이렉트). 로그인 직후 낯선 사이트로
+ *   보내지면 그대로 피싱에 쓰인다. 그래서 최종적으로 만들어지는 주소의 출처까지 확인한다.
+ */
+export function safeNextPath(raw: any, base: string): string {
+  const s = String(raw || '')
+  if (!s.startsWith('/') || s.startsWith('//')) return ''
+  if (/[\\\u0000-\u001f\u007f]/.test(s)) return ''
+  try {
+    const u = new URL(s, base)
+    if (u.origin !== new URL(base).origin) return ''
+    return (u.pathname + u.search + u.hash).slice(0, 300)
+  } catch { return '' }
+}
+
 export function parseCookies(request: Request): Record<string, string> {
   const out: Record<string, string> = {}
   const raw = request.headers.get('Cookie') || ''

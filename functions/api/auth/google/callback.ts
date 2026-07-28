@@ -1,6 +1,6 @@
 import {
   Env, ensureSchema, seedAdmin, resolveDB, parseCookies, createSession, sessionCookie,
-  ADMIN_EMAIL, hashPassword, ensureReferralCode, applyBalance, addNotification, logActivity, clientIp, geoFrom,
+  ADMIN_EMAIL, hashPassword, ensureReferralCode, applyBalance, addNotification, logActivity, clientIp, geoFrom, safeNextPath,
 } from '../../_utils'
 
 const DASH = '/dashboard_USE17237_612'
@@ -57,6 +57,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     })
     const info: any = await infoRes.json().catch(() => ({}))
     const email = String(info.email || '').trim().toLowerCase()
+    // ⚠ 확인되지 않은 이메일은 받지 않는다. 아래에서 이메일로 기존 회원을 찾아 로그인시키므로,
+    //   확인 안 된 주소를 그대로 믿으면 남의 계정으로 들어갈 여지가 생긴다.
+    //   (구글이 verified_email 을 안 내려주는 경우가 있어 undefined 는 통과시킨다 — false 만 차단)
+    if (info.verified_email === false || info.email_verified === false)
+      return redirect(request, '/login?error=unverified', [clearState])
     const name = String(info.name || info.given_name || (email ? email.split('@')[0] : '') || '구글 사용자').slice(0, 60)
     if (!email) return redirect(request, '/login?error=noemail', [clearState])
 
@@ -121,8 +126,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     let dest = isAdmin ? ADMIN : consentOk && addressComplete ? DASH : '/complete-profile'
     // next 가 있으면 우선 복귀(가입 마무리가 필요한 경우는 제외 — 그 흐름을 먼저 끝내야 함)
     try {
-      const nx = decodeURIComponent(nextEnc || '')
-      if (nx.startsWith('/') && !nx.startsWith('//') && dest !== '/complete-profile') dest = nx
+      // safeNextPath 로 "우리 사이트 안" 인지 끝까지 확인한다 —
+      //  예전 검사(/ 로 시작 + // 아님)는 /\evil.com 같은 값을 그냥 통과시켜
+      //  로그인 직후 외부 사이트로 튕겨 나갔다(오픈 리다이렉트 → 피싱).
+      const nx = safeNextPath(decodeURIComponent(nextEnc || ''), url.origin)
+      if (nx && dest !== '/complete-profile') dest = nx
     } catch { /* noop */ }
 
     return redirect(request, dest, [sessionCookie(token), clearState])
