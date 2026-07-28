@@ -83,7 +83,10 @@ export default {
     if (!env.CRON_TOKEN) { console.error('[cron] CRON_TOKEN 시크릿이 없습니다 — 설정 → Variables and Secrets 에 추가하세요'); return }
     const job = event.cron === CRON_NAVER ? runNaverTracking : runVideoSchedules
     ctx.waitUntil(job(env).then((s) => {
-      console.log(`[cron] ${event.cron} 완료 — ${s.length}단계, 실패 ${s.filter((x) => !x.ok).length}`)
+      // 실패 사유를 요약 줄에 같이 싣는다. 따로 남긴 error 줄을 찾아 헤매지 않도록.
+      const bad = s.filter((x) => !x.ok)
+      const why = bad.map((x) => `${x.step} → ${String(x.body).slice(0, 200)}`).join(' | ')
+      console.log(`[cron] ${event.cron} 완료 — ${s.length}단계, 실패 ${bad.length}` + (why ? ` · ${why}` : ''))
     }))
   },
 
