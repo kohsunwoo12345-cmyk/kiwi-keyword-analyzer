@@ -1969,6 +1969,7 @@ var MODELS = [
  ['영상','Seedance 1.0 Pro'],['영상','Seedance 1.0 Pro Fast'],
  ['영상','MiniMax Hailuo 02'],['영상','MiniMax T2V-01 Director'],['영상','MiniMax I2V-01 Director'],
  ['영상','Luma Ray 3.2'],
+ ['영상 → 영상','Luma Ray 3.2 (영상 편집)'],['영상 → 영상','Luma Ray 3.2 (비율 변경)'],
  ['영상 · Kling','Kling 3.0 Pro (텍스트→영상)'],['영상 · Kling','Kling 3.0 Pro (이미지→영상)'],
  ['영상 · Kling','Kling 3.0 Fast (텍스트→영상)'],['영상 · Kling','Kling 3.0 Fast (이미지→영상)'],
  ['영상 · Kling','Kling 2.1 Master (텍스트→영상)'],['영상 · Kling','Kling 2.1 Master (이미지→영상)'],
@@ -2096,6 +2097,8 @@ var MODEL_COST = {
   'MiniMax I2V-01 Director':         { u:'sec', usd:0.043, prov:'hailuo' },
   // Luma Agents API — 구세대 Ray 2/1.6 은 이 계정 키로 호출되지 않아 제거했다. 단가는 잠정값.
   'Luma Ray 3.2':                    { u:'sec', usd:0.08,  prov:'luma' },
+  'Luma Ray 3.2 (영상 편집)':          { u:'sec', usd:0.08,  prov:'luma' },
+  'Luma Ray 3.2 (비율 변경)':          { u:'sec', usd:0.04,  prov:'luma' },
   'Luma Uni 1':                      { u:'img', usd:0.04,  prov:'luma' },
   'Luma Uni 1 Max':                  { u:'img', usd:0.08,  prov:'luma' },
   'Kling 3.0 Pro (텍스트→영상)':       { u:'sec', usd:0.11,  prov:'kling' },
@@ -2118,8 +2121,9 @@ var MODEL_COST = {
   'Seedream 4.5 (레퍼런스 편집)':      { u:'img', usd:0.045, prov:'seedream' },
   'Seedream 4.0':                    { u:'img', usd:0.035, prov:'seedream' },
   'Seedream 4.0 (레퍼런스 편집)':      { u:'img', usd:0.035, prov:'seedream' },
-  'Seedream 3.0':                    { u:'img', usd:0.03,  prov:'seedream' },
-  'SeedEdit 3.0 (레퍼런스 편집)':      { u:'img', usd:0.03,  prov:'seedream' },
+  // Seedream 3.0 · SeedEdit 3.0 은 이 계정에서 호출하면 404 라 노드에서 뺐다.
+  //  서버 단가표에도 없으므로 여기서도 지운다 — 한쪽에만 남으면 "표시가와 청구가가 다른"
+  //  상태가 된다(서버는 단가를 모르는 이미지 모델을 $0.05 로 잡는다).
   'Nano Banana':                     { u:'img', usd:0.039, prov:'nanobanana' },
   'GPT Image 2':                     { u:'img', usd:0.08,  prov:'openai' },
   'GPT Image 1.5':                   { u:'img', usd:0.06,  prov:'openai' },
@@ -2133,7 +2137,7 @@ var MODEL_COST = {
   'Flux 2 Flex':                     { u:'img', usd:0.06,  prov:'flux' },
   'Flux 1.1 Pro Ultra':              { u:'img', usd:0.06,  prov:'flux' },
   'Flux 1.1 Pro':                    { u:'img', usd:0.04,  prov:'flux' },
-  'Flux Pro':                        { u:'img', usd:0.05,  prov:'flux' },
+  // Flux Pro(FLUX.1 pro 1.0)는 BFL 이 폐지해 403 이다 — 노드·서버 단가표 모두에서 뺐다.
   'Flux Dev':                        { u:'img', usd:0.025, prov:'flux' },
   'Flux Kontext Max (레퍼런스 편집)':  { u:'img', usd:0.08,  prov:'flux' },
   'Flux Kontext Pro (레퍼런스 편집)':  { u:'img', usd:0.04,  prov:'flux' },  // BFL 공식 $0.04/장
@@ -2426,7 +2430,8 @@ var MODEL_PROVIDER = {
   'Flux Kontext Max (레퍼런스 편집)':'flux','Flux Kontext Pro (레퍼런스 편집)':'flux',
   'Hyper3D Gen-2 (3D 생성)':'ark3d','Hitem3D 2.0 (3D 생성)':'ark3d',
   'MiniMax Hailuo 02':'hailuo','MiniMax T2V-01 Director':'hailuo','MiniMax I2V-01 Director':'hailuo','Hailuo MiniMax':'hailuo',
-  'Luma Ray 3.2':'luma','Luma Uni 1':'luma','Luma Uni 1 Max':'luma',
+  'Luma Ray 3.2':'luma','Luma Ray 3.2 (영상 편집)':'luma','Luma Ray 3.2 (비율 변경)':'luma',
+  'Luma Uni 1':'luma','Luma Uni 1 Max':'luma',
   'Luma Ray 2':'luma','Luma Ray Flash 2':'luma','Luma Ray 1.6':'luma','Luma Ray2':'luma',   // 예전 그래프 호환
   // Kling — 서버 프록시가 클링 공식 API(KLING_ACCESS_KEY/KLING_SECRET_KEY 또는 KLING_API_KEY)로 호출
   'Kling 3.0 Pro (텍스트→영상)':'kling','Kling 3.0 Pro (이미지→영상)':'kling',
@@ -2511,7 +2516,9 @@ function modelV2V(model){ return /V2V 자동|모션 전이|Runway Aleph|Seedance
 function videoRefMax(model){
   var c=videoModelCaps(model);
   if(!c.ref) return 0;
-  return /Seedance 2\.0/.test(String(model||'')) ? 9 : 1;
+  // 예전엔 씨댄스 2.0 만 9, 나머지는 전부 1로 하드코딩돼 있었다. 루마 키프레임(64) 처럼
+  //  모델마다 다른 값을 담을 수 없어, 한도표(VIDEO_REF_LIMIT)를 단일 출처로 삼는다.
+  return modelRefLimit(model);
 }
 /* 이 모델 노드에서 지금 사용자가 붙일 수 있는 사진 레퍼런스 장수.
    [첫 프레임] 포트에 무언가 연결돼 있으면 한 자리를 그 프레임이 쓰므로 1장 줄어든다. */
@@ -2525,6 +2532,10 @@ function videoModelCaps(model){
   var m=String(model||''), c={ref:false,vidref:false,first:false,last:false,audio:false};
   // Seedance 2.0 계열 — 사진·영상·오디오 레퍼런스 + 첫/마지막 프레임 모두 지원(멀티모달)
   if(/Seedance 2\.0/.test(m)) return {ref:true,vidref:true,first:true,last:true,audio:true};
+  // 루마 영상 편집·비율 변경 — 원본 영상만 받는다. 이미지 레퍼런스·첫/끝 프레임은 문서상 미지원.
+  if(/Luma Ray 3\.2 \((영상 편집|비율 변경)\)/.test(m)){ c.vidref=true; return c; }
+  // 루마 영상 생성 — 이미지 레퍼런스를 키프레임 앵커로 쓴다(최대 64). 첫·끝 프레임도 지원.
+  if(/Luma Ray 3\.2/.test(m)) return {ref:true,vidref:false,first:true,last:true,audio:false};
   // V2V(영상→영상) — 영상 레퍼런스 필수. 업스케일·자동 V2V 는 영상만, 모션 전이·Aleph 는 외형용 사진도 받음
   if(/V2V 자동|업스케일 4K/.test(m)){ c.vidref=true; return c; }
   if(/모션 전이|Runway Aleph/.test(m)){ c.vidref=true; c.ref=true; return c; }
@@ -2596,6 +2607,11 @@ var VIDEO_MODEL_SPEC = {
   // Luma Ray 3.2 — 문서(guides/model)로 확인한 값. 길이 5s·10s, 해상도 540p·720p·1080p(4K 없음),
   //  비율 6종(9:21 없음). 처음엔 구 API 기억으로 9초·4K·9:21 을 넣었는데 셋 다 없는 값이었다.
   'Luma Ray 3.2':                { secs:[5,10], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], res:['540p','720p','1080p'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
+  // 영상 편집 — 비율은 원본 영상에서 파생돼 요청 시 무시된다(선택기를 열어 두면 "골랐는데 안 먹는" 상태가 된다).
+  //  길이도 원본을 따르므로 지정하지 않는다. 해상도만 지정 가능.
+  'Luma Ray 3.2 (영상 편집)':      { secs:[], ratios:[], res:['540p','720p','1080p'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
+  // 비율 변경 — 비율이 필수(목표 모양). 문서상 SDR 전용이고 길이·해상도 지정은 없다.
+  'Luma Ray 3.2 (비율 변경)':      { secs:[], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], res:[], audio:false, watermark:false, neg:false, cfg:false, seed:false },
   // MiniMax — Hailuo 02 는 6·10초(1080P 는 6초), 01 Director 계열은 6초 고정. 비율 필드 없음(프롬프트로 전달).
   //  해상도는 "1080P 는 6초까지" 라는 제약 때문에 길이에서 자동 결정된다(사용자 선택 항목이 아니라 res:[]).
   'MiniMax Hailuo 02':           { secs:[6,10], ratios:['16:9','9:16'], res:[], audio:false, watermark:false, neg:false, cfg:false, seed:false },
@@ -2740,7 +2756,31 @@ var MODEL_REF_LIMIT = {
   'Flux 2 Max':8,'Flux 2 Pro':8,'Flux 2 Flex':8,
   'Flux 1.1 Pro Ultra':1,'Flux 1.1 Pro':1,'Flux Pro':1,'Flux Dev':1,'Grok Imagine':1
 };
-function modelRefLimit(model){ var v=MODEL_REF_LIMIT[model]; return v==null?1:v; }
+/* 영상 모델의 "이미지 레퍼런스" 최대 장수 — 서버 빌더가 실제로 요청에 싣는 수와 같아야 한다.
+   (표에 없으면 1장으로 막힌다. 반대로 실제보다 크게 잡으면 연결은 되는데 조용히 버려진다.) */
+var VIDEO_REF_LIMIT = {
+  'Seedance 2.0':9,'Seedance 2.0 Fast':9,'Seedance 2.0 Mini':9,   // buildSeedancePayload 가 9장으로 자른다
+  'Luma Ray 3.2':64,                                             // 다중 키프레임 앵커 최대 64
+  'Luma Ray 3.2 (영상 편집)':0,'Luma Ray 3.2 (비율 변경)':0,       // 이미지 레퍼런스를 받지 않는다
+  'Runway Gen-4':1,'Runway Gen-3 Alpha Turbo':1,
+  'Google Veo 3.1':1,'Grok Imagine (영상)':1,
+  'MiniMax Hailuo 02':1,'MiniMax T2V-01 Director':0,'MiniMax I2V-01 Director':1,
+};
+/* 영상 모델의 "영상 레퍼런스" 최대 개수 — 영상을 아예 안 받는 모델은 0. */
+var VIDEO_SRC_LIMIT = {
+  'Seedance 2.0':3,'Seedance 2.0 Fast':3,'Seedance 2.0 Mini':3,   // buildSeedancePayload 가 3개로 자른다
+  'Luma Ray 3.2 (영상 편집)':1,'Luma Ray 3.2 (비율 변경)':1,
+  'V2V 자동 (최고정확도·모델 자동선택)':1,'업스케일 4K (영상 화질 향상)':1,
+  '모션 전이 (원본 움직임 유지·Motion Transfer)':1,'Runway Aleph (영상→실사 V2V)':1,
+};
+/* 이미지·영상 노드 공통 조회. 예전엔 영상 노드가 표에 없어 전부 1장으로 떨어졌고,
+   초과 안내(refExceedToast)는 모델과 무관하게 4를 하드코딩해 두 값이 서로 어긋나 있었다. */
+function modelRefLimit(model){
+  var m=String(model||'').trim();
+  if(VIDEO_REF_LIMIT[m]!=null) return VIDEO_REF_LIMIT[m];
+  var v=MODEL_REF_LIMIT[m]; return v==null?1:v;
+}
+function modelVidLimit(model){ var v=VIDEO_SRC_LIMIT[String(model||'').trim()]; return v==null?0:v; }
 /* 생성 중 고급 로더 마크업 (GPT/Gemini 스타일) — 스피너 + 그라디언트 텍스트 + shimmer 바 */
 function genLoader(label, minH){
   return '<div class="wpreview genwrap"'+(minH?' style="min-height:'+minH+'px;"':'')+'>'+
@@ -2775,14 +2815,20 @@ function showNavLoader(label){
 function hideNavLoader(){ var ov=navLoader(); if(ov)ov.classList.remove('on'); if(_navLoaderT){ clearTimeout(_navLoaderT); _navLoaderT=null; } }
 /* 이미지 레퍼런스 포트 연결이 모델 최대치를 넘으면 초과 안내 */
 function refExceedToast(nodeId, port){
-  if(port!=='ref') return;
+  if(port!=='ref' && port!=='vidref') return;
   var nd=state.nodes.find(function(x){return x.id===nodeId;}); if(!nd)return;
   if(nd.type!=='model'&&nd.type!=='imagegen'&&nd.type!=='img3d'&&nd.type!=='gen3d') return;
-  // 영상 모델은 모델별 한도에서 [첫 프레임]이 쓰는 자리를 뺀 값이 "붙일 수 있는 장수"다.
-  var lim = nd.type==='model' ? videoRefBudget(nd) : modelRefLimit(nd.w.model);
-  var cnt = state.links.filter(function(l){return l.to===nodeId && l.toPort==='ref';}).length;
-  if(cnt>lim) toast('이 모델은 이미지 레퍼런스 '+lim+'장까지 사용합니다'
-    + (nd.type==='model'&&inputNodeOf(nodeId,'first')?' (첫 프레임이 1장 사용 중)':'')
+  /* 두 갈래를 합친다. 다른 세션이 넣은 videoRefBudget(첫 프레임이 한 자리를 쓰면 1장 차감)은
+     그대로 살리고, 여기에 영상 레퍼런스(vidref) 안내와 "아예 안 받는 모델" 처리를 더한다.
+     예전엔 영상 노드에 4를 하드코딩해, 한도표와 안내 문구가 서로 다른 수를 말했다. */
+  var mn = nd.type==='model' ? effModel(nd) : nd.w.model;
+  var what = port==='vidref' ? '영상 레퍼런스' : '이미지 레퍼런스';
+  var lim = port==='vidref' ? modelVidLimit(mn)
+          : (nd.type==='model' ? videoRefBudget(nd) : modelRefLimit(mn));
+  var cnt = state.links.filter(function(l){return l.to===nodeId && l.toPort===port;}).length;
+  if(lim<=0){ if(cnt>0) toast('이 모델은 '+what+'를 사용하지 않습니다. 연결해도 생성에 반영되지 않습니다.'); return; }
+  if(cnt>lim) toast('이 모델은 '+what+' '+lim+(port==='vidref'?'개':'장')+'까지 사용합니다'
+    + (port==='ref'&&nd.type==='model'&&inputNodeOf(nodeId,'first')?' (첫 프레임이 1장 사용 중)':'')
     + '. 초과된 '+(cnt-lim)+'개는 생성 시 제외됩니다.');
 }
 /* 모델 로더의 "실효 모델" — 모델선택 노드가 연결돼 있으면 그 모델, 아니면 자체 콤보 */
@@ -5877,6 +5923,17 @@ function nodeHTML(n){
       var _lim=modelRefLimit(n.w.model);
       inpLabel = inpLabel.replace(/\s*\(최대 \d+장[^)]*\)/, '')
         + ' (최대 ' + _lim + '장' + (_lim>1?' · 다중 연결':'') + ')';
+    }
+    /* 영상 제작 노드에도 같은 표기를 붙인다. 예전엔 이미지 계열 노드에만 붙어 있어서
+       영상 모델의 레퍼런스 한도(씨댄스 9장·루마 키프레임 64장 등)를 노드에서 알 수 없었고,
+       몇 장까지 되는지 모른 채 붙였다가 생성 직전에야 초과 안내를 봤다. */
+    if(inp && n.type==='model' && !inpOff && (inp[0]==='ref' || inp[0]==='vidref')){
+      var _mn=effModel(n);
+      var _vl = inp[0]==='vidref' ? modelVidLimit(_mn) : modelRefLimit(_mn);
+      if(_vl>0){
+        inpLabel = inpLabel.replace(/\s*\(최대 \d+[장개][^)]*\)/, '')
+          + ' (최대 ' + _vl + (inp[0]==='vidref'?'개':'장') + (_vl>1?' · 다중 연결':'') + ')';
+      }
     }
     rows+='<div class="iorow">'+
       (inp?'<span class="port in'+(inpOff?' port-off':'')+'" data-port="'+inp[0]+'" data-dir="in" data-type="'+inp[2]+'" style="background:'+PORT_COLORS[inp[2]]+'"></span><span class="in-label'+(inpOff?' io-off':'')+'">'+inpLabel+(inpOff?' · 미지원':'')+'</span>':'<span></span>')+
