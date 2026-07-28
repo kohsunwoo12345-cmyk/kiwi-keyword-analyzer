@@ -1,14 +1,17 @@
-import { Env, resolveDB } from '../../_utils'
+import { Env, resolveDB, getSessionUser } from '../../_utils'
 import { ensureIgSchema } from '../_ig'
 
 const j = (obj: any, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
 
 // DELETE /api/instagram/dm-rules/:id → DM 규칙 삭제
-export const onRequestDelete: PagesFunction<Env> = async ({ env, params }) => {
+export const onRequestDelete: PagesFunction<Env> = async ({ request, env, params }) => {
   try {
     const db = resolveDB(env)
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 200)
+    // ⚠ 인증이 없어 로그인하지 않아도 DM 규칙을 지울 수 있었다
+    const me: any = await getSessionUser(request, db)
+    if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
     await ensureIgSchema(db)
     const id = params.id
     await db.prepare(`DELETE FROM instagram_dm_rules WHERE id = ?`).bind(id).run()
