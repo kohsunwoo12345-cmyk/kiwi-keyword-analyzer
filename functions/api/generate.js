@@ -617,7 +617,19 @@ export const FLUX_ENDPOINTS = {
   "Flux Kontext Max (레퍼런스 편집)": "flux-kontext-max",
   "Flux Kontext Pro (레퍼런스 편집)": "flux-kontext-pro"
 };
-const FLUX_DIMS = { "16:9":[1344,768], "9:16":[768,1344], "1:1":[1024,1024], "4:5":[896,1120] };
+/* width/height 로 크기를 지정하는 Flux 모델용 치수표.
+   ── 제공사가 직접 알려 준 제약(diag=flux-check 로 확인) ──
+     · flux-pro-1.1 · flux-dev  : width·height 가 32의 배수여야 한다(multiple_of 32)
+     · flux-2-max/pro/flex      : 64 이상이기만 하면 된다(32배수·상한 제약 없음)
+   두 집합을 모두 만족하려면 32의 배수를 쓰면 된다.
+
+   16:9 가 1344x768 이었는데 이 값은 1.750, 즉 실제로는 7:4 다(16:9 = 1.7778).
+   비율을 "16:9" 라고 표시해 놓고 다른 비율을 내보내고 있었다 — 768 높이에서 12px 어긋난다.
+   32의 배수이면서 정확히 16:9 인 조합은 1024x576(화소 43% 손실)이나 1536x864(1.x 상한 초과)
+   뿐이라 둘 다 대가가 크다. 대신 오차가 가장 작은 32배수 조합을 골랐다:
+     1312x736 = 1.7826 → 오차 0.27% (기존 1.56% 의 1/6). 화소는 0.97MP 로 거의 그대로.
+   1:1(1024x1024)·4:5(896x1120)은 원래 정확했으므로 그대로 둔다. */
+const FLUX_DIMS = { "16:9":[1312,736], "9:16":[736,1312], "1:1":[1024,1024], "4:5":[896,1120] };
 export function buildFluxPayload(b) {
   let ep = FLUX_ENDPOINTS[b.model] || "flux-pro-1.1";
   const prompt = cut(b.prompt, 1000);
@@ -991,6 +1003,27 @@ export function buildHailuoPayload(b) {
 /* ── Luma Dream Machine 영상 생성 ── */
 const LUMA_BASE = "https://api.lumalabs.ai/dream-machine/v1";
 
+/* ── 루마: 키가 "있는가" 가 아니라 "통하는가" 를 본다 ──
+   예전엔 health 가 !!k.luma 로만 답했다. 그런데 키는 설정돼 있는데 루마가 모든 요청을
+   403 "Not authenticated" 로 거부하는 상태였다(헤더 표기법 4가지를 모두 시도해 확인).
+   그 결과 스튜디오에 루마 모델이 계속 보였고, 회원이 고르면 선차감 → 생성 실패 → 환불이
+   반복된다. 그래서 읽기 전용 목록 조회로 실제 통용 여부를 확인한다.
+     · 401/403(자격증명 명시적 거부)일 때만 "사용 불가" 로 본다
+     · 5xx·타임아웃은 일시 장애일 수 있으므로 사용 가능으로 남겨 둔다(멀쩡한 제공사를 숨기지 않기 위함)
+   10분 캐시라 부팅 지연이 없고, 키를 고치면 다음 만료 때 자동으로 되살아난다. */
+let _lumaOk = { at: 0, ok: true };
+async function lumaUsable(key) {
+  if (!key) return false;
+  const now = Date.now();
+  if (_lumaOk.at && now - _lumaOk.at < 600000) return _lumaOk.ok;
+  try {
+    const r = await fetchT(LUMA_BASE + "/generations?limit=1",
+      { headers: { "Authorization": "Bearer " + key, "accept": "application/json" } }, 6000);
+    _lumaOk = { at: now, ok: !(r.status === 401 || r.status === 403) };
+  } catch (_e) { _lumaOk = { at: now, ok: true }; }
+  return _lumaOk.ok;
+}
+
 /* ── 카메라 모션 프리셋 (힉스필드 DoP 스타일) ──
    프롬프트에 시네마틱 카메라 지시문을 주입한다. 모든 영상 모델(씨댄스·Kling·Veo·Runway 등)이
    프롬프트의 카메라 언어에 반응하므로 모델 무관하게 동작한다. b.camera 에 프리셋 이름을 넣으면 적용. */
@@ -1214,6 +1247,8 @@ async function handle(context) {
   /* ══ GET: 상태 폴링 / 파일 프록시 ══ */
   if (request.method === "GET") {
     if (u.searchParams.has("health")) { // 제공사 키 설정 여부 점검 (키 값은 절대 노출 안 함) — ?health 또는 ?health=1 모두 허용
+      // 루마는 "키가 있다" 와 "그 키가 통한다" 가 다르다 — 실제로 확인한다(아래 lumaUsable 주석 참조)
+      const lumaOk = await lumaUsable(k.luma);
       return json({
         version:  "2026-07-13-v56 (remove-keys-page)", // 이 필드가 보이면 최신 코드가 프로덕션에 반영된 것
         build:    "2026-07-13-v56",                      // 스튜디오 STUDIO_BUILD 와 정확히 일치해야 최신
@@ -1224,7 +1259,8 @@ async function handle(context) {
         seedream: !!k.seedance,   // 씨드림 = ByteDance ModelArk 이미지, 씨댄스와 같은 키 공유
         flux:     !!k.flux,
         hailuo:   !!k.hailuo,
-        luma:     !!k.luma,
+        luma:     lumaOk,          // 키 유무가 아니라 "그 키가 실제로 통하는가"
+        lumaKeySet: !!k.luma,      // 키 자체는 있는지(진단용) — 키는 있는데 luma:false 면 키가 거부된 것
         fal:      !!k.fal,
         kling:    !!(klingCreds(env) || k.fal),
         klingOfficial: !!klingCreds(env),   // true=클링 공식 API, false=공식키 없음(→ fal 폴백으로 감)
