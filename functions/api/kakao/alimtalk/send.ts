@@ -24,6 +24,7 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
     const body: any = await request.json().catch(() => ({}))
     const { pfId, templateCode, recipients, content } = body
     if (!templateCode || !recipients?.length) return json({ ok: false, error: '필수 항목 누락' }, 400)
+    if (recipients.length > 1000) return json({ ok: false, error: '한 번에 최대 1,000명까지 발송할 수 있습니다.' }, 400)
 
     const apiKey = String((env as any)?.ALIGO_API_KEY || '').trim()
     const userIdEnv = String((env as any)?.ALIGO_USER_ID || '').trim()
@@ -44,7 +45,13 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
       return json({ ok: false, error: `포인트가 부족합니다. 필요: ${totalCost}P, 보유: ${curPoints}P` })
     }
     try {
-      await db.prepare('UPDATE users SET points = points - ? WHERE id = ? AND points >= ?').bind(totalCost, userId, totalCost).run()
+      // ⚠ 실제로 차감됐는지(changes) 확인해야 한다. 위의 잔액 검사는 읽기 시점 기준이라
+      //   같은 순간에 두 요청이 들어오면 둘 다 통과하는데, 조건부 UPDATE 는 한 쪽만 성공한다.
+      //   결과를 안 보면 진 쪽이 차감 없이 알림톡을 그냥 보낸다(= 무료 발송).
+      const upd: any = await db.prepare('UPDATE users SET points = points - ? WHERE id = ? AND points >= ?')
+        .bind(totalCost, userId, totalCost).run()
+      if (Number(upd?.meta?.changes || 0) === 0)
+        return json({ ok: false, error: `포인트가 부족합니다. 필요: ${totalCost}P` })
     } catch (_) {
       return json({ ok: false, error: '포인트 차감 중 오류가 발생했습니다.' })
     }

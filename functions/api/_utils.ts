@@ -221,6 +221,9 @@ export async function ensureSchema(db: D1Database) {
       decided_at TEXT
     )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_creditreq_status ON credit_requests(status, created_at)`),
+    // 공개 엔드포인트 남용 방지용 히트 기록 (rateLimitOk 참고)
+    db.prepare(`CREATE TABLE IF NOT EXISTS rate_hits (k TEXT NOT NULL, at TEXT NOT NULL)`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_rate_hits ON rate_hits(k, at)`),
     // 결제: Toss 크레딧 자동충전 주문
     db.prepare(`CREATE TABLE IF NOT EXISTS credit_orders (
       order_id TEXT PRIMARY KEY,
@@ -793,6 +796,34 @@ export function clientIp(request: Request): string {
     (request.headers.get('X-Forwarded-For') || '').split(',')[0].trim() ||
     'unknown'
   )
+}
+
+/**
+ * 공개(로그인 없는) 엔드포인트 남용 방지 — key 기준으로 windowMin 분 안에 limit 회까지만 허용.
+ *  통과하면 true 를 돌려주고 히트를 1건 기록한다. 넘으면 false.
+ *
+ *  ⚠ 왜 필요한가: 퍼널/랜딩 폼 제출은 로그인 없이 아무나 부를 수 있는데,
+ *     한 번 부를 때마다 자동응답 문자·알림톡이 나간다(건당 유료).
+ *     막는 장치가 없으면 스크립트 한 번에 문자 요금이 그대로 빠져나가고
+ *     신청자 목록도 쓰레기 데이터로 뒤덮인다.
+ *  DB 오류 시에는 통과시킨다 — 남용 방지 장치가 정상 이용을 막는 쪽이 더 나쁘다.
+ */
+export async function rateLimitOk(db: D1Database, key: string, limit: number, windowMin: number): Promise<boolean> {
+  if (!key) return true
+  const now = Date.now()
+  const since = new Date(now - windowMin * 60_000).toISOString()
+  try {
+    const r: any = await db.prepare('SELECT COUNT(*) AS c FROM rate_hits WHERE k = ? AND at > ?').bind(key, since).first()
+    if (Number(r?.c || 0) >= limit) return false
+    await db.prepare('INSERT INTO rate_hits (k, at) VALUES (?, ?)').bind(key, new Date(now).toISOString()).run()
+    // 가끔씩만 오래된 기록을 지운다(매 요청 DELETE 는 낭비) — 하루 지난 건 의미 없다
+    if (Math.random() < 0.02) {
+      await db.prepare('DELETE FROM rate_hits WHERE at < ?').bind(new Date(now - 86400_000).toISOString()).run().catch(() => {})
+    }
+    return true
+  } catch {
+    return true
+  }
 }
 
 export async function isBlocked(db: D1Database, ip: string): Promise<boolean> {

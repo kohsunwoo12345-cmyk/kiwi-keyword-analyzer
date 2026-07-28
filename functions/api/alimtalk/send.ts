@@ -23,6 +23,7 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
   }
   if (!senderKey) senderKey = String(env?.ALIGO_SENDER_KEY || '')
   if (recipients.length === 0) return json({ ok: false, error: '수신 번호를 입력하세요.' }, 400)
+  if (recipients.length > 1000) return json({ ok: false, error: '한 번에 최대 1,000명까지 발송할 수 있습니다.' }, 400)
   if (!text) return json({ ok: false, error: '내용을 입력하세요.' }, 400)
 
   const cost = recipients.length
