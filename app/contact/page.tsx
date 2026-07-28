@@ -15,6 +15,7 @@ import {
 import Link from 'next/link'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
+import { ContactShowcase } from '@/components/features/ContactShowcase'
 import { SectionTag } from '@/components/ui'
 import { Reveal } from '@/components/motion'
 import { sendContact } from '@/lib/auth'
@@ -396,6 +397,9 @@ export default function ContactPage() {
           </div>
         </div>
       </section>
+
+      {/* ===== 문의 이후 진행 · 유형별 라우팅 ===== */}
+      <ContactShowcase />
 
       <Footer />
     </div>

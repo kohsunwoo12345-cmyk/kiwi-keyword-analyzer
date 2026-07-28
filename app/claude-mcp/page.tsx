@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
+import { McpFlowShowcase } from '@/components/features/McpFlowShowcase'
 import { ClaudeMark } from '@/components/ClaudeMark'
 import { Reveal } from '@/components/motion'
 import { SectionTag } from '@/components/ui'
@@ -194,6 +195,9 @@ export default function ClaudeMcpPage() {
           </div>
         </div>
       </section>
+
+      {/* ===== 대화 시연 · 연결 구조 ===== */}
+      <McpFlowShowcase />
 
       <Footer />
     </div>
