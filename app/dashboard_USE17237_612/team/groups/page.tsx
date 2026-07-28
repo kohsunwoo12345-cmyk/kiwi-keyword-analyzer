@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Button, Panel } from '@/components/ui'
+import { isImeEnter } from '@/lib/utils'
 
 const ACCENT = '#0ea5e9'
 
@@ -591,7 +592,7 @@ export default function TargetGroupsPage() {
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') createGroup()
+                    if (e.key === 'Enter' && !isImeEnter(e)) createGroup()
                   }}
                   placeholder="그룹 이름"
                   className={inputCls}
@@ -663,7 +664,7 @@ export default function TargetGroupsPage() {
                         value={renameVal}
                         onChange={(e) => setRenameVal(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') doRename()
+                          if (e.key === 'Enter' && !isImeEnter(e)) doRename()
                           if (e.key === 'Escape') setRenaming(false)
                         }}
                         autoFocus

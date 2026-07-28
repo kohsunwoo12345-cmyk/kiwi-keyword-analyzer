@@ -8,6 +8,7 @@ import { Button } from '@/components/ui'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import { useAuth } from '@/lib/auth'
 import { kstDateTime } from '@/lib/time'
+import { isImeEnter } from '@/lib/utils'
 
 const ACCENT = '#0ea5e9'
 
@@ -359,7 +360,7 @@ export default function MeetingNotesPage() {
                     <input
                       value={newDecision}
                       onChange={(e) => setNewDecision(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && addDecision(selected.id)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !isImeEnter(e)) addDecision(selected.id) }}
                       placeholder="결정된 내용을 입력하고 Enter"
                       className={inputCls}
                     />
@@ -412,7 +413,7 @@ export default function MeetingNotesPage() {
                     <input
                       value={newAction}
                       onChange={(e) => setNewAction(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && addAction(selected.id)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !isImeEnter(e)) addAction(selected.id) }}
                       placeholder="할 일과 담당자를 입력하고 Enter"
                       className={inputCls}
                     />

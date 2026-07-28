@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Card, EmptyState, Metric } from '@/components/dash/Kit'
+import { isImeEnter } from '@/lib/utils'
 
 const ACCENT = '#0ea5e9'
 
@@ -239,7 +240,7 @@ export default function TeamManagePage() {
                     setNewTeamName(e.target.value)
                     if (needPlan) setNeedPlan(false)
                   }}
-                  onKeyDown={(e) => e.key === 'Enter' && createTeam()}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !isImeEnter(e)) createTeam() }}
                 />
                 <button
                   onClick={createTeam}
@@ -341,7 +342,7 @@ export default function TeamManagePage() {
                               setInviteIdent((s) => ({ ...s, [team.id]: e.target.value }))
                               if (err) setInviteErr((s) => ({ ...s, [team.id]: '' }))
                             }}
-                            onKeyDown={(e) => e.key === 'Enter' && invite(team.id)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && !isImeEnter(e)) invite(team.id) }}
                           />
                           <button
                             onClick={() => invite(team.id)}

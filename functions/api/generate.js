@@ -1157,10 +1157,22 @@ export function applyCameraPreset(b) {
                    video:{ resolution:"720p", duration:"5s", start_frame, end_frame } }
      이미지 편집 { type:"image_edit", prompt, source:{ url } } */
 export const LUMA_IDS = {
-  "Luma Ray 3.2":     "ray-3.2",
-  "Luma Uni 1":       "uni-1",
-  "Luma Uni 1 Max":   "uni-1-max",
+  "Luma Ray 3.2":                 "ray-3.2",
+  "Luma Ray 3.2 (영상 편집)":      "ray-3.2",
+  "Luma Ray 3.2 (비율 변경)":      "ray-3.2",
+  "Luma Uni 1":                   "uni-1",
+  "Luma Uni 1 Max":               "uni-1-max",
 };
+/* 같은 ray-3.2 라도 type 에 따라 하는 일과 받는 필드가 다르다.
+     video         텍스트/이미지 → 영상. start_frame·end_frame·keyframes·loop 사용
+     video_edit    기존 영상을 프롬프트로 편집. source 필수, 비율은 원본에서 파생돼 무시됨
+     video_reframe 영상 비율 변경. source + aspect_ratio 필수.
+                   문서상 video.edit·loop·start_frame·end_frame 미지원, HDR 도 불가(SDR 전용) */
+const LUMA_TYPE = {
+  "Luma Ray 3.2 (영상 편집)": "video_edit",
+  "Luma Ray 3.2 (비율 변경)": "video_reframe",
+};
+const LUMA_MAX_KEYFRAMES = 64;   // 문서: 다중 키프레임 앵커 최대 64개
 const LUMA_VIDEO_MODELS = { "ray-3.2": 1 };
 /* 아래 열거값은 문서(guides/model)로 확인한 것이다. 처음 옮길 때 구 API 기억으로
    9초·4K·9:21 을 넣었는데 셋 다 ray-3.2 에 없는 값이었다 — 그대로 뒀으면 길이는
@@ -1172,6 +1184,20 @@ const LUMA_RES = { "540p": "540p", "720p": "720p", "1080p": "1080p",
                    "4K": "1080p", "4k": "1080p" };
 const LUMA_SECS = [5, 10];
 export const LUMA_RATIOS = ["9:16", "3:4", "1:1", "4:3", "16:9", "21:9"];
+/* 영상 편집·비율 변경의 source. 문서상 셋 중 하나다.
+     generation_id  이전 루마 생성물을 그대로 가리킨다(업로드 불필요·가장 안전)
+     url            외부에 호스팅된 영상
+     data           인라인 데이터. 이 경우 media_type 이 필요하다(video/*) */
+function lumaVideoSource(b, srcVid) {
+  const gid = String(b.lumaSourceId || "").trim();
+  if (gid) return { generation_id: gid };
+  const v = String(srcVid || "").trim();
+  if (/^data:/i.test(v)) {
+    const m = /^data:(video\/[a-z0-9.+-]+);base64,/i.exec(v);
+    return { data: v.split(",").pop(), media_type: (m && m[1]) || "video/mp4" };
+  }
+  return { url: v };
+}
 export function buildLumaPayload(b) {
   const id = LUMA_IDS[b.model] || "uni-1";
   const isVideo = !!LUMA_VIDEO_MODELS[id];
@@ -1207,11 +1233,56 @@ export function buildLumaPayload(b) {
   const sec = LUMA_SECS.reduce((a, c) => Math.abs(c - raw) < Math.abs(a - raw) ? c : a, LUMA_SECS[0]);
   // 비율도 허용 6종 밖이면 16:9 로 떨어뜨린다(없는 값을 보내면 제공사가 반려한다)
   const ar = LUMA_RATIOS.indexOf(String(b.ratio || "")) >= 0 ? b.ratio : "16:9";
+  const vtype = LUMA_TYPE[b.model] || "video";
+  const srcVid = b.srcVideo || b.srcVideoUrl || null;
+
+  // ── 영상 비율 변경 ── source 와 목표 비율만 받는다. 나머지 영상 옵션은 문서상 미지원.
+  if (vtype === "video_reframe") {
+    const q = { model: id, type: "video_reframe", aspect_ratio: ar, source: lumaVideoSource(b, srcVid) };
+    if (String(b.prompt || "").trim()) q.prompt = cut(b.prompt, 1200);
+    return q;
+  }
+  // ── 영상 편집 ── 비율은 원본에서 파생되므로 보내지 않는다(보내도 무시된다).
+  if (vtype === "video_edit") {
+    const q = { model: id, type: "video_edit", prompt: cut(b.prompt, 1200),
+                source: lumaVideoSource(b, srcVid), video: {} };
+    const res = LUMA_RES[String(b.res || "").trim()];
+    if (res) q.video.resolution = res;
+    // 편집 강도 — 노드 슬라이더는 0~100, 제공사는 0~1
+    const st = Number(b.v2vStrength);
+    if (Number.isFinite(st)) q.video.edit = { strength: Math.max(0, Math.min(1, st > 1 ? st / 100 : st)) };
+    else q.video.edit = { auto_controls: true };
+    if (!Object.keys(q.video).length) delete q.video;
+    return q;
+  }
+
   const p = { model: id, type: "video", prompt: cut(b.prompt, 1200),
               aspect_ratio: ar,
               video: { resolution: LUMA_RES[String(b.res || "").trim()] || "1080p", duration: sec + "s" } };
   if (b.lumaHdr === true) p.video.hdr = true;                       // HDR 출력(720p·1080p)
+  // EXR 내보내기는 문서상 hdr:true 가 전제다 — 단독으로 보내면 반려된다.
+  if (b.lumaExr === true && p.video.hdr === true) p.video.exr_export = true;
   if (b.lumaLoop === true && !b.lastFrame) p.video.loop = true;     // 끊김 없는 반복(생성 전용)
+  // 이전 생성 이어붙이기 — 문서상 start_frame/end_frame 중 "하나만" generation_id 를 가져야 한다.
+  const extId = String(b.lumaExtendId || "").trim();
+  if (extId) {
+    p.video[b.lumaExtendAt === "end" ? "end_frame" : "start_frame"] = { generation_id: extId };
+    return p;
+  }
+  /* 다중 키프레임 — 이미지 레퍼런스를 여러 장 연결하면 앵커로 쓴다(최대 64).
+     keyframe_indexes 는 각 앵커가 놓일 프레임 위치다. 첫 장은 시작, 마지막 장은 끝,
+     나머지는 그 사이에 균등 배치한다. 두 장 이하면 기존 start/end 방식이 더 단순하다. */
+  const anchors = [];
+  const addA = (v) => { const t = v && String(v).trim(); if (t && anchors.indexOf(t) < 0) anchors.push(t); };
+  if (Array.isArray(b.refImages)) b.refImages.forEach(addA);
+  addA(b.firstFrame); addA(b.refImage);
+  if (anchors.length > 2) {
+    const use = anchors.slice(0, LUMA_MAX_KEYFRAMES);
+    const lastIdx = Math.max(1, sec * 24 - 1);        // 24fps 기준 마지막 프레임 위치
+    p.video.keyframes = use.map((url) => ({ url }));
+    p.video.keyframe_indexes = use.map((_v, i) => Math.round((i / (use.length - 1)) * lastIdx));
+    return p;
+  }
   if (first) p.video.start_frame = { url: first };
   if (b.lastFrame) p.video.end_frame = { url: b.lastFrame };
   return p;

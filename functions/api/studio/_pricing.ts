@@ -126,6 +126,8 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   // Luma Agents API. 구세대 Ray 2/Flash 2/1.6 은 이 계정 키로 호출되지 않으므로 노드에서 뺐지만,
   //  예전 그래프가 그대로 요청할 수 있어 단가는 남겨 둔다(없으면 이미지 기본값 $0.05 로 잘못 청구된다).
   'Luma Ray 3.2': { u: 'sec', usd: 0.08, prov: 'luma' },
+  'Luma Ray 3.2 (영상 편집)': { u: 'sec', usd: 0.08, prov: 'luma' },
+  'Luma Ray 3.2 (비율 변경)': { u: 'sec', usd: 0.04, prov: 'luma' },
   'Luma Uni 1': { u: 'img', usd: 0.04, prov: 'luma' },
   'Luma Uni 1 Max': { u: 'img', usd: 0.08, prov: 'luma' },
   'Luma Ray 2': { u: 'sec', usd: 0.08, prov: 'luma' },
