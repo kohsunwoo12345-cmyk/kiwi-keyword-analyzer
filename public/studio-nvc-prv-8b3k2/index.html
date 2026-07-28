@@ -2252,6 +2252,10 @@ function adoptHostedUrl(node, oldUrl, url){
   if(!url || !node || node.w.img!==oldUrl) return;
   node.w.img=url; node.w.toolHosted=true;
   try{ render(); }catch(_e){}
+  // 보관 주소로 바뀐 것을 반드시 '저장' 까지 해야 한다.
+  //  화면만 바꾸고 두면 저장본에는 임시 주소가 남아, 새로고침 시 영상 결과가 통째로 사라진다.
+  //  주소만 안전한 것으로 바뀐 것이라 '되돌리기 한 단계' 를 새로 쌓지는 않는다.
+  try{ resnapshot(); }catch(_e){}
   // 화면이 새 주소로 바뀐 뒤에 옛 blob 을 정리한다(바로 지우면 재생 중인 영상이 끊긴다)
   if(String(oldUrl||'').indexOf('blob:')===0) setTimeout(function(){ try{ URL.revokeObjectURL(oldUrl); }catch(_){} }, 15000);
 }
@@ -5692,6 +5696,13 @@ function saveToGallery(url, kind, model, sec, poster, meta){
 }
 
 function snapshot(){ undoStack.push(JSON.stringify({nodes:state.nodes,links:state.links,groups:state.groups,annos:state.annos,seq:state.seq})); if(undoStack.length>60)undoStack.shift(); redoStack=[]; autosave(); }
+/* 지금 단계의 기록을 현재 상태로 '덮어쓴다'. 되돌리기 단계를 늘리지 않고 저장만 갱신할 때 쓴다
+   (예: 편집 결과의 임시 주소가 보관 주소로 바뀐 경우 — 되돌렸다 다시 실행해도 보관 주소가 유지된다). */
+function resnapshot(){
+  var js=JSON.stringify({nodes:state.nodes,links:state.links,groups:state.groups,annos:state.annos,seq:state.seq});
+  if(undoStack.length) undoStack[undoStack.length-1]=js; else undoStack.push(js);
+  autosave();
+}
 function restore(js){ var d=JSON.parse(js); state.nodes=d.nodes; state.links=d.links||[]; state.groups=d.groups||[]; state.annos=d.annos||[]; state.seq=d.seq||100; sel.clear(); render(); autosave(); }
 /* ══════ 멀티 워크플로우 탭 (각 탭 = 독립 워크플로우) ══════ */
 var STUDIO_DOCS=[], activeDocId=null, _bootedFresh=false;
@@ -7487,7 +7498,11 @@ document.addEventListener('keydown',function(e){
   if(document.body.classList.contains('chat-open')||document.body.classList.contains('create-open'))return;
   // Ctrl/Cmd+Enter = 큐 실행 (ComfyUI 동일) — 입력 중에도 동작
   if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); runQueue(); return; }
-  if(e.target.matches('input,textarea')||e.target.isContentEditable)return;
+  // 입력창에 타이핑 중이면 단축키를 가로채지 않는다.
+  //  target 이 요소가 아닌 경우(matches 없음)에도 여기서 예외가 나면 아래 단축키가 전부 죽는다 → 방어.
+  var _t=e.target;
+  if(_t && typeof _t.matches==='function' && _t.matches('input,textarea')) return;
+  if(_t && _t.isContentEditable) return;
   if(e.key==='Delete'||e.key==='Backspace'){ e.preventDefault();
     if(window.__annoDelete && window.__annoDelete()){ return; }   // 선택된 주석 우선 삭제
     if(selLink!=null){ state.links.splice(selLink,1); selLink=null; snapshot(); render(); toast('연결 끊음'); return; }

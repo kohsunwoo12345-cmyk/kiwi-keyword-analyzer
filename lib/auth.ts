@@ -397,7 +397,7 @@ export interface AiGenerationRow {
     nowUnits: number; nowUsd: number; matchesNow: boolean
     /** 크레딧이 어떻게 나왔는지 — 원가(또는 서비스 요금) × 배수 ÷ 1크레딧 단가 */
     credit?: {
-      basis: 'cost' | 'fee' | 'free'
+      basis: 'cost' | 'fee' | 'free' | 'unknown'
       markup: number; creditKrw: number; priceKrw: number
       feeKrw: number; feeUnits: number; feeNow: number | null
       credits: number; recorded: number; ok: boolean; feeChanged: boolean
@@ -459,15 +459,17 @@ export interface AiModelRow {
   audioUsd: number
   credits: number
   keyConfigured: boolean
+  /** 제공사 API 없이 고객 브라우저에서 도는 자체 기능 (업스케일·편집) — API 키 불필요 */
+  selfHosted?: boolean
   isPipeline: boolean
   idUnverified: boolean
-  status: 'live' | 'unverified' | 'nokey'
+  status: 'live' | 'unverified' | 'nokey' | 'self'
 }
 export interface AiModelsResp {
   ok: boolean
   error?: string
   usdKrw?: number
-  summary?: { total: number; live: number; unverified: number; nokey: number; image: number; video: number }
+  summary?: { total: number; live: number; unverified: number; nokey: number; self?: number; image: number; video: number }
   providers?: { id: string; label: string; keyConfigured: boolean; count: number }[]
   models?: AiModelRow[]
 }

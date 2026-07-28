@@ -171,6 +171,18 @@ const API_ONLY = ['Seedream 3.0', 'SeedEdit 3.0 (레퍼런스 편집)']
   ok('영상 편집은 초당 계산(20원×10초=4크레딧)', vid.credits === 4, `${vid.credits}크레딧`)
   // API 전용 모델도 단가가 반드시 있어야 한다(없으면 기본값 $0.05 로 잘못 청구된다)
   const apiMiss = API_ONLY.filter((k) => !serverCost[k])
+// 5-2) 자체 기능은 'API 키 없음' 으로 잘못 표시되면 안 되고, API 카탈로그에도 섞이면 안 된다
+{
+  const selfProvs = [...(P.SELF_HOSTED_PROVS || [])]
+  ok('자체 기능 제공사가 지정돼 있음', selfProvs.includes('upscale') && selfProvs.includes('edit'), selfProvs.join(', '))
+  const selfModels = Object.entries(serverCost).filter(([, m]) => selfProvs.includes(m.prov))
+  ok(`자체 기능 ${selfModels.length}종은 모두 제공사 원가 0`, selfModels.every(([, m]) => m.usd === 0),
+     selfModels.filter(([, m]) => m.usd !== 0).map(([k]) => k).join(', ') || '전부 0')
+  // 반대로, 제공사 API 를 쓰는 모델이 자체 기능으로 잘못 분류되지 않았는가
+  const paidAsSelf = selfModels.filter(([k]) => !/업스케일|브라우저 편집/.test(k))
+  ok('제공사 모델이 자체 기능으로 잘못 분류되지 않음', paidAsSelf.length === 0, paidAsSelf.map(([k]) => k).join(', ') || '없음')
+}
+
   ok('API 전용 모델도 단가 보유', apiMiss.length === 0, apiMiss.join(' , '))
 }
 

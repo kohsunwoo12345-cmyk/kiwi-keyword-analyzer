@@ -199,6 +199,17 @@ for (const model of MODELS) {
   ok('무료 편집에 경고가 뜨지 않음', e.credit.ok === true && e.credit.feeChanged === false)
 }
 {
+  // 배수·매출 컬럼이 생기기 전의 옛 기록 — 검산할 근거가 없다.
+  //  이걸 '금액 불일치' 로 표시하면 멀쩡한 옛 기록이 전부 오류로 보인다 → '확인 불가' 여야 한다.
+  const noMarkup = P.explainCost({ model: 'Seedance 2.0', kind: 'video', units: 15, usd: 1.23, usdKrw: 1460, costKrw: 1796,
+                                   credits: 27.63, revenueKrw: 1796, markup: 0 })
+  ok('배수가 없는 옛 기록은 "확인 불가"', noMarkup.credit.basis === 'unknown', noMarkup.credit.basis)
+  ok('배수가 없는 옛 기록에 경고를 띄우지 않음', noMarkup.credit.ok === true)
+  const noRev = P.explainCost({ model: 'Seedance 2.0', kind: 'video', units: 15, usd: 1.23, usdKrw: 1460, costKrw: 1796,
+                                credits: 27.63, revenueKrw: 0, markup: 1 })
+  ok('매출이 없는 옛 기록도 "확인 불가"', noRev.credit.basis === 'unknown' && noRev.credit.ok === true, noRev.credit.basis)
+}
+{
   // 크레딧이 어긋난 기록(손으로 고쳤거나 옛 규칙) 은 잡아내야 한다
   const e = P.explainCost({ model: 'Seedance 2.0', kind: 'video', units: 5, usd: 0.31, usdKrw: 1400, costKrw: 434,
                             credits: 99, revenueKrw: 99 * 50, markup: 1 })

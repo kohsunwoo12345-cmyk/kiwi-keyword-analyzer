@@ -17,6 +17,8 @@ const STATUS_META: Record<string, { label: string; cls: string; icon: any; desc:
     desc: 'API 키는 있으나 모델 ID 미확인 — 실시간 검증 필요(후보 ID 자동 폴백)' },
   nokey: { label: '연동 없음', cls: 'border-slate-200 bg-slate-50 text-slate-500', icon: XCircle,
     desc: '해당 제공사 API 키가 서버에 없음 — 키 등록 시 즉시 사용 가능' },
+  self: { label: '자체 기능', cls: 'border-violet-200 bg-violet-50 text-violet-700', icon: CheckCircle2,
+    desc: '고객 컴퓨터에서 처리 — API 키가 필요 없고 제공사 비용도 0원 (요금은 “AI 비용” 페이지에서 설정)' },
 }
 
 export default function AdminAiModelsPage() {
@@ -24,7 +26,7 @@ export default function AdminAiModelsPage() {
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
   const [kind, setKind] = useState<'all' | 'image' | 'video'>('all')
-  const [status, setStatus] = useState<'all' | 'live' | 'unverified' | 'nokey'>('all')
+  const [status, setStatus] = useState<'all' | 'live' | 'unverified' | 'nokey' | 'self'>('all')
   const [verifying, setVerifying] = useState(false)
   const [verify, setVerify] = useState<Record<string, { ok: boolean; error?: string; modelId?: string }>>({})
   const [verifyMsg, setVerifyMsg] = useState('')
@@ -61,7 +63,7 @@ export default function AdminAiModelsPage() {
   const grouped = useMemo(() => {
     const g: Record<string, AiModelRow[]> = {}
     for (const m of filtered) (g[m.providerLabel] ||= []).push(m)
-    const rank = { live: 0, unverified: 1, nokey: 2 } as Record<string, number>
+    const rank = { live: 0, self: 1, unverified: 2, nokey: 3 } as Record<string, number>
     return Object.entries(g)
       .map(([label, list]) => ({ label, list: [...list].sort((a, b) => rank[a.status] - rank[b.status] || a.model.localeCompare(b.model, 'ko')) }))
       .sort((a, b) => rank[a.list[0].status] - rank[b.list[0].status] || a.label.localeCompare(b.label, 'ko'))
@@ -108,7 +110,7 @@ export default function AdminAiModelsPage() {
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="모델·모델ID·제공사 검색" className="w-56 bg-transparent text-sm outline-none" />
           </div>
           <Seg value={kind} onChange={setKind} options={[['all', '전체'], ['image', '이미지'], ['video', '영상']]} />
-          <Seg value={status} onChange={setStatus} options={[['all', '전체'], ['live', '정상'], ['unverified', '미확인'], ['nokey', '연동없음']]} />
+          <Seg value={status} onChange={setStatus} options={[['all', '전체'], ['live', '정상'], ['self', '자체기능'], ['unverified', '미확인'], ['nokey', '연동없음']]} />
           <span className="ml-auto text-xs text-[var(--text-dim)]">
             {num(filtered.length)}개 표시{data?.usdKrw ? ` · 환율 $1=₩${num(Math.round(data.usdKrw))}` : ''}
           </span>
@@ -116,11 +118,11 @@ export default function AdminAiModelsPage() {
 
         {/* 상태 설명 */}
         <div className="grid gap-2 sm:grid-cols-3">
-          {(['live', 'unverified', 'nokey'] as const).map((k) => {
+          {(['live', 'self', 'unverified', 'nokey'] as const).map((k) => {
             const m = STATUS_META[k]; const Icon = m.icon
             return (
               <div key={k} className="flex items-start gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2.5">
-                <Icon size={15} className="mt-0.5 flex-shrink-0" style={{ color: k === 'live' ? '#059669' : k === 'unverified' ? '#d97706' : '#94a3b8' }} />
+                <Icon size={15} className="mt-0.5 flex-shrink-0" style={{ color: k === 'live' ? '#059669' : k === 'self' ? '#7c3aed' : k === 'unverified' ? '#d97706' : '#94a3b8' }} />
                 <div className="min-w-0">
                   <div className="text-xs font-bold">{m.label}</div>
                   <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-dim)]">{m.desc}</div>

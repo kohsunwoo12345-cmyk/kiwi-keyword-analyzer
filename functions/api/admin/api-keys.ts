@@ -1,6 +1,6 @@
 import { Env, json, ensureSchema, resolveDB, requireAdminUser } from '../_utils'
 import { ensureApiKeysSchema, API_RATE } from '../_apikeys'
-import { MODEL_COST, PROV_LABEL } from '../studio/_pricing'
+import { MODEL_COST, PROV_LABEL, SELF_HOSTED_PROVS } from '../studio/_pricing'
 
 // GET /api/admin/api-keys?days=90 → 회원 API 키 발급/호출/크레딧 사용 현황 (관리자)
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
@@ -71,13 +71,15 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const catalogMap: Record<string, { provider: string; label: string; kind: string; models: string[] }> = {}
   for (const [model, info] of Object.entries(MODEL_COST)) {
     const prov = (info as any).prov as string
+    // 업스케일·브라우저 편집은 고객 브라우저에서만 도는 기능이라 API 로 호출할 수 없다 → 카탈로그에서 제외
+    if (SELF_HOSTED_PROVS.has(prov)) continue
     const kind = (info as any).u === 'img' ? 'image' : 'video'
     const key = prov
     if (!catalogMap[key]) catalogMap[key] = { provider: prov, label: PROV_LABEL[prov] || prov, kind, models: [] }
     catalogMap[key].models.push(model)
   }
   const catalog = Object.values(catalogMap).sort((a, b) => (a.kind === b.kind ? a.label.localeCompare(b.label) : a.kind === 'video' ? -1 : 1))
-  const catalogCount = Object.keys(MODEL_COST).length
+  const catalogCount = catalog.reduce((n, c) => n + c.models.length, 0)
 
   return json({
     ok: true,

@@ -283,7 +283,13 @@ function CostBreakdown({ r }: { r: AiGenerationRow }) {
       {cd && cd.basis === 'free' && (
         <div className="mt-1 text-[var(--text-dim)]">차감 크레딧 <b>0</b> — 무료로 설정된 기능입니다</div>
       )}
-      {cd && cd.basis !== 'free' && (
+      {cd && cd.basis === 'unknown' && (
+        <div className="mt-1 text-[var(--text-dim)]">
+          차감 크레딧 <b>{cd.recorded.toLocaleString('ko-KR')}</b> — 이 기록에는 배수·매출이 남아 있지 않아
+          검산할 수 없습니다 (해당 항목이 생기기 전의 옛 기록입니다)
+        </div>
+      )}
+      {cd && cd.basis !== 'free' && cd.basis !== 'unknown' && (
         <div className="mt-1 border-t border-[var(--border-soft)] pt-1 text-[var(--text-soft)]">
           <span className="text-[var(--text-dim)]">크레딧 </span>
           {isSelf

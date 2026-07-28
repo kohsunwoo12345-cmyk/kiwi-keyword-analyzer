@@ -231,6 +231,10 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   '립싱크 (인물 말하기)': { u: 'sec', usd: 0.1, prov: 'lipsync' },
 }
 
+/** 제공사 API 없이 고객 브라우저에서 도는 자체 기능 — API 키가 필요 없고, API 로 호출할 수도 없다.
+ *  (관리자 화면에서 "API 키 없음" 으로 잘못 표시되거나 API 카탈로그에 섞이지 않게 여기서 한 번에 관리한다) */
+export const SELF_HOSTED_PROVS = new Set(['upscale', 'edit'])
+
 export const PROV_LABEL: Record<string, string> = {
   google: 'Google Veo', runway: 'Runway', runway_aleph: 'Runway Aleph', v2v_auto: 'V2V 자동', motion: '모션 전이', seedance: 'Seedance', seedream: 'Seedream',
   hailuo: 'MiniMax Hailuo', luma: 'Luma', xai: 'Grok', flux: 'Flux', falcontrol: 'fal ControlNet',
@@ -382,15 +386,20 @@ export function explainCost(input: {
   const priceKrw = isSelfFee ? Math.round(feeKrw * feeUnits * markup) : Math.round(recCost * markup)
   const calcCredits = creditKrw > 0 ? Math.round((priceKrw / creditKrw) * 100) / 100 : 0
   const feeNow = input.feeNow != null ? Number(input.feeNow) : m && m.feeKrw != null ? m.feeKrw : null
+  // 배수·매출 컬럼은 나중에 추가됐다 — 그 이전 기록은 둘 다 0이라 검산할 근거가 아예 없다.
+  //  근거가 없는 것을 '금액 불일치' 로 표시하면 멀쩡한 옛 기록이 전부 오류로 보인다 → '확인 불가' 로 구분한다.
+  const canVerify = markup > 0 && recRevenue > 0
+  const basis: 'cost' | 'fee' | 'free' | 'unknown' =
+    recCredits === 0 ? 'free' : !canVerify ? 'unknown' : isSelfFee ? 'fee' : 'cost'
   const credit = {
-    basis: recCredits === 0 && recRevenue === 0 ? 'free' : isSelfFee ? 'fee' : 'cost',
+    basis,
     markup, creditKrw, priceKrw, feeKrw, feeUnits, feeNow,
     credits: calcCredits,
     recorded: recCredits,
-    // 소수 둘째 자리 반올림 오차(±0.02)까지는 일치로 본다
-    ok: Math.abs(calcCredits - recCredits) <= 0.02,
+    // 소수 둘째 자리 반올림 오차(±0.02)까지는 일치로 본다. 검산 못 하는 옛 기록은 경고하지 않는다.
+    ok: basis === 'unknown' || basis === 'free' ? true : Math.abs(calcCredits - recCredits) <= 0.02,
     // 자체 기능은 요금이 바뀌었을 수 있다 — 지금 설정과 다르면 '설정이 바뀐 것' 이지 오류가 아니다
-    feeChanged: isSelfFee && feeNow != null && Math.abs(feeKrw - feeNow) > 0.01,
+    feeChanged: basis === 'fee' && feeNow != null && Math.abs(feeKrw - feeNow) > 0.01,
   }
   return {
     unitPrice: base, unitLabel, units, baseTotal, audioUsd,

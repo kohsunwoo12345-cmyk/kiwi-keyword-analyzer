@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser } from '../_utils'
-import { MODEL_COST, PROV_LABEL, computeCharge, getUsdKrw } from '../studio/_pricing'
+import { MODEL_COST, PROV_LABEL, SELF_HOSTED_PROVS, computeCharge, getUsdKrw } from '../studio/_pricing'
 import {
   SEEDREAM_IDS, SEEDANCE_IDS, FLUX_ENDPOINTS, OPENAI_IMG_ID,
   HAILUO_IDS, LUMA_IDS, KLING_API, RUNWAY_MODELS, gcpCreds,
@@ -86,10 +86,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const m: any = (MODEL_COST as any)[model]
     const kind = m.u === 'img' ? 'image' : 'video'
     const prov = m.prov as string
-    const keyConfigured = !!keyOf[prov]
+    // 자체 기능(업스케일·브라우저 편집)은 제공사 API 를 쓰지 않는다 → 키가 없어도 정상이다.
+    //  이걸 'nokey' 로 두면 멀쩡한 기능이 "연동 없음" 으로 잘못 보인다.
+    const selfHosted = SELF_HOSTED_PROVS.has(prov)
+    const keyConfigured = selfHosted ? true : !!keyOf[prov]
     const isPipeline = PIPELINES.has(model)
     const idUnverified = UNVERIFIED_IDS.has(model)
-    const status = !keyConfigured ? 'nokey' : idUnverified ? 'unverified' : 'live'
+    const status = selfHosted ? 'self' : !keyConfigured ? 'nokey' : idUnverified ? 'unverified' : 'live'
     const c = computeCharge({ model, units: kind === 'image' ? 1 : 8, kind, res: '1080p' } as any, rate)
     return {
       model,
@@ -102,6 +105,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       audioUsd: m.audio || 0,
       credits: c.credits,      // 기본 배수 기준 예상 크레딧(이미지 1장 / 영상 8초)
       keyConfigured,
+      selfHosted,
       isPipeline,
       idUnverified,
       status,                  // live | unverified | nokey
@@ -121,6 +125,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       live: models.filter((x) => x.status === 'live').length,
       unverified: models.filter((x) => x.status === 'unverified').length,
       nokey: models.filter((x) => x.status === 'nokey').length,
+      self: models.filter((x) => x.status === 'self').length,
       image: models.filter((x) => x.kind === 'image').length,
       video: models.filter((x) => x.kind === 'video').length,
     },
