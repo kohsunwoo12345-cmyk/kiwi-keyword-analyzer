@@ -151,6 +151,84 @@ for (const scale of [2, 4]) {
   ok('긴 변 맞추기 — AI 초해상으로 처리', r.fallback === false, r.engine)
 }
 
+// ── 2-b) 4K — 사진과 영상 모두 실제로 3840px 에 닿는가 ──
+{
+  const plans = await page.evaluate(() => window.__cn.UP_PLANS.map(p => ({ key:p.key, label:p.label, scale:p.scale, longTarget:p.longTarget })))
+  ok('4K 선택지가 있음', plans.some(p => p.key === '4K' && p.longTarget === 3840), plans.map(p => p.key).join(' / '))
+  const parsed = await page.evaluate(() => ({
+    k4k: window.__cn.upPlanOf('4K (가로 3840px)').key,
+    k4x: window.__cn.upPlanOf('4배').key,
+    k5k: window.__cn.upPlanOf('5K (긴 변 5120px)').key,
+    k2x: window.__cn.upPlanOf('2배').key,
+    help: window.__cn.upScaleHelp('4K'),
+  }))
+  ok('"4K" 를 4배와 헷갈리지 않고 구분', parsed.k4k === '4K' && parsed.k4x === '4' && parsed.k5k === '5K' && parsed.k2x === '2',
+     `${parsed.k2x}/${parsed.k4x}/${parsed.k4k}/${parsed.k5k}`)
+  ok('4K 안내문이 실제 크기를 설명', /3840/.test(parsed.help), parsed.help.slice(0, 40) + '…')
+
+  // 사진 4K — 1080p 원본을 넣으면 정확히 3840×2160 이 나와야 한다
+  const img4k = await page.evaluate(async () => {
+    const c = document.createElement('canvas'); c.width = 1920; c.height = 1080
+    const x = c.getContext('2d')
+    const g = x.createLinearGradient(0, 0, 1920, 1080); g.addColorStop(0, '#123a7a'); g.addColorStop(1, '#d8c070')
+    x.fillStyle = g; x.fillRect(0, 0, 1920, 1080)
+    x.strokeStyle = '#fff'; x.lineWidth = 1
+    for (let i = 0; i < 40; i++) { x.beginPath(); x.moveTo(20 + i * 12, 40); x.lineTo(20 + i * 12, 400); x.stroke() }
+    const src = c.toDataURL('image/png')
+    const plan = window.__cn.upPlanOf('4K (가로 3840px)')
+    const t0 = performance.now()
+    const res = await window.__cn.upscaleImageURL(src, plan.scale, { longTarget: plan.longTarget })
+    const ms = Math.round(performance.now() - t0)
+    const [a, b] = await Promise.all([window.__load(src), window.__load(res.url)])
+    const w = b.width, h = b.height
+    const plain = window.__pixels(a, w, h), sr = window.__pixels(b, w, h)
+    return { ms, w, h, dim: res.dim, engine: res.engine, fallback: !!res.fallback, note: res.note || '',
+             sharpPlain: window.__sharpness(plain, w, h), sharpSr: window.__sharpness(sr, w, h),
+             diff: window.__diff(plain, sr) }
+  })
+  ok('사진 4K — 1920×1080 → 정확히 3840×2160', img4k.w === 3840 && img4k.h === 2160, `${img4k.dim} (${img4k.ms}ms)`)
+  ok('사진 4K — AI 초해상으로 처리', img4k.fallback === false, img4k.engine + (img4k.note ? ' · ' + img4k.note : ''))
+  ok('사진 4K — 단순 확대보다 선명함', img4k.sharpSr > img4k.sharpPlain,
+     `선명도 ${img4k.sharpPlain} → ${img4k.sharpSr} (${Math.round((img4k.sharpSr / img4k.sharpPlain - 1) * 100)}%) · 평균차 ${img4k.diff.avg}`)
+
+  // 영상 4K — 960×540 짜리를 4K 목표로. 브라우저가 못 하면 낮추되 사실대로 알려야 한다.
+  const vid4k = await page.evaluate(async () => {
+    const W = 960, H = 540
+    const c = document.createElement('canvas'); c.width = W; c.height = H
+    const x = c.getContext('2d')
+    const st = c.captureStream(30)
+    const mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m))
+    const rec = new MediaRecorder(st, { mimeType: mime, videoBitsPerSecond: 8000000 })
+    const ch = []; rec.ondataavailable = e => { if (e.data.size) ch.push(e.data) }
+    const stopped = new Promise(r => { rec.onstop = r }); rec.start()
+    const t0 = performance.now()
+    await new Promise(r => { (function loop(){
+      const g = x.createLinearGradient(0,0,W,H); g.addColorStop(0,'#123a7a'); g.addColorStop(1,'#d8c070')
+      x.fillStyle = g; x.fillRect(0,0,W,H)
+      x.strokeStyle = '#fff'; x.lineWidth = 1
+      for (let i = 0; i < 20; i++) { x.beginPath(); x.moveTo(20+i*12, 30); x.lineTo(20+i*12, 200); x.stroke() }
+      if (performance.now()-t0 < 700) requestAnimationFrame(loop); else r() })() })
+    rec.stop(); await stopped
+    const srcUrl = URL.createObjectURL(new Blob(ch, { type:'video/webm' }))
+    const info = await window.__cn._probeVideoInfo(srcUrl)
+    const plan = window.__cn.upPlanOf('4K (가로 3840px)')
+    const t1 = performance.now()
+    const res = await window.__cn.upscaleVideoURL(srcUrl, plan.scale, () => {},
+      { longTarget: plan.longTarget, srcFps: info.fps, hasAudio: info.hasAudio })
+    const ms = Math.round(performance.now() - t1)
+    // 결과 영상의 실제 픽셀 크기를 재 본다
+    const v = document.createElement('video'); v.src = res.url; v.muted = true
+    await new Promise(k => { v.onloadeddata = k; v.onerror = k; setTimeout(k, 8000) })
+    return { ms, dim: res.dim, w: v.videoWidth, h: v.videoHeight, engine: res.engine,
+             fallback: !!res.fallback, note: res.note || '', fps: res.fps }
+  })
+  ok('영상 4K — 결과가 실제로 4K 크기', vid4k.w === 3840 && vid4k.h === 2160,
+     `${vid4k.dim} → 재생 크기 ${vid4k.w}×${vid4k.h} (${vid4k.ms}ms)`)
+  ok('영상 4K — AI 초해상으로 처리', vid4k.fallback === false, vid4k.engine)
+  ok('영상 4K — 낮춰졌다면 숨기지 않고 알림',
+     (vid4k.w === 3840) || /낮췄습니다/.test(vid4k.note), vid4k.note || '낮추지 않음')
+}
+
 // ── 3) 영상 업스케일 — 여기가 한 번도 실제 모델로 확인되지 않았던 부분 ──
 const vid = await page.evaluate(async () => {
   // 사진과 똑같은 디테일을 가진 영상을 그 자리에서 만든다

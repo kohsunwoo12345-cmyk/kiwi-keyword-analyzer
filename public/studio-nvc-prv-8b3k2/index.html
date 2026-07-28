@@ -1873,7 +1873,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 var STUDIO_BUILD_TAG='2026-07-13-v56';   // 서버 health.build 와 정확히 같아야 최신(캐시/배포지연 아님)
 // (검증용) ?cnexport=1 접속 시 전처리 함수만 window 로 노출 — 순수 이미지 함수라 보안 영향 없음
 try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum, upscaleImageURL:upscaleImageURL, upscaleVideoURL:upscaleVideoURL, _probeVideoInfo:_probeVideoInfo, _remuxWithAudio:_remuxWithAudio, removeBackground:removeBackground, fitToRatio:fitToRatio,
-        addNode:addNode, render:render, state:state, DEFS:DEFS, nodeMedia:nodeMedia, nodeImgs:nodeImgs, upScaleOf:upScaleOf, upScaleHelp:upScaleHelp,
+        addNode:addNode, render:render, state:state, DEFS:DEFS, nodeMedia:nodeMedia, nodeImgs:nodeImgs, upPlanOf:upPlanOf, upScaleHelp:upScaleHelp, UP_PLANS:UP_PLANS, upKeyOf:upKeyOf,
         captionImage:captionImage, captionVideo:captionVideo, drawCaptionOn:drawCaptionOn,
         trimSpeedVideo:trimSpeedVideo, _speedOf:_speedOf,
         gradeImage:gradeImage, gradeVideo:gradeVideo, resolveGrade:resolveGrade, gradeSummary:gradeSummary,
@@ -4477,18 +4477,38 @@ function upscaleVideoURL(src,scale,onProg,opts){
         CAP=Math.min(CAP, Math.ceil(Math.max(tw,th)/factor));   // 목표보다 크게 넣어봐야 버리는 계산 — 상한만 낮춘다
         var sc=Math.min(1, CAP/Math.max(iw,ih)), sw=Math.max(1,Math.round(iw*sc)), sh=Math.max(1,Math.round(ih*sc));
         var frameC=document.createElement('canvas'); frameC.width=sw; frameC.height=sh; var fctx=frameC.getContext('2d');
-        var out=document.createElement('canvas'); out.width=tw; out.height=th; var octx=out.getContext('2d'); octx.imageSmoothingEnabled=true; octx.imageSmoothingQuality='high';
-        var stream=out.captureStream(0), track=stream.getVideoTracks()[0];
         var mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].filter(function(m){return MediaRecorder.isTypeSupported(m);})[0]||'video/webm';
-        var vbps=Math.min(clip>60?10000000:24000000, Math.round(tw*th*FPS*0.10));   // 긴 영상은 비트레이트↓ (메모리·용량 안전)
-        var rec; try{ rec=new MediaRecorder(stream,{ mimeType:mime, videoBitsPerSecond:vbps }); }catch(e){ return fallback('레코더 생성 실패'); }
+        // 4K 같은 큰 크기는 브라우저가 인코딩을 못 할 수 있다.
+        //  그때 통째로 실패시키면 초해상까지 버려지므로, 한 단계씩 줄여 가며 되는 크기를 찾는다.
+        //  줄인 경우에는 숨기지 않고 '실제로 몇 px 로 나왔는지' 를 알려준다.
+        var out, octx, stream, track, rec, sizeNote='';
+        (function build(){
+          for(var tryN=0; tryN<3; tryN++){
+            try{
+              out=document.createElement('canvas'); out.width=tw; out.height=th;
+              octx=out.getContext('2d'); octx.imageSmoothingEnabled=true; octx.imageSmoothingQuality='high';
+              stream=out.captureStream(0); track=stream.getVideoTracks()[0];
+              var vbps=Math.min(clip>60?10000000:24000000, Math.round(tw*th*FPS*0.10));
+              rec=new MediaRecorder(stream,{ mimeType:mime, videoBitsPerSecond:vbps });
+              if(tryN>0) sizeNote='브라우저가 그 크기를 인코딩하지 못해 '+tw+'×'+th+'로 낮췄습니다';
+              return;
+            }catch(e){
+              rec=null;
+              var ntw=Math.max(640, Math.round(tw*0.75/2)*2), nth=Math.max(360, Math.round(th*0.75/2)*2);
+              if(ntw===tw && nth===th) return;
+              tw=ntw; th=nth;
+            }
+          }
+        })();
+        if(!rec) return fallback('레코더 생성 실패');
         var chunks=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size)chunks.push(e.data); };
         rec.onstop=function(){ if(settled)return; settled=true;
           var silent=URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));
           var _total=Math.max(1, Math.round(clip*FPS));
           // 프레임 대부분이 AI 처리에 실패했다면 '초해상이 됐다' 고 말하면 안 된다.
           var mostlyFailed = srFail >= _total*0.5;
-          var note = srFail ? (srFail+'/'+_total+' 프레임은 AI 처리에 실패해 단순 확대로 채웠습니다') : '';
+          var note = [ sizeNote, srFail ? (srFail+'/'+_total+' 프레임은 AI 처리에 실패해 단순 확대로 채웠습니다') : '' ]
+                     .filter(Boolean).join(' · ');
           function done(url, audioOk){
             resolve({ url:url, kind:'video', dim:tw+'×'+th, srcDim:iw+'×'+ih, sec:Math.round(clip),
                       fps:FPS,
@@ -5354,7 +5374,7 @@ var DEFS = {
                       {k:'run',t:'toolbtn',label:'자막 넣기',act:'caption'}] },
  upscale:  { cat:'편집', title:'화질 좋게 만들기 (업스케일)', hd:'#1c3346',
              ins:[['in','이미지·영상','*']], outs:[['out','화질 개선본','*']],
-             widgets:[{k:'upx',t:'combo',label:'얼마나 크게',opts:['2배','4배','5K (긴 변 5120px)'],def:'2배'},
+             widgets:[{k:'upx',t:'combo',label:'얼마나 크게',opts:['2배','4배','4K (가로 3840px)','5K (긴 변 5120px)'],def:'4K (가로 3840px)'},
                       {k:'uphelp',t:'uphelp'},
                       {k:'toolout',t:'toolout'},
                       {k:'run',t:'toolbtn',label:'화질 좋게 만들기',act:'upscale'}] },
@@ -6361,7 +6381,7 @@ function widgetHTML(n,w){
   }
   // 업스케일 노드 안내문 — 고른 배율이 실제로 무슨 크기가 되는지 사람 말로 설명한다
   if(w.t==='uphelp'){
-    return '<div class="refcnt up-help">'+esc(upScaleHelp(upScaleOf(n.w.upx)))+'</div>'+
+    return '<div class="refcnt up-help">'+esc(upScaleHelp(upPlanOf(n.w.upx).key))+'</div>'+
       '<div class="refcnt up-help">AI가 흐린 부분을 채워 <b>선명하게</b> 만듭니다 (단순 확대와 다릅니다) · 크레딧이 차감됩니다</div>';
   }
   if(w.t==='toolout'){
@@ -6458,29 +6478,26 @@ function widgetHTML(n,w){
     if(!n.w.vid) return '<div class="wpreview"><span class="empty">출력 없음<br>프롬프트 실행 시 결과가 표시됩니다</span></div>';
     var up=!!n.w.upscaled, media=up?n.w.upscaled:n.w.vid;
     var isImg = (up?n.w.upKind:n.w.kind)==='image' || /^data:image\//i.test(media) || /\.(png|jpe?g|webp|gif)(\?|$)/i.test(media);
-    var sc=n.w.upScale||2;
+    var upKey=upKeyOf(n), upPlan=upPlanOf(upKey);
     var ctrl;
     if(n.w.upscaling){
       ctrl='<div class="up-prog"><i style="width:'+Math.round((n.w.upPct||0)*100)+'%"></i></div>'+
            '<div class="refcnt up-msg">화질 개선 중… '+Math.round((n.w.upPct||0)*100)+'%'+(isImg?' (조각별로 AI 처리 중)':' (프레임마다 AI 처리 — 길수록 오래 걸립니다)')+'</div>';
     } else {
       // 배율 이름만 봐서는 뭐가 되는지 알 수 없다 → 실제로 어떤 크기가 되는지 예시로 설명한다.
-      var upHelp = { 2:'가로·세로를 2배로 (예: 1024×1024 → 2048×2048). 대부분 이걸로 충분합니다.',
-                     4:'가로·세로를 4배로 (예: 1920×1080 → 7680×4320). 인쇄물·대형 화면용.',
-                     5:'크기와 상관없이 5K(긴 변 5120px)에 맞춥니다. 작은 원본은 최대 8배까지만 커집니다.' }[sc]
-        || '가로·세로를 크게 만듭니다.';
-      ctrl='<div class="up-row"><span class="up-seg">'+
-        '<button class="up-x'+(sc==2?' on':'')+'" data-upscaleset="2" title="가로·세로 2배">2배</button>'+
-        '<button class="up-x'+(sc==4?' on':'')+'" data-upscaleset="4" title="가로·세로 4배">4배</button>'+
-        '<button class="up-x'+(sc==5?' on':'')+'" data-upscaleset="5" title="긴 변 5120px(5K)에 맞춤">5K</button></span>'+
+      var _seg = UP_PLANS.map(function(pl){
+        return '<button class="up-x'+(upKey===pl.key?' on':'')+'" data-upscaleset="'+pl.key+'" title="'+esc(upScaleHelp(pl.key))+'">'+
+          esc(pl.key==='2'?'2배':pl.key==='4'?'4배':pl.key)+'</button>';
+      }).join('');
+      ctrl='<div class="up-row"><span class="up-seg">'+_seg+'</span>'+
         '<button class="wbtn up-go" data-upscale>'+ICON.sparkle+' 화질 좋게 만들기</button></div>'+
-        '<div class="refcnt up-help">'+esc(upHelp)+'</div>'+
+        '<div class="refcnt up-help">'+esc(upScaleHelp(upKey))+'</div>'+
         '<div class="refcnt up-help">AI가 흐린 부분을 채워 <b>선명하게</b> 만듭니다 (단순 확대와 다릅니다) · 크레딧이 차감됩니다</div>'+
         (up?'<div class="refcnt'+(n.w.upFallback?' upfb':'')+'">'+ICON.check+' 완료 · '+esc(n.w.upDim||'')+' 로 커졌습니다'+
              (n.w.upFallback?' — 다만 AI 선명화는 실패해 단순 확대로 처리됐습니다':(n.w.upEngine?(' · AI 선명화 적용('+esc(n.w.upEngine)+')'):''))+
              ' · <a href="#" data-upreset>원본으로 되돌리기</a></div>':'');
     }
-    return '<div class="wpreview"><span class="badge">'+esc(up?('화질개선 '+(sc===5?'5K':sc+'배')):(n.w.model||'AI'))+'</span>'+
+    return '<div class="wpreview"><span class="badge">'+esc(up?('화질개선 '+(n.w.upLabel||upPlan.label)):(n.w.model||'AI'))+'</span>'+
       (isImg ? '<img src="'+esc(media)+'" alt="생성 결과">'
              : '<span class="badge r">'+(n.w.sec||8)+'s</span><video src="'+esc(media)+'" poster="'+esc(n.w.poster||POSTER)+'" muted loop playsinline controls></video>')+
       '</div><button class="wbtn" data-dl>'+ICON.dl+' '+(isImg?'이미지':'영상')+' 저장'+(up?' (화질개선본)':'')+'</button>'+
@@ -7090,10 +7107,11 @@ canvas.addEventListener('click',function(e){
     if(act==='upscale'){
       var med=inN?nodeMedia(inN):null;
       if(!med||!med.url){ toast('화질을 개선할 이미지나 영상을 연결하세요 (생성 결과·레퍼런스·업로드 등)'); return; }
-      var uSet=upScaleOf(n2.w.upx), is5k=(uSet===5), uScale=is5k?4:uSet;
-      var uOpts=is5k?{ longTarget:5120 }:null;      // 5K: 긴 변 5120px 목표
+      var uPlan=upPlanOf(n2.w.upx), uScale=uPlan.scale;
+      var uOpts=uPlan.longTarget?{ longTarget:uPlan.longTarget }:null;
       var uIsImg=(med.kind!=='video');
-      if(is5k && !uIsImg) toast('5K 영상 업스케일: 매우 오래 걸리고(수 시간+) 브라우저가 5K 인코딩을 못 하면 자동으로 낮춰집니다.');
+      if(uPlan.longTarget>=5120 && !uIsImg) toast('5K 영상은 매우 오래 걸립니다(수 시간+). 브라우저가 5K 인코딩을 못 하면 자동으로 한 단계 낮춰집니다.');
+      else if(uPlan.longTarget && !uIsImg) toast('4K 영상 화질 개선: 프레임마다 AI 처리라 길이에 비례해 오래 걸립니다.');
       n2.w.toolBusy=true; n2.w.toolPct=0; n2.w.toolMsg='화질 개선 중'; render();
       toast(uIsImg?'화질 개선 중… (처음 한 번은 AI 다운로드로 1~2분 걸립니다)':'영상 화질 개선 중… (길이만큼 오래 걸립니다)');
       // 진행률은 노드 안 막대만 직접 갱신한다(매번 전체 다시 그리면 느려진다)
@@ -7105,7 +7123,7 @@ canvas.addEventListener('click',function(e){
         var msg=hh.querySelector('.up-msg'); if(msg)msg.textContent='화질 개선 중… '+Math.round(pp*100)+'%'+
           (uIsImg?' (조각별로 AI 처리 중)':' (프레임마다 AI 처리 — 길수록 오래)');
       }
-      var uLabel=is5k?'5K':(uSet+'×');
+      var uLabel=uPlan.label;
       // 영상은 원본의 초당 프레임 수·소리 유무를 먼저 재서 넘긴다
       //  (안 재면 15fps 로 고정돼 끊겨 보이고, 소리도 사라진다)
       var uJob = uIsImg
@@ -7351,7 +7369,8 @@ canvas.addEventListener('click',function(e){
   if(rdel){ var ri=+rdel.getAttribute('data-refdel');
     (n2.w.imgs||[]).splice(ri,1); if(n2.w.vids)n2.w.vids.splice(ri,1); snapshot(); render(); return; }
   if(e.target.closest('[data-upscaleset]')){
-    n2.w.upScale=+e.target.getAttribute('data-upscaleset'); render(); return;
+    n2.w.upKey=e.target.closest('[data-upscaleset]').getAttribute('data-upscaleset');
+    n2.w.upScale=null; render(); return;
   }
   // 영상 노드 내장 설정(길이·비율) — 모델이 받는 값만 버튼으로 떠 있다
   var _vsb=e.target.closest('[data-vsec]');
@@ -7365,22 +7384,23 @@ canvas.addEventListener('click',function(e){
   }
   if(e.target.closest('[data-upscale]')){
     if(!n2.w.vid||n2.w.upscaling)return;
-    var uSet=n2.w.upScale||2, is5k=(uSet===5), uScale=is5k?4:uSet;
-    var uOpts=is5k?{ longTarget:5120 }:null;   // 5K: 긴 변 5120px 목표(x4·풀해상 초해상)
+    var uPlan=upPlanOf(upKeyOf(n2)), uScale=uPlan.scale;
+    var uOpts=uPlan.longTarget?{ longTarget:uPlan.longTarget }:null;
     var uIsImg = n2.w.kind==='image' || /^data:image\//i.test(n2.w.vid) || /\.(png|jpe?g|webp|gif)(\?|$)/i.test(n2.w.vid);
-    if(is5k && !uIsImg){ try{ toast('5K 영상 업스케일: 매우 오래 걸리고(수 시간+) 브라우저가 5K 인코딩을 못 하면 자동으로 낮춰집니다.'); }catch(_){} }
+    if(uPlan.longTarget>=5120 && !uIsImg){ try{ toast('5K 영상은 매우 오래 걸립니다(수 시간+). 브라우저가 5K 인코딩을 못 하면 자동으로 한 단계 낮춰집니다.'); }catch(_){} }
+    else if(uPlan.longTarget && !uIsImg){ try{ toast('4K 영상 화질 개선: 프레임마다 AI 처리라 길이에 비례해 오래 걸립니다.'); }catch(_){} }
     n2.w.upscaling=true; n2.w.upPct=0; render();
     toast(uIsImg?'화질 개선 중… (처음 한 번은 AI 다운로드로 1~2분 걸립니다)':'영상 화질 개선 중… (길이만큼 오래 걸립니다)');
     // 진행률은 이미지(타일 단위)·영상(프레임 단위) 모두 표시한다
     function uProg(pp){ n2.w.upPct=pp; var hh=document.getElementById('nd-'+n2.id); if(hh){ var bar=hh.querySelector('.up-prog i'); if(bar)bar.style.width=Math.round(pp*100)+'%'; var msg=hh.querySelector('.up-msg'); if(msg)msg.textContent='화질 개선 중… '+Math.round(pp*100)+'%'+(uIsImg?' (조각별로 AI 처리 중)':' (프레임마다 AI 처리 — 길수록 오래)'); } }
-    var uSrc = n2.w.vid, uLabel = is5k?'5K':(uSet+'×');
+    var uSrc = n2.w.vid, uLabel = uPlan.label;
     var uJob = uIsImg
       ? upscaleImageURL(n2.w.vid,uScale,uOpts,uProg)
       : _probeVideoInfo(n2.w.vid).then(function(inf){          // 원본 프레임 수·소리 유무를 먼저 잰다
           var o=Object.assign({}, uOpts||{}, { srcFps:inf.fps, hasAudio:inf.hasAudio });
           return upscaleVideoURL(n2.w.vid,uScale,uProg,o);
         });
-    uJob.then(function(res){ n2.w.upscaling=false; n2.w.upscaled=res.url; n2.w.upKind=res.kind; n2.w.upDim=res.dim; n2.w.upEngine=res.engine||''; n2.w.upFallback=!!res.fallback; render();
+    uJob.then(function(res){ n2.w.upscaling=false; n2.w.upscaled=res.url; n2.w.upKind=res.kind; n2.w.upDim=res.dim; n2.w.upEngine=res.engine||''; n2.w.upFallback=!!res.fallback; n2.w.upLabel=uLabel; render();
           // 진짜 초해상이 돌았는지 숨기지 않는다 — 리샘플로 떨어졌으면 그렇게 말한다.
           if(res.fallback) toast('AI 선명화를 쓰지 못해 단순 확대만 됐습니다 (선명해지지 않음) · '+res.dim);
           // 캔버스 한계로 요청 배율을 다 못 준 경우 숨기지 않고 실제 배율을 알려준다
@@ -7706,19 +7726,38 @@ function nodeMedia(node, _d){
   var im=nodeImgs(node)[0];
   return im?{ url:im, kind:_mediaKind(im) }:null;
 }
-/* 배율 이름만 봐서는 뭐가 되는지 알 수 없다 → 실제로 어떤 크기가 되는지 예시로 설명한다. */
-function upScaleHelp(sc){
-  return { 2:'가로·세로를 2배로 (예: 1024×1024 → 2048×2048). 대부분 이걸로 충분합니다.',
-           4:'가로·세로를 4배로 (예: 1920×1080 → 7680×4320). 인쇄물·대형 화면용.',
-           5:'크기와 상관없이 5K(긴 변 5120px)에 맞춥니다. 작은 원본은 최대 8배까지만 커집니다.' }[sc]
-    || '가로·세로를 크게 만듭니다.';
-}
-/* 콤보에 적힌 말("2배"/"5K …")을 숫자 배율로 되돌린다 */
-function upScaleOf(label){
+/* ── 화질 개선 선택지 ──
+   '2배·4배' 는 원본 크기의 몇 배로 키울지, '4K·5K' 는 최종 가로·긴 변을 몇 px 로 맞출지다.
+   화면에 적힌 말과 실제로 하는 일이 어긋나지 않도록 여기 한 곳에서만 정한다. */
+var UP_PLANS = [
+  { key:'2',  label:'2배',              scale:2, longTarget:0    },
+  { key:'4',  label:'4배',              scale:4, longTarget:0    },
+  { key:'4K', label:'4K (가로 3840px)', scale:4, longTarget:3840 },
+  { key:'5K', label:'5K (긴 변 5120px)',scale:4, longTarget:5120 }
+];
+function upPlanOf(label){
   var s=String(label||'');
-  if(/5K|5120/i.test(s)) return 5;
-  if(/4/.test(s)) return 4;
-  return 2;
+  // '4K' 를 '4배' 보다 먼저 본다 — '4K' 안에도 4 가 들어 있다
+  if(/4K|3840/i.test(s))      return UP_PLANS[2];
+  if(/5K|5120/i.test(s))      return UP_PLANS[3];
+  if(/4\s*배|x\s*4|4\s*x/i.test(s)) return UP_PLANS[1];
+  if(s==='4')                 return UP_PLANS[1];
+  return UP_PLANS[0];
+}
+/* 배율 이름만 봐서는 뭐가 되는지 알 수 없다 → 실제로 어떤 크기가 되는지 예시로 설명한다. */
+function upScaleHelp(key){
+  return {
+    '2': '가로·세로를 2배로 (예: 1024×1024 → 2048×2048). 대부분 이걸로 충분합니다.',
+    '4': '가로·세로를 4배로 (예: 1920×1080 → 7680×4320). 인쇄물·대형 화면용.',
+    '4K':'가로 3840px(4K UHD)에 맞춥니다 — 요즘 TV·모니터의 기본 해상도. 1080p 영상이면 정확히 2배가 됩니다.',
+    '5K':'긴 변을 5120px(5K)에 맞춥니다. 4K보다 한 단계 더 큽니다 (원본이 작으면 최대 8배까지만).'
+  }[String(key)] || '가로·세로를 크게 만듭니다.';
+}
+/* (하위호환) 예전에 숫자로 저장된 설정을 새 방식으로 옮긴다 */
+function upKeyOf(node){
+  if(node.w.upKey) return node.w.upKey;
+  var n=Number(node.w.upScale);
+  return n===5?'5K':n===4?'4':'2';
 }
 /* 특정 입력 포트에 직접 연결된 노드 (첫/마지막 프레임 등 포트별 지정용) */
 function inputNodeOf(id,port){

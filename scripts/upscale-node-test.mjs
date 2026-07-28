@@ -40,17 +40,22 @@ const def = await pg.evaluate(() => {
 })
 ok('업스케일 노드가 [편집] 팔레트에 등록됨', def && def.cat==='편집', def ? def.cat+' / '+def.title : '없음')
 ok('입력 1개 · 출력 1개', def && def.ins===1 && def.outs===1, def && def.ins+'→'+def.outs)
-ok('배율 선택지 3개(2배·4배·5K)', def && def.opts && def.opts.length===3, def && def.opts && def.opts.join(' | '))
+ok('배율 선택지 4개(2배·4배·4K·5K)', def && def.opts && def.opts.length===4, def && def.opts && def.opts.join(' | '))
 ok('실행 버튼과 결과칸이 있음', def && /toolout/.test(def.widgets) && /toolbtn/.test(def.widgets), def && def.widgets)
 
 // 2) 배율 라벨 → 숫자 해석과 안내문
 const help = await pg.evaluate(() => {
   const c = window.__cn
-  return { two:c.upScaleOf('2배'), four:c.upScaleOf('4배'), fivek:c.upScaleOf('5K (긴 변 5120px)'),
-           h2:c.upScaleHelp(2), h5:c.upScaleHelp(5) }
+  const k = (s) => c.upPlanOf(s).key
+  return { two:k('2배'), four:k('4배'), fourk:k('4K (가로 3840px)'), fivek:k('5K (긴 변 5120px)'),
+           t4k:c.upPlanOf('4K (가로 3840px)').longTarget, t5k:c.upPlanOf('5K (긴 변 5120px)').longTarget,
+           h2:c.upScaleHelp('2'), h4k:c.upScaleHelp('4K'), h5:c.upScaleHelp('5K') }
 })
-ok('2배/4배/5K 를 올바른 배율로 해석', help.two===2 && help.four===4 && help.fivek===5, `${help.two}/${help.four}/${help.fivek}`)
-ok('안내문이 실제 결과 크기를 예시로 설명', /2048/.test(help.h2) && /5120/.test(help.h5), help.h2.slice(0,30)+'…')
+ok('2배/4배/4K/5K 를 올바로 구분', help.two==='2' && help.four==='4' && help.fourk==='4K' && help.fivek==='5K',
+   `${help.two}/${help.four}/${help.fourk}/${help.fivek}`)
+ok('4K·5K 의 목표 크기가 정확함', help.t4k===3840 && help.t5k===5120, `4K=${help.t4k}px · 5K=${help.t5k}px`)
+ok('안내문이 실제 결과 크기를 예시로 설명', /2048/.test(help.h2) && /3840/.test(help.h4k) && /5120/.test(help.h5),
+   help.h4k.slice(0,34)+'…')
 
 // 3) 실제 그래프: [이미지 결과 노드] → [업스케일 노드] 를 만들고 버튼을 눌러본다
 const run = await pg.evaluate(async () => {
@@ -62,7 +67,7 @@ const run = await pg.evaluate(async () => {
   x.fillStyle='#fff'; x.fillRect(80,40,40,40)
   src.w.img = cv.toDataURL('image/png'); src.w.toolKind='image'
   const up = c.addNode('upscale', 400, 100, true)
-  up.w.upx = '2배'
+  up.w.upx = '2배'   // 노드 기본값은 4K — 여기서는 2배를 명시해 확인한다
   S.links.push({ from:src.id, to:up.id, fromPort:'out', toPort:'in' })
   c.render()
   // 연결한 것이 업스케일 노드 입력으로 잡히는가
@@ -103,9 +108,11 @@ const scales = await pg.evaluate(async () => {
     if(!up.w.img) return null
     return await new Promise(r=>{ const i=new Image(); i.onload=()=>r(i.width+'x'+i.height); i.onerror=()=>r(null); i.src=up.w.img })
   }
-  return { four: await once('4배', 100, 100), fivek: await once('5K (긴 변 5120px)', 640, 360) }
+  return { four: await once('4배', 100, 100), fourk: await once('4K (가로 3840px)', 960, 540),
+           fivek: await once('5K (긴 변 5120px)', 640, 360) }
 })
 ok('4배 요청 → 실제 4배(100×100 → 400×400)', scales.four==='400x400', String(scales.four))
+ok('4K 요청 → 가로 3840px(960×540 → 3840×2160)', scales.fourk==='3840x2160', String(scales.fourk))
 ok('5K 요청 → 긴 변 5120px(640×360 → 5120×2880)', scales.fivek==='5120x2880', String(scales.fivek))
 
 // 5) 입력을 연결하지 않으면 조용히 실패하지 않고 안내가 떠야 한다

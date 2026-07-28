@@ -72,7 +72,7 @@ export default function StudioTestsPage() {
   const [upBusy, setUpBusy] = useState(false)
   const [before, setBefore] = useState<string>('')
   const [after, setAfter] = useState<string>('')
-  const [scale, setScale] = useState(2)
+  const [scale, setScale] = useState<'2'|'4'|'4K'|'5K'>('2')   // 빠른 점검이 기본 — 4K 는 버튼으로 선택
   const [ownImg, setOwnImg] = useState<string>('')
 
   /** 테스트용 기본 이미지 — 가는 선·글자·그라디언트가 있어 선명도 차이가 눈에 띈다 */
@@ -104,14 +104,15 @@ export default function StudioTestsPage() {
     w.fetch = function (...a: any[]) { try { seen.push(String(a[0]?.url || a[0])) } catch { /* noop */ } return origFetch.apply(this, a) }
 
     try {
-      const eng = await w.nvSrCheck(scale >= 4 ? 4 : 2)
+      const plan = w.__cn.upPlanOf ? w.__cn.upPlanOf(scale) : { scale: 2, longTarget: 0 }
+      const eng = await w.nvSrCheck(plan.scale)
       out[0] = eng.ok
         ? { label: '초해상 엔진 확인', value: `${eng.engine} · ${eng.factor}배 · ${eng.ms}ms`, state: 'pass' }
         : { label: '초해상 엔진 확인', value: `모델을 쓸 수 없음 → 리샘플로 동작 (${eng.error})`, state: 'fail' }
       setUp([...out])
 
       const t0 = Date.now()
-      const res = await w.__cn.upscaleImageURL(src, scale >= 5 ? 4 : scale, scale >= 5 ? { longTarget: 5120 } : null)
+      const res = await w.__cn.upscaleImageURL(src, plan.scale, plan.longTarget ? { longTarget: plan.longTarget } : null)
       const secs = ((Date.now() - t0) / 1000).toFixed(1)
       setAfter(res.url)
       out.push({
@@ -366,10 +367,10 @@ export default function StudioTestsPage() {
         action={
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex rounded-lg border border-[var(--border)] p-0.5">
-              {[2, 4, 5].map((s) => (
+              {(['2', '4', '4K', '5K'] as const).map((s) => (
                 <button key={s} onClick={() => setScale(s)}
                   className={cn('rounded-md px-2.5 py-1 text-xs font-semibold', scale === s ? 'bg-violet-600 text-white' : 'text-[var(--text-soft)]')}>
-                  {s === 5 ? '5K' : s + '×'}
+                  {s === '2' || s === '4' ? s + '×' : s}
                 </button>
               ))}
             </div>

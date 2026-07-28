@@ -106,7 +106,7 @@ ok('   외부 서버 호출 0건', /0건 \(우리 서버만 사용/.test(upText)
 ok('   전/후 이미지 표시', await page.locator('img[alt="결과"]').count() > 0)
 
 // 2-b) 4× · 5K 도 실제로 눌러본다 — 관리자가 곧 시험할 배율 전부
-for (const label of ['4×', '5K']) {
+for (const label of ['4×', '4K', '5K']) {
   await page.getByRole('button', { name: label, exact: true }).click()
   await page.getByRole('button', { name: /실행/ }).click()
   await page.waitForFunction(() => /업스케일 실행/.test(document.body.innerText), null, { timeout: 60000 })
@@ -116,7 +116,7 @@ for (const label of ['4×', '5K']) {
   const real = !/단순 확대로 처리/.test(t)
   ok(`2-b. ${label} 실행`, /→/.test(line) && real, line.trim().slice(0, 80))
 }
-await page.getByRole('button', { name: '2×', exact: true }).click()
+await page.getByRole('button', { name: '2×', exact: true }).click()   // 기본값으로 되돌림
 
 // 3) 편집 기능 — 실제 스튜디오 함수를 불러 픽셀로 판정하는 패널
 await page.getByRole('button', { name: /편집 기능 전체 테스트/ }).click()
