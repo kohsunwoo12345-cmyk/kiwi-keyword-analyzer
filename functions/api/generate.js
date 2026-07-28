@@ -1389,8 +1389,16 @@ export function effectiveRes(body, env) {
       return m ? m[1] : "1080p";                                   // 1.x — 텍스트 명령
     }
     if (prov === "google") return buildVeoPayload(Object.assign({}, body)).parameters.resolution || "1080p";
+    /* 루마는 빌더에 물어본다. Agents API 의 ray-3.2 는 540p·720p·1080p 만 받고 4K 가 없어
+       빌더가 4K 를 1080p 로 내리는데, 예전엔 여기서 요청값을 그대로 반환했다 —
+       옛 그래프에 4K 가 남아 있으면 2.6배를 청구하고 1080p 를 내보내는 셈이었다.
+       (노드 목록에서는 이미 4K 를 뺐지만, 저장된 그래프는 옛 값을 그대로 들고 있다.) */
+    if (prov === "luma") {
+      const p = buildLumaPayload(Object.assign({}, body));
+      return (p.video && p.video.resolution) || "1080p";
+    }
   } catch (_e) {}
-  // Luma·업스케일은 고른 값을 그대로 받는다(4K 포함)
+  // 업스케일은 고른 값을 그대로 받는다(4K 포함)
   return /^(480p|540p|720p|1080p|4K)$/i.test(raw) ? raw : "1080p";
 }
 
