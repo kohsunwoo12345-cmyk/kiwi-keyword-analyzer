@@ -5551,14 +5551,24 @@ function widgetHTML(n,w){
       return '<div style="display:flex;align-items:flex-start;gap:6px;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);">'
         +'<div style="flex:1 1 auto;min-width:0;">'
           +'<div style="font-size:11px;font-weight:600;color:#e6e6ea;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
-            +esc(x.name||'(이름 없음)')+(x.enabled?'':' <span style="color:#8b8fa3;">· 꺼짐</span>')+'</div>'
+            // 연속 실패로 서버가 끈 것과 사용자가 끈 것은 다르다 — 구분해서 보여준다
+            +esc(x.name||'(이름 없음)')
+            +(x.enabled ? '' : ((x.failStreak|0)>=3
+                ? ' <span style="color:#e2857a;">· 자동 중지</span>'
+                : ' <span style="color:#8b8fa3;">· 꺼짐</span>'))+'</div>'
           +'<div style="font-size:9.5px;color:#7a7c84;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
             +esc(when)+' <span style="color:#5f7078;">('+esc(xtz)+')</span> · '+esc(x.model||'')+'</div>'
           +(nx?'<div style="font-size:9.5px;color:#7a7c84;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(nx.slice(3))+'</div>':'')
-          +(x.lastStatus?'<div style="font-size:9.5px;color:#7fd1a6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+          // 실패는 붉게 — 초록으로 뭉뚱그리면 "돌고 있는 줄" 알게 된다
+          +(x.lastStatus?'<div style="font-size:9.5px;color:'+(/^실패/.test(x.lastStatus)?'#e2857a':'#7fd1a6')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc(x.lastStatus)+'">'
             +esc(String(x.lastStatus).slice(0,60))+'</div>':'')
         +'</div>'
-        +'<button class="wbtn" data-scdel="'+esc(x.id)+'" style="flex:0 0 auto;width:auto;padding:3px 9px;font-size:10px;">삭제</button>'
+        // 크론을 기다리지 않고 지금 한 번 돌려 결과를 확인한다(다음 실행 시각은 안 밀린다)
+        +'<div style="flex:0 0 auto;display:flex;flex-direction:column;gap:3px;">'
+          +'<button class="wbtn" data-scnow="'+esc(x.id)+'" style="width:auto;padding:3px 9px;font-size:10px;"'
+            +(n.w.scRunning===x.id?' disabled':'')+'>'+(n.w.scRunning===x.id?'실행 중…':'지금 실행')+'</button>'
+          +'<button class="wbtn" data-scdel="'+esc(x.id)+'" style="width:auto;padding:3px 9px;font-size:10px;">삭제</button>'
+        +'</div>'
         +'</div>';
     }).join('');
     return '<div class="seedopts-wrap"><div class="seedopts-hd">'+ICON.gear+' 정기 자동 생성</div>'
@@ -6711,6 +6721,25 @@ canvas.addEventListener('click',function(e){
     return;
   }
   if(e.target.closest('[data-scload]')){ loadSchedules(n2.id); return; }
+  // ── 예약을 지금 한 번 실행 ── 크론(15분 주기)을 기다리지 않고 바로 확인할 때
+  var _scn=e.target.closest('[data-scnow]');
+  if(_scn){
+    var _rid=_scn.getAttribute('data-scnow');
+    if(n2.w.scRunning) return;                 // 중복 클릭 = 중복 과금
+    n2.w.scRunning=_rid; n2.w.scMsg='지금 실행 중… (크레딧이 차감됩니다)'; render();
+    fetch('/api/studio/schedule-run',{method:'POST',headers:{'Content-Type':'application/json'},
+      credentials:'include',body:JSON.stringify({id:_rid})})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        n2.w.scRunning=null;
+        n2.w.scMsg=(j&&j.ok)?('실행됨 — '+(j.status||'')+' · 결과는 보관함에서 확인하세요')
+                            :('실행 실패: '+((j&&(j.error||j.status))||(j&&j.needLogin?'로그인이 필요합니다':'오류')));
+        render(); loadSchedules(n2.id);
+        if(j&&j.ok) try{ loadGallery&&loadGallery(); }catch(_e){}
+      })
+      .catch(function(){ n2.w.scRunning=null; n2.w.scMsg='실행 실패(네트워크)'; render(); });
+    return;
+  }
   var _scd=e.target.closest('[data-scdel]');
   if(_scd){
     var _id=_scd.getAttribute('data-scdel');
