@@ -177,6 +177,9 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
   //  개통되면 아래 두 줄을 되살리고 스튜디오 목록에도 다시 넣는다.
   // 'Seedream 3.0': { u: 'img', usd: 0.03, prov: 'seedream' },
   // 'SeedEdit 3.0 (레퍼런스 편집)': { u: 'img', usd: 0.03, prov: 'seedream' },
+  /* 구글 공식(ai.google.dev/gemini-api/docs/pricing 원문 확인):
+     "Output images at 1K (1024x1024px) consume 1290 tokens and are equivalent to $0.039 per image".
+     2K 는 $0.067, 4K 는 $0.101 인데 우리는 1K 급만 보낸다 — 이 값이 맞다. */
   'Nano Banana': { u: 'img', usd: 0.039, prov: 'nanobanana' },
   'GPT Image 2': { u: 'img', usd: 0.08, prov: 'openai' },
   'GPT Image 1.5': { u: 'img', usd: 0.06, prov: 'openai' },
@@ -191,7 +194,7 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
      ※ 이전 값(max 0.06 · pro 0.04 · flex 0.03)은 추정치였고 flex 가 실제의 절반이었다. */
   'Flux 2 Max': { u: 'img', usd: 0.07, prov: 'flux' },
   'Flux 2 Pro': { u: 'img', usd: 0.03, prov: 'flux' },
-  'Flux 2 Flex': { u: 'img', usd: 0.06, prov: 'flux' },
+  'Flux 2 Flex': { u: 'img', usd: 0.05, prov: 'flux' },   // 공식 표 from $0.05 (예전 $0.06 은 근거 없는 값이었다)
   // Flux 2 Dev·Flux Pro 는 이 계정에서 403 Forbidden(권한 없음) — 개통되면 주석만 풀면 된다
   // 'Flux 2 Dev': { u: 'img', usd: 0.025, prov: 'flux' },
   'Flux 1.1 Pro Ultra': { u: 'img', usd: 0.06, prov: 'flux' },
@@ -332,7 +335,9 @@ function lumaUsd(input: ChargeInput): number | null {
    8초 오디오 영상 기준 오차: 720p 1.47배 과다 · 1080p 1.88배 과다 · 4K 2.32배 과다.
    (초기 검색에서 본 "초당 $0.10" 은 Standard 가 아니라 Fast 였다 — 한 줄만 보고 바꿨으면
     정반대로 틀릴 뻔했다.)
-   참고: Fast 는 $0.10/$0.12/$0.30, Lite 는 $0.05/$0.08(4K 미지원)로 훨씬 싸다. 아직 미노출. */
+   2026-07 문서 원문 재확인 — 위 표(Standard $0.40/$0.40/$0.60)가 현재도 그대로다.
+   같은 표의 미노출 모델: Fast $0.10(720p)/$0.12(1080p)/$0.30(4K),
+   Lite $0.05(720p)/$0.08(1080p, 4K 미지원). 싼 선택지로 붙일 때 이 값을 그대로 쓰면 된다. */
 const VEO_PRICE: Record<string, number> = { '720p': 0.40, '1080p': 0.40, '4K': 0.60 }
 function veoUsd(input: ChargeInput): number | null {
   if (!/^Google Veo/.test(String(input.model || ''))) return null
@@ -341,29 +346,31 @@ function veoUsd(input: ChargeInput): number | null {
   return perSec * Math.max(1, Number(input.units) || 8)      // 오디오 포함 단가라 추가 가산이 없다
 }
 
-/* ══ BFL FLUX.2 실측 요금 (docs.bfl.ai/quick_start/pricing) ══
-   FLUX.2 는 "장당 정액" 이 아니라 메가픽셀 단가다. 출력은 첫 1MP 가 기본 요금이고,
-   레퍼런스(입력) 이미지는 장마다 별도로 과금된다.
-     max  — 출력 첫 1MP $0.07 / 이후 MP $0.03 · 입력 $0.03/MP
-     pro  — 출력 첫 1MP $0.03 / 이후 MP $0.015 · 입력 $0.015/MP
-     flex — 입출력 모두 $0.06/MP
-   우리 기본 단가($0.07·$0.03·$0.06)는 "첫 1MP 출력" 값과 정확히 일치했고,
-   실제로 보내는 해상도도 전부 1MP 이하(1344×756·1024×1024·896×1120·736×1312)라
-   출력 쪽은 맞았다. 문제는 입력이었다 — FLUX.2 는 레퍼런스를 최대 8장까지 받는데
-   (buildFluxPayload 의 input_image ~ input_image_8) 그 비용을 한 푼도 안 받고 있었다.
-   flex 에 8장을 붙이면 원가 $0.06+$0.48=$0.54, 청구는 $0.06 — 9배 손실이다.
-   FLUX 1.x·Kontext 는 장당 정액이라 해당 없음(레퍼런스도 1장뿐). */
-const FLUX2_INPUT_MP: Record<string, number> = {
-  'Flux 2 Max': 0.03, 'Flux 2 Pro': 0.015, 'Flux 2 Flex': 0.06,
+/* ══ BFL FLUX.2 공식 요금 (docs.bfl.ai/quick_start/pricing.md — 원문 확인) ══
+   1크레딧 = $0.01. FLUX.2 는 출력 해상도에 따라 오르는 메가픽셀 단가이고,
+   "텍스트→이미지" 와 "이미지 편집(레퍼런스 있음)" 의 기본 단가가 따로 있다.
+     모델        텍스트→이미지   이미지 편집
+     max         from $0.07     from $0.07
+     pro         from $0.03     from $0.045
+     flex        from $0.05     from $0.05
+   메가픽셀 가산은 "출력" 해상도에만 붙는다(첫 1MP 가 기본 요금, 이후 MP 마다 추가).
+   우리가 보내는 해상도는 전부 1MP 이하(1344×756·1024×1024·896×1120·736×1312)라
+   기본 단가가 그대로 맞는다.
+
+   ⚠ 앞서 한 번 여기를 잘못 고쳤다. 검색 요약만 보고 "레퍼런스 입력 1장마다 MP 단가가
+   더 붙는다" 고 넣었는데, 공식 표에는 그런 항목이 없고 편집용 단가가 따로 있을 뿐이다.
+   그대로 뒀으면 flex 에 8장 붙일 때 $0.54 를 물려 실제($0.05)의 10.8배를 받을 뻔했다.
+   제공사 단가는 공식 문서 원문을 본 것만 반영한다 — 검색 요약으로는 고치지 않는다. */
+const FLUX2_PRICE: Record<string, { t2i: number; edit: number }> = {
+  'Flux 2 Max':  { t2i: 0.07, edit: 0.07 },
+  'Flux 2 Pro':  { t2i: 0.03, edit: 0.045 },
+  'Flux 2 Flex': { t2i: 0.05, edit: 0.05 },
 }
-const FLUX2_MAX_REFS = 8            // buildFluxPayload 가 실제로 싣는 최대 장수와 같아야 한다
 function fluxUsd(input: ChargeInput): number | null {
-  const model = String(input.model || '')
-  const perMp = FLUX2_INPUT_MP[model]
-  if (perMp == null) return null
-  const base = MODEL_COST[model] ? MODEL_COST[model].usd : 0.06     // 첫 1MP 출력
-  const refs = Math.min(FLUX2_MAX_REFS, Math.max(0, Number(input.refs) || 0))
-  return base + perMp * refs        // 레퍼런스 1장 ≒ 1MP 로 본다(우리가 보내는 이미지가 그 크기다)
+  const p = FLUX2_PRICE[String(input.model || '')]
+  if (!p) return null
+  // 레퍼런스가 하나라도 붙으면 buildFluxPayload 가 input_image 를 실어 편집 요청이 된다
+  return (Number(input.refs) || 0) > 0 ? p.edit : p.t2i
 }
 
 /** 소수 2자리 반올림 (크레딧 정밀도) */

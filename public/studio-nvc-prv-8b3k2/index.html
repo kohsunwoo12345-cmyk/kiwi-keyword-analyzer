@@ -2147,7 +2147,7 @@ var MODEL_COST = {
   //     JS 는 뒤엣것만 남기므로 표시는 맞았지만, 읽는 사람은 잠정값을 실단가로 오해했다 — 지웠다.
   'Flux 2 Max':                      { u:'img', usd:0.07,  prov:'flux' },
   'Flux 2 Pro':                      { u:'img', usd:0.03,  prov:'flux' },
-  'Flux 2 Flex':                     { u:'img', usd:0.06,  prov:'flux' },
+  'Flux 2 Flex':                     { u:'img', usd:0.05,  prov:'flux' },   // 공식 from $0.05
   'Flux 1.1 Pro Ultra':              { u:'img', usd:0.06,  prov:'flux' },
   'Flux 1.1 Pro':                    { u:'img', usd:0.04,  prov:'flux' },
   // Flux Pro(FLUX.1 pro 1.0)는 BFL 이 폐지해 403 이다 — 노드·서버 단가표 모두에서 뺐다.
@@ -2212,15 +2212,16 @@ function lumaUsd(model, secs, res, refs, hdr, exr){
   if(hdr)      return LUMA_P.genH[r]||LUMA_P.genH['1080p'];
   return pick(LUMA_P.gen);
 }
-/* FLUX.2 실측 — 장당 정액이 아니라 메가픽셀 단가다(docs.bfl.ai/quick_start/pricing).
-   표의 값은 "첫 1MP 출력" 이고 우리가 보내는 해상도는 전부 1MP 이하라 출력은 맞았는데,
-   레퍼런스(입력) 이미지는 장마다 따로 과금된다 — 최대 8장까지 붙는데 안 받고 있었다.
-   max $0.03/장 · pro $0.015/장 · flex $0.06/장. (1.x·Kontext 는 장당 정액이라 해당 없음) */
-var FLUX2_IN = { 'Flux 2 Max':0.03, 'Flux 2 Pro':0.015, 'Flux 2 Flex':0.06 };
+/* FLUX.2 공식 요금 (docs.bfl.ai/quick_start/pricing.md 원문 확인) —
+   "텍스트→이미지" 와 "이미지 편집(레퍼런스 있음)" 의 기본 단가가 따로 있다.
+     max  $0.07 / $0.07 · pro $0.03 / $0.045 · flex $0.05 / $0.05
+   메가픽셀 가산은 출력 해상도에만 붙고, 우리가 보내는 크기는 전부 1MP 이하라 기본 단가가 맞다.
+   (전에 "레퍼런스 1장마다 가산" 으로 잘못 넣었다가 flex 8장에 10.8배를 물릴 뻔했다.) */
+var FLUX2_P = { 'Flux 2 Max':{t2i:0.07,edit:0.07}, 'Flux 2 Pro':{t2i:0.03,edit:0.045},
+                'Flux 2 Flex':{t2i:0.05,edit:0.05} };
 function fluxUsd(model, refs){
-  var per = FLUX2_IN[String(model||'')]; if(per==null) return null;
-  var m = MODEL_COST[model];
-  return (m?m.usd:0.06) + per * Math.min(8, Math.max(0, Number(refs)||0));
+  var p = FLUX2_P[String(model||'')]; if(!p) return null;
+  return (Number(refs)||0) > 0 ? p.edit : p.t2i;
 }
 function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl, cnCount, hdrOn, exrOn){
   var m = MODEL_COST[model];

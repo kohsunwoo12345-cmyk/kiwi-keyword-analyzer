@@ -2061,24 +2061,28 @@ async function handle(context) {
           urls: ["https://docs.bfl.ai/quick_start/pricing.md", "https://docs.bfl.ml/quick_start/pricing.md",
                  "https://docs.bfl.ai/quick_start/pricing", "https://docs.bfl.ml/quick_start/pricing",
                  "https://docs.bfl.ai/pricing.md", "https://bfl.ai/pricing"] },
+        /* 미니맥스 — 문서 사이트가 자바스크립트로 그려서 본문이 1~2KB 껍데기로만 온다.
+           BFL 이 .md 로 성공했듯 정적 원문을 주는 주소를 먼저 시도한다. */
         { 제공사: "MiniMax Hailuo", 말: ["Hailuo", "video", "price"], 넓게: ["Hailuo"],
-          urls: ["https://platform.minimax.io/document/price", "https://platform.minimaxi.com/document/price",
-                 "https://platform.minimax.io/document/Price", "https://www.minimax.io/price",
-                 "https://platform.minimax.io/docs/api-reference/price"] },
+          urls: ["https://platform.minimax.io/document/price.md", "https://platform.minimaxi.com/document/price.md",
+                 "https://platform.minimax.io/docs/price", "https://platform.minimax.io/document/price",
+                 "https://platform.minimaxi.com/document/price", "https://www.minimax.io/price"] },
+        /* 런웨이 — 실제 단가 페이지는 /guides/pricing/ 이다(루트는 목차만 온다) */
         { 제공사: "Runway", 말: ["credit", "Gen-4", "aleph", "per second"], 넓게: ["credit"],
-          urls: ["https://docs.dev.runwayml.com/pricing", "https://dev.runwayml.com/pricing",
-                 "https://docs.dev.runwayml.com/", "https://help.runwayml.com/hc/en-us/articles/pricing"] },
-        /* 클링은 검색으로는 5초당 $0.475·$0.80·$1.40·$1.70 이 다 나온다(재판매가 섞여 있다).
-           공식 포인트 정책 문서가 유일한 기준이라 후보에 같이 넣는다. */
+          urls: ["https://docs.dev.runwayml.com/guides/pricing.md", "https://docs.dev.runwayml.com/guides/pricing/",
+                 "https://docs.dev.runwayml.com/guides/pricing", "https://docs.dev.runwayml.com/llms.txt",
+                 "https://docs.dev.runwayml.com/pricing"] },
+        /* 클링 — /global/dev/pricing 은 74바이트 리다이렉트 껍데기였다. 다른 경로를 넓게 시도. */
         { 제공사: "Kling", 말: ["price", "credit", "point", "点"], 넓게: ["point", "master"],
-          urls: ["https://klingai.com/global/dev/pricing", "https://app.klingai.com/global/docs/point-policy",
-                 "https://klingai.com/document-api/pricing/base/video",
+          urls: ["https://app.klingai.com/global/docs/point-policy", "https://klingai.com/document-api/pricing/base/video",
                  "https://app.klingai.com/global/dev/document-api/productBilling/prePaidResourcePackage",
-                 "https://app.klingai.com/global/dev/document-api/apiReference/commonInfo"] },
+                 "https://docs.qingque.cn/d/home/eZQDvbNVLLlvsdM4SLmfhLcNn", "https://klingai.com/global/dev/pricing"] },
+        /* BytePlus — 문서가 자바스크립트로 그려진다(본문에 "Copy Page" 만 온다). 원문 주소를 먼저. */
         { 제공사: "BytePlus ModelArk (씨댄스·씨드림)", 말: ["Seedance", "Seedream", "price", "per second"],
           넓게: ["Seedance", "Seedream"],
-          urls: ["https://docs.byteplus.com/en/docs/ModelArk/Pricing", "https://docs.byteplus.com/en/docs/ModelArk/1099320",
-                 "https://docs.byteplus.com/en/docs/ModelArk/Models", "https://www.byteplus.com/en/product/modelark/pricing"] },
+          urls: ["https://docs.byteplus.com/en/docs/ModelArk/Pricing.md", "https://docs.byteplus.com/en/docs/ModelArk/llms.txt",
+                 "https://docs.byteplus.com/en/docs/ModelArk/1099320", "https://www.byteplus.com/en/product/modelark/pricing",
+                 "https://docs.byteplus.com/en/docs/ModelArk/Pricing"] },
       ];
       const fetchText = async (url) => {
         const r = await fetchT(url, { headers: { "accept": "text/html,text/markdown", "user-agent": "Mozilla/5.0" } }, 15000);
