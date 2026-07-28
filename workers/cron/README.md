@@ -46,7 +46,25 @@ Cloudflare 대시보드 → Workers & Pages → 해당 Pages 프로젝트 →
 
 > 환경변수는 새로 배포해야 반영된다. 넣기만 하고 재배포를 안 하면 계속 401 이 난다.
 
-### 3. 워커 배포
+### 3. 워커 배포 — 방법 A: GitHub Actions (권장)
+
+로컬에 wrangler 를 깔거나 브라우저로 로그인할 필요가 없다.
+
+GitHub → Settings → Secrets and variables → **Actions** 에 등록:
+
+| 종류 | 이름 | 값 |
+|---|---|---|
+| Secret | `CLOUDFLARE_API_TOKEN` | Cloudflare → My Profile → API Tokens → Create Token → 템플릿 **Edit Cloudflare Workers** |
+| Secret | `CRON_TOKEN` | 1번에서 만든 값 (Pages 에 넣은 것과 동일) |
+| Secret | `CLOUDFLARE_ACCOUNT_ID` | (선택) 토큰이 여러 계정에 접근 가능할 때만 |
+| Variable | `SITE_URL` | (선택) 기본값 `https://bygency.co` |
+
+그다음 **Actions 탭 → "deploy cron worker" → Run workflow**.
+워크플로가 배포 → 워커에 `CRON_TOKEN` 심기 → `/health` 확인 → Pages 토큰 일치까지
+전부 검사하고, 어긋나면 어디가 문제인지 에러로 알려준다.
+이후 `workers/cron/` 아래가 바뀌어 main 에 푸시되면 자동으로 재배포된다.
+
+### 3. 워커 배포 — 방법 B: 로컬에서 직접
 
 ```bash
 cd workers/cron
