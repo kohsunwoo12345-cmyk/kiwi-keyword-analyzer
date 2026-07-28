@@ -28,12 +28,15 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     one('SELECT COUNT(*) AS c FROM studio_schedules WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ?', nowIso),
     // 크론이 살아 있는지 판정하는 근거 — 어떤 예약이든 마지막으로 실행된 시각
     one('SELECT MAX(last_run_at) AS at FROM studio_schedules WHERE last_run_at IS NOT NULL'),
-    rows(`SELECT s.id, s.name, s.enabled, s.freq, s.hour, s.minute, s.weekday, s.tz, s.model,
-                 s.next_run_at, s.last_run_at, s.last_status, s.runs, s.max_runs, s.fail_streak,
+    // 관리자 화면에서 "누가 무엇을 예약해 뒀는지"를 그대로 볼 수 있어야 한다 →
+    //  프롬프트와 생성 옵션(길이·비율·화질), 마지막 결과 URL 까지 함께 내려준다.
+    rows(`SELECT s.id, s.user_id, s.name, s.enabled, s.freq, s.hour, s.minute, s.weekday, s.tz, s.model,
+                 s.prompt, s.seconds, s.ratio, s.res, s.created_at,
+                 s.next_run_at, s.last_run_at, s.last_status, s.last_result, s.runs, s.max_runs, s.fail_streak,
                  u.name AS user_name, u.email AS user_email, u.credits AS user_credits,
                  (u.mcp_token IS NOT NULL AND u.mcp_token != '') AS has_token
             FROM studio_schedules s LEFT JOIN users u ON u.id = s.user_id
-           ORDER BY s.enabled DESC, s.next_run_at ASC LIMIT 300`),
+           ORDER BY s.enabled DESC, s.next_run_at ASC LIMIT 500`),
     rows(`SELECT s.id, s.name, s.last_run_at, s.last_status, s.fail_streak, s.enabled,
                  u.name AS user_name, u.email AS user_email
             FROM studio_schedules s LEFT JOIN users u ON u.id = s.user_id
@@ -65,16 +68,29 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     },
     lastRunAt: lastRun.at || '',
     lastRunAgeMin: ageMin,
-    schedules: schedules.map((s: any) => ({
-      id: s.id, name: s.name || '', enabled: Number(s.enabled) === 1,
-      freq: s.freq || 'weekly', hour: Number(s.hour) || 0, minute: Number(s.minute) || 0,
-      weekday: Number(s.weekday) || 0,
-      tz: s.tz || 'Asia/Seoul', model: s.model || '',
-      nextRunAt: s.next_run_at || '', lastRunAt: s.last_run_at || '', lastStatus: s.last_status || '',
-      runs: Number(s.runs) || 0, maxRuns: Number(s.max_runs) || 0, failStreak: Number(s.fail_streak) || 0,
-      userName: s.user_name || '', userEmail: s.user_email || '',
-      userCredits: Number(s.user_credits) || 0, hasToken: !!Number(s.has_token),
-    })),
+    schedules: schedules.map((s: any) => {
+      const enabled = Number(s.enabled) === 1
+      const streak = Number(s.fail_streak) || 0
+      const status = String(s.last_status || '')
+      const exhausted = Number(s.max_runs) > 0 && Number(s.runs) >= Number(s.max_runs)
+      // 꺼진 이유를 구분해 준다 — 사용자가 끈 것과 서버가 끈 것은 대응이 다르다
+      const state: 'active' | 'autoStopped' | 'exhausted' | 'off' =
+        enabled ? 'active' : (streak >= FAIL_LIMIT ? 'autoStopped' : (exhausted ? 'exhausted' : 'off'))
+      return {
+        id: s.id, userId: s.user_id || '', name: s.name || '', enabled, state,
+        freq: s.freq || 'weekly', hour: Number(s.hour) || 0, minute: Number(s.minute) || 0,
+        weekday: Number(s.weekday) || 0,
+        tz: s.tz || 'Asia/Seoul', model: s.model || '',
+        prompt: s.prompt || '', seconds: Number(s.seconds) || 5,
+        ratio: s.ratio || '16:9', res: s.res || '1080p', createdAt: s.created_at || '',
+        nextRunAt: s.next_run_at || '', lastRunAt: s.last_run_at || '',
+        lastStatus: status, lastResult: s.last_result || '',
+        failed: /^(실패|실행 불가)/.test(status),
+        runs: Number(s.runs) || 0, maxRuns: Number(s.max_runs) || 0, failStreak: streak,
+        userName: s.user_name || '', userEmail: s.user_email || '',
+        userCredits: Number(s.user_credits) || 0, hasToken: !!Number(s.has_token),
+      }
+    }),
     failures: fails.map((f: any) => ({
       id: f.id, name: f.name || '', lastRunAt: f.last_run_at || '', lastStatus: f.last_status || '',
       failStreak: Number(f.fail_streak) || 0, enabled: Number(f.enabled) === 1,

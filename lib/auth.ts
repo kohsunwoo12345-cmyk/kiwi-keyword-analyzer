@@ -1547,9 +1547,13 @@ export async function adminNoticeDelete(id: string): Promise<{ ok: boolean; erro
 }
 
 /* ───────── 관리자: 정기 실행(크론) 현황 ───────── */
+export type CronScheduleState = 'active' | 'autoStopped' | 'exhausted' | 'off'
 export interface CronScheduleRow {
-  id: string; name: string; enabled: boolean; freq: string; hour: number; minute: number; weekday: number
-  tz: string; model: string; nextRunAt: string; lastRunAt: string; lastStatus: string
+  id: string; userId: string; name: string; enabled: boolean; state: CronScheduleState
+  freq: string; hour: number; minute: number; weekday: number
+  tz: string; model: string
+  prompt: string; seconds: number; ratio: string; res: string; createdAt: string
+  nextRunAt: string; lastRunAt: string; lastStatus: string; lastResult: string; failed: boolean
   runs: number; maxRuns: number; failStreak: number
   userName: string; userEmail: string; userCredits: number; hasToken: boolean
 }
