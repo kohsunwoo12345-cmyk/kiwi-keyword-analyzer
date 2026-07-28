@@ -4,7 +4,7 @@ import { MODEL_COST, PROV_LABEL, computeCharge, getUsdKrw, getModelMarkups, CRED
 const clampPct = (v: any) => Math.max(0, Math.min(100, Math.round((Number(v) || 0) * 1000) / 1000))
 
 const clampMk = (v: any) => Math.max(1, Math.min(100, Math.round((Number(v) || 1) * 100) / 100))
-const unitsFor = (kind: string) => (kind === 'video' ? 8 : 1)
+const unitsFor = (kind: string) => (kind === 'video' ? 8 : 1)   // 영상만 8초 기준, 나머지(이미지·3D·LLM)는 1단위
 
 // GET /api/admin/model-pricing[?userId=]  → 모델별 원가/배수/적용 크레딧
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
@@ -86,7 +86,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   const models = Object.keys(MODEL_COST).map((model) => {
     const m = (MODEL_COST as any)[model]
-    const kind = m.u === 'img' ? 'image' : 'video'
+    // 'img'(장당)·'3d'(모델 1개당)·'tok'(호출 1회당) 은 단위 1개 과금 → 초당 계산을 타면 안 된다.
+    const kind = m.u === 'sec' ? 'video' : m.u === '3d' ? '3d' : m.u === 'tok' ? 'llm' : 'image'
     const base = computeCharge({ model, units: unitsFor(kind), kind, res: '1080p' } as any, rate, 1)
     const dflt = computeCharge({ model, units: unitsFor(kind), kind, res: '1080p' } as any, rate, undefined)
     const globalMk = Number(gm[model]) > 0 ? Number(gm[model]) : 0

@@ -148,30 +148,63 @@ export const MODEL_COST: Record<string, { u: 'sec' | 'img'; usd: number; audio?:
   'Seedream 4.5 (레퍼런스 편집)': { u: 'img', usd: 0.045, prov: 'seedream' },
   'Seedream 4.0': { u: 'img', usd: 0.035, prov: 'seedream' },
   'Seedream 4.0 (레퍼런스 편집)': { u: 'img', usd: 0.035, prov: 'seedream' },
-  'Seedream 3.0': { u: 'img', usd: 0.03, prov: 'seedream' },
-  'SeedEdit 3.0 (레퍼런스 편집)': { u: 'img', usd: 0.03, prov: 'seedream' },
+  // Seedream 3.0 · SeedEdit 3.0 은 콘솔 목록에는 있으나 이 계정에서 호출하면 404 다(probe-all 확인).
+  //  개통되면 아래 두 줄을 되살리고 스튜디오 목록에도 다시 넣는다.
+  // 'Seedream 3.0': { u: 'img', usd: 0.03, prov: 'seedream' },
+  // 'SeedEdit 3.0 (레퍼런스 편집)': { u: 'img', usd: 0.03, prov: 'seedream' },
   'Nano Banana': { u: 'img', usd: 0.039, prov: 'nanobanana' },
   'GPT Image 2': { u: 'img', usd: 0.08, prov: 'openai' },
   'GPT Image 1.5': { u: 'img', usd: 0.06, prov: 'openai' },
   'GPT Image': { u: 'img', usd: 0.04, prov: 'openai' },
   'GPT Image Mini': { u: 'img', usd: 0.015, prov: 'openai' },
-  'Flux 2 Flex': { u: 'img', usd: 0.03, prov: 'flux' },
-  'Flux 2 Dev': { u: 'img', usd: 0.025, prov: 'flux' },
+  /* FLUX.2 는 API 제공분이 max·pro·flex 셋(dev 는 오픈웨이트라 API 없음) — probe-all 로 셋 다 확인됨.
+     BFL 은 "요청당" 이 아니라 "출력 메가픽셀당" 과금한다(1크레딧=$0.01). 우리 출력은 약 1MP
+     (1024x1024=1.05MP · 1344x768=1.03MP)라 1MP 단가를 그대로 쓴다.
+       max  = 첫 1MP $0.07 (이후 MP당 $0.03)
+       flex = MP당 $0.06
+       pro  = MP당 $0.03
+     ※ 이전 값(max 0.06 · pro 0.04 · flex 0.03)은 추정치였고 flex 가 실제의 절반이었다. */
+  'Flux 2 Max': { u: 'img', usd: 0.07, prov: 'flux' },
+  'Flux 2 Pro': { u: 'img', usd: 0.03, prov: 'flux' },
+  'Flux 2 Flex': { u: 'img', usd: 0.06, prov: 'flux' },
+  // Flux 2 Dev·Flux Pro 는 이 계정에서 403 Forbidden(권한 없음) — 개통되면 주석만 풀면 된다
+  // 'Flux 2 Dev': { u: 'img', usd: 0.025, prov: 'flux' },
   'Flux 1.1 Pro Ultra': { u: 'img', usd: 0.06, prov: 'flux' },
   'Flux 1.1 Pro': { u: 'img', usd: 0.04, prov: 'flux' },
-  'Flux Pro': { u: 'img', usd: 0.05, prov: 'flux' },
+  // 'Flux Pro': { u: 'img', usd: 0.05, prov: 'flux' },
   'Flux Dev': { u: 'img', usd: 0.025, prov: 'flux' },
   'Flux Kontext Max (레퍼런스 편집)': { u: 'img', usd: 0.08, prov: 'flux' },
-  'Flux Kontext Pro (레퍼런스 편집)': { u: 'img', usd: 0.05, prov: 'flux' },
+  'Flux Kontext Pro (레퍼런스 편집)': { u: 'img', usd: 0.04, prov: 'flux' },   // BFL 공식 $0.04/장
   // ── 오디오·립싱크 (초당) — 관리자 ai-pricing 에서 모델별 배수 설정 가능 ──
   '음악 생성 (BGM·뮤직)': { u: 'sec', usd: 0.01, prov: 'music' },
   '업스케일 4K (영상 화질 향상)': { u: 'sec', usd: 0.04, prov: 'upscale' },
   '나레이션 (AI 음성 해설)': { u: 'sec', usd: 0.02, prov: 'narrate' },
   '립싱크 (인물 말하기)': { u: 'sec', usd: 0.1, prov: 'lipsync' },
+
+  /* ── 3D 생성 (BytePlus ModelArk · 모델 1개당 과금) ──
+     ⚠️ 단가는 공개 시세 기준 잠정값이다. 콘솔의 실제 단가를 확인한 뒤 이 값을 맞춰야 한다.
+     생성 노드에는 아직 노출하지 않는다(엔드포인트·응답 규격 확인 전). 관리자 화면에는 표시된다. */
+  //  실제 ID 확인됨(probe-all): hyper3d-gen2-260112 / hitem3d-2-0-251223
+  'Hyper3D Gen-2 (3D 생성)': { u: '3d', usd: 0.4, prov: 'ark3d' },
+  'Hitem3D 2.0 (3D 생성)': { u: '3d', usd: 0.4, prov: 'ark3d' },
+
+  /* ── 프롬프트 작성 LLM (호출 1회당) ──
+     영상·이미지와 같은 ARK 키로 호출하므로 외부 API 비용이 없다.
+     값은 500토큰 안팎의 1회 호출 기준 잠정값. */
+  //  probe-all 로 "실제 호출되는" 것만 등록(계정 카탈로그 35개 전수 확인).
+  //  접미사 없는 형태는 전부 404 라 접미사까지 포함한 ID 가 정확한 값이다.
+  'deepseek-v4-pro-260425': { u: 'tok', usd: 0.004, prov: 'promptgen' },
+  'deepseek-v4-flash-260425': { u: 'tok', usd: 0.001, prov: 'promptgen' },
+  'deepseek-v3-2-251201': { u: 'tok', usd: 0.002, prov: 'promptgen' },
+  'glm-5-2-260617': { u: 'tok', usd: 0.003, prov: 'promptgen' },
+  'glm-4-7-251222': { u: 'tok', usd: 0.0015, prov: 'promptgen' },
+  'dola-seed-2-1-turbo-260628': { u: 'tok', usd: 0.002, prov: 'promptgen' },
+  'gpt-oss-120b-250805': { u: 'tok', usd: 0.0008, prov: 'promptgen' },
 }
 
 export const PROV_LABEL: Record<string, string> = {
   google: 'Google Veo', runway: 'Runway', runway_aleph: 'Runway Aleph', v2v_auto: 'V2V 자동', motion: '모션 전이', seedance: 'Seedance', seedream: 'Seedream',
+  ark3d: '3D 생성 (ModelArk)', promptgen: '프롬프트 작성 LLM',
   hailuo: 'MiniMax Hailuo', luma: 'Luma', xai: 'Grok', flux: 'Flux', falcontrol: 'fal ControlNet',
   nanobanana: 'Nano Banana', openai: 'GPT Image', kling: 'Kling', narrate: '나레이션', lipsync: '립싱크', music: '음악 생성', upscale: '업스케일',
 }
@@ -208,7 +241,9 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
   const rate = usdKrw && usdKrw > 0 ? usdKrw : USD_KRW
   const model = String(input.model || '')
   const m = MODEL_COST[model]
-  const isImg = m ? m.u === 'img' : input.kind === 'image'
+  // 'img'(장당) 외에 '3d'(모델 1개당)·'tok'(호출 1회당) 도 "단위 1개" 과금이다 — 초당 계산을 타면 안 된다.
+  const isFlat = m ? (m.u === 'img' || m.u === '3d' || m.u === 'tok') : input.kind === 'image'
+  const isImg = isFlat
   let usd: number
   if (isImg) {
     usd = m ? m.usd : 0.05

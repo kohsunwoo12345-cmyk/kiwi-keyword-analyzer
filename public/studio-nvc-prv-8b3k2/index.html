@@ -1967,7 +1967,6 @@ var MODELS = [
  ['영상','Google Veo 3.1'],['영상','Runway Gen-4'],['영상','Runway Gen-3 Alpha Turbo'],['영상','Grok Imagine (영상)'],
  ['영상','Seedance 2.0'],['영상','Seedance 2.0 Fast'],['영상','Seedance 2.0 Mini'],['영상','Seedance 1.5 Pro'],
  ['영상','Seedance 1.0 Pro'],['영상','Seedance 1.0 Pro Fast'],
- ['영상','Seedance 1.0 Lite (텍스트→영상)'],['영상','Seedance 1.0 Lite (이미지→영상)'],
  ['영상','MiniMax Hailuo 02'],['영상','MiniMax T2V-01 Director'],['영상','MiniMax I2V-01 Director'],
  ['영상','Luma Ray 2'],['영상','Luma Ray Flash 2'],['영상','Luma Ray 1.6'],
  ['영상 · Kling','Kling 3.0 Pro (텍스트→영상)'],['영상 · Kling','Kling 3.0 Pro (이미지→영상)'],
@@ -1982,13 +1981,13 @@ var MODELS = [
  ['이미지 (레퍼런스 편집·I2I)','Seedream 5.0 Lite (레퍼런스 편집)'],
  ['이미지 (레퍼런스 편집·I2I)','Seedream 4.5 (레퍼런스 편집)'],
  ['이미지 (레퍼런스 편집·I2I)','Seedream 4.0 (레퍼런스 편집)'],
- ['이미지 (레퍼런스 편집·I2I)','SeedEdit 3.0 (레퍼런스 편집)'],
  ['이미지 (텍스트·편집)','Nano Banana'],
  ['이미지 (텍스트·편집)','GPT Image 2'],['이미지 (텍스트·편집)','GPT Image 1.5'],['이미지 (텍스트·편집)','GPT Image'],['이미지 (텍스트·편집)','GPT Image Mini'],
  ['이미지','Seedream 5.0 Pro'],['이미지','Seedream 5.0 Lite'],['이미지','Seedream 4.5'],['이미지','Seedream 4.0'],
- ['이미지','Seedream 3.0'],
- ['이미지','Flux 2 Flex'],['이미지','Flux 2 Dev'],
- ['이미지','Flux 1.1 Pro Ultra'],['이미지','Flux 1.1 Pro'],['이미지','Flux Pro'],['이미지','Flux Dev'],
+ // Flux Pro(FLUX.1 pro 1.0)는 BFL 공식 폐지(403) — 대체인 1.1 Pro·Kontext Pro 가 아래에 있다.
+ // FLUX.2 는 API 제공분이 max·pro·flex 셋이다(dev 는 오픈웨이트라 API 없음) — 셋 다 422 확인됨.
+ ['이미지','Flux 2 Max'],['이미지','Flux 2 Pro'],['이미지','Flux 2 Flex'],
+ ['이미지','Flux 1.1 Pro Ultra'],['이미지','Flux 1.1 Pro'],['이미지','Flux Dev'],
  ['이미지','Grok Imagine']
 ];
 // 영상 제작 노드 전용 목록(영상 모델만) — 카테고리가 '영상'으로 시작하는 항목
@@ -2003,11 +2002,11 @@ var IMG_MODELS = [
  ['이미지 (레퍼런스 편집·I2I)','Seedream 5.0 Lite (레퍼런스 편집)'],
  ['이미지 (레퍼런스 편집·I2I)','Seedream 4.5 (레퍼런스 편집)'],
  ['이미지 (레퍼런스 편집·I2I)','Seedream 4.0 (레퍼런스 편집)'],
- ['이미지 (레퍼런스 편집·I2I)','SeedEdit 3.0 (레퍼런스 편집)'],
  ['이미지','Seedream 5.0 Pro'],['이미지','Seedream 5.0 Lite'],['이미지','Seedream 4.5'],['이미지','Seedream 4.0'],
- ['이미지','Seedream 3.0'],
- ['이미지','Flux 2 Flex'],['이미지','Flux 2 Dev'],
- ['이미지','Flux 1.1 Pro Ultra'],['이미지','Flux 1.1 Pro'],['이미지','Flux Pro'],['이미지','Flux Dev'],
+ // Flux Pro(FLUX.1 pro 1.0)는 BFL 공식 폐지(403) — 대체인 1.1 Pro·Kontext Pro 가 아래에 있다.
+ // FLUX.2 는 API 제공분이 max·pro·flex 셋이다(dev 는 오픈웨이트라 API 없음) — 셋 다 422 확인됨.
+ ['이미지','Flux 2 Max'],['이미지','Flux 2 Pro'],['이미지','Flux 2 Flex'],
+ ['이미지','Flux 1.1 Pro Ultra'],['이미지','Flux 1.1 Pro'],['이미지','Flux Dev'],
  ['이미지','Grok Imagine']
 ];
 /* 프롬프트 작성 노드 모델 — GPT/Gemini 전 모델 (제공사는 이름 접두사로 자동 판별) */
@@ -2016,10 +2015,14 @@ var PROMPT_MODELS = [
  // Gemini 1.5 전 계열과 2.0 Flash 계열은 이미 종료되어 호출하면 404 다(1.5=2025 종료, 2.0=2026-06-01 종료).
  // 목록에 남겨 두면 고를 수는 있는데 무조건 실패하므로 제거하고, 현행 세대만 남긴다.
  ['Gemini','gemini-3.5-flash'],['Gemini','gemini-2.5-pro'],['Gemini','gemini-2.5-flash'],['Gemini','gemini-2.5-flash-lite'],
- // BytePlus(ModelArk) 계정에 이미 들어와 있는 LLM — 같은 키로 호출하므로 외부 API 비용이 들지 않는다.
- //  ID 는 접두사 없는 기본형으로 보내고, 날짜 접미사가 붙은 계정이면 서버가 카탈로그에서 찾아 보정한다.
- ['DeepSeek','deepseek-v4-pro'],['DeepSeek','deepseek-v4-flash'],['DeepSeek','deepseek-v3-2'],['DeepSeek','deepseek-v3-1'],
- ['Dola Seed','dola-seed-2-1-turbo'],['Dola Seed','dola-seed-2-0-pro'],['Dola Seed','dola-seed-2-0-lite'],['Dola Seed','dola-seed-2-0-mini']
+ /* BytePlus(ModelArk) — probe-all 로 "실제 호출되는" 것만 넣는다(계정 카탈로그 35개 전수 확인).
+    영상·이미지와 같은 ARK 키로 나가므로 GPT·Gemini 외부 API 비용이 들지 않는다.
+    날짜 접미사가 없는 형태(deepseek-v4-pro 등)는 전부 404 라 반드시 접미사까지 써야 한다.
+    R1·Kimi·Skylark 계열은 카탈로그에 있어도 미개통이라 넣지 않았다. */
+ ['DeepSeek','deepseek-v4-pro-260425'],['DeepSeek','deepseek-v4-flash-260425'],['DeepSeek','deepseek-v3-2-251201'],
+ ['GLM','glm-5-2-260617'],['GLM','glm-4-7-251222'],
+ ['Dola Seed','dola-seed-2-1-turbo-260628'],
+ ['OSS','gpt-oss-120b-250805']
 ];
 /* 3D 변환·3D 이미지 생성 노드의 스타일 프리셋 — 각 라벨에 실제 프롬프트 지시문 매핑.
    레퍼런스를 넣으면 I2I(편집)로, 없으면 T2I(생성)로 동일 파이프라인에서 처리된다. */
@@ -2083,8 +2086,9 @@ var MODEL_COST = {
   'Seedance 1.5 Pro':                { u:'sec', usd:0.05,  prov:'seedance' },
   'Seedance 1.0 Pro':                { u:'sec', usd:0.062, prov:'seedance' },
   'Seedance 1.0 Pro Fast':           { u:'sec', usd:0.036, prov:'seedance' },
-  'Seedance 1.0 Lite (텍스트→영상)':    { u:'sec', usd:0.018, prov:'seedance' },
-  'Seedance 1.0 Lite (이미지→영상)':    { u:'sec', usd:0.018, prov:'seedance' },
+  // Seedance 1.0 Lite 2종은 이 계정에서 미개통(404) — 개통되면 두 줄만 되살리면 된다
+  // 'Seedance 1.0 Lite (텍스트→영상)':    { u:'sec', usd:0.018, prov:'seedance' },
+  // 'Seedance 1.0 Lite (이미지→영상)':    { u:'sec', usd:0.018, prov:'seedance' },
   'MiniMax Hailuo 02':               { u:'sec', usd:0.048, prov:'hailuo' },
   'MiniMax T2V-01 Director':         { u:'sec', usd:0.043, prov:'hailuo' },
   'MiniMax I2V-01 Director':         { u:'sec', usd:0.043, prov:'hailuo' },
@@ -2118,14 +2122,18 @@ var MODEL_COST = {
   'GPT Image 1.5':                   { u:'img', usd:0.06,  prov:'openai' },
   'GPT Image':                       { u:'img', usd:0.04,  prov:'openai' },
   'GPT Image Mini':                  { u:'img', usd:0.015, prov:'openai' },
-  'Flux 2 Flex':                     { u:'img', usd:0.03,  prov:'flux' },
-  'Flux 2 Dev':                      { u:'img', usd:0.025, prov:'flux' },
+  // BFL 은 출력 메가픽셀당 과금(1MP 기준). max=첫1MP $0.07 · flex=$0.06/MP · pro=$0.03/MP
+  //  ※ 예전엔 max 0.06 / pro 0.04 잠정값이 위에 한 번 더 있었다. 같은 키가 두 번 있으면
+  //     JS 는 뒤엣것만 남기므로 표시는 맞았지만, 읽는 사람은 잠정값을 실단가로 오해했다 — 지웠다.
+  'Flux 2 Max':                      { u:'img', usd:0.07,  prov:'flux' },
+  'Flux 2 Pro':                      { u:'img', usd:0.03,  prov:'flux' },
+  'Flux 2 Flex':                     { u:'img', usd:0.06,  prov:'flux' },
   'Flux 1.1 Pro Ultra':              { u:'img', usd:0.06,  prov:'flux' },
   'Flux 1.1 Pro':                    { u:'img', usd:0.04,  prov:'flux' },
   'Flux Pro':                        { u:'img', usd:0.05,  prov:'flux' },
   'Flux Dev':                        { u:'img', usd:0.025, prov:'flux' },
   'Flux Kontext Max (레퍼런스 편집)':  { u:'img', usd:0.08,  prov:'flux' },
-  'Flux Kontext Pro (레퍼런스 편집)':  { u:'img', usd:0.05,  prov:'flux' }
+  'Flux Kontext Pro (레퍼런스 편집)':  { u:'img', usd:0.04,  prov:'flux' }   // BFL 공식 $0.04/장
 };
 // 제공사 집계 라벨
 var PROV_LABEL = { google:'Google Veo', runway:'Runway', runway_aleph:'Runway Aleph', v2v_auto:'V2V 자동', motion:'모션 전이', narrate:'나레이션', lipsync:'립싱크', music:'음악 생성', upscale:'업스케일',
@@ -2404,7 +2412,7 @@ var MODEL_PROVIDER = {
   'Seedream 4.5':'seedream','Seedream 4.5 (레퍼런스 편집)':'seedream',
   'Seedream 4.0':'seedream','Seedream 4.0 (레퍼런스 편집)':'seedream',
   'Seedream 3.0':'seedream','SeedEdit 3.0 (레퍼런스 편집)':'seedream',
-  'Flux 2 Flex':'flux','Flux 2 Dev':'flux',
+  'Flux 2 Max':'flux','Flux 2 Pro':'flux','Flux 2 Flex':'flux',
   'Nano Banana':'nanobanana',
   'GPT Image 2':'openai','GPT Image 1.5':'openai','GPT Image':'openai','GPT Image Mini':'openai',
   'Flux 1.1 Pro Ultra':'flux','Flux 1.1 Pro':'flux','Flux Pro':'flux','Flux Dev':'flux',
@@ -2421,6 +2429,35 @@ var MODEL_PROVIDER = {
   'Kling 2.0':'kling','Kling 1.6':'kling'
 };
 function providerOf(model){ return MODEL_PROVIDER[model] || 'fal'; }
+/* ── 제공사 키가 없는 모델은 목록에서 숨긴다 ──
+   키가 빠져 있으면 그 제공사 모델은 100% 실패한다(예: LUMA_API_KEY 없음 → Luma 3종 403).
+   /api/generate?health 이 제공사별 키 보유 여부를 알려 주므로, 그걸 받아 목록을 거른다.
+   → 키를 넣으면 코드 수정 없이 자동으로 다시 나타난다.
+   조회 전이거나 조회 실패면 아무것도 숨기지 않는다(락아웃 방지). */
+var PROV_OK = null;
+(function loadProvHealth(){
+  try{
+    fetch('/api/generate?health=1',{cache:'no-store'})
+      .then(function(r){ return r.json(); })
+      .then(function(h){ if(h && typeof h==='object'){ PROV_OK=h; try{ render(); }catch(_e){} } })
+      .catch(function(){});
+  }catch(_e){}
+})();
+function provUsable(prov){
+  if(!PROV_OK) return true;                       // 아직 모름 → 숨기지 않는다
+  // 파이프라인(합성 제공사)은 실제 호출 제공사가 따로 있어 health 키가 없다 → 통과
+  var ALIAS={ v2v_auto:'v2vAuto', runway_aleph:'runway', motion:'motion', upscale:'fal',
+              falcontrol:'fal', nanobanana:'nanobanana', narrate:'elevenlabs', lipsync:'fal',
+              revoice:'fal', music:'fal', v2v:'v2vAuto' };
+  var key=ALIAS[prov]||prov;
+  return !(key in PROV_OK) || !!PROV_OK[key];
+}
+/* 모델 목록([그룹, 표시명] 배열)에서 쓸 수 없는 제공사를 제거 */
+function availModels(list){
+  if(!Array.isArray(list)) return list;
+  var out=list.filter(function(m){ return provUsable(providerOf(m[1])); });
+  return out.length?out:list;                     // 전부 걸러지면 원본 유지(빈 목록 방지)
+}
 
 /* ── 카메라 모션 프리셋 (힉스필드 DoP 스타일) — 서버가 같은 이름으로 시네마틱 지시문을 프롬프트에 주입 ── */
 var CAMERA_OPTS=['없음','크래시 줌','돌리 인','돌리 아웃','360 오빗','불릿타임','FPV 드론','핸드헬드','크레인 업','로우앵글 트래킹','슬로우 팬'];
@@ -2650,7 +2687,8 @@ var IMG_MODEL_RATIOS = {
   'Flux Kontext Max (레퍼런스 편집)':['1:1','16:9','9:16','4:3','3:4'],
   'Flux Kontext Pro (레퍼런스 편집)':['1:1','16:9','9:16','4:3','3:4'],
   'Flux 1.1 Pro Ultra':['1:1','16:9','9:16','4:3','3:4'],
-  'Flux 2 Flex':['1:1','16:9','9:16','4:5'],  'Flux 2 Dev':['1:1','16:9','9:16','4:5'],
+  'Flux 2 Max':['1:1','16:9','9:16','4:5'], 'Flux 2 Pro':['1:1','16:9','9:16','4:5'],
+  'Flux 2 Flex':['1:1','16:9','9:16','4:5'],
   'Flux 1.1 Pro':['1:1','16:9','9:16','4:5'], 'Flux Pro':['1:1','16:9','9:16','4:5'],
   'Flux Dev':['1:1','16:9','9:16','4:5'],
   // GPT Image 는 1024x1024 / 1536x1024 / 1024x1536 → 1:1·3:2·2:3 에 해당
@@ -2677,7 +2715,7 @@ var MODEL_REF_LIMIT = {
   // FLUX.2 는 input_image~input_image_8 로 다중 레퍼런스(API 최대 8장),
   // FLUX 1.x 는 image_prompt 로 1장 — 둘 다 서버 페이로드에 실제로 실린다.
   'Flux Kontext Max (레퍼런스 편집)':1,'Flux Kontext Pro (레퍼런스 편집)':1,
-  'Flux 2 Flex':8,'Flux 2 Dev':8,
+  'Flux 2 Max':8,'Flux 2 Pro':8,'Flux 2 Flex':8,
   'Flux 1.1 Pro Ultra':1,'Flux 1.1 Pro':1,'Flux Pro':1,'Flux Dev':1,'Grok Imagine':1
 };
 function modelRefLimit(model){ var v=MODEL_REF_LIMIT[model]; return v==null?1:v; }
@@ -4427,6 +4465,10 @@ var DEFS = {
                       {k:'img',t:'image',omni:true}] },
  imageref: { cat:'입력', title:'이미지 레퍼런스', hd:'#1f3350', ins:[], outs:[['out','이미지','IMAGE']],
              widgets:[{k:'img',t:'image',imageOnly:true}] },
+ schedule: { cat:'입력', title:'정기 자동 생성 (예약)', hd:'#2c3a24', ins:[], outs:[],
+             widgets:[{k:'scEdit',t:'schedule'}] },
+ brandkit: { cat:'입력', title:'브랜드 킷 (자동 적용)', hd:'#243a2c', ins:[], outs:[],
+             widgets:[{k:'bkEdit',t:'brandkit'}] },
  charref:  { cat:'입력', title:'캐릭터 (일관된 인물)', hd:'#33244a', ins:[],
              outs:[['out','캐릭터 레퍼런스','IMAGE']],
              widgets:[{k:'charlib',t:'charlib'},
@@ -4458,6 +4500,7 @@ var DEFS = {
                         tip:'<b>CFG (프롬프트 충실도)</b> — 프롬프트를 얼마나 강하게 따를지 정합니다. 낮으면 자유롭고 자연스럽게, 높으면 지시를 강하게 따릅니다(너무 높으면 부자연·과채도). 보통 60~80 권장. 모델마다 반영 정도가 달라 일부 모델은 이 값을 무시합니다.'},
                       {k:'seed',t:'seed',def:156680208700286,
                         tip:'<b>Seed (시드)</b> — 결과의 랜덤 시작값입니다. 고정하면 같은 프롬프트로 같은 결과가 재현되고, 주사위를 누르면 매번 새 결과가 나옵니다. 마음에 든 결과의 seed를 두고 프롬프트만 살짝 바꾸면 그 느낌을 유지할 수 있어요. 모델에 따라 고정 시드를 지원하지 않을 수 있습니다.'},
+                      {k:'abGen',t:'abgen'},
                       {k:'run',t:'button',label:'Execute Node'}] },
  imagegen: { cat:'모델', title:'이미지 생성', hd:'#243a40',
              ins:[['prompt','프롬프트(선택)','TEXT'],['ref','레퍼런스 (최대 12장 · 다중 연결)','IMAGE']],
@@ -5444,6 +5487,75 @@ function widgetHTML(n,w){
       (list.length? '<div style="margin-top:5px;font-size:9px;color:#5f7078;line-height:1.4;">'+tr('Depth는 브라우저 근사, Pose는 최초 1회 인식 모델을 불러옵니다. 실제 생성은 fal 정밀 전처리를 사용합니다.')+'</div>':'')+
     '</div>';
   }
+  if(w.t==='schedule'){   // 정기 자동 생성 — 서버가 정해진 시각에 대신 만들어 둔다
+    var sc=n.w.sc||{}, DAYS=['일','월','화','수','목','금','토'];
+    // 예약 목록 — 노드 폭이 좁아 이름이 글자 단위로 꺾이고 삭제 버튼이 노드 밖으로 밀리던 문제 →
+    //  이름은 한 줄로 말줄임, 상세는 아래 줄, 삭제 버튼은 오른쪽 상단에 고정 크기로.
+    var list=(n.w.scList||[]).map(function(x){
+      var when=(x.freq==='daily'?'매일':'매주 '+DAYS[x.weekday||0]+'요일')+' '+(x.hour||0)+'시';
+      return '<div style="display:flex;align-items:flex-start;gap:6px;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);">'
+        +'<div style="flex:1 1 auto;min-width:0;">'
+          +'<div style="font-size:11px;font-weight:600;color:#e6e6ea;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+            +esc(x.name||'(이름 없음)')+(x.enabled?'':' <span style="color:#8b8fa3;">· 꺼짐</span>')+'</div>'
+          +'<div style="font-size:9.5px;color:#7a7c84;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+            +esc(when)+' · '+esc(x.model||'')+'</div>'
+          +(x.lastStatus?'<div style="font-size:9.5px;color:#7fd1a6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+            +esc(String(x.lastStatus).slice(0,60))+'</div>':'')
+        +'</div>'
+        +'<button class="wbtn" data-scdel="'+esc(x.id)+'" style="flex:0 0 auto;width:auto;padding:3px 9px;font-size:10px;">삭제</button>'
+        +'</div>';
+    }).join('');
+    return '<div class="seedopts-wrap"><div class="seedopts-hd">'+ICON.gear+' 정기 자동 생성</div>'
+      +'<div class="refcnt" style="margin:-2px 0 4px;">정한 시각에 서버가 대신 영상을 만들어 <b>보관함</b>에 넣어 둡니다. 실행될 때마다 크레딧이 듭니다.</div>'
+      +'<input class="seedid-in" data-sc="name" placeholder="예약 이름 (예: 주간 신제품)" value="'+esc(sc.name||'')+'">'
+      +'<textarea class="wtext" data-sc="prompt" placeholder="매번 만들 영상의 프롬프트" style="min-height:44px;">'+esc(sc.prompt||'')+'</textarea>'
+      +'<div class="vo-row">'
+        +'<label class="vo-sel"><span class="vo-k">주기</span><select data-sc="freq">'
+          +'<option value="weekly"'+(sc.freq!=='daily'?' selected':'')+'>매주</option>'
+          +'<option value="daily"'+(sc.freq==='daily'?' selected':'')+'>매일</option></select><span class="vo-caret">▼</span></label>'
+        +'<label class="vo-sel"><span class="vo-k">요일</span><select data-sc="weekday">'
+          + DAYS.map(function(d,i){ return '<option value="'+i+'"'+((sc.weekday|0)===i?' selected':'')+'>'+d+'</option>'; }).join('')
+          +'</select><span class="vo-caret">▼</span></label>'
+        +'<label class="vo-sel"><span class="vo-k">시각</span><select data-sc="hour">'
+          + Array.from({length:24},function(_,i){ return '<option value="'+i+'"'+((sc.hour==null?9:sc.hour|0)===i?' selected':'')+'>'+i+'시</option>'; }).join('')
+          +'</select><span class="vo-caret">▼</span></label>'
+      +'</div>'
+      +'<div class="vo-row"><label class="vo-sel" style="flex:1 1 100%;"><span class="vo-k">모델</span><select data-sc="model">'
+        + VIDEO_MODELS.map(function(m){ var nm=m[1]; return '<option value="'+esc(nm)+'"'+((sc.model||'Seedance 2.0')===nm?' selected':'')+'>'+esc(nm)+'</option>'; }).join('')
+        +'</select><span class="vo-caret">▼</span></label></div>'
+      +'<div class="up-row" style="margin-top:6px;"><button class="wbtn" data-scsave>'+ICON.check+' 예약 저장</button>'
+      +'<button class="wbtn" data-scload>'+ICON.fit+' 목록 새로고침</button></div>'
+      +(list?'<div style="margin-top:6px;">'+list+'</div>':'')
+      +(n.w.scMsg?'<div class="refcnt" style="color:#7fd1a6;">'+esc(n.w.scMsg)+'</div>':'')
+      +'</div>';
+  }
+  if(w.t==='brandkit'){   // 브랜드 킷 — 저장하면 이후 모든 생성(스튜디오·API·MCP)에 서버가 자동 적용
+    var bk=n.w.bk||{};
+    var chk=function(k,label){ return '<label class="seedopt-row"><input type="checkbox" data-bk="'+k+'"'+(bk[k]?' checked':'')+'>'
+      +'<span class="seedopt-tx"><b>'+label+'</b></span></label>'; };
+    return '<div class="seedopts-wrap"><div class="seedopts-hd">'+ICON.sparkle+' 브랜드 킷</div>'
+      +'<div class="refcnt" style="margin:-2px 0 4px;">저장하면 이 계정의 <b>모든 생성</b>에 자동으로 적용됩니다 — 스튜디오·API·Claude MCP 공통.</div>'
+      +chk('enabled','자동 적용 켜기')
+      +'<input class="seedid-in" data-bk="name" placeholder="브랜드 이름 (예: BYGENCY)" value="'+esc(bk.name||'')+'">'
+      +'<textarea class="wtext" data-bk="tone" placeholder="톤앤매너 — 예) 시네마틱하고 절제된 톤, 고급스러운 분위기" style="min-height:44px;">'+esc(bk.tone||'')+'</textarea>'
+      +'<textarea class="wtext" data-bk="palette" placeholder="컬러·조명 — 예) 딥블루와 화이트, 부드러운 자연광" style="min-height:40px;">'+esc(bk.palette||'')+'</textarea>'
+      +'<textarea class="wtext" data-bk="negative" placeholder="피해야 할 것 — 예) 워터마크, 과장된 채도, 저품질" style="min-height:40px;">'+esc(bk.negative||'')+'</textarea>'
+      +'<input class="seedid-in" data-bk="logoUrl" placeholder="로고 이미지 공개 URL (선택)" value="'+esc(bk.logoUrl||'')+'">'
+      +chk('useLogo','로고를 레퍼런스로 함께 사용')
+      +'<div class="up-row" style="margin-top:6px;"><button class="wbtn" data-bksave>'+ICON.check+' 저장</button>'
+      +'<button class="wbtn" data-bkload>'+ICON.fit+' 불러오기</button></div>'
+      +(n.w.bkMsg?'<div class="refcnt" style="color:#7fd1a6;">'+esc(n.w.bkMsg)+'</div>':'')
+      +'</div>';
+  }
+  if(w.t==='abgen'){   // A/B 소재 배치 생성 — 같은 설정으로 시드를 달리한 변형을 한 번에
+    return '<div class="vo-row" style="margin-top:6px;">'
+      +'<label class="vo-sel"><span class="vo-k">변형</span><select data-abn>'
+      + [2,3,4,6,8].map(function(k){ return '<option value="'+k+'"'+((n.w.abN||3)===k?' selected':'')+'>'+k+'개</option>'; }).join('')
+      +'</select><span class="vo-caret">▼</span></label>'
+      +'<button class="wbtn" data-abgo style="flex:1 1 130px;">'+ICON.sparkle+' A/B 변형 생성</button></div>'
+      +'<textarea class="wtext" data-abscript placeholder="변형별 프롬프트(선택) — 한 줄에 하나. 비우면 같은 프롬프트에 시드만 바꿔 만듭니다." style="min-height:48px;margin-top:5px;">'+esc(n.w.abScript||'')+'</textarea>'
+      +'<div class="refcnt">광고 소재 A/B 테스트용 — 같은 장면을 여러 버전으로 한 번에. 변형 수만큼 크레딧이 듭니다.</div>';
+  }
   if(w.t==='button') return '<button class="wbtn" data-runnode>'+ICON.sparkle+' '+esc(w.label)+'</button>';
   if(w.t==='framebtn') return '<button class="wbtn" data-framego>'+ICON.fit+' '+esc(w.label)+'</button>';
   if(w.t==='imggenbtn') return '<button class="wbtn" data-imggen>'+ICON.sparkle+' '+esc(w.label)+'</button>';
@@ -5642,6 +5754,16 @@ function widgetHTML(n,w){
         (!isImg && n.w.videoId && n.w.videoProvider==='kling'
           ? '<button class="wbtn" data-klingext style="margin-top:6px;">'+ICON.video+' 이 영상 이어서 늘리기 (Kling 확장 · 약 +5초)</button>'
             +'<div class="refcnt">원본 클립을 그대로 연장 — 움직임이 끊기지 않습니다. 늘어난 시간만큼 크레딧이 듭니다.</div>'
+          : '')+
+        // ── 이어보기 시퀀스 자동 생성 — 한 번에 여러 장면을 이어서 만든다 ──
+        (!isImg && n.w.vid
+          ? '<div class="vo-row" style="margin-top:8px;">'
+             +'<label class="vo-sel"><span class="vo-k">이어서</span><select data-seqn>'
+             + [2,3,4,5,6].map(function(k){ return '<option value="'+k+'"'+((n.w.seqN||3)===k?' selected':'')+'>'+k+'개</option>'; }).join('')
+             +'</select><span class="vo-caret">▼</span></label>'
+             +'<button class="wbtn" data-seqgo style="flex:1 1 120px;">'+ICON.sparkle+' 시퀀스 생성</button></div>'
+            +'<textarea class="wtext" data-seqscript placeholder="장면별 대본(선택) — 한 줄에 한 장면. 비우면 앞 장면 프롬프트를 그대로 이어 씁니다." style="min-height:52px;margin-top:5px;">'+esc(n.w.seqScript||'')+'</textarea>'
+            +'<div class="refcnt">앞 클립의 마지막 프레임을 다음 클립의 첫 프레임으로 물려 자동으로 이어 만듭니다. 장면 수만큼 크레딧이 듭니다.</div>'
           : '');
     }
     return '<div class="wpreview"><span class="badge">'+esc(up?('업스케일 '+sc+'×'):(n.w.model||'AI'))+'</span>'+
@@ -5908,6 +6030,111 @@ function producerModelOf(nodeId){
     });
   })(nodeId);
   return found;
+}
+/* ── 이어보기 시퀀스 자동 생성 ──
+   출력 노드에서 시작해 "앞 클립의 마지막 프레임 → 다음 클립의 첫 프레임" 연결을 N번 반복한다.
+   매 회차마다 노드를 만들고(프롬프트·모델·길이·비율 승계) 실행이 끝날 때까지 기다린 뒤 다음으로
+   넘어가므로, 버튼 한 번으로 이어지는 장면 여러 개가 만들어진다.
+   각 회차의 프롬프트는 시퀀스 대본(줄바꿈으로 구분)이 있으면 그 줄로 덮어쓴다. */
+function seqWaitIdle(nodeId){
+  return new Promise(function(resolve){
+    var t0=Date.now();
+    (function tick(){
+      var n=state.nodes.filter(function(x){return x.id===nodeId;})[0];
+      var outs=n?downstreamOutputs(n.id):[];
+      var busy=(_runningNodes&&_runningNodes[nodeId]) || outs.some(function(o){return o.w&&o.w.generating;});
+      if(!busy && Date.now()-t0>1200) return resolve(outs);
+      if(Date.now()-t0>900000) return resolve(outs);   // 15분 안전장치
+      setTimeout(tick, 700);
+    })();
+  });
+}
+/* ── A/B 소재 배치 생성 ──
+   모델 노드를 변형 수만큼 복제해 같은 입력(프롬프트·레퍼런스·첫 프레임 등)을 그대로 물리고,
+   시드만 달리해 한 번에 실행한다. 변형별 프롬프트를 주면 그 줄로 전용 프롬프트 노드를 붙인다.
+   광고 소재 A/B 테스트처럼 "같은 장면의 여러 버전"이 필요할 때 쓴다. */
+/* 예약 목록을 계정에서 받아 노드에 표시 */
+function loadSchedules(nodeId){
+  fetch('/api/studio/schedules',{credentials:'include',cache:'no-store'})
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      var nd=state.nodes.filter(function(x){return x.id===nodeId;})[0]; if(!nd)return;
+      if(j&&j.ok){ nd.w.scList=j.schedules||[]; if(!nd.w.scMsg) nd.w.scMsg=''; }
+      else nd.w.scMsg=(j&&j.needLogin)?'로그인이 필요합니다':'목록을 불러오지 못했습니다';
+      render();
+    }).catch(function(){});
+}
+function abVariants(modelId, count, promptLines){
+  var src=state.nodes.filter(function(x){return x.id===modelId;})[0];
+  if(!src){ try{ toast('원본 노드를 찾을 수 없습니다'); }catch(_e){} return 0; }
+  var incoming=(state.links||[]).filter(function(l){ return l.to===modelId; });
+  var made=[];
+  for(var i=0;i<count;i++){
+    var isFirst=(i===0);
+    var node=isFirst?src:addNode('model', Math.round((src.x||0)), Math.round((src.y||0)+(i*300)), true);
+    if(!isFirst){
+      // 위젯 값 복사 — 결과·진행 상태는 제외해야 새 노드가 "이미 생성됨"으로 보이지 않는다
+      Object.keys(src.w||{}).forEach(function(k){
+        if(/^(vid|img|imgs|vids|poster|lastImg|lastImgSrc|videoId|videoProvider|generating|error|pendingUrl|upscaled|upKind|upDim|abScript|seqScript)$/.test(k)) return;
+        node.w[k]=src.w[k];
+      });
+      incoming.forEach(function(l){ state.links.push({from:l.from,fromPort:l.fromPort,to:node.id,toPort:l.toPort,type:l.type}); });
+    }
+    node.w.seed=Math.floor(Math.random()*9e14);        // 변형마다 다른 시드
+    var line=(promptLines&&promptLines[i]||'').trim();
+    if(line){
+      // 이 변형 전용 프롬프트 — 기존 프롬프트 연결은 끊고 새 노드를 직접 연결
+      state.links=state.links.filter(function(l){ return !(l.to===node.id&&l.toPort==='prompt'); });
+      var pn=addNode('prompt', Math.round(node.x-330), Math.round(node.y), true);
+      pn.w.text=line;
+      state.links.push({from:pn.id,fromPort:'out',to:node.id,toPort:'prompt',type:'TEXT'});
+    }
+    made.push(node.id);
+  }
+  snapshot(); render();
+  made.forEach(function(id){ runQueue(id); });
+  try{ toast('A/B 변형 '+made.length+'개 생성 시작'); }catch(_e){}
+  return made.length;
+}
+function autoSequence(startOutId, count, scriptLines){
+  var srcId=startOutId, made=0;
+  function step(){
+    if(made>=count){ try{ toast('시퀀스 '+made+'개 생성 완료'); }catch(_e){} render(); return; }
+    var srcNode=state.nodes.filter(function(x){return x.id===srcId;})[0];
+    if(!srcNode || !srcNode.w || !srcNode.w.vid){ try{ toast('이어붙일 원본 영상이 없어 중단합니다'); }catch(_e){} return; }
+    // 앞 클립 오른쪽 아래에 새 노드 배치
+    var nn=addNode('model', Math.round((srcNode.x||0)+360), Math.round((srcNode.y||0)+40), true);
+    state.links.push({from:srcId,fromPort:'out',to:nn.id,toPort:'first',type:'IMAGE'});
+    var prevM=producerModelOf(srcId);
+    if(prevM&&prevM.w){
+      ['model','vsec','vratio','vres','seedModel','seedAudio'].forEach(function(k){
+        if(prevM.w[k]!==undefined&&prevM.w[k]!==null) nn.w[k]=prevM.w[k]; });
+      ['negative','modelsel'].forEach(function(pt){
+        var l=(state.links||[]).filter(function(x){return x.to===prevM.id&&x.toPort===pt;})[0];
+        if(l) state.links.push({from:l.from,fromPort:l.fromPort,to:nn.id,toPort:pt,type:l.type}); });
+      // 프롬프트: 대본 줄이 있으면 그 줄로 전용 프롬프트 노드를 만들고, 없으면 앞 노드 것을 승계
+      var line=(scriptLines&&scriptLines[made]||'').trim();
+      if(line){
+        var pn=addNode('prompt', Math.round(nn.x-330), Math.round(nn.y), true);
+        pn.w.text=line;
+        state.links.push({from:pn.id,fromPort:'out',to:nn.id,toPort:'prompt',type:'TEXT'});
+      } else {
+        var pl=(state.links||[]).filter(function(x){return x.to===prevM.id&&x.toPort==='prompt';})[0];
+        if(pl) state.links.push({from:pl.from,fromPort:pl.fromPort,to:nn.id,toPort:'prompt',type:pl.type});
+      }
+    }
+    snapshot(); render();
+    try{ toast('시퀀스 '+(made+1)+'/'+count+' 생성 중…'); }catch(_e){}
+    runQueue(nn.id);
+    seqWaitIdle(nn.id).then(function(outs){
+      var got=(outs||[]).filter(function(o){return o.w&&o.w.vid;})[0];
+      made++;
+      if(!got){ try{ toast('시퀀스 '+made+'회차 실패 — 중단합니다'); }catch(_e){} render(); return; }
+      srcId=got.id;
+      step();
+    });
+  }
+  step();
 }
 /* 출력 포트에서 빈 캔버스로 선을 놓았을 때 "이어서 만들 노드"를 정한다.
    영상·이미지 결과 → AI 영상 제작의 [첫 프레임] = 앞 결과에서 곧바로 이어지는 영상 제작. */
@@ -6233,6 +6460,16 @@ canvas.addEventListener('change',function(e){
   var host=e.target.closest('.node'); if(!host)return;
   var n=state.nodes.find(function(x){return x.id===host.dataset.node;}); if(!n)return;
   // 영상 노드 내장 설정(길이·비율) 드롭다운
+  var _sck=e.target.getAttribute&&e.target.getAttribute('data-sc');
+  if(_sck){ n.w.sc=n.w.sc||{}; n.w.sc[_sck]=e.target.value; autosave(); return; }
+  var _bkk=e.target.getAttribute&&e.target.getAttribute('data-bk');
+  if(_bkk){ n.w.bk=n.w.bk||{};
+    n.w.bk[_bkk] = (e.target.type==='checkbox') ? e.target.checked : e.target.value;
+    autosave(); return; }
+  if(e.target.hasAttribute('data-abn')){ n.w.abN=+e.target.value; autosave(); return; }
+  if(e.target.hasAttribute('data-abscript')){ n.w.abScript=e.target.value; autosave(); return; }
+  if(e.target.hasAttribute('data-seqn')){ n.w.seqN=+e.target.value; autosave(); return; }
+  if(e.target.hasAttribute('data-seqscript')){ n.w.seqScript=e.target.value; autosave(); return; }
   if(e.target.hasAttribute('data-vsec')){ n.w.vsec=+e.target.value; snapshot(); render(); return; }
   if(e.target.hasAttribute('data-vratio')){ n.w.vratio=e.target.value; snapshot(); render(); return; }
   if(e.target.hasAttribute('data-vres')){ n.w.vres=e.target.value; snapshot(); render(); return; }
@@ -6394,6 +6631,69 @@ canvas.addEventListener('click',function(e){
     if(n2.w.upscaled&&String(n2.w.upscaled).indexOf('blob:')===0){ try{URL.revokeObjectURL(n2.w.upscaled);}catch(_){} }
     n2.w.upscaled=null; n2.w.upKind=null; n2.w.upDim=null; render(); return;
   }
+  // ── 정기 자동 생성 예약 ──
+  if(e.target.closest('[data-scsave]')){
+    var _sc=n2.w.sc||{};
+    if(!(_sc.prompt||'').trim()){ toast('프롬프트를 입력하세요'); return; }
+    fetch('/api/studio/schedules',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
+      body:JSON.stringify({name:_sc.name||'',prompt:_sc.prompt||'',model:_sc.model||'Seedance 2.0',
+        freq:_sc.freq||'weekly',hour:(_sc.hour==null?9:+_sc.hour),weekday:+(_sc.weekday||0)})})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        n2.w.scMsg = (j&&j.ok) ? ('예약됨 — 다음 실행 '+String(j.nextRunAt||'').slice(0,16).replace('T',' ')+' UTC')
+                               : ('저장 실패: '+((j&&j.error)||(j&&j.needLogin?'로그인이 필요합니다':'오류')));
+        render(); if(j&&j.ok) loadSchedules(n2.id);
+      }).catch(function(){ n2.w.scMsg='저장 실패(네트워크)'; render(); });
+    return;
+  }
+  if(e.target.closest('[data-scload]')){ loadSchedules(n2.id); return; }
+  var _scd=e.target.closest('[data-scdel]');
+  if(_scd){
+    var _id=_scd.getAttribute('data-scdel');
+    fetch('/api/studio/schedules?id='+encodeURIComponent(_id),{method:'DELETE',credentials:'include'})
+      .then(function(){ loadSchedules(n2.id); }).catch(function(){});
+    return;
+  }
+  // ── 브랜드 킷 저장/불러오기 ──
+  if(e.target.closest('[data-bksave]')){
+    var _bk=n2.w.bk||{};
+    fetch('/api/studio/brandkit',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
+      body:JSON.stringify({enabled:_bk.enabled!==false,name:_bk.name||'',tone:_bk.tone||'',palette:_bk.palette||'',
+        negative:_bk.negative||'',logoUrl:_bk.logoUrl||'',useLogo:!!_bk.useLogo})})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        n2.w.bkMsg = j&&j.ok ? '저장됨 — 이후 모든 생성에 자동 적용됩니다' : ('저장 실패: '+((j&&j.error)||(j&&j.needLogin?'로그인이 필요합니다':'오류')));
+        render();
+      }).catch(function(){ n2.w.bkMsg='저장 실패(네트워크)'; render(); });
+    return;
+  }
+  if(e.target.closest('[data-bkload]')){
+    fetch('/api/studio/brandkit',{credentials:'include',cache:'no-store'})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j&&j.ok&&j.kit){ n2.w.bk=j.kit; n2.w.bkMsg='계정에서 불러왔습니다'; }
+        else n2.w.bkMsg = (j&&j.needLogin)?'로그인이 필요합니다':'불러오지 못했습니다';
+        render();
+      }).catch(function(){ n2.w.bkMsg='불러오기 실패(네트워크)'; render(); });
+    return;
+  }
+  // ── A/B 소재 배치 생성 ──
+  if(e.target.closest('[data-abgo]')){
+    var _an=Number(n2.w.abN)||3;
+    var _al=String(n2.w.abScript||'').split('\n').map(function(x){return x.trim();}).filter(Boolean);
+    if(!confirm('같은 설정으로 변형 '+_an+'개를 한 번에 만듭니다. 변형 수만큼 크레딧이 차감됩니다. 계속할까요?')) return;
+    abVariants(n2.id, _an, _al);
+    return;
+  }
+  // ── 이어보기 시퀀스 자동 생성 ──
+  if(e.target.closest('[data-seqgo]')){
+    if(!n2.w.vid){ toast('먼저 영상을 생성하세요'); return; }
+    var _cnt=Number(n2.w.seqN)||3;
+    var _lines=String(n2.w.seqScript||'').split('\n').map(function(x){return x.trim();}).filter(Boolean);
+    if(!confirm('이어지는 장면 '+_cnt+'개를 자동으로 만듭니다. 장면 수만큼 크레딧이 차감됩니다. 계속할까요?')) return;
+    autoSequence(n2.id, _cnt, _lines);
+    return;
+  }
   // ── Kling 영상 확장 — 원본 클립을 그대로 연장(모션 유지) ──
   if(e.target.closest('[data-klingext]')){
     if(!n2.w.videoId||n2.w.extending)return;
@@ -6486,7 +6786,7 @@ function openDD(anchor,n,k){
   var html='';
   if(isModelList){
     html+='<input class="dd-search" type="text" placeholder="Search" spellcheck="false" autocomplete="off" style="position:sticky;top:0;z-index:1;display:block;width:calc(100% - 12px);margin:6px;padding:6px 9px;border-radius:7px;border:1px solid #34363e;background:#151517;color:#e6e6ea;font-size:11px;outline:none;font-family:inherit;box-sizing:border-box;">';
-    var list=wdef.opts==='IMG_MODELS'?IMG_MODELS:wdef.opts==='VIDEO_MODELS'?VIDEO_MODELS:wdef.opts==='PROMPT_MODELS'?PROMPT_MODELS:MODELS, cat='';
+    var list=availModels(wdef.opts==='IMG_MODELS'?IMG_MODELS:wdef.opts==='VIDEO_MODELS'?VIDEO_MODELS:wdef.opts==='PROMPT_MODELS'?PROMPT_MODELS:MODELS), cat='';
     list.forEach(function(m){ if(m[0]!==cat){cat=m[0];html+='<div class="dh">'+cat+'</div>';} html+='<div class="di" data-v="'+esc(m[1])+'">'+esc(m[1])+'</div>'; });
   } else { var arr=(wdef.opts==='STYLE3D')?STYLE3D_OPTS:wdef.opts;
     if(k==='ratio' && n.type==='imagegen') arr=imgModelRatios(n.w.model);   // 모델이 실제로 지원하는 비율만
@@ -6869,8 +7169,14 @@ function runQueue(onlyId){
             // 모델 선택 노드가 연결돼 있으면 그 모델을 사용(없으면 로더 자체 콤보)
             var mpk=inputNodeOf(id,'modelsel');
             var chosenModel=(mpk&&mpk.w&&mpk.w.model)?mpk.w.model:n.w.model;
-            var pr=upstream(id,'prompt');
-            var ng=upstream(id,'negative');
+            // 포트에 "직접" 연결된 프롬프트가 있으면 그것이 우선이다.
+            //  upstream() 은 포트를 가리지 않고 그래프를 거슬러 올라가므로, 이어보기로 [첫 프레임]에
+            //  앞 클립을 물리면 그 경로를 타고 "앞 장면의 프롬프트"를 먼저 찾아버린다
+            //  (장면별 대본을 따로 붙여도 앞 장면 문구로 생성되던 원인).
+            var _pd=inputNodeOf(id,'prompt');
+            var pr=(_pd&&(_pd.type==='prompt'||_pd.type==='promptgen'))?_pd:upstream(id,'prompt');
+            var _nd=inputNodeOf(id,'negative');
+            var ng=(_nd&&_nd.type==='negative')?_nd:upstream(id,'negative');
             var rfs=inputNodesOf(id,'ref');       // 사진 레퍼런스 포트
             var vrfs=inputNodesOf(id,'vidref');   // 영상 레퍼런스 포트 (신규 · 분리 입력)
             var ff=inputNodeOf(id,'first'), lf=inputNodeOf(id,'last');
@@ -7830,7 +8136,7 @@ pfHandleTossReturn();
   var chAttach=null;             // { kind:'image'|'video', dataUrl?, url?, name }
 
   function chModels(){            // 영상 모델(텍스트→영상). 첨부가 있으면 firstFrame/V2V 로 활용됨
-    return MODELS.filter(function(m){
+    return availModels(MODELS).filter(function(m){
       var cat=m[0], name=m[1];
       if(cat.indexOf('영상')!==0) return false;
       if(cat.indexOf('→ 영상')>=0) return false;
@@ -7839,7 +8145,7 @@ pfHandleTossReturn();
     }).map(function(m){ return m[1]; });
   }
   function imgModels(){           // 이미지 생성 모델
-    return MODELS.filter(function(m){ return m[0].indexOf('이미지')===0; }).map(function(m){ return m[1]; });
+    return availModels(MODELS).filter(function(m){ return m[0].indexOf('이미지')===0; }).map(function(m){ return m[1]; });
   }
   function fillModels(force){
     var sel=chEl('chModel'); if(!sel) return; if(sel._filledMode===chMode && !force) return;
@@ -8039,8 +8345,8 @@ pfHandleTossReturn();
   var WARN='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f0b23a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>';
   var busy=false, crMode='video', crAttach=null, crCount=1;
 
-  function vidModels(){ return MODELS.filter(function(m){ var cat=m[0],name=m[1]; if(cat.indexOf('영상')!==0)return false; if(cat.indexOf('→ 영상')>=0)return false; if(/이미지→영상/.test(name))return false; return true; }).map(function(m){return m[1];}); }
-  function imgModels(){ return MODELS.filter(function(m){ return m[0].indexOf('이미지')===0; }).map(function(m){return m[1];}); }
+  function vidModels(){ return availModels(MODELS).filter(function(m){ var cat=m[0],name=m[1]; if(cat.indexOf('영상')!==0)return false; if(cat.indexOf('→ 영상')>=0)return false; if(/이미지→영상/.test(name))return false; return true; }).map(function(m){return m[1];}); }
+  function imgModels(){ return availModels(MODELS).filter(function(m){ return m[0].indexOf('이미지')===0; }).map(function(m){return m[1];}); }
   function fillModels(force){ var sel=el('crModel'); if(!sel)return; if(sel._m===crMode&&!force)return;
     var list=crMode==='image'?imgModels():vidModels();
     var pref=crMode==='image'?['Nano Banana','GPT Image 2','GPT Image','Flux 1.1 Pro']:['Google Veo 3.1','Kling 2.1 Master (텍스트→영상)','Seedance 2.0','Luma Ray 2'];

@@ -10,6 +10,7 @@
 import { getSessionUser, resolveDB, getUserByMcpToken } from "./_utils";
 import { getUserByApiKey, enforceRateLimit, ensureApiKeysSchema } from "./_apikeys";
 import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from "./studio/_pricing";
+import { getBrandKit, applyBrandKit } from "./studio/brandkit";
 import { creditPriceFor } from "./payments/prepare";
 
 const RUNWAY_VER = "2024-11-06";
@@ -598,12 +599,19 @@ export function buildSeedreamPayload(b, env, modelOverride) {
 
 /* ── Flux (Black Forest Labs) 이미지 생성 ── */
 const FLUX_BASE = "https://api.bfl.ai/v1/";
+/* BFL 엔드포인트 표.
+   · flux-pro(FLUX.1 [pro] 1.0)는 BFL 이 공식 폐지한 엔드포인트다 → 403 Forbidden.
+     대체는 flux-pro-1.1 · flux-kontext-pro 이고 둘 다 이미 아래에 있다.
+   · flux-2-dev 는 BFL API 에 없는 이름이다. FLUX.2 [dev]는 가중치를 받아 직접 돌리는
+     오픈웨이트 배포판이라 API 로는 서비스되지 않는다. API 로 제공되는 FLUX.2 는
+     pro · max · flex 세 가지다 → pro·max 를 후보로 넣어 probe-all 로 확인한다. */
 export const FLUX_ENDPOINTS = {
+  "Flux 2 Max":         "flux-2-max",
+  "Flux 2 Pro":         "flux-2-pro",
   "Flux 2 Flex":        "flux-2-flex",
-  "Flux 2 Dev":         "flux-2-dev",
   "Flux 1.1 Pro Ultra": "flux-pro-1.1-ultra",
   "Flux 1.1 Pro":       "flux-pro-1.1",
-  "Flux Pro":           "flux-pro",
+  "Flux Pro":           "flux-pro",   // BFL 공식 폐지 — 403. 진단에 드러나도록 표에는 남겨 둔다.
   "Flux Dev":           "flux-dev",
   // 레퍼런스 이미지를 넣어 편집/재생성(image-to-image)
   "Flux Kontext Max (레퍼런스 편집)": "flux-kontext-max",
@@ -1126,10 +1134,12 @@ async function handle(context) {
   //  · 세션 쿠키(스튜디오) · 회원 API키(bg_live_) · 회원 개인 MCP 토큰(bgm_) · 전역 MCP 토큰 순으로 인증.
   //  · ?health 진단(제공사 설정 여부 불리언)만 예외로 허용.
   const method = request.method;
+  let gateUser = null;   // 인증된 회원(브랜드 킷 자동 적용에 사용)
   const gateGet = method === "GET" && ["submit", "media", "file", "op", "task"].some((p) => u.searchParams.has(p));
   if (method === "POST" || gateGet) {
     const db = resolveDB(env);
     let me = db ? await getSessionUser(request, db) : null;
+    // 아래 POST 본문 처리(브랜드 킷 자동 적용)에서 쓰기 위해 인증 결과를 바깥으로 넘긴다.
     if (!me && db) {
       // 회원 API 키(bg_live_) 인증 — 노드형 AI 영상 플랜 사용자의 직접 API 호출
       const ak = await getUserByApiKey(db, request.headers.get("Authorization"));
@@ -1152,6 +1162,7 @@ async function handle(context) {
       if (gtok && bearer && ctEqStr(bearer, String(gtok))) me = { role: "admin", credits: Number.MAX_SAFE_INTEGER };
     }
     if (!me) return json({ error: "로그인이 필요합니다.", needLogin: true }, 401);
+    gateUser = me;
     // 실제 생성(POST)은 크레딧 보유자(또는 관리자)만 — dryRun 검증 요청은 통과
     if (method === "POST") {
       let pbody = {};
@@ -1480,6 +1491,495 @@ async function handle(context) {
         note: "계정에서 조회되는 모델 ID 목록. 여기 있는데 404 면 권한/미개통, 아예 없으면 그 ID 자체가 없는 것.",
         found: hit ? hit.modelIds : null, tried: out });
     }
+    /* ══ ModelArk 3D 엔드포인트 탐지 (무과금) ══
+       /api/generate?diag=ark3d-path
+       3D 는 영상(/contents/generations/tasks)·이미지(/images/generations)와 다른 경로를 쓴다.
+       문서 접근이 막혀 있어, 후보 경로에 "모델만 있고 필수 파라미터는 없는" 본문을 POST 해
+       404(그 경로 없음) / 400·422(경로는 있고 파라미터만 반려) 로 갈라 실제 경로를 찾는다.
+       필수 파라미터가 없으므로 작업은 만들어지지 않는다(무과금). */
+    if (u.searchParams.get("diag") === "ark3d-path") {
+      if (!k.seedance) return json({ diag: "ark3d-path", error: "Seedance_API_KEY 미설정" });
+      const mid = u.searchParams.get("model") || "hyper3d-gen2-260112";
+      const paths = [
+        "/3d/generations/tasks", "/3d/generations", "/contents/generations/tasks",
+        "/3d_generations/tasks", "/generations/3d/tasks", "/models/3d/generations/tasks",
+        "/threed/generations/tasks", "/mesh/generations/tasks", "/3d/tasks",
+        "/contents/generations/3d/tasks", "/3d/models/generations/tasks", "/assets/generations/tasks"
+      ];
+      const bodies = [{ model: mid }, { model: mid, content: [] }, { model: mid, prompt: "" }];
+      const out = [];
+      for (const path of paths) {
+        for (let bi = 0; bi < bodies.length; bi++) {
+          try {
+            const r = await fetchT(ARK_HOSTS.bp + path, {
+              method: "POST",
+              headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+              body: JSON.stringify(bodies[bi])
+            }, 10000);
+            const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch { /* 비JSON */ }
+            const code = (j && j.error && j.error.code) || "";
+            const msg = (j && j.error && j.error.message) || String(t).slice(0, 160);
+            /* 게이트웨이가 없는 경로에 "본문 없는 200" 을 돌려주는 바람에 가짜 히트가 대량으로 잡혔다.
+               실제 API 응답은 반드시 JSON 본문이 있다 → 본문이 있어야만 경로가 있는 것으로 본다. */
+            const hasBody = !!(j && Object.keys(j).length);
+            const pathExists = hasBody && !(r.status === 404 && /not\s*found|no\s*route|InvalidEndpointOrModel/i.test(code + " " + msg));
+            out.push({ path, bodyIdx: bi, httpStatus: r.status, code, message: String(msg).slice(0, 180), pathExists });
+            // 경로가 확인되면 그 경로의 나머지 본문 변형만 더 보고 다음 경로로
+            if (pathExists && r.status !== 404) break;
+          } catch (e) { out.push({ path, bodyIdx: bi, httpStatus: 0, code: "", message: String((e && e.message) || e).slice(0, 120), pathExists: false }); }
+        }
+      }
+      const hits = out.filter(x => x.pathExists);
+      return json({ diag: "ark3d-path", model: mid,
+        note: "본문이 있는 응답만 실제 경로로 셉니다(게이트웨이가 없는 경로에 빈 200 을 주기 때문). "
+            + "400/422 는 '경로는 맞고 파라미터만 부족' 이라는 뜻이며 작업은 생성되지 않습니다(무과금).",
+        찾은경로: hits.map(x => x.path + " [" + x.httpStatus + (x.code ? " " + x.code : "") + "] " + x.message),
+        전체: out });
+    }
+
+    /* ══ ModelArk 작업 조회 (읽기 전용·무과금) ══
+       /api/generate?diag=ark-task&id=cgt-...
+       이미 만들어진 작업의 상태와 결과 형식을 그대로 본다. GET 이라 아무것도 생성되지 않는다.
+       3D 응답이 어떤 필드에 결과 URL 을 담는지 확인하는 용도. */
+    if (u.searchParams.get("diag") === "ark-task") {
+      if (!k.seedance) return json({ diag: "ark-task", error: "Seedance_API_KEY 미설정" });
+      const id = String(u.searchParams.get("id") || "").trim();
+      if (!id) return json({ diag: "ark-task", error: "id 파라미터가 필요합니다 (예: &id=cgt-...)" });
+      try {
+        const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks/" + encodeURIComponent(id),
+          { headers: { "Authorization": "Bearer " + k.seedance } }, 15000);
+        const t = await r.text(); let j2 = null; try { j2 = JSON.parse(t); } catch { /* 비JSON */ }
+        return json({ diag: "ark-task", id, httpStatus: r.status,
+          note: "GET 조회라 생성·과금이 없습니다. 결과 URL 이 어느 필드에 오는지 확인하세요.",
+          응답: j2 || String(t).slice(0, 1200) });
+      } catch (e) { return json({ diag: "ark-task", id, error: String((e && e.message) || e).slice(0, 200) }); }
+    }
+
+    /* ══ FLUX / BFL 정밀 진단 (무과금) ══
+       /api/generate?diag=flux-check
+       probe-all 은 "키가 거부됐다" 와 "그 모델만 없다" 를 구분하지 못한다(둘 다 실패로 보인다).
+       여기서는 셋을 따로 확인해 원인을 확정한다.
+        1) 키 자체가 유효한가  — GET /v1/get_result?id=<존재하지 않는 UUID>  (읽기 전용)
+                                 401/403 → 키 문제,  그 외 → 키는 통과
+        2) 헤더 방식           — x-key 와 Authorization: Bearer 둘 다 시도(계정마다 다르다)
+        3) 모델별 접근 권한    — output_format 에 존재하지 않는 열거값을 넣어 422 로 끊는다.
+                                 (빈 프롬프트는 BFL 이 수락해 실제 과금 작업이 생긴다 — 절대 쓰지 말 것)
+       응답 본문을 자르지 않고 그대로 싣는다. 우리 해석이 아니라 BFL 원문으로 판단하기 위함이다. */
+    if (u.searchParams.get("diag") === "flux-check") {
+      if (!k.flux) return json({ diag: "flux-check", error: "FLUX/BFL 키 미설정" });
+      const kv = String(k.flux);
+      const shape = { length: kv.length, prefix: kv.slice(0, 4), suffix: kv.slice(-4),
+                      looksUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(kv),
+                      hasWhitespace: /\s/.test(kv) };
+      const call = async (url, headers, body) => {
+        try {
+          const r = await fetchT(url, body ? { method: "POST", headers, body: JSON.stringify(body) } : { headers }, 12000);
+          const t = await r.text(); let j2 = null; try { j2 = JSON.parse(t); } catch { /* 비JSON */ }
+          return { status: r.status, body: j2 || String(t).slice(0, 500) };
+        } catch (e) { return { status: 0, body: String((e && e.message) || e).slice(0, 200) }; }
+      };
+      const HX = { "x-key": kv, "Content-Type": "application/json", "accept": "application/json" };
+      const HB = { "Authorization": "Bearer " + kv, "Content-Type": "application/json", "accept": "application/json" };
+      const DEAD = "00000000-0000-0000-0000-000000000000";
+      // 1) 인증 확인 — 읽기 전용. 작업이 없으므로 아무것도 생성/과금되지 않는다.
+      const [authX, authB] = await Promise.all([
+        call(FLUX_BASE + "get_result?id=" + DEAD, HX),
+        call(FLUX_BASE + "get_result?id=" + DEAD, HB),
+      ]);
+      const authOK = (a) => a.status !== 401 && a.status !== 403 && a.status !== 0;
+      const useHdr = authOK(authX) ? HX : (authOK(authB) ? HB : HX);
+      const hdrName = authOK(authX) ? "x-key" : (authOK(authB) ? "Authorization: Bearer" : "(둘 다 거부됨)");
+      // 3) 모델별 — 잘못된 열거값이라 검증 단계에서 반려된다(작업 미생성).
+      const per = await Promise.all(Object.entries(FLUX_ENDPOINTS).map(async ([name, ep]) => {
+        const x = await call(FLUX_BASE + ep, useHdr, { prompt: "probe", output_format: "__probe_invalid__" });
+        const created = x.status >= 200 && x.status < 300;
+        const verdict =
+          created                          ? "⚠️ 작업이 생성됨 — 진단에서 제외해야 함"
+          : x.status === 422 || x.status === 400 ? "✅ 소환 가능 (검증 반려 = 모델 존재)"
+          : x.status === 401               ? "❌ 인증 실패 — 키가 잘못됨"
+          : x.status === 402               ? "❌ 크레딧 부족 — BFL 계정 충전 필요"
+          : x.status === 403               ? "❌ 접근 거부 — 이 모델에 대한 권한 없음(플랜/약관 동의 필요)"
+          : x.status === 404               ? "❌ 엔드포인트 없음 — 모델 ID 폐지/오타"
+          : x.status === 429               ? "⚠️ 요청 한도 초과 — 잠시 후 재시도"
+          :                                  "❓ 예상 밖 응답";
+        return { model: name, endpoint: ep, httpStatus: x.status, 판정: verdict, 응답: x.body };
+      }));
+      /* 4) 파라미터를 "정말 읽는가" — 무시되는 필드를 잡아낸다.
+         1차 시도는 잘못된 방법이었다. 올바른 값(width:1344 / aspect_ratio:"16:9")을 넣고
+         "오류가 안 났으니 수용됐다" 고 판정했는데, BFL 은 모르는 필드를 반려하지 않고
+         그냥 버린다(extra=ignore). 그래서 aspect_ratio 전용인 1.1-ultra 에서조차
+         width/height 가 "수용됨" 으로 나왔다 — 무시와 수용을 구분하지 못한 것이다.
+
+         그래서 값을 "일부러 틀리게" 넣는다. 엔드포인트가 그 필드를 실제로 파싱한다면
+         반드시 그 필드 이름이 담긴 검증 오류가 돌아온다. 파싱하지 않고 버린다면
+         output_format 오류만 온다. 이 차이로 무시 여부가 확정된다.
+         output_format 을 항상 틀리게 두므로 어느 쪽이든 작업은 생성되지 않는다.
+
+         이게 중요한 이유: 지금 코드는 FLUX.2(max/pro/flex)에 width/height 를 보낸다.
+         이 계열이 aspect_ratio 전용이라면 비율 지정이 통째로 무시되고 전부 기본 비율로
+         나온다 — 나노바나나에서 겪은 것과 같은 유형의 버그다. */
+      /* ※ 이 방법의 한계도 적어 둔다. 제약이 걸린 필드(숫자 범위·열거형)에만 통한다.
+         자유 문자열 필드는 틀린 값을 넣어도 검증기가 잡지 않을 수 있어, "오류가 없다" 가
+         "무시된다" 를 뜻하지 않는다. aspect_ratio 는 형식이 맞되 범위를 벗어난 값
+         ("100:1") 을 써서 의미 검증기라도 걸리게 한다. */
+      const FIELD_CASES = [
+        // ① 하한 확인 — 파싱한다면 width/height 오류가 뜬다
+        { 이름: "width/height 하한", 필드: ["width", "height"], extra: { width: 7, height: 7 } },
+        // ② 32의 배수 제약이 있는지 — 하한은 넘되 32로 나눠지지 않는 값
+        { 이름: "width/height 32배수", 필드: ["width", "height"], extra: { width: 1000, height: 1000 } },
+        // ③ 상한이 몇인지 — 오류 메시지의 le/lt 값으로 드러난다
+        { 이름: "width/height 상한", 필드: ["width", "height"], extra: { width: 99999, height: 99999 } },
+        // ④ 비율 — 형식은 맞되 범위를 벗어난 값
+        { 이름: "aspect_ratio 범위", 필드: ["aspect_ratio"], extra: { aspect_ratio: "100:1" } },
+      ];
+      const paramCheck = await Promise.all(
+        Object.entries(FLUX_ENDPOINTS).map(async ([name, ep]) => {
+          const rows = await Promise.all(FIELD_CASES.map(async (c) => {
+            const x = await call(FLUX_BASE + ep, useHdr,
+              Object.assign({ prompt: "probe", output_format: "__probe_invalid__" }, c.extra));
+            const det = JSON.stringify((x.body && x.body.detail) || x.body || "");
+            // 검증 오류의 loc 안에 그 필드 이름이 있으면 = 실제로 읽고 있다.
+            const parsed = c.필드.some(kf => new RegExp('"' + kf + '"').test(det));
+            const created = x.status >= 200 && x.status < 300;
+            return { 필드: c.이름, httpStatus: x.status,
+                     판정: created ? "⚠️ 작업 생성됨(진단 제외)"
+                          : parsed ? "✅ 이 필드로 오류가 났다 = 실제로 읽는다"
+                          : (x.status === 422 || x.status === 400) ? "· 이 필드에 대한 불만 없음"
+                          : "❓ " + x.status,
+                     상세: det.slice(0, 700) };
+          }));
+          const P = (r) => /실제로 읽는다/.test(r.판정);
+          const whRead = P(rows[0]) || P(rows[1]) || P(rows[2]);
+          const arRead = P(rows[3]);
+          const 결론 =
+            whRead && !arRead ? "width/height 로 지정한다"
+            : !whRead && arRead ? "aspect_ratio 로 지정한다"
+            : whRead && arRead ? "둘 다 읽는다"
+            : "width/height 를 읽지 않는다 → aspect_ratio 방식 (자유 문자열이라 오류로는 확인 불가)";
+          // 현재 코드가 이 엔드포인트에 실제로 무엇을 보내는지 함께 싣는다(대조용).
+          const sent = buildFluxPayload({ model: name, prompt: "x", ratio: "16:9" });
+          const 우리가보내는것 = Object.keys(sent.body).filter(kf => /^(width|height|aspect_ratio)$/.test(kf)).join(", ") || "(비율 필드 없음)";
+          return { model: name, endpoint: ep, 결론, 우리가보내는것, 검사: rows };
+        }));
+
+      return json({ diag: "flux-check",
+        note: "전부 읽기 전용이거나 '존재하지 않는 열거값' 요청이라 생성물·과금이 없습니다.",
+        파라미터수용: paramCheck,
+        키형태: shape,
+        인증확인: { 사용헤더: hdrName,
+                    "x-key": { httpStatus: authX.status, 응답: authX.body },
+                    "Bearer": { httpStatus: authB.status, 응답: authB.body },
+                    결론: hdrName === "(둘 다 거부됨)"
+                      ? "키가 BFL 에서 거부됩니다 — 키 자체를 다시 발급/설정해야 합니다."
+                      : "키는 인증을 통과합니다 — 아래 모델별 결과가 실제 원인입니다." },
+        모델별: per });
+    }
+
+    /* ══ Luma 정밀 진단 (무과금) ══
+       /api/generate?diag=luma-check
+       probe-all 에서 403 이 났는데, 403 은 "키 없음" 이 아니라 "인증은 됐지만 거부" 다.
+       읽기 전용 목록 조회로 키 유효성부터 가른다 — 생성 호출이 아니라 과금이 없다. */
+    if (u.searchParams.get("diag") === "luma-check") {
+      if (!k.luma) return json({ diag: "luma-check", error: "LUMA_API_KEY 미설정 — 값 자체가 없습니다" });
+      const kv = String(k.luma);
+      const call = async (path, body) => {
+        try {
+          const h = { "Authorization": "Bearer " + kv, "accept": "application/json", "Content-Type": "application/json" };
+          const r = await fetchT(LUMA_BASE + path, body ? { method: "POST", headers: h, body: JSON.stringify(body) } : { headers: h }, 12000);
+          const t = await r.text(); let j2 = null; try { j2 = JSON.parse(t); } catch { /* 비JSON */ }
+          return { status: r.status, body: j2 || String(t).slice(0, 400) };
+        } catch (e) { return { status: 0, body: String((e && e.message) || e).slice(0, 200) }; }
+      };
+      // 읽기 전용: 생성 목록 1건 조회. 키가 살아 있으면 200(빈 배열이어도), 죽었으면 401/403.
+      const list = await call("/generations?limit=1");
+      /* 403 "Not authenticated" 는 보통 "자격증명 자체를 못 읽었다" 는 뜻이다
+         (계정 거부라면 보통 다른 문구가 온다). 헤더 방식이 틀린 것인지, 키가 죽은 것인지
+         가르기 위해 다른 표기법도 읽기 전용으로 시도한다. 전부 GET 이라 과금이 없다. */
+      const hdrVariants = await Promise.all([
+        { 이름: "Authorization: Bearer <key>", h: { "Authorization": "Bearer " + kv } },
+        { 이름: "Authorization: <key> (Bearer 없음)", h: { "Authorization": kv } },
+        { 이름: "x-api-key", h: { "x-api-key": kv } },
+        { 이름: "x-api-key + Bearer 동시", h: { "x-api-key": kv, "Authorization": "Bearer " + kv } },
+      ].map(async (v) => {
+        try {
+          const r = await fetchT(LUMA_BASE + "/generations?limit=1",
+            { headers: Object.assign({ "accept": "application/json" }, v.h) }, 12000);
+          const t = await r.text(); let j2 = null; try { j2 = JSON.parse(t); } catch { /* 비JSON */ }
+          return { 방식: v.이름, httpStatus: r.status, 응답: j2 || String(t).slice(0, 200) };
+        } catch (e) { return { 방식: v.이름, httpStatus: 0, 응답: String((e && e.message) || e).slice(0, 120) }; }
+      }));
+      const anyOK = hdrVariants.find(v => v.httpStatus === 200);
+      const per = await Promise.all(Object.entries(LUMA_IDS).map(async ([name, id]) => {
+        const x = await call("/generations", { model: id, prompt: "" });   // prompt 비움 → 파라미터 반려
+        const created = !!(x.body && x.body.id);
+        const verdict =
+          created                                ? "⚠️ 작업이 생성됨 — 진단에서 제외해야 함"
+          : x.status === 400 || x.status === 422  ? "✅ 소환 가능 (파라미터 반려 = 모델 존재)"
+          : x.status === 401                      ? "❌ 인증 실패 — 키가 잘못됨/만료"
+          : x.status === 402                      ? "❌ 크레딧 부족"
+          : x.status === 403                      ? "❌ 접근 거부 — 키는 유효하나 이 계정/플랜에 권한 없음"
+          : x.status === 404                      ? "❌ 모델 ID 없음"
+          :                                         "❓ 예상 밖 응답";
+        return { model: name, id, httpStatus: x.status, 판정: verdict, 응답: x.body };
+      }));
+      return json({ diag: "luma-check",
+        note: "목록 조회는 읽기 전용, 모델 확인은 prompt 를 비운 반려 요청입니다. 생성물·과금이 없습니다.",
+        키형태: { length: kv.length, prefix: kv.slice(0, 6), suffix: kv.slice(-4), hasWhitespace: /\s/.test(kv) },
+        헤더방식별: hdrVariants,
+        키유효성: { httpStatus: list.status, 응답: list.body,
+          결론: list.status === 200 ? "키는 유효합니다 — 모델별 결과가 실제 원인입니다."
+              : anyOK ? ("헤더 표기법이 문제입니다 — '" + anyOK.방식 + "' 로 보내면 통과합니다. 코드를 그 방식으로 고쳐야 합니다.")
+              : /not authenticated/i.test(JSON.stringify(list.body || ""))
+                ? "모든 표기법에서 자격증명 자체가 거부됩니다 — 키가 폐기·만료됐거나 API 접근이 열려 있지 않은 계정입니다. Luma 대시보드에서 키를 재발급하고 API 사용이 활성화돼 있는지 확인하세요."
+              : list.status === 401 ? "키가 잘못됐거나 만료됐습니다 — 재발급 필요."
+              : "예상 밖 응답 — 아래 원문을 확인하세요." },
+        모델별: per });
+    }
+
+    /* ⚠️ diag=ark3d-spec 은 제거했다.
+       ModelArk 가 text:"" 를 반려하지 않고 수락해 실제 3D 작업이 생성됐다
+       (cgt-20260728090647-cp2rb). "필수 필드를 비우면 반려된다" 는 전제가 이 제공사에서
+       또 깨진 것이다(앞서 Flux 에서도 같은 일이 있었다).
+       ── 그 작업을 조회한 결과(diag=ark-task)로 밝혀진 것 ──
+         status: "failed", error.code: "InvalidParameter"
+       즉 게이트웨이는 봉투(envelope)만 보고 접수했고, 모델 단계에서 반려됐다.
+       따라서 "요청 형식을 확인했다" 고 말할 수 없다. 확인된 것은 이것뿐이다:
+         · POST /contents/generations/tasks 경로와 { model, content:[...] } 봉투는 맞다
+         · content:[{type:"text", text:""}] 만으로는 3D 생성에 부족하다(필수 파라미터 누락)
+       Hyper3D 계열은 이미지→3D 가 기본이므로 image_url 이 필수일 가능성이 크지만,
+       그것도 추측이다 — 유료 작업을 또 만들지 않고 확인할 방법으로만 좁혀야 한다.
+       먼저 읽기 전용인 diag=ark-model 로 모델 정보에 입력 규격이 있는지 본다.
+       앞으로 형식 탐색이 필요하면 "빈 값" 이 아니라 "존재하지 않는 열거값" 으로만 시도할 것.
+       (빈 값은 접수돼 버린다는 것이 이 사고로 확정됐다.) */
+
+    /* ══ ModelArk 모델 정보 조회 (읽기 전용·무과금) ══
+       /api/generate?diag=ark-model&id=hyper3d-gen2-260112
+       모델 카드에 입력 규격(필수 파라미터)이 실려 있는지 본다. GET 이라 생성이 없다. */
+    if (u.searchParams.get("diag") === "ark-model") {
+      if (!k.seedance) return json({ diag: "ark-model", error: "Seedance_API_KEY 미설정" });
+      const id = String(u.searchParams.get("id") || "").trim();
+      if (!id) return json({ diag: "ark-model", error: "id 파라미터가 필요합니다 (예: &id=hyper3d-gen2-260112)" });
+      const H = { "Authorization": "Bearer " + k.seedance };
+      const tryGet = async (path) => {
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + path, { headers: H }, 12000);
+          const t = await r.text(); let j2 = null; try { j2 = JSON.parse(t); } catch { /* 비JSON */ }
+          return { path, httpStatus: r.status, 응답: j2 || String(t).slice(0, 800) };
+        } catch (e) { return { path, httpStatus: 0, 응답: String((e && e.message) || e).slice(0, 150) }; }
+      };
+      const rows = await Promise.all([
+        tryGet("/models/" + encodeURIComponent(id)),
+        tryGet("/models?page_size=200"),
+      ]);
+      // 목록 응답에서 이 모델 항목만 뽑아 준다(전체는 너무 길다).
+      let 해당모델 = null;
+      const listBody = rows[1] && rows[1].응답;
+      const arr = listBody && (listBody.data || listBody.items || listBody.models);
+      if (Array.isArray(arr)) 해당모델 = arr.filter(x => JSON.stringify(x).indexOf(id) >= 0);
+      return json({ diag: "ark-model", id,
+        note: "GET 조회만 합니다 — 생성·과금이 없습니다.",
+        모델단건: rows[0], 목록에서찾은항목: 해당모델 || "(목록 형식이 배열이 아니라 추출 못함)",
+        목록httpStatus: rows[1].httpStatus });
+    }
+
+    /* ══ 전체 모델 소환 확인 (무과금) ══
+       /api/generate?diag=probe-all            모든 제공사·모든 모델
+       /api/generate?diag=probe-all&provider=kling   특정 제공사만
+
+       원리: "그 모델이 존재하는지" 만 확인한다. 필수 필드(프롬프트·이미지 등)를 일부러
+       비워 보내므로 제공사는 항상 파라미터 오류로 반려하고 작업이 만들어지지 않는다.
+         · 400/422 등 파라미터 오류  → 모델은 존재함(소환 가능)
+         · 404 / model not found    → 그 ID 가 없거나 미개통
+       읽기 전용 조회(GET)가 있는 제공사(OpenAI·Gemini)는 그걸 쓴다 — 더 확실하고 안전하다. */
+    if (u.searchParams.get("diag") === "probe-all") {
+      const only = String(u.searchParams.get("provider") || "").trim();
+      const want = (p) => !only || only === p;
+      const t0 = Date.now();
+      const R = (name, provider, id, status, code, message, extra) => ({
+        model: name, provider, id, httpStatus: status,
+        ok: extra && extra.forceOk !== undefined ? extra.forceOk : !seedreamModelMissing(status, code ? { error: { code, message } } : null),
+        code: code || "", message: String(message || "").slice(0, 160),
+      });
+      const post = async (url, headers, body, ms) => {
+        try {
+          const r = await fetchT(url, { method: "POST", headers, body: JSON.stringify(body) }, ms || 12000);
+          const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch { /* 비JSON */ }
+          return { status: r.status, j, t };
+        } catch (e) { return { status: 0, j: null, t: String((e && e.message) || e) }; }
+      };
+      const get = async (url, headers, ms) => {
+        try {
+          const r = await fetchT(url, { headers }, ms || 12000);
+          const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch { /* 비JSON */ }
+          return { status: r.status, j, t };
+        } catch (e) { return { status: 0, j: null, t: String((e && e.message) || e) }; }
+      };
+      const errOf = (x) => ({ code: (x.j && x.j.error && (x.j.error.code || x.j.error.type)) || (x.j && x.j.code) || "",
+                              msg: (x.j && x.j.error && (x.j.error.message || x.j.error)) || (x.j && x.j.message) || String(x.t || "").slice(0, 160) });
+      const jobs = [];
+
+      // ── BytePlus ModelArk: 영상(Seedance) ──
+      if (k.seedance && want("seedance")) for (const [name, ids] of Object.entries(SEEDANCE_IDS)) {
+        const id = Array.isArray(ids) ? ids[0] : ids;
+        jobs.push((async () => { const x = await post(ARK_HOSTS.bp + "/contents/generations/tasks",
+          { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" }, { model: id, content: [] });
+          const e = errOf(x); return R(name, "seedance", id, x.status, e.code, e.msg); })());
+      }
+      // ── BytePlus ModelArk: 이미지(Seedream/SeedEdit) ──
+      if (k.seedance && want("seedream")) for (const [name, ids] of Object.entries(SEEDREAM_IDS)) {
+        const id = Array.isArray(ids) ? ids[0] : ids;
+        jobs.push((async () => { const x = await post(ARK_HOSTS.bp + "/images/generations",
+          { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" }, { model: id, prompt: "" });
+          const e = errOf(x); return R(name, "seedream", id, x.status, e.code, e.msg); })());
+      }
+      // ── BytePlus ModelArk: 프롬프트 LLM (OpenAI 호환 chat/completions) ──
+      if (k.seedance && want("promptgen")) jobs.push((async () => {
+        // 접미사 없는 ID 는 전부 404 였다 → 계정 카탈로그에서 실제 LLM ID 를 뽑아 그걸로 확인한다.
+        let ids = [];
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + "/models?page_size=200", { headers: { "Authorization": "Bearer " + k.seedance } }, 10000);
+          const t = await r.text();
+          ids = [...new Set(String(t).match(/[a-z0-9]+(?:-[a-z0-9]+){1,}/gi) || [])]
+            .filter(x => /^(deepseek|dola-seed|doubao|skylark|kimi|glm|gpt-oss|bytedance-seed)/i.test(x))
+            // 임베딩·번역 전용, 그리고 이미지·영상 생성 모델은 chat/completions 로 쓸 수 없다.
+            //  (dola-seedream-5-0-pro 가 400 을 내 LLM 으로 오인됐다)
+            .filter(x => !/embedding|translation|tokenizer|seedream|seedance|seededit|dreamina/i.test(x))
+            .map(x => x.toLowerCase());
+        } catch (_e) { /* 무시 */ }
+        if (!ids.length) return { model: "프롬프트 LLM", provider: "promptgen", id: "(카탈로그에서 못 찾음)",
+          httpStatus: 0, ok: false, code: "", message: "계정 카탈로그에 LLM 계열 ID 가 없습니다" };
+        const checked = await Promise.all(ids.slice(0, 60).map(async (id) => {
+          const x = await post(ARK_HOSTS.bp + "/chat/completions",
+            { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" }, { model: id, messages: [] });
+          const e = errOf(x); return { id, status: x.status, ok: !seedreamModelMissing(x.status, x.j), msg: e.msg };
+        }));
+        const good = checked.filter(c => c.ok);
+        return { model: "프롬프트 LLM (카탈로그 " + ids.length + "개 중 " + checked.length + "개 확인)", provider: "promptgen",
+          id: good.map(c => c.id).join(", ") || "(전부 호출 불가)", httpStatus: 200, ok: good.length > 0, code: "",
+          message: "소환 가능: " + (good.map(c => c.id).join(", ") || "없음")
+                 + " · 불가: " + (checked.filter(c => !c.ok).map(c => c.id + "[" + c.status + "]").join(", ") || "없음") };
+      })());
+      // ── BytePlus ModelArk: 3D (엔드포인트 미확인 → 카탈로그 조회로 존재만 확인) ──
+      if (k.seedance && want("ark3d")) jobs.push((async () => {
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + "/models?page_size=200", { headers: { "Authorization": "Bearer " + k.seedance } }, 10000);
+          const t = await r.text();
+          const hits = [...new Set(String(t).match(/[a-z0-9]+(?:-[a-z0-9]+){1,}/gi) || [])].filter(x => /hyper3d|hitem3d|rodin/i.test(x));
+          return { model: "3D (Hyper3D·Hitem3D)", provider: "ark3d", id: hits.join(", ") || "(카탈로그에서 못 찾음)",
+                   httpStatus: r.status, ok: hits.length > 0, code: "", message: hits.length ? "카탈로그에서 발견 — 호출 규격은 별도 확인 필요" : "카탈로그에 3D 계열 ID 없음" };
+        } catch (e) { return { model: "3D (Hyper3D·Hitem3D)", provider: "ark3d", id: "-", httpStatus: 0, ok: false, code: "", message: String((e && e.message) || e).slice(0, 120) }; }
+      })());
+      // ── Kling (프롬프트 비움 → 파라미터 반려) ──
+      if (want("kling")) {
+        const cr = klingCreds(env);
+        if (cr) { const auth = await klingAuth(cr);
+          for (const [name, spec] of Object.entries(KLING_API)) {
+            const mids = KLING_ALT[spec.m] || [spec.m];
+            jobs.push((async () => { const x = await post(cr.base + "/v1/videos/" + spec.ep,
+              { "Authorization": auth, "Content-Type": "application/json" }, { model_name: mids[0], prompt: "", mode: spec.mode, duration: "5" });
+              const e = errOf(x);
+              const bad = /model|not\s*exist|not\s*found/i.test(String(e.code) + " " + String(e.msg));
+              return R(name, "kling", mids[0], x.status, e.code, e.msg, { forceOk: !bad }); })());
+          }
+        }
+      }
+      // ── Runway (promptImage 없음 → 400) ──
+      if (k.runway && want("runway")) for (const [name, id] of Object.entries(RUNWAY_MODELS)) {
+        jobs.push((async () => { const x = await post("https://api.dev.runwayml.com/v1/image_to_video",
+          { "Authorization": "Bearer " + k.runway, "X-Runway-Version": RUNWAY_VER, "Content-Type": "application/json" },
+          { model: id, promptText: "", ratio: "1280:720", duration: 5 });
+          const e = errOf(x); const bad = /model/i.test(String(e.msg)) && /invalid|unknown|not/i.test(String(e.msg));
+          return R(name, "runway", id, x.status, e.code, e.msg,
+            { forceOk: x.status !== 404 && x.status !== 401 && x.status !== 403 && !bad }); })());
+      }
+      // ── Luma (프롬프트 비움) ──
+      if (k.luma && want("luma")) for (const [name, id] of Object.entries(LUMA_IDS)) {
+        jobs.push((async () => { const x = await post(LUMA_BASE + "/generations",
+          { "Authorization": "Bearer " + k.luma, "Content-Type": "application/json" }, { model: id, prompt: "" });
+          const e = errOf(x);
+          // 403 Not authenticated = 키가 없거나 잘못됨. "모델 있음" 이 아니라 "쓸 수 없음" 이다.
+          return R(name, "luma", id, x.status, e.code, e.msg,
+            { forceOk: x.status !== 404 && x.status !== 401 && x.status !== 403 }); })());
+      }
+      // ── MiniMax (프롬프트 비움 → base_resp 오류) ──
+      if (k.hailuo && want("hailuo")) for (const [name, id] of Object.entries(HAILUO_IDS)) {
+        jobs.push((async () => { const x = await post(HAILUO_BASE + "/video_generation",
+          { "Authorization": "Bearer " + k.hailuo, "Content-Type": "application/json" }, { model: id, prompt: "" });
+          const br = (x.j && x.j.base_resp) || {};
+          const bad = /model/i.test(String(br.status_msg || "")) && /invalid|not/i.test(String(br.status_msg || ""));
+          return R(name, "hailuo", id, x.status, String(br.status_code || ""), br.status_msg || String(x.t).slice(0, 120), { forceOk: !bad }); })());
+      }
+      /* ── Google Veo / Nano Banana ──
+         AI Studio 키(VEO_API_KEY)로 조회하고, 그게 안 되면 Vertex 서비스계정으로 다시 확인한다.
+         실제 생성은 서비스계정 경로가 1순위라, 키가 죽어 있어도 생성은 될 수 있다. */
+      if (want("google")) {
+        const sa = gcpCreds(env);
+        for (const id of ["veo-3.1-generate-001", NANO_MODEL]) {
+          jobs.push((async () => {
+            const label = id === NANO_MODEL ? "Nano Banana" : "Google Veo 3.1";
+            if (k.google) {
+              const x = await get("https://generativelanguage.googleapis.com/v1beta/models/" + id + "?key=" + encodeURIComponent(k.google));
+              if (x.status === 200) return R(label, "google", id, 200, "", "AI Studio 키로 확인됨", { forceOk: true });
+              if (!sa) { const e = errOf(x); return R(label, "google", id, x.status, e.code, e.msg + " (서비스계정 미설정)", { forceOk: false }); }
+            }
+            if (!sa) return R(label, "google", id, 0, "", "구글 인증 없음(VEO_API_KEY·서비스계정 모두 없음)", { forceOk: false });
+            try {
+              const tok = await gcpToken(sa.email, sa.pem);
+              // publisher 모델은 GET 리소스가 아니다(앞서 404 HTML 이 왔다) →
+              //  실제 생성과 같은 엔드포인트에 빈 본문을 POST 해 400(파라미터)/404(모델없음)로 가른다. 작업은 생기지 않는다.
+              const isVeo = /veo/i.test(id);
+              const url2 = "https://" + VERTEX_LOC + "-aiplatform.googleapis.com/v1/projects/" + sa.pid
+                + "/locations/" + VERTEX_LOC + "/publishers/google/models/" + id + (isVeo ? ":predictLongRunning" : ":generateContent");
+              const x2 = await post(url2, { "Authorization": "Bearer " + tok, "Content-Type": "application/json" },
+                isVeo ? { instances: [], parameters: {} } : { contents: [] });
+              const e2 = errOf(x2);
+              const okNow = x2.status === 400 || x2.status === 200;   // 400=파라미터 반려(모델 존재)
+              return R(label, "google", id, x2.status, e2.code,
+                (okNow ? "Vertex 서비스계정으로 확인됨" : "") + " " + String(e2.msg).replace(/<[^>]*>/g, "").slice(0, 140),
+                { forceOk: okNow });
+            } catch (e) { return R(label, "google", id, 0, "", "서비스계정 토큰 실패: " + String((e && e.message) || e).slice(0, 100), { forceOk: false }); }
+          })());
+        }
+      }
+      // ── OpenAI (읽기 전용 모델 조회) ──
+      if (k.openai && want("openai")) for (const [name, id] of Object.entries(OPENAI_IMG_ID)) {
+        jobs.push((async () => { const x = await get(openaiBase(env) + "/v1/models/" + id, { "Authorization": "Bearer " + k.openai });
+          const e = errOf(x); return R(name, "openai", id, x.status, e.code, e.msg, { forceOk: x.status === 200 }); })());
+      }
+      // ── xAI Grok (읽기 전용 모델 조회) ──
+      if (k.xai && want("xai")) for (const id of ["grok-imagine-image", (pick(env, ["GROK_VIDEO_MODEL", "grok_video_model"]) || "grok-imagine-video-1.5")]) {
+        jobs.push((async () => { const x = await get("https://api.x.ai/v1/models/" + id, { "Authorization": "Bearer " + k.xai });
+          const e = errOf(x); return R(/video/.test(id) ? "Grok Imagine (영상)" : "Grok Imagine", "xai", id, x.status, e.code, e.msg, { forceOk: x.status === 200 }); })());
+      }
+      /* ── Flux / BFL ──
+         ⚠️ 빈 프롬프트({prompt:""})는 BFL 이 그대로 "수락" 해 실제 작업이 생성된다(과금).
+            실제로 flux-2-flex·kontext-max·kontext-pro 에서 작업이 만들어졌다.
+            → 반드시 "검증 단계에서 걸리는" 잘못된 열거값을 보내 422 로 끊는다. 작업은 만들어지지 않는다. */
+      if (k.flux && want("flux")) for (const [name, ep] of Object.entries(FLUX_ENDPOINTS)) {
+        jobs.push((async () => { const x = await post(FLUX_BASE + ep,
+          { "x-key": k.flux, "Content-Type": "application/json" },
+          { prompt: "probe", output_format: "__probe_invalid__" });
+          const e = errOf(x);
+          // 200 이 오면 검증을 통과해 작업이 생겼다는 뜻 — 진단으로서 실패다. 사실대로 표시한다.
+          const created = x.status >= 200 && x.status < 300;
+          return R(name, "flux", ep, x.status, e.code,
+            created ? "⚠️ 작업이 생성됐습니다(검증을 통과함) — 이 항목은 진단에서 제외해야 합니다" : e.msg,
+            { forceOk: x.status === 422 || x.status === 400 }); })());
+      }
+
+      const items = await Promise.all(jobs);
+      const okList = items.filter(x => x.ok), ngList = items.filter(x => !x.ok);
+      const byProv = {};
+      items.forEach(x => { (byProv[x.provider] = byProv[x.provider] || { ok: 0, ng: 0 })[x.ok ? "ok" : "ng"]++; });
+      return json({ diag: "probe-all", elapsedMs: Date.now() - t0,
+        note: "필수 필드를 비워 보내 '모델 존재 여부' 만 확인합니다. 실제 생성물은 만들어지지 않아 과금이 없습니다. "
+            + "OpenAI·Google·Grok 은 읽기 전용 모델 조회(GET)로 확인합니다.",
+        summary: { total: items.length, ok: okList.length, ng: ngList.length, byProvider: byProv },
+        소환불가: ngList.map(x => x.provider + " · " + x.model + " → " + x.id + " [" + x.httpStatus + (x.code ? " " + x.code : "") + "] " + x.message),
+        소환가능: okList.map(x => x.provider + " · " + x.model + " → " + x.id),
+        items });
+    }
+
     /* 이미지 모델(Seedream/SeedEdit) 존재확인 — Seedance 와 같은 방식.
        prompt 를 비워 제출하면 존재하는 모델은 400(InvalidParameter), 없는 모델은
        404(InvalidEndpointOrModel.NotFound) 를 준다. 이미지도 태스크가 생기지 않아 무과금.
@@ -2314,6 +2814,26 @@ async function handle(context) {
     return json({ error: "요청 데이터가 너무 큽니다(" + Math.round(cl / 1024 / 1024) + "MB). 이미지가 R2로 업로드되지 않고 원본이 통째로 실렸습니다 — Ctrl+Shift+R(강력 새로고침) 후 다시 시도하세요." }, 413);
   let b; try { b = await request.json(); } catch { return json({ error: "bad json" }, 400); }
   applyCameraPreset(b);   // 카메라 모션 프리셋(b.camera) → 프롬프트에 시네마틱 지시문 주입
+  // ── 브랜드 킷 자동 적용 ──
+  //  계정에 저장해 둔 톤앤매너·컬러·금지 요소를 모든 생성에 자동으로 얹는다.
+  //  스튜디오·공개 API·Claude MCP 어디서 호출해도 같은 브랜드 룩이 유지된다.
+  //  요청에 brandKit:false 를 주면 이번 생성만 건너뛴다(원본 그대로 뽑고 싶을 때).
+  if (b.brandKit !== false && gateUser && gateUser.id) {
+    try {
+      const db2 = resolveDB(env);
+      const kit = db2 ? await getBrandKit(db2, gateUser.id) : null;
+      if (kit) {
+        const out = applyBrandKit(kit, b.prompt || "", b.negative || "");
+        b.prompt = out.prompt; b.negative = out.negative;
+        // 로고를 레퍼런스로 쓰기로 했다면 레퍼런스 목록 맨 뒤에 붙인다(첫 프레임은 건드리지 않는다)
+        if (kit.useLogo && /^https?:\/\//.test(kit.logoUrl)) {
+          const refs = Array.isArray(b.refImages) ? b.refImages.slice() : [];
+          if (refs.indexOf(kit.logoUrl) < 0) refs.push(kit.logoUrl);
+          b.refImages = refs;
+        }
+      }
+    } catch (_e) { /* 브랜드 킷 실패가 생성을 막지는 않는다 */ }
+  }
   const provider = b.provider;
 
   /* dryRun — 실제 호출 없이 매핑된 페이로드만 반환 (검증용) */

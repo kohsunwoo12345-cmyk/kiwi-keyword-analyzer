@@ -84,7 +84,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   const models = Object.keys(MODEL_COST).map((model) => {
     const m: any = (MODEL_COST as any)[model]
-    const kind = m.u === 'img' ? 'image' : 'video'
+    // 'img'(장당)·'3d'(모델 1개당)·'tok'(호출 1회당) 은 단위 1개 과금 → 초당 계산을 타면 안 된다.
+    const kind = m.u === 'sec' ? 'video' : m.u === '3d' ? '3d' : m.u === 'tok' ? 'llm' : 'image'
     const prov = m.prov as string
     const keyConfigured = !!keyOf[prov]
     const isPipeline = PIPELINES.has(model)
