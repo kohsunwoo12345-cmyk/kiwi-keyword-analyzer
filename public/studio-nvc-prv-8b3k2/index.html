@@ -4359,7 +4359,11 @@ function upscaleImageURL(src,scale,opts,onProg){
             fx.drawImage(cur,0,0,tw,th); o=fc;
           }
           // 줄이는 과정에서 미세하게 물러진 가장자리를 되살린다(과하면 테두리가 생기므로 약하게)
-          if(shrunk){ try{ _unsharp(o.getContext('2d'), tw, th, 0.22); }catch(_e){} }
+          // 값(0.5)은 눈대중이 아니라 측정으로 정했다 — scripts/upscale-quality-test.mjs 로
+          //  '선·글자가 많은 그림' 과 '사진 같은 그림' 두 종류에서 재 보면 방향이 서로 반대다.
+          //  (선·글자는 세게 할수록 좋아지고, 사진은 세게 할수록 나빠진다) 0.5 는 선·글자에서
+          //  이득을 얻으면서 사진에서 손해가 거의 없는 지점이다.
+          if(shrunk){ try{ _unsharp(o.getContext('2d'), tw, th, 0.5); }catch(_e){} }
           if(keepAlpha) _applyAlphaFrom(o, srcC);
           resolve({ url:o.toDataURL('image/png'), kind:'image', dim:tw+'×'+th, srcDim:iw+'×'+ih,
                     engine:runner.engine, fallback:false, clamped:clamp<1, ratio:ratio, note:note });
