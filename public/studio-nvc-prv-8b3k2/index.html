@@ -2593,8 +2593,9 @@ var VIDEO_MODEL_SPEC = {
   'Runway Gen-4':                { secs:[5,10], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], res:[], audio:false, watermark:false, neg:false, cfg:false, seed:true },
   'Runway Gen-3 Alpha Turbo':    { secs:[5,10], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], res:[], audio:false, watermark:false, neg:false, cfg:false, seed:true },
   // Luma — Ray 2 계열 5·9초, 비율 5종. Ray 1.6 은 구세대로 5초 고정.
-  // Luma Agents API — video.duration 은 "5s"·"9s" 문자열 열거값, resolution 은 540p~4k
-  'Luma Ray 3.2':                { secs:[5,9], ratios:['16:9','9:16','1:1','4:3','3:4','21:9','9:21'], res:['720p','1080p','4K'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
+  // Luma Ray 3.2 — 문서(guides/model)로 확인한 값. 길이 5s·10s, 해상도 540p·720p·1080p(4K 없음),
+  //  비율 6종(9:21 없음). 처음엔 구 API 기억으로 9초·4K·9:21 을 넣었는데 셋 다 없는 값이었다.
+  'Luma Ray 3.2':                { secs:[5,10], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], res:['540p','720p','1080p'], audio:false, watermark:false, neg:false, cfg:false, seed:false },
   // MiniMax — Hailuo 02 는 6·10초(1080P 는 6초), 01 Director 계열은 6초 고정. 비율 필드 없음(프롬프트로 전달).
   //  해상도는 "1080P 는 6초까지" 라는 제약 때문에 길이에서 자동 결정된다(사용자 선택 항목이 아니라 res:[]).
   'MiniMax Hailuo 02':           { secs:[6,10], ratios:['16:9','9:16'], res:[], audio:false, watermark:false, neg:false, cfg:false, seed:false },
@@ -2710,7 +2711,13 @@ var IMG_MODEL_RATIOS = {
   // Nano Banana(gemini-2.5-flash-image) 는 generationConfig.imageConfig.aspectRatio 로 비율을 받는다 — 문서상 지원 10종
   'Nano Banana':['1:1','16:9','9:16','4:3','3:4','3:2','2:3','4:5','5:4','21:9'],
   // Grok 이미지 API 는 비율 필드가 없어 프롬프트 문구로만 전달 — 선택지는 흔한 3종만
-  'Grok Imagine':['1:1','16:9','9:16']
+  'Grok Imagine':['1:1','16:9','9:16'],
+  /* Luma Uni — 문서는 uni-1/uni-1-max 가 12종 중 9종을 허용한다고만 밝히고 목록을 이 페이지에
+     싣지 않는다. 확인된 6종(ray-3.2 와 공유하는 값)만 노출한다. 없는 값을 골라 제공사가
+     반려하는 것보다, 고를 수 있는 것이 조금 적은 편이 낫다.
+     guides/images/generation#aspect_ratio 를 확인하면 나머지 3종을 채운다. */
+  'Luma Uni 1':['1:1','16:9','9:16','4:3','3:4','21:9'],
+  'Luma Uni 1 Max':['1:1','16:9','9:16','4:3','3:4','21:9'],
 };
 function imgModelRatios(model){ return IMG_MODEL_RATIOS[String(model||'').trim()] || ['1:1','16:9','9:16','4:5']; }
 /* 이미지 모델별 레퍼런스 최대 장수 — 실제 API가 다중 이미지를 받는 모델만 12장, 나머지는 1장 */
@@ -2723,6 +2730,8 @@ var MODEL_REF_LIMIT = {
   'Seedream 4.0':14,'Seedream 4.0 (레퍼런스 편집)':14,
   // 3.0 계열은 다중 레퍼런스 미지원 — 서버 buildSeedreamPayload 가 4.x·5.x 만 배열로 보낸다
   'Seedream 3.0':1,'SeedEdit 3.0 (레퍼런스 편집)':1,
+  // Luma Uni — 생성은 image_ref 최대 9장, 편집은 원본 1장 + 참조 8장(합계 9)
+  'Luma Uni 1':9,'Luma Uni 1 Max':9,
   'Nano Banana':12, 'GPT Image 2':12,'GPT Image 1.5':12,'GPT Image':12,'GPT Image Mini':12,
   // Kontext 는 입력 이미지 1장 편집 모델, Grok 은 image_url 1장.
   // FLUX.2 는 input_image~input_image_8 로 다중 레퍼런스(API 최대 8장),
