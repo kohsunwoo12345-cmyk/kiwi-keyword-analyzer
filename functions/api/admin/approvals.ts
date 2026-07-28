@@ -118,10 +118,23 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const now = new Date().toISOString()
   const status = decision === 'approve' ? 'approved' : 'rejected'
 
+  // ── 중복 승인 차단 ──────────────────────────────────────────────────────────
+  //  ⚠ 승인 버튼을 두 번 누르거나 관리자 두 명이 같은 요청을 동시에 처리하면
+  //     포인트·크레딧이 두 번 지급되고 플랜·팀 기간이 두 배로 늘어난다.
+  //     상태를 먼저 읽고 나중에 쓰는 방식(TOCTOU)으로는 못 막는다 —
+  //     "아직 대기 중일 때만" 바꾸는 조건부 UPDATE 로 딱 한 번만 통과시킨다.
+  const decide = async (table: string, key = 'id') => {
+    const r: any = await db.prepare(
+      `UPDATE ${table} SET status = ?, decided_at = ? WHERE ${key} = ? AND status = 'pending'`,
+    ).bind(status, now, id).run().catch(() => null)
+    return !!r && Number(r.meta?.changes || 0) > 0
+  }
+  const dup = () => json({ ok: false, error: '이미 처리된 요청입니다.' }, 409)
+
   if (type === 'plan') {
     const req: any = await db.prepare('SELECT * FROM plan_requests WHERE id = ?').bind(id).first()
     if (!req) return json({ ok: false, error: '요청을 찾을 수 없습니다.' }, 404)
-    await db.prepare('UPDATE plan_requests SET status = ?, decided_at = ? WHERE id = ?').bind(status, now, id).run()
+    if (!(await decide('plan_requests'))) return dup()
     const track = req.track === 'video' ? 'video' : 'marketer'
     const label = track === 'video' ? 'AI 영상 제작' : '마케터'
     if (decision === 'approve') {
@@ -155,7 +168,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   } else if (type === 'sender') {
     const req: any = await db.prepare('SELECT * FROM sender_numbers WHERE id = ?').bind(id).first()
     if (!req) return json({ ok: false, error: '요청을 찾을 수 없습니다.' }, 404)
-    await db.prepare('UPDATE sender_numbers SET status = ?, decided_at = ? WHERE id = ?').bind(status, now, id).run()
+    if (!(await decide('sender_numbers'))) return dup()
     if (decision === 'approve') {
       await db.prepare('UPDATE users SET phone = ? WHERE id = ? AND (phone IS NULL OR phone = "")').bind(req.phone, req.user_id).run()
       await addNotification(db, req.user_id, '발신번호가 승인되었습니다', `발신번호 ${req.phone} 이(가) 승인되었습니다. 이제 문자 발송에 사용할 수 있어요.`)
@@ -166,7 +179,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   } else if (type === 'point') {
     const req: any = await db.prepare('SELECT * FROM point_requests WHERE id = ?').bind(id).first()
     if (!req) return json({ ok: false, error: '요청을 찾을 수 없습니다.' }, 404)
-    await db.prepare('UPDATE point_requests SET status = ?, decided_at = ? WHERE id = ?').bind(status, now, id).run()
+    if (!(await decide('point_requests'))) return dup()
     if (decision === 'approve') {
       await applyBalance(db, req.user_id, 'point', req.amount, `포인트 지급 승인${req.memo ? ' · ' + req.memo : ''}`)
       await addNotification(db, req.user_id, '포인트가 지급되었습니다', `${req.amount.toLocaleString()}P가 지급되었습니다. 감사합니다!`)
@@ -177,7 +190,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   } else if (type === 'credit') {
     const req: any = await db.prepare('SELECT * FROM credit_requests WHERE id = ?').bind(id).first()
     if (!req) return json({ ok: false, error: '요청을 찾을 수 없습니다.' }, 404)
-    await db.prepare('UPDATE credit_requests SET status = ?, decided_at = ? WHERE id = ?').bind(status, now, id).run()
+    if (!(await decide('credit_requests'))) return dup()
     if (decision === 'approve') {
       await applyBalance(db, req.user_id, 'credit', req.amount, `크레딧 충전 승인${req.memo ? ' · ' + req.memo : ''}`)
       await addNotification(db, req.user_id, '크레딧이 충전되었습니다', `크레딧 ${req.amount.toLocaleString()}개가 충전되었습니다. 감사합니다!`)
@@ -190,18 +203,23 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   } else if (type === 'team') {
     const req: any = await db.prepare('SELECT * FROM team_orders WHERE order_id = ?').bind(id).first()
     if (!req) return json({ ok: false, error: '요청을 찾을 수 없습니다.' }, 404)
+    // team_orders 는 status 값이 pending|paid|failed 이고 decided_at 이 없어 decide() 를 못 쓴다.
+    //  같은 이유(중복 승인 시 팀 기간이 두 배)로 여기서도 조건부 UPDATE 로 한 번만 통과시킨다.
+    const claim: any = await (decision === 'approve'
+      ? db.prepare("UPDATE team_orders SET status = 'paid', paid_at = ? WHERE order_id = ? AND status = 'pending'").bind(now, id)
+      : db.prepare("UPDATE team_orders SET status = 'failed' WHERE order_id = ? AND status = 'pending'").bind(id)
+    ).run().catch(() => null)
+    if (!claim || Number(claim.meta?.changes || 0) === 0) return dup()
     if (decision === 'approve') {
       const nowMs = Date.now()
       const u: any = await db.prepare('SELECT team_until FROM users WHERE id = ?').bind(req.user_id).first()
       const base = u && u.team_until && new Date(u.team_until).getTime() > nowMs ? new Date(u.team_until).getTime() : nowMs
       const until = new Date(base + (Number(req.months) || 1) * 30 * 86400000).toISOString()
-      await db.prepare("UPDATE team_orders SET status = 'paid', paid_at = ? WHERE order_id = ?").bind(now, id).run()
       await db.prepare('UPDATE users SET team_plan = 1, team_seats = ?, team_until = ? WHERE id = ?').bind(Number(req.seats) || 1, until, req.user_id).run()
       await addNotification(db, req.user_id, '팀 요금제가 활성화되었습니다 👥', `${req.seats}좌석 팀 요금제가 활성화되었습니다. 스튜디오 팀워크에서 팀을 만들어보세요!`)
       // 결제 원장 적재
       if (Number(req.amount) > 0) await recordPayment(db, { userId: req.user_id, source: 'team', refId: String(req.order_id), description: `팀 요금제 ${req.seats}좌석·${req.months}개월`, amount: Number(req.amount), method: 'bank', paidAt: now })
     } else {
-      await db.prepare("UPDATE team_orders SET status = 'failed' WHERE order_id = ?").bind(id).run()
       await addNotification(db, req.user_id, '팀 요금제 신청이 반려되었습니다', `팀 요금제(${req.seats}좌석) 신청이 반려되었습니다.`)
     }
     await logAudit(db, admin, 'approve_team', String(req.seats), decision, 'info', adminIp)

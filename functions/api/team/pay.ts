@@ -64,12 +64,23 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
     const conf = await tossConfirm(env, { paymentKey, orderId, amount })
     if (!conf.ok) {
-      await db.prepare("UPDATE team_orders SET status = 'failed' WHERE order_id = ?").bind(orderId).run()
+      // ⚠ status != 'paid' 조건 필수 — 동시에 들어온 두 번째 confirm 이 토스에서 거절당했을 때
+      //   이미 결제·활성화가 끝난 주문을 '실패'로 덮어쓰면 매출 집계에서 사라진다.
+      await db.prepare("UPDATE team_orders SET status = 'failed' WHERE order_id = ? AND status != 'paid'").bind(orderId).run()
       return json({ ok: false, error: conf.error || '결제 승인 실패' }, 402)
     }
 
+    // ── 활성화 선점 ──────────────────────────────────────────────────────────
+    //  위의 status 검사는 읽기 시점 기준이라 동시 요청을 막지 못한다(TOCTOU).
+    //  조건부 UPDATE 로 한 번만 통과시키지 않으면 activateUntil 이 두 번 돌아
+    //  한 번 결제한 팀 요금제가 두 배 기간으로 늘어난다.
+    const claim: any = await db.prepare(
+      "UPDATE team_orders SET status = 'paid', payment_key = ?, paid_at = ? WHERE order_id = ? AND status != 'paid'",
+    ).bind(paymentKey, now, orderId).run().catch(() => null)
+    if (!claim || Number(claim.meta?.changes || 0) === 0)
+      return json({ ok: false, error: '이미 처리된 주문입니다.' }, 409)
+
     const until = activateUntil(me.team_until, Number(order.months) || 1)
-    await db.prepare("UPDATE team_orders SET status = 'paid', payment_key = ?, paid_at = ? WHERE order_id = ?").bind(paymentKey, now, orderId).run()
     await db.prepare('UPDATE users SET team_plan = 1, team_seats = ?, team_until = ? WHERE id = ?').bind(Number(order.seats) || 1, until, me.id).run()
     await addNotification(db, me.id, '팀 요금제가 활성화되었습니다 👥', `${order.seats}좌석 팀 요금제가 활성화되었습니다. 스튜디오 팀워크에서 팀을 만들고 노드를 공유해보세요!`).catch(() => {})
     await logActivity(db, me.id, 'plan', `팀 요금제 결제 완료: ${order.seats}좌석 · ₩${amount.toLocaleString()}`)
