@@ -241,6 +241,9 @@ export interface ChargeInput {
   kind?: string // 'image' | 'video'
   res?: string // '720p'|'1080p'|'4K'
   audio?: boolean
+  hdr?: boolean // 루마 전용 — HDR 출력이면 요금표가 달라진다
+  exr?: boolean // 루마 전용 — EXR 동시 내보내기(HDR 전제)
+  refs?: number // 루마 이미지 전용 — 레퍼런스 장수마다 원가가 오른다
 }
 
 export interface ChargeResult {
@@ -254,6 +257,57 @@ export interface ChargeResult {
   credits: number // 차감 크레딧
   revenueKrw: number // 매출(원) = credits × 50
   profitKrw: number // 순이익(원) = revenue − cost
+}
+
+/* ══ 루마 Agents API 실측 요금표 (docs.agents.lumalabs.ai/guides/pricing) ══
+   루마는 "초당 정액 × 해상도 배율" 이 아니다. 요청 종류·해상도·길이·HDR 로 값이 정해진 표다.
+   그래서 우리 일반 공식으로는 맞출 수 없다 — 실제로 크게 어긋나 있었다.
+     1080p 10초 생성: 우리 계산 $0.80 vs 실제 $3.60 (4.5배)
+     1080p  5초 편집: 우리 계산 $0.40 vs 실제 $2.16 (5.4배)
+   마크업 3배를 붙여도 원가에 못 미쳐, 1080p 10초 한 건마다 약 1,680원씩 손실이었다.
+   10초가 5초의 2배가 아니라 3배인 것도(생성 기준) 일반 공식으로는 표현되지 않는다. */
+const LUMA_VIDEO_GEN: Record<string, [number, number]> = {   // [5초, 10초] 표준
+  '360p': [0.06, 0.18], '540p': [0.15, 0.45], '720p': [0.30, 0.90], '1080p': [1.20, 3.60],
+}
+const LUMA_VIDEO_GEN_HDR: Record<string, number> = { '720p': 0.60, '1080p': 2.40 }        // HDR 은 5초 전용
+const LUMA_VIDEO_GEN_EXR: Record<string, number> = { '720p': 0.90, '1080p': 3.60 }
+const LUMA_VIDEO_EDIT: Record<string, [number, number]> = {
+  '360p': [0.54, 1.08], '540p': [0.72, 1.44], '720p': [1.08, 2.16], '1080p': [2.16, 4.32],
+}
+const LUMA_VIDEO_EDIT_HDR: Record<string, [number, number]> = {
+  '360p': [1.08, 2.16], '540p': [1.44, 2.88], '720p': [2.16, 4.32], '1080p': [4.32, 8.64],
+}
+const LUMA_VIDEO_EDIT_EXR: Record<string, [number, number]> = {
+  '360p': [1.62, 3.24], '540p': [2.16, 4.32], '720p': [3.24, 6.48], '1080p': [6.48, 12.96],
+}
+const LUMA_REFRAME: Record<string, number> = { '360p': 0.03, '540p': 0.06, '720p': 0.12, '1080p': 0.36 }  // 초당
+const LUMA_IMG_BASE: Record<string, number> = { 'Luma Uni 1': 0.0404, 'Luma Uni 1 Max': 0.1000 }
+const LUMA_IMG_1REF: Record<string, number> = { 'Luma Uni 1': 0.0434, 'Luma Uni 1 Max': 0.1030 }
+const LUMA_REF_STEP = 0.0030   // 레퍼런스 1장 추가마다
+
+/** 루마 모델이면 실측 표로 원가(USD)를 낸다. 아니면 null → 일반 공식으로 간다. */
+function lumaUsd(input: ChargeInput): number | null {
+  const model = String(input.model || '')
+  if (!/^Luma /.test(model)) return null
+  const res = String(input.res || '1080p')
+  const refs = Math.max(0, Number(input.refs) || 0)
+  if (LUMA_IMG_BASE[model] != null) {
+    if (refs <= 0) return LUMA_IMG_BASE[model]
+    return LUMA_IMG_1REF[model] + LUMA_REF_STEP * (Math.min(9, refs) - 1)
+  }
+  // 길이는 5초·10초 두 구간뿐이다. 그 사이 값은 위 구간으로 올린다(제공사가 그렇게 스냅한다).
+  const slot = (Number(input.units) || 5) > 5 ? 1 : 0
+  const pick = (t: Record<string, [number, number]>) => (t[res] || t['1080p'])[slot]
+  if (/비율 변경/.test(model)) return (LUMA_REFRAME[res] || LUMA_REFRAME['1080p']) * Math.max(1, Number(input.units) || 5)
+  if (/영상 편집/.test(model)) {
+    if (input.hdr && input.exr) return pick(LUMA_VIDEO_EDIT_EXR)
+    if (input.hdr) return pick(LUMA_VIDEO_EDIT_HDR)
+    return pick(LUMA_VIDEO_EDIT)
+  }
+  // 생성 — HDR·EXR 은 5초 전용이라 길이와 무관하게 5초 요금이다(제공사가 10초를 반려한다).
+  if (input.hdr && input.exr) return LUMA_VIDEO_GEN_EXR[res] || LUMA_VIDEO_GEN_EXR['1080p']
+  if (input.hdr) return LUMA_VIDEO_GEN_HDR[res] || LUMA_VIDEO_GEN_HDR['1080p']
+  return pick(LUMA_VIDEO_GEN)
 }
 
 /** 소수 2자리 반올림 (크레딧 정밀도) */
@@ -271,7 +325,10 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
   const isFlat = m ? (m.u === 'img' || m.u === '3d' || m.u === 'tok') : input.kind === 'image'
   const isImg = isFlat
   let usd: number
-  if (isImg) {
+  const lu = lumaUsd(input)      // 루마는 실측 요금표가 있다(위 주석 참조)
+  if (lu != null) {
+    usd = lu
+  } else if (isImg) {
     usd = m ? m.usd : 0.05
   } else {
     const units = Math.max(1, Math.round(Number(input.units) || 8))

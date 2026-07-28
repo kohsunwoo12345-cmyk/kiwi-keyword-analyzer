@@ -84,6 +84,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       kind: isImg ? 'image' : 'video',
       res: effRes,
       audio: !!b.audio,
+      // 루마 실측 요금표용 — 이 셋이 없으면 표준 요금으로 잡혀 HDR·레퍼런스 원가를 못 받는다
+      hdr: !!b.hdr,
+      exr: !!b.exr,
+      refs: Math.max(0, Number(b.refs) || 0),
     },
     rate,
     markup,
