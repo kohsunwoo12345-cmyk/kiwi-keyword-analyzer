@@ -581,11 +581,15 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
      누군가 나중에 단가표에 되살리거나 다른 경로로 이 이름을 넣어도 크레딧이 빠지지 않게.
      (방어는 여러 겹이어야 한 겹이 뚫려도 회원 돈이 안 나간다) */
   if (/업스케일|화질 올리기|upscale/i.test(model)) {
-    return {
+    /* ChargeResult 를 그대로 만든다 — 예전에는 priceKrw(존재하지 않는 칸)를 넣고 profitKrw 를 빠뜨린 채
+       'as ChargeResult' 로 눌러 놨다. 그러면 순이익을 읽는 쪽(관리자 정산·MCP 추정)이 undefined 를 받아
+       합계가 NaN 이 된다. 캐스팅을 없애면 컴파일러가 이런 누락을 대신 잡아 준다. */
+    const free: ChargeResult = {
       model, provider: 'upscale', kind: 'video',
       usd: 0, usdKrw: rate, costKrw: 0, costKrwExact: 0,
-      markup: 1, priceKrw: 0, credits: 0, revenueKrw: 0,
-    } as ChargeResult
+      markup: 1, credits: 0, revenueKrw: 0, profitKrw: 0,
+    }
+    return free
   }
   const m = MODEL_COST[model]
   // 'img'(장당) 외에 '3d'(모델 1개당)·'tok'(호출 1회당) 도 "단위 1개" 과금이다 — 초당 계산을 타면 안 된다.

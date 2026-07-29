@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bell, Send, ImagePlus, Link2, RefreshCw, X, CheckCircle2, Circle, Users, Loader2, Eye, ChevronRight, Film, Clock, MoonStar, Trash2 } from 'lucide-react'
+import { Bell, Send, ImagePlus, Link2, RefreshCw, X, CheckCircle2, Circle, Users, Loader2, Eye, ChevronRight, Film, Clock, MoonStar, Trash2, Megaphone } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Overlay } from '@/components/ui'
 import { EmojiText } from '@/components/Emoji'
@@ -47,6 +47,10 @@ export default function NoticesPage() {
   const [track, setTrack] = useState<'video' | 'marketer'>('video')
   const [plan, setPlan] = useState('__paid__')
   const [scopePath, setScopePath] = useState('')
+  /* 강력 알림 집행 — 접속 즉시 화면 정중앙에 가림막과 함께 띄운다(광고 집행용).
+     스누즈 일수는 집행마다 정한다(기본 3일). 매 방문마다 가로막는 알림이라 이게 없으면 방해가 된다. */
+  const [strong, setStrong] = useState(false)
+  const [snoozeDays, setSnoozeDays] = useState(3)
   const [picked, setPicked] = useState<Record<string, boolean>>({})
   const [uploading, setUploading] = useState(false)
   const [uploadingV, setUploadingV] = useState(false)
@@ -159,6 +163,8 @@ export default function NoticesPage() {
       target, plan: target === 'plan' ? plan : undefined, track: target === 'plan' ? track : undefined,
       userIds: target === 'multi' ? pickedIds : undefined,
       scopePath: target === 'visitors' ? (scopePath.trim() || undefined) : undefined,
+      strong: target === 'visitors' ? strong : undefined,
+      snoozeDays: target === 'visitors' && strong ? snoozeDays : undefined,
       startAt: startAtIso, endAt: endAtIso,
     })
     setSending(false)
@@ -201,7 +207,7 @@ export default function NoticesPage() {
 
   return (
     <div>
-      <PageHeader icon={Bell} eyebrow="NOTICE" title="알림" desc="회원 또는 접속 전체(비회원 포함)에게 하단→상단 슬라이드 팝업을 발송합니다. 사진·CTA를 담고, 노출·읽음(X)·전환·접속 IP(회원/비회원)까지 확인할 수 있어요." />
+      <PageHeader icon={Bell} eyebrow="NOTICE" title="알림" desc="회원 또는 접속 전체(비회원 포함)에게 팝업을 발송합니다. 강력 알림으로 집행하면 접속 즉시 화면 정중앙에 크게 뜹니다. 사진·영상·CTA를 담고, 노출·읽음(X)·전환·접속 IP(회원/비회원)까지 확인할 수 있어요." />
 
       <div className="grid gap-4 lg:grid-cols-5">
         {/* ── 발송 폼 ── */}
@@ -314,6 +320,60 @@ export default function NoticesPage() {
                     <p className="text-[11px] leading-relaxed text-blue-700">홈페이지·랜딩에 <b>접속한 모든 사람(비회원 포함)</b>에게 접속 즉시 하단→상단 슬라이드 팝업으로 표시됩니다.</p>
                     <label className="mb-1 mt-2 block text-[11px] font-semibold text-[var(--text-dim)]">특정 랜딩 경로만 (선택 · 비우면 전체 페이지)</label>
                     <input value={scopePath} onChange={(e) => setScopePath(e.target.value)} placeholder="예) /f/f-abc123 (우리 빌더로 만든 랜딩 경로)" className="input w-full text-xs" />
+
+                    {/* ── 강력 알림 집행 ── */}
+                    <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50/70 p-2.5">
+                      <label className="flex cursor-pointer items-start gap-2">
+                        <input
+                          type="checkbox"
+                          checked={strong}
+                          onChange={(e) => setStrong(e.target.checked)}
+                          className="mt-0.5 h-4 w-4 flex-shrink-0 accent-amber-600"
+                        />
+                        <span>
+                          <span className="flex items-center gap-1 text-[12px] font-extrabold text-amber-800">
+                            <Megaphone size={13} /> 강력 알림으로 집행
+                          </span>
+                          <span className="mt-0.5 block text-[11px] leading-relaxed text-amber-700">
+                            접속 즉시 <b>화면 정중앙</b>에 가림막과 함께 크게 띄웁니다(하단 팝업 아님).
+                            사진·영상이 그대로 재생되고, CTA 버튼은 스크롤과 무관하게 항상 보입니다.
+                          </span>
+                        </span>
+                      </label>
+                      {strong && (
+                        <div className="mt-2.5 border-t border-amber-200 pt-2.5">
+                          <label className="mb-1 block text-[11px] font-semibold text-amber-800">“N일 동안 보지 않기” 기간</label>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {[1, 3, 7, 14].map((d) => (
+                              <button
+                                key={d}
+                                type="button"
+                                onClick={() => setSnoozeDays(d)}
+                                className={
+                                  snoozeDays === d
+                                    ? 'rounded-md bg-amber-600 px-2.5 py-1 text-[11px] font-bold text-white'
+                                    : 'rounded-md border border-amber-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-100'
+                                }
+                              >
+                                {d}일
+                              </button>
+                            ))}
+                            <input
+                              type="number"
+                              min={1}
+                              max={30}
+                              value={snoozeDays}
+                              onChange={(e) => setSnoozeDays(Math.max(1, Math.min(30, Number(e.target.value) || 3)))}
+                              className="input w-16 text-xs"
+                            />
+                            <span className="text-[11px] text-amber-700">일 (1~30)</span>
+                          </div>
+                          <p className="mt-1.5 text-[11px] leading-relaxed text-amber-700">
+                            방문자가 누르면 그 사람에게만 {snoozeDays}일간 숨겨집니다. 그 뒤에도 집행 기간이 남아 있으면 다시 노출됩니다.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
                 {target === 'plan' && (
@@ -410,6 +470,7 @@ export default function NoticesPage() {
                           <div className="flex items-center gap-2">
                             <span className="truncate text-sm font-bold">{c.title}</span>
                             {c.target === 'visitors' && <span className="flex-shrink-0 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-600">접속 전체</span>}
+                            {c.strong && <span className="flex-shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">강력</span>}
                             {c.endAt && <span className="flex-shrink-0 inline-flex items-center gap-0.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-600"><Clock size={9} /> 기간</span>}
                             {c.videoUrl && <Film size={12} className="flex-shrink-0 text-slate-400" />}
                             {c.imageUrl && !c.videoUrl && <ImagePlus size={12} className="flex-shrink-0 text-slate-400" />}
@@ -490,12 +551,17 @@ export default function NoticesPage() {
                       </div>
                     ))}
                     <div className="rounded-xl border border-[var(--border)] p-3 text-center">
-                      <div className="flex items-center justify-center gap-1 text-[11px] font-semibold text-[var(--text-dim)]"><MoonStar size={11} /> 3일 숨김</div>
+                      <div className="flex items-center justify-center gap-1 text-[11px] font-semibold text-[var(--text-dim)]"><MoonStar size={11} /> {detail?.campaign?.snoozeDays || 3}일 숨김</div>
                       <div className="mt-0.5 text-2xl font-bold tabular-nums text-amber-600">{num(detail?.visitorStats?.snoozes || 0)}</div>
                       <div className="mt-0.5 text-[10px] text-[var(--text-dim)]">보지 않기 누름</div>
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[var(--text-dim)]">
+                    {detail?.campaign?.strong && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 font-bold text-amber-700">
+                        <Megaphone size={11} /> 강력 알림 집행 · 화면 정중앙
+                      </span>
+                    )}
                     {detail?.campaign?.scopePath && <span>랜딩 경로: <b className="text-blue-600">{detail.campaign.scopePath}</b></span>}
                     <span className="inline-flex items-center gap-1"><Clock size={11} /> 노출 기간: {detail?.campaign?.endAt ? <b className="text-blue-600">{kst(detail.campaign.startAt || detail.campaign.createdAt)} ~ {kst(detail.campaign.endAt)}</b> : <b>생성 후 30일(기간 미설정)</b>}</span>
                   </div>
@@ -525,7 +591,7 @@ export default function NoticesPage() {
                   </div>
                   {(detail?.snoozeList || []).length > 0 && (
                     <>
-                      <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-amber-700"><MoonStar size={12} /> “3일 보지 않기” 누른 사람 ({(detail?.snoozeList || []).length})</div>
+                      <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-amber-700"><MoonStar size={12} /> “{detail?.campaign?.snoozeDays || 3}일 보지 않기” 누른 사람 ({(detail?.snoozeList || []).length})</div>
                       <div className="mt-1.5 overflow-hidden rounded-xl border border-amber-200">
                         <table className="w-full text-sm">
                           <thead className="bg-amber-50 text-xs text-amber-700"><tr><th className="px-3 py-2 text-left font-semibold">IP</th><th className="px-3 py-2 text-left font-semibold">구분</th><th className="px-3 py-2 text-right font-semibold">해제 예정(KST)</th></tr></thead>

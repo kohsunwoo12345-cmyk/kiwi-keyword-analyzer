@@ -6,7 +6,9 @@ import { Volume2, VolumeX } from 'lucide-react'
 // 알림 팝업의 미디어 — 동영상 우선(자동재생 + 소리 ON, 크기 맞춤형), 없으면 사진.
 // 소리 자동재생이 브라우저에 막히면: 음소거로 즉시 재생 → 방문자의 "첫 상호작용"(마우스 이동·스크롤·클릭·터치)이
 // 감지되는 순간 자동으로 소리를 켠다. 별도의 "소리 켜기" 클릭이 필요 없다.
-export function NoticeMedia({ imageUrl, videoUrl }: { imageUrl?: string; videoUrl?: string }) {
+/** full=true 면 강력 알림(정중앙 모달)용 — 사진도 잘라내지 않고 원본 비율 그대로 크게 보여 준다.
+ *  토스트에서는 높이를 176px 로 잘라 카드 균형을 맞추지만, 광고 집행에서 사진이 잘리면 안 된다. */
+export function NoticeMedia({ imageUrl, videoUrl, full }: { imageUrl?: string; videoUrl?: string; full?: boolean }) {
   const ref = useRef<HTMLVideoElement>(null)
   const [muted, setMuted] = useState(false)
 
@@ -54,7 +56,7 @@ export function NoticeMedia({ imageUrl, videoUrl }: { imageUrl?: string; videoUr
         <video
           ref={ref}
           src={videoUrl}
-          className="block h-auto max-h-[60vh] w-full"
+          className={full ? 'block h-auto max-h-[50vh] w-full' : 'block h-auto max-h-[60vh] w-full'}
           autoPlay
           playsInline
           loop
@@ -74,7 +76,13 @@ export function NoticeMedia({ imageUrl, videoUrl }: { imageUrl?: string; videoUr
   }
   if (imageUrl) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={imageUrl} alt="" className="max-h-44 w-full object-cover" />
+    return (
+      <img
+        src={imageUrl}
+        alt=""
+        className={full ? 'block h-auto max-h-[50vh] w-full object-contain bg-slate-50' : 'max-h-44 w-full object-cover'}
+      />
+    )
   }
   return null
 }

@@ -39,6 +39,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const startAt = String(b.startAt || '').trim() || null
   let endAt = String(b.endAt || '').trim() || null
   if (!endAt && Number(b.days) > 0) endAt = new Date(Date.now() + Math.min(365, Number(b.days)) * 86400000).toISOString()
+  if (startAt && endAt && endAt <= startAt)
+    return json({ ok: false, error: '집행 종료 시각은 시작 시각보다 뒤여야 합니다.' }, 400)
+
+  /* 강력 알림 — 접속하자마자 화면 정중앙에 가림막과 함께 띄우는 광고 집행.
+     방문자 팝업(target='visitors')에서만 의미가 있다. 회원 알림은 콘솔 안에서 뜨므로 대상이 다르다.
+     스누즈 일수는 집행마다 정한다(기본 3일) — 매 방문마다 가로막는 알림이라 이게 없으면 방해가 된다. */
+  const strong = b.strong === true || b.strong === 1 || b.strong === '1'
+  const snoozeDays = Math.max(1, Math.min(30, Number(b.snoozeDays) || 3))
+  if (strong && target !== 'visitors')
+    return json({ ok: false, error: '강력 알림은 "접속 전체(비회원 포함)" 대상에서만 집행할 수 있습니다.' }, 400)
 
   // 접속 전체(비회원 포함) — 개별 회원 영수증 없이 캠페인만 생성. 홈페이지/랜딩 방문자에게 팝업.
   if (target === 'visitors') {
@@ -47,11 +57,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const now2 = new Date().toISOString()
     const campId2 = uid('nc_')
     await db.prepare(
-      `INSERT INTO notice_campaigns (id, title, body, image_url, video_url, cta_label, cta_url, target, audience, scope_path, start_at, end_at, created_by, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'visitors', 0, ?, ?, ?, ?, ?)`,
-    ).bind(campId2, title, body, imageUrl || null, videoUrl || null, ctaLabel || null, ctaUrl || null, scopePath || null, startAt, endAt, admin.email, now2).run()
-    await logAudit(db, admin, 'notice_send', `visitors${scopePath ? ':' + scopePath : ''}${endAt ? ' ~' + endAt.slice(0, 10) : ''}`, title, 'info', clientIp(request))
-    return json({ ok: true, campaignId: campId2, audience: 0, target: 'visitors' })
+      `INSERT INTO notice_campaigns (id, title, body, image_url, video_url, cta_label, cta_url, target, audience, scope_path, start_at, end_at, strong, snooze_days, created_by, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'visitors', 0, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(campId2, title, body, imageUrl || null, videoUrl || null, ctaLabel || null, ctaUrl || null, scopePath || null,
+           startAt, endAt, strong ? 1 : 0, snoozeDays, admin.email, now2).run()
+    await logAudit(db, admin, 'notice_send', `visitors${strong ? '(강력)' : ''}${scopePath ? ':' + scopePath : ''}${endAt ? ' ~' + endAt.slice(0, 10) : ''}`, title, 'info', clientIp(request))
+    return json({ ok: true, campaignId: campId2, audience: 0, target: 'visitors', strong, snoozeDays })
   }
 
   // 대상 회원 선정
@@ -169,6 +180,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
           id: camp.id, title: camp.title, body: camp.body, imageUrl: camp.image_url, videoUrl: camp.video_url || '',
           ctaLabel: camp.cta_label, ctaUrl: camp.cta_url, target: camp.target, scopePath: camp.scope_path || '',
           startAt: camp.start_at || '', endAt: camp.end_at || '',
+          strong: !!Number(camp.strong || 0), snoozeDays: Number(camp.snooze_days) || 3,
           audience: camp.audience, createdBy: camp.created_by, createdAt: camp.created_at,
         },
         visitorStats: stats,
@@ -241,6 +253,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
           id: c.id, title: c.title, body: c.body, imageUrl: c.image_url, videoUrl: c.video_url || '',
           ctaLabel: c.cta_label, ctaUrl: c.cta_url, target: c.target, scopePath: c.scope_path || '',
           startAt: c.start_at || '', endAt: c.end_at || '',
+          strong: !!Number(c.strong || 0), snoozeDays: Number(c.snooze_days) || 3,
           audience: c.audience, createdBy: c.created_by, createdAt: c.created_at,
           total: v.views, readCount: v.reads, unreadCount: Math.max(0, v.views - v.reads),
           views: v.views, conversions: v.convert,

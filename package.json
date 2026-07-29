@@ -4,11 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "npm run test:pricing",
+    "prebuild": "npm test",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit && tsc -p functions --noEmit",
+    "test": "npm run test:pricing && node scripts/strong-notice.test.mjs",
     "test:pricing": "node scripts/pricing.test.mjs && node scripts/charge-token.test.mjs && node scripts/charge-chain.test.mjs && node scripts/studio-rates.test.mjs && node scripts/money-chain.test.mjs && node scripts/gate-vs-charge.test.mjs && node scripts/vidlen.test.mjs && node scripts/upscale-free.test.mjs"
   },
   "dependencies": {

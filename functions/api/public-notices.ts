@@ -28,6 +28,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         id: c.id, title: c.title, body: c.body,
         imageUrl: c.image_url || '', videoUrl: c.video_url || '',
         ctaLabel: c.cta_label || '', ctaUrl: c.cta_url || '',
+        // 강력 알림이면 화면 정중앙에 가림막과 함께 띄운다(그 외는 하단 토스트)
+        strong: !!Number(c.strong || 0),
+        snoozeDays: Math.max(1, Math.min(30, Number(c.snooze_days) || 3)),
         createdAt: c.created_at,
       })),
     })

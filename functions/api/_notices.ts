@@ -10,6 +10,11 @@ export async function ensureVisitorNoticeSchema(db: D1Database) {
   await db.prepare(`ALTER TABLE notice_campaigns ADD COLUMN video_url TEXT`).run().catch(() => {})
   await db.prepare(`ALTER TABLE notice_campaigns ADD COLUMN start_at TEXT`).run().catch(() => {})
   await db.prepare(`ALTER TABLE notice_campaigns ADD COLUMN end_at TEXT`).run().catch(() => {})
+  /* 강력 알림 — 화면 하단에서 올라오는 토스트가 아니라 화면 정중앙에 가림막과 함께 띄운다.
+     광고 집행처럼 "반드시 보게 해야 하는" 알림용이다. 그래서 스누즈 일수도 집행마다 정한다
+     (기본 3일 — 강력 알림은 매 방문마다 가로막으므로 스누즈가 없으면 곧 광고가 아니라 방해가 된다). */
+  await db.prepare(`ALTER TABLE notice_campaigns ADD COLUMN strong INTEGER DEFAULT 0`).run().catch(() => {})
+  await db.prepare(`ALTER TABLE notice_campaigns ADD COLUMN snooze_days INTEGER DEFAULT 3`).run().catch(() => {})
   await db.prepare(`CREATE TABLE IF NOT EXISTS notice_visitor_events (
     id TEXT PRIMARY KEY,
     campaign_id TEXT NOT NULL,
@@ -95,7 +100,8 @@ export async function getActiveVisitorCampaigns(
   const now = new Date().toISOString()
   const since = new Date(Date.now() - days * 86400000).toISOString()
   const rows = (await db.prepare(
-    `SELECT id, title, body, image_url, video_url, cta_label, cta_url, scope_path, start_at, end_at, created_at
+    `SELECT id, title, body, image_url, video_url, cta_label, cta_url, scope_path, start_at, end_at,
+            strong, snooze_days, created_at
      FROM notice_campaigns
      WHERE target = 'visitors'
      ORDER BY created_at DESC LIMIT 60`,

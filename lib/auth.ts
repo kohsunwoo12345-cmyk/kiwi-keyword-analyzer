@@ -1528,6 +1528,10 @@ export interface AdminNoticeCampaign extends NoticeItem {
   videoUrl?: string
   startAt?: string
   endAt?: string
+  /** 강력 알림 집행 — 접속 즉시 화면 정중앙에 가림막과 함께 노출 */
+  strong?: boolean
+  /** "N일 동안 보지 않기" 의 N (기본 3) */
+  snoozeDays?: number
 }
 export interface VisitorStat { total: number; members: number; guests: number }
 export interface NoticeVisitorEvent { ip: string; isMember: number; memberEmail: string; kind: string; path: string; createdAt: string }
@@ -1578,6 +1582,8 @@ export async function adminNoticeSend(payload: {
   title: string; body: string; imageUrl?: string; videoUrl?: string; ctaLabel?: string; ctaUrl?: string
   target: 'all' | 'plan' | 'user' | 'multi' | 'visitors'; plan?: string; track?: 'video' | 'marketer'; userId?: string; userIds?: string[]
   scopePath?: string; startAt?: string; endAt?: string; days?: number
+  /** 강력 알림 집행(접속 전체 대상에서만) + 그 집행의 "N일 동안 보지 않기" 일수 */
+  strong?: boolean; snoozeDays?: number
 }): Promise<{ ok: boolean; campaignId?: string; audience?: number; error?: string }> {
   return postJson('/api/admin/notices', payload)
 }
