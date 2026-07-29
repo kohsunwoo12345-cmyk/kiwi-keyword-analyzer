@@ -12,7 +12,15 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   const url = new URL(request.url)
   const days = Math.min(365, Math.max(1, Number(url.searchParams.get('days') || 30)))
-  const since = new Date(Date.now() - days * 86400000).toISOString()
+  /* 제공사 청구서는 "며칠 전부터" 가 아니라 청구 기간(예: 7/1~7/31)으로 끊겨 나온다.
+     그 기간을 그대로 넣을 수 있어야 청구서 한 줄과 우리 합계를 직접 맞대 볼 수 있다.
+     from/to 가 없으면 예전처럼 최근 N일이다. */
+  const isDay = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v)
+  const fromQ = String(url.searchParams.get('from') || '')
+  const toQ = String(url.searchParams.get('to') || '')
+  const since = isDay(fromQ) ? fromQ + 'T00:00:00.000Z' : new Date(Date.now() - days * 86400000).toISOString()
+  //  to 는 그날까지 포함 — 하루를 더해 다음 날 0시 직전까지 본다.
+  const until = isDay(toQ) ? new Date(Date.parse(toQ + 'T00:00:00.000Z') + 86400000).toISOString() : '9999-12-31T23:59:59.999Z'
 
   const rows = async (sql: string, ...b: any[]) => (await db.prepare(sql).bind(...b).all()).results || []
   const one = async (sql: string, ...b: any[]) => {
@@ -20,43 +28,54 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     return r || {}
   }
 
-  const [totals, byUser, byModel, recent, byDay] = await Promise.all([
+  const [totals, byUser, byModel, recent, byDay, byProvider] = await Promise.all([
     one(
       `SELECT COUNT(*) AS count, COALESCE(SUM(revenue_krw),0) AS revenue,
               COALESCE(SUM(cost_krw),0) AS cost, COALESCE(SUM(credits),0) AS credits
-       FROM ai_usage WHERE created_at > ?`,
-      since,
+       FROM ai_usage WHERE created_at > ? AND created_at < ?`,
+      since, until,
     ),
     rows(
       `SELECT user_id, MAX(name) AS name, MAX(email) AS email, COUNT(*) AS count,
               COALESCE(SUM(credits),0) AS credits, COALESCE(SUM(revenue_krw),0) AS revenue,
               COALESCE(SUM(cost_krw),0) AS cost,
               GROUP_CONCAT(DISTINCT model) AS models
-       FROM ai_usage WHERE created_at > ?
+       FROM ai_usage WHERE created_at > ? AND created_at < ?
        GROUP BY user_id ORDER BY revenue DESC LIMIT 500`,
-      since,
+      since, until,
     ),
     rows(
       `SELECT model, MAX(provider) AS provider, MAX(kind) AS kind, MAX(markup) AS markup,
               COUNT(*) AS count, COALESCE(SUM(credits),0) AS credits,
               COALESCE(SUM(revenue_krw),0) AS revenue, COALESCE(SUM(cost_krw),0) AS cost
-       FROM ai_usage WHERE created_at > ?
+       FROM ai_usage WHERE created_at > ? AND created_at < ?
        GROUP BY model ORDER BY revenue DESC LIMIT 100`,
-      since,
+      since, until,
     ),
     rows(
       `SELECT created_at, name, email, model, provider, kind, credits, cost_krw, revenue_krw, markup, usd_krw
-       FROM ai_usage WHERE created_at > ? ORDER BY created_at DESC LIMIT 300`,
-      since,
+       FROM ai_usage WHERE created_at > ? AND created_at < ? ORDER BY created_at DESC LIMIT 300`,
+      since, until,
     ),
     // 일별(KST) 집계 + 그날 적용된 환율
     rows(
       `SELECT substr(datetime(created_at, '+9 hours'),1,10) AS d, COUNT(*) AS count,
               COALESCE(SUM(credits),0) AS credits, COALESCE(SUM(revenue_krw),0) AS revenue,
               COALESCE(SUM(cost_krw),0) AS cost, AVG(usd_krw) AS rate, MAX(usd_krw) AS rateMax, MIN(usd_krw) AS rateMin
-       FROM ai_usage WHERE created_at > ?
+       FROM ai_usage WHERE created_at > ? AND created_at < ?
        GROUP BY d ORDER BY d DESC LIMIT 400`,
-      since,
+      since, until,
+    ),
+    /* 제공사 청구서 대조용 — 청구서는 달러로, 제공사별로 끊겨 나온다.
+       우리가 계산한 실비(usd)를 같은 단위·같은 기간으로 뽑아 두면 청구서 한 줄과 바로 맞대 볼 수 있다.
+       두 값이 벌어지면 그 제공사 단가표가 틀렸다는 뜻이다. */
+    rows(
+      `SELECT COALESCE(provider,'') AS provider, COUNT(*) AS count,
+              COALESCE(SUM(usd),0) AS usd, COALESCE(SUM(cost_krw),0) AS cost,
+              COALESCE(SUM(credits),0) AS credits, COALESCE(SUM(revenue_krw),0) AS revenue
+       FROM ai_usage WHERE created_at > ? AND created_at < ?
+       GROUP BY provider ORDER BY usd DESC LIMIT 60`,
+      since, until,
     ),
   ])
 
@@ -68,7 +87,17 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   return json({
     ok: true,
     days,
+    from: since.slice(0, 10),
+    to: until.startsWith('9999') ? '' : new Date(Date.parse(until) - 86400000).toISOString().slice(0, 10),
     todayRate,
+    byProvider: byProvider.map((r: any) => ({
+      provider: r.provider || '(미상)',
+      count: Number(r.count) || 0,
+      usd: Math.round((Number(r.usd) || 0) * 10000) / 10000,
+      cost: Number(r.cost) || 0,
+      credits: Number(r.credits) || 0,
+      revenue: Number(r.revenue) || 0,
+    })),
     totals: {
       count: Number(totals.count) || 0,
       credits: Number(totals.credits) || 0,

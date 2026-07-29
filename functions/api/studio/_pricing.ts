@@ -199,9 +199,9 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
      여기 usd 값은 그 함수를 타지 못했을 때의 폴백이자 관리자 화면 표시용이며,
      100만 토큰당 단가로 1080p 초당 원가를 환산해 맞춰 둔다(1080p 1초 = 48,600토큰).
      audio 는 토큰과 별개로 붙는 항목이라 seedanceUsd() 에서도 그대로 더한다. */
-  'Seedance 2.0': { u: 'sec', usd: 0.2284, audio: 0.02, prov: 'seedance' },
-  'Seedance 2.0 Fast': { u: 'sec', usd: 0.1827, audio: 0.02, prov: 'seedance' },
-  'Seedance 2.0 Mini': { u: 'sec', usd: 0.1142, audio: 0.02, prov: 'seedance' },
+  'Seedance 2.0': { u: 'sec', usd: 0.3430, audio: 0.02, prov: 'seedance' },
+  'Seedance 2.0 Fast': { u: 'sec', usd: 0.2744, audio: 0.02, prov: 'seedance' },
+  'Seedance 2.0 Mini': { u: 'sec', usd: 0.1715, audio: 0.02, prov: 'seedance' },
   'Seedance 1.5 Pro': { u: 'sec', usd: 0.1701, prov: 'seedance' },
   'Seedance 1.0 Pro': { u: 'sec', usd: 0.1458, prov: 'seedance' },
   'Seedance 1.0 Pro Fast': { u: 'sec', usd: 0.0846, prov: 'seedance' },
@@ -409,15 +409,30 @@ const LUMA_REF_STEP = 0.0030   // 레퍼런스 1장 추가마다
      · 1.5 Pro — 1.0 Pro 와 2.0 사이. 공식 표를 못 구해 잠정값이다.
    ※ 실제 청구서로 검증되면 이 표만 고치면 된다. 계산식은 그대로 쓴다. */
 const SEEDANCE_FPS = 24
-const SEEDANCE_PER_M: Record<string, number> = {
-  'Seedance 2.0': 4.7,
-  'Seedance 2.0 Fast': 3.76,          // 4.7 × 0.8
-  'Seedance 2.0 Mini': 2.35,          // 4.7 × 0.5
-  'Seedance 1.5 Pro': 3.5,            // 잠정
-  'Seedance 1.0 Pro': 3.0,
-  'Seedance 1.0 Pro Fast': 1.74,      // 3.0 × 0.58 (기존 표의 Pro 대비 비율 유지)
-  'Seedance 1.0 Lite (텍스트→영상)': 1.8,
-  'Seedance 1.0 Lite (이미지→영상)': 1.8,
+/* ── 씨댄스 토큰 수 ──
+   BytePlus 청구서(2026-07, kohheejun3394)의 모든 줄이 프레임 수로 정확히 떨어졌다.
+   720p 기준 108.9K·173.7K·216.9K·324.9K 토큰 → ×1024÷(1280×720) = 121·193·241·361 프레임.
+   전부 (24×초 + 1) 이다 — 마지막 프레임이 한 장 더 붙는다(5초=121프레임, 10초=241프레임).
+   예전 식(24×초)은 5초에서 0.83%, 10초에서 0.42% 적게 잡았다. */
+const seedanceFrames = (secs: number) => SEEDANCE_FPS * secs + 1
+
+/* ── 씨댄스 100만 토큰당 단가(USD) ──
+   [실측] 위 청구서에 단가가 그대로 찍혀 있다 — Seedance 2.0 $0.007/K, 2.0 Fast $0.0056/K.
+          금액도 검산된다: 2.0 Fast 173.7K × $0.0056 = $0.97272 = 청구서 금액과 소수점까지 일치.
+   예전 표는 두 모델 모두 정확히 0.671429 배였다(4.7/7.00 = 3.76/5.60). 출처가 통째로
+   낮았다는 뜻이라, 청구서로 확인된 두 값은 실측으로 바꾸고 Mini 는 같은 배수로 되돌린다
+   ($3.50 = 2.0 의 정확히 절반 — 2.0/Fast/Mini 가 7.00/5.60/3.50 으로 떨어진다).
+   1.x 계열과 1.5 Pro 영상 단가는 이 청구서에 항목이 없어 아직 미확인이다
+   (1.5 Pro 는 "inference-audio" 줄만 있었다 — $0.0024/K). */
+export const SEEDANCE_PER_M: Record<string, number> = {
+  'Seedance 2.0': 7.0,                // 실측 — 청구서 $0.007/K
+  'Seedance 2.0 Fast': 5.6,           // 실측 — 청구서 $0.0056/K
+  'Seedance 2.0 Mini': 3.5,           // 추정 — 2.0 의 0.5배(위 두 값과 같은 보정 배수)
+  'Seedance 1.5 Pro': 3.5,            // 미확인
+  'Seedance 1.0 Pro': 3.0,            // 미확인
+  'Seedance 1.0 Pro Fast': 1.74,      // 미확인 — 3.0 × 0.58
+  'Seedance 1.0 Lite (텍스트→영상)': 1.8,   // 미확인
+  'Seedance 1.0 Lite (이미지→영상)': 1.8,   // 미확인
 }
 
 /* ── OpenAI 이미지: 크기에 따라 원가가 다르다 ──────────────────────────────
@@ -447,7 +462,7 @@ function seedanceUsd(input: ChargeInput): number | null {
   const secs = Math.max(1, Math.round(Number(input.units) || 5))
   // 제공사가 실제 소비 토큰을 알려줬으면 그 값이 우선이다 — 추정이 아니라 실측으로 청구한다.
   const reported = Number(input.usageTokens) || 0
-  const tokens = reported > 0 ? reported : (w * h * SEEDANCE_FPS * secs) / 1024
+  const tokens = reported > 0 ? reported : (w * h * seedanceFrames(secs)) / 1024
   const usd = (tokens * perM) / 1_000_000
   // 오디오는 토큰 과금과 별개로 붙는 항목이라 표의 초당 가산을 그대로 더한다.
   const m = MODEL_COST[model]

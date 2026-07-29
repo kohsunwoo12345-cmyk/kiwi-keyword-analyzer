@@ -58,24 +58,28 @@ const TR = 'border-b border-[var(--border-soft)] last:border-0 hover:bg-slate-50
 
 export default function AdminAiUsagePage() {
   const [days, setDays] = useState<DayOption>(30)
+  /* 제공사 청구서는 "최근 N일" 이 아니라 청구 기간(예: 7/1~7/31)으로 끊겨 나온다.
+     그 기간을 그대로 넣어야 청구서 한 줄과 우리 합계를 맞대 볼 수 있다. */
+  const [range, setRange] = useState<{ from: string; to: string }>({ from: '', to: '' })
   const [data, setData] = useState<AiUsageStats>({ ok: false })
   const [loading, setLoading] = useState(true)
 
-  function reload(d: DayOption = days) {
+  function reload(d: DayOption = days, r: { from: string; to: string } = range) {
     setLoading(true)
-    adminAiUsage(d).then((r) => {
-      setData(r)
+    adminAiUsage(d, r.from || r.to ? r : undefined).then((res) => {
+      setData(res)
       setLoading(false)
     })
   }
   useEffect(() => {
-    reload(days)
+    reload(days, range)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days])
+  }, [days, range])
 
   const t = data.totals
   const byUser = data.byUser ?? []
   const byModel = data.byModel ?? []
+  const byProvider = data.byProvider ?? []
   const recent = data.recent ?? []
   const hasData = !!t && (t.count > 0 || byUser.length > 0)
 
@@ -134,10 +138,10 @@ export default function AdminAiUsagePage() {
               {DAY_OPTIONS.map((d) => (
                 <button
                   key={d}
-                  onClick={() => setDays(d)}
+                  onClick={() => { setRange({ from: '', to: '' }); setDays(d) }}
                   className={cn(
                     'rounded-lg px-3 py-1.5 text-sm font-semibold transition-all duration-200',
-                    days === d
+                    days === d && !range.from && !range.to
                       ? 'brand-gradient text-white shadow-md shadow-violet-500/25'
                       : 'text-[var(--text-soft)] hover:bg-white hover:text-[var(--text)]',
                   )}
@@ -233,6 +237,77 @@ export default function AdminAiUsagePage() {
                           <td className={cn(TD, 'text-right tabular-nums text-[var(--text-soft)]')}>{num(u.credits)}</td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Panel>
+            </Reveal>
+
+            {/* 제공사 청구서 대조 */}
+            <Reveal>
+              <Panel
+                title={
+                  <span className="flex items-center gap-2">
+                    <Server size={16} className="text-violet-500" /> 제공사 청구서 대조
+                  </span>
+                }
+              >
+                <p className="mb-4 text-sm text-[var(--text-soft)]">
+                  제공사 청구서와 같은 기간·같은 단위(USD)로 우리가 계산한 실비입니다.
+                  청구서 금액과 벌어지면 그 제공사 단가표가 틀렸다는 뜻입니다.
+                </p>
+                <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-[var(--text-soft)]">청구 기간</span>
+                  <input
+                    type="date"
+                    value={range.from}
+                    onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
+                    className="rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-2.5 py-1.5"
+                  />
+                  <span className="text-[var(--text-dim)]">~</span>
+                  <input
+                    type="date"
+                    value={range.to}
+                    onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
+                    className="rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-2.5 py-1.5"
+                  />
+                  {(range.from || range.to) && (
+                    <Button variant="outline" size="sm" onClick={() => setRange({ from: '', to: '' })}>
+                      기간 해제
+                    </Button>
+                  )}
+                  <span className="text-xs text-[var(--text-dim)]">
+                    {data.from ? `조회: ${data.from}${data.to ? ` ~ ${data.to}` : ' 이후'}` : ''}
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[620px] text-sm">
+                    <thead>
+                      <tr className={THEAD}>
+                        <th className={TH}>제공사</th>
+                        <th className={cn(TH, 'text-right')}>생성</th>
+                        <th className={cn(TH, 'text-right')}>우리 계산 실비(USD)</th>
+                        <th className={cn(TH, 'text-right')}>실비(원)</th>
+                        <th className={cn(TH, 'text-right')}>매출</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {byProvider.map((p) => (
+                        <tr key={p.provider} className={TR}>
+                          <td className={cn(TD, 'font-medium')}>{p.provider}</td>
+                          <td className={cn(TD, 'text-right tabular-nums')}>{num(p.count)}</td>
+                          <td className={cn(TD, 'text-right font-semibold tabular-nums')}>${p.usd.toFixed(4)}</td>
+                          <td className={cn(TD, 'text-right tabular-nums text-rose-500')}>{krw(p.cost)}</td>
+                          <td className={cn(TD, 'text-right tabular-nums')}>{krw(p.revenue)}</td>
+                        </tr>
+                      ))}
+                      {byProvider.length === 0 && (
+                        <tr>
+                          <td className={cn(TD, 'text-center text-[var(--text-dim)]')} colSpan={5}>
+                            이 기간에 생성 기록이 없습니다.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>

@@ -32,12 +32,29 @@ const near = (a, b, tol = 0.002) => Math.abs(a - b) < tol
 
 console.log('\n① 제공사 공시가 재현 — 계산식이 맞으면 이 값이 그대로 나온다')
 {
-  // fal 공시: Seedance 1.0 Pro 1080p 5초 ≈ $0.74  (1920×1080×24×5÷1024 = 243,000토큰 × $3.0/M)
+  /* fal 공시: Seedance 1.0 Pro 1080p 5초 ≈ $0.74
+     1920×1080×(24×5+1)÷1024 = 245,025토큰 × $3.0/M = $0.735.
+     프레임이 (24×초+1) 인 것은 BytePlus 청구서로 확인했다 — 그 전 식(24×초)은 $0.729 로
+     공시가에서 더 멀었다. 실제 프레임 수로 고치니 공시가에 더 가까워진다. */
   const a = computeCharge({ model: 'Seedance 1.0 Pro', res: '1080p', units: 5, kind: 'video' })
-  ok(near(a.usd, 0.729), 'Seedance 1.0 Pro 1080p 5초 = $0.729', `실제 $${a.usd}`)
+  ok(near(a.usd, 0.7351), 'Seedance 1.0 Pro 1080p 5초 = $0.735', `실제 $${a.usd}`)
   // fal 공시: Seedance 1.0 Lite 720p 5초 ≈ $0.18
   const b = computeCharge({ model: 'Seedance 1.0 Lite (텍스트→영상)', res: '720p', units: 5, kind: 'video' })
-  ok(near(b.usd, 0.1944), 'Seedance 1.0 Lite 720p 5초 = $0.194', `실제 $${b.usd}`)
+  ok(near(b.usd, 0.19602), 'Seedance 1.0 Lite 720p 5초 = $0.196', `실제 $${b.usd}`)
+
+  /* ── BytePlus 청구서 실측 (2026-07) ──
+     청구서에 단가와 토큰 수가 그대로 찍혀 나온다. 두 가지를 여기서 못 박는다.
+       ① 토큰 수 = (24×초 + 1) 프레임 × 화소 ÷ 1024
+          720p 5·8·10·15초 → 108.9K·173.7K·216.9K·324.9K (전부 정확히 일치)
+       ② 단가 = Seedance 2.0 $0.007/K · 2.0 Fast $0.0056/K
+          금액 검산: 2.0 Fast 173.7K × $0.0056 = $0.97272 (청구서 금액과 소수점까지 일치) */
+  const px720 = 1280 * 720
+  for (const [secs, kTok] of [[5, 108.9], [8, 173.7], [10, 216.9], [15, 324.9]]) {
+    const tok = (px720 * (24 * secs + 1)) / 1024
+    ok(near(tok / 1000, kTok, 0.05), `청구서 토큰 재현 · 720p ${secs}초 = ${kTok}K`, `계산 ${(tok / 1000).toFixed(1)}K`)
+  }
+  const fast8 = computeCharge({ model: 'Seedance 2.0 Fast', res: '720p', units: 8, kind: 'video' })
+  ok(near(fast8.usd, 0.97272, 0.0005), '청구서 금액 재현 · 2.0 Fast 720p 8초 = $0.97272', `실제 $${fast8.usd}`)
   // OpenAI 공식 medium: 1024×1024 $0.042 / 1536×1024 $0.063
   const sq = computeCharge({ model: 'GPT Image', kind: 'image', ratio: '1:1' })
   const wd = computeCharge({ model: 'GPT Image', kind: 'image', ratio: '16:9' })
@@ -72,10 +89,14 @@ console.log('\n② 해상도는 화소 수에 정비례 — 눈대중 배율로 
 
 console.log('\n③ 길이·옵션이 정확히 반영된다')
 {
+  /* 길이는 프레임 수에 비례한다 — 정확히 초에 비례하지는 않는다.
+     제공사가 마지막 프레임을 한 장 더 세기 때문이다(5초=121프레임, 1초=25프레임).
+     "초에 정비례" 로 잠가 두면 청구서로 확인한 +1 프레임을 되돌려야 통과하게 된다. */
   const one = computeCharge({ model: 'Seedance 2.0', res: '1080p', units: 1, kind: 'video' }).usd
   for (const s of [5, 10, 30]) {
     const got = computeCharge({ model: 'Seedance 2.0', res: '1080p', units: s, kind: 'video' }).usd
-    ok(near(got, one * s, 0.001), `${s}초 = 1초의 ${s}배`)
+    const frameRatio = (24 * s + 1) / (24 * 1 + 1)
+    ok(near(got, one * frameRatio, 0.001), `${s}초 = 1초의 ${frameRatio.toFixed(2)}배(프레임 비)`, `실제 ${(got / one).toFixed(2)}배`)
   }
   const noA = computeCharge({ model: 'Seedance 2.0', res: '1080p', units: 5, kind: 'video' }).usd
   const wA = computeCharge({ model: 'Seedance 2.0', res: '1080p', units: 5, audio: true, kind: 'video' }).usd
@@ -85,7 +106,7 @@ console.log('\n③ 길이·옵션이 정확히 반영된다')
 console.log('\n④ 제공사가 알려준 실제 사용량이 추정보다 우선한다')
 {
   const est = computeCharge({ model: 'Seedance 2.0', res: '1080p', units: 5, kind: 'video' })
-  const half = computeCharge({ model: 'Seedance 2.0', res: '1080p', units: 5, kind: 'video', usageTokens: 243000 / 2 })
+  const half = computeCharge({ model: 'Seedance 2.0', res: '1080p', units: 5, kind: 'video', usageTokens: (1920 * 1080 * (24 * 5 + 1)) / 1024 / 2 })
   const none = computeCharge({ model: 'Seedance 2.0', res: '1080p', units: 5, kind: 'video', usageTokens: 0 })
   ok(near(half.usd, est.usd / 2), '실측 토큰이 절반이면 청구도 절반')
   ok(near(none.usd, est.usd, 1e-9), '실측이 없으면(0) 추정식으로 폴백')

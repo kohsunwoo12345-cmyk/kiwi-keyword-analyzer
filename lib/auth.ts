@@ -348,17 +348,27 @@ export interface AiUsageDay {
   d: string; count: number; credits: number; revenue: number; cost: number; profit: number
   rate: number; rateMin: number; rateMax: number
 }
+/** 제공사 청구서 대조용 — 제공사별 실비(USD)를 청구 기간과 같은 단위로 뽑는다. */
+export interface AiUsageProvider {
+  provider: string; count: number; usd: number; cost: number; credits: number; revenue: number
+}
 export interface AiUsageStats {
   ok: boolean; error?: string; days?: number; todayRate?: number
+  from?: string; to?: string
   totals?: { count: number; credits: number; revenue: number; cost: number; profit: number }
   byUser?: AiUsageUser[]
   byModel?: AiUsageModel[]
   byDay?: AiUsageDay[]
+  byProvider?: AiUsageProvider[]
   recent?: AiUsageRow[]
 }
-export async function adminAiUsage(days = 30): Promise<AiUsageStats> {
+/** days 로 최근 N일, 또는 from~to(YYYY-MM-DD)로 청구 기간을 그대로 지정한다. */
+export async function adminAiUsage(days = 30, range?: { from?: string; to?: string }): Promise<AiUsageStats> {
   try {
-    const r = await fetch(`/api/admin/ai-usage?days=${days}`, { credentials: 'include' })
+    const q = new URLSearchParams({ days: String(days) })
+    if (range?.from) q.set('from', range.from)
+    if (range?.to) q.set('to', range.to)
+    const r = await fetch(`/api/admin/ai-usage?${q}`, { credentials: 'include' })
     return await r.json()
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
