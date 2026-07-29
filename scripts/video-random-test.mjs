@@ -233,6 +233,49 @@ ok('화면이 단순 확대보다 또렷함', good.length>0 && sharpBad.length==
    sharpBad.length ? sharpBad.slice(0,3).map(x=>`#${x.c.i} ${x.r.sharpSr} vs ${x.r.sharpPlain}`).join(' , ')
                    : `${good.length}건 · 평균 ${(good.reduce((s,x)=>s+(x.r.sharpSr/Math.max(1e-6,x.r.sharpPlain)),0)/good.length).toFixed(2)}배 또렷`)
 
+// ── 영상 길이를 못 읽는 경우에도 멈추지 않는가 ──
+//  일부 브라우저·주소는 길이를 Infinity 로 준다. 그 상황을 그대로 흉내 내서,
+//  '끝으로 한 번 이동해 길이를 알아내는' 처리가 실제로 동작하는지 본다.
+//  (예전에는 이럴 때 300초짜리 작업으로 잡혀 2초 영상이 사실상 멈춘 것처럼 보였다)
+const unknownDur = await page.evaluate(async () => {
+  const T = window.__vt
+  const src = await T.make({ w:160, h:120, fps:24, ms:1200, audio:false })
+  const before = await T.info(src)
+  // 이 주소의 영상은 '끝으로 이동하기 전까지' 길이를 모르는 것처럼 보이게 만든다
+  const desc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'duration')
+  Object.defineProperty(HTMLMediaElement.prototype, 'duration', {
+    configurable: true,
+    get(){ const real = desc.get.call(this)
+      if(this.src === src && !this.__seenEnd) return Infinity
+      return real }
+  })
+  const ctDesc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime')
+  Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', {
+    configurable: true,
+    get(){ return ctDesc.get.call(this) },
+    set(v){ if(v > 1e6) this.__seenEnd = true
+      ctDesc.set.call(this, Math.min(v, 1e6)) }
+  })
+  let res, err=null
+  const t0=performance.now()
+  try{
+    res = await Promise.race([
+      window.__cn.upscaleVideoURL(src, 2, ()=>{}, { srcFps:24, hasAudio:false }),
+      new Promise((_,n)=>setTimeout(()=>n(new Error('시간 초과(180초) — 길이를 잘못 잡아 멈춤')),180000))
+    ])
+  }catch(e){ err=String(e&&e.message||e).slice(0,120) }
+  const ms=Math.round(performance.now()-t0)
+  Object.defineProperty(HTMLMediaElement.prototype, 'duration', desc)
+  Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', ctDesc)
+  if(err) return { err, ms }
+  const after = await T.info(res.url)
+  return { ms, before:before.dur, after:after.dur, dim:res.dim, engine:res.engine||'', note:res.note||'' }
+})
+console.log(`길이를 모르는 영상: ${unknownDur.err ? '오류 '+unknownDur.err : (unknownDur.before.toFixed(2)+'초 → '+unknownDur.after.toFixed(2)+'초 · '+unknownDur.dim+' · '+unknownDur.ms+'ms')}`)
+ok('영상 길이를 못 읽어도 멈추지 않고 제 길이로 나옴', !unknownDur.err &&
+   Math.abs(unknownDur.after - unknownDur.before) <= Math.max(0.4, unknownDur.before*0.25),
+   unknownDur.err || `${unknownDur.before.toFixed(2)}초 → ${unknownDur.after.toFixed(2)}초 (${unknownDur.ms}ms)`)
+
 const hf = reqs.filter(u=>/\/models\/(hf|lib\/transformers)/.test(u) && !/probe=1/.test(u))
 ok('남의 모델을 한 번도 내려받지 않음', hf.length===0, hf.length? hf.slice(0,2).join(' , ') : '0건')
 const ext = reqs.filter(u=>!u.startsWith(origin) && !/^(data|blob|about):/.test(u))
