@@ -2095,7 +2095,12 @@ var USD_KRW = 1400;
    회원이 540p 를 골라도 1080p 와 같은 금액이 청구된다 — 화질만 낮추고 요금은 그대로다.
    화소는 1080p 의 1/4, 720p 의 약 56% 다. 720p 가 0.6 이므로 비례해 0.35 를 잠정값으로 둔다.
    ※ 제공사 가격표를 확인하면 실측값으로 교체할 것. */
-var RES_MULT = { '540p':0.35, '720p':0.6, '1080p':1.0, '4K':2.6 };
+/* 해상도 배율 — 1080p 대비 화소비. 서버 _pricing.ts 의 RES_PX 에서 같은 식으로 만든다.
+   예전 눈대중 값(540p 0.35·720p 0.6·4K 2.6)은 실제 화소비(0.25·0.444·4.0)와 어긋나
+   고해상도일수록 원가보다 적게 받았다. 표시가와 청구가는 반드시 같은 식이어야 한다. */
+var RES_PX = { '480p':[854,480], '540p':[960,540], '720p':[1280,720], '1080p':[1920,1080], '4K':[3840,2160] };
+var _PX1080 = RES_PX['1080p'][0]*RES_PX['1080p'][1];
+var RES_MULT = (function(){ var o={}; for(var k in RES_PX) o[k]=(RES_PX[k][0]*RES_PX[k][1])/_PX1080; return o; })();
 // 모델 표시명 → 실제 단가.  u:'sec'(영상 초당) | 'img'(이미지 장당), usd, audio(오디오 초당 추가), prov(집계용)
 var MODEL_COST = {
   'V2V 자동 (최고정확도·모델 자동선택)': { u:'sec', usd:0.28, prov:'v2v_auto' },   // 1순위 Aleph 2.0 기준
@@ -2109,15 +2114,15 @@ var MODEL_COST = {
   'Runway Gen-4':                    { u:'sec', usd:0.05, prov:'runway' },
   'Runway Gen-3 Alpha Turbo':        { u:'sec', usd:0.05, prov:'runway' },
   'Grok Imagine (영상)':              { u:'sec', usd:0.10, prov:'xai' },
-  'Seedance 2.0':                    { u:'sec', usd:0.062, audio:0.02, prov:'seedance' },
-  'Seedance 2.0 Fast':               { u:'sec', usd:0.036, audio:0.02, prov:'seedance' },
-  'Seedance 2.0 Mini':               { u:'sec', usd:0.028, audio:0.02, prov:'seedance' },
-  'Seedance 1.5 Pro':                { u:'sec', usd:0.05,  prov:'seedance' },
-  'Seedance 1.0 Pro':                { u:'sec', usd:0.062, prov:'seedance' },
-  'Seedance 1.0 Pro Fast':           { u:'sec', usd:0.036, prov:'seedance' },
+  'Seedance 2.0':                    { u:'sec', usd:0.2284, audio:0.02, prov:'seedance' },
+  'Seedance 2.0 Fast':               { u:'sec', usd:0.1827, audio:0.02, prov:'seedance' },
+  'Seedance 2.0 Mini':               { u:'sec', usd:0.1142, audio:0.02, prov:'seedance' },
+  'Seedance 1.5 Pro':                { u:'sec', usd:0.1701,  prov:'seedance' },
+  'Seedance 1.0 Pro':                { u:'sec', usd:0.1458, prov:'seedance' },
+  'Seedance 1.0 Pro Fast':           { u:'sec', usd:0.0846, prov:'seedance' },
   // Seedance 1.0 Lite 2종은 이 계정에서 미개통(404) — 개통되면 두 줄만 되살리면 된다
-  // 'Seedance 1.0 Lite (텍스트→영상)':    { u:'sec', usd:0.018, prov:'seedance' },
-  // 'Seedance 1.0 Lite (이미지→영상)':    { u:'sec', usd:0.018, prov:'seedance' },
+  // 'Seedance 1.0 Lite (텍스트→영상)':    { u:'sec', usd:0.0875, prov:'seedance' },
+  // 'Seedance 1.0 Lite (이미지→영상)':    { u:'sec', usd:0.0875, prov:'seedance' },
   'MiniMax Hailuo 02':               { u:'sec', usd:0.048, prov:'hailuo' },
   'MiniMax T2V-01 Director':         { u:'sec', usd:0.043, prov:'hailuo' },
   'MiniMax I2V-01 Director':         { u:'sec', usd:0.043, prov:'hailuo' },
@@ -2239,6 +2244,22 @@ function fluxUsd(model, refs){
   var p = FLUX2_P[String(model||'')]; if(!p) return null;
   return (Number(refs)||0) > 0 ? p.edit : p.t2i;
 }
+/* 씨댄스는 초당 정액이 아니라 토큰 과금이다(서버 _pricing.ts 의 seedanceUsd 와 같은 식).
+   토큰 = 가로 × 세로 × fps × 초 ÷ 1024, 원가 = 토큰 × 100만토큰당단가 ÷ 1,000,000.
+   오디오는 토큰과 별개 항목이라 표의 초당 가산을 그대로 더한다. */
+var SEEDANCE_FPS = 24;
+var SEEDANCE_PER_M = { 'Seedance 2.0':4.7, 'Seedance 2.0 Fast':3.76, 'Seedance 2.0 Mini':2.35,
+  'Seedance 1.5 Pro':3.5, 'Seedance 1.0 Pro':3.0, 'Seedance 1.0 Pro Fast':1.74,
+  'Seedance 1.0 Lite (텍스트→영상)':1.8, 'Seedance 1.0 Lite (이미지→영상)':1.8 };
+function seedanceUsd(model, secs, res, audioOn){
+  var perM = SEEDANCE_PER_M[String(model||'')]; if(perM==null) return null;
+  var px = RES_PX[String(res||'1080p')] || RES_PX['1080p'];
+  var sc = Math.max(1, Math.round(Number(secs)||5));
+  var usd = (px[0]*px[1]*SEEDANCE_FPS*sc/1024) * perM / 1000000;
+  var m = MODEL_COST[model];
+  if(audioOn && m && m.audio) usd += m.audio * sc;
+  return usd;
+}
 /* 런웨이 Aleph 2.0 — 공식 표에 "생성당 최소 56크레딧($0.56)" 이 있다.
    초당 정액만 쓰면 1~2초짜리에서 원가에 못 미친다. */
 function runwayUsd(model, secs){
@@ -2266,6 +2287,7 @@ function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prom
   if(_lu==null) _lu = veoUsd(model, units, res);   // 루마·Veo·FLUX.2 는 실측 표가 우선
   if(_lu==null) _lu = fluxUsd(model, refCount);
   if(_lu==null) _lu = runwayUsd(model, units);
+  if(_lu==null) _lu = seedanceUsd(model, units, res, audioOn);
   if(_lu!=null){ usd=_lu; rate=isImg?_lu:(_lu/Math.max(1,units)); }
   costLog.push({ t:Date.now(), provider:prov, model:model||prov, units:units, unit:isImg?'img':'sec',
                  res:isImg?null:(res||'1080p'), audio:!!audioAdd, rate:rate, usd:usd });
