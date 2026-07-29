@@ -1666,10 +1666,23 @@ async function handle(context) {
             const isImg = MODEL_COST[mdl] && MODEL_COST[mdl].u !== "sec";
             const gUnits = isImg ? 1 : effectiveUnits({ ...pbody, model: mdl }, env);
             const gRes = isImg ? undefined : effectiveRes({ ...pbody, model: mdl }, env);
-            const cc = computeCharge({ model: mdl, units: gUnits, res: gRes, audio: !!pbody.generateAudio }, rate, mk, ckw);
-            const surPct = await resolveRefSurcharge(db, me.id);
-            const refMult = 1 + (surPct / 100) * Math.max(0, Number(pbody.refCount) || 0);
+            /* 값을 바꾸는 나머지 옵션도 여기서 한 번에 확정한다 — 아래 게이트 계산과 토큰이
+               같은 값을 써야 "통과시켜 놓고 더 크게 빠지는" 일이 없다.
+                 · hdr·exr : 스튜디오는 lumaHdr·lumaExr 라는 이름으로 보낸다. 예전엔 pbody.hdr 만
+                   봐서 루마 HDR 생성이 표준 요금으로 잡혔다(원가는 2배·EXR 3배인데 덜 받았다).
+                   effectiveFlags 를 태워 "실제 요청에 실릴 값" 만 인정한다.
+                 · 비율 : 표에 없는 값은 빌더가 정사각으로 떨어뜨린다 → 1.5배를 붙이면 안 된다. */
+            const gFlags = effectiveFlags({ ...pbody, model: mdl,
+                                            hdr: pbody.hdr === true || pbody.lumaHdr === true,
+                                            exr: pbody.exr === true || pbody.lumaExr === true });
+            const gRatio = effectiveRatio({ ...pbody, model: mdl });
+            const gRefs = Array.isArray(pbody.refImages) ? pbody.refImages.length
+                        : Math.max(0, Number(pbody.refCount) || Number(pbody.refs) || 0);
             const cnCount = Math.max(0, (pbody.controlnets && pbody.controlnets.length) || Number(pbody.cn) || 0);
+            const cc = computeCharge({ model: mdl, units: gUnits, res: gRes, audio: !!pbody.generateAudio,
+                                       refs: gRefs, hdr: gFlags.hdr, exr: gFlags.exr, ratio: gRatio }, rate, mk, ckw);
+            const surPct = await resolveRefSurcharge(db, me.id);
+            const refMult = 1 + (surPct / 100) * gRefs;
             const cnMult = cnCount > 0 ? 1 + (await resolveCnSurcharge(db)) / 100 : 1;
             const need = Math.round(cc.credits * refMult * cnMult * 100) / 100;
             if (need > 0 && Number(me.credits) < need) {
@@ -1681,8 +1694,7 @@ async function handle(context) {
                확정값을 토큰에 묶어 두고 차감할 때 그 값을 쓰게 한다. */
             context.__chargeToken = await issueGenCharge(db, me.id, {
               model: mdl, units: gUnits, res: gRes, audio: !!pbody.generateAudio,
-              ratio: pbody.ratio, refs: Math.max(0, Number(pbody.refCount) || 0), cn: cnCount,
-              hdr: !!pbody.hdr, exr: !!pbody.exr,
+              ratio: gRatio, refs: gRefs, cn: cnCount, hdr: gFlags.hdr, exr: gFlags.exr,
             });
           }
         } catch (_e) { /* 추정 실패 시 credits>0 게이트로 통과 (락아웃 방지) */ }
