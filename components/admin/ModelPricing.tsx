@@ -22,6 +22,8 @@ export function ModelPricing() {
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [edits, setEdits] = useState<Record<string, string>>({})
+  // 실측 단가 입력값(모델별). 비어 있으면 코드의 추정값을 그대로 쓴다.
+  const [costEdits, setCostEdits] = useState<Record<string, string>>({})
   const [bulk, setBulk] = useState('3')
   const [toast, setToast] = useState<string | null>(null)
 
@@ -117,6 +119,7 @@ export function ModelPricing() {
                   <th className="px-2 py-2 font-medium">모델</th>
                   <th className="px-2 py-2 font-medium">제공사</th>
                   <th className="px-2 py-2 font-medium">원가(×1)</th>
+                  <th className="px-2 py-2 font-medium">실측 단가(USD)</th>
                   <th className="px-2 py-2 font-medium">배수</th>
                   <th className="px-2 py-2 font-medium">적용 크레딧</th>
                   <th className="px-2 py-2 font-medium"></th>
@@ -124,9 +127,9 @@ export function ModelPricing() {
               </thead>
               <tbody>
                 {Object.entries(grouped).map(([cat, list]) => (
-                  <FragmentRows key={cat} cat={cat} list={list} edits={edits} setEdits={setEdits} busy={busy} scope={scope} activeUserId={activeUserId} act={act} />
+                  <FragmentRows key={cat} cat={cat} list={list} edits={edits} setEdits={setEdits} costEdits={costEdits} setCostEdits={setCostEdits} busy={busy} scope={scope} activeUserId={activeUserId} act={act} />
                 ))}
-                {models.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-[var(--text-dim)]">{loading ? '불러오는 중…' : '모델이 없습니다.'}</td></tr>}
+                {models.length === 0 && <tr><td colSpan={7} className="py-8 text-center text-[var(--text-dim)]">{loading ? '불러오는 중…' : '모델이 없습니다.'}</td></tr>}
               </tbody>
             </table>
           </div>
@@ -138,10 +141,10 @@ export function ModelPricing() {
   )
 }
 
-function FragmentRows({ cat, list, edits, setEdits, busy, scope, activeUserId, act }: any) {
+function FragmentRows({ cat, list, edits, setEdits, costEdits, setCostEdits, busy, scope, activeUserId, act }: any) {
   return (
     <>
-      <tr><td colSpan={6} className="px-2 pt-4 pb-1 text-[11px] font-bold uppercase tracking-wide text-violet-500">{cat}</td></tr>
+      <tr><td colSpan={7} className="px-2 pt-4 pb-1 text-[11px] font-bold uppercase tracking-wide text-violet-500">{cat}</td></tr>
       {list.map((m: any) => {
         const val = edits[m.model] ?? String(m.effectiveMarkup)
         const eff = Math.max(1, Number(val) || 1)
@@ -158,6 +161,22 @@ function FragmentRows({ cat, list, edits, setEdits, busy, scope, activeUserId, a
                 ? `${r2(m.baseCredits)} 크레딧`
                 : <span>&lt;0.01 크레딧<span className="ml-1 text-[11px] text-[var(--text-dim)]">(₩{m.baseKrw})</span></span>}
             </td>
+            {/* 실측 단가 — 청구서를 보고 "실제로 우리가 낸 값" 을 넣으면 추정 공식보다 앞서 적용된다.
+                Kling·BytePlus 처럼 공식 문서에 단일 단가가 없는 제공사를 배포 없이 바로잡는 통로다. */}
+            <td className="px-2 py-2">
+              <div className="flex items-center gap-1">
+                <span className="text-[var(--text-dim)]">$</span>
+                <input
+                  value={costEdits[m.model] ?? (m.costOverrideUsd ? String(m.costOverrideUsd) : '')}
+                  onChange={(e) => setCostEdits((p: any) => ({ ...p, [m.model]: e.target.value.replace(/[^0-9.]/g, '') }))}
+                  placeholder={m.kind === 'video' ? '초당' : '1건당'}
+                  className="w-20 rounded-lg border border-[var(--border-soft)] bg-white px-2 py-1.5 text-right text-sm" />
+                {m.costOverrideUsd > 0
+                  ? <button className="text-[10px] text-[var(--text-dim)] hover:text-rose-500" disabled={busy}
+                      onClick={() => act('reset_cost', { model: m.model }, `${m.model} 추정 단가로 되돌림`)}>해제</button>
+                  : <span className="text-[10px] text-[var(--text-dim)]">추정</span>}
+              </div>
+            </td>
             <td className="px-2 py-2">
               <div className="flex items-center gap-1">
                 <span className="text-[var(--text-dim)]">×</span>
@@ -168,7 +187,13 @@ function FragmentRows({ cat, list, edits, setEdits, busy, scope, activeUserId, a
             <td className="px-2 py-2 font-semibold text-violet-600">{credits} 크레딧</td>
             <td className="px-2 py-2 text-right">
               <div className="flex items-center justify-end gap-1">
-                <Button size="sm" variant="outline" disabled={busy} onClick={() => act(scope === 'user' ? 'set_user' : 'set_global', scope === 'user' ? { userId: activeUserId, model: m.model, markup: Number(val) } : { model: m.model, markup: Number(val) }, `${m.model} ×${r2(eff)} 적용`)}>
+                <Button size="sm" variant="outline" disabled={busy} onClick={async () => {
+                  /* 실측 단가를 입력했으면 그것부터 저장한다 — 원가가 바뀌면 배수 계산의 기준도 바뀐다. */
+                  const cv = costEdits[m.model]
+                  if (cv != null && cv !== '' && Number(cv) > 0 && Number(cv) !== m.costOverrideUsd)
+                    await act('set_cost', { model: m.model, usd: Number(cv) }, `${m.model} 실측 단가 $${cv} 저장`)
+                  await act(scope === 'user' ? 'set_user' : 'set_global', scope === 'user' ? { userId: activeUserId, model: m.model, markup: Number(val) } : { model: m.model, markup: Number(val) }, `${m.model} ×${r2(eff)} 적용`)
+                }}>
                   <Save size={13} />
                 </Button>
                 {overridden && <button className="rounded-lg px-2 py-1 text-xs text-[var(--text-dim)] hover:text-rose-500" disabled={busy} onClick={() => act(scope === 'user' ? 'reset_user' : 'reset_global', scope === 'user' ? { userId: activeUserId, model: m.model } : { model: m.model }, '기본값으로 초기화')}>초기화</button>}

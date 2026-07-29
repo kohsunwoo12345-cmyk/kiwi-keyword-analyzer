@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB } from '../_utils'
-import { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge, MODEL_COST } from './_pricing'
+import { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge, resolveCostOverride, MODEL_COST } from './_pricing'
 import { creditPriceFor } from '../payments/prepare'
 import { effectiveFlags, effectiveRatio } from '../generate.js'
 
@@ -30,7 +30,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     { model, units: Number(b.units) || 0, kind: kindP, res: b.res, audio: !!b.audio,
       refs: refCount, ...effectiveFlags({ model, hdr: !!b.hdr, exr: !!b.exr }),
       ratio: effectiveRatio({ model, ratio: String(b.ratio || '1:1') }) },
-    rate, markup, creditKrw)
+    rate, markup, creditKrw, await resolveCostOverride(db, model))
   const surPct = await resolveRefSurcharge(db, me.id)
   const refMult = 1 + (surPct / 100) * refCount
   const cnCount = Math.max(0, Number(b.cn) || 0)
