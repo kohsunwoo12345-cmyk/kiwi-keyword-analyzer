@@ -1,5 +1,5 @@
 import { Env, resolveDB } from '../_utils'
-import { ensureIgSchema, igOwnerByBusinessId, getIgCredentials } from './_ig'
+import { ensureIgSchema, igOwnerByBusinessId, getIgCredentials, getIgAppConfig } from './_ig'
 
 const text = (body: string, status = 200) =>
   new Response(body, { status, headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
@@ -27,7 +27,18 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const db = resolveDB(env)
     if (!db) return text('EVENT_RECEIVED', 200)
     await ensureIgSchema(db)
-    const appSecret = (env as any)?.Instargram_APP_SECRET
+    // ⚠ 예전에는 환경변수 Instargram_APP_SECRET 하나만 봤다. 그런데 앱 시크릿을 실제로 넣는 곳은
+    //   관리자 화면 "앱 설정" 이고, 그 값은 DB(instagram_app_config) 에 들어간다.
+    //   그래서 시크릿을 제대로 설정해 두어도 여기서는 "설정 안 됨" 으로 보여 서명 검증을
+    //   통째로 건너뛰었다 — 아무나 위조 이벤트를 넣어 회원 계정으로 DM 을 쏘게 만들 수 있었다.
+    //   앱 설정을 읽는 단일 경로(getIgAppConfig)로 맞춘다.
+    const cfg = await getIgAppConfig(env, db).catch(() => ({ appSecret: '' } as any))
+    const appSecret =
+      cfg?.appSecret ||
+      (env as any)?.Instargram_APP_SECRET ||
+      (env as any)?.INSTAGRAM_APP_SECRET ||
+      (env as any)?.Instagram_APP_SECRET ||
+      ''
     let body: any
 
     if (appSecret) {
