@@ -25,7 +25,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const refCount = Math.max(0, Number(b.refs) || 0)
   const c = computeCharge(
     { model, units: Number(b.units) || 0, kind: kindP, res: b.res, audio: !!b.audio,
-      refs: refCount, hdr: !!b.hdr, exr: !!b.exr },
+      refs: refCount, hdr: !!b.hdr, exr: !!b.exr, ratio: String(b.ratio || '1:1') },
     rate, markup, creditKrw)
   const surPct = await resolveRefSurcharge(db, me.id)
   const refMult = 1 + (surPct / 100) * refCount

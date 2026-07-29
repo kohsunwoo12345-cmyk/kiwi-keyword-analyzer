@@ -121,6 +121,20 @@ const RES_MULT: Record<string, number> = Object.fromEntries(
   Object.entries(RES_PX).map(([k, [w, h]]) => [k, (w * h) / PX_1080P]),
 )
 
+/* ══ 단가 근거 등급 (2026-07 기준) ═════════════════════════════════════════
+   ● 원문 확인 — 제공사 공식 요금표를 직접 읽고 맞춘 값
+       Runway(런웨이 크레딧표) · Google Veo · BFL FLUX.2 · Luma Agents      21종
+   ● 공시가 대조 — 토큰식으로 계산한 값이 마켓플레이스 공시가와 일치함을 확인
+       Seedance 전 계열 (fal 공시가로 1.0 Pro·1.0 Lite 재현)                8종
+       OpenAI 이미지 (medium 등급 정사각 $0.042 / 긴 쪽 $0.063 일치)          4종
+   ○ 미확인 — 출처를 못 잡았거나 재판매가만 있어 손대지 않은 값
+       Kling 11 · Seedream 8 · promptgen 14 · MiniMax 3 · 3D 2 · xAI 2 ·
+       Nano Banana(구글 공식가 확인됨) · 음악/업스케일/나레이션/립싱크/모션    약 50종
+
+   미확인 항목의 위험 크기는 마크업이 정한다. 매출 = 원가 × 마크업(2.5 또는 3.0)이므로
+   실제 원가가 표보다 그 배수 넘게 비싸면 팔수록 손해다. 씨댄스가 정확히 그 경우였다
+   (실제가 3.7배 비쌌다). 확인은 제공사 청구서를 월 사용량으로 나눠 역산하는 것이 가장 확실하다.
+   ══════════════════════════════════════════════════════════════════════ */
 // 모델 표시명 → 단가.
 // u:'sec'(영상 초당) | 'img'(이미지 장당) | '3d'(모델 1개당) | 'tok'(호출 1회당), usd, audio(오디오 초당 추가), prov(집계용)
 export type CostUnit = 'sec' | 'img' | '3d' | 'tok'
@@ -215,8 +229,8 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
   'Nano Banana': { u: 'img', usd: 0.039, prov: 'nanobanana' },
   'GPT Image 2': { u: 'img', usd: 0.08, prov: 'openai' },
   'GPT Image 1.5': { u: 'img', usd: 0.06, prov: 'openai' },
-  'GPT Image': { u: 'img', usd: 0.04, prov: 'openai' },
-  'GPT Image Mini': { u: 'img', usd: 0.015, prov: 'openai' },
+  'GPT Image': { u: 'img', usd: 0.042, prov: 'openai' },
+  'GPT Image Mini': { u: 'img', usd: 0.011, prov: 'openai' },
   /* FLUX.2 는 API 제공분이 max·pro·flex 셋(dev 는 오픈웨이트라 API 없음) — probe-all 로 셋 다 확인됨.
      BFL 은 "요청당" 이 아니라 "출력 메가픽셀당" 과금한다(1크레딧=$0.01). 우리 출력은 약 1MP
      (1024x1024=1.05MP · 1344x768=1.03MP)라 1MP 단가를 그대로 쓴다.
@@ -292,6 +306,7 @@ export interface ChargeInput {
   hdr?: boolean // 루마 전용 — HDR 출력이면 요금표가 달라진다
   exr?: boolean // 루마 전용 — EXR 동시 내보내기(HDR 전제)
   refs?: number // 루마 이미지 전용 — 레퍼런스 장수마다 원가가 오른다
+  ratio?: string // 이미지 비율 — OpenAI 는 가로/세로가 길면 원가가 1.5배다
 }
 
 export interface ChargeResult {
@@ -361,6 +376,24 @@ const SEEDANCE_PER_M: Record<string, number> = {
   'Seedance 1.0 Pro Fast': 1.74,      // 3.0 × 0.58 (기존 표의 Pro 대비 비율 유지)
   'Seedance 1.0 Lite (텍스트→영상)': 1.8,
   'Seedance 1.0 Lite (이미지→영상)': 1.8,
+}
+
+/* ── OpenAI 이미지: 크기에 따라 원가가 다르다 ──────────────────────────────
+   공식 medium 등급 기준 gpt-image-1 은 1024×1024 $0.042, 1536×1024·1024×1536 $0.063 —
+   정사각형이 아니면 정확히 1.5배다. 우리 비율 9종 중 8종이 긴 쪽으로 나가는데
+   지금까지 크기와 무관하게 한 값으로 청구해 왔다.
+   (high 등급은 $0.167 / $0.25 로 4배지만, 우리는 buildOpenAIImagePayload 에서
+    medium 으로 고정해 원가를 결정적으로 만들었다.) */
+const OPENAI_SQUARE_RATIOS = new Set(['1:1'])
+const OPENAI_LONG_FACTOR = 1.5
+
+/** OpenAI 이미지면 비율에 따른 원가(USD)를 낸다. 아니면 null. */
+function openaiImgUsd(input: ChargeInput): number | null {
+  const m = MODEL_COST[String(input.model || '')]
+  if (!m || m.prov !== 'openai') return null
+  const ratio = String(input.ratio || '1:1')
+  const square = OPENAI_SQUARE_RATIOS.has(ratio)
+  return m.usd * (square ? 1 : OPENAI_LONG_FACTOR)
 }
 
 /** 씨댄스면 토큰식으로 원가(USD)를 낸다. 아니면 null → 다음 규칙으로 간다. */
@@ -477,7 +510,7 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
   const isFlat = m ? (m.u === 'img' || m.u === '3d' || m.u === 'tok') : input.kind === 'image'
   const isImg = isFlat
   let usd: number
-  const lu = lumaUsd(input) ?? veoUsd(input) ?? fluxUsd(input) ?? runwayUsd(input) ?? seedanceUsd(input)   // 공식 요금표가 있는 제공사 우선
+  const lu = lumaUsd(input) ?? veoUsd(input) ?? fluxUsd(input) ?? runwayUsd(input) ?? seedanceUsd(input) ?? openaiImgUsd(input)   // 공식 요금표가 있는 제공사 우선
   if (lu != null) {
     usd = lu
   } else if (isImg) {

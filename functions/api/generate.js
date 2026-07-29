@@ -969,8 +969,11 @@ export const OPENAI_IMG_ID = {
   "GPT Image": "gpt-image-1", "GPT Image Mini": "gpt-image-1-mini"
 };
 export function buildOpenAIImagePayload(b) {
+  /* quality 를 안 보내면 OpenAI 기본값이 적용되는데, 그 값이 문서에 명시돼 있지 않다.
+     같은 모델·같은 크기라도 low/medium/high 원가가 $0.011 / $0.042 / $0.167 로 15배 차이라
+     원가가 비결정적이면 정확한 과금 자체가 불가능하다. 단가표가 잡고 있는 medium 으로 고정한다. */
   return { model: OPENAI_IMG_ID[b.model] || "gpt-image-1", prompt: cut(b.prompt, 4000),
-           size: OPENAI_SIZE[b.ratio] || "1024x1024", n: 1 };
+           size: OPENAI_SIZE[b.ratio] || "1024x1024", quality: "medium", n: 1 };
 }
 
 /* ── Hailuo (MiniMax) 영상 생성 ── */
