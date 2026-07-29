@@ -41,7 +41,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   //  지울 목록은 purgeUserData 한 곳에서만 관리한다 — 예전에는 본인 탈퇴와 관리자 삭제가
   //  각자 목록을 들고 있어 한쪽에만 추가되는 일이 반복됐고, 그래서 연락처·신청자·발송 이력이
   //  탈퇴 후에도 남아 있었다.
-  await purgeUserData(db, uid)
+  await purgeUserData(db, uid, env)
   const del = async (sql: string, ...b: any[]) => { try { await db.prepare(sql).bind(...b).run() } catch { /* ignore */ } }
   await del('DELETE FROM users WHERE id = ?', uid)
 

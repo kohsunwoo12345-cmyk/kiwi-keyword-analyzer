@@ -2068,11 +2068,10 @@ var POSTER='/images/marketing-hero.png';
    API 연동 레이어 (Pluggable API Adapter Layer)
    ───────────────────────────────────────────────────────────────────────────
    실제 AI 모델 API 는 여기 한 곳에서만 연결하면 100% 동일하게 동작합니다.
-   · API_CONFIG : 제공사(provider)별 API 키. API 연결 설정 모달에서 입력.
+   · API_CONFIG : 프록시 주소(선택). 제공사 키는 브라우저에 두지 않는다 — 전부 서버 환경변수다.
    · MODEL_PROVIDER : 각 모델 → 제공사 매핑.
-   · ADAPTERS : 제공사별 실제 호출 함수 (async). 지금은 데모 폴백,
-                키가 입력되면 아래 fetch(...) 주석을 실제 엔드포인트로 채우면 됩니다.
-   · generateWithAPI(params) : 통합 진입점. 키 없으면 데모 영상으로 폴백.
+   · generateWithAPI(params) : 통합 진입점. 생성은 예외 없이 서버(/api/generate)를 거쳐
+     공식 제공사 API 로만 나간다(브라우저에서 제공사를 직접 부르는 경로는 없앴다).
    ═══════════════════════════════════════════════════════════════════════════ */
 /* ── 사용자별 데이터 분리: 모든 저장 키를 로그인 계정 ID 로 네임스페이스 ──
    UID 는 /api/me 로 확정되기 전엔 'guest'. 확정 후 loadAll() 이 계정 데이터를 읽어온다. */
@@ -3077,49 +3076,13 @@ async function callProxy(params){
   throw new Error(j.error||'proxy: 응답에 url 없음');
 }
 
-/* ── 제공사 직접 어댑터 (프록시 미사용 시). 첫/마지막 프레임 지원 ──
-   fal.ai 는 브라우저 직접 호출이 비교적 안전(키 방식)하여 예시로 실동작 구현.
-   나머지는 CORS 로 브라우저 직접 호출이 막히므로 프록시 경유를 권장. */
-var FAL_MODEL_ID = {
-  'Wan 2.1':'fal-ai/wan-i2v','Hunyuan Video':'fal-ai/hunyuan-video','LTX Video':'fal-ai/ltx-video',
-  'Mochi 1':'fal-ai/mochi-v1','Vidu Q1':'fal-ai/vidu/image-to-video',
-  'Luma Ray2':'fal-ai/luma-dream-machine/ray-2',
-  'Hailuo MiniMax':'fal-ai/minimax/video-01','Pika 2.1':'fal-ai/pika/v2.1/image-to-video','Seedance 1.0':'fal-ai/bytedance/seedance/v1/pro',
-  // ── Kling (클링) 전체 ──
-  'Kling 2.1 Master (텍스트→영상)':'fal-ai/kling-video/v2.1/master/text-to-video',
-  'Kling 2.1 Master (이미지→영상)':'fal-ai/kling-video/v2.1/master/image-to-video',
-  'Kling 2.0 Master (텍스트→영상)':'fal-ai/kling-video/v2/master/text-to-video',
-  'Kling 2.0 Master (이미지→영상)':'fal-ai/kling-video/v2/master/image-to-video',
-  'Kling 1.6 Pro (텍스트→영상)':'fal-ai/kling-video/v1.6/pro/text-to-video',
-  'Kling 1.6 Pro (이미지→영상)':'fal-ai/kling-video/v1.6/pro/image-to-video',
-  'Kling 1.6 Standard (이미지→영상)':'fal-ai/kling-video/v1.6/standard/image-to-video',
-  'Kling 2.0':'fal-ai/kling-video/v2/master/image-to-video','Kling 1.6':'fal-ai/kling-video/v1.6/pro/image-to-video'
-};
-var ADAPTERS = {
-  fal: async function(p){
-    var modelId=FAL_MODEL_ID[p.model]||'fal-ai/wan-i2v';
-    var body={ prompt:p.prompt, negative_prompt:p.negative, seed:p.seed, duration:p.seconds, aspect_ratio:p.ratio };
-    if(p.firstFrame) body.image_url=p.firstFrame;      // 첫 프레임 (image-to-video 시작 이미지)
-    else if(p.refImage) body.image_url=p.refImage;
-    if(p.lastFrame) body.tail_image_url=p.lastFrame;    // 마지막 프레임 (지원 모델 한정)
-    var r=await fetch('https://queue.fal.run/'+modelId,{method:'POST',
-      headers:{'Authorization':'Key '+p.apiKey,'Content-Type':'application/json'},body:JSON.stringify(body)});
-    if(!r.ok) throw new Error('fal '+r.status);
-    var j=await r.json();
-    var out=await pollJob(j.status_url,{'Authorization':'Key '+p.apiKey},function(s){
-      if(s.status==='FAILED') return Promise.reject(new Error('fal failed'));
-      return s.status==='COMPLETED'? s : null;
-    });
-    var rr=await fetch(out.response_url,{headers:{'Authorization':'Key '+p.apiKey}});
-    var res=await rr.json();
-    var url=res.video&&res.video.url? res.video.url : (res.url||null);
-    if(!url) throw new Error('fal: no video');
-    return { url:url, poster:p.firstFrame||null, type:'fal' };
-  }
-  /* runway/openai/google/kling/luma/pika/minimax/elevenlabs 는 CORS 로
-     브라우저 직접 호출이 막힙니다 → 위 callProxy(프록시) 경유를 사용하세요.
-     프록시 백엔드에서 각 제공사 SDK 로 호출하면 첫/마지막 프레임까지 그대로 전달됩니다. */
-};
+/* ── 브라우저에서 제공사를 직접 부르던 경로는 없앴다 ──
+   예전엔 fal.ai 용 어댑터(FAL_MODEL_ID + ADAPTERS.fal)를 두고, 프록시가 실패하면
+   브라우저가 직접 fal 로 생성을 넘겼다. 표에는 클링 전체·씨댄스·Luma Ray2·Hailuo 처럼
+   우리가 공식 API 를 따로 연동해 둔 모델이 그대로 들어 있었다 —
+   그 길로 나가면 ①공식 기준으로 만든 단가표와 실제 청구가 어긋나고
+   ②제공사 쪽 사용 이력이 갈라지며 ③fal 키가 브라우저에 노출된다.
+   생성은 전부 서버(/api/generate)를 거쳐 공식 API 로만 나간다. */
 
 /* ── 결과물 마지막 프레임 추출 (영상 체이닝용) ── */
 function sameOriginMedia(url){
@@ -3524,10 +3487,6 @@ async function generateWithAPI(params){
     ' · ff:'+shortv(params.firstFrame)+' · lf:'+shortv(params.lastFrame)+
     ' · vid:'+shortv(params.srcVideo)+hostErr+']';
   if(err) err=err+diag;
-  if(API_CONFIG[prov] && ADAPTERS[prov]){        // ② 제공사 직접 호출(fal 등, 키 있을 때만)
-    try{ var out=await ADAPTERS[prov](params); if(out&&out.url) return out; }
-    catch(e){ err=(err?err+' / ':'')+prov+' 직접호출 실패'+diag; }
-  }
   return { error: err||('생성 실패'+diag), type:'error', provider:prov };
 }
 
@@ -5801,6 +5760,12 @@ function widgetHTML(n,w){
       rows+
       globals+
       (list.length? '<div style="margin-top:5px;font-size:9px;color:#5f7078;line-height:1.4;">'+tr('Depth는 브라우저 근사, Pose는 최초 1회 인식 모델을 불러옵니다. 실제 생성은 fal 정밀 전처리를 사용합니다.')+'</div>':'')+
+      /* ControlNet 을 켜면 위에서 고른 모델이 아니라 FLUX.1-dev + ControlNet Union 이 돈다.
+         공식 BFL API 에는 다중 스택·포즈가 없어 이 조합으로만 되는 기능인데, 그 사실을 안 알려 주면
+         "Flux 1.1 Pro 로 만든 줄" 알게 된다 → 실제로 도는 모델을 그대로 밝힌다. */
+      (list.length && n.type!=='model' ? '<div style="margin-top:4px;font-size:9px;color:#c9a227;line-height:1.4;">'
+        + tr('⚠ ControlNet을 켜면 위에서 고른 모델 대신 FLUX.1-dev + ControlNet Union이 실행됩니다')
+        + ' — ' + tr('다중 스택·포즈는 공식 BFL API에 없는 기능입니다. 끄면 고른 모델 그대로 생성됩니다.') + '</div>' : '')+
     '</div>';
   }
   if(w.t==='schedule'){   // 정기 자동 생성 — 서버가 정해진 시각에 대신 만들어 둔다

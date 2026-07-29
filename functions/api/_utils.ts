@@ -753,7 +753,7 @@ export function planPriceKrw(track: string, plan: string): number {
  * 결제 원장(payments)은 일부러 남긴다 — 매출·정산·세금계산서의 단일 소스라
  *   지우면 과거 매출이 통째로 사라진다(회원 식별 정보는 users 삭제로 끊긴다).
  */
-export async function purgeUserData(db: D1Database, uid: string): Promise<void> {
+export async function purgeUserData(db: D1Database, uid: string, env?: any): Promise<void> {
   const del = async (sql: string, ...b: any[]) => {
     try { await db.prepare(sql).bind(...b).run() } catch { /* 없는 테이블/컬럼은 무시 */ }
   }
@@ -796,9 +796,31 @@ export async function purgeUserData(db: D1Database, uid: string): Promise<void> 
   await del('DELETE FROM funnel_groups WHERE user_id = ?', uid)
   await del('DELETE FROM funnels WHERE user_id = ?', uid)
   // 랜딩(비퍼널)
+  //  ⚠ 순서 주의 — 방문 기록과 공유 링크는 slug 로만 이어져 있어서 landing_pages 를 먼저 지우면
+  //    누구 것인지 알 길이 없어 영영 남는다. 실제로 탈퇴·강제 삭제 후에도
+  //    landing_page_views 에 방문자 IP·UA 가 그대로 남아 있었고(그 회원의 고객 개인정보다),
+  //    /report/{token} 공유 리포트도 계속 열렸다.
+  await del('DELETE FROM landing_page_views WHERE landing_slug IN (SELECT slug FROM landing_pages WHERE user_id = ?)', uid)
+  await del('DELETE FROM landing_traffic_shares WHERE slug IN (SELECT slug FROM landing_pages WHERE user_id = ?)', uid)
   await del('DELETE FROM form_submissions WHERE landing_page_id IN (SELECT id FROM landing_pages WHERE user_id = ?)', uid)
   await del('DELETE FROM landing_pages WHERE user_id = ?', uid)
   await del('DELETE FROM landing_folders WHERE user_id = ?', uid)
+  // 빌더로 올린 이미지 — D1 폴백 저장분과 R2 객체 모두
+  const mediaPrefix = `landing-images/${uid}/`
+  await del("DELETE FROM media_blobs WHERE key LIKE ?", mediaPrefix + '%')
+  try {
+    const bucket: any = env ? resolveBucket(env) : null
+    if (bucket) {
+      let cursor: string | undefined
+      for (let round = 0; round < 20; round++) {
+        const listed: any = await bucket.list({ prefix: mediaPrefix, limit: 500, cursor })
+        const keys = (listed?.objects || []).map((o: any) => o.key)
+        if (keys.length) await bucket.delete(keys)
+        if (!listed?.truncated) break
+        cursor = listed.cursor
+      }
+    }
+  } catch { /* 버킷 미설정이면 넘어간다 */ }
   // 순위 추적
   await del('DELETE FROM naver_place_tracking WHERE user_id = ?', uid)
   await del('DELETE FROM blog_rank_track_history WHERE track_id IN (SELECT id FROM blog_rank_tracks WHERE user_id = ?)', uid)

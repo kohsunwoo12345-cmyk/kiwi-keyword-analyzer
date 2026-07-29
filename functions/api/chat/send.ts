@@ -1,4 +1,4 @@
-import { Env, json, ensureSchema, getSessionUser, resolveDB, addNotification } from '../_utils'
+import { Env, json, ensureSchema, getSessionUser, resolveDB, addNotification, rateLimitOk, clientIp } from '../_utils'
 
 // 질문 내용에 맞춘 일반 자동응답(FAQ). 한글이 있으면 한국어, 아니면 영어로 답한다.
 function cannedReply(text: string): string {
@@ -72,9 +72,17 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!text) return json({ ok: false, error: '메시지를 입력하세요.' }, 400)
 
   // 대화 식별: 로그인=user_id, 게스트=클라이언트가 준 conv_id(없으면 새로 발급)
+  // ⚠ 게스트가 준 conv_id 를 그대로 받았다. 남의 회원 id 를 conv_id 로 적으면
+  //   그 회원의 상담창에 sender='user' 로 글이 꽂혔다 — 피해자가 자기 상담창을 열면
+  //   자기가 쓴 것처럼 보이고, 관리자 콘솔에도 그 회원 대화로 붙는다.
+  //   조회(chat/thread)는 이미 게스트를 g_ 형식으로만 제한하고 있었다. 쓰기도 같은 기준을 쓴다.
   let convId = String(b.conv_id || '').slice(0, 60)
   if (me) convId = me.id
+  else if (convId && !/^g_[A-Za-z0-9]+$/.test(convId)) convId = ''
   if (!convId) convId = 'g_' + crypto.randomUUID().replace(/-/g, '').slice(0, 18)
+  // 비회원 쓰기 경로라 한도를 둔다(한 번에 문의 1건 + 자동응답 1건이 들어간다)
+  if (!me && !(await rateLimitOk(db, `chat:${clientIp(request) || 'unknown'}`, 20, 10)))
+    return json({ ok: false, error: '잠시 후 다시 시도해 주세요.' }, 429)
 
   const name = me?.name || String(b.name || '').trim().slice(0, 40) || '게스트'
   const email = me?.email || String(b.email || '').trim().slice(0, 120)
