@@ -84,7 +84,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   } else if (action === 'delete') {
     // 지울 목록은 purgeUserData 한 곳에서만 관리한다(본인 탈퇴 경로와 동일).
     //  예전에는 여기 목록이 짧아, 관리자가 지운 회원의 연락처·신청자·발송 이력이 그대로 남았다.
-    await purgeUserData(db, id)
+    await purgeUserData(db, id, env)
     await db.prepare('DELETE FROM users WHERE id = ?').bind(id).run()
   } else if (action === 'plan') {
     const plan = ['없음', 'Plus', 'Pro', 'Max'].includes(body.plan) ? body.plan : '없음'
