@@ -14,6 +14,7 @@ import {
   rewardReferralFirstPaid,
   planPriceKrw,
 } from '../_utils'
+import { ensureSenderSchema, docsBySender, missingDocs } from '../sender/_schema'
 import { getPlanConfig, planPriceEffective } from '../_plans'
 import { recordPayment } from '../_billing'
 
@@ -168,6 +169,18 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   } else if (type === 'sender') {
     const req: any = await db.prepare('SELECT * FROM sender_numbers WHERE id = ?').bind(id).first()
     if (!req) return json({ ok: false, error: '요청을 찾을 수 없습니다.' }, 404)
+    // 승인 문은 두 개다(/api/admin/senders 와 여기). 서류 검사를 한쪽에만 걸면
+    //  다른 쪽으로 그냥 승인돼 버리므로 여기서도 똑같이 막는다.
+    if (decision === 'approve') {
+      await ensureSenderSchema(db)
+      const docs = (await docsBySender(db, [id]))[id] || []
+      const miss = missingDocs(req, docs)
+      if (miss.length)
+        return json(
+          { ok: false, error: `필수 서류가 첨부되지 않아 승인할 수 없습니다. (미첨부: ${miss.map((m) => m.label).join(', ')})`, missing: miss },
+          409,
+        )
+    }
     if (!(await decide('sender_numbers'))) return dup()
     if (decision === 'approve') {
       await db.prepare('UPDATE users SET phone = ? WHERE id = ? AND (phone IS NULL OR phone = "")').bind(req.phone, req.user_id).run()

@@ -30,5 +30,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env, params }
     return json({ ok: false, error: '발송 요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.' }, 429)
 
   const r = await dispatchCampaign(db, env as any, id)
-  return json({ ...r }, r.ok ? 200 : 200)
+  // 실패해도 200 을 돌려주고 있었다 — 이미 발송된 집행에 다시 "발송"을 눌러도 HTTP 는 성공이라,
+  //  res.ok 만 보는 쪽에서는 "보냈다"로 읽힌다. 실패 원인에 맞는 코드로 내려준다.
+  const err = String(r.error || '')
+  const status = r.ok
+    ? 200
+    : /이미 발송|발송 처리 중|취소된/.test(err)
+      ? 409
+      : /포인트/.test(err)
+        ? 402
+        : 400
+  return json({ ...r }, status)
 }

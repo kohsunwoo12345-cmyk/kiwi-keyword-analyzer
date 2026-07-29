@@ -29,6 +29,9 @@ export const onRequestGet: PagesFunction = async ({ request, env, params }) => {
     const rawKey = Array.isArray(raw) ? raw.join('/') : String(raw || '')
     const key = decodeURIComponent(rawKey)
     if (!key) return cjson({ error: 'no key' }, 400)
+    // 발신번호 승인 서류(신분증·사업자등록증)는 이 공개 경로로 절대 내보내지 않는다.
+    //  키를 알아도 남이 볼 수 없어야 해서, 인증이 걸린 /api/sender/doc/<id> 로만 서빙한다.
+    if (/^sender-docs\//i.test(key)) return cjson({ error: '파일 없음' }, 404)
     const R2: any = resolveBucket(env)
 
     // D1 폴백 서빙 — R2 미설정이거나 R2 에 없을 때 media_blobs 에서 제공

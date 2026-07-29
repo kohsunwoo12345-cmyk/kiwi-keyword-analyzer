@@ -1112,7 +1112,8 @@ export default function ProfilePage() {
                 {/* B) 발신번호 등록 */}
                 <Card title={<>발신번호 등록</>}>
                   <p className="mb-3 rounded-xl border border-[var(--border-soft)] bg-[var(--panel-2)] px-3.5 py-2.5 text-sm text-[var(--text-soft)]">
-                    문자 발송에 사용할 발신번호를 등록하면 관리자 승인 후 사용할 수 있어요.
+                    문자 발송에 쓸 발신번호를 등록합니다. 통신사 정책상 <b>명의 증빙 서류 사진</b>을 모두 첨부해야 승인 신청을 낼 수 있어요.
+                    <a href="/dashboard_USE17237_612/sender-numbers" className="ml-1 font-semibold text-indigo-500 hover:underline">발신번호 승인 페이지에서 첨부하기 →</a>
                   </p>
                   <form onSubmit={submitSender} className="space-y-3">
                     <div>
@@ -1145,7 +1146,9 @@ export default function ProfilePage() {
 
                     {senderOk && (
                       <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-500">
-                        <Check size={15} /> 발신번호가 접수되었습니다. 관리자 승인 후 사용할 수 있어요.
+                        <Check size={15} /> 신청서를 만들었습니다.{' '}
+                        <a href="/dashboard_USE17237_612/sender-numbers" className="font-semibold underline">발신번호 승인 페이지</a>
+                        에서 필수 서류를 첨부한 뒤 제출해 주세요.
                       </div>
                     )}
                     {senderErr && (

@@ -25,6 +25,8 @@ import {
   Users,
   Contact,
   CalendarRange,
+  ShieldCheck,
+  KeyRound,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -69,6 +71,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
     items: [
       { title: '문자 발송', href: '/dashboard_USE17237_612/sms', icon: Send },
       { title: '문자 작성', href: '/dashboard_USE17237_612/sms/compose', icon: PenSquare },
+      { title: '발신번호 승인', href: '/dashboard_USE17237_612/sender-numbers', icon: ShieldCheck },
       { title: '발송 이력·통계', href: '/dashboard_USE17237_612/sms/logs', icon: BarChart3 },
     ],
   },
@@ -79,6 +82,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
     accent: '#f59e0b',
     items: [
       { title: '알림톡 발송', href: '/dashboard_USE17237_612/alimtalk', icon: MessageCircle },
+      { title: '알림톡 채널 등록', href: '/dashboard_USE17237_612/alimtalk/register', icon: KeyRound },
       { title: '알림톡 템플릿', href: '/dashboard_USE17237_612/alimtalk/templates', icon: LayoutTemplate },
       { title: '발송 통계', href: '/dashboard_USE17237_612/alimtalk/logs', icon: BarChart3 },
     ],

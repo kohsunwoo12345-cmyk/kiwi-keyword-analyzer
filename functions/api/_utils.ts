@@ -820,6 +820,23 @@ export async function purgeUserData(db: D1Database, uid: string, env?: any): Pro
   await del('DELETE FROM team_orders WHERE user_id = ?', uid)
   await del('DELETE FROM coupon_redemptions WHERE user_id = ?', uid)
   // 발송 관련(연락처는 남의 개인정보다 — 반드시 함께 지운다)
+  //  발신번호 승인 서류는 신분증·사업자등록증이다 — 행뿐 아니라 실제 파일까지 지운다.
+  const docPrefix = `sender-docs/${uid}/`
+  await del('DELETE FROM media_blobs WHERE key LIKE ?', docPrefix + '%')
+  try {
+    const bucket: any = env ? resolveBucket(env) : null
+    if (bucket) {
+      let cursor: string | undefined
+      for (let round = 0; round < 20; round++) {
+        const listed: any = await bucket.list({ prefix: docPrefix, limit: 500, cursor })
+        const keys = (listed?.objects || []).map((o: any) => o.key)
+        if (keys.length) await bucket.delete(keys)
+        if (!listed?.truncated) break
+        cursor = listed.cursor
+      }
+    }
+  } catch { /* 버킷 미설정이면 넘어간다 */ }
+  await del('DELETE FROM sender_documents WHERE user_id = ?', uid)
   await del('DELETE FROM sender_numbers WHERE user_id = ?', uid)
   await del('DELETE FROM contact_group_members WHERE group_id IN (SELECT id FROM contact_groups WHERE user_id = ?)', uid)
   await del('DELETE FROM contact_groups WHERE user_id = ?', uid)
