@@ -122,18 +122,31 @@ const RES_MULT: Record<string, number> = Object.fromEntries(
 )
 
 /* ══ 단가 근거 등급 (2026-07 기준) ═════════════════════════════════════════
+   우리는 재판매 사이트가 아니라 제공사 공식 API 를 직접 호출한다
+   (Kling=api-singapore.klingai.com, 씨댄스·씨드림·3D=ark.ap-southeast.bytepluses.com).
+   그래서 fal·Kie 같은 재판매가는 참고용일 뿐 우리 원가가 아니다.
+
+   ◎ 실측 — 제공사가 응답으로 알려준 값으로 청구 (추정 없음)
+       씨댄스: ModelArk 이 usage.completion_tokens 를 돌려준다. 그 값이 오면 그대로 쓰고,
+               안 오면 아래 토큰식으로 추정한다.
    ● 원문 확인 — 제공사 공식 요금표를 직접 읽고 맞춘 값
-       Runway(런웨이 크레딧표) · Google Veo · BFL FLUX.2 · Luma Agents      21종
-   ● 공시가 대조 — 토큰식으로 계산한 값이 마켓플레이스 공시가와 일치함을 확인
-       Seedance 전 계열 (fal 공시가로 1.0 Pro·1.0 Lite 재현)                8종
-       OpenAI 이미지 (medium 등급 정사각 $0.042 / 긴 쪽 $0.063 일치)          4종
-   ○ 미확인 — 출처를 못 잡았거나 재판매가만 있어 손대지 않은 값
-       Kling 11 · Seedream 8 · promptgen 14 · MiniMax 3 · 3D 2 · xAI 2 ·
-       Nano Banana(구글 공식가 확인됨) · 음악/업스케일/나레이션/립싱크/모션    약 50종
+       Runway · Google Veo · BFL FLUX.2 · Luma Agents                       21종
+       Seedream 4.0 $0.035 · 4.5 $0.045 (ModelArk 공식 장당 단가와 일치)      4종
+       Nano Banana $0.039 (구글 공식 1K 이미지 단가)                          1종
+   ● 공시가 대조 — 계산식이 공시가를 재현함을 확인
+       Seedance (fal 공시가로 1.0 Pro·1.0 Lite 재현)                         8종
+       OpenAI 이미지 (medium 정사각 $0.042 / 긴 쪽 $0.063 일치)               4종
+   ○ 미확인 — 공식 원문을 못 구했거나 출처가 재판매가뿐이라 손대지 않은 값
+       Kling 11 · Seedream 5.0 계열 4 · promptgen 14 · MiniMax 3 · 3D 2 ·
+       xAI 2 · 음악/업스케일/나레이션/립싱크/모션 5                          약 41종
 
    미확인 항목의 위험 크기는 마크업이 정한다. 매출 = 원가 × 마크업(2.5 또는 3.0)이므로
    실제 원가가 표보다 그 배수 넘게 비싸면 팔수록 손해다. 씨댄스가 정확히 그 경우였다
-   (실제가 3.7배 비쌌다). 확인은 제공사 청구서를 월 사용량으로 나눠 역산하는 것이 가장 확실하다.
+   (실제가 3.7배 비쌌다).
+   Kling 참고: 공식 3.0 크레딧표는 720p 6·1080p 8 크레딧/초(오디오 시 9·12)로 확인했으나,
+   크레딧→달러 환산율의 공식 출처를 못 잡아 값은 그대로 뒀다. 현재 값(2.1 Master $0.095/초)은
+   여러 재판매가($0.16/초 등)보다 낮지만 마크업 3배 안에는 들어온다.
+   가장 확실한 확인은 제공사 청구서를 그 달 사용량으로 나눠 역산하는 것이다.
    ══════════════════════════════════════════════════════════════════════ */
 // 모델 표시명 → 단가.
 // u:'sec'(영상 초당) | 'img'(이미지 장당) | '3d'(모델 1개당) | 'tok'(호출 1회당), usd, audio(오디오 초당 추가), prov(집계용)
@@ -307,6 +320,7 @@ export interface ChargeInput {
   exr?: boolean // 루마 전용 — EXR 동시 내보내기(HDR 전제)
   refs?: number // 루마 이미지 전용 — 레퍼런스 장수마다 원가가 오른다
   ratio?: string // 이미지 비율 — OpenAI 는 가로/세로가 길면 원가가 1.5배다
+  usageTokens?: number // 제공사가 알려준 실제 소비 토큰(ModelArk). 있으면 추정 대신 이 값으로 계산한다
 }
 
 export interface ChargeResult {
@@ -403,7 +417,9 @@ function seedanceUsd(input: ChargeInput): number | null {
   if (perM == null) return null
   const [w, h] = RES_PX[String(input.res || '1080p')] || RES_PX['1080p']
   const secs = Math.max(1, Math.round(Number(input.units) || 5))
-  const tokens = (w * h * SEEDANCE_FPS * secs) / 1024
+  // 제공사가 실제 소비 토큰을 알려줬으면 그 값이 우선이다 — 추정이 아니라 실측으로 청구한다.
+  const reported = Number(input.usageTokens) || 0
+  const tokens = reported > 0 ? reported : (w * h * SEEDANCE_FPS * secs) / 1024
   const usd = (tokens * perM) / 1_000_000
   // 오디오는 토큰 과금과 별개로 붙는 항목이라 표의 초당 가산을 그대로 더한다.
   const m = MODEL_COST[model]

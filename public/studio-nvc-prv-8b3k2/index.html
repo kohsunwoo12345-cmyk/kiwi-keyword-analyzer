@@ -2161,8 +2161,8 @@ var MODEL_COST = {
   'Nano Banana':                     { u:'img', usd:0.039, prov:'nanobanana' },
   'GPT Image 2':                     { u:'img', usd:0.08,  prov:'openai' },
   'GPT Image 1.5':                   { u:'img', usd:0.06,  prov:'openai' },
-  'GPT Image':                       { u:'img', usd:0.04,  prov:'openai' },
-  'GPT Image Mini':                  { u:'img', usd:0.015, prov:'openai' },
+  'GPT Image':                       { u:'img', usd:0.042, prov:'openai' },   // OpenAI 공식 medium 1024x1024
+  'GPT Image Mini':                  { u:'img', usd:0.011, prov:'openai' },   // OpenAI 공식 medium 1024x1024
   // BFL 은 출력 메가픽셀당 과금(1MP 기준). max=첫1MP $0.07 · flex=$0.06/MP · pro=$0.03/MP
   //  ※ 예전엔 max 0.06 / pro 0.04 잠정값이 위에 한 번 더 있었다. 같은 키가 두 번 있으면
   //     JS 는 뒤엣것만 남기므로 표시는 맞았지만, 읽는 사람은 잠정값을 실단가로 오해했다 — 지웠다.
@@ -2267,14 +2267,17 @@ function runwayUsd(model, secs){
   var m = MODEL_COST[model], per = m?m.usd:0.28;
   return Math.max(0.56, per * Math.max(1, Number(secs)||5));
 }
-function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl, cnCount, hdrOn, exrOn){
+function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl, cnCount, hdrOn, exrOn, ratioIn, usageTokensIn){
   var m = MODEL_COST[model];
   /* 'img'(장당) 외에 '3d'(모델 1개당)·'tok'(호출 1회당)도 "단위 1개" 정액이다 — 서버 computeCharge 와 같은 기준.
      예전엔 'img' 만 봐서 3D·프롬프트 모델이 초당 계산을 타 8배로 표시됐다(청구는 서버 기준이라 정상). */
   var isImg = m ? (m.u==='img'||m.u==='3d'||m.u==='tok') : (kind==='image');
   var prov = m ? m.prov : provider;
   var rate, units, resMult=1, audioAdd=0;
-  if(isImg){ units=1; rate = m?m.usd:0.05; }
+  if(isImg){ units=1; rate = m?m.usd:0.05;
+    // OpenAI 이미지는 정사각형이 아니면 원가가 1.5배 — 서버 openaiImgUsd() 와 같은 기준
+    if(m && m.prov==='openai' && ratioIn && ratioIn!=='1:1') rate = rate*1.5;
+  }
   else {
     units = Math.max(1, Math.round(Number(seconds)||8));
     var base = m?m.usd:0.06;
@@ -2299,6 +2302,10 @@ function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prom
       // 루마는 HDR 여부로 원가가 2~3배 달라진다 — 안 보내면 표준 요금으로 잡혀 원가를 못 받는다
       body: JSON.stringify({ provider:prov, model:model||prov, kind:isImg?'image':'video', units:units, res:isImg?null:(res||'1080p'), audio:!!audioAdd, usd:usd, refs:Math.max(0,Number(refCount)||0), cn:Math.max(0,Number(cnCount)||0),
         hdr:!!hdrOn, exr:!!exrOn,
+        // OpenAI 이미지는 1024x1024 냐 1536x1024 냐로 원가가 1.5배 갈린다 — 비율을 보내야 서버가 그 값을 쓴다
+        ratio:(ratioIn||'1:1'),
+        // 제공사(ModelArk)가 알려준 실제 소비 토큰 — 있으면 서버가 추정 대신 이 값으로 청구한다
+        usageTokens:Math.max(0,Number(usageTokensIn)||0),
         prompt:(prompt||'').slice(0,4000), refUrls:_refs, resultUrl:mediaForRecord(resultUrl), resultKind:isImg?'image':'video' }) }).catch(function(){});
   }catch(e){}
   // 상세 활동 로그(관리자 감사): "어떤 모델로 무엇을 생성" (정확 크레딧은 ai_usage 에 별도 집계)
@@ -4393,7 +4400,7 @@ function generateImageNode(n){
           _on.w.vid=res.url; _on.w.kind=res.kind||'image'; _on.w.lastImg=res.url; _on.w.model=n.w.model;
         }catch(_e){}
       }
-      try{ if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image', null, false, refCountUsed, prompt, refUsedList, res.url, cnChargeCount); }catch(_e){}
+      try{ if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image', null, false, refCountUsed, prompt, refUsedList, res.url, cnChargeCount, false, false, n.w.ratio); }catch(_e){}
       try{ saveToGallery(res.url, 'image', n.w.model, 0, null); }catch(_e){}
       try{ if(res.url && res.type!=='error') autoRefFromResult(n, res.url); }catch(_e){}
       toast('이미지 생성 완료'); try{ snapshot(); }catch(_e){} render();
@@ -7753,7 +7760,7 @@ function runQueue(onlyId){
               // ② 부수작업(과금 기록·보관함 저장)은 각각 격리 — 실패해도 UI 에 영향 없음
               try{ if(res.url && res.type!=='error')
                 recordCost(res.type||providerOf(chosenModel), chosenModel, _effSec, res.kind, _effRes, n.w.seedAudio===true, 0, basePrompt, [].concat(refList||[], srcVid?[srcVid]:[]), res.url,
-                  0, n.w.lumaHdr===true, n.w.lumaExr===true); }catch(_e){}
+                  0, n.w.lumaHdr===true, n.w.lumaExr===true, n.w.ratio, res.usageTokens); }catch(_e){}
               try{ saveToGallery(res.url, res.kind||'video', chosenModel, vSet?vSet.w.sec:8, res.poster); }catch(_e){}
               var el2=document.getElementById('nd-'+id); if(el2)el2.classList.add('exec');
               // 제공사 프레임이 없을 때만 브라우저에서 뽑는다(폴백).

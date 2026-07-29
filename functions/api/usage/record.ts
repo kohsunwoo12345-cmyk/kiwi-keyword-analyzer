@@ -100,6 +100,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       refs: Math.max(0, Number(b.refs) || 0),
       // OpenAI 이미지는 가로/세로가 긴 비율이면 원가가 1.5배다 — 비율을 넘겨야 그 값이 반영된다
       ratio: String(b.ratio || '1:1'),
+      // 제공사가 알려준 실제 소비 토큰이 있으면 추정 대신 그 값으로 과금한다
+      usageTokens: Math.max(0, Number(b.usageTokens) || 0),
     },
     rate,
     markup,

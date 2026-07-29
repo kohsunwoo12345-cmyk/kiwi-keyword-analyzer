@@ -3503,7 +3503,11 @@ async function handle(context) {
         // return_last_frame 으로 받은 "제공사가 만든 마지막 프레임" — 이어보기의 다음 클립
         // first_frame 으로 그대로 쓴다(원본 해상도 URL, 브라우저 재추출 불필요).
         const lastFrame = j.content?.last_frame_url || j.content?.last_frame || null;
-        return url ? json({ url, kind: "video", lastFrame }) : json({ status: "failed", error: "no video_url" });
+        /* ModelArk 은 실제 소비 토큰을 usage 로 돌려준다. 우리는 그동안 이걸 버리고
+           해상도·길이로 원가를 추정했는데, 제공사가 알려주는 실측값이 있으면 그걸 쓰는 게 정확하다.
+           스튜디오가 그대로 /api/usage/record 로 넘기면 추정 없이 청구된다. */
+        const tokens = Number(j.usage?.completion_tokens ?? j.usage?.total_tokens ?? 0) || 0;
+        return url ? json({ url, kind: "video", lastFrame, usageTokens: tokens }) : json({ status: "failed", error: "no video_url" });
       }
       if (j.status === "failed" || j.error) return json({ status: "failed", error: (j.error && j.error.message) || "seedance failed" });
       return json({ status: j.status || "RUNNING" });
