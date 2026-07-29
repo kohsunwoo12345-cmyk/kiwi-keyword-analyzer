@@ -1,4 +1,4 @@
-import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity, resolveBucket } from '../_utils'
+import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity, resolveBucket, rateLimitOk } from '../_utils'
 import { computeCharge, ensureAiUsage, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge, MODEL_COST } from '../studio/_pricing'
 import { creditPriceFor } from '../payments/prepare'
 import { effectiveUnits, effectiveRes } from '../generate.js'
@@ -57,6 +57,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await ensureAiUsage(db)
 
   const me: any = await getSessionUser(request, db)
+  // ⚠ 로그인 확인이 없었다. 그런데 이 경로는 (1) 정산 테이블 ai_usage 에 행을 넣고
+  //   (2) resultUrl·refUrls 의 data: URL 을 R2 에 그대로 올린다(요청당 최대 5개, 개당 30MB).
+  //   즉 비로그인 상태로 누구나 우리 버킷에 파일을 올리고 정산 통계를 오염시킬 수 있었다.
+  //   실제로 익명 요청 한 번에 /api/media/gen/... 3개가 만들어지고 공개 조회까지 됐다.
+  //   생성 자체(/api/generate)는 이미 로그인 필수라, 정상 흐름에서 비회원이 여기 올 일은 없다.
+  //   (user_id='guest' 로 쌓이던 행은 보관함이 user_id 로만 조회하므로 아무도 못 보는 쓰레기였다.)
+  if (!me) return json({ ok: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
+  // 한 번에 R2 객체 5개까지 만들 수 있으니 회원 단위로도 상한을 둔다.
+  if (!(await rateLimitOk(db, `usagerec:${me.id}`, 120, 10)))
+    return json({ ok: false, error: '요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.' }, 429)
   const b: any = await request.json().catch(() => ({}))
   const rate = await getUsdKrw(db) // 결제(생성) 시점의 그날 환율
   const model = String(b.model || '')
