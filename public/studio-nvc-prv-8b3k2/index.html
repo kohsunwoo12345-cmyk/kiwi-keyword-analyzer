@@ -1881,7 +1881,7 @@ try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cn
         stripGraphMedia:stripGraphMedia, loadDocIntoState:loadDocIntoState, keepToolResult:keepToolResult,
         /* 아래는 검사·측정용 내부 함수 — 타일 크기 같은 설정을 실제로 재 보기 위해 노출한다 */
         _srCanvas2:_srCanvas2, _esrRunTile:_esrRunTile, ensureOwnSr:ensureOwnSr,
-        I18N:I18N, tr:tr, applyLang:applyLang,
+        I18N:I18N, tr:tr, applyLang:applyLang, snapshot:snapshot, doUndo:doUndo, doRedo:doRedo,
         _stateSnapshot:function(){ try{ return JSON.parse(JSON.stringify({ nodes:state.nodes, links:state.links,
           groups:state.groups, annos:state.annos, seq:state.seq })); }catch(_){ return null; } } }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
@@ -5855,6 +5855,15 @@ try{ Object.keys(ADD2).forEach(function(l){ I18N[l]=I18N[l]||{};
 try{ Object.keys(ADD3).forEach(function(l){ I18N[l]=I18N[l]||{};
   Object.keys(ADD3[l]).forEach(function(k){ if(I18N[l][k]==null) I18N[l][k]=ADD3[l][k]; }); }); }catch(e){}
 })();
+/* 자동 저장 실패 알림 — en/ja/zh */
+(function(){ var ADD4={
+  en:{"자동 저장에 실패했습니다 — 저장 공간이 부족할 수 있습니다. [저장] 으로 직접 내려받아 두세요.": "Autosave failed — you may be out of storage space. Use [Save] to download a copy yourself."},
+  ja:{"자동 저장에 실패했습니다 — 저장 공간이 부족할 수 있습니다. [저장] 으로 직접 내려받아 두세요.": "自動保存に失敗しました — 保存容量が足りない可能性があります。[保存]から手動でダウンロードしておいてください。"},
+  zh:{"자동 저장에 실패했습니다 — 저장 공간이 부족할 수 있습니다. [저장] 으로 직접 내려받아 두세요.": "自动保存失败 — 存储空间可能已满。请使用[保存]手动下载一份。"}
+};
+try{ Object.keys(ADD4).forEach(function(l){ I18N[l]=I18N[l]||{};
+  Object.keys(ADD4[l]).forEach(function(k){ if(I18N[l][k]==null) I18N[l][k]=ADD4[l][k]; }); }); }catch(e){}
+})();
 /* 스튜디오 자체 번역이 없는 언어(스페인어·힌디어 등)는 영어로 폴백해 최소한 영어로 표기 */
 function i18nDict(){ if(I18N_LANG==='ko') return null; return I18N[I18N_LANG] || I18N.en || null; }
 /* 그 언어 사전에 없는 문구는 '한국어 그대로' 가 아니라 영어로 보여준다.
@@ -6247,6 +6256,16 @@ function renameDoc(id){
 /* 자동저장: 모든 탭(워크플로우) + 활성 탭을 IndexedDB에 저장. 실패 시 localStorage 폴백.
    추가로 로그인 계정에는 서버(D1)에도 자동 저장 → 캐시 삭제·다른 기기에서도 복원. */
 var _autoT=null;
+/* ⚠ 자동 저장이 실패하면 예전에는 아무 말 없이 넘어갔다.
+   사용자는 저장된 줄 알고 계속 작업하다가 탭을 닫고 전부 잃을 수 있다.
+   저장 공간이 꽉 찼거나(브라우저 용량 한도) 시크릿 모드처럼 저장이 막힌 경우에 실제로 일어난다.
+   → 실패하면 한 번 분명히 알리고, 다시 성공하면 경고 상태를 푼다. */
+var _saveWarned=false;
+function _saveOk(){ _saveWarned=false; }
+function _saveFailed(){
+  if(_saveWarned) return; _saveWarned=true;
+  try{ toast(tr('자동 저장에 실패했습니다 — 저장 공간이 부족할 수 있습니다. [저장] 으로 직접 내려받아 두세요.')); }catch(_){}
+}
 function autosave(){
   if(ADMIN_LOAD_UID) return;   // 관리자가 남의 워크플로우 열람 중엔 내 계정에 저장하지 않음
   var booting=_booting;   // 호출 시점 기준으로 고정(타이머 발화 시점에 reconcile 가 플래그를 바꿔도 부팅 로드는 푸시 금지)
@@ -6256,8 +6275,9 @@ function autosave(){
     saveActiveIntoDoc();
     if(IDB.ok && STUDIO_DOCS.length){
       var payload={ v:2, activeId:activeDocId, syncedAt:_srvSyncedAt, docs:STUDIO_DOCS.map(function(d){ return {id:d.id,name:d.name,data:d.data}; }) };
-      IDB.set('kv',payload,nsKey('docs')).catch(function(){ try{ localStorage.setItem(nsKey('nvNodeStudio'), JSON.stringify(docSnap())); }catch(e){} });
-    } else { try{ localStorage.setItem(nsKey('nvNodeStudio'), JSON.stringify(docSnap())); }catch(e){} }
+      IDB.set('kv',payload,nsKey('docs')).then(_saveOk, function(){
+        try{ localStorage.setItem(nsKey('nvNodeStudio'), JSON.stringify(docSnap())); _saveOk(); }catch(e){ _saveFailed(); } });
+    } else { try{ localStorage.setItem(nsKey('nvNodeStudio'), JSON.stringify(docSnap())); _saveOk(); }catch(e){ _saveFailed(); } }
     if(!booting) serverSaveSoon();   // 부팅 로드에서 시작된 autosave 는 서버 푸시 보류 — reconcile 가 서버↔로컬을 먼저 조정
   }, 300);
 }
