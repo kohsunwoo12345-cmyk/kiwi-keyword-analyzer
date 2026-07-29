@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser, setSetting, getSetting, logAudit, clientIp } from '../_utils'
-import { MODEL_COST, PROV_LABEL, computeCharge, getUsdKrw, getModelMarkups, CREDIT_KRW, REF_SURCHARGE_DEFAULT, CN_SURCHARGE_DEFAULT } from '../studio/_pricing'
+import { MODEL_COST, PROV_LABEL, computeCharge, getUsdKrw, getModelMarkups, CREDIT_KRW, REF_SURCHARGE_DEFAULT, CN_SURCHARGE_DEFAULT, ensureCostOverrides } from '../studio/_pricing'
 
 const clampPct = (v: any) => Math.max(0, Math.min(100, Math.round((Number(v) || 0) * 1000) / 1000))
 
@@ -84,17 +84,27 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     if (u) { userName = u.name || ''; userOverall = Number(u.credit_markup) || 0 }
   }
 
+  /* 관리자가 청구서를 보고 넣은 실측 단가 — 있으면 그 값이 원가다(코드의 추정값보다 앞선다).
+     Kling·BytePlus 처럼 "공식 문서에 단일 단가가 없는" 제공사를 배포 없이 바로잡는 통로다. */
+  const costOv: Record<string, { usd: number; note: string }> = {}
+  try {
+    await ensureCostOverrides(db)
+    const rows = (await db.prepare('SELECT model, usd, note FROM model_cost_overrides').all()).results || []
+    for (const r of rows as any[]) costOv[r.model] = { usd: Number(r.usd) || 0, note: String(r.note || '') }
+  } catch { /* 표가 아직 없으면 전부 추정값 */ }
+
   const models = Object.keys(MODEL_COST).map((model) => {
     const m = (MODEL_COST as any)[model]
+    const ov = costOv[model]?.usd
     // 'img'(장당)·'3d'(모델 1개당)·'tok'(호출 1회당) 은 단위 1개 과금 → 초당 계산을 타면 안 된다.
     const kind = m.u === 'sec' ? 'video' : m.u === '3d' ? '3d' : m.u === 'tok' ? 'llm' : 'image'
-    const base = computeCharge({ model, units: unitsFor(kind), kind, res: '1080p' } as any, rate, 1)
-    const dflt = computeCharge({ model, units: unitsFor(kind), kind, res: '1080p' } as any, rate, undefined)
+    const base = computeCharge({ model, units: unitsFor(kind), kind, res: '1080p' } as any, rate, 1, CREDIT_KRW, ov)
+    const dflt = computeCharge({ model, units: unitsFor(kind), kind, res: '1080p' } as any, rate, undefined, CREDIT_KRW, ov)
     const globalMk = Number(gm[model]) > 0 ? Number(gm[model]) : 0
     const uMk = userId ? (Number(userMk[model]) > 0 ? Number(userMk[model]) : 0) : 0
     // 우선순위: 회원×모델 > 회원 전체 > 전역 모델 > 기본
     const eff = uMk > 0 ? uMk : (userId && userOverall > 0 ? userOverall : (globalMk > 0 ? globalMk : dflt.markup))
-    const effC = computeCharge({ model, units: unitsFor(kind), kind, res: '1080p' } as any, rate, eff)
+    const effC = computeCharge({ model, units: unitsFor(kind), kind, res: '1080p' } as any, rate, eff, CREDIT_KRW, ov)
     return {
       model,
       provider: PROV_LABEL[m.prov] || m.prov,
@@ -108,6 +118,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       userMarkup: uMk,
       effectiveMarkup: eff,
       effectiveCredits: effC.credits,
+      //  실측 단가가 들어간 모델인지 화면에서 구분할 수 있게 (단위: sec 모델은 초당 USD)
+      costOverrideUsd: ov || 0,
+      costNote: costOv[model]?.note || '',
     }
   })
 
@@ -134,6 +147,28 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     gm[String(b.model)] = clampMk(b.markup)
     await setSetting(db, 'model_markups', JSON.stringify(gm))
     await logAudit(db, admin, 'model_markup_global', String(b.model), '×' + clampMk(b.markup), 'info', ip)
+    return json({ ok: true })
+  }
+  /* 실측 원가 입력 — 청구서를 보고 "실제로 우리가 낸 값" 을 넣는다.
+     단위는 단가표와 같다: 영상(sec)은 초당 USD, 이미지·3D·LLM 은 1건당 USD.
+     이 값이 있으면 코드의 추정 공식보다 앞서 적용된다(과금·게이트·관리자 화면 전부). */
+  if (action === 'set_cost') {
+    const model = String(b.model || '')
+    const usd = Number(b.usd)
+    if (!model || !(MODEL_COST as any)[model]) return json({ ok: false, error: '알 수 없는 모델' }, 400)
+    if (!Number.isFinite(usd) || usd <= 0 || usd > 1000) return json({ ok: false, error: 'USD 값이 올바르지 않습니다 (0 초과 1000 이하)' }, 400)
+    await ensureCostOverrides(db)
+    await db.prepare(
+      `INSERT INTO model_cost_overrides (model,usd,note,updated_at) VALUES (?,?,?,?)
+       ON CONFLICT(model) DO UPDATE SET usd = excluded.usd, note = excluded.note, updated_at = excluded.updated_at`,
+    ).bind(model, usd, String(b.note || '').slice(0, 200), new Date().toISOString()).run()
+    await logAudit(db, admin, 'model_cost_override', model, '$' + usd, 'high', ip)
+    return json({ ok: true })
+  }
+  if (action === 'reset_cost') {
+    await ensureCostOverrides(db)
+    await db.prepare('DELETE FROM model_cost_overrides WHERE model = ?').bind(String(b.model || '')).run()
+    await logAudit(db, admin, 'model_cost_override_reset', String(b.model || ''), '추정값으로 복귀', 'info', ip)
     return json({ ok: true })
   }
   if (action === 'reset_global') {

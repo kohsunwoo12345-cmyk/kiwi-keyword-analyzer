@@ -77,6 +77,31 @@ export async function resolveMarkup(db: D1Database, userId: string, model: strin
   return undefined // computeCharge 기본값(2.5/3.0)
 }
 
+/* ── 실측 원가 덮어쓰기 ──
+   Kling·BytePlus(씨댄스/씨드림) 같은 제공사는 "공식 문서에 적힌 단일 단가" 가 없다.
+   포인트 패키지·계약별로 실제 단가가 달라져서, 우리가 얼마를 내는지는 청구서를 봐야 안다.
+   그래서 코드에 박힌 추정값을 관리자가 실측값으로 덮어쓸 수 있게 한다 —
+   Veo 오디오 등급처럼 문서가 애매한 항목도 같은 방법으로 바로잡는다.
+   단위는 단가표와 같다: 'sec' 모델은 초당 USD, 나머지는 1건당 USD. */
+export async function ensureCostOverrides(db: D1Database): Promise<void> {
+  await db.prepare(
+    `CREATE TABLE IF NOT EXISTS model_cost_overrides (
+       model TEXT PRIMARY KEY, usd REAL NOT NULL, note TEXT DEFAULT '', updated_at TEXT )`,
+  ).run().catch(() => {})
+}
+
+/** 이 모델의 실측 원가(USD/단위). 설정이 없으면 undefined → 코드의 추정값을 쓴다. */
+export async function resolveCostOverride(db: D1Database, model: string): Promise<number | undefined> {
+  try {
+    await ensureCostOverrides(db)
+    const r: any = await db.prepare('SELECT usd FROM model_cost_overrides WHERE model = ?').bind(String(model || '')).first()
+    const v = Number(r?.usd)
+    return Number.isFinite(v) && v > 0 ? v : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /** 오늘자 USD→KRW 환율 (하루 1회 조회 후 D1 캐시). 결제/생성 시점의 그날 환율을 반환. */
 export async function getUsdKrw(db: D1Database): Promise<number> {
   const today = new Date().toISOString().slice(0, 10)
@@ -520,7 +545,7 @@ const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100
 /** 서버 권위 과금 계산 — 스튜디오 recordCost 공식과 동일. usdKrw 는 그날의 환율.
  *  markupOverride: 회원별 관리자 지정 배수(원가=1). 지정 시 기본 마크업 대신 사용하며 최소 1배로 강제.
  *  크레딧 = 실제비용(원) × 배수 ÷ 50 을 소수 2자리로 차감(예: 2.5원→0.05, 57원→1.14). */
-export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, markupOverride?: number, creditKrw: number = CREDIT_KRW): ChargeResult {
+export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, markupOverride?: number, creditKrw: number = CREDIT_KRW, costOverrideUsd?: number): ChargeResult {
   const basis = creditKrw && creditKrw > 0 ? creditKrw : CREDIT_KRW // 1크레딧당 원(회원 단가). 기본 50, 충전단가(65 등) 전달 시 그 값 기준
   const rate = usdKrw && usdKrw > 0 ? usdKrw : USD_KRW
   /* 여기로 들어오는 숫자는 마지막까지 유한해야 한다.
@@ -538,7 +563,13 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
   const isFlat = m ? (m.u === 'img' || m.u === '3d' || m.u === 'tok') : input.kind === 'image'
   const isImg = isFlat
   let usd: number
-  const lu = lumaUsd(input) ?? veoUsd(input) ?? fluxUsd(input) ?? runwayUsd(input) ?? seedanceUsd(input) ?? openaiImgUsd(input)   // 공식 요금표가 있는 제공사 우선
+  /* 관리자가 청구서를 보고 넣은 실측 단가가 있으면 그게 가장 정확하다 — 추정 공식보다 앞선다.
+     'sec' 모델은 초당 값이므로 길이를 곱하고, 나머지는 1건당 값이라 그대로 쓴다. */
+  const ov = Number(costOverrideUsd)
+  const hasOv = Number.isFinite(ov) && ov > 0
+  const lu = hasOv
+    ? (isFlat ? ov : ov * Math.max(1, Math.round(Number(input.units) || 8)))
+    : (lumaUsd(input) ?? veoUsd(input) ?? fluxUsd(input) ?? runwayUsd(input) ?? seedanceUsd(input) ?? openaiImgUsd(input))   // 공식 요금표가 있는 제공사 우선
   if (lu != null) {
     usd = lu
   } else if (isImg) {

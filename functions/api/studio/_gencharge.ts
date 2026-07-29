@@ -122,7 +122,7 @@ export async function settleGenCharge(
   db: D1Database, me: any, token: string, taskKey: string | null,
   deps: {
     computeCharge: any; getUsdKrw: any; resolveMarkup: any; resolveRefSurcharge: any
-    resolveCnSurcharge: any; creditPriceFor: any; ensureAiUsage: any
+    resolveCnSurcharge: any; creditPriceFor: any; ensureAiUsage: any; resolveCostOverride?: any
   },
 ): Promise<{ credits: number; usageId: string }> {
   const NONE = { credits: 0, usageId: '' }
@@ -133,10 +133,12 @@ export async function settleGenCharge(
     const rate = await deps.getUsdKrw(db)
     const markup = await deps.resolveMarkup(db, me.id, spec.model, Number(me.credit_markup) || 0)
     const creditKrw = await deps.creditPriceFor(db, me)
+    //  관리자가 청구서를 보고 넣은 실측 단가가 있으면 그 값으로 청구한다(추정보다 정확하다)
+    const ovUsd = deps.resolveCostOverride ? await deps.resolveCostOverride(db, spec.model) : undefined
     const c = deps.computeCharge(
       { model: spec.model, units: spec.units, res: spec.res, audio: !!spec.audio,
         ratio: spec.ratio, refs: spec.refs || 0, hdr: !!spec.hdr, exr: !!spec.exr },
-      rate, markup, creditKrw)
+      rate, markup, creditKrw, ovUsd)
     const surPct = await deps.resolveRefSurcharge(db, me.id)
     const cnPct = (spec.cn || 0) > 0 ? await deps.resolveCnSurcharge(db) : 0
     const credits = Math.round(

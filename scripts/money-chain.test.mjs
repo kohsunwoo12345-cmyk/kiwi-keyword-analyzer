@@ -141,6 +141,33 @@ for (const [model, units, res] of MODELS) {
   }
 }
 
+/* ── 실측 단가(관리자 입력)가 실제 차감에 반영되는가 ──
+   Kling·BytePlus 처럼 공식 문서에 단일 단가가 없는 제공사는, 청구서를 보고 넣은 값이 정답이다.
+   그 값이 추정 공식을 이기고 그대로 청구되는지 본다(안 그러면 입력해도 소용이 없다). */
+{
+  const model = "Kling 2.1 Master (이미지→영상)", units = 10;
+  const db = makeDB();
+  const before = db.__bal();
+  const token = await gc.issueGenCharge(db, "u1", { model, units, res: "1080p" });
+  //  실측 단가를 넣지 않았을 때
+  const plain = await gc.settleGenCharge(db, USER, token, null, DEPS);
+  //  같은 생성에 초당 $1 을 실측으로 넣으면 — 10초니까 $10 어치가 나와야 한다
+  const db2 = makeDB();
+  const t2 = await gc.issueGenCharge(db2, "u1", { model, units, res: "1080p" });
+  const withOv = await gc.settleGenCharge(db2, USER, t2, null,
+    { ...DEPS, resolveCostOverride: async () => 1 });
+  const ratio = withOv.credits / Math.max(plain.credits, 1e-9);
+  //  단가 $0.095/초 → $1/초 이면 약 10.5배. 정확한 배수보다 "실측이 이겼는가" 가 요점이다.
+  if (!(withOv.credits > plain.credits * 5))
+    bad.push("실측 단가 — 넣어도 청구가 안 바뀐다 (추정 " + plain.credits + " · 실측 " + withOv.credits + ")");
+  //  실측이 없을 때는 예전처럼 추정값이어야 한다(입력 안 한 모델이 갑자기 달라지면 안 된다)
+  if (!(plain.credits > 0)) bad.push("실측 단가 — 미입력 시 추정 청구가 0");
+  if (db.__bal() !== Math.round((before - plain.credits) * 100) / 100)
+    bad.push("실측 단가 — 미입력 경로에서 잔액이 어긋난다");
+  console.log("실측 단가 반영 — 추정 " + plain.credits + "크레딧 → 실측($1/초) " + withOv.credits +
+              "크레딧 (" + ratio.toFixed(1) + "배)");
+}
+
 console.log("생성 1건 → 차감·거래·관리자 줄 대조 — 모델 " + MODELS.length + "종");
 if (!bad.length)
   console.log("\n어긋남 0건 ✅ (차감 1회 · 거래 1줄 · 관리자 1줄 · 금액 전부 일치 · 신고는 잔액 불변)");

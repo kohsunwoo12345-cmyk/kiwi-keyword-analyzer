@@ -12,7 +12,8 @@ import { getUserByApiKey, enforceRateLimit, ensureApiKeysSchema } from "./_apike
 import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from "./studio/_pricing";
 import { getBrandKit, applyBrandKit } from "./studio/brandkit";
 import { issueGenCharge, settleGenCharge, refundGenCharge } from "./studio/_gencharge";
-import { ensureAiUsage } from "./studio/_pricing";
+import { probeRemoteVideoSeconds, SOURCE_LENGTH_MODELS, sourceVideoUrl } from "./studio/_vidlen";
+import { ensureAiUsage, resolveCostOverride } from "./studio/_pricing";
 import { MODEL_COST as MODEL_COST_SRV } from "./studio/_pricing";
 import { creditPriceFor } from "./payments/prepare";
 
@@ -1548,7 +1549,7 @@ export function effectiveRes(body, env) {
    생성물만 받고 한 푼도 내지 않는다 — 제공사 비용은 우리가 이미 냈는데도.
    그래서 생성이 성공한 이 자리에서 서버가 토큰을 소비하고 직접 차감한다.
    금액은 토큰에 묶인 서버 확정값이라 신고 내용과 무관하다. */
-const BILL_DEPS = { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge, creditPriceFor, ensureAiUsage };
+const BILL_DEPS = { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge, creditPriceFor, ensureAiUsage, resolveCostOverride };
 
 export async function onRequest(context) {
   try {
@@ -1664,7 +1665,17 @@ async function handle(context) {
                확정 과금(usage/record·precheck·/api/v1)은 이미 u!=='sec' 로 맞춰 두었는데
                이 게이트만 남아, 잔액이 충분한 사람을 "크레딧 부족" 으로 막을 수 있었다. */
             const isImg = MODEL_COST[mdl] && MODEL_COST[mdl].u !== "sec";
-            const gUnits = isImg ? 1 : effectiveUnits({ ...pbody, model: mdl }, env);
+            let gUnits = isImg ? 1 : effectiveUnits({ ...pbody, model: mdl }, env);
+            /* 결과 길이가 원본 영상에서 정해지는 기능들(업스케일·V2V·나레이션·립싱크·Aleph·루마 편집 등)은
+               요청에 길이 필드가 없어 빌더에 물어볼 수 없다. 그래서 여태 신고값을 그대로 청구했고,
+               짧게 신고하면 그만큼 덜 냈다. 원본을 직접 재서 그 값으로 청구한다.
+               못 재면(webm·비공개 URL·네트워크 실패) 신고값으로 물러난다 — 생성을 막지는 않는다. */
+            if (!isImg && SOURCE_LENGTH_MODELS.has(mdl)) {
+              let src = sourceVideoUrl(pbody);
+              if (src && src.startsWith("/")) src = u.origin + src;      // 우리 R2 는 상대경로로 온다
+              const measured = src ? await probeRemoteVideoSeconds(src) : null;
+              if (measured && measured > 0) gUnits = Math.min(3600, Math.max(1, Math.round(measured)));
+            }
             const gRes = isImg ? undefined : effectiveRes({ ...pbody, model: mdl }, env);
             /* 값을 바꾸는 나머지 옵션도 여기서 한 번에 확정한다 — 아래 게이트 계산과 토큰이
                같은 값을 써야 "통과시켜 놓고 더 크게 빠지는" 일이 없다.
@@ -1679,8 +1690,9 @@ async function handle(context) {
             const gRefs = Array.isArray(pbody.refImages) ? pbody.refImages.length
                         : Math.max(0, Number(pbody.refCount) || Number(pbody.refs) || 0);
             const cnCount = Math.max(0, (pbody.controlnets && pbody.controlnets.length) || Number(pbody.cn) || 0);
+            const ovUsd = await resolveCostOverride(db, mdl);   // 실측 단가가 있으면 게이트도 그 값으로
             const cc = computeCharge({ model: mdl, units: gUnits, res: gRes, audio: !!pbody.generateAudio,
-                                       refs: gRefs, hdr: gFlags.hdr, exr: gFlags.exr, ratio: gRatio }, rate, mk, ckw);
+                                       refs: gRefs, hdr: gFlags.hdr, exr: gFlags.exr, ratio: gRatio }, rate, mk, ckw, ovUsd);
             const surPct = await resolveRefSurcharge(db, me.id);
             const refMult = 1 + (surPct / 100) * gRefs;
             const cnMult = cnCount > 0 ? 1 + (await resolveCnSurcharge(db)) / 100 : 1;

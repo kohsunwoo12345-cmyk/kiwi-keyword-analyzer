@@ -5,7 +5,7 @@
 import { onRequest as generateApi, effectiveUnits, effectiveRes, effectiveFlags, effectiveRatio } from "../generate.js";
 import { resolveDB, ensureSchema, json } from "../_utils";
 import { getUserByApiKey, logApiCall, hasVideoApiAccess, ensureApiKeysSchema, enforceRateLimit, beginApiCall, finishApiCall, attachApiCallTask, refundFailedTask } from "../_apikeys";
-import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage, MODEL_COST } from "../studio/_pricing";
+import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage, resolveCostOverride, MODEL_COST } from "../studio/_pricing";
 
 // 크레딧 차감 + 사용/거래 기록 (스튜디오 usage/record 와 동일)
 async function commitCharge(db, me, c, units) {
@@ -97,7 +97,7 @@ export const onRequestPost = async ({ request, env }) => {
     const fl = effectiveFlags({ ...body, model });
     est = computeCharge({ model, units, kind, res: billRes, audio: !!body.audio,
                           refs: refsV, hdr: fl.hdr, exr: fl.exr,
-                          ratio: effectiveRatio({ ...body, model }) }, rate, markup);
+                          ratio: effectiveRatio({ ...body, model }) }, rate, markup, undefined, await resolveCostOverride(db, model));
     if (!isAdmin && (Number(me.credits) || 0) < (est?.credits || 0)) {
       return json({ ok: false, error: "크레딧이 부족합니다.", need: est?.credits, have: Number(me.credits) || 0, needPlan: true }, 402);
     }
