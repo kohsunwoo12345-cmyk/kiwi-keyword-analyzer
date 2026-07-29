@@ -51,9 +51,9 @@ cases.push({ i: cases.length, w: 960, h: 540, shape: '긴영상', ms: 4500, fps:
              audio: true, mode: { scale: 2 }, long: true })
 
 // 기대 크기 — 스튜디오 코드를 베끼지 않고 사양대로 따로 계산한다.
-//  영상은 브라우저 인코더가 실시간으로 감당하는 한계(실측 약 360만 픽셀)까지만 커진다.
+//  영상은 브라우저 인코더가 실시간으로 감당하는 한계(실측 약 280만 픽셀)까지만 커진다.
 //  그보다 크게 요청하면 비율을 지킨 채 그 한계로 낮춘다(짝수 픽셀로 맞춤).
-const VID_MAX_PIX = 3.6e6
+const VID_MAX_PIX = 2.8e6
 function expectDim(w,h,mode){
   const eff = mode.scale != null ? mode.scale : Math.max(1, Math.min(8, mode.longTarget/Math.max(w,h)))
   let tw = Math.round(w*eff), th = Math.round(h*eff)
