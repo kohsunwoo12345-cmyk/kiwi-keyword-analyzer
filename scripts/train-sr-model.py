@@ -239,27 +239,38 @@ def space_to_depth_grad(g, r=2):
     return y.reshape(n, H // r, W // r, oc * r * r)
 
 class Net:
-    def __init__(self, ch=16):
-        self.c1 = Conv(3, ch); self.c2 = Conv(ch, ch); self.c3 = Conv(ch, ch)
-        self.c4 = Conv(ch, 12, relu=False)
+    """3×3 합성곱 여러 겹 + 마지막에 픽셀 재배치(DepthToSpace)로 2배.
+
+    layers = 전체 층 수(마지막 출력층 포함). 4 가 기본이고, 늘리면 한 점을 계산할 때
+    참고하는 범위가 넓어져 더 잘 살릴 수 있지만 그만큼 느려진다.
+    ⚠ 층을 늘리면 참고 반경도 늘어난다(층 수 = 반경). 스튜디오의 타일 겹침(edge)이
+      그 반경보다 커야 타일 자국이 안 생긴다.
+    """
+    def __init__(self, ch=16, layers=4):
+        assert layers >= 2
+        self.layers = layers
+        self.hidden = [Conv(3 if i == 0 else ch, ch) for i in range(layers - 1)]
+        self.out = Conv(ch, 12, relu=False)
         # ⚠ 마지막 층은 0 에서 시작한다.
         #  이렇게 해야 학습 시작 시점의 출력이 '단순 확대' 와 정확히 같아진다.
         #  0 이 아니면 처음에 엉뚱한 값이 얹혀서, 학습의 대부분을 그걸 지우는 데 써 버린다.
-        self.c4.W[:] = 0.0; self.c4.b[:] = 0.0
+        self.out.W[:] = 0.0; self.out.b[:] = 0.0
         self.ch = ch
+        # 예전 이름으로도 접근할 수 있게 둔다(검사 스크립트 호환)
+        for i, c in enumerate(self.hidden): setattr(self, 'c%d' % (i + 1), c)
+        setattr(self, 'c%d' % layers, self.out)
 
     def forward(self, lr):
-        h = self.c1.forward(lr); h = self.c2.forward(h); h = self.c3.forward(h)
-        res = self.c4.forward(h)
+        h = lr
+        for c in self.hidden: h = c.forward(h)
+        res = self.out.forward(h)
         self.base = up2_bilinear(lr)
         return self.base + depth_to_space(res)
 
     def backward(self, gy, lr_rate, t):
         g = space_to_depth_grad(gy)
-        g = self.c4.backward(g, lr_rate, t)
-        g = self.c3.backward(g, lr_rate, t)
-        g = self.c2.backward(g, lr_rate, t)
-        self.c1.backward(g, lr_rate, t)
+        g = self.out.backward(g, lr_rate, t)
+        for c in reversed(self.hidden): g = c.backward(g, lr_rate, t)
 
 def psnr(a, b):
     mse = float(np.mean((np.clip(a, 0, 1) - np.clip(b, 0, 1)) ** 2))
@@ -282,11 +293,15 @@ def export_onnx(net, path):
         nodes.append(helper.make_node('Conv', [xin, name + '_w', name + '_b'], [xout],
                                       kernel_shape=[c.k, c.k], pads=[c.k // 2] * 4, name=name))
 
-    add_conv('conv1', net.c1, 'input', 'c1'); nodes.append(helper.make_node('Relu', ['c1'], ['r1']))
-    add_conv('conv2', net.c2, 'r1', 'c2');    nodes.append(helper.make_node('Relu', ['c2'], ['r2']))
-    add_conv('conv3', net.c3, 'r2', 'c3');    nodes.append(helper.make_node('Relu', ['c3'], ['r3']))
-    add_conv('conv4', net.c4, 'r3', 'c4')
-    nodes.append(helper.make_node('DepthToSpace', ['c4'], ['res'], blocksize=2, mode='CRD'))
+    prev = 'input'
+    for i, c in enumerate(net.hidden):
+        name = 'conv%d' % (i + 1)
+        add_conv(name, c, prev, 'c%d' % (i + 1))
+        nodes.append(helper.make_node('Relu', ['c%d' % (i + 1)], ['r%d' % (i + 1)]))
+        prev = 'r%d' % (i + 1)
+    last = 'conv%d' % net.layers
+    add_conv(last, net.out, prev, 'cout')
+    nodes.append(helper.make_node('DepthToSpace', ['cout'], ['res'], blocksize=2, mode='CRD'))
     # 입력을 2배로 늘린 그림(기준선) + 되살린 차이
     inits.append(numpy_helper.from_array(np.array([], np.float32), 'roi'))
     inits.append(numpy_helper.from_array(np.array([1, 1, 2, 2], np.float32), 'scales'))
@@ -316,11 +331,12 @@ def main():
     ap.add_argument('--batch', type=int, default=24)
     ap.add_argument('--patch', type=int, default=48)      # HR 패치 크기
     ap.add_argument('--ch', type=int, default=24)
+    ap.add_argument('--layers', type=int, default=4)   # 층 수(마지막 출력층 포함)
     ap.add_argument('--lr', type=float, default=1e-3)   # 실측으로 고른 값(3e-3 은 흔들려서 오히려 나쁨)
     ap.add_argument('--out', default='public/models-own/bygency-sr-x2/model.onnx')
     a = ap.parse_args()
 
-    net = Net(a.ch)
+    net = Net(a.ch, a.layers)
     # 검증용 — 학습에 쓰지 않는 그림
     vhr = make_hr(24, a.patch)
     vlr = degrade(vhr)
@@ -356,7 +372,8 @@ def main():
     size = export_onnx(net, a.out)
     meta = {
         'name': 'BYGENCY SR x2', 'scale': 2, 'channels': a.ch, 'steps': a.steps,
-        'params': int(sum(c.W.size + c.b.size for c in (net.c1, net.c2, net.c3, net.c4))),
+        'layers': a.layers,
+        'params': int(sum(c.W.size + c.b.size for c in (net.hidden + [net.out]))),
         'bytes': size, 'psnr': round(final, 3), 'bicubicPsnr': round(base_psnr, 3),
         'gain': round(final - base_psnr, 3),
     }

@@ -34,11 +34,17 @@ from onnx import numpy_helper
 # 배포된 ONNX 파일에서 가중치를 그대로 꺼내 numpy 계산기에 넣는다
 m = onnx.load('${OWN}')
 init = {t.name: numpy_helper.to_array(t) for t in m.graph.initializer}
-net = mod.Net(24)
-for name, c in (('conv1', net.c1), ('conv2', net.c2), ('conv3', net.c3), ('conv4', net.c4)):
+# 층 수·채널 수는 파일에서 읽는다 (모델을 바꿔도 검사 코드를 고칠 필요가 없게)
+names = sorted([k[:-2] for k in init if k.startswith('conv') and k.endswith('_w')],
+               key=lambda s: int(s[4:]))
+layers = len(names)
+ch = init[names[0] + '_w'].shape[0]
+net = mod.Net(ch, layers)
+for name, c in zip(names, net.hidden + [net.out]):
     w = init[name + '_w']                      # (cout, cin, k, k)
     c.W[:] = w.transpose(2, 3, 1, 0).reshape(c.k * c.k * c.cin, c.cout)
     c.b[:] = init[name + '_b']
+print('층', layers, '채널', ch, file=sys.stderr)
 
 # 고정 입력 — 색·가장자리·평탄부가 모두 들어간 작은 그림
 rng = np.random.default_rng(7)
