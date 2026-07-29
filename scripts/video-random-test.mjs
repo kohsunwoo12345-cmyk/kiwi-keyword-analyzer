@@ -44,6 +44,11 @@ for(let i=0;i<N;i++){
   cases.push({ i, w, h, shape, ms: ri(800,2000), fps: pick([15,24,30]),
                audio: rnd()<0.5, mode: pick([{scale:2},{scale:2},{scale:4},{longTarget:1920}]) })
 }
+// 긴 영상은 프레임을 여러 '묶음' 으로 나눠 처리한다(메모리 때문).
+//  묶음이 하나뿐이면 이어붙이는 부분이 검증되지 않으므로, 반드시 여러 묶음에 걸치는 경우를 넣는다.
+//  화면을 크게(=묶음당 장수가 적어짐) + 길게 해서 확실히 여러 묶음이 되게 한다.
+cases.push({ i: cases.length, w: 960, h: 540, shape: '긴영상', ms: 4500, fps: 30,
+             audio: true, mode: { scale: 2 }, long: true })
 
 // 기대 크기 — 스튜디오 코드를 베끼지 않고 사양대로 따로 계산한다.
 //  영상은 브라우저 인코더가 실시간으로 감당하는 한계(실측 약 360만 픽셀)까지만 커진다.
@@ -173,7 +178,7 @@ for(const c of cases){
     try {
       res = await Promise.race([
         window.__cn.upscaleVideoURL(src, cfg.mode.scale || 4, ()=>{}, opts),
-        new Promise((_,n)=>setTimeout(()=>n(new Error('시간 초과(240초)')),240000))
+        new Promise((_,n)=>setTimeout(()=>n(new Error('시간 초과(600초)')),600000))
       ])
     } catch(e){ return { error: String(e && e.message || e).slice(0,140) } }
     const ms = Math.round(performance.now()-t0)
@@ -190,7 +195,7 @@ for(const c of cases){
              dim:res.dim||'', sharpPlain:T.sharp(pb,W,H), sharpSr:T.sharp(pa,W,H) }
   }, c)
   results.push({ c, ew, eh, r })
-  const tag=`#${c.i} ${c.w}×${c.h} ${c.fps}fps ${(c.ms/1000).toFixed(1)}s ${c.audio?'소리O':'소리X'} ${c.mode.scale?c.mode.scale+'배':c.mode.longTarget+'px'}`
+  const tag=`#${c.i}${c.long?'(긴영상)':''} ${c.w}×${c.h} ${c.fps}fps ${(c.ms/1000).toFixed(1)}s ${c.audio?'소리O':'소리X'} ${c.mode.scale?c.mode.scale+'배':c.mode.longTarget+'px'}`
   console.log(`${tag}  →  ${r.error ? '오류 '+r.error : (r.after.w+'×'+r.after.h)+'  '+r.engine+'  '+r.ms+'ms'}`)
 }
 
