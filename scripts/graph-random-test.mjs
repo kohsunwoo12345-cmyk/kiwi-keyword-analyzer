@@ -170,6 +170,34 @@ const loaded = await page.evaluate((g) => {
 ok('불러온 뒤 노드가 화면에 그려짐', loaded.els >= graphs[0].nodes.length,
    `화면 노드 ${loaded.els}개 / 문서 ${graphs[0].nodes.length}개`)
 
+// ── 모르는 노드 종류가 섞여 있어도 나머지가 정상으로 보이는가 ──
+//  다른 버전에서 만든 파일, 이름이 바뀐 기능 등으로 실제로 생길 수 있다.
+//  예전에는 이런 노드가 하나만 있어도 화면 그리기가 중단돼 작업물 전체가 안 보였다.
+const unknown = await page.evaluate(async () => {
+  const C = window.__cn
+  const types = Object.keys(C.DEFS||{})
+  const real = types.slice(0, 4)
+  const doc = { data: { nodes: [
+      ...real.map((t,i)=>({ id:'r'+i, type:t, x:i*300, y:0, w:{} })),
+      { id:'x1', type:'존재하지않는종류', x:0,   y:300, w:{ prompt:'지켜져야 할 값' } },
+      { id:'x2', type:'future_feature_v9', x:320, y:300, w:{ sec: 42 } },
+    ], links:[], groups:[], annos:[], seq:50 } }
+  let err=null
+  try{ C.loadDocIntoState(doc) }catch(e){ err=String(e&&e.message||e).slice(0,120) }
+  await new Promise(k=>setTimeout(k,300))
+  const st = C._stateSnapshot()
+  return { err,
+    화면노드수: document.querySelectorAll('.node').length,
+    문서노드수: doc.data.nodes.length,
+    보존됨: st && st.nodes.length===doc.data.nodes.length &&
+            st.nodes.find(n=>n.id==='x1')?.w?.prompt === '지켜져야 할 값' &&
+            st.nodes.find(n=>n.id==='x2')?.w?.sec === 42 }
+})
+ok('모르는 노드가 섞여도 화면 전체가 멀쩡함', !unknown.err && unknown.화면노드수 === unknown.문서노드수,
+   unknown.err ? ('그리는 중 오류: '+unknown.err) : `화면 ${unknown.화면노드수}개 / 문서 ${unknown.문서노드수}개`)
+ok('모르는 노드의 내용도 그대로 보존됨', unknown.보존됨 === true,
+   unknown.보존됨 ? '설정값 유지 확인' : '값이 사라짐')
+
 ok('페이지 오류 없음', errs.length===0, errs.slice(0,2).join(' | ')||'없음')
 
 await browser.close(); server.close()
