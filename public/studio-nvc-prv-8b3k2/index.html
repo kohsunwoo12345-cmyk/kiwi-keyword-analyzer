@@ -4451,6 +4451,20 @@ function upQualityById(id){
   return null;
 }
 /* 저장된 값 읽기 — 예전 그래프에는 2·4·5(배율)가 들어 있다. 그 값도 화질로 옮겨 준다. */
+/* 고른 화질을 실제로 낼 수 있는지 미리 따진다.
+   초해상은 원본을 최대 8배까지만 키운다(그 이상은 없는 정보를 지어내는 것이라 의미가 없다).
+   그래서 아주 작은 원본에서 4K 를 고르면 라벨과 결과가 달라진다(320px → 8배 = 2560px).
+   반대로 원본이 이미 목표보다 크면 크기는 그대로 두고 선명도만 올린다.
+   둘 다 "고른 대로 안 나오는" 경우이므로 미리 알려 준다 — 말없이 다른 걸 주면 안 된다. */
+function upPlan(iw, ih, px){
+  var long = Math.max(iw||0, ih||0);
+  if(!long) return null;
+  var want = px/long;
+  var eff = Math.max(1, Math.min(8, want));
+  return { w: Math.round(iw*eff), h: Math.round(ih*eff),
+           capped: want > 8,          // 원본이 너무 작아 목표까지 못 감
+           already: want <= 1 };      // 이미 목표 이상 — 크기 유지, 선명도만
+}
 function upQualityOf(n){
   var v = n && n.w ? n.w.upQuality : null;
   var q = upQualityById(v);
@@ -4622,7 +4636,10 @@ function upscaleVideoURL(src,scale,onProg,opts){
     var factor=(opts&&opts.factor)||(scale>=4?4:2);
     var v=document.createElement('video'); v.crossOrigin='anonymous'; v.muted=true; v.playsInline=true; v.preload='auto';
     var settled=false;
-    function fallback(){ if(settled)return; settled=true; _upscaleVideoResample(src,scale,onProg).then(resolve,reject); }
+    /* 모델을 못 받으면 리샘플로 물러나는데, 예전엔 opts 를 안 넘겨 고른 화질이 통째로 무시됐다.
+       (320×180 원본에서 FHD 를 골라도 4K 를 골라도 똑같이 1280×720 이 나왔다 — 실측 확인)
+       목표 화질을 그대로 넘겨 어느 경로로 가든 같은 크기가 나오게 한다. */
+    function fallback(){ if(settled)return; settled=true; _upscaleVideoResample(src,scale,onProg,opts).then(resolve,reject); }
     v.addEventListener('loadedmetadata',function(){
       var dur=v.duration||0, MAXSEC=300, clip=Math.min(dur||MAXSEC, MAXSEC), FPS=15;   // 최대 5분
       try{ toast(tr('초해상 모델 로딩 중… (최초 1회 다운로드)')); }catch(_){}
@@ -4700,21 +4717,38 @@ function _upscaleImageResample(src,scale){
     img.src=sameOriginMedia(src);
   });
 }
-function _upscaleVideoResample(src,scale,onProg){
+function _upscaleVideoResample(src,scale,onProg,opts){
   return new Promise(function(resolve,reject){
-    if(typeof MediaRecorder==='undefined'){ reject(new Error('이 브라우저는 영상 업스케일 미지원')); return; }
-    var v=document.createElement('video'); v.crossOrigin='anonymous'; v.muted=true; v.playsInline=true; v.preload='auto';
+    if(typeof MediaRecorder==='undefined'){ reject(new Error('이 브라우저는 업스케일을 지원하지 않는 브라우저입니다')); return; }
+    /* 이 경로는 원본을 실제로 재생하며 캡처한다 → 원본 소리를 그대로 실어 보낼 수 있다.
+       (음소거로 재생하면 오디오 트랙이 흐르지 않아 소리가 사라진다 — muted 를 켜지 않는다) */
+    var v=document.createElement('video'); v.crossOrigin='anonymous'; v.playsInline=true; v.preload='auto';
     var done=false, tm=setTimeout(function(){ if(!done){ done=true; reject(new Error('처리 시간 초과')); } },180000);
     v.addEventListener('loadedmetadata',function(){
-      var w=Math.round((v.videoWidth||1280)*scale), h=Math.round((v.videoHeight||720)*scale);
+      var iw=v.videoWidth||1280, ih=v.videoHeight||720;
+      //  고른 화질(긴 변 목표)이 있으면 그 값으로 맞춘다 — 배율만 쓰면 무엇이 나올지 알 수 없다
+      var effScale=scale;
+      if(opts&&opts.longTarget) effScale=Math.max(1, Math.min(8, opts.longTarget/Math.max(iw,ih)));
+      var w=Math.round(iw*effScale), h=Math.round(ih*effScale);
       var c=document.createElement('canvas'); c.width=w; c.height=h;
       var ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
       ctx.filter='contrast(1.06) saturate(1.04)';   // 프레임별 저비용 선명화
       var fps=30, stream=c.captureStream(fps);
-      var mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].filter(function(m){return MediaRecorder.isTypeSupported(m);})[0]||'video/webm';
+      /* 원본 소리 붙이기 — 캔버스 스트림에는 영상만 담긴다. 그대로 녹화하면 소리가 통째로 사라진다
+         (나레이션·립싱크·음악을 입힌 영상을 업스케일하면 무음이 됐다 — 실측 확인).
+         재생 중인 <video> 에서 오디오 트랙을 꺼내 함께 녹화한다. */
+      var hasAudio=false;
+      try{
+        var vcap = v.captureStream ? v.captureStream() : (v.mozCaptureStream ? v.mozCaptureStream() : null);
+        if(vcap){ vcap.getAudioTracks().forEach(function(t){ stream.addTrack(t); hasAudio=true; }); }
+      }catch(e){ /* 못 붙이면 영상만 — 아래 안내에서 알린다 */ }
+      var mime=(hasAudio
+        ? ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']
+        : ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']
+        ).filter(function(m){return MediaRecorder.isTypeSupported(m);})[0]||'video/webm';
       var rec=new MediaRecorder(stream,{ mimeType:mime, videoBitsPerSecond:Math.min(24000000,Math.round(w*h*fps*0.12)) });
       var chunks=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size)chunks.push(e.data); };
-      rec.onstop=function(){ if(done&&chunks.length){ clearTimeout(tm); hostRecordedVideo(chunks,'video/webm').then(function(u){ resolve({ url:u, kind:'video', dim:w+'×'+h }); }); } };
+      rec.onstop=function(){ if(done&&chunks.length){ clearTimeout(tm); hostRecordedVideo(chunks,'video/webm').then(function(u){ resolve({ url:u, kind:'video', dim:w+'×'+h, audio:hasAudio }); }); } };
       function draw(){ try{ ctx.drawImage(v,0,0,w,h); }catch(e){} }
       function tick(){ if(done)return; draw(); if(onProg&&v.duration)onProg(Math.min(1,v.currentTime/v.duration)); if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(tick); else requestAnimationFrame(tick); }
       v.addEventListener('ended',function(){ if(done)return; done=true; draw(); setTimeout(function(){ try{rec.stop();}catch(e){} },160); },{once:true});
@@ -7208,6 +7242,26 @@ canvas.addEventListener('click',function(e){
     var uScale=4;                                   // 자체 모델은 x4 로 돌리고 목표 화질에 맞춰 정확히 줄인다
     var uIsImg = n2.w.kind==='image' || /^data:image\//i.test(n2.w.vid) || /\.(png|jpe?g|webp|gif)(\?|$)/i.test(n2.w.vid);
     if(is5k && !uIsImg){ try{ toast('5K 영상은 매우 오래 걸리고(수 시간+) 브라우저가 5K 인코딩을 못 하면 자동으로 낮춰집니다.'); }catch(_){} }
+    /* 원본 크기를 먼저 재서 "고른 대로 나오는지" 를 알린다. 말없이 다른 크기를 주면
+       사용자는 4K 를 받은 줄 안다(320px 원본에서 4K 는 실제로 2560px 까지만 간다). */
+    (function(){
+      try{
+        var probe = uIsImg ? new Image() : document.createElement('video');
+        probe.crossOrigin='anonymous';
+        var onMeta=function(){
+          var iw = uIsImg ? (probe.naturalWidth||0) : (probe.videoWidth||0);
+          var ih = uIsImg ? (probe.naturalHeight||0) : (probe.videoHeight||0);
+          var pl = upPlan(iw, ih, uQ.px);
+          if(!pl) return;
+          if(pl.already) toast('원본이 이미 '+uQ.label+' 이상입니다 — 크기는 '+pl.w+'×'+pl.h+' 그대로, 선명도만 올립니다');
+          else if(pl.capped) toast('원본이 작아 '+uQ.label+' 까지는 못 올립니다 — '+pl.w+'×'+pl.h+' 로 만듭니다 (최대 8배)');
+        };
+        if(uIsImg){ probe.onload=onMeta; probe.src=sameOriginMedia(n2.w.vid); }
+        else { probe.preload='metadata'; probe.muted=true;
+               probe.addEventListener('loadedmetadata', onMeta, {once:true});
+               probe.src=sameOriginMedia(n2.w.vid); }
+      }catch(_e){}
+    })();
     n2.w.upscaling=true; n2.w.upPct=0; render();
     toast((uIsImg?'이미지':'영상')+' 화질 올리는 중… '+uQ.label+' (자체 모델 · 무료)');
     function uProg(pp){ n2.w.upPct=pp; var hh=document.getElementById('nd-'+n2.id); if(hh){ var bar=hh.querySelector('.up-prog i'); if(bar)bar.style.width=Math.round(pp*100)+'%'; var msg=hh.querySelector('.up-msg'); if(msg)msg.textContent='업스케일 처리 중… '+Math.round(pp*100)+'% (프레임별 초해상 · 길수록 오래)'; } }
