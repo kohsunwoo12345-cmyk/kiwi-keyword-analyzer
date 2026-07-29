@@ -58,7 +58,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     //     발송 비용은 포인트(알리고 단가 × 배수). 이메일은 다른 경로와 마찬가지로 과금하지 않는다.
     const smsTargets = emailOnly ? 0 : recipients.filter((r: any) => digits(r.phone).length >= 10).length
     const msgKind = smsKindOf(message)
-    const unit = await unitCost(db, msgKind)
+    const unit = await unitCost(db, msgKind, me.id)
     if (smsTargets > 0) {
       const spend = await spendPoints(db, me.id, unit * smsTargets, '퍼널 문자 발송', `${KIND_LABEL[msgKind]} ${smsTargets}건 · ${unit}P/건`)
       if (!spend.ok) return j({ success: false, error: spend.error, need: (spend as any).need, balance: (spend as any).balance, unit }, 402)

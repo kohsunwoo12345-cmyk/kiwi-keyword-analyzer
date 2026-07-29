@@ -33,7 +33,7 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
   if (!text) return json({ ok: false, error: '내용을 입력하세요.' }, 400)
 
   // 발송 비용은 포인트로 나간다(크레딧과 별개). 단가는 알리고 기준가 × 배수.
-  const unit = await unitCost(db, 'alimtalk')
+  const unit = await unitCost(db, 'alimtalk', me.id)
   const cost = unit * recipients.length
   const spend = await spendPoints(db, me.id, cost, '알림톡 발송', `알림톡 ${recipients.length}건 · ${unit}P/건`)
   if (!spend.ok) return json({ ok: false, error: spend.error, need: (spend as any).need, balance: (spend as any).balance, unit }, 402)

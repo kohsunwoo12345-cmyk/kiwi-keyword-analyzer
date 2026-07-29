@@ -26,7 +26,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     all("SELECT template_id, name, status, senderkey FROM kakao_templates WHERE user_id = ? ORDER BY created_at DESC LIMIT 100", me.id),
   ])
 
-  const rates = await getMsgRates(db)
+  const rates = await getMsgRates(db, me.id)   // 회원 개별 단가가 있으면 그 값으로 보여준다
   const fresh: any = await db.prepare('SELECT points, credits FROM users WHERE id = ?').bind(me.id).first().catch(() => null)
 
   return json({

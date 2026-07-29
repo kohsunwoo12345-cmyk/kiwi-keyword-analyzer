@@ -127,6 +127,7 @@ const NAV_GROUPS: NavGroup[] = [
       { title: '쿠폰·할인코드', href: `${ADMIN_BASE}/coupons`, icon: Ticket },
       { title: '발송 설정', href: `${ADMIN_BASE}/messaging`, icon: Send },
       { title: '발신번호 승인', href: `${ADMIN_BASE}/sender-approvals`, icon: ShieldCheck },
+      { title: '문자·알림톡 단가', href: `${ADMIN_BASE}/msg-pricing`, icon: Coins },
     ],
   },
   {

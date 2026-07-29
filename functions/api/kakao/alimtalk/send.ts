@@ -43,7 +43,7 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
     // ── 포인트 선차감 ──
     //  단가는 알리고 기준 단가 × 배수(기본 2배)로 관리자 설정에서 읽는다.
     //  예전에는 25P 로 코드에 못 박혀 있어 알리고 요금이 바뀌어도 따라가지 못했다.
-    const unit = await unitCost(db, 'alimtalk')
+    const unit = await unitCost(db, 'alimtalk', userId)
     const totalCost = unit * recipients.length
     const spend = await spendPoints(db, userId, totalCost, '알림톡 발송', `알림톡 ${recipients.length}건 · ${unit}P/건`)
     if (!spend.ok) return json({ ok: false, error: spend.error, need: (spend as any).need, balance: (spend as any).balance, unit })

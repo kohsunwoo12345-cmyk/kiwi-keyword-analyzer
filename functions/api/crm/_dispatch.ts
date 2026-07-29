@@ -86,7 +86,7 @@ export async function dispatchCampaign(db: D1Database, env: any, campaignId: str
 
   const isAlimtalk = c.channel === 'alimtalk'
   const msgKind = isAlimtalk ? 'alimtalk' : smsKindOf(message)
-  const unit = await unitCost(db, msgKind as any)
+  const unit = await unitCost(db, msgKind as any, c.user_id)
   const total = unit * targets.length
 
   const spend = await spendPoints(

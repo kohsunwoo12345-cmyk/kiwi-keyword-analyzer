@@ -50,7 +50,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
      ORDER BY c.run_date DESC, c.created_at DESC
      LIMIT 500`
   const rows = ((await (binds.length ? db.prepare(sql).bind(...binds) : db.prepare(sql)).all().catch(() => ({ results: [] }))).results as any[]) || []
-  const rates = await getMsgRates(db)
+  const rates = await getMsgRates(db, me.id)
   return json({ ok: true, campaigns: rows, rates: rates.charge, isAdmin })
 }
 
@@ -103,7 +103,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   ).run()
 
   const size = await groupSize(db, me.id, groupId)
-  const rates = await getMsgRates(db)
+  const rates = await getMsgRates(db, me.id)
   const kind = channel === 'alimtalk' ? 'alimtalk' : smsKindOf(message)
   return json({ ok: true, id, status, targetCount: size, estimatePoints: rates.charge[kind] * size, unitPoints: rates.charge[kind], msgKind: kind })
 }
