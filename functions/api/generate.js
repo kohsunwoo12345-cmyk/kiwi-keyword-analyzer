@@ -64,6 +64,12 @@ export function musicEngines(env, k) {
   if (k.fal) list.push("fal");
   return list;
 }
+/* 음악 길이는 제공사에 나가기 전에 여기서 잘린다(10~120초). 과금도 같은 값을 써야 해서
+   숫자를 세 군데(핸들러·페이로드 미리보기·effectiveUnits)에 따로 적어 두면 반드시 어긋난다.
+   30초로 부르든 9999초로 부르든 실제로 만들어지는 길이는 이 함수가 정한다. */
+export function musicSeconds(b) {
+  return Math.min(Math.max(Number(b && b.seconds) || 30, 10), 120);
+}
 /* data: 이미지(첫 프레임 등)를 R2 에 올려 공개 URL 로 바꾼다.
    Grok(xAI) 영상처럼 "공개 URL 만" 받는 제공사에서, 스튜디오가 보낸 data:URI 첫 프레임이
    조용히 버려져 이어보기가 되지 않던 문제를 막는다. 실패하면 null(원래 동작 유지). */
@@ -1433,10 +1439,57 @@ export function buildVeoPayload(b, opts) {
    스튜디오는 화면에서 이미 스냅하지만 /api/v1/generate·MCP 는 임의 값을 보낼 수 있다.
    표를 따로 두면 빌더와 어긋나므로, 빌더를 실제로 돌려 그 결과에서 값을 읽는다. */
 const RES_AWARE = { seedance: 1, google: 1, luma: 1, upscale: 1 };
+
+/* ── 모델 이름 → 제공사 (서버가 정한다) ──
+   effectiveUnits·effectiveRes 는 "어느 빌더에 길이·해상도를 물어볼지" 를 이 값으로 고른다.
+   예전엔 요청 바디의 provider 를 그대로 썼는데, 그건 클라이언트가 정하는 값이다.
+   모르는 이름(빈 문자열이라도)을 넣으면 어느 빌더도 타지 않고 요청한 길이·해상도가
+   그대로 청구된다 — "길이는 서버가 다시 계산한다" 는 방어가 통째로 무력화됐다.
+   실측: 10초 Veo 를 1초로 신고하면 8배, 씨댄스·클링은 10배, 업스케일 4K 는 40배 덜 냈다.
+   (/api/v1/generate 는 외부 공개 API 라 임의 바디가 실제로 들어온다.)
+   → 이름표는 빌더가 이미 쥐고 있는 ID 표에서 만든다(따로 적으면 그게 또 어긋난다).
+   표에 없는 이름일 때만 예전처럼 요청값으로 물러난다. */
+const MODEL_PROV_EXTRA = {
+  "Google Veo 3.1": "google",
+  "Grok Imagine": "xai", "Grok Imagine (영상)": "xai",
+  "Nano Banana": "nanobanana",
+  "Runway Aleph (영상→실사 V2V)": "runway_aleph",
+  "V2V 자동 (최고정확도·모델 자동선택)": "v2v_auto",
+  "모션 전이 (원본 움직임 유지·Motion Transfer)": "motion",
+  "업스케일 4K (영상 화질 향상)": "upscale",
+  "나레이션 (AI 음성 해설)": "narrate",
+  "립싱크 (인물 말하기)": "lipsync",
+  "목소리 교체·립싱크": "revoice",
+  "음악 생성 (BGM·뮤직)": "music",
+};
+let _modelProv = null;
+export function providerForModel(model) {
+  const m = String(model || "").trim();
+  if (!m) return "";
+  if (!_modelProv) {
+    _modelProv = Object.assign({}, MODEL_PROV_EXTRA);
+    const add = (tbl, prov) => { for (const k of Object.keys(tbl)) if (!_modelProv[k]) _modelProv[k] = prov; };
+    add(RUNWAY_MODELS, "runway"); add(SEEDANCE_IDS, "seedance"); add(SEEDREAM_IDS, "seedream");
+    add(ARK3D_IDS, "ark3d");      add(KLING_API, "kling");       add(HAILUO_IDS, "hailuo");
+    add(LUMA_IDS, "luma");        add(OPENAI_IMG_ID, "openai");  add(FLUX_ENDPOINTS, "flux");
+  }
+  return _modelProv[m] || "";
+}
+
+/* 과금 길이의 한계값. 어떤 생성도 이보다 길 수 없다(가장 긴 것이 원본 길이를 따라가는
+   업스케일·V2V 인데, 한 시간짜리 원본이면 이미 다른 곳에서 막힌다).
+   상한이 없으면 seconds:Infinity 나 "abc" 같은 값이 그대로 흘러 요금이 Infinity·NaN 이 된다
+   — 그 값으로 UPDATE users SET credits 를 치면 잔액 자체가 망가지고, ai_usage 에 들어가면
+   관리자 AI 비용 합계가 통째로 NaN 이 된다. 유한한 정수만 통과시킨다. */
+const MAX_BILL_SECONDS = 3600;
+function billSeconds(v, dflt) {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) && n > 0 ? Math.min(n, MAX_BILL_SECONDS) : dflt;
+}
 export function effectiveUnits(body, env) {
-  const raw = Math.max(1, Math.round(Number((body && (body.seconds ?? body.units)) || 8)));
-  const prov = String((body && body.provider) || "");
-  const num = (v) => { const n = Number(String(v == null ? "" : v).replace(/[^\d.]/g, "")); return Number.isFinite(n) && n > 0 ? Math.round(n) : null; };
+  const raw = billSeconds(body && (body.seconds ?? body.units), 8);
+  const prov = providerForModel(body && body.model) || String((body && body.provider) || "");
+  const num = (v) => { const n = Number(String(v == null ? "" : v).replace(/[^\d.]/g, "")); return Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), MAX_BILL_SECONDS) : null; };
   try {
     const b = Object.assign({}, body, { seconds: raw });
     if (prov === "seedance") {
@@ -1455,11 +1508,15 @@ export function effectiveUnits(body, env) {
     if (prov === "hailuo") return num(buildHailuoPayload(b).duration) || raw;
     if (prov === "kling")  return num(buildKlingApiPayload(b, klingApiSpec(b)).duration) || raw;
     if (prov === "xai")    return num(buildXaiVideoPayload(b, env).duration) || raw;
+    /* 음악은 빌더가 따로 없지만 핸들러가 10~120초로 자른다 — 그 값이 실제 생성 길이다.
+       예전엔 이 분기가 없어 요청값이 그대로 청구됐다(9999초로 불러도 120초만 만들어진다). */
+    if (prov === "music") return musicSeconds(b);
   } catch (_e) { /* 빌더가 던지면 요청값을 그대로 쓴다 */ }
   return raw;
 }
 export function effectiveRes(body, env) {
-  const prov = String((body && body.provider) || "");
+  // 제공사는 모델 이름으로 서버가 정한다 — 위 providerForModel 주석 참조.
+  const prov = providerForModel(body && body.model) || String((body && body.provider) || "");
   const raw = String((body && body.res) || "1080p");
   //  해상도 필드를 아예 받지 않는 제공사(Kling·Runway·MiniMax·Grok 등)는 무엇을 골라도
   //  결과가 같다 → 과금 배율이 달라지지 않도록 1080p(1.0배)로 고정한다.
@@ -1562,7 +1619,11 @@ async function handle(context) {
             const mk = await resolveMarkup(db, me.id, mdl, Number(me.credit_markup) || 0);
             const ckw = await creditPriceFor(db, me);
             //  게이트도 "실제로 생성될 길이·해상도" 기준이어야 확정 과금과 어긋나지 않는다.
-            const isImg = MODEL_COST[mdl] && MODEL_COST[mdl].u === "img";
+            /* 'img'(장당) 말고 '3d'(모델 1개당)·'tok'(호출 1회당)도 "단위 1개" 정액이다.
+               'img' 만 보고 있어서 3D·프롬프트 모델이 초당 계산을 타 8배로 추정됐다 —
+               확정 과금(usage/record·precheck·/api/v1)은 이미 u!=='sec' 로 맞춰 두었는데
+               이 게이트만 남아, 잔액이 충분한 사람을 "크레딧 부족" 으로 막을 수 있었다. */
+            const isImg = MODEL_COST[mdl] && MODEL_COST[mdl].u !== "sec";
             const gUnits = isImg ? 1 : effectiveUnits(pbody, env);
             const gRes = isImg ? undefined : effectiveRes(pbody, env);
             const cc = computeCharge({ model: mdl, units: gUnits, res: gRes, audio: !!pbody.generateAudio }, rate, mk, ckw);
@@ -3726,7 +3787,7 @@ async function handle(context) {
                   : provider === "google" ? buildVeoPayload(b)
                   : provider === "seedance" ? buildSeedancePayload(b, env)
                   : provider === "seedream" ? buildSeedreamPayload(b, env)
-                  : provider === "music"    ? { engines: musicEngines(env, k), prompt: (b.prompt || "").slice(0, 300), seconds: Math.min(Math.max(Number(b.seconds) || 30, 10), 120) }
+                  : provider === "music"    ? { engines: musicEngines(env, k), prompt: (b.prompt || "").slice(0, 300), seconds: musicSeconds(b) }
                   // 필드명은 실제 제출과 같아야 한다(예전엔 미리보기만 factor 로 찍혀 실제 요청과 달라 보였다)
                   : provider === "upscale"  ? { model: pick(env, ["FAL_UPSCALE_MODEL", "fal_upscale_model"]) || "fal-ai/topaz/upscale/video", video_url: b.srcVideo || null, upscale_factor: (b.res === "4K" ? 4 : 2) }
                   : provider === "flux"     ? buildFluxPayload(b)
@@ -4405,7 +4466,7 @@ async function handle(context) {
     const origin = u.origin;
     const promptTxt = cut(b.prompt, 800);
     if (!promptTxt) return json({ error: "음악 설명(prompt)을 입력하세요." }, 400);
-    const secs = Math.min(Math.max(Number(b.seconds) || 30, 10), 120);
+    const secs = musicSeconds(b);
     const errs = [];
     for (const eng of engines) {
       try {

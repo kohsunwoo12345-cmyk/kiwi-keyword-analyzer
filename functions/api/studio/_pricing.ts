@@ -523,6 +523,15 @@ const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100
 export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, markupOverride?: number, creditKrw: number = CREDIT_KRW): ChargeResult {
   const basis = creditKrw && creditKrw > 0 ? creditKrw : CREDIT_KRW // 1크레딧당 원(회원 단가). 기본 50, 충전단가(65 등) 전달 시 그 값 기준
   const rate = usdKrw && usdKrw > 0 ? usdKrw : USD_KRW
+  /* 여기로 들어오는 숫자는 마지막까지 유한해야 한다.
+     effectiveUnits 가 앞에서 걸러 주지만 이 함수를 직접 부르는 곳도 있고(MCP 추정·관리자 화면),
+     Infinity·NaN 이 한 번이라도 새면 잔액 UPDATE 와 ai_usage 합계가 통째로 망가진다.
+     계산 "직전" 에 한 번 더 막는다 — 방어는 두 겹이어야 한 겹이 뚫려도 돈이 안 샌다. */
+  const fin = (v: any, dflt: number, max: number) => {
+    const n = Number(v)
+    return Number.isFinite(n) && n > 0 ? Math.min(n, max) : dflt
+  }
+  input = { ...input, units: fin(input.units, 0, 3600), refs: fin((input as any).refs, 0, 64) }
   const model = String(input.model || '')
   const m = MODEL_COST[model]
   // 'img'(장당) 외에 '3d'(모델 1개당)·'tok'(호출 1회당) 도 "단위 1개" 과금이다 — 초당 계산을 타면 안 된다.

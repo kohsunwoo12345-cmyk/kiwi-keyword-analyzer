@@ -140,6 +140,26 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   //    (예전처럼 "남은 잔액만" 차감하면 0.01크레딧 계정이 고가 영상을 사실상 공짜로 생성 → 손해).
   //  · 잔액이 음수가 되면 이후 생성은 /api/generate 의 credits>0 게이트에서 자동 차단(=미납 잠금).
   //  · 원자적 무조건 차감으로 동시 요청 시에도 이중차감 없이 정확히 원가만큼만 반영된다.
+  /* ── 같은 생성에 두 번 청구되지 않게 ──
+     비동기 영상은 제출 시 받은 statusUrl 을 노드에 pendingUrl 로 적어 두고 autosave 로 서버에 올린다.
+     그래서 생성 중에 다른 탭(또는 다른 기기)에서 스튜디오를 열면, 그 탭도 같은 pendingUrl 을 이어받아
+     폴링하고 완료 시 또 청구한다 — 한 번 만든 영상에 두 번 돈이 빠진다.
+     제공사 작업 주소는 작업마다 유일하므로 그걸 열쇠로 삼아, 먼저 꽂힌 요청 하나만 청구한다. */
+  const taskKey = String(b.taskKey || '').slice(0, 300)
+  if (taskKey) {
+    try {
+      await db.prepare(
+        `CREATE TABLE IF NOT EXISTS ai_usage_keys (task_key TEXT PRIMARY KEY, user_id TEXT DEFAULT '', created_at TEXT NOT NULL)`,
+      ).run()
+      const ins: any = await db.prepare(
+        `INSERT OR IGNORE INTO ai_usage_keys (task_key, user_id, created_at) VALUES (?, ?, ?)`,
+      ).bind(taskKey, me.id, new Date().toISOString()).run()
+      if (!ins?.meta?.changes)
+        return json({ ok: true, stored: false, duplicate: true, charged: 0, credits: 0,
+                      note: '이미 청구된 생성입니다(다른 탭에서 먼저 기록됨).' })
+    } catch { /* 열쇠 테이블에 문제가 있어도 청구 자체는 막지 않는다 */ }
+  }
+
   let charged = 0
   let afterBal = Number(me?.credits) || 0
   if (me && wantCredits > 0) {
