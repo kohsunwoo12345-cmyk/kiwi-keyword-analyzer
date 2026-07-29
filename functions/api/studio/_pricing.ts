@@ -138,7 +138,13 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
      다만 같은 표의 `seedream5_pro` 는 1K 장당 5크레딧($0.05)로 우리 값($0.075)보다 오히려 싸다.
      한 표 안에서 어떤 건 우리보다 비싸고 어떤 건 싸므로 "런웨이 = 원가" 라고 단정할 수 없다.
      → 값을 바꾸지 않는다. BytePlus 공식 단가를 봐야 한다.
-     확인 방법: 배포 서버에서 /api/generate?diag=ark-pricing (제공사 API 에 직접 질의).
+
+     자동으로 확인할 방법은 두 갈래 다 막혔다(둘 다 실제로 해 봤다):
+       · 문서(docs.byteplus.com/.../Pricing) — 자바스크립트로 그려서 .md·llms.txt 로도 껍데기만 온다.
+       · 계정 API(/models) — 응답에 price·cost·billing 계열 필드가 아예 없다(모델 메타데이터만).
+     남은 방법은 BytePlus 콘솔(웹) 의 요금/청구 화면을 사람이 직접 보는 것뿐이다.
+     실제 청구서(월 사용액 ÷ 생성 초수)로 역산하는 것이 가장 확실하다.
+
      만약 실제로 초당 $0.40 이라면 마크업 2.5배(매출 $0.155)로도 초당 $0.245 손실 —
      10초 한 편에 약 3,400원 적자다. 이 항목이 현재 남은 위험 중 가장 크다. */
   'Seedance 2.0': { u: 'sec', usd: 0.062, audio: 0.02, prov: 'seedance' },

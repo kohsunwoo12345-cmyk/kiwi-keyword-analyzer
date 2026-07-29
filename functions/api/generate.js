@@ -2405,50 +2405,48 @@ async function handle(context) {
        앞으로 형식 탐색이 필요하면 "빈 값" 이 아니라 "존재하지 않는 열거값" 으로만 시도할 것.
        (빈 값은 접수돼 버린다는 것이 이 사고로 확정됐다.) */
 
-    /* ══ ModelArk 단가를 제공사 API 에 직접 묻기 (읽기 전용·무과금) ══
+    /* ══ ModelArk 모델 상태 대조 (읽기 전용·무과금) ══
        /api/generate?diag=ark-pricing
 
-       왜: BytePlus 단가 문서(docs.byteplus.com/.../Pricing)가 자바스크립트로 그려져
-       .md·llms.txt 로도 본문이 안 온다. 그래서 씨댄스·씨드림·3D 단가를 문서로는 확인할 수 없다.
-       그런데 우리는 이미 그 계정의 API 키를 갖고 있다 — 문서를 긁는 것보다 제공사 API 가
-       스스로 알려 주는 값이 확실하다. 모델 목록 응답 원문을 그대로 실어, 단가처럼 보이는
-       키(price·cost·billing·unit…)가 있으면 뽑아 준다. GET 만 하므로 생성·과금이 없다. */
+       처음엔 단가를 얻으려고 만들었는데, 계정 API(/models)는 단가를 주지 않는다
+       — 응답에 price·cost·billing 계열 필드가 아예 없다(확인 완료). 문서도 자바스크립트로
+       그려져 못 읽으니, BytePlus 단가는 콘솔에서 사람이 보는 수밖에 없다.
+
+       대신 이 응답에는 단가보다 더 급한 게 들어 있다: 모델마다 status 가 있고
+       "Shutdown" 인 것들이 실제로 있다. 우리가 쓰는 ID 가 아직 살아 있는지를 여기서 대조한다.
+       (계정에 실제로 열려 있는 ID 목록도 함께 보여 줘, 표기가 바뀌었을 때 바로 갈아탈 수 있게 한다.) */
     if (u.searchParams.get("diag") === "ark-pricing") {
       if (!k.seedance) return json({ diag: "ark-pricing", error: "Seedance_API_KEY 미설정" });
-      const paths = ["/models?page_size=200", "/models", "/foundation_models", "/endpoints", "/billing/price", "/prices"];
-      const out = [];
-      for (const p of paths) {
-        try {
-          const r = await fetchT(ARK_HOSTS.bp + p, { headers: { "Authorization": "Bearer " + k.seedance } }, 10000);
-          const t = await r.text();
-          let j = null; try { j = JSON.parse(t); } catch (_e) { /* JSON 이 아니면 원문만 */ }
-          // 단가처럼 보이는 키를 경로째로 모은다(이름을 미리 알 필요가 없게)
-          const hits = [];
-          (function walk(v, path) {
-            if (v == null || hits.length > 60) return;
-            if (typeof v === "object") {
-              for (const kk of Object.keys(v)) {
-                const np = path ? path + "." + kk : kk;
-                if (/price|cost|billing|fee|rate|unit|quota|credit/i.test(kk) && typeof v[kk] !== "object")
-                  hits.push(np + " = " + String(v[kk]).slice(0, 80));
-                walk(v[kk], np);
-              }
-            } else if (Array.isArray(v)) v.forEach((x, i) => walk(x, path + "[" + i + "]"));
-          })(j, "");
-          out.push({ 경로: p, httpStatus: r.status, 바이트: t.length,
-                     단가로보이는키: hits.length ? hits : "(없음)",
-                     // 구조를 봐야 다음 수를 정할 수 있으므로 앞부분 원문을 그대로 싣는다
-                     응답앞부분: String(t).slice(0, 2500) });
-          if (r.ok && hits.length) break;   // 단가를 찾았으면 더 볼 필요 없다
-        } catch (e) { out.push({ 경로: p, 오류: String((e && e.message) || e).slice(0, 120) }); }
+      let cat = {}, raw = { httpStatus: 0, 바이트: 0 };
+      try {
+        const r = await fetchT(ARK_HOSTS.bp + "/models?page_size=200", { headers: { "Authorization": "Bearer " + k.seedance } }, 12000);
+        const t = await r.text(); raw = { httpStatus: r.status, 바이트: t.length };
+        const j = JSON.parse(t);
+        for (const m of (j.data || [])) cat[m.id] = { status: m.status || "", domain: m.domain || "", task: (m.task_type || []).join("/") };
+      } catch (e) { return json({ diag: "ark-pricing", 오류: String((e && e.message) || e).slice(0, 160) }); }
+
+      // 우리가 쓰는 ID 후보 전체 — 첫 후보가 살아 있는지가 핵심이다
+      const groups = { "씨댄스(영상)": SEEDANCE_IDS, "씨드림(이미지)": SEEDREAM_IDS, "3D": ARK3D_IDS };
+      const rows = [];
+      for (const [g, table] of Object.entries(groups)) {
+        for (const [name, ids] of Object.entries(table)) {
+          const hit = ids.map((id) => ({ id, 카탈로그: cat[id] ? (cat[id].status || "Active") : "없음" }));
+          const live = hit.find((h) => h.카탈로그 !== "없음" && !/shutdown/i.test(h.카탈로그));
+          rows.push({ 분류: g, 모델: name, 후보: hit,
+                      판정: live ? (live.id === ids[0] ? "정상(첫 후보 사용)" : "⚠ 첫 후보가 죽음 → " + live.id + " 로 물러남")
+                                 : "❌ 살아 있는 후보 없음" });
+        }
       }
+      // 계정에 실제로 열려 있는 영상·이미지·3D 계열 ID (표기가 바뀌었을 때 대조용)
+      const 계정목록 = Object.keys(cat)
+        .filter((id) => /seedance|seedream|seededit|dreamina|hyper3d|hitem3d|dola/i.test(id))
+        .map((id) => id + " [" + (cat[id].status || "Active") + "]").sort();
       return json({ diag: "ark-pricing",
-        note: "GET 만 합니다 — 생성·과금이 없습니다.",
-        현재우리단가: Object.keys(MODEL_COST_SRV || {})
-          .filter((n) => ["seedance", "seedream", "ark3d"].includes((MODEL_COST_SRV[n] || {}).prov))
-          .reduce((o, n) => { const m = MODEL_COST_SRV[n];
-            o[n] = (m.u === "sec" ? "초당 $" + m.usd : "1개당 $" + m.usd); return o; }, {}),
-        결과: out });
+        note: "GET 만 합니다 — 생성·과금이 없습니다. 이 API 는 단가를 제공하지 않아(price 계열 필드 없음) 모델 상태만 대조합니다.",
+        카탈로그: { ...raw, 모델수: Object.keys(cat).length },
+        문제있는것: rows.filter((r) => !/^정상/.test(r.판정)),
+        전체판정: rows,
+        계정에열려있는관련ID: 계정목록 });
     }
 
     /* ══ 지난 작업 목록 조회 (읽기 전용·무과금) ══
