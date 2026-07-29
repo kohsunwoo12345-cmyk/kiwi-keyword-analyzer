@@ -1,5 +1,6 @@
-import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity } from '../../_utils'
+import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity, asText } from '../../_utils'
 import { aligoTemplateAdd, aligoTemplateRequest } from '../../_aligo'
+import { ownsKakaoChannel, notMyChannel } from '../_own'
 
 // POST /api/kakao/alimtalk/template-create { name, content, senderkey?, buttons?, request? }
 //   → 알리고에 템플릿 등록(add) → 승인요청(request, 기본 true) → DB(kakao_templates) 저장
@@ -11,12 +12,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
 
   const b: any = await (request.json().catch(() => null)) ?? {}
-  const name = String(b.name || '').trim()
-  const content = String(b.content || '').trim()
+  const name = asText(b.name, 120).trim()
+  const content = asText(b.content, 4000).trim()
   if (!name || !content) return json({ ok: false, error: '템플릿 이름과 내용을 입력하세요.' }, 400)
 
   // 발신프로필 키: 지정값 → 본인 채널 → 환경변수
-  let senderKey = String(b.senderkey || b.senderKey || '').trim()
+  // ⚠ senderkey 를 그대로 받아 남의 채널에 템플릿을 만들 수 있었다.
+  let senderKey = (asText(b.senderkey) || asText(b.senderKey)).trim()
+  if (senderKey && !(await ownsKakaoChannel(db, String(me.id), senderKey))) return notMyChannel()
   if (!senderKey) {
     const ch: any = await db.prepare('SELECT channel_id FROM kakao_channels WHERE user_id = ? ORDER BY created_at DESC LIMIT 1').bind(me.id).first().catch(() => null)
     if (ch?.channel_id) senderKey = String(ch.channel_id)

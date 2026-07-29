@@ -1,5 +1,6 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB } from '../../_utils'
 import { aligoTemplateRequest } from '../../_aligo'
+import { ownsKakaoChannel, notMyChannel } from '../_own'
 
 // POST /api/kakao/alimtalk/template-request { tplCode, senderkey? } → 기존 템플릿 승인(심사) 재요청
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -12,7 +13,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const b: any = await (request.json().catch(() => null)) ?? {}
   const tplCode = String(b.tplCode || b.templateId || '').trim()
   if (!tplCode) return json({ ok: false, error: '템플릿 코드가 필요합니다.' }, 400)
+  // ⚠ senderkey 를 그대로 받아 남의 채널로 심사요청을 넣을 수 있었다.
   let senderKey = String(b.senderkey || b.senderKey || '').trim()
+  if (senderKey && !(await ownsKakaoChannel(db, String(me.id), senderKey))) return notMyChannel()
   if (!senderKey) {
     const ch: any = await db.prepare('SELECT channel_id FROM kakao_channels WHERE user_id = ? ORDER BY created_at DESC LIMIT 1').bind(me.id).first().catch(() => null)
     if (ch?.channel_id) senderKey = String(ch.channel_id)

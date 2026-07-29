@@ -1,5 +1,5 @@
 // SUPERPLACE 이식: PUT(이름수정)/DELETE(삭제) /api/landing/folders/:id
-import { Env, resolveDB, ensureSchema, getSessionUser } from '../../_utils'
+import { Env, resolveDB, ensureSchema, getSessionUser, asText } from '../../_utils'
 import { ensureLandingSchema } from '../_lschema'
 
 const j = (o: any, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } })
@@ -12,7 +12,7 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env, params })
   const me: any = await getSessionUser(request, db)
   if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
   const b: any = await (request.json().catch(() => null)) ?? {}
-  const name = String(b.name || '').trim()
+  const name = asText(b.name, 100).trim()
   if (!name) return j({ success: false, error: '폴더 이름을 입력하세요.' }, 400)
   const r = await db.prepare('UPDATE landing_folders SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?').bind(name, id, me.id).run()
   // 남의 폴더 id 를 넣어도 "수정되었습니다" 라고 답했다 — 안 바뀐 건 안 바뀌었다고 해야 한다.

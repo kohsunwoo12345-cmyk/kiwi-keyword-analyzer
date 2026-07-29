@@ -1,4 +1,5 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB, spendCredits, logActivity } from '../_utils'
+import { ownsKakaoChannel, notMyChannel } from '../kakao/_own'
 import { aligoAlimtalk, aligoAlimtalkConfigured } from '../_aligo'
 
 // POST /api/alimtalk/send { to, text, templateId, senderKey?, failover? } → 알리고 카카오 알림톡 (건당 1 크레딧)
@@ -15,7 +16,11 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
   const text = String(body.text || '').trim()
   // 템플릿 코드(tpl_code) · 발신프로필 키(senderkey)
   const templateId = String(body.templateId || body.tplCode || env?.ALIGO_TEMPLATE_CODE || '')
+  // ⚠ body.senderKey 를 그대로 썼다. senderkey 는 "그 회원이 전화 인증으로 등록한 카카오 채널"
+  //   식별자라, 남의 senderkey 를 적으면 남의 공식 채널 이름으로 알림톡이 나간다
+  //   (사칭 + 스팸 신고는 그 채널이 받는다). 내 채널인지 확인한다.
   let senderKey = String(body.senderKey || '')
+  if (senderKey && !(await ownsKakaoChannel(db, String(me.id), senderKey))) return notMyChannel()
   if (!senderKey) {
     // 본인이 등록한 카카오 채널(발신프로필)의 senderkey 사용
     const ch: any = await db.prepare('SELECT channel_id FROM kakao_channels WHERE user_id = ? ORDER BY created_at DESC LIMIT 1').bind(me.id).first().catch(() => null)

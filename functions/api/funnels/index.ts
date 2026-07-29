@@ -1,5 +1,5 @@
 // SUPERPLACE 퍼널 빌더 이식: GET/POST /api/funnels (Hono → CF Pages Functions, 우리 D1 어댑터)
-import { resolveDB, getSessionUser } from '../_utils'
+import { resolveDB, getSessionUser, asText } from '../_utils'
 import { ensureFunnelSchema } from '../funnel/_schema'
 
 const j = (o: any, status = 200) =>
@@ -44,7 +44,11 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     await ensureFunnelSchema(db)
     const me: any = await getSessionUser(request, db)
     if (!me) return j({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
-    const { name, description, category } = (((await request.json().catch(() => null)) as any) || {})
+    const _b = (((await request.json().catch(() => null)) as any) || {})
+    // 객체/배열이 오면 String()·D1 바인딩이 던져 500 이 된다 — 스칼라만 받는다
+    const name = asText(_b.name, 120).trim()
+    const description = asText(_b.description, 1000)
+    const category = asText(_b.category, 60)
     if (!name) return j({ success: false, error: '퍼널 이름을 입력해주세요.' }, 400)
     const now = new Date().toISOString()
     const result = await db.prepare(`

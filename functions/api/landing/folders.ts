@@ -1,5 +1,5 @@
 // SUPERPLACE 이식: GET(목록)/POST(생성) /api/landing/folders
-import { Env, resolveDB, ensureSchema, getSessionUser } from '../_utils'
+import { Env, resolveDB, ensureSchema, getSessionUser, asText } from '../_utils'
 import { ensureLandingSchema } from './_lschema'
 
 const j = (o: any, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } })
@@ -26,8 +26,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
   const b: any = await (request.json().catch(() => null)) ?? {}
-  const name = String(b.name || '').trim()
+  const name = asText(b.name, 100).trim()
   if (!name) return j({ success: false, error: '폴더 이름을 입력하세요.' }, 400)
-  const r = await db.prepare('INSERT INTO landing_folders (user_id, name, description) VALUES (?, ?, ?)').bind(me.id, name, b.description || null).run()
+  const r = await db.prepare('INSERT INTO landing_folders (user_id, name, description) VALUES (?, ?, ?)').bind(me.id, name, asText(b.description, 500) || null).run()
   return j({ success: true, folderId: r.meta.last_row_id, message: '폴더가 생성되었습니다.' })
 }
