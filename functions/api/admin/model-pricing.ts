@@ -100,6 +100,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       provider: PROV_LABEL[m.prov] || m.prov,
       kind,
       baseCredits: base.credits,
+      /* 크레딧은 소수 2자리라 아주 싼 모델(프롬프트 LLM)은 0.00 으로 뭉개진다 —
+         "원가 0" 처럼 보이면 배수를 정할 때 오해한다. 원 단위 실수를 같이 보낸다. */
+      baseKrw: Math.round(base.usd * rate * 10000) / 10000,
       defaultMarkup: dflt.markup,
       globalMarkup: globalMk,
       userMarkup: uMk,
@@ -108,7 +111,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     }
   })
 
-  return json({ ok: true, usdKrw: rate, creditKrw: CREDIT_KRW, userId, userName, userOverall, models })
+  // 화면이 "무엇을 기준으로 낸 원가인지" 를 밝힐 수 있게 산출 기준도 함께 보낸다
+  return json({ ok: true, usdKrw: rate, creditKrw: CREDIT_KRW, userId, userName, userOverall, models,
+                basis: { videoSeconds: unitsFor('video'), res: '1080p' } })
 }
 
 // POST /api/admin/model-pricing — 배수 설정 (전역/회원, 개별/일괄)

@@ -315,7 +315,10 @@ export interface ChargeResult {
   kind: 'image' | 'video'
   usd: number // 실제 AI 비용(USD)
   usdKrw: number // 적용 환율 (그날의 USD→KRW)
-  costKrw: number // 실제 AI 비용(원)
+  costKrw: number // 실제 AI 비용(원) — 표시용 정수 반올림
+  /** 실제 AI 비용(원) 원값. 1원 미만이 0 으로 뭉개지지 않게, 저장·합계는 이 값을 쓴다
+   *  (프롬프트 LLM 은 건당 0.2~0.4원이라 정수로 저장하면 관리자 원가 합계가 0 으로 쌓였다) */
+  costKrwExact: number
   markup: number // 3.0 | 2.5
   credits: number // 차감 크레딧
   revenueKrw: number // 매출(원) = credits × 50
@@ -523,12 +526,18 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
     const audioAdd = input.audio && m && m.audio ? m.audio * units : 0
     usd = r * units + audioAdd
   }
-  const costKrw = Math.round(usd * rate)
+  /* 원(KRW) 환산은 "표시용 정수" 와 "계산용 실수" 를 분리한다.
+     예전엔 Math.round(usd*rate) 한 정수로 크레딧을 계산해서, 1원이 안 되는 호출이
+     0원 → 0크레딧 → 사실상 무료가 됐다. 프롬프트 LLM 중 싼 3종이 실제로 그랬다
+     (gpt-4o-mini $0.00026 = 0.364원 → 0원 → 0크레딧, gpt-4.1-nano·gemini-2.5-flash-lite 도 같음).
+     계산은 실수로 하고, 반올림은 보고용 costKrw 에만 쓴다. */
+  const costKrwExact = usd * rate
+  const costKrw = Math.round(costKrwExact)
   // 마크업: 회원별 지정 배수가 있으면 그 값(최소 1배). 없으면 씨댄스 2.0/이미지=2.5, 그 외 3배
   const isSeed20 = /Seedance\s*2\.0/i.test(model)
   const defaultMarkup = isSeed20 || isImg ? 2.5 : 3.0
   const markup = markupOverride && markupOverride > 0 ? Math.max(1, markupOverride) : defaultMarkup
-  const priceKrw = costKrw * markup
+  const priceKrw = costKrwExact * markup
   // 정확 비례 소수 크레딧 (올림 없음, 최소 1 없음). 1크레딧=basis원 → 1배·원가 6500원·65원기준 = 100크레딧
   const credits = round2(priceKrw / basis)
   const revenueKrw = round2(credits * basis)
@@ -539,6 +548,7 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
     usd: Math.round(usd * 10000) / 10000,
     usdKrw: rate,
     costKrw,
+    costKrwExact: Math.round(costKrwExact * 10000) / 10000,
     markup,
     credits,
     revenueKrw,

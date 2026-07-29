@@ -849,7 +849,10 @@ export async function adminSettlementBranch(branchId: string): Promise<BranchDet
 /* ===== 모델별 AI 과금 배수 ===== */
 export interface ModelPriceRow {
   model: string; provider: string; kind: string
-  baseCredits: number; defaultMarkup: number
+  baseCredits: number
+  /** 원가를 원 단위 실수로. 크레딧이 0.00 으로 뭉개지는 아주 싼 모델을 위해 함께 내려온다 */
+  baseKrw?: number
+  defaultMarkup: number
   globalMarkup: number; userMarkup: number; effectiveMarkup: number; effectiveCredits: number
 }
 export interface AdminModelPricing {
@@ -857,6 +860,8 @@ export interface AdminModelPricing {
   usdKrw?: number; creditKrw?: number
   userId?: string; userName?: string; userOverall?: number
   models?: ModelPriceRow[]
+  /** 표의 원가를 낸 기준 — 영상은 길이·해상도에 따라 달라지므로 화면에 밝힌다 */
+  basis?: { videoSeconds: number; res: string }
 }
 export async function adminModelPricing(userId = ''): Promise<AdminModelPricing> {
   try {

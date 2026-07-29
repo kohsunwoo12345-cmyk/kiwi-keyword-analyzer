@@ -179,7 +179,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         c.kind,
         units || (c.kind === 'image' ? 1 : 0),   // 과금에 쓴 값과 같은 값을 기록(감사 일치)
         c.usd,
-        c.costKrw,
+        c.costKrwExact,   // 1원 미만도 그대로 — 관리자 원가 합계가 0 으로 쌓이지 않게
         charged,
         revenueKrw,
         c.markup,
