@@ -169,6 +169,12 @@ window.__rt = {
     for(let i=0;i<d.length;i+=4){ const t=d[i+3]/255, u=255*(1-t)
       r+=d[i]*t+u; g+=d[i+1]*t+u; b+=d[i+2]*t+u; a+=d[i+3] }
     return [r/n,g/n,b/n,a/n] },
+  // 또렷함 — 이웃 픽셀 밝기 차이의 평균
+  sharp(d,w,h){ let s=0,n=0
+    const lum=i=>0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]
+    for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){ const i=(y*w+x)*4
+      s+=Math.abs(lum(i)-lum(i+4))+Math.abs(lum(i)-lum(i+w*4)); n+=2 }
+    return Math.round(s/n*1000)/1000 },
   psnr(a,b){ let se=0,n=0
     for(let i=0;i<a.length;i+=4){ for(let k=0;k<3;k++){ const d=a[i+k]-b[i+k]; se+=d*d; n++ } }
     const m=se/Math.max(1,n); return m<=0?99:Math.round(10*Math.log10(65025/m)*100)/100 }
@@ -359,6 +365,41 @@ const swBad = sweep.filter(s=> s.st>=4 ? s.d<=0 : s.d<-0.25)
 ok('선 간격 전 구간에서 기대대로 (4px 이상은 이기고, 그 아래도 크게 지지 않음)', swBad.length===0,
    swBad.length ? swBad.map(s=>`${s.st}px ${s.d}dB`).join(' , ')
                 : sweep.map(s=>`${s.st}px ${s.d>=0?'+':''}${s.d}`).join(' · '))
+
+// ── 4배를 고르면 '4배 전부' 가 AI 인가 ──
+//  우리 모델은 2배짜리다. 모자란 만큼을 그냥 늘려 채우면 4배를 골라도 절반만 AI 다.
+//  되살린 디테일(선명도)이 원본 수준까지 올라오는지로 확인한다.
+//  단순 확대는 원본의 40% 수준에 그친다 — 70% 를 넘으면 '진짜로 4배를 되살렸다' 고 볼 수 있다.
+const x4 = await page.evaluate(async () => {
+  const T = window.__rt
+  const W=1200, H=800
+  // ⚠ 4배로 줄여도 '살아남는 굵기' 여야 뜻이 있다.
+  //  1px 선은 4배로 줄이면 0.25px 이 되어 아예 사라진다 → 어떤 모델도 되살릴 수 없다.
+  //  그래서 2px 선·굵은 글자로 그린다(실제 사진·디자인의 가장자리에 해당).
+  const truth = document.createElement('canvas'); truth.width=W; truth.height=H
+  ;(function(){ const x=truth.getContext('2d')
+    const g=x.createLinearGradient(0,0,W,H)
+    g.addColorStop(0,'#12306e'); g.addColorStop(0.5,'#a4785a'); g.addColorStop(1,'#d8b070')
+    x.fillStyle=g; x.fillRect(0,0,W,H)
+    x.strokeStyle='#fff'; x.lineWidth=2
+    for(let i=20;i<W;i+=37){ x.beginPath(); x.moveTo(i,0); x.lineTo(i,H); x.stroke() }
+    for(let i=20;i<H;i+=41){ x.beginPath(); x.moveTo(0,i); x.lineTo(W,i); x.stroke() }
+    x.fillStyle='#fff'; x.font='bold 64px sans-serif'; x.fillText('BYGENCY 4K', 40, H-60) })()
+  const small = document.createElement('canvas'); small.width=W/4; small.height=H/4
+  const sx = small.getContext('2d'); sx.imageSmoothingEnabled=true; sx.imageSmoothingQuality='high'
+  sx.drawImage(truth, 0, 0, W/4, H/4)
+  const res = await window.__cn.upscaleImageURL(small.toDataURL('image/png'), 4)
+  const img = await T.load(res.url)
+  const px = (src)=>{ const c=document.createElement('canvas'); c.width=W; c.height=H
+    const x=c.getContext('2d'); x.imageSmoothingEnabled=true; x.imageSmoothingQuality='high'
+    x.drawImage(src,0,0,W,H); return x.getImageData(0,0,W,H).data }
+  const tp=px(truth), pp=px(small), rp=px(img)
+  return { dim:res.dim, 정답:T.sharp(tp,W,H), 그냥늘리기:T.sharp(pp,W,H), 결과:T.sharp(rp,W,H),
+           psnr정답대비:T.psnr(tp,rp), psnr단순:T.psnr(tp,pp) }
+})
+ok('4배를 고르면 4배 전부가 AI (절반만 늘리지 않음)',
+   x4.결과 >= x4.정답*0.7 && x4.결과 > x4.그냥늘리기*1.5,
+   `선명도 정답 ${x4.정답} · 단순확대 ${x4.그냥늘리기} → 결과 ${x4.결과} (정답의 ${Math.round(x4.결과/x4.정답*100)}%) · ${x4.psnr단순}→${x4.psnr정답대비} dB`)
 
 // ── 동시에 여러 개를 돌려도 서로 망가뜨리지 않는가 ──
 //  사용자는 노드 여러 개의 실행 버튼을 연달아 누른다. 모델 세션을 함께 쓰므로

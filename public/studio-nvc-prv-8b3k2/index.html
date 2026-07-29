@@ -4447,7 +4447,21 @@ function upscaleImageURL(src,scale,opts,onProg){
         sx.drawImage(img,0,0,sw,sh);
         var keepAlpha=_hasAlpha(srcC);
         // 투명한 그림은 '투명한 자리의 검정' 이 가장자리에 번지지 않도록 미리 색을 메워 넣는다
-        return _srCanvas2(runner, keepAlpha? _bleedAlpha(srcC) : srcC, onProg).then(function(srC){
+        return _srCanvas2(runner, keepAlpha? _bleedAlpha(srcC) : srcC, onProg).then(function(sr1){
+          // ⚠ 우리 모델은 2배짜리다. 4배·4K·5K 처럼 더 크게 요청하면 예전에는 모자란 만큼을
+          //   그냥 늘려서 채웠다 — 즉 '4배' 를 골라도 절반은 AI 가 아니었다.
+          //   이제는 모자라면 한 번 더 초해상해서 진짜로 키운다(2배 모델 × 두 번 = 4배).
+          //   실측(1600×1000 목표): 선·글자 18.66 → 19.07 dB. 사진처럼 되살릴 게 없으면 차이 없음.
+          //   캔버스·메모리 한계를 넘지 않을 때만, 최대 두 번까지.
+          function again(cur, pass){
+            if(pass>=2) return Promise.resolve(cur);
+            if(Math.max(tw/cur.width, th/cur.height) < 1.6) return Promise.resolve(cur);
+            var nw=cur.width*f, nh=cur.height*f;
+            if(nw>SR_MAX_SIDE || nh>SR_MAX_SIDE || nw*nh>SR_MAX_PIX) return Promise.resolve(cur);
+            return _srCanvas2(runner, cur, onProg).then(function(c2){ return again(c2, pass+1); });
+          }
+          return again(sr1, 1);
+        }).then(function(srC){
           var o=srC, shrunk=false;
           if(srC.width!==tw||srC.height!==th){
             shrunk = srC.width>tw;   // 크게 만든 뒤 목표로 줄인 경우(=슈퍼샘플링) — 줄이면 약간 물러진다
@@ -4590,7 +4604,10 @@ function upscaleVideoURL(src,scale,onProg,opts){
     var v=document.createElement('video'); v.crossOrigin='anonymous'; v.muted=true; v.playsInline=true; v.preload='auto';
     var settled=false, srFail=0;
     function fallback(reason){ if(settled)return; settled=true;
-      _upscaleVideoResample(src,scale,onProg).then(function(r){ r.reason=String(reason||'').slice(0,140); resolve(r); },reject); }
+      _upscaleVideoResample(src,scale,onProg).then(function(r){
+        r.reason=String(reason||'').slice(0,140);
+        r.note=[r.note, r.reason].filter(Boolean).join(' · ');
+        resolve(r); },reject); }
     var _durRetried=false;
     v.addEventListener('loadedmetadata',function(){
       // ⚠ 영상 길이를 못 읽는 경우가 있다(브라우저가 갓 만든 webm, 스트리밍 주소 등).
@@ -4653,12 +4670,9 @@ function upscaleVideoURL(src,scale,onProg,opts){
         //   (같은 크기라도 컴퓨터 상태에 따라 실패할 수 있어, 여유를 두고 280만으로 잡았다)
         //   그래서 영상은 이 한계 안으로 낮추고, 낮췄다는 사실을 숨기지 않고 알린다.
         //   (사진은 해당 없음 — 4K·5K 그대로 나온다)
-        var VID_MAX_PIX=2.8e6;
         if(tw*th > VID_MAX_PIX){
-          var _vs=Math.sqrt(VID_MAX_PIX/(tw*th));
-          var _ntw=Math.max(2, Math.round(tw*_vs/2)*2), _nth=Math.max(2, Math.round(th*_vs/2)*2);
-          sizeNote='영상은 브라우저가 실시간으로 만들 수 있는 크기까지만 가능합니다 → '+_ntw+'×'+_nth+'로 맞췄습니다(요청 '+tw+'×'+th+'). 사진은 4K·5K 그대로 됩니다.';
-          tw=_ntw; th=_nth;
+          var _fitv=_vidFit(tw,th);
+          sizeNote=_fitv.note; tw=_fitv.w; th=_fitv.h;
         }
         // 되뿌리기는 실시간이라, 화면이 클수록 인코더가 못 따라오고 그만큼 길이가 늘어난다.
         //  큰 화면은 초당 프레임 수를 낮춰 여유를 준다 — 조금 덜 부드럽지만 길이는 정확해진다.
@@ -4727,7 +4741,19 @@ function upscaleVideoURL(src,scale,onProg,opts){
         var pending=[];
         function seekTo(t){ return new Promise(function(res){ var done2=false; function on(){ if(done2)return; done2=true; v.removeEventListener('seeked',on); res(); } v.addEventListener('seeked',on); setTimeout(on,8000); try{ v.currentTime=Math.min(t, Math.max(0,(dur||clip)-0.02)); }catch(e){ on(); } }); }
         // 프레임 워치독: SR 이 90초 넘으면 null(→ 리샘플 대체) 로 넘겨 절대 멈추지 않게.
-        function srFrame(){ return new Promise(function(res){ var to=setTimeout(function(){ res(null); },90000); _srCanvas2(runner, frameC).then(function(c){ clearTimeout(to); res(c); }, function(){ clearTimeout(to); res(null); }); }); }
+        // 사진과 마찬가지로, 2배 모델로 4배를 요청하면 모자란 만큼을 그냥 늘리게 된다.
+        //  프레임도 한 번 더 초해상해 진짜로 키운다 — 단, 영상은 프레임 수만큼 시간이 곱해지므로
+        //  '두 번째 처리가 작은 화면일 때' 만 한다(중간 결과 120만 픽셀 이하).
+        function srOnce(c){ return _srCanvas2(runner, c); }
+        function srFull(){
+          return srOnce(frameC).then(function(c1){
+            if(!c1) return null;
+            if(Math.max(tw/c1.width, th/c1.height) < 1.6) return c1;
+            if(c1.width*c1.height > 1.2e6) return c1;
+            return srOnce(c1).then(function(c2){ return c2||c1; }, function(){ return c1; });
+          });
+        }
+        function srFrame(){ return new Promise(function(res){ var to=setTimeout(function(){ res(null); },120000); srFull().then(function(c){ clearTimeout(to); res(c); }, function(){ clearTimeout(to); res(null); }); }); }
         // ① 한 프레임을 초해상해 압축 보관한다(녹화는 멈춘 상태)
         function makeFrame(){
           return seekTo(idx/FPS).then(function(){ try{ fctx.drawImage(v,0,0,sw,sh); }catch(e){} return srFrame(); })
@@ -5431,13 +5457,26 @@ function _upscaleImageResample(src,scale){
     img.src=sameOriginMedia(src);
   });
 }
+/* 영상은 '실시간 인코딩' 이 되는 크기까지만 만들 수 있다(실측 약 280만 픽셀).
+   초해상 경로와 폴백(단순 확대) 경로가 같은 한계를 써야 한다 —
+   한쪽만 지키면, 초해상이 실패해 폴백으로 넘어갔을 때 거기서 다시 실패해
+   '열리지 않는 영상' 이 나온다(실제로 4K 영상에서 그렇게 됐다). */
+var VID_MAX_PIX=2.8e6;
+function _vidFit(w,h){
+  if(w*h<=VID_MAX_PIX) return { w:w, h:h, note:'' };
+  var s2=Math.sqrt(VID_MAX_PIX/(w*h));
+  var nw=Math.max(2, Math.round(w*s2/2)*2), nh=Math.max(2, Math.round(h*s2/2)*2);
+  return { w:nw, h:nh,
+    note:'영상은 브라우저가 실시간으로 만들 수 있는 크기까지만 가능합니다 → '+nw+'×'+nh+'로 맞췄습니다(요청 '+w+'×'+h+'). 사진은 4K·5K 그대로 됩니다.' };
+}
 function _upscaleVideoResample(src,scale,onProg){
   return new Promise(function(resolve,reject){
     if(typeof MediaRecorder==='undefined'){ reject(new Error('이 브라우저는 영상 업스케일 미지원')); return; }
     var v=document.createElement('video'); v.crossOrigin='anonymous'; v.muted=true; v.playsInline=true; v.preload='auto';
     var done=false, tm=setTimeout(function(){ if(!done){ done=true; reject(new Error('처리 시간 초과')); } },180000);
     v.addEventListener('loadedmetadata',function(){
-      var w=Math.round((v.videoWidth||1280)*scale), h=Math.round((v.videoHeight||720)*scale);
+      var w0=Math.round((v.videoWidth||1280)*scale), h0=Math.round((v.videoHeight||720)*scale);
+      var _fit=_vidFit(w0,h0), w=_fit.w, h=_fit.h, _fitNote=_fit.note;
       var c=document.createElement('canvas'); c.width=w; c.height=h;
       var ctx=c.getContext('2d'); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
       ctx.filter='contrast(1.06) saturate(1.04)';   // 프레임별 저비용 선명화
@@ -5447,7 +5486,9 @@ function _upscaleVideoResample(src,scale,onProg){
       var chunks=[]; rec.ondataavailable=function(e){ if(e.data&&e.data.size)chunks.push(e.data); };
       rec.onstop=function(){ if(done&&chunks.length){ clearTimeout(tm);
         resolve({ url:URL.createObjectURL(new Blob(chunks,{type:'video/webm'})), kind:'video', dim:w+'×'+h,
-                  srcDim:(v.videoWidth||1280)+'×'+(v.videoHeight||720), sec:Math.round(v.duration||0), engine:'리샘플(폴백)', fallback:true }); } };
+                  srcDim:(v.videoWidth||1280)+'×'+(v.videoHeight||720),
+                  sec:Math.round(isFinite(v.duration)?v.duration:0), engine:'리샘플(폴백)', fallback:true,
+                  note:_fitNote }); } };
       function draw(){ try{ ctx.drawImage(v,0,0,w,h); }catch(e){} }
       function tick(){ if(done)return; draw(); if(onProg&&v.duration)onProg(Math.min(1,v.currentTime/v.duration)); if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(tick); else requestAnimationFrame(tick); }
       v.addEventListener('ended',function(){ if(done)return; done=true; draw(); setTimeout(function(){ try{rec.stop();}catch(e){} },160); },{once:true});
