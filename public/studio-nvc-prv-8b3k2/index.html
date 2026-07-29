@@ -4821,7 +4821,14 @@ function upscaleVideoURL(src,scale,onProg,opts){
         if(settled)return;
         var iw=v.videoWidth||1280, ih=v.videoHeight||720;
         var effScale=scale, CAP=(opts&&opts.cap)||640;
-        if(opts&&opts.longTarget){ effScale=Math.max(1, Math.min(8, opts.longTarget/Math.max(iw,ih))); factor=4; CAP=Math.max(CAP,1440); }
+        /* 모델에 넣기 전 원본을 얼마까지 줄일지 — 여기가 실제 화질을 정한다.
+           예전엔 1440 고정이라 1080p 원본이 4K 로 갈 때 1920→1440 으로 먼저 깎여 들어갔다.
+           원본에 있던 디테일을 버리고 나서 키운 셈이다(해상도 사슬 실측으로 확인).
+           목표의 절반까지 넣는다: 모델이 ×4 이므로 목표의 2배가 나오고, 그걸 줄여 맞추면
+           초과표본(supersampling)이 되어 가장 선명하다. 1080p → 4K 는 이제 원본 그대로 들어간다.
+           1920 을 넘기지 않는 이유는 중간 캔버스 크기다(1920×1080 → 7680×4320 이 한계선). */
+        if(opts&&opts.longTarget){ effScale=Math.max(1, Math.min(8, opts.longTarget/Math.max(iw,ih))); factor=4;
+                                   CAP=Math.max(640, Math.min(1920, Math.round(opts.longTarget/2))); }
         var ev=function(n){ n=Math.round(n); return n%2?n+1:n; };            // VP9 는 짝수 크기
         var tw=ev(iw*effScale), th=ev(ih*effScale);
         var frameC=document.createElement('canvas'), fctx=frameC.getContext('2d'), sw=0, sh=0;
