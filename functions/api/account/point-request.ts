@@ -13,7 +13,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: '포인트 지급 제도가 종료되어 더 이상 신청할 수 없습니다.' }, 410)
   }
 
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   const amount = Math.floor(Number(body.amount || 0))
   if (!amount || amount <= 0) return json({ ok: false, error: '올바른 포인트 수량을 입력하세요.' }, 400)
   if (amount > 10_000_000) return json({ ok: false, error: '신청 가능한 최대 수량을 초과했습니다.' }, 400)

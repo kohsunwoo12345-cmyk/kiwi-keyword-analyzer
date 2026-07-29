@@ -10,7 +10,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const plusid = String(b.plusid || '').trim().replace(/^@/, '')
   const phone = String(b.phone || b.phonenumber || '').replace(/[^0-9]/g, '')
   const r = await aligoProfileAdd(env, { plusid, phonenumber: phone, authnum: String(b.authnum || ''), categorycode: b.categorycode ? String(b.categorycode) : undefined })

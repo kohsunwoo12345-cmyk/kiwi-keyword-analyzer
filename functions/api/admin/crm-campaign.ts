@@ -57,7 +57,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const guard = await requireAdminUser(request, db); if (guard.error) return guard.error
   if (!sameOriginOk(request)) return json({ ok: false, error: '잘못된 요청' }, 403)
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const segment = String(b.segment || 'all')
   const plan = b.plan ? String(b.plan) : undefined
   const channel = String(b.channel || 'sms')

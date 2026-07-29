@@ -12,7 +12,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!db) return json({ ok: false }, 200)
   try {
     await ensureSchema(db)
-    const b: any = await request.json().catch(() => ({}))
+    const b: any = await (request.json().catch(() => null)) ?? {}
     const path = String(b.path || '/').slice(0, 200)
     const ref = String(b.ref || '').slice(0, 300)
     const visitor = String(b.visitor || '').slice(0, 64)

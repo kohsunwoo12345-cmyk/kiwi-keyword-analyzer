@@ -7,7 +7,7 @@ function makeCtx(request: Request, db: D1Database) {
   const url = new URL(request.url)
   return {
     env: { DB: db },
-    req: { url: request.url, query: (k: string) => url.searchParams.get(k), json: () => request.json().catch(() => ({})) },
+    req: { url: request.url, query: (k: string) => url.searchParams.get(k), json: () => (request.json().catch(() => null)) ?? {} },
     json: (o: any, s?: number) => json(o, s || 200),
   }
 }

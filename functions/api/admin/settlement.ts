@@ -205,7 +205,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const guard = await requireAdminUser(request, db)
   if (guard.error) return guard.error
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const action = String(b.action || '')
   const now = new Date().toISOString()
   const clampPct = (v: any) => Math.max(0, Math.min(100, Number(v) || 0))

@@ -13,7 +13,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
 
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   const track = TRACKS.includes(String(body.track)) ? String(body.track) : 'marketer'
   const to = String(body.to_plan || '')
   if (!PLANS.includes(to)) return json({ ok: false, error: '유효한 플랜을 선택하세요.' }, 400)

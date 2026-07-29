@@ -19,7 +19,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const admin = { id: guard.me.id, email: guard.me.email }
 
   await ensureVisitorNoticeSchema(db)   // notice_campaigns 신규 컬럼(video_url/기간) 보장
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const title = String(b.title || '').trim()
   const body = String(b.body || '').trim()
   const imageUrl = String(b.imageUrl || '').trim().slice(0, 1000)

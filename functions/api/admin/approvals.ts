@@ -110,7 +110,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const admin = { id: guard.me.id, email: guard.me.email }
   const adminIp = clientIp(request)
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   const type = String(body.type || '') // plan | sender | point
   const id = String(body.id || '')
   const decision = String(body.decision || '') // approve | reject

@@ -70,7 +70,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
     }
 
     if (request.method === 'POST') {
-      const b: any = await request.json().catch(() => ({}))
+      const b: any = await (request.json().catch(() => null)) ?? {}
       const f = pickFields(b)
       if (!f.company_name || !f.company_name.trim()) return json({ ok: false, error: '업체 이름은 필수입니다.' }, 400)
       if (!f.reg_date) f.reg_date = nowISO().slice(0, 10)
@@ -84,7 +84,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
     }
 
     if (request.method === 'PUT') {
-      const b: any = await request.json().catch(() => ({}))
+      const b: any = await (request.json().catch(() => null)) ?? {}
       const id = b.id
       if (!id) return json({ ok: false, error: 'id가 필요합니다.' }, 400)
       const f = pickFields(b)
@@ -97,7 +97,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
     }
 
     if (request.method === 'DELETE') {
-      const id = url.searchParams.get('id') || (await request.json().catch(() => ({})) as any).id
+      const id = url.searchParams.get('id') || (await (request.json().catch(() => null)) ?? {} as any).id
       if (!id) return json({ ok: false, error: 'id가 필요합니다.' }, 400)
       await db.prepare('DELETE FROM advertisers WHERE id=?').bind(id).run()
       // 해당 광고주의 캘린더 이벤트도 함께 정리

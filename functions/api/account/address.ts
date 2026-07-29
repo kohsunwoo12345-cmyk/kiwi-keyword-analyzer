@@ -8,7 +8,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const country = String(b.country || '').trim().slice(0, 60)
   const company = String(b.company || '').trim().slice(0, 100)
   const postalCode = String(b.postalCode || b.postal_code || '').trim().slice(0, 20)

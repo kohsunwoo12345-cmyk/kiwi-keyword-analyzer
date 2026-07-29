@@ -118,7 +118,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (guard.error) return guard.error
   if (!sameOriginOk(request)) return json({ ok: false, error: '잘못된 요청' }, 403)
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const userId = String(b.userId || '')
   if (!userId) return json({ ok: false, error: 'userId 필요' }, 400)
   const payload = b && b.data != null ? JSON.stringify(b.data) : ''

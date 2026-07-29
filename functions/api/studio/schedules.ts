@@ -202,7 +202,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, needLogin: true }, 401)
   let b: any = {}
-  try { b = await request.json() } catch { return json({ ok: false, error: '잘못된 요청' }, 400) }
+  try { b = (await request.json()) ?? {} } catch { return json({ ok: false, error: '잘못된 요청' }, 400) }
 
   const prompt = String(b.prompt || '').trim().slice(0, 2000)
   if (!prompt) return json({ ok: false, error: '프롬프트를 입력하세요.' }, 400)

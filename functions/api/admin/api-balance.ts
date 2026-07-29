@@ -183,7 +183,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const admin = { id: guard.me.id, email: guard.me.email }
   const ip = clientIp(request)
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const action = String(b.action || '')
   const id = String(b.id || '')
   if (!PROVIDERS.some((p) => p.id === id)) return json({ ok: false, error: '알 수 없는 제공사' }, 400)

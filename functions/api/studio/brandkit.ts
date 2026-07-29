@@ -102,7 +102,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, needLogin: true }, 401)
   let b: any = {}
-  try { b = await request.json() } catch { return json({ ok: false, error: '잘못된 요청' }, 400) }
+  try { b = (await request.json()) ?? {} } catch { return json({ ok: false, error: '잘못된 요청' }, 400) }
   const logo = clean(b.logoUrl).trim()
   if (logo && !/^https?:\/\//.test(logo)) return json({ ok: false, error: '로고는 업로드된 공개 URL 이어야 합니다.' }, 400)
   await db.prepare(

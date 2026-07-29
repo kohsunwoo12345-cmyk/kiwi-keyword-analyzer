@@ -24,7 +24,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const ct = request.headers.get('content-type') || ''
   try {
     if (ct.includes('application/json')) {
-      const j: any = await request.json().catch(() => ({}))
+      const j: any = await (request.json().catch(() => null)) ?? {}
       for (const k of Object.keys(j || {})) p[k] = String(j[k])
     } else {
       const f = await request.formData()

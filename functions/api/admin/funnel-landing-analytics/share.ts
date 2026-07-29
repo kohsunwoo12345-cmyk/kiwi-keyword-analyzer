@@ -9,7 +9,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const guard = await requireAdminUser(request, db)
   if (guard.error) return json({ success: false, error: '관리자 권한이 필요합니다.' }, 403)
   try {
-    const body: any = await request.json().catch(() => ({}))
+    const body: any = await (request.json().catch(() => null)) ?? {}
     const report = body.report || {}
     const token = spFlaToken()
     await db.prepare('CREATE TABLE IF NOT EXISTS admin_shared_reports (id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE, type TEXT, payload_json TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, expires_at TEXT)').run().catch(() => {})

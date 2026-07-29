@@ -49,7 +49,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await ensureSchema(db); await ensureGroupTables(db)
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const action = String(b.action || '')
   const now = new Date().toISOString()
 

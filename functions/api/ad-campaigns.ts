@@ -80,7 +80,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
     }
 
     if (request.method === 'POST') {
-      const body: any = await request.json().catch(() => ({}))
+      const body: any = await (request.json().catch(() => null)) ?? {}
       const f = pickFields(body)
       if (!f.advertiser_id) return json({ ok: false, error: 'advertiser_id가 필요합니다.' }, 400)
       if (!f.start_date) return json({ ok: false, error: '시작일이 필요합니다.' }, 400)
@@ -94,7 +94,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
     }
 
     if (request.method === 'PUT') {
-      const body: any = await request.json().catch(() => ({}))
+      const body: any = await (request.json().catch(() => null)) ?? {}
       const id = body.id
       if (!id) return json({ ok: false, error: 'id가 필요합니다.' }, 400)
       const f = pickFields(body)

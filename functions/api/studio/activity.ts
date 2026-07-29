@@ -15,7 +15,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!me) return json({ ok: true, skipped: 'guest' })
   if (!sameOriginOk(request)) return json({ ok: false }, 403)
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const events: any[] = Array.isArray(b.events) ? b.events.slice(0, 100) : []
   if (!events.length) return json({ ok: true, saved: 0 })
 

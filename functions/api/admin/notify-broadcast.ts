@@ -10,7 +10,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (guard.error) return guard.error
   const admin = { id: guard.me.id, email: guard.me.email }
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const target = String(b.target || '')
   const title = String(b.title || '').trim()
   const body = String(b.body || '').trim()

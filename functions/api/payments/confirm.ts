@@ -10,7 +10,7 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
 
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   const paymentKey = String(body.paymentKey || '')
   const orderId = String(body.orderId || '')
   const amount = Math.floor(Number(body.amount || 0))

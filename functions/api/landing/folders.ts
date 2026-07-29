@@ -25,7 +25,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await ensureSchema(db); await ensureLandingSchema(db)
   const me: any = await getSessionUser(request, db)
   if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const name = String(b.name || '').trim()
   if (!name) return j({ success: false, error: '폴더 이름을 입력하세요.' }, 400)
   const r = await db.prepare('INSERT INTO landing_folders (user_id, name, description) VALUES (?, ?, ?)').bind(me.id, name, b.description || null).run()

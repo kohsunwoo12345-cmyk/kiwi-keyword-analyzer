@@ -10,7 +10,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const name = String(b.name || '').trim()
   const content = String(b.content || '').trim()
   if (!name || !content) return json({ ok: false, error: '템플릿 이름과 내용을 입력하세요.' }, 400)

@@ -51,7 +51,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
     }
 
     if (request.method === 'POST') {
-      const body: any = await request.json().catch(() => ({}))
+      const body: any = await (request.json().catch(() => null)) ?? {}
       const name = String(body.name || '').trim().slice(0, 80) || '새 캘린더'
       const color = String(body.color || '').slice(0, 20)
       const id = uid(), ts = nowISO()
@@ -62,7 +62,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
     }
 
     if (request.method === 'PUT') {
-      const body: any = await request.json().catch(() => ({}))
+      const body: any = await (request.json().catch(() => null)) ?? {}
       const id = body.id
       if (!id) return json({ ok: false, error: 'id가 필요합니다.' }, 400)
       const sets: string[] = [], vals: any[] = []

@@ -8,7 +8,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
 
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   const amount = Math.floor(Number(body.amount || 0))
   const price = Math.max(0, Math.floor(Number(body.price || 0)))
   if (!amount || amount <= 0) return json({ ok: false, error: '충전할 크레딧 수량을 입력하세요.' }, 400)

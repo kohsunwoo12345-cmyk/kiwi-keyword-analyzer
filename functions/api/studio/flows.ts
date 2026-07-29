@@ -50,7 +50,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await ensureTable(db)
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, needLogin: true }, 401)
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const id = String(b.id || '').trim()
   if (!id) return json({ ok: false, error: 'id 필요' }, 400)
   const payload = b && b.data != null ? JSON.stringify(b.data) : ''

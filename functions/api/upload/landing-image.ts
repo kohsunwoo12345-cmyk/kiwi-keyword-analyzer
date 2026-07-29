@@ -40,7 +40,9 @@ export const onRequestPost: PagesFunction = async (context) => {
     // MIME 타입 + 파일 크기 화이트리스트 검증
     const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
     const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10MB
-    const formData = await c.req.formData()
+    // multipart 가 아니면 formData() 가 던진다 — 서버 장애(500)가 아니라 잘못된 요청(400)이다.
+    const formData = await c.req.formData().catch(() => null)
+    if (!formData) return c.json({ success: false, error: '파일 업로드 형식(multipart/form-data)이 아닙니다.' }, 400)
     // 'file' 또는 'image' 필드명 모두 허용
     const image = (formData.get('file') || formData.get('image')) as File
     // userId: 세션 DB 조회 (헤더 위조 방지)

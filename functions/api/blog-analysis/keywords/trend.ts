@@ -10,7 +10,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     const me: any = await getSessionUser(request, db)
     if (!me) return json({ success: false, error: '로그인이 필요합니다.' }, 401)
 
-    const body = await request.json().catch(() => ({})) as any
+    const body = await (request.json().catch(() => null)) ?? {} as any
     const keywords = spKwNormalizeKeywords(body.keywords || body.keyword || body.q, 5)
     if (!keywords.length) return json({ success: false, error: '키워드를 입력해주세요.' }, 400)
 

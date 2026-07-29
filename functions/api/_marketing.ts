@@ -792,7 +792,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     // 로그인 없이 열려 있는 경로다 — 제한이 없으면 아무나 D1 에 무한정 행을 밀어 넣을 수 있다
     if (!(await rateLimitOk(env.DB as any, `mkt:sub:${clientIp(req)}`, 20, 10)))
       return json({ok:false,error:'요청이 너무 많습니다.'},429);
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     if (!body.endpoint) return json({ok:false,error:'endpoint 필요'},400);
     await env.DB.prepare(`INSERT OR REPLACE INTO push_subscriptions (user_id,endpoint,p256dh,auth,user_agent) VALUES (?,?,?,?,?)`)
       .bind(body.user_id||null, body.endpoint, body.p256dh||'', body.auth||'', req.headers.get('user-agent')||'')
@@ -804,7 +804,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     //   남의 접속 횟수를 부풀려 세그먼트를 오염시키거나 D1 을 이벤트로 채워 버릴 수 있다.
     if (!(await rateLimitOk(env.DB as any, `mkt:evt:${clientIp(req)}`, 120, 1)))
       return json({ok:false,error:'요청이 너무 많습니다.'},429);
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     if (!body.user_id || !body.event_type) return json({ok:false},400);
     await env.DB.prepare(`INSERT INTO user_events (user_id,event_type,event_data) VALUES (?,?,?)`).bind(body.user_id,body.event_type,JSON.stringify(body.meta||{})).run().catch(()=>{});
     await env.DB.prepare(`INSERT OR REPLACE INTO user_marketing_meta (user_id,last_login_at,login_count,segment_updated) VALUES (?,datetime('now'),COALESCE((SELECT login_count FROM user_marketing_meta WHERE user_id=?),0)+1,datetime('now'))`).bind(body.user_id,body.user_id).run().catch(()=>{});
@@ -835,24 +835,24 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     return json({ok:true,campaign:c});
   }
   if (method==='POST' && action==='create_campaign') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     const r = await env.DB.prepare(`INSERT INTO campaigns (name,channel,target_segment,target_group_id,target_filters,subject,message,email_html,click_url,ab_test_id,ab_variant,scheduled_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).bind(body.name||'새 캠페인',body.channel||'email',body.target_segment||'all',body.target_group_id||null,body.target_filters?JSON.stringify(body.target_filters):null,body.subject||'',body.message||'',body.email_html||'',body.click_url||'',body.ab_test_id||null,body.ab_variant||null,body.scheduled_at||null).run();
     return json({ok:true,id:r.meta.last_row_id});
   }
   if (method==='POST' && action==='update_campaign') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     if (!body.id) return json({ok:false,error:'id 필요'},400);
     await env.DB.prepare(`UPDATE campaigns SET name=?,channel=?,target_segment=?,subject=?,message=?,email_html=?,click_url=?,scheduled_at=? WHERE id=?`).bind(body.name,body.channel,body.target_segment,body.subject,body.message,body.email_html||'',body.click_url||'',body.scheduled_at||null,body.id).run();
     return json({ok:true});
   }
   if (method==='POST' && action==='delete_campaign') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     if (!body.id) return json({ok:false,error:'id 필요'},400);
     await env.DB.prepare(`DELETE FROM campaigns WHERE id=?`).bind(body.id).run();
     return json({ok:true});
   }
   if (method==='POST' && action==='send_campaign') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     if (!body.id) return json({ok:false,error:'id 필요'},400);
     const campaign = await env.DB.prepare(`SELECT * FROM campaigns WHERE id=?`).bind(body.id).first<any>();
     if (!campaign) return json({ok:false,error:'캠페인 없음'},404);
@@ -903,7 +903,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     return json({ok:true,groups:rows.results||[]});
   }
   if (method==='POST' && action==='preview_target') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     const {where,params} = buildTargetSQL(body.filters||[]);
     const [cnt, samples] = await Promise.all([
       env.DB.prepare(`SELECT COUNT(*) as cnt FROM users u WHERE ${where}`).bind(...params).first<{cnt:number}>().catch(()=>null),
@@ -912,7 +912,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     return json({ok:true,count:cnt?.cnt??0,samples:samples.results||[]});
   }
   if (method==='POST' && action==='save_target_group') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     if (!body.name) return json({ok:false,error:'name 필요'},400);
     const {where,params} = buildTargetSQL(body.filters||[]);
     const cnt = await env.DB.prepare(`SELECT COUNT(*) as cnt FROM users u WHERE ${where}`).bind(...params).first<{cnt:number}>().catch(()=>null);
@@ -924,7 +924,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     return json({ok:true,id:r.meta.last_row_id});
   }
   if (method==='POST' && action==='delete_target_group') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     if (!body.id) return json({ok:false,error:'id 필요'},400);
     await env.DB.prepare(`DELETE FROM target_groups WHERE id=?`).bind(body.id).run();
     return json({ok:true});
@@ -938,7 +938,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     return json({ok:true,rules:rows.results||[]});
   }
   if (method==='POST' && action==='save_rule') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     if (!body.name || !body.message_subject || !body.message_body) return json({ok:false,error:'필수 필드 누락'},400);
     const delayH = body.delay_hours||0;
     if (body.id) {
@@ -967,12 +967,12 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     return json({ok:true, immediately_sent: immediatelySent});
   }
   if (method==='POST' && action==='toggle_rule') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     await env.DB.prepare(`UPDATE automation_rules SET is_active=? WHERE id=?`).bind(body.is_active?1:0,body.id).run();
     return json({ok:true});
   }
   if (method==='POST' && action==='delete_rule') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     await env.DB.prepare(`DELETE FROM automation_rules WHERE id=?`).bind(body.id).run();
     return json({ok:true});
   }
@@ -1038,7 +1038,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     });
   }
   if (method==='POST' && action==='send_push_broadcast') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     const { title='', body: msgBody='', icon='', url: clickUrl='/', target='all' } = body;
     if (!title || !msgBody) return json({ok:false,error:'제목과 내용을 입력하세요'},400);
 
@@ -1159,7 +1159,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     return json({ok:true,canvas:c,node_stats:stats.results||[]});
   }
   if (method==='POST' && action==='save_canvas') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     if (!body.name) return json({ok:false,error:'name 필요'},400);
     const nodesStr = JSON.stringify(body.nodes||[]);
     const edgesStr = JSON.stringify(body.edges||[]);
@@ -1171,12 +1171,12 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     return json({ok:true,id:r.meta.last_row_id});
   }
   if (method==='POST' && action==='toggle_canvas') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     await env.DB.prepare(`UPDATE canvases SET status=? WHERE id=?`).bind(body.active?'active':'paused',body.id).run();
     return json({ok:true});
   }
   if (method==='POST' && action==='delete_canvas') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     await env.DB.prepare(`DELETE FROM canvases WHERE id=?`).bind(body.id).run();
     await env.DB.prepare(`DELETE FROM canvas_user_state WHERE canvas_id=?`).bind(body.id).run();
     return json({ok:true});
@@ -1210,13 +1210,13 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     return json({ok:true,test,stats});
   }
   if (method==='POST' && action==='create_ab_test') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     if (!body.name || !body.variants?.length) return json({ok:false,error:'name,variants 필요'},400);
     const r = await env.DB.prepare(`INSERT INTO ab_tests (name,campaign_id,variants,winning_metric,confidence_level) VALUES (?,?,?,?,?)`).bind(body.name,body.campaign_id||null,JSON.stringify(body.variants),body.winning_metric||'open_rate',body.confidence_level||0.95).run();
     return json({ok:true,id:r.meta.last_row_id});
   }
   if (method==='POST' && action==='record_ab_event') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     const {ab_test_id,variant,user_id,event_type} = body;
     if (!ab_test_id||!variant||!user_id||!event_type) return json({ok:false},400);
     const fields: Record<string,string> = {open:'opened',click:'clicked',convert:'converted'};
@@ -1231,7 +1231,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     return json({ok:true});
   }
   if (method==='POST' && action==='conclude_ab_test') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     if (!body.id) return json({ok:false},400);
     const results = await env.DB.prepare(`SELECT variant,SUM(sent) as sent,SUM(opened) as opened,SUM(clicked) as clicked,SUM(converted) as converted FROM ab_test_results WHERE ab_test_id=? GROUP BY variant`).bind(body.id).all<any>().catch(()=>({results:[]}));
     const stats = calcABStats(results.results||[]);
@@ -1245,7 +1245,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     return json({ok:true,winner,stats});
   }
   if (method==='POST' && action==='delete_ab_test') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     await env.DB.prepare(`DELETE FROM ab_tests WHERE id=?`).bind(body.id).run();
     await env.DB.prepare(`DELETE FROM ab_test_results WHERE ab_test_id=?`).bind(body.id).run();
     return json({ok:true});
@@ -1259,7 +1259,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     return json({ok:true,messages:rows.results||[]});
   }
   if (method==='POST' && action==='save_inapp') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     if (!body.name||!body.message) return json({ok:false,error:'name,message 필요'},400);
     if (body.id) {
       await env.DB.prepare(`UPDATE inapp_messages SET name=?,type=?,title=?,message=?,button_text=?,button_url=?,image_url=?,target_segment=?,trigger_page=?,display_frequency=?,is_active=? WHERE id=?`).bind(body.name,body.type||'modal',body.title||'',body.message,body.button_text||'',body.button_url||'',body.image_url||'',body.target_segment||'all',body.trigger_page||'*',body.display_frequency||'once',body.is_active?1:1,body.id).run();
@@ -1269,12 +1269,12 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     return json({ok:true});
   }
   if (method==='POST' && action==='delete_inapp') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     await env.DB.prepare(`DELETE FROM inapp_messages WHERE id=?`).bind(body.id).run();
     return json({ok:true});
   }
   if (method==='POST' && action==='toggle_inapp') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     await env.DB.prepare(`UPDATE inapp_messages SET is_active=? WHERE id=?`).bind(body.active?1:0,body.id).run();
     return json({ok:true});
   }
@@ -1283,7 +1283,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
   // 앱 푸시 토큰
   // ════════════════════════════════════════════════════════════════════════════
   if (method==='POST' && action==='register_app_token') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     if (!body.user_id||!body.token) return json({ok:false,error:'user_id,token 필요'},400);
     await env.DB.prepare(`INSERT OR REPLACE INTO app_push_tokens (user_id,token,platform,app_version) VALUES (?,?,?,?)`).bind(body.user_id,body.token,body.platform||'android',body.app_version||'').run();
     return json({ok:true});
@@ -1355,7 +1355,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
     return json({ok:true,settings:s||{}});
   }
   if (method==='POST' && action==='save_email_settings') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     await env.DB.prepare(`CREATE TABLE IF NOT EXISTS email_settings (id INTEGER PRIMARY KEY, sender_name TEXT, sender_email TEXT, footer_html TEXT, unsubscribe_url TEXT)`).run().catch(()=>{});
     const ex = await env.DB.prepare(`SELECT id FROM email_settings LIMIT 1`).first<{id:number}>().catch(()=>null);
     if (ex) {
@@ -1369,7 +1369,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
   // 이메일 테스트 발송 (단건, 관리자 설정 페이지용)
   // ════════════════════════════════════════════════════════════════════════════
   if (method==='POST' && action==='test_email_send') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     const to = (body.to || '').trim();
     if (!to || !to.includes('@')) return json({ok:false, error:'수신자 이메일을 입력하세요'},400);
     if (!env.RESEND_API_KEY) {
@@ -1465,7 +1465,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
 
   // 캠페인 이벤트 기록 (열람/클릭/전환 트래킹)
   if (method==='POST' && action==='track_campaign_event') {
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     const { campaign_id, user_id, event_type, meta } = body;
     if (!campaign_id || !event_type) return json({ok:false,error:'필드 누락'},400);
     await env.DB.prepare(`INSERT INTO campaign_events (campaign_id,user_id,event_type,channel,meta) VALUES (?,?,?,?,?)`).bind(campaign_id,user_id||null,event_type,body.channel||'',JSON.stringify(meta||{})).run().catch(()=>{});
@@ -1498,7 +1498,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
   }
   if (method==='POST' && action==='create_promotion') {
     await ensurePromoTables(env);
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     const code = body.code || genPromoCode();
     const r = await env.DB.prepare(`
       INSERT INTO promotions (code,name,description,plan_id,plan_name,original_price,discount_type,discount_value,final_price,
@@ -1519,7 +1519,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
   }
   if (method==='POST' && action==='update_promotion') {
     await ensurePromoTables(env);
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     if (!body.id) return json({ok:false,error:'id 필요'},400);
     await env.DB.prepare(`
       UPDATE promotions SET name=?,description=?,plan_name=?,original_price=?,discount_type=?,discount_value=?,
@@ -1535,13 +1535,13 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
   }
   if (method==='POST' && action==='delete_promotion') {
     await ensurePromoTables(env);
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     await env.DB.prepare(`DELETE FROM promotions WHERE id=?`).bind(body.id).run().catch(()=>{});
     return json({ok:true});
   }
   if (method==='POST' && action==='toggle_promotion') {
     await ensurePromoTables(env);
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     await env.DB.prepare(`UPDATE promotions SET is_active=? WHERE id=?`).bind(body.active?1:0,body.id).run().catch(()=>{});
     return json({ok:true});
   }
@@ -1581,7 +1581,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
   // 프로모션 페이지뷰 기록 (공개 - 트래킹 픽셀용)
   if (method==='POST' && action==='promo_view') {
     await ensurePromoTables(env);
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     if (!body.promo_id && !body.code) return json({ok:false},400);
     const promoId = body.promo_id || (await env.DB.prepare(`SELECT id FROM promotions WHERE code=?`).bind(body.code||'').first<{id:number}>().catch(()=>null))?.id;
     if (!promoId) return json({ok:false},404);
@@ -1596,7 +1596,7 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
   // 프로모션 전환 기록 (결제 완료 시 호출)
   if (method==='POST' && action==='promo_convert') {
     await ensurePromoTables(env);
-    const body: any = await req.json().catch(()=>({}));
+    const body: any = await (req.json().catch(() => null)) ?? {};
     const { promo_id, code, user_id, original_amount, discount_amount, final_amount, payment_id, plan_id } = body;
     const promoId = promo_id || (await env.DB.prepare(`SELECT id FROM promotions WHERE code=?`).bind(code||'').first<{id:number}>().catch(()=>null))?.id;
     if (!promoId) return json({ok:false,error:'프로모션 없음'},404);

@@ -18,7 +18,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await ensureOauthSchema(db)
 
   let b: any = {}
-  try { b = await request.json() } catch { return json({ error: 'invalid_client_metadata' }, 400, cors) }
+  try { b = (await request.json()) ?? {} } catch { return json({ error: 'invalid_client_metadata' }, 400, cors) }
 
   const uris: string[] = Array.isArray(b.redirect_uris) ? b.redirect_uris.filter((u: any) => typeof u === 'string') : []
   if (!uris.length) return json({ error: 'invalid_redirect_uri', error_description: 'redirect_uris 필수' }, 400, cors)

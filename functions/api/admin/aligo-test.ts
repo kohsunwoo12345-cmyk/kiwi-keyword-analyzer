@@ -75,7 +75,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const guard = await requireAdminUser(request, db)
   if (guard.error) return guard.error
 
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   const to = String(body.to || '').replace(/[^0-9]/g, '')
   if (to.length < 10) return json({ ok: false, error: '수신 번호(to)를 정확히 입력하세요.' }, 400)
   const text = String(body.text || '[BYGENCY] 알리고 발송 테스트입니다.')

@@ -68,7 +68,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const guard = await requireAdmin(request, db)
   if (guard.error) return guard.error
 
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   const action = String(body.action || '')
   const id = String(body.id || '')
   if (!id) return json({ ok: false, error: '대상 id가 없습니다.' }, 400)

@@ -7,7 +7,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await ensureSchema(db)
 
   const me: any = await getSessionUser(request, db).catch(() => null)
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   const ip = clientIp(request)
   const geo = geoFrom(request)
   const ua = request.headers.get('User-Agent') || ''

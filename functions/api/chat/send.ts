@@ -67,7 +67,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await ensureSchema(db)
   const me: any = await getSessionUser(request, db)
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const text = String(b.text || '').trim().slice(0, 2000)
   if (!text) return json({ ok: false, error: '메시지를 입력하세요.' }, 400)
 

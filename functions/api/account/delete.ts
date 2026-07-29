@@ -15,7 +15,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: '관리자 계정은 삭제할 수 없습니다.' }, 403)
   }
 
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   const password = String(body.password || '')
   const confirmEmail = String(body.confirmEmail || '').trim().toLowerCase()
 

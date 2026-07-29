@@ -43,7 +43,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
     `CREATE TABLE IF NOT EXISTS password_resets (email TEXT PRIMARY KEY, code_hash TEXT NOT NULL, expires_at TEXT NOT NULL, attempts INTEGER DEFAULT 0, last_sent_at TEXT, created_at TEXT NOT NULL)`,
   ).run().catch(() => {})
 
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   const action = String(body.action || 'request')
   const email = String(body.email || '').trim().toLowerCase()
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))

@@ -22,7 +22,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await ensureSchema(db)
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   if (body.action === 'read-notifications') {
     await db.prepare('UPDATE notifications SET read = 1 WHERE user_id = ?').bind(me.id).run()
   }

@@ -50,7 +50,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     } else {
       const sigCheck = request.headers.get('x-hub-signature-256') || ''
       if (sigCheck) return text('Forbidden', 403)
-      body = await request.json().catch(() => ({}))
+      body = await (request.json().catch(() => null)) ?? {}
     }
 
     // 이 이벤트가 "누구의 인스타 계정" 으로 들어온 것인지 먼저 정한다.

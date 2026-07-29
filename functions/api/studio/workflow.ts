@@ -37,7 +37,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await ensureTable(db)
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, needLogin: true }, 401)
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const payload = b && b.data != null ? JSON.stringify(b.data) : ''
   if (payload.length > 4_000_000) return json({ ok: false, error: '워크플로우 용량이 너무 큽니다.' }, 413)
   const now = new Date().toISOString()

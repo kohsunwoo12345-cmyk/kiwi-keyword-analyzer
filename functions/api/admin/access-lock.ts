@@ -66,7 +66,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const admin = { id: guard.me.id, email: guard.me.email }
   const ip = clientIp(request)
   const now = new Date().toISOString()
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const action = String(b.action || '')
 
   async function addAcl(kind: 'ip' | 'device', value: string, label: string) {

@@ -21,7 +21,7 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
     const userId = String(me?.id || '')
     if (!userId || userId === 'undefined') return json({ ok: false, error: '로그인 필요' }, 401)
 
-    const body: any = await request.json().catch(() => ({}))
+    const body: any = await (request.json().catch(() => null)) ?? {}
     const { pfId, templateCode, recipients, content } = body
     if (!templateCode || !recipients?.length) return json({ ok: false, error: '필수 항목 누락' }, 400)
     if (recipients.length > 1000) return json({ ok: false, error: '한 번에 최대 1,000명까지 발송할 수 있습니다.' }, 400)

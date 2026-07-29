@@ -22,7 +22,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     const me: any = await getSessionUser(request, db)
     if (!me) return json({ success: false, error: '로그인이 필요합니다.' }, 401)
 
-    const body = await request.json().catch(() => ({})) as any
+    const body = await (request.json().catch(() => null)) ?? {} as any
     let payload = body.payload || body.report || null
     let keywords = spKwNormalizeKeywords(body.keywords || payload?.keywords || (payload?.results || []).map((r: any) => r.keyword), 5)
 

@@ -20,7 +20,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await ensureSchema(db)
   const guard = await requireAdminUser(request, db)
   if (guard.error) return guard.error
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   if (String(b.action || '') !== 'save') return json({ ok: false, error: '알 수 없는 작업' }, 400)
   const merged = mergePlanConfig(b.config)
   await setSetting(db, 'plan_config', JSON.stringify(merged))

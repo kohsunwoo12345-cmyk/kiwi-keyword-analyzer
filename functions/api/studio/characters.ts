@@ -68,7 +68,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!me) return json({ ok: false, needLogin: true }, 401)
 
   let b: any = {}
-  try { b = await request.json() } catch { return json({ ok: false, error: '잘못된 요청' }, 400) }
+  try { b = (await request.json()) ?? {} } catch { return json({ ok: false, error: '잘못된 요청' }, 400) }
   const name = String(b.name || '').trim().slice(0, 40)
   if (!name) return json({ ok: false, error: '캐릭터 이름을 입력하세요.' }, 400)
   const images = (Array.isArray(b.images) ? b.images : [])

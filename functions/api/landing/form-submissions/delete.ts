@@ -10,7 +10,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await ensureSchema(db); await ensureLandingSchema(db)
   const me: any = await getSessionUser(request, db)
   if (!me) return j({ success: false, error: 'Unauthorized' }, 401)
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const ids: any[] = Array.isArray(b.ids) ? b.ids : []
   if (!ids.length) return j({ success: false, error: 'ids required' }, 400)
   for (const id of ids) {

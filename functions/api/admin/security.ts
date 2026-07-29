@@ -124,7 +124,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const admin = { id: guard.me.id, email: guard.me.email }
   const adminIp = clientIp(request)
 
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   const action = String(body.action || '')
   const now = new Date().toISOString()
 

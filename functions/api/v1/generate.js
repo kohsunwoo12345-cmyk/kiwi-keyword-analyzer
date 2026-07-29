@@ -59,7 +59,7 @@ export const onRequestPost = async ({ request, env }) => {
   const { db, me, keyId } = a;
   const isAdmin = me.role === "admin";
 
-  const body = await request.json().catch(() => ({}));
+  const body = await (request.json().catch(() => null)) ?? {};
   const provider = String(body.provider || "");
   const model = String(body.model || "");
   /* 과금 종류는 단가표에서 정한다 — 호출자가 보낸 kind 를 믿으면 안 된다.

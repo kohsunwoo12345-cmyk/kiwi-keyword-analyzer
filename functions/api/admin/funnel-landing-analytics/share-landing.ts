@@ -9,7 +9,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const guard = await requireAdminUser(request, db)
   if (guard.error) return json({ success: false, error: '관리자 권한이 필요합니다.' }, 403)
   try {
-    const body: any = await request.json().catch(() => ({}))
+    const body: any = await (request.json().catch(() => null)) ?? {}
     const report = body.report || {}
     const landingPageId = String(body.landingPageId || body.pageId || body.id || '').trim()
     const pages = Array.isArray(report.pages) ? report.pages : []

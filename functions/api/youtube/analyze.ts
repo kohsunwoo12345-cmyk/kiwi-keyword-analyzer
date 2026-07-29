@@ -14,7 +14,7 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
 
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   const query = String(body.query || '').trim()
   if (!query) return json({ ok: false, error: '채널명 또는 키워드를 입력하세요.' }, 400)
 

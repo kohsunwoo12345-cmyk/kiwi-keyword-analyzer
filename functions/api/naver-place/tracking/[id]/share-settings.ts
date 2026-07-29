@@ -64,7 +64,7 @@ export const onRequestPut: PagesFunction = async (context) => {
     const me: any = await getSessionUser(context.request, db)
     if (!me) return c.json({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
 
-    const body: any = await c.req.json()
+    const body: any = await (c.req.json().catch(() => null)) ?? {}
 
     const shareTitle     = (body.share_title     || '').slice(0, 80)
     const shareSubtitle  = (body.share_subtitle  || '').slice(0, 160)

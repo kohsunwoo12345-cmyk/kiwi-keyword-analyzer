@@ -32,7 +32,7 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
 
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   const credits = Math.floor(Number(body.credits || 0))
   if (!credits || credits <= 0 || credits > 100000) return json({ ok: false, error: '충전할 크레딧 수량이 올바르지 않습니다.' }, 400)
   const rate = await creditPriceFor(db, me)

@@ -8,7 +8,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const code = String(b.code || '').trim().toUpperCase()
   if (!code) return json({ ok: false, error: '추천인 코드를 입력하세요.' }, 400)
   if (code === (me.referral_code || '').toUpperCase()) return json({ ok: false, error: '본인 코드는 추가할 수 없습니다.' }, 400)

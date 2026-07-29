@@ -75,7 +75,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   let me: any = null
   if (db) { try { await ensureSchema(db); me = await getSessionUser(request, db); if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401) } catch {} }
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const model = String(b.model || '').trim()
   const isArk = b.provider === 'ark' || ARK_FAMILY.test(model)
   const isGemini = !isArk && (b.provider === 'gemini' || /^gemini/i.test(model))

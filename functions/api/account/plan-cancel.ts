@@ -11,7 +11,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
 
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   const track = TRACKS.includes(String(body.track)) ? String(body.track) : 'marketer'
   const col = track === 'video' ? 'video_plan' : 'plan'
   const current = track === 'video' ? (me.video_plan || '없음') : (me.plan || '없음')

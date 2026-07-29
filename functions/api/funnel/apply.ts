@@ -22,7 +22,10 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
   if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 500)
   await ensureSchema(db)
   await ensureFunnelSchema(db)
-  const b: any = await request.json().catch(() => ({}))
+  // 본문이 JSON 리터럴 null 이면 .json() 은 성공해서 catch 가 돌지 않는다.
+  // 그대로 구조분해하면 예외가 나 공개 엔드포인트가 500 으로 죽는다 — 객체가 아니면 빈 객체로 본다.
+  const _raw: any = await request.json().catch(() => null)
+  const b: any = _raw && typeof _raw === 'object' ? _raw : {}
   const slug = String(b.slug || '').trim()
   if (!slug) return j({ success: false, error: 'slug가 필요합니다.' }, 400)
 

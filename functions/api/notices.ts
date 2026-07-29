@@ -66,7 +66,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
   if (!sameOriginOk(request)) return json({ ok: false, error: '잘못된 요청' }, 403)
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const campaignId = String(b.campaignId || '').trim()
   if (!campaignId) return json({ ok: false, error: 'campaignId 필요' }, 400)
 

@@ -73,7 +73,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const guard = await requireAdminUser(request, db)
   if (guard.error) return guard.error
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const convId = String(b.conv_id || '').slice(0, 60)
   const text = String(b.text || '').trim().slice(0, 2000)
   if (!convId || !text) return json({ ok: false, error: '대화와 내용을 입력하세요.' }, 400)

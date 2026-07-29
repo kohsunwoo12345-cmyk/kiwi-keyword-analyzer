@@ -26,7 +26,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const cnt: any = await db.prepare(`SELECT COUNT(*) AS n FROM api_keys WHERE user_id = ? AND status = 'active'`).bind(me.id).first()
   if (Number(cnt?.n || 0) >= API_KEY_MAX) return json({ ok: false, error: `API 키는 최대 ${API_KEY_MAX}개까지 만들 수 있습니다.` }, 400)
 
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   const name = String(body.name || '').trim().slice(0, 60) || '새 API 키'
   const plain = generateApiKeyPlain()
   const hash = await hashApiKey(plain)

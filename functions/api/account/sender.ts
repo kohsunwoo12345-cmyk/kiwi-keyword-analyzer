@@ -19,7 +19,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
 
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   const phone = String(body.phone || '').replace(/[^0-9]/g, '')
   if (phone.length < 9) return json({ ok: false, error: '올바른 전화번호를 입력하세요.' }, 400)
 

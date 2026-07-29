@@ -8,7 +8,7 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
 
-  const body: any = await request.json().catch(() => ({}))
+  const body: any = await (request.json().catch(() => null)) ?? {}
   const prompt = String(body.prompt || '').trim()
   const system = String(body.system || '당신은 한국어 마케팅 콘텐츠 전문가입니다. 자연스럽고 전환율 높은 카피를 작성합니다.')
   const feature = String(body.feature || 'AI 생성')

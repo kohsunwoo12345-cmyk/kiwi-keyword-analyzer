@@ -24,7 +24,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (guard.error) return guard.error
   if (!sameOriginOk(request)) return json({ ok: false, error: '잘못된 요청' }, 403)
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const toRaw = String(b.to || '').trim()
   const segment = String(b.segment || '').trim()
   const plan = b.plan ? String(b.plan) : undefined

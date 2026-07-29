@@ -34,7 +34,9 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     const userIdNum = parseInt(userId)
     const userIdVal = isNaN(userIdNum) ? userId : userIdNum
 
-    const formData = await request.formData()
+    // multipart 가 아니면 formData() 가 던진다 — 서버 장애(500)가 아니라 잘못된 요청(400)이다.
+    const formData = await request.formData().catch(() => null)
+    if (!formData) return cjson({ ok: false, error: '파일 업로드 형식(multipart/form-data)이 아닙니다.' }, 400)
     const file = formData.get('video') as unknown as File
     const metaRaw = formData.get('meta')
     const meta = metaRaw ? JSON.parse(metaRaw as string) : {}

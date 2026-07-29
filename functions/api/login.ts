@@ -29,7 +29,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await ensureSchema(db)
   await seedAdmin(db, env)
 
-  const body: any = await request.json().catch(() => ({}))
+  // 본문이 JSON 리터럴 null 이면 .json() 은 성공해서 catch 가 돌지 않는다.
+  // 그대로 구조분해하면 예외가 나 공개 엔드포인트가 500 으로 죽는다 — 객체가 아니면 빈 객체로 본다.
+  const _raw: any = await request.json().catch(() => null)
+  const body: any = _raw && typeof _raw === 'object' ? _raw : {}
   const email = String(body.email || '').trim().toLowerCase()
   const password = String(body.password || '')
   const ip = clientIp(request)

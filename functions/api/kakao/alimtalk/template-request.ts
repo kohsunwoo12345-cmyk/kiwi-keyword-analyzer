@@ -9,7 +9,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const tplCode = String(b.tplCode || b.templateId || '').trim()
   if (!tplCode) return json({ ok: false, error: '템플릿 코드가 필요합니다.' }, 400)
   let senderKey = String(b.senderkey || b.senderKey || '').trim()

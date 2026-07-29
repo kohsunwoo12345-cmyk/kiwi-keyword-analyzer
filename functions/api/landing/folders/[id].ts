@@ -11,7 +11,7 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env, params })
   await ensureSchema(db); await ensureLandingSchema(db)
   const me: any = await getSessionUser(request, db)
   if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const name = String(b.name || '').trim()
   if (!name) return j({ success: false, error: '폴더 이름을 입력하세요.' }, 400)
   const r = await db.prepare('UPDATE landing_folders SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?').bind(name, id, me.id).run()

@@ -28,7 +28,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const admin = { id: guard.me.id, email: guard.me.email }
   const ip = clientIp(request)
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   if (String(b.confirm || '') !== 'RECALL')
     return json({ ok: false, error: '확인 문자열(RECALL)이 필요합니다.' }, 400)
   const includeAdmin = !!b.includeAdmin

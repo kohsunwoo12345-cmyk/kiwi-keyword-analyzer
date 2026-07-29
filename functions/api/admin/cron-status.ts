@@ -124,7 +124,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (guard.error) return guard.error
 
   let b: any = {}
-  try { b = await request.json() } catch { return json({ ok: false, error: '잘못된 요청' }, 400) }
+  try { b = (await request.json()) ?? {} } catch { return json({ ok: false, error: '잘못된 요청' }, 400) }
   const id = String(b.id || '').trim()
   if (!id) return json({ ok: false, error: 'id 필요' }, 400)
   const enable = b.enabled !== false

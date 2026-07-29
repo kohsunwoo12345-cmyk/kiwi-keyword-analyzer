@@ -57,7 +57,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await ensureAiUsage(db)
 
   const me: any = await getSessionUser(request, db)
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const rate = await getUsdKrw(db) // 결제(생성) 시점의 그날 환율
   const model = String(b.model || '')
   const memberMarkup = me ? Number(me.credit_markup) || 0 : 0 // 회원별 전체 배수(원가=1). 0=미설정

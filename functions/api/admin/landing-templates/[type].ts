@@ -21,7 +21,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env, params }
   await ensureSchema(db); await ensureLandingSchema(db)
   const guard = await requireAdminUser(request, db)
   if (guard.error) return guard.error
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const html = String(b.html_template || b.html || '')
   const name = String(b.name || type)
   await db.prepare(

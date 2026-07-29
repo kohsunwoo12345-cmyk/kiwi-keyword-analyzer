@@ -31,7 +31,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const db = resolveDB(env); if (!db) return j({ ok: false, error: 'DB 없음' }, 500)
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const slug = String(b.slug || '')
   if (!slug) return j({ ok: false, error: 'slug 필요' }, 400)
   const { err } = await guard(request, db, slug); if (err) return err

@@ -10,7 +10,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!(await rateLimitOk(db, `lead:${clientIp(request)}`, 20, 10)))
     return json({ ok: false, error: '잠시 후 다시 시도해 주세요.' }, 429)
 
-  const body: any = await request.json().catch(() => ({}))
+  // 본문이 JSON 리터럴 null 이면 .json() 은 성공해서 catch 가 돌지 않는다.
+  // 그대로 구조분해하면 예외가 나 공개 엔드포인트가 500 으로 죽는다 — 객체가 아니면 빈 객체로 본다.
+  const _raw: any = await request.json().catch(() => null)
+  const body: any = _raw && typeof _raw === 'object' ? _raw : {}
   // 로그인 없이 부를 수 있는 경로라 길이 제한이 특히 중요하다(제한이 없어 20만 자가 들어갔다)
   const name = String(body.name || '').trim().slice(0, 60)
   const phone = String(body.phone || '').replace(/[^0-9]/g, '').slice(0, 20)

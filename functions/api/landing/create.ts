@@ -11,7 +11,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const me: any = await getSessionUser(request, db)
   if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 200)
 
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   const title = String(b.title || '제목 없음').trim()
   const subtitle = b.subtitle != null ? String(b.subtitle) : null
   const template_type = String(b.template_type || 'custom')

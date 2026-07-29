@@ -23,7 +23,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     if (!db) return j({ success: false, error: 'DB 바인딩 없음' }, 500)
     await ensureSchema(db)
     await ensureFunnelSchema(db)
-    const body: any = await request.json().catch(() => ({}))
+    const body: any = await (request.json().catch(() => null)) ?? {}
     const { landing_slug, name, phone, email, grade, message, ...rest } = body
     if (!landing_slug) return j({ success: false, error: 'landing_slug is required' })
 

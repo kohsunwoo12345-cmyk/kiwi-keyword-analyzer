@@ -10,7 +10,7 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
   await ensureSchema(db); await ensureLandingSchema(db)
   const me: any = await getSessionUser(request, db)
   if (!me) return j({ success: false, error: '로그인이 필요합니다.' }, 401)
-  const b: any = await request.json().catch(() => ({}))
+  const b: any = await (request.json().catch(() => null)) ?? {}
   // ⚠ folderId 를 그대로 믿었다 — 남의 폴더 번호를 적어 내 페이지를 그 안에 밀어 넣을 수 있었고,
   //   상대 폴더의 페이지 수가 부풀고 상대가 폴더를 지울 때 내 페이지까지 딸려 나갔다.
   const folderId = b.folderId ?? null

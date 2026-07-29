@@ -43,7 +43,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   try {
     await ensureSchema(db)
     await ensureVisitorNoticeSchema(db)
-    const b: any = await request.json().catch(() => ({}))
+    const b: any = await (request.json().catch(() => null)) ?? {}
     const campaignId = String(b.campaignId || '').trim()
     const visitor = String(b.visitor || '').slice(0, 64)
     const path = String(b.path || '/').slice(0, 200)

@@ -16,6 +16,6 @@ async function reply(request: Request, env: Env, regenerate: boolean) {
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => reply(request, env, false)
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
-  const b: any = await request.clone().json().catch(() => ({}))
+  const b: any = await (request.clone().json().catch(() => null)) ?? {}
   return reply(request, env, !!b.regenerate)
 }
