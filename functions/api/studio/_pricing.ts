@@ -289,7 +289,9 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
   'Flux Kontext Pro (레퍼런스 편집)': { u: 'img', usd: 0.04, prov: 'flux' },   // BFL 공식 $0.04/장
   // ── 오디오·립싱크 (초당) — 관리자 ai-pricing 에서 모델별 배수 설정 가능 ──
   '음악 생성 (BGM·뮤직)': { u: 'sec', usd: 0.01, prov: 'music' },
-  '업스케일 4K (영상 화질 향상)': { u: 'sec', usd: 0.04, prov: 'upscale' },
+  /* 업스케일은 단가표에 두지 않는다 — 과금 토큰은 단가표에 있는 모델에만 발급되므로,
+     여기 없으면 어떤 경로로도 크레딧이 빠질 수 없다(무료를 코드 구조로 보장한다).
+     화질 올리기는 브라우저에서 우리 자체 초해상 모델로 처리한다. */
   '나레이션 (AI 음성 해설)': { u: 'sec', usd: 0.02, prov: 'narrate' },
   '립싱크 (인물 말하기)': { u: 'sec', usd: 0.1, prov: 'lipsync' },
 
@@ -573,6 +575,18 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
   }
   input = { ...input, units: fin(input.units, 0, 3600), refs: fin((input as any).refs, 0, 64) }
   const model = String(input.model || '')
+  /* ── 화질 올리기(업스케일)는 언제나 0원이다 ──
+     브라우저에서 우리 자체 초해상 모델로 처리하므로 제공사에 나가는 비용이 없다.
+     단가표에서 뺐고 서버 경로도 막았지만, 요금이 만들어지는 자리에서 한 번 더 못을 박는다 —
+     누군가 나중에 단가표에 되살리거나 다른 경로로 이 이름을 넣어도 크레딧이 빠지지 않게.
+     (방어는 여러 겹이어야 한 겹이 뚫려도 회원 돈이 안 나간다) */
+  if (/업스케일|화질 올리기|upscale/i.test(model)) {
+    return {
+      model, provider: 'upscale', kind: 'video',
+      usd: 0, usdKrw: rate, costKrw: 0, costKrwExact: 0,
+      markup: 1, priceKrw: 0, credits: 0, revenueKrw: 0,
+    } as ChargeResult
+  }
   const m = MODEL_COST[model]
   // 'img'(장당) 외에 '3d'(모델 1개당)·'tok'(호출 1회당) 도 "단위 1개" 과금이다 — 초당 계산을 타면 안 된다.
   const isFlat = m ? (m.u === 'img' || m.u === '3d' || m.u === 'tok') : input.kind === 'image'

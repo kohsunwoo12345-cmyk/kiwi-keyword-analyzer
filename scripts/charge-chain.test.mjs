@@ -336,7 +336,11 @@ console.log('\n④ 나머지 모델군도 같은 연쇄가 성립한다')
     ['GPT Image 비율', { model: 'GPT Image', units: 1, ratio: '1:1', kind: 'image' }, { model: 'GPT Image', units: 1, ratio: '3:2', kind: 'image' }, 'lt'],
     // 표에 없는 비율은 빌더가 1024x1024 정사각으로 떨어뜨린다 — 정사각을 받으면서 1.5배를 받으면 안 된다
     ['GPT Image 표에 없는 비율', { model: 'GPT Image', units: 1, ratio: '1:1', kind: 'image' }, { model: 'GPT Image', units: 1, ratio: '7:3', kind: 'image' }, 'eq'],
-    ['업스케일 길이', { model: '업스케일 4K (영상 화질 향상)', units: 5 }, { model: '업스케일 4K (영상 화질 향상)', units: 20 }, 'lt'],
+    /* 업스케일(화질 올리기)은 여기서 뺐다 — 유료 경로를 없애고 브라우저의 우리 자체 모델로 옮겨
+       단가표에 항목이 없다(무료). "길이가 늘면 값이 오른다" 를 볼 대상이 아니다.
+       그 무료가 유지되는지는 scripts/upscale-free.test.mjs 가 따로 지킨다.
+       초당 과금 + 길이 비례는 바로 아래 나레이션으로 같은 성질을 본다. */
+    ['나레이션 길이', { model: '나레이션 (AI 음성 해설)', units: 10 }, { model: '나레이션 (AI 음성 해설)', units: 40 }, 'lt'],
     ['음악 길이', { model: '음악 생성 (BGM·뮤직)', units: 30 }, { model: '음악 생성 (BGM·뮤직)', units: 120 }, 'lt'],
   ]
   for (const [name, sa, sb, cmp] of GROUPS) {

@@ -1977,7 +1977,6 @@ var MODELS = [
  ['영상 → 영상 (V2V·실사화)','V2V 자동 (최고정확도·모델 자동선택)'],
  ['영상 → 영상 (V2V·실사화)','모션 전이 (원본 움직임 유지·Motion Transfer)'],
  ['영상 → 영상 (V2V·실사화)','Runway Aleph (영상→실사 V2V)'],
- ['영상 → 영상 (V2V·실사화)','업스케일 4K (영상 화질 향상)'],
  ['영상','Google Veo 3.1'],['영상','Runway Gen-4'],['영상','Runway Gen-3 Alpha Turbo'],['영상','Grok Imagine (영상)'],
  ['영상','Seedance 2.0'],['영상','Seedance 2.0 Fast'],['영상','Seedance 2.0 Mini'],['영상','Seedance 1.5 Pro'],
  ['영상','Seedance 1.0 Pro'],['영상','Seedance 1.0 Pro Fast'],
@@ -2107,7 +2106,6 @@ var MODEL_COST = {
   '모션 전이 (원본 움직임 유지·Motion Transfer)': { u:'sec', usd:0.12, prov:'motion' },
   '나레이션 (AI 음성 해설)': { u:'sec', usd:0.02, prov:'narrate' },
   '음악 생성 (BGM·뮤직)':      { u:'sec', usd:0.01, prov:'music' },
-  '업스케일 4K (영상 화질 향상)': { u:'sec', usd:0.04, prov:'upscale' },
   '립싱크 (인물 말하기)': { u:'sec', usd:0.10, prov:'lipsync' },
   'Runway Aleph (영상→실사 V2V)':      { u:'sec', usd:0.28, prov:'runway_aleph' },   // 공식 aleph2 초당 28크레딧
   //  오디오는 Veo 3.1 단가에 이미 포함이다(공식 표 "video with audio price (default)").
@@ -2544,7 +2542,6 @@ var PROVIDERS = [
 var MODEL_PROVIDER = {
   'V2V 자동 (최고정확도·모델 자동선택)':'v2v_auto',
   '모션 전이 (원본 움직임 유지·Motion Transfer)':'motion',
-  '업스케일 4K (영상 화질 향상)':'upscale',
   '음악 생성 (BGM·뮤직)':'music',
   '나레이션 (AI 음성 해설)':'narrate',
   '립싱크 (인물 말하기)':'lipsync',
@@ -2679,7 +2676,7 @@ function videoModelCaps(model){
   /* V2V(영상→영상) — 영상 레퍼런스 필수.
      외형용 사진을 실제로 요청에 싣는 건 모션 전이(fal VACE 의 ref_image_url)뿐이다.
      Aleph 는 서버 빌더에 이미지를 넣을 자리가 없어(videoUri·promptText·ratio·seed) 사진 포트를 닫는다. */
-  if(/V2V 자동|업스케일 4K|Runway Aleph/.test(m)){ c.vidref=true; return c; }
+  if(/V2V 자동|Runway Aleph/.test(m)){ c.vidref=true; return c; }
   if(/모션 전이/.test(m)){ c.vidref=true; c.ref=true; return c; }
   // 텍스트 전용(T2V) — 레퍼런스 없음(순수 텍스트→영상)
   if(/\(텍스트→영상\)|T2V-01 Director/.test(m)) return c;
@@ -2767,9 +2764,6 @@ var VIDEO_MODEL_SPEC = {
   'V2V 자동 (최고정확도·모델 자동선택)':      { secs:[], ratios:[], res:[], audio:false, watermark:false, neg:false, cfg:false, seed:false },
   '모션 전이 (원본 움직임 유지·Motion Transfer)': { secs:[], ratios:[], res:[], audio:false, watermark:false, neg:false, cfg:false, seed:false },
   'Runway Aleph (영상→실사 V2V)':   { secs:[], ratios:[], res:[], audio:false, watermark:false, neg:false, cfg:false, seed:false },
-  //  업스케일만 해상도를 고른다 — 서버가 upscale_factor(2배/4배)로 변환해 보낸다.
-  //  업스케일은 프롬프트 자체를 받지 않는다(원본 영상 + 배율만) → 카메라 무빙·바이럴 템플릿도 숨긴다.
-  '업스케일 4K (영상 화질 향상)':      { secs:[], ratios:[], res:['1080p','4K'], audio:false, watermark:false, neg:false, cfg:false, seed:false, noPrompt:true }
 };
 function videoModelOpts(model){
   var m=String(model||'').trim();
@@ -2925,13 +2919,13 @@ var VIDEO_REF_LIMIT = {
      자리가 없다. 1장으로 열어 두면 포트가 열리고 요금(레퍼런스 가산)까지 붙는데
      요청에는 실리지 않는다. 규격을 확인하기 전까지는 0(닫음)이 정직하다. */
   '모션 전이 (원본 움직임 유지·Motion Transfer)':1,'Runway Aleph (영상→실사 V2V)':0,
-  'V2V 자동 (최고정확도·모델 자동선택)':0,'업스케일 4K (영상 화질 향상)':0,
+  'V2V 자동 (최고정확도·모델 자동선택)':0,
 };
 /* 영상 모델의 "영상 레퍼런스" 최대 개수 — 영상을 아예 안 받는 모델은 0. */
 var VIDEO_SRC_LIMIT = {
   'Seedance 2.0':3,'Seedance 2.0 Fast':3,'Seedance 2.0 Mini':3,   // buildSeedancePayload 가 3개로 자른다
   'Luma Ray 3.2 (영상 편집)':1,'Luma Ray 3.2 (비율 변경)':1,
-  'V2V 자동 (최고정확도·모델 자동선택)':1,'업스케일 4K (영상 화질 향상)':1,
+  'V2V 자동 (최고정확도·모델 자동선택)':1,
   '모션 전이 (원본 움직임 유지·Motion Transfer)':1,'Runway Aleph (영상→실사 V2V)':1,
 };
 /* 이미지·영상 노드 공통 조회. 예전엔 영상 노드가 표에 없어 전부 1장으로 떨어졌고,
@@ -4440,6 +4434,31 @@ function generateImageNode(n){
     .catch(function(e){ n.w.imgGenerating=false; n.w.imgError=String(e&&e.message||e);
       render();
       try{ showGenError(n.w.imgError, providerOf(n.w.model), n.w.model); }catch(_e){ try{toast('이미지 생성 실패: '+String(n.w.imgError).slice(0,80));}catch(__e){} } });
+}
+
+/* ── 업스케일 화질 목록 ──
+   예전엔 2×·4× 처럼 "배율" 을 골랐다. 그런데 같은 2× 라도 원본이 720p 면 1440p, 1080p 면 2160p 라
+   무엇이 나올지 알 수 없었다. 목표 화질(긴 변 픽셀)을 고르게 하고, 그 값으로 정확히 뽑는다.
+   전부 우리 자체 모델(Real-ESRGAN → Swin2SR)로 브라우저에서 처리한다 — 외부 유료 API 를 타지 않는다. */
+var UP_QUALITY = [
+  { id:'fhd', label:'FHD',  px:1920, hint:'풀HD — 긴 변 1920px' },
+  { id:'2k',  label:'2K',   px:2560, hint:'2K — 긴 변 2560px' },
+  { id:'4k',  label:'4K',   px:3840, hint:'4K UHD — 긴 변 3840px' },
+  { id:'5k',  label:'5K',   px:5120, hint:'5K — 긴 변 5120px (영상은 매우 오래 걸립니다)' }
+];
+function upQualityById(id){
+  for(var i=0;i<UP_QUALITY.length;i++) if(UP_QUALITY[i].id===String(id)) return UP_QUALITY[i];
+  return null;
+}
+/* 저장된 값 읽기 — 예전 그래프에는 2·4·5(배율)가 들어 있다. 그 값도 화질로 옮겨 준다. */
+function upQualityOf(n){
+  var v = n && n.w ? n.w.upQuality : null;
+  var q = upQualityById(v);
+  if(q) return q;
+  var old = n && n.w ? +n.w.upScale : 0;           // 구버전 호환: 2×→FHD · 4×→4K · 5→5K
+  if(old === 5) return upQualityById('5k');
+  if(old === 4) return upQualityById('4k');
+  return upQualityById('4k');                       // 기본값 — 대부분 4K 를 원한다
 }
 
 /* ══════ 자체 초해상(SR) 업스케일러 — 우리 서버(/models) self-host Swin2SR(ONNX) 를 브라우저에서 실행.
@@ -6149,12 +6168,17 @@ function widgetHTML(n,w){
       ctrl='<div class="up-prog"><i style="width:'+Math.round((n.w.upPct||0)*100)+'%"></i></div>'+
            '<div class="refcnt up-msg">업스케일 처리 중… '+Math.round((n.w.upPct||0)*100)+'%'+(isImg?'':' (영상은 실시간 처리)')+'</div>';
     } else {
+      /* 배율(2×·4×)이 아니라 "어느 화질로 만들지" 를 고르게 한다 — 원본이 720p 인지 1080p 인지에 따라
+         같은 2× 도 결과가 달라져서, 배율만 보고는 무엇이 나올지 알 수 없었다.
+         고른 화질은 긴 변 픽셀 목표(UP_QUALITY)로 그대로 나간다. 전부 우리 자체 모델·무료다. */
+      var _uq = upQualityOf(n);
       ctrl='<div class="up-row"><span class="up-seg">'+
-        '<button class="up-x'+(sc==2?' on':'')+'" data-upscaleset="2">2×</button>'+
-        '<button class="up-x'+(sc==4?' on':'')+'" data-upscaleset="4">4×</button>'+
-        '<button class="up-x'+(sc==5?' on':'')+'" data-upscaleset="5" title="긴 변 5120px(5K) 목표 · 풀해상 초해상">5K</button></span>'+
-        '<button class="wbtn up-go" data-upscale>'+ICON.sparkle+' 화질 업스케일</button></div>'+
-        (up?'<div class="refcnt">'+ICON.check+' 업스케일 '+sc+'× 완료 · '+esc(n.w.upDim||'')+' · <a href="#" data-upreset>원본으로</a></div>':'')+
+        UP_QUALITY.map(function(q){
+          return '<button class="up-x'+(_uq.id===q.id?' on':'')+'" data-upscaleset="'+q.id+'" title="'+esc(q.hint)+'">'+q.label+'</button>';
+        }).join('')+'</span>'+
+        '<button class="wbtn up-go" data-upscale>'+ICON.sparkle+' 화질 올리기</button></div>'+
+        '<div class="refcnt">우리 자체 초해상 모델로 처리합니다 — <b>크레딧이 들지 않습니다</b>.</div>'+
+        (up?'<div class="refcnt">'+ICON.check+' '+esc(_uq.label)+' 완료 · '+esc(n.w.upDim||'')+' · <a href="#" data-upreset>원본으로</a></div>':'')+
         // Kling 공식 API 결과에만 "영상 확장" 이 가능하다(제공사 제약: Kling 생성분·30일 이내).
         //  첫 프레임 이어붙이기와 달리 원본 클립을 그대로 늘려 모션·카메라가 끊기지 않는다.
         (!isImg && n.w.videoId && n.w.videoProvider==='kling'
@@ -7045,7 +7069,7 @@ canvas.addEventListener('click',function(e){
   if(rdel){ var ri=+rdel.getAttribute('data-refdel');
     (n2.w.imgs||[]).splice(ri,1); if(n2.w.vids)n2.w.vids.splice(ri,1); snapshot(); render(); return; }
   if(e.target.closest('[data-upscaleset]')){
-    n2.w.upScale=+e.target.getAttribute('data-upscaleset'); render(); return;
+    n2.w.upQuality=String(e.target.getAttribute('data-upscaleset')); render(); return;
   }
   // 영상 길이·비율 드롭다운: 선택은 change 에서 처리 — 클릭은 네이티브 목록만 연다
   if(e.target.closest('[data-vsec],[data-vratio],[data-vres]')) return;
@@ -7177,15 +7201,18 @@ canvas.addEventListener('click',function(e){
   }
   if(e.target.closest('[data-upscale]')){
     if(!n2.w.vid||n2.w.upscaling)return;
-    var uSet=n2.w.upScale||2, is5k=(uSet===5), uScale=is5k?4:uSet;
-    var uOpts=is5k?{ longTarget:5120 }:null;   // 5K: 긴 변 5120px 목표(x4·풀해상 초해상)
+    /* 고른 화질의 긴 변 픽셀을 그대로 목표로 넘긴다 — 원본 크기와 무관하게 그 화질로 나온다.
+       이 경로는 전부 브라우저 안(우리 자체 모델)에서 끝난다: 서버·외부 API 호출이 없어 크레딧이 0이다. */
+    var uQ=upQualityOf(n2), is5k=(uQ.id==='5k');
+    var uOpts={ longTarget: uQ.px };
+    var uScale=4;                                   // 자체 모델은 x4 로 돌리고 목표 화질에 맞춰 정확히 줄인다
     var uIsImg = n2.w.kind==='image' || /^data:image\//i.test(n2.w.vid) || /\.(png|jpe?g|webp|gif)(\?|$)/i.test(n2.w.vid);
-    if(is5k && !uIsImg){ try{ toast('5K 영상 업스케일: 매우 오래 걸리고(수 시간+) 브라우저가 5K 인코딩을 못 하면 자동으로 낮춰집니다.'); }catch(_){} }
+    if(is5k && !uIsImg){ try{ toast('5K 영상은 매우 오래 걸리고(수 시간+) 브라우저가 5K 인코딩을 못 하면 자동으로 낮춰집니다.'); }catch(_){} }
     n2.w.upscaling=true; n2.w.upPct=0; render();
-    toast(uIsImg?'이미지 업스케일 중…':'영상 업스케일 중… (길이만큼 소요)');
+    toast((uIsImg?'이미지':'영상')+' 화질 올리는 중… '+uQ.label+' (자체 모델 · 무료)');
     function uProg(pp){ n2.w.upPct=pp; var hh=document.getElementById('nd-'+n2.id); if(hh){ var bar=hh.querySelector('.up-prog i'); if(bar)bar.style.width=Math.round(pp*100)+'%'; var msg=hh.querySelector('.up-msg'); if(msg)msg.textContent='업스케일 처리 중… '+Math.round(pp*100)+'% (프레임별 초해상 · 길수록 오래)'; } }
     var uJob = uIsImg ? upscaleImageURL(n2.w.vid,uScale,uOpts) : upscaleVideoURL(n2.w.vid,uScale,uProg,uOpts);
-    uJob.then(function(res){ n2.w.upscaling=false; n2.w.upscaled=res.url; n2.w.upKind=res.kind; n2.w.upDim=res.dim; render(); toast('업스케일 완료 · '+res.dim); })
+    uJob.then(function(res){ n2.w.upscaling=false; n2.w.upscaled=res.url; n2.w.upKind=res.kind; n2.w.upDim=res.dim; render(); toast(uQ.label+' 완료 · '+res.dim+' (크레딧 0)'); })
         .catch(function(err){ n2.w.upscaling=false; render(); toast('업스케일 실패: '+String(err&&err.message||err).slice(0,70)); });
     return;
   }
