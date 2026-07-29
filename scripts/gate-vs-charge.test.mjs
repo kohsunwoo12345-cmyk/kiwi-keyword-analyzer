@@ -13,7 +13,10 @@ import vm from 'node:vm'
 import { createRequire } from 'node:module'
 import fs from 'node:fs'
 const require_ = createRequire(import.meta.url)
-const ROOT = '/home/user/kiwi-keyword-analyzer/'
+/* 저장소 위치는 체크아웃마다 다르다 — 배포 서버는 /home/user 가 아니다.
+   빌드가 npm test 를 먼저 돌리므로, 경로를 박아 두면 그 서버에서 테스트가 파일을 못 찾아
+   빌드 자체가 죽는다. 이 파일 위치에서 저장소 뿌리를 구한다. */
+const ROOT = new URL('../', import.meta.url).pathname
 
 function load(file) {
   const out = buildSync({ entryPoints: [ROOT + file], bundle: true, write: false, format: 'cjs',
