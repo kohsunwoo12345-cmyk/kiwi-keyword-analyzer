@@ -110,6 +110,8 @@ const NAV_GROUPS: NavGroup[] = [
     label: '마케팅',
     items: [
       { title: '마케팅 대시보드', href: `${ADMIN_BASE}/marketing`, icon: Workflow },
+      { title: 'CRM 마케팅 집행', href: `${ADMIN_BASE}/crm-campaigns`, icon: CalendarRange },
+      { title: '캠페인 결과', href: `${ADMIN_BASE}/crm-results`, icon: BarChart3 },
       { title: '퍼널 빌더', href: '/tools/funnel-builder.html', icon: Filter },
       { title: '마케팅 자동화', href: '/tools/marketing-automation.html', icon: Zap },
       { title: '랜딩페이지 제작', href: '/tools/landing-builder.html', icon: Palette },

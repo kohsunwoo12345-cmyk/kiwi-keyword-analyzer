@@ -24,6 +24,7 @@ import {
   Bell,
   Users,
   Contact,
+  CalendarRange,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -147,6 +148,19 @@ export const NAV_CATEGORIES: NavCategory[] = [
       { title: '팀 채팅', href: '/dashboard_USE17237_612/team/chat', icon: MessageCircle },
       { title: '회의록', href: '/dashboard_USE17237_612/team/meeting-notes', icon: ClipboardList },
       { title: '메모', href: '/dashboard_USE17237_612/team/notes', icon: StickyNote },
+    ],
+  },
+  {
+    id: 'crm',
+    title: 'CRM 마케팅 집행',
+    icon: Contact,
+    accent: '#f59e0b',
+    badge: 'NEW',
+    items: [
+      { title: '집행 캘린더', href: '/dashboard_USE17237_612/crm/campaigns', icon: CalendarRange },
+      { title: '캠페인 결과', href: '/dashboard_USE17237_612/crm/results', icon: BarChart3 },
+      { title: '타깃 그룹 (엑셀)', href: '/dashboard_USE17237_612/team/groups', icon: Contact },
+      { title: '고객 관리', href: '/dashboard_USE17237_612/crm', icon: Users },
     ],
   },
   {
