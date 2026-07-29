@@ -35,6 +35,10 @@ export async function ensureGenCharges(db: D1Database): Promise<void> {
     )
     .run()
     .catch(() => {})
+  /* 실제로 얼마를 뺐는지와, 어느 제공사 작업의 것인지 — 비동기 영상이 실패했을 때
+     그 금액을 되돌리려면 둘 다 필요하다(기존 표에는 없어서 추가한다). */
+  for (const col of ['credits REAL DEFAULT 0', "task_key TEXT DEFAULT ''", "status TEXT DEFAULT ''"])
+    await db.prepare(`ALTER TABLE gen_charges ADD COLUMN ${col}`).run().catch(() => {})
   await db
     .prepare(`CREATE INDEX IF NOT EXISTS idx_gen_charges_user ON gen_charges (user_id, created_at)`)
     .run()
@@ -101,5 +105,96 @@ export async function consumeGenCharge(
     }
   } catch {
     return null
+  }
+}
+
+/* ── 생성 시점 차감 ──
+   토큰을 만들어 응답에 실어 보내는 것만으로는 "싸게 신고하는" 쪽만 막힌다.
+   차감 자체가 여전히 클라이언트가 부르는 신고 창구(/api/usage/record)에서 일어나기 때문에,
+   그 호출을 아예 생략하면 생성물은 받고 요금은 0 이었다 — 제공사 비용은 우리가 이미 냈는데도.
+   그래서 생성이 성공한 그 자리에서 서버가 토큰을 직접 소비하고 차감한다.
+   신고 창구는 이제 늘 "이미 청구됨" 을 보게 되고, 보관·아카이브만 맡는다. */
+export async function settleGenCharge(
+  db: D1Database, me: any, token: string, taskKey: string | null,
+  deps: {
+    computeCharge: any; getUsdKrw: any; resolveMarkup: any; resolveRefSurcharge: any
+    resolveCnSurcharge: any; creditPriceFor: any; ensureAiUsage: any
+  },
+): Promise<{ credits: number; usageId: string }> {
+  const NONE = { credits: 0, usageId: '' }
+  if (!db || !me?.id || me.role === 'admin') return NONE          // 관리자는 기존 게이트와 동일하게 면제
+  const spec = await consumeGenCharge(db, String(me.id), token)
+  if (!spec || spec.alreadyConsumed) return NONE                  // 없는/이미 쓴 토큰 → 청구 안 함
+  try {
+    const rate = await deps.getUsdKrw(db)
+    const markup = await deps.resolveMarkup(db, me.id, spec.model, Number(me.credit_markup) || 0)
+    const creditKrw = await deps.creditPriceFor(db, me)
+    const c = deps.computeCharge(
+      { model: spec.model, units: spec.units, res: spec.res, audio: !!spec.audio,
+        ratio: spec.ratio, refs: spec.refs || 0, hdr: !!spec.hdr, exr: !!spec.exr },
+      rate, markup, creditKrw)
+    const surPct = await deps.resolveRefSurcharge(db, me.id)
+    const cnPct = (spec.cn || 0) > 0 ? await deps.resolveCnSurcharge(db) : 0
+    const credits = Math.round(
+      c.credits * (1 + (surPct / 100) * (spec.refs || 0)) * ((spec.cn || 0) > 0 ? 1 + cnPct / 100 : 1) * 100) / 100
+    if (!(credits > 0)) return NONE
+
+    /* 잔액이 모자라도 원가 전액을 뺀다 — 생성은 끝났고 제공사 비용은 나갔다.
+       (음수가 되면 다음 생성은 /api/generate 의 credits>0 게이트에서 막힌다 = 미납 잠금) */
+    await db.prepare('UPDATE users SET credits = ROUND(COALESCE(credits,0) - ?, 2) WHERE id = ?')
+      .bind(credits, me.id).run()
+    const row: any = await db.prepare('SELECT credits FROM users WHERE id = ?').bind(me.id).first().catch(() => null)
+    const after = Math.round((Number(row?.credits) || 0) * 100) / 100
+    await db.prepare(
+      `UPDATE gen_charges SET credits = ?, task_key = ?, status = 'charged' WHERE id = ?`,
+    ).bind(credits, String(taskKey || ''), token).run().catch(() => {})
+    await db.prepare(
+      `INSERT INTO transactions (id,user_id,kind,amount,balance_after,memo,created_at) VALUES (?,?,'credit',?,?,?,?)`,
+    ).bind('t_' + crypto.randomUUID().slice(0, 16), me.id, -credits, after,
+           'AI 생성 · ' + c.model, new Date().toISOString()).run().catch(() => {})
+    let usageId = ''
+    try {
+      await deps.ensureAiUsage(db)
+      usageId = 'au' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+      await db.prepare(
+        `INSERT INTO ai_usage (id,user_id,email,name,provider,model,kind,units,usd,cost_krw,credits,revenue_krw,markup,usd_krw,created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      ).bind(usageId, me.id, me.email || '', me.name || '', c.provider, c.model, c.kind,
+             spec.units, c.usd, c.costKrwExact, credits, Math.round(credits * creditKrw),
+             c.markup, c.usdKrw, new Date().toISOString()).run()
+    } catch { usageId = '' }
+    return { credits, usageId }
+  } catch {
+    return NONE
+  }
+}
+
+/** 비동기 생성이 실패로 확정되면 제출 때 뺀 금액을 정확히 한 번만 되돌린다. */
+export async function refundGenCharge(db: D1Database, taskKey: string): Promise<number> {
+  if (!db || !taskKey) return 0
+  try {
+    await ensureGenCharges(db)
+    const row: any = await db.prepare(
+      `SELECT id, user_id, credits, model FROM gen_charges WHERE task_key = ? AND status = 'charged' LIMIT 1`,
+    ).bind(String(taskKey).slice(0, 300)).first()
+    if (!row) return 0
+    const amt = Math.round(Number(row.credits || 0) * 100) / 100
+    if (!(amt > 0)) return 0
+    // 조건부 UPDATE — 동시에 두 번 들어와도 한쪽만 성공한다(환불이 두 번 나가지 않는다).
+    const upd: any = await db.prepare(
+      `UPDATE gen_charges SET status = 'refunded' WHERE id = ? AND status = 'charged'`,
+    ).bind(row.id).run()
+    if (!upd?.meta?.changes) return 0
+    await db.prepare('UPDATE users SET credits = ROUND(COALESCE(credits,0) + ?, 2) WHERE id = ?')
+      .bind(amt, row.user_id).run()
+    const u2: any = await db.prepare('SELECT credits FROM users WHERE id = ?').bind(row.user_id).first().catch(() => null)
+    const after = Math.round((Number(u2?.credits) || 0) * 100) / 100
+    await db.prepare(
+      `INSERT INTO transactions (id,user_id,kind,amount,balance_after,memo,created_at) VALUES (?,?,'credit',?,?,?,?)`,
+    ).bind('t_' + crypto.randomUUID().slice(0, 16), row.user_id, amt, after,
+           '생성 실패 환불 · ' + String(row.model || ''), new Date().toISOString()).run().catch(() => {})
+    return amt
+  } catch {
+    return 0
   }
 }

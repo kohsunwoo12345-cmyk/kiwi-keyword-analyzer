@@ -11,7 +11,8 @@ import { getSessionUser, resolveDB, getUserByMcpToken } from "./_utils";
 import { getUserByApiKey, enforceRateLimit, ensureApiKeysSchema } from "./_apikeys";
 import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from "./studio/_pricing";
 import { getBrandKit, applyBrandKit } from "./studio/brandkit";
-import { issueGenCharge } from "./studio/_gencharge";
+import { issueGenCharge, settleGenCharge, refundGenCharge } from "./studio/_gencharge";
+import { ensureAiUsage } from "./studio/_pricing";
 import { MODEL_COST as MODEL_COST_SRV } from "./studio/_pricing";
 import { creditPriceFor } from "./payments/prepare";
 
@@ -1542,18 +1543,39 @@ export function effectiveRes(body, env) {
   return /^(480p|540p|720p|1080p|4K)$/i.test(raw) ? raw : "1080p";
 }
 
+/* 토큰을 응답에 실어 보내는 것만으로는 "싸게 신고하는" 쪽만 막힌다.
+   차감 자체가 신고 창구(/api/usage/record)에 있으면, 그 호출을 생략한 클라이언트는
+   생성물만 받고 한 푼도 내지 않는다 — 제공사 비용은 우리가 이미 냈는데도.
+   그래서 생성이 성공한 이 자리에서 서버가 토큰을 소비하고 직접 차감한다.
+   금액은 토큰에 묶인 서버 확정값이라 신고 내용과 무관하다. */
+const BILL_DEPS = { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge, creditPriceFor, ensureAiUsage };
+
 export async function onRequest(context) {
   try {
     const res = await handle(context);
-    // 발급된 과금 토큰을 JSON 응답에 얹는다. 반환 지점이 많아 여기 한 곳에서만 처리한다.
+    if (!res || !/application\/json/i.test(res.headers.get("content-type") || "")) return res;
+    /* /api/v1·MCP 는 스스로 차감한다(commitCharge) — 그 내부 호출까지 여기서 또 받으면 이중 차감이다.
+       이 표시는 서버가 만든 컨텍스트에만 있고 요청 헤더가 아니라, 클라이언트가 흉내낼 수 없다. */
+    if (context.__internalBilling) return res;
+    let body = null;
+    try { body = await res.clone().json(); } catch (_e) { return res; }
+    if (!body || typeof body !== "object" || Array.isArray(body)) return res;
+
+    //  실패로 확정된 비동기 작업이면 제출 때 뺀 금액을 되돌린다(정확히 1회).
+    if (context.request.method === "GET" && (body.status === "failed" || (body.error && !body.url))) {
+      const gu = new URL(context.request.url);
+      const back = await refundGenCharge(resolveDB(context.env), gu.pathname + gu.search);
+      if (back > 0) return json({ ...body, credits_refunded: back }, res.status);
+      return res;
+    }
     const tok = context.__chargeToken;
-    if (!tok || !res || res.status !== 200) return res;
-    if (!/application\/json/i.test(res.headers.get("content-type") || "")) return res;
-    try {
-      const body = await res.clone().json();
-      if (!body || typeof body !== "object" || Array.isArray(body)) return res;
-      return json({ ...body, chargeToken: tok });
-    } catch { return res; }
+    if (!tok || res.status !== 200) return res;
+    //  성공한 생성만 청구 — 즉시 결과(url) 또는 접수된 비동기 작업(statusUrl).
+    const ok = (body.url && !body.error) || body.statusUrl;
+    if (!ok) return json({ ...body, chargeToken: tok });
+    const out = await settleGenCharge(resolveDB(context.env), context.__genUser,
+                                      tok, body.statusUrl || null, BILL_DEPS);
+    return json({ ...body, chargeToken: tok, charged: out.credits, chargeRef: out.usageId });
   } catch (e) {
     // 예상 못 한 예외도 원인이 보이도록 항상 읽을 수 있는 JSON 으로 반환 (raw 502 방지)
     return json({ error: "서버 예외: " + String((e && e.message) || e).slice(0, 300) }, 502);
@@ -1599,6 +1621,7 @@ async function handle(context) {
     }
     if (!me) return json({ error: "로그인이 필요합니다.", needLogin: true }, 401);
     gateUser = me;
+    context.__genUser = me;     // 응답을 내보낸 뒤 서버가 직접 차감할 때 쓴다(onRequest 참조)
     // 실제 생성(POST)은 크레딧 보유자(또는 관리자)만 — dryRun 검증 요청은 통과
     if (method === "POST") {
       let pbody = {};
