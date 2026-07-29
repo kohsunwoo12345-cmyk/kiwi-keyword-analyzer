@@ -4636,6 +4636,10 @@ function upscaleVideoURL(src,scale,onProg,opts){
           sizeNote='영상은 브라우저가 실시간으로 만들 수 있는 크기까지만 가능합니다 → '+_ntw+'×'+_nth+'로 맞췄습니다(요청 '+tw+'×'+th+'). 사진은 4K·5K 그대로 됩니다.';
           tw=_ntw; th=_nth;
         }
+        // 되뿌리기는 실시간이라, 화면이 클수록 인코더가 못 따라오고 그만큼 길이가 늘어난다.
+        //  큰 화면은 초당 프레임 수를 낮춰 여유를 준다 — 조금 덜 부드럽지만 길이는 정확해진다.
+        if(tw*th > 2.4e6 && FPS > 20) FPS=20;
+        else if(tw*th > 1.4e6 && FPS > 24) FPS=24;
         (function build(){
           for(var tryN=0; tryN<3; tryN++){
             try{
@@ -4727,11 +4731,19 @@ function upscaleVideoURL(src,scale,onProg,opts){
           return Promise.resolve(dec[0]).then(function(){
             try{ rec.resume(); }catch(e){}
             return new Promise(function(res){
-              var start=performance.now(), j=0;
+              var start=performance.now(), j=0, frameMs=1000/FPS;
               (function tick(){
-                if(j>=blobs.length){ setTimeout(function(){ try{ rec.pause(); }catch(e){} res(); }, Math.round(1000/FPS)+20); return; }
-                var wait=(start+j*1000/FPS)-performance.now();
+                if(j>=blobs.length){ setTimeout(function(){ try{ rec.pause(); }catch(e){} res(); }, Math.round(frameMs)+20); return; }
+                var wait=(start+j*frameMs)-performance.now();
                 setTimeout(function(){
+                  // ⚠ 컴퓨터가 바빠 되뿌리기가 밀리면 영상이 다시 늘어난다(실측: 4.5초 → 6.2초).
+                  //   녹화기는 '도착한 시각' 으로 찍으므로, 늦었으면 늦은 만큼의 프레임은
+                  //   그리지 말고 건너뛴다. 화면이 조금 끊길 뿐 길이는 원본 그대로 유지된다.
+                  var due=Math.floor((performance.now()-start)/frameMs);
+                  while(j<due && j<blobs.length-1){
+                    try{ if(dec[j]) Promise.resolve(dec[j]).then(function(b2){ try{ b2&&b2.close&&b2.close(); }catch(e){} }); }catch(e){}
+                    dec[j]=null; blobs[j]=null; j++;
+                  }
                   var p=dec[j]; want(j+1);
                   Promise.resolve(p).then(function(bm){
                     if(bm){ try{ octx.clearRect(0,0,tw,th); octx.drawImage(bm,0,0); }catch(e){}

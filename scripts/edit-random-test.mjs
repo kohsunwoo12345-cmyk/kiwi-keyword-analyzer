@@ -170,7 +170,7 @@ const capR = await page.evaluate(async (cs) => {
       const edge=Math.max(T.rowDiff(a.d,b.d,b.w,b.h,0), T.rowDiff(a.d,b.d,b.w,b.h,b.h-1))
       // '점 하나' 같은 아주 작은 자막은 평균으로 보면 0 에 가깝다 → 바뀐 픽셀 수로 본다
       const box=T.changedBox(a.d,b.d,b.w,b.h,30)
-      res.push({ ...c, w2:b.w, h2:b.h, bands, edgeRow:+edge.toFixed(1), drawn:box.n, info:r.info, ok:true })
+      res.push({ ...c, w2:b.w, h2:b.h, bands, edgeRow:+edge.toFixed(1), drawn:box.n, box, info:r.info, ok:true })
     }catch(e){ res.push({ ...c, ok:false, err:String(e&&e.message||e).slice(0,80) }) }
   }
   return res
@@ -186,14 +186,18 @@ ok('자막 — 실제로 글자가 그려짐', capNone.length===0,
                   : `${capR.length}건 · 가장 적은 경우도 ${Math.min(...capR.filter(r=>r.ok).map(r=>r.drawn))}점`)
 // 지정한 위치의 띠가 가장 많이 바뀌어야 한다
 const bandOf = { '위':0, '가운데':1, '아래':2 }
-//  자막이 화면 대부분을 덮을 만큼 클 때는 세 띠가 다 비슷하게 바뀐다 → '가장 큰 띠' 로만 보면 부당하다.
-//  그래서 '요청한 자리가 가장 많이 바뀐 곳의 60% 이상' 인지로 본다.
-//  (아래를 요청했는데 위에 그려지는 것 같은 진짜 오류는 이 기준으로도 잡힌다)
-const capPos = capR.filter(r=>r.ok).filter(r=>{
-  const want=bandOf[r.pos], mx=Math.max(...r.bands)
-  return !(r.bands[want] >= mx*0.6) })
+//  '어느 띠가 가장 많이 바뀌었나' 로 보면 부정확하다 — 글자가 커서 자막이 그림 대부분을 덮으면
+//  잉크가 가운데에 몰려 위에 붙어 있어도 가운데로 판정된다.
+//  그래서 '실제로 바뀐 영역이 어디서 시작해 어디서 끝나는가' 를 직접 본다.
+const capPos = capR.filter(r=>r.ok && r.box && r.box.n>0).filter(r=>{
+  const b=r.box, H=r.h2
+  if(/위/.test(r.pos))      return !(b.y <= H*0.25)
+  if(/가운데/.test(r.pos))  return !(Math.abs((b.y+b.h/2) - H/2) <= H*0.20)
+  return !(b.y+b.h >= H*0.75)                       // 아래
+})
 ok('자막 — 지정한 위치(위/가운데/아래)에 들어감', capPos.length===0,
-   capPos.length ? capPos.slice(0,3).map(r=>`${r.pos} 요청인데 띠변화 ${JSON.stringify(r.bands)}`).join(' , ') : `${capR.length}건 모두 제자리`)
+   capPos.length ? capPos.slice(0,3).map(r=>`${r.pos} 요청인데 자막이 ${r.box.y}~${r.box.y+r.box.h} (그림 높이 ${r.h2})`).join(' , ')
+                 : `${capR.filter(r=>r.ok).length}건 모두 제자리`)
 // 자막이 그림 밖으로 넘쳐 잘리지 않는가 — 맨 위·맨 아래 한 줄이 글자로 꽉 차 있으면 넘친 것이다
 const capOver = capR.filter(r=>r.ok).filter(r=> r.edgeRow > 12)
 ok('자막이 그림 밖으로 넘쳐 잘리지 않음', capOver.length===0,
