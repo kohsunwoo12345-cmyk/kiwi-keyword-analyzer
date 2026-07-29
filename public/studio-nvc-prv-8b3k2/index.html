@@ -2110,7 +2110,10 @@ var MODEL_COST = {
   '업스케일 4K (영상 화질 향상)': { u:'sec', usd:0.04, prov:'upscale' },
   '립싱크 (인물 말하기)': { u:'sec', usd:0.10, prov:'lipsync' },
   'Runway Aleph (영상→실사 V2V)':      { u:'sec', usd:0.28, prov:'runway_aleph' },   // 공식 aleph2 초당 28크레딧
-  'Google Veo 3.1':                    { u:'sec', usd:0.40, audio:0.35, prov:'google' },
+  //  오디오는 Veo 3.1 단가에 이미 포함이다(공식 표 "video with audio price (default)").
+  //  초당 0.35 가산이 남아 있었는데, veoUsd() 실측 표가 먼저 값을 정해 화면에는 안 보였을 뿐
+  //  서버 표와는 어긋난 상태였다 — 이중 청구가 되살아나기 전에 지운다.
+  'Google Veo 3.1':                    { u:'sec', usd:0.40, prov:'google' },
   'Runway Gen-4':                    { u:'sec', usd:0.05, prov:'runway' },
   'Runway Gen-3 Alpha Turbo':        { u:'sec', usd:0.05, prov:'runway' },
   'Grok Imagine (영상)':              { u:'sec', usd:0.10, prov:'xai' },
@@ -2224,6 +2227,10 @@ function veoUsd(model, secs, res){
 function lumaUsd(model, secs, res, refs, hdr, exr){
   if(!/^Luma /.test(String(model||''))) return null;
   var r = res || '1080p', n = Math.max(0, Number(refs)||0);
+  /* HDR·EXR 은 "생성" 요청에만 실린다 — 영상 편집·비율 변경은 서버 빌더(buildLumaPayload)가
+     hdr 필드를 아예 싣지 않는다. 예전 그래프에 lumaHdr 가 남아 있으면 SDR 을 받으면서
+     화면에는 2배(EXR 3배) 값이 떴다. 서버(effectiveFlags)와 같은 기준으로 맞춘다. */
+  if(/영상 편집|비율 변경/.test(model)){ hdr=false; exr=false; }
   if(LUMA_P.img[model]!=null) return n<=0 ? LUMA_P.img[model] : (LUMA_P.img1[model] + LUMA_P.step*(Math.min(9,n)-1));
   var slot = (Number(secs)||5) > 5 ? 1 : 0;
   var pick = function(t){ return (t[r]||t['1080p'])[slot]; };
@@ -2267,6 +2274,9 @@ function runwayUsd(model, secs){
   var m = MODEL_COST[model], per = m?m.usd:0.28;
   return Math.max(0.56, per * Math.max(1, Number(secs)||5));
 }
+/* buildOpenAIImagePayload 의 크기표(OPENAI_SIZE)에 있는 "긴 쪽" 비율들.
+   여기 없는 값은 정사각(1024x1024)으로 나가므로 가산이 붙으면 안 된다. */
+var OPENAI_LONG_RATIOS = { '3:2':1, '2:3':1, '16:9':1, '9:16':1, '4:5':1, '4:3':1, '3:4':1 };
 function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl, cnCount, hdrOn, exrOn, ratioIn, usageTokensIn){
   var m = MODEL_COST[model];
   /* 'img'(장당) 외에 '3d'(모델 1개당)·'tok'(호출 1회당)도 "단위 1개" 정액이다 — 서버 computeCharge 와 같은 기준.
@@ -2275,8 +2285,11 @@ function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prom
   var prov = m ? m.prov : provider;
   var rate, units, resMult=1, audioAdd=0;
   if(isImg){ units=1; rate = m?m.usd:0.05;
-    // OpenAI 이미지는 정사각형이 아니면 원가가 1.5배 — 서버 openaiImgUsd() 와 같은 기준
-    if(m && m.prov==='openai' && ratioIn && ratioIn!=='1:1') rate = rate*1.5;
+    /* OpenAI 이미지는 정사각형이 아니면 원가가 1.5배 — 서버 openaiImgUsd() 와 같은 기준.
+       단, "1:1 이 아니면" 이 아니라 "표에 있는 긴 비율일 때만" 이다. 표에 없는 비율은
+       빌더(buildOpenAIImagePayload)가 1024x1024 정사각으로 떨어뜨리므로 1.5배가 아니다
+       — 서버도 effectiveRatio() 로 실제 나간 크기를 보고 판단한다. */
+    if(m && m.prov==='openai' && OPENAI_LONG_RATIOS[String(ratioIn||'1:1')]) rate = rate*1.5;
   }
   else {
     units = Math.max(1, Math.round(Number(seconds)||8));

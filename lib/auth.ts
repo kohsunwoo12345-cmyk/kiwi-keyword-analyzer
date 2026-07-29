@@ -1747,14 +1747,25 @@ export async function funnelAnalytics(days = 14): Promise<FunnelAnalytics> {
 }
 
 /* ───────── 관리자: 발신번호 직접 등록·관리 ───────── */
-export interface AdminSender { id: string; phone: string; label: string; status: string; ownerName: string; ownerEmail: string; createdAt: string; decidedAt: string | null }
-export async function adminSenders(): Promise<{ ok: boolean; senders: AdminSender[]; count?: { pending: number; approved: number; rejected: number }; envSender?: string | null }> {
-  try { const r = await fetch('/api/admin/senders', { credentials: 'include', cache: 'no-store' }); const d = await r.json(); return { ok: !!d.ok, senders: d.senders || [], count: d.count, envSender: d.envSender } }
+export interface AdminSenderDoc { id: string; docType: string; label: string; fileName: string; contentType: string; size: number; createdAt: string; url: string }
+export interface AdminSender {
+  id: string; phone: string; label: string; status: string; statusLabel?: string
+  ownerName: string; ownerEmail: string; createdAt: string; decidedAt: string | null; submittedAt?: string
+  applicantType?: string; applicantTypeLabel?: string; holderName?: string; bizNo?: string; thirdParty?: boolean
+  rejectReason?: string; required?: string[]; docs?: AdminSenderDoc[]
+  missing?: { type: string; label: string; hint: string }[]; canApprove?: boolean
+}
+export async function adminSenders(): Promise<{ ok: boolean; senders: AdminSender[]; count?: { pending: number; approved: number; rejected: number; draft?: number }; envSender?: string | null; specs?: Record<string, { type: string; label: string; hint: string }> }> {
+  try { const r = await fetch('/api/admin/senders', { credentials: 'include', cache: 'no-store' }); const d = await r.json(); return { ok: !!d.ok, senders: d.senders || [], count: d.count, envSender: d.envSender, specs: d.specs } }
   catch { return { ok: false, senders: [] } }
 }
 export async function adminSenderAdd(phone: string, label?: string): Promise<{ ok: boolean; message?: string; error?: string }> {
   return postJson('/api/admin/senders', { action: 'add', phone, label })
 }
-export async function adminSenderAction(action: 'approve' | 'reject' | 'delete', id: string): Promise<{ ok: boolean; error?: string }> {
-  return postJson('/api/admin/senders', { action, id })
+export async function adminSenderAction(
+  action: 'approve' | 'reject' | 'delete',
+  id: string,
+  reason?: string,
+): Promise<{ ok: boolean; error?: string; missing?: { label: string }[] }> {
+  return postJson('/api/admin/senders', { action, id, reason })
 }

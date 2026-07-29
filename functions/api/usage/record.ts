@@ -1,7 +1,7 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity, resolveBucket, rateLimitOk } from '../_utils'
 import { computeCharge, ensureAiUsage, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge, MODEL_COST } from '../studio/_pricing'
 import { creditPriceFor } from '../payments/prepare'
-import { effectiveUnits, effectiveRes } from '../generate.js'
+import { effectiveUnits, effectiveRes, effectiveFlags, effectiveRatio } from '../generate.js'
 
 function b64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64)
@@ -94,12 +94,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       kind: isImg ? 'image' : 'video',
       res: effRes,
       audio: !!b.audio,
-      // 루마 실측 요금표용 — 이 셋이 없으면 표준 요금으로 잡혀 HDR·레퍼런스 원가를 못 받는다
-      hdr: !!b.hdr,
-      exr: !!b.exr,
+      /* 루마 실측 요금표용 — 이 둘이 없으면 표준 요금으로 잡혀 HDR 원가를 못 받는다.
+         다만 요청값을 그대로 믿으면 반대로 헛돈을 받는다: 루마 "영상 편집·비율 변경" 은
+         빌더가 hdr 필드를 아예 안 싣는데(문서상 SDR) 요금표에는 편집용 HDR 등급이 있어,
+         lumaHdr 를 얹으면 SDR 을 받으면서 2배(EXR 3배)를 냈다.
+         → 길이·해상도와 같은 원칙으로, 실제 요청에 실린 값만 청구한다. */
+      ...effectiveFlags({ ...eff, hdr: !!b.hdr, exr: !!b.exr }),
       refs: Math.max(0, Number(b.refs) || 0),
-      // OpenAI 이미지는 가로/세로가 긴 비율이면 원가가 1.5배다 — 비율을 넘겨야 그 값이 반영된다
-      ratio: String(b.ratio || '1:1'),
+      // OpenAI 이미지는 가로/세로가 긴 비율이면 원가가 1.5배다 — 실제로 나간 크기 기준으로 본다
+      //  (표에 없는 비율은 빌더가 1024x1024 정사각으로 떨어뜨린다 → 1.5배를 받으면 안 된다)
+      ratio: effectiveRatio({ model, ratio: String(b.ratio || '1:1') }),
       // 제공사가 알려준 실제 소비 토큰이 있으면 추정 대신 그 값으로 과금한다
       usageTokens: Math.max(0, Number(b.usageTokens) || 0),
     },

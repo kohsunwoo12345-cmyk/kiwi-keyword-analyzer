@@ -1350,7 +1350,47 @@ export function buildLumaPayload(b) {
   }
   if (first) p.video.start_frame = { url: first };
   if (b.lastFrame) p.video.end_frame = { url: b.lastFrame };
+  /* 레퍼런스가 정확히 2장일 때 두 번째 장이 통째로 버려지고 있었다.
+     3장 이상은 위에서 키프레임 앵커로 전부 싣는데, 2장은 start_frame 한 장만 쓰고 끝났다.
+     노드는 2장을 받아 연결시켜 주고 레퍼런스 가산까지 붙이므로, 실리지 않은 장에 돈을 받는 셈이었다.
+     끝 프레임을 따로 지정하지 않았다면 두 번째 장을 끝 앵커로 쓴다(문서상 start/end 조합). */
+  else if (anchors.length === 2) {
+    const second = anchors.filter((u) => u !== first)[0];
+    if (second) p.video.end_frame = { url: second };
+  }
   return p;
+}
+
+/* ── "실제로 요청에 실린 옵션" ──
+   길이·해상도(effectiveUnits·effectiveRes)와 같은 원칙을, 값이 달라지는 나머지 옵션에도 적용한다.
+   요금표에는 있는데 빌더가 안 싣는 옵션이 있으면, 그 차액은 없는 기능에 받는 돈이 된다.
+     · 루마 HDR/EXR : 생성(type:'video')에만 실린다. 영상 편집·비율 변경 요청에는 필드 자체가 없다.
+                      그런데 요금표에는 편집용 HDR·EXR 등급이 있어, 요청에 lumaHdr 를 얹으면
+                      SDR 을 받으면서 2배(EXR 은 3배)를 냈다.
+     · OpenAI 비율  : 정사각이 아니면 원가가 1.5배인데, 표에 없는 비율(예: 7:3)은 빌더가
+                      1024x1024(정사각)로 떨어뜨린다 — 정사각을 받으면서 1.5배를 냈다.
+   둘 다 "빌더를 실제로 돌려 나간 값을 읽는" 방식으로 맞춘다. */
+export function effectiveFlags(body) {
+  const b = body || {};
+  const out = { hdr: false, exr: false };
+  if (!LUMA_IDS[b.model]) return { hdr: !!b.hdr || !!b.lumaHdr, exr: !!b.exr || !!b.lumaExr };
+  try {
+    const p = buildLumaPayload(Object.assign({}, b,
+      { lumaHdr: b.lumaHdr === true || b.hdr === true, lumaExr: b.lumaExr === true || b.exr === true }));
+    out.hdr = !!(p.video && p.video.hdr);
+    out.exr = !!(p.video && p.video.exr_export);
+  } catch (_e) {}
+  return out;
+}
+export function effectiveRatio(body) {
+  const b = body || {};
+  const raw = String(b.ratio || "1:1");
+  if (!OPENAI_IMG_ID[b.model]) return raw;
+  try {
+    const m = /^(\d+)x(\d+)$/.exec(buildOpenAIImagePayload(b).size || "");
+    if (m) return Number(m[1]) === Number(m[2]) ? "1:1" : "3:2";   // 정사각 / 긴 쪽(1.5배)
+  } catch (_e) {}
+  return raw;
 }
 
 export function buildVeoPayload(b, opts) {

@@ -313,7 +313,15 @@ export async function aligoProfileAdd(env: any, o: { plusid: string; phonenumber
   const params: Record<string, any> = { apikey: key, userid: userId, token: tok.token, plusid, phonenumber, authnum, categorycode }
   const r = await aligoCall(env, PROFILE_ADD_URL, params)
   if (r.error) return { ok: false, error: r.error }
-  const sk = r.data?.senderKey || r.data?.senderkey || r.data?.data?.senderKey
+  // 알리고 akv10 응답은 payload 를 info 안에 넣는 경우가 많다(알림톡 발송의 info.scnt 처럼).
+  //  senderKey 를 최상위에서만 찾고 있어서, info 로 내려오면 code:0(성공) 인데도
+  //  "채널 등록 실패 (0)" 로 떨어졌다 — 회원은 인증까지 마치고도 채널을 못 만든다.
+  //  키 위치·대소문자를 모두 훑는다.
+  const d: any = r.data || {}
+  const sk =
+    d.senderKey || d.senderkey || d.sender_key ||
+    d.info?.senderKey || d.info?.senderkey || d.info?.sender_key ||
+    d.data?.senderKey || d.data?.senderkey || d.data?.sender_key
   if (Number(r.data?.code) === 0 && sk) return { ok: true, senderKey: String(sk), data: r.data }
   return { ok: false, error: r.data?.message || `채널 등록 실패 (${r.data?.code ?? r.status})`, data: r.data }
 }

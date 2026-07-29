@@ -1,6 +1,7 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB } from '../_utils'
 import { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge, MODEL_COST } from './_pricing'
 import { creditPriceFor } from '../payments/prepare'
+import { effectiveFlags, effectiveRatio } from '../generate.js'
 
 // POST /api/studio/precheck { model, units?, kind?, res?, audio? }
 //  → 생성 전 크레딧 사전 확인. 부족하면 402 {needPlan:true} 로 응답해 플랜 유도.
@@ -24,8 +25,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
      예전엔 사전 확인에서 이걸 빼고 계산해, 통과시켜 놓고 실제 차감은 더 크게 빠졌다. */
   const refCount = Math.max(0, Number(b.refs) || 0)
   const c = computeCharge(
+    /* hdr·exr·비율은 요청값이 아니라 "실제로 요청에 실릴 값" 으로 본다 — 실제 차감(usage/record)이
+       같은 기준을 쓰므로, 여기서 요청값을 쓰면 사전 안내와 실제 차감이 어긋난다. */
     { model, units: Number(b.units) || 0, kind: kindP, res: b.res, audio: !!b.audio,
-      refs: refCount, hdr: !!b.hdr, exr: !!b.exr, ratio: String(b.ratio || '1:1') },
+      refs: refCount, ...effectiveFlags({ model, hdr: !!b.hdr, exr: !!b.exr }),
+      ratio: effectiveRatio({ model, ratio: String(b.ratio || '1:1') }) },
     rate, markup, creditKrw)
   const surPct = await resolveRefSurcharge(db, me.id)
   const refMult = 1 + (surPct / 100) * refCount
