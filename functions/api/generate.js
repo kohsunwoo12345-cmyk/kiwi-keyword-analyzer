@@ -762,7 +762,9 @@ const FAL_QUEUE = "https://queue.fal.run/";
    ffmpeg 병합(나레이션)·stable-audio(음악)·FLUX.1-dev+ControlNet Union.
    씨댄스·씨드림·3D·클링·루마·Veo·런웨이·미니맥스·BFL·GPT·Grok 은 절대 들어오면 안 된다.
    새 기능을 fal 로 붙이려면 이 목록에 이름을 넣어야 하고, 그때 위 원칙을 다시 따져야 한다. */
-const FAL_ALLOWED = new Set(["motion", "upscale", "narrate", "lipsync", "revoice", "music", "falcontrol", "falq", "v2v_auto"]);
+/* 업스케일은 목록에서 뺐다 — 화질 올리기는 브라우저에서 우리 자체 모델로만 한다.
+   외부 유료 API(Topaz 등)로 나가는 길을 아예 막아 크레딧이 빠질 여지를 없앤다. */
+const FAL_ALLOWED = new Set(["motion", "narrate", "lipsync", "revoice", "music", "falcontrol", "falq", "v2v_auto"]);
 /* 공식 API 를 연동해 둔 제공사 — 이 이름으로는 fal 호출이 불가능하다(아래 falFetch 가 던진다) */
 const OFFICIAL_ONLY = new Set(["seedance", "seedream", "ark3d", "promptgen", "kling", "klingextend",
                                "luma", "google", "nanobanana", "runway", "runway_aleph", "hailuo",
@@ -1440,7 +1442,7 @@ export function buildVeoPayload(b, opts) {
    Kling 1.6 12→10초), 요청값으로 청구하면 8초 만들고 30초를 물리는 식의 어긋남이 생긴다.
    스튜디오는 화면에서 이미 스냅하지만 /api/v1/generate·MCP 는 임의 값을 보낼 수 있다.
    표를 따로 두면 빌더와 어긋나므로, 빌더를 실제로 돌려 그 결과에서 값을 읽는다. */
-const RES_AWARE = { seedance: 1, google: 1, luma: 1, upscale: 1 };
+const RES_AWARE = { seedance: 1, google: 1, luma: 1 };
 
 /* ── 모델 이름 → 제공사 (서버가 정한다) ──
    effectiveUnits·effectiveRes 는 "어느 빌더에 길이·해상도를 물어볼지" 를 이 값으로 고른다.
@@ -1458,7 +1460,6 @@ const MODEL_PROV_EXTRA = {
   "Runway Aleph (영상→실사 V2V)": "runway_aleph",
   "V2V 자동 (최고정확도·모델 자동선택)": "v2v_auto",
   "모션 전이 (원본 움직임 유지·Motion Transfer)": "motion",
-  "업스케일 4K (영상 화질 향상)": "upscale",
   "나레이션 (AI 음성 해설)": "narrate",
   "립싱크 (인물 말하기)": "lipsync",
   "목소리 교체·립싱크": "revoice",
@@ -1602,7 +1603,6 @@ const PROVIDER_BILL_MODEL = {
   lipsync:  "립싱크 (인물 말하기)",
   revoice:  "립싱크 (인물 말하기)",      // 목소리 교체 + 립싱크 — 같은 초당 단가
   music:    "음악 생성 (BGM·뮤직)",
-  upscale:  "업스케일 4K (영상 화질 향상)",
   motion:   "모션 전이 (원본 움직임 유지·Motion Transfer)",
   v2v_auto: "V2V 자동 (최고정확도·모델 자동선택)",
 };
@@ -1770,7 +1770,7 @@ async function handle(context) {
         revoice:  !!(pick(env, ["ElevenLabs_API_KEY", "ELEVENLABS_API_KEY", "elevenlabs_api_key"]) && k.fal), // 목소리 교체+립싱크
         narrateReady: !!(k.fal && pick(env, ["Text_to_Speech", "OpenAI_Text_to_speech", "ElevenLabs_API_KEY", "OPENAI_API_KEY"])), // TTS+병합
         music:    musicEngines(env, k).length > 0,   // 음악(BGM) — ElevenLabs/MiniMax/fal 재사용
-        upscale:  !!k.fal,                            // 영상 업스케일 (fal Topaz)
+        upscale:  true,                               // 화질 올리기 — 브라우저 자체 모델(키 불필요·무료)
         // 스튜디오가 실제로 쓰는 Seedance 모델 결정값 진단 (모델ID는 비밀 아님)
         seedanceModelOverride: pick(env, ["SEEDANCE_MODEL_ID", "seedance_model_id"]) || null,
         seedance20Maps: SEEDANCE_IDS["Seedance 2.0"],
@@ -3862,7 +3862,6 @@ async function handle(context) {
                   : provider === "seedream" ? buildSeedreamPayload(b, env)
                   : provider === "music"    ? { engines: musicEngines(env, k), prompt: (b.prompt || "").slice(0, 300), seconds: musicSeconds(b) }
                   // 필드명은 실제 제출과 같아야 한다(예전엔 미리보기만 factor 로 찍혀 실제 요청과 달라 보였다)
-                  : provider === "upscale"  ? { model: pick(env, ["FAL_UPSCALE_MODEL", "fal_upscale_model"]) || "fal-ai/topaz/upscale/video", video_url: b.srcVideo || null, upscale_factor: (b.res === "4K" ? 4 : 2) }
                   : provider === "flux"     ? buildFluxPayload(b)
                   : provider === "falcontrol" ? buildFalControlPayload(b)
                   : provider === "nanobanana" ? buildNanoPayload(b)
@@ -4595,21 +4594,16 @@ async function handle(context) {
   }
 
   /* ── 영상 업스케일 (4K 화질 향상) — fal Topaz. 원본 영상 URL 필요 ── */
+  /* ── 업스케일: 서버 경로 폐지 ──
+     화질 올리기는 스튜디오(브라우저)에서 우리 자체 초해상 모델로 처리한다. 무료여야 하므로
+     외부 유료 API 로 나가는 이 경로를 남겨 두지 않는다 — 남겨 두면 언젠가 다시 타게 되고
+     그 순간 회원 크레딧이 빠진다. 옛 그래프·직접 호출이 들어와도 여기서 끝난다(요금 0). */
   if (provider === "upscale") {
-    if (!k.fal) return json({ error: "업스케일은 FAL_API_KEY 가 필요합니다." }, 500);
-    const src = b.srcVideo || "";
-    if (!/^https?:\/\//.test(src)) return json({ error: "업스케일할 원본 영상이 필요합니다. 영상을 옴니 레퍼런스(영상)에 넣으면 자동 업로드됩니다(R2)." }, 400);
-    const model = pick(env, ["FAL_UPSCALE_MODEL", "fal_upscale_model"]) || "fal-ai/topaz/upscale/video";
-    const r = await falFetch("upscale", FAL_QUEUE + model, {
-      method: "POST",
-      headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
-      body: JSON.stringify({ video_url: src, upscale_factor: b.res === "4K" ? 4 : 2 })
-    }, 30000);
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) return json({ error: "업스케일 제출 실패 HTTP " + r.status + ": " + String(JSON.stringify(j)).slice(0, 180) }, 502);
-    if (j.video && j.video.url) return json({ url: j.video.url, kind: "video" });
-    if (!j.request_id) return json({ error: "업스케일: 응답에 task 없음: " + JSON.stringify(j).slice(0, 160) }, 502);
-    return json({ statusUrl: "/api/generate?provider=falq&model=" + encodeURIComponent(model) + "&task=" + encodeURIComponent(j.request_id) });
+    return json({
+      error: "화질 올리기는 결과 영상·이미지 아래 [화질 올리기] 버튼으로 하세요. " +
+             "우리 자체 모델로 브라우저에서 처리하며 크레딧이 들지 않습니다.",
+      upscaleMovedToClient: true,
+    }, 400);
   }
 
   if (provider === "luma") {

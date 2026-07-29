@@ -110,7 +110,6 @@ export async function probeRemoteVideoSeconds(url: string): Promise<number | nul
 /* 결과 길이가 원본에서 정해지는 기능들 — 이 목록에 있으면 원본을 재서 청구한다.
    (빌더에 길이 필드가 없어 effectiveUnits 가 요청값을 그대로 돌려주는 것들이다) */
 export const SOURCE_LENGTH_MODELS = new Set([
-  '업스케일 4K (영상 화질 향상)',
   'V2V 자동 (최고정확도·모델 자동선택)',
   '모션 전이 (원본 움직임 유지·Motion Transfer)',
   'Runway Aleph (영상→실사 V2V)',
