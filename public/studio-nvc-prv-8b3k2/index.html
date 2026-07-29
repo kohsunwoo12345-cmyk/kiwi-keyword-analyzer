@@ -1880,7 +1880,9 @@ try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cn
         composeImage:composeImage, composeVideo:composeVideo, composeRect:composeRect,
         stripGraphMedia:stripGraphMedia, loadDocIntoState:loadDocIntoState, keepToolResult:keepToolResult,
         /* 아래는 검사·측정용 내부 함수 — 타일 크기 같은 설정을 실제로 재 보기 위해 노출한다 */
-        _srCanvas2:_srCanvas2, _esrRunTile:_esrRunTile, ensureOwnSr:ensureOwnSr }; }catch(_e){} },0); } }catch(_e){}
+        _srCanvas2:_srCanvas2, _esrRunTile:_esrRunTile, ensureOwnSr:ensureOwnSr,
+        _stateSnapshot:function(){ try{ return JSON.parse(JSON.stringify({ nodes:state.nodes, links:state.links,
+          groups:state.groups, annos:state.annos, seq:state.seq })); }catch(_){ return null; } } }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
   function s(inner,vb){ return '<svg class="ico" viewBox="'+(vb||'0 0 24 24')+'" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+inner+'</svg>'; }
