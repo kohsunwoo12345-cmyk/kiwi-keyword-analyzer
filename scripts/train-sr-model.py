@@ -44,6 +44,26 @@ def _lines(img):
             img[:, x:x + th, :] = c
     return img
 
+def _grid(img):
+    """일정 간격으로 촘촘히 반복되는 격자·줄무늬.
+
+    실측으로 찾은 약점이다 — 간격이 촘촘한 격자(3·5·6px)에서만 우리 모델이 단순 확대보다
+    나빴다. 학습 그림에는 '떨어진 선 몇 개'만 있었고 이런 반복 무늬가 아예 없었기 때문이다.
+    (scripts/own-model-random-test.mjs 의 무작위 검사가 750×492 격자에서 잡아냈다)
+    """
+    h, w, _ = img.shape
+    c = rng.random(3)
+    th = int(rng.integers(1, 3))
+    if rng.random() < 0.75:
+        sx = int(rng.integers(2, 17))
+        for x in range(int(rng.integers(0, sx)), w, sx):
+            img[:, x:x + th, :] = c
+    if rng.random() < 0.75:
+        sy = int(rng.integers(2, 17))
+        for y in range(int(rng.integers(0, sy)), h, sy):
+            img[y:y + th, :, :] = c
+    return img
+
 def _blocks(img):
     """글자·로고처럼 각진 덩어리"""
     h, w, _ = img.shape
@@ -78,9 +98,10 @@ def make_hr(n, size):
     for i in range(n):
         img = _grad(size, size)
         r = rng.random()
-        if r < 0.34: img = _lines(img)
-        elif r < 0.62: img = _blocks(img)
-        elif r < 0.86: img = _circles(img)
+        if r < 0.26: img = _lines(img)
+        elif r < 0.44: img = _grid(img)
+        elif r < 0.66: img = _blocks(img)
+        elif r < 0.88: img = _circles(img)
         if rng.random() < 0.40: img = _texture(img)
         out[i] = np.clip(img, 0, 1)
     return out

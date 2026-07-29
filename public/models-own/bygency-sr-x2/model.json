@@ -2,10 +2,10 @@
   "name": "BYGENCY SR x2",
   "scale": 2,
   "channels": 24,
-  "steps": 6000,
+  "steps": 14000,
   "params": 13692,
   "bytes": 55747,
-  "psnr": 24.833,
-  "bicubicPsnr": 22.994,
-  "gain": 1.84
+  "psnr": 24.427,
+  "bicubicPsnr": 22.599,
+  "gain": 1.828
 }

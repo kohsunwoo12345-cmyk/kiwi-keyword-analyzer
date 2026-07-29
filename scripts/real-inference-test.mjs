@@ -97,11 +97,16 @@ const result = await page.evaluate(async () => {
   const c2 = document.createElement('canvas'); c2.width = w; c2.height = h
   c2.getContext('2d').drawImage(b, 0, 0)
   const d1 = x1.getImageData(0, 0, w, h).data, d2 = c2.getContext('2d').getImageData(0, 0, w, h).data
-  let diff = 0, max = 0
-  for (let i = 0; i < d1.length; i += 4) {
-    for (let k = 0; k < 3; k++) { const d = Math.abs(d1[i + k] - d2[i + k]); diff += d; if (d > max) max = d }
+  // 테두리 몇 px 은 빼고 '안쪽' 만 본다.
+  //  예전에는 테두리에 모델의 검정 번짐 자국이 남아 차이가 크게 나왔고, 그 값에 기준을 맞춰 두었다.
+  //  그 자국을 없앤 뒤로는 테두리 차이가 줄어드는 게 정상이라, 안쪽 차이로 추론 여부를 판정한다.
+  const M = 8
+  let diff = 0, max = 0, n = 0
+  for (let y = M; y < h - M; y++) for (let x = M; x < w - M; x++) {
+    const i = (y * w + x) * 4
+    for (let k = 0; k < 3; k++) { const d = Math.abs(d1[i + k] - d2[i + k]); diff += d; n++; if (d > max) max = d }
   }
-  return { dim: res.dim, engine: res.engine, fallback: res.fallback, ms, avgDiff: +(diff / (w * h * 3)).toFixed(2), maxDiff: max }
+  return { dim: res.dim, engine: res.engine, fallback: res.fallback, ms, avgDiff: +(diff / Math.max(1, n)).toFixed(2), maxDiff: max }
 })
 
 await page.waitForTimeout(200); await browser.close()
@@ -116,7 +121,7 @@ ok('신경망 세션 생성·엔진 채택', engine.ok === true, JSON.stringify(
 ok('엔진 이름표 = 측정된 배율', engine.ok && engine.engine === 'Real-ESRGAN x' + engine.factor, engine.engine)
 ok('업스케일 완주(2배)', result.dim === '192×128', result.dim)
 ok('진짜 초해상 판정(fallback 아님)', result.fallback === false, 'engine=' + result.engine)
-ok('단순 확대와 다른 결과(추론 증거)', result.avgDiff > 1 && result.maxDiff > 20, `평균차 ${result.avgDiff} · 최대차 ${result.maxDiff}`)
+ok('단순 확대와 다른 결과(추론 증거)', result.avgDiff > 1 && result.maxDiff > 10, `안쪽 평균차 ${result.avgDiff} · 최대차 ${result.maxDiff}`)
 ok('외부 오리진 요청 0건', external.length === 0, external.slice(0, 3).join(',') || '없음')
 ok('페이지 오류 없음', errs.length === 0, errs.slice(0, 2).join(' | ') || '없음')
 

@@ -4254,12 +4254,34 @@ function _esrganWatch(){
     })();
   }catch(_e){}
 }
+/* 가장자리 픽셀을 바깥으로 복제해 e px 만큼 넓힌 캔버스를 만든다.
+   초해상 모델은 '그림 바깥' 을 검정으로 여기고 계산해서, 진짜 그림의 맨 가장자리 몇 px 이
+   틀리게 나온다(결과 테두리에 얇은 줄이 생긴다). 미리 늘려 붙여 두고 끝나서 잘라내면 없어진다. */
+function _edgePad(c, e){
+  var w=c.width, h=c.height;
+  var p=document.createElement('canvas'); p.width=w+2*e; p.height=h+2*e;
+  var x=p.getContext('2d'); x.imageSmoothingEnabled=false;
+  x.drawImage(c, 0,0,w,h,       e,e,     w,h);   // 가운데(원본)
+  x.drawImage(c, 0,0,1,h,       0,e,     e,h);   // 왼쪽 변을 늘려 붙임
+  x.drawImage(c, w-1,0,1,h,     e+w,e,   e,h);   // 오른쪽
+  x.drawImage(c, 0,0,w,1,       e,0,     w,e);   // 위
+  x.drawImage(c, 0,h-1,w,1,     e,e+h,   w,e);   // 아래
+  x.drawImage(c, 0,0,1,1,       0,0,     e,e);   // 네 모서리
+  x.drawImage(c, w-1,0,1,1,     e+w,0,   e,e);
+  x.drawImage(c, 0,h-1,1,1,     0,e+h,   e,e);
+  x.drawImage(c, w-1,h-1,1,1,   e+w,e+h, e,e);
+  return p;
+}
 // 러너로 캔버스를 타일 SR → 출력 캔버스(runner.factor 배).
-//  · 타일은 PAD 만큼 겹쳐 만들고, 새로 그리는 타일의 좌/상단 겹침 구간을 알파 램프로 크로스페이드해
-//    이음매를 없앤다(행 우선 순회라 좌·상단은 이미 그려져 있다).
+//  · 결과의 각 점은 오직 한 타일에서만 가져온다(섞지 않는다). 겹침(PAD)은 버리는 여유분이다.
+//  · 그림 전체도 미리 가장자리를 복제해 넓힌 뒤 처리하고 끝나서 잘라낸다 → 테두리 줄이 없어진다.
 //  · 타일마다 UI 스레드를 양보 → 큰 이미지·긴 영상에서도 브라우저가 멈추지 않는다.
 function _srCanvas2(runner, srcCanvas, onProg){
-  var factor=runner.factor||2, W=srcCanvas.width, H=srcCanvas.height;
+  var factor=runner.factor||2;
+  var ORIG_W=srcCanvas.width, ORIG_H=srcCanvas.height;
+  var EPAD=Math.max(2, runner.edge||4);
+  srcCanvas=_edgePad(srcCanvas, EPAD);
+  var W=srcCanvas.width, H=srcCanvas.height;
   var out=document.createElement('canvas'); out.width=Math.max(1,Math.round(W*factor)); out.height=Math.max(1,Math.round(H*factor));
   var octx=out.getContext('2d');
   // 큰 그림은 한 번에 못 넣어 타일로 쪼개 돌린다.
@@ -4271,8 +4293,16 @@ function _srCanvas2(runner, srcCanvas, onProg){
   var CORE=Math.max(16, TILE-2*PAD);
   var jobs=[]; for(var cy=0;cy<H;cy+=CORE)for(var cx=0;cx<W;cx+=CORE) jobs.push([cx,cy]);
   var i=0, scratch=document.createElement('canvas');
+  // 넓혀 둔 테두리를 잘라내고 진짜 크기로 돌려준다
+  function finish(){
+    var fc=document.createElement('canvas');
+    fc.width=Math.max(1,Math.round(ORIG_W*factor)); fc.height=Math.max(1,Math.round(ORIG_H*factor));
+    var off=Math.round(EPAD*factor);
+    fc.getContext('2d').drawImage(out, off,off, fc.width,fc.height, 0,0, fc.width,fc.height);
+    return fc;
+  }
   function step(){
-    if(i>=jobs.length) return Promise.resolve(out);
+    if(i>=jobs.length) return Promise.resolve(finish());
     var cx=jobs[i][0], cy=jobs[i][1]; i++;
     var wx=Math.max(0, Math.min(cx-PAD, Math.max(0, W-TILE))); if(W<=TILE) wx=0;
     var wy=Math.max(0, Math.min(cy-PAD, Math.max(0, H-TILE))); if(H<=TILE) wy=0;
@@ -4310,6 +4340,29 @@ function _hasAlpha(c){
     for(var i=3;i<d.length;i+=4){ if(d[i]<255) return true; }
   }catch(_){}
   return false;
+}
+/* 투명한 자리의 색을 이웃 색으로 메운 사본을 만든다.
+   투명한 점은 색이 '검정' 으로 저장되어 있다 → 그대로 초해상에 넣으면 모델이 그림 가장자리에
+   검정을 섞어, 되살린 뒤 테두리에 어두운 그림자가 생긴다. 미리 메워 두면 없어진다.
+   (알파는 어차피 원본에서 다시 씌우므로, 메운 색은 보이는 데 영향이 없다) */
+function _bleedAlpha(c){
+  var w=c.width, h=c.height, k, j;
+  var p=document.createElement('canvas'); p.width=w; p.height=h;
+  var x=p.getContext('2d'); x.imageSmoothingEnabled=false;
+  x.drawImage(c,0,0);
+  var off=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]];
+  x.globalCompositeOperation='destination-over';        // 이미 색이 있는 곳은 건드리지 않는다
+  for(k=1;k<=4;k++) for(j=0;j<off.length;j++) x.drawImage(c, off[j][0]*k, off[j][1]*k);
+  x.globalCompositeOperation='source-over';
+  // 멀리 떨어진 완전 투명부는 그림의 평균색으로 깐다(보이지 않지만 검정이 아니어야 한다)
+  var one=document.createElement('canvas'); one.width=1; one.height=1;
+  var ox=one.getContext('2d'); ox.imageSmoothingEnabled=true; ox.drawImage(c,0,0,1,1);
+  var d1=ox.getImageData(0,0,1,1).data;
+  var base=document.createElement('canvas'); base.width=w; base.height=h;
+  var bx=base.getContext('2d');
+  bx.fillStyle='rgb('+d1[0]+','+d1[1]+','+d1[2]+')'; bx.fillRect(0,0,w,h);
+  bx.drawImage(p,0,0);
+  return base;
 }
 function _applyAlphaFrom(dst, srcCanvas){
   try{
@@ -4376,7 +4429,8 @@ function upscaleImageURL(src,scale,opts,onProg){
         var sx=srcC.getContext('2d'); sx.imageSmoothingEnabled=true; sx.imageSmoothingQuality='high';
         sx.drawImage(img,0,0,sw,sh);
         var keepAlpha=_hasAlpha(srcC);
-        return _srCanvas2(runner, srcC, onProg).then(function(srC){
+        // 투명한 그림은 '투명한 자리의 검정' 이 가장자리에 번지지 않도록 미리 색을 메워 넣는다
+        return _srCanvas2(runner, keepAlpha? _bleedAlpha(srcC) : srcC, onProg).then(function(srC){
           var o=srC, shrunk=false;
           if(srC.width!==tw||srC.height!==th){
             shrunk = srC.width>tw;   // 크게 만든 뒤 목표로 줄인 경우(=슈퍼샘플링) — 줄이면 약간 물러진다
