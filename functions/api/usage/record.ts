@@ -2,6 +2,7 @@ import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity, resolv
 import { computeCharge, ensureAiUsage, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge, MODEL_COST } from '../studio/_pricing'
 import { creditPriceFor } from '../payments/prepare'
 import { effectiveUnits, effectiveRes, effectiveFlags, effectiveRatio } from '../generate.js'
+import { consumeGenCharge } from '../studio/_gencharge'
 
 function b64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64)
@@ -69,7 +70,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: '요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.' }, 429)
   const b: any = await (request.json().catch(() => null)) ?? {}
   const rate = await getUsdKrw(db) // 결제(생성) 시점의 그날 환율
-  const model = String(b.model || '')
+  /* 모델은 그동안 요청 본문 값을 그대로 믿었다 — 길이·해상도·종류·비율은 서버가 다시 계산하는데
+     정작 모델만 빠져 있었다. 비싼 모델로 만들고 싼 모델로 신고하면 그 차액만큼 덜 냈다.
+     생성 시점에 서버가 발급한 토큰이 있으면 그 안의 확정값을 쓴다(1회용이라 중복 청구도 막힌다).
+     토큰이 없으면 예전 방식 그대로 — 구버전 클라이언트가 갑자기 무과금되지 않게 한 폴백이다. */
+  const staked = await consumeGenCharge(db, me.id, String(b.chargeToken || ''))
+  if (staked?.alreadyConsumed) {
+    // 같은 생성이 두 번 신고됐다 — 이미 청구했으므로 다시 빼지 않는다.
+    return json({ ok: true, stored: false, charged: 0, duplicate: true })
+  }
+  const model = staked ? staked.model : String(b.model || '')
   const memberMarkup = me ? Number(me.credit_markup) || 0 : 0 // 회원별 전체 배수(원가=1). 0=미설정
   // 회원×모델 override > 회원 전체 배수 > 전역 모델 배수 > 기본값
   const markup = me ? await resolveMarkup(db, me.id, model, memberMarkup) : (memberMarkup || undefined)
@@ -84,7 +94,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
      단가표가 그 모델의 과금 단위를 알고 있으므로 그 값을 쓴다. 표에 없을 때만 요청값을 본다. */
   const mc = (MODEL_COST as any)[model]
   const isImg = mc ? mc.u !== 'sec' : String(b.kind || '') === 'image'
-  const eff = { provider: String(b.provider || ''), model, seconds: Number(b.units) || 0, res: b.res }
+  // 토큰이 있으면 길이·해상도·옵션도 생성 시점에 서버가 확정한 값을 쓴다.
+  const eff = staked
+    ? { provider: String(b.provider || ''), model, seconds: Number(staked.units) || 0, res: staked.res }
+    : { provider: String(b.provider || ''), model, seconds: Number(b.units) || 0, res: b.res }
   const units = isImg ? 1 : effectiveUnits(eff, env)
   const effRes = isImg ? undefined : effectiveRes(eff, env)
   const c = computeCharge(
@@ -93,17 +106,17 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       units,
       kind: isImg ? 'image' : 'video',
       res: effRes,
-      audio: !!b.audio,
+      audio: staked ? !!staked.audio : !!b.audio,
       /* 루마 실측 요금표용 — 이 둘이 없으면 표준 요금으로 잡혀 HDR 원가를 못 받는다.
          다만 요청값을 그대로 믿으면 반대로 헛돈을 받는다: 루마 "영상 편집·비율 변경" 은
          빌더가 hdr 필드를 아예 안 싣는데(문서상 SDR) 요금표에는 편집용 HDR 등급이 있어,
          lumaHdr 를 얹으면 SDR 을 받으면서 2배(EXR 3배)를 냈다.
          → 길이·해상도와 같은 원칙으로, 실제 요청에 실린 값만 청구한다. */
-      ...effectiveFlags({ ...eff, hdr: !!b.hdr, exr: !!b.exr }),
-      refs: Math.max(0, Number(b.refs) || 0),
+      ...effectiveFlags({ ...eff, hdr: staked ? !!staked.hdr : !!b.hdr, exr: staked ? !!staked.exr : !!b.exr }),
+      refs: staked ? Number(staked.refs) || 0 : Math.max(0, Number(b.refs) || 0),
       // OpenAI 이미지는 가로/세로가 긴 비율이면 원가가 1.5배다 — 실제로 나간 크기 기준으로 본다
       //  (표에 없는 비율은 빌더가 1024x1024 정사각으로 떨어뜨린다 → 1.5배를 받으면 안 된다)
-      ratio: effectiveRatio({ model, ratio: String(b.ratio || '1:1') }),
+      ratio: effectiveRatio({ model, ratio: String((staked ? staked.ratio : b.ratio) || '1:1') }),
       // 제공사가 알려준 실제 소비 토큰이 있으면 추정 대신 그 값으로 과금한다
       usageTokens: Math.max(0, Number(b.usageTokens) || 0),
     },
@@ -113,11 +126,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   )
 
   // 레퍼런스 이미지 추가당 가산: 1장 추가마다 +surPct%. (회원별/전역 설정)
-  const refCount = Math.max(0, Number(b.refs) || 0)
+  const refCount = staked ? Number(staked.refs) || 0 : Math.max(0, Number(b.refs) || 0)
   const surPct = me ? await resolveRefSurcharge(db, me.id) : 0.5
   const refMult = 1 + (surPct / 100) * refCount
   // ControlNet 조절 사용 시 추가 가산: cn>0 이면 +cnPct% (전역 설정, 기본 10%)
-  const cnCount = Math.max(0, Number(b.cn) || 0)
+  const cnCount = staked ? Number(staked.cn) || 0 : Math.max(0, Number(b.cn) || 0)
   const cnPct = cnCount > 0 ? await resolveCnSurcharge(db) : 0
   const cnMult = cnCount > 0 ? 1 + cnPct / 100 : 1
   const wantCredits = Math.round(c.credits * refMult * cnMult * 100) / 100

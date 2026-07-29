@@ -11,6 +11,7 @@ import { getSessionUser, resolveDB, getUserByMcpToken } from "./_utils";
 import { getUserByApiKey, enforceRateLimit, ensureApiKeysSchema } from "./_apikeys";
 import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from "./studio/_pricing";
 import { getBrandKit, applyBrandKit } from "./studio/brandkit";
+import { issueGenCharge } from "./studio/_gencharge";
 import { MODEL_COST as MODEL_COST_SRV } from "./studio/_pricing";
 import { creditPriceFor } from "./payments/prepare";
 
@@ -1486,7 +1487,16 @@ export function effectiveRes(body, env) {
 
 export async function onRequest(context) {
   try {
-    return await handle(context);
+    const res = await handle(context);
+    // 발급된 과금 토큰을 JSON 응답에 얹는다. 반환 지점이 많아 여기 한 곳에서만 처리한다.
+    const tok = context.__chargeToken;
+    if (!tok || !res || res.status !== 200) return res;
+    if (!/application\/json/i.test(res.headers.get("content-type") || "")) return res;
+    try {
+      const body = await res.clone().json();
+      if (!body || typeof body !== "object" || Array.isArray(body)) return res;
+      return json({ ...body, chargeToken: tok });
+    } catch { return res; }
   } catch (e) {
     // 예상 못 한 예외도 원인이 보이도록 항상 읽을 수 있는 JSON 으로 반환 (raw 502 방지)
     return json({ error: "서버 예외: " + String((e && e.message) || e).slice(0, 300) }, 502);
@@ -1564,6 +1574,15 @@ async function handle(context) {
             if (need > 0 && Number(me.credits) < need) {
               return json({ error: `크레딧이 부족합니다. 필요 ${need.toLocaleString("ko-KR")}크레딧 · 보유 ${Number(me.credits).toLocaleString("ko-KR")}크레딧`, need, balance: Number(me.credits), needPlan: true }, 402);
             }
+            /* 여기까지 오면 "무엇을 얼마나 만들지" 를 서버가 확정한 상태다.
+               차감은 /api/usage/record 가 하는데 거기서는 모델을 요청 본문에서 받아 썼다 —
+               비싼 모델로 만들고 싼 모델로 신고하면 차액만큼 덜 냈다.
+               확정값을 토큰에 묶어 두고 차감할 때 그 값을 쓰게 한다. */
+            context.__chargeToken = await issueGenCharge(db, me.id, {
+              model: mdl, units: gUnits, res: gRes, audio: !!pbody.generateAudio,
+              ratio: pbody.ratio, refs: Math.max(0, Number(pbody.refCount) || 0), cn: cnCount,
+              hdr: !!pbody.hdr, exr: !!pbody.exr,
+            });
           }
         } catch (_e) { /* 추정 실패 시 credits>0 게이트로 통과 (락아웃 방지) */ }
         // ── 남용 방지 ②: 레이트리밋(분/시/일) + 15초 버스트 가드 (denial-of-wallet 완화) ──
