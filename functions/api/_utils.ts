@@ -1134,9 +1134,12 @@ export async function autoBlockIp(db: D1Database, ip: string, reason: string, ge
 }
 
 export async function logSecurity(
-  db: D1Database,
+  //  DB 바인딩이 없는 환경(로컬·미설정)에서도 불린다 — 없으면 조용히 넘어간다.
+  //  예전에는 D1Database 로만 받아 두고 null 을 넘기고 있었다(런타임은 안쪽 try 로 버텼지만 타입이 거짓말이었다).
+  db: D1Database | null | undefined,
   o: { ip: string; method?: string; path?: string; status?: number; severity?: string; detail?: string; country?: string; city?: string; ua?: string },
 ) {
+  if (!db) return
   try {
     await db
       .prepare(`INSERT INTO security_log (id, ts, ip, method, path, status, severity, detail, country, city, ua) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
