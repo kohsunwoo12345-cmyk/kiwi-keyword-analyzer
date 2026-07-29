@@ -11,7 +11,7 @@ import { getSessionUser, resolveDB, getUserByMcpToken } from "./_utils";
 import { getUserByApiKey, enforceRateLimit, ensureApiKeysSchema } from "./_apikeys";
 import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from "./studio/_pricing";
 import { getBrandKit, applyBrandKit } from "./studio/brandkit";
-import { issueGenCharge, settleGenCharge, refundGenCharge } from "./studio/_gencharge";
+import { issueGenCharge, settleGenCharge, refundGenCharge, reconcileGenCharge } from "./studio/_gencharge";
 import { ensureAiUsage } from "./studio/_pricing";
 import { MODEL_COST as MODEL_COST_SRV } from "./studio/_pricing";
 import { creditPriceFor } from "./payments/prepare";
@@ -1567,6 +1567,15 @@ export async function onRequest(context) {
       const back = await refundGenCharge(resolveDB(context.env), gu.pathname + gu.search);
       if (back > 0) return json({ ...body, credits_refunded: back }, res.status);
       return res;
+    }
+    /*  완료 응답에 제공사가 실제로 쓴 토큰 수가 실려 오면(ModelArk 계열) 제출 때 매긴
+        추정치와의 차액을 정확히 한 번 맞춘다 — 더 받았으면 돌려주고 덜 받았으면 더 뺀다.
+        (차감 자체는 제출 시점에 끝났고, 그때는 제공사가 얼마를 쓸지 알 수 없다.) */
+    if (context.request.method === "GET" && body.url && Number(body.usageTokens) > 0) {
+      const gu = new URL(context.request.url);
+      const diff = await reconcileGenCharge(resolveDB(context.env), gu.pathname + gu.search,
+                                            Number(body.usageTokens), BILL_DEPS);
+      if (diff !== 0) return json({ ...body, credits_adjusted: diff }, res.status);
     }
     const tok = context.__chargeToken;
     if (!tok || res.status !== 200) return res;

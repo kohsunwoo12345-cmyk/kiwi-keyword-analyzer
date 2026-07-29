@@ -5,8 +5,8 @@
  * 중간 한 칸만 어긋나도 계산기는 멀쩡한데 청구는 틀린다(실제로 그런 적이 있다 —
  * 해상도를 요청값 그대로 믿던 시절, 4K 로 신고하면 1080p 를 받으면서 4배를 냈다).
  *
- * 그래서 여기서는 진짜 /api/usage/record 핸들러를 인메모리 D1 위에서 돌려 놓고,
- * 핸들러가 남긴 감사 기록(ai_usage) 안의 숫자들끼리 앞뒤가 맞는지만 본다.
+ * 그래서 여기서는 실제로 돈을 빼는 함수(settleGenCharge)를 인메모리 D1 위에서 돌려 놓고,
+ * 그것이 남긴 감사 기록(ai_usage) 안의 숫자들끼리 앞뒤가 맞는지만 본다.
  * 기대값을 따로 손으로 적지 않는 이유: 그러면 내 산수가 틀렸을 때 코드를 의심하게 된다.
  *
  *   ① 실비원   = 실비USD × 환율
@@ -44,9 +44,9 @@ const MARKUP = 2.5     // 기본 배수(회원·모델 override 없음)
    isLikelyD1 이 prepare·batch·dump 로 판별하므로 셋 다 있어야 진짜 D1 취급을 받는다. */
 function makeDB(user) {
   const charges = new Map()
+  const usage = new Map()          // ai_usage — id → 컬럼 배열 (UPDATE 도 실제로 반영한다)
   let credits = 10_000_000
   const deductions = []
-  const usageRows = []
   return {
     prepare(sql) {
       const s = String(sql)
@@ -54,32 +54,59 @@ function makeDB(user) {
       const stmt = {
         bind: (...a) => { bound = a; return stmt },
         first: async () => {
-          // 실제 SQL 은 WHERE id = ? AND user_id = ? 다 — 소유자 조건까지 흉내 내야 검증이 의미가 있다
+          // 실제 SQL 의 WHERE 조건을 흉내 내야 검증이 의미가 있다(소유자·상태 조건 포함)
+          if (/FROM gen_charges WHERE task_key/i.test(s)) {
+            for (const r of charges.values())
+              if (String(r.task_key || '') === String(bound[0]) && r.status === 'charged' &&
+                  (!/reconciled_at IS NULL/i.test(s) || !r.reconciled_at)) return r
+            return null
+          }
           if (/FROM gen_charges/i.test(s)) {
             const r = charges.get(bound[0])
             return r && String(r.user_id) === String(bound[1]) ? r : null
           }
           if (/FROM fx_rates/i.test(s)) return { usd_krw: FX }
           if (/SELECT credits/i.test(s)) return { credits }
-          if (/FROM\s+users|session/i.test(s)) return user
+          if (/FROM\s+users|session/i.test(s)) return { ...user, credits }
           return null
         },
         all: async () => ({ results: [] }),
         run: async () => {
           if (/INSERT INTO gen_charges/i.test(s)) {
             const [id, user_id, model, units, res, audio, ratio, refs, cn, hdr, exr, created_at] = bound
-            charges.set(id, { id, user_id, model, units, res, audio, ratio, refs, cn, hdr, exr, created_at, consumed_at: null })
+            charges.set(id, { id, user_id, model, units, res, audio, ratio, refs, cn, hdr, exr, created_at,
+                              consumed_at: null, credits: 0, task_key: '', status: '', usage_id: '', reconciled_at: null })
           }
           if (/UPDATE gen_charges SET consumed_at/i.test(s)) {
             const r = charges.get(bound[1])
             if (!r || r.consumed_at) return { success: true, meta: { changes: 0 } }
             r.consumed_at = bound[0]
           }
+          if (/UPDATE gen_charges SET credits = \?, task_key/i.test(s)) {
+            const r = charges.get(bound[2]); if (r) { r.credits = bound[0]; r.task_key = bound[1]; r.status = 'charged' }
+          }
+          if (/UPDATE gen_charges SET usage_id/i.test(s)) { const r = charges.get(bound[1]); if (r) r.usage_id = bound[0] }
+          if (/UPDATE gen_charges SET reconciled_at/i.test(s)) {
+            const r = charges.get(bound[1])
+            if (!r || r.reconciled_at) return { success: true, meta: { changes: 0 } }
+            r.reconciled_at = bound[0]
+          }
+          if (/UPDATE gen_charges SET credits = \? WHERE/i.test(s)) { const r = charges.get(bound[1]); if (r) r.credits = bound[0] }
           if (/UPDATE users SET credits/i.test(s)) {
+            // 정산은 ROUND(credits - ?) 한 줄이므로 음수 델타(환급)도 그대로 들어온다
             deductions.push(Number(bound[0]))
             credits = Math.round((credits - Number(bound[0])) * 100) / 100
           }
-          if (/INSERT INTO ai_usage/i.test(s)) usageRows.push(bound)
+          if (/INSERT INTO ai_usage/i.test(s)) usage.set(bound[0], bound.slice())
+          if (/UPDATE ai_usage SET usd/i.test(s)) {
+            const r = usage.get(bound[4])
+            if (!r) return { success: true, meta: { changes: 0 } }
+            r[8] = bound[0]; r[9] = bound[1]; r[10] = bound[2]; r[11] = bound[3]
+          }
+          if (/UPDATE ai_usage SET prompt/i.test(s)) {
+            const r = usage.get(bound[4])
+            if (!r || String(r[1]) !== String(bound[5])) return { success: true, meta: { changes: 0 } }
+          }
           return { success: true, meta: { changes: 1 } }
         },
       }
@@ -89,7 +116,7 @@ function makeDB(user) {
     exec: async () => ({}),
     dump: async () => new ArrayBuffer(0),
     __deductions: deductions,
-    __usage: usageRows,
+    get __usage() { return [...usage.values()] },
   }
 }
 
@@ -102,7 +129,16 @@ const USER = {
 const gen = await load('functions/api/generate.js')
 const gc = await load('functions/api/studio/_gencharge.ts')
 const rec = await load('functions/api/usage/record.ts')
-const { computeCharge, MODEL_COST } = await load('functions/api/studio/_pricing.ts')
+const pricing = await load('functions/api/studio/_pricing.ts')
+const { creditPriceFor } = await load('functions/api/payments/prepare.ts')
+const { computeCharge, MODEL_COST } = pricing
+
+// settleGenCharge 가 받는 의존성 묶음 — generate.js 가 넘기는 것과 같은 함수들이다.
+const DEPS = {
+  computeCharge: pricing.computeCharge, getUsdKrw: pricing.getUsdKrw,
+  resolveMarkup: pricing.resolveMarkup, resolveRefSurcharge: pricing.resolveRefSurcharge,
+  resolveCnSurcharge: pricing.resolveCnSurcharge, creditPriceFor, ensureAiUsage: pricing.ensureAiUsage,
+}
 
 let failed = 0
 const ok = (cond, name, detail = '') => {
@@ -111,23 +147,47 @@ const ok = (cond, name, detail = '') => {
 }
 const near = (a, b, tol) => Math.abs(a - b) <= tol
 
-/* 생성(토큰 발급) → 신고(record) → 차감 을 실제 핸들러로 한 바퀴 돈다.
-   reportAs 로 "클라이언트가 뭐라고 신고하는지" 를 따로 줄 수 있다(거짓 신고 시험용). */
-async function run(spec, reportAs) {
+/* 생성(토큰 발급) → 차감(settleGenCharge) 을 실제 코드로 한 바퀴 돈다.
+   차감은 생성이 성공한 자리에서 서버가 한다 — 클라이언트가 부르는 신고 창구가 아니다.
+   reportAs 를 주면 그 뒤에 "클라이언트가 이렇게 신고했다" 까지 이어서 돌린다(거짓 신고 시험용). */
+async function run(spec, opts) {
   const db = makeDB(USER)
-  const token = await gc.issueGenCharge(db, '1', spec)
-  const request = new Request('https://x/api/usage/record', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', cookie: 'bg_session=fake' },
-    body: JSON.stringify({ chargeToken: token, model: spec.model, kind: spec.kind || 'video', ...(reportAs || {}) }),
-  })
-  const res = await rec.onRequestPost({ request, env: { DB: db, marketing: db }, params: {}, waitUntil: () => {}, next: async () => new Response('') })
-  const body = await res.json()
-  // INSERT 컬럼 순서: id,user_id,email,name,provider,model,kind,units,usd,cost_krw,credits,revenue_krw,markup,usd_krw,…
+  /* generate.js 가 토큰에 적는 값과 똑같이 만든다 — 요청값이 아니라 "실제로 생성될 값" 이다.
+     여기서 요청값을 그대로 넣으면 해상도 스냅(씨댄스 540p→480p, 4K→1080p)이 검증에서 빠진다. */
+  const isImg = MODEL_COST[spec.model] ? MODEL_COST[spec.model].u !== 'sec' : spec.kind === 'image'
+  const pbody = { ...spec, seconds: spec.units, generateAudio: !!spec.audio }
+  const issueSpec = {
+    ...spec,
+    units: isImg ? 1 : gen.effectiveUnits(pbody, {}),
+    res: isImg ? undefined : gen.effectiveRes(pbody, {}),
+    ratio: gen.effectiveRatio(pbody),
+    ...gen.effectiveFlags(pbody),
+  }
+  const token = await gc.issueGenCharge(db, '1', issueSpec)
+  const taskKey = '/api/generate?task=' + token
+  const settled = await gc.settleGenCharge(db, USER, token, taskKey, DEPS)
+  const atSubmit = db.__deductions.reduce((a, b) => a + b, 0)
+  /* 비동기 영상은 완료 응답에 제공사가 실제로 쓴 토큰 수가 실려 온다 — 그때 차액을 맞춘다. */
+  let adjusted = 0
+  if (opts && opts.usageTokens) adjusted = await gc.reconcileGenCharge(db, taskKey, opts.usageTokens, DEPS)
+  let reported = null
+  const reportAs = opts && opts.reportAs
+  if (reportAs) {
+    const request = new Request('https://x/api/usage/record', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: 'bg_session=fake' },
+      body: JSON.stringify({ chargeToken: token, model: spec.model, kind: spec.kind || 'video', ...reportAs }),
+    })
+    const res = await rec.onRequestPost({ request, env: { DB: db, marketing: db }, params: {}, waitUntil: () => {}, next: async () => new Response('') })
+    reported = await res.json()
+  }
+  // INSERT 컬럼 순서: id,user_id,email,name,provider,model,kind,units,usd,cost_krw,credits,revenue_krw,markup,usd_krw,created_at
   const row = db.__usage[0] || []
   return {
-    body,
+    body: { credits: Math.round((settled.credits + adjusted) * 100) / 100 }, reported,
+    atSubmit, adjusted,
     deducted: db.__deductions.reduce((a, b) => a + b, 0),
+    usageRows: db.__usage.length,
     units: Number(row[7]), usd: Number(row[8]), costKrw: Number(row[9]),
     credits: Number(row[10]), revenue: Number(row[11]), markup: Number(row[12]), fx: Number(row[13]),
   }
@@ -173,23 +233,77 @@ const S = {}
   ok(near(S['540p 5초'].usd, (px480 * 4.7) / 1e6, 0.002), '540p 선택 = 480p 요금(제공사가 480p 로 만든다)', `$${S['540p 5초'].usd}`)
 }
 
-console.log('\n② 제공사가 알려준 실제 소비 토큰이 오면 추정 대신 그 값으로 청구된다')
+console.log('\n② 제공사가 알려준 실제 소비 토큰으로 차액을 정산한다')
 {
-  const half = (1920 * 1080 * 24 * 5) / 1024 / 2
-  const r = await run({ model: 'Seedance 2.0', units: 5, res: '1080p' }, { usageTokens: half })
-  ok(near(r.usd, S['1080p 5초'].usd / 2, 0.002), '실측 토큰이 추정의 절반이면 요금도 절반', `$${r.usd} vs $${S['1080p 5초'].usd / 2}`)
-  ok(near(r.deducted, r.body.credits, 1e-9), '실측 토큰 경로도 차감액이 청구액과 같다')
+  /* 비동기 영상은 "제출된 순간" 에 추정치로 차감한다 — 그때는 제공사가 얼마를 쓸지 모른다.
+     완료 응답에 실제 토큰 수가 실려 오면 그 차액만큼만 한 번 더 맞춘다.
+     이게 없으면 추정이 빗나간 만큼 회원이 더 내거나 덜 낸 채로 끝난다. */
+  const est = (1920 * 1080 * 24 * 5) / 1024
+  const base = S['1080p 5초']
+
+  // ⓐ 제공사가 추정의 절반만 썼다 → 절반이 환급돼야 한다
+  const less = await run({ model: 'Seedance 2.0', units: 5, res: '1080p' }, { usageTokens: est / 2 })
+  ok(near(less.atSubmit, base.deducted, 0.011), 'ⓐ 제출 시점에는 추정치로 차감', `${less.atSubmit}`)
+  ok(less.adjusted < 0 && near(less.deducted, base.deducted / 2, 0.011),
+     'ⓐ 실측이 절반이면 최종 차감도 절반(차액 환급)', `${less.deducted} (조정 ${less.adjusted})`)
+  ok(near(less.usd, base.usd / 2, 0.002), 'ⓐ 정산행 실비도 실측값으로 고쳐진다', `$${less.usd}`)
+
+  // ⓑ 제공사가 추정보다 많이 썼다 → 그만큼 더 빠져야 한다
+  const more = await run({ model: 'Seedance 2.0', units: 5, res: '1080p' }, { usageTokens: est * 1.5 })
+  ok(more.adjusted > 0 && near(more.deducted, base.deducted * 1.5, 0.02),
+     'ⓑ 실측이 1.5배면 최종 차감도 1.5배(차액 추가 차감)', `${more.deducted} (조정 ${more.adjusted})`)
+
+  // ⓒ 추정이 맞았으면 아무것도 건드리지 않는다
+  const same = await run({ model: 'Seedance 2.0', units: 5, res: '1080p' }, { usageTokens: est })
+  ok(same.adjusted === 0 && near(same.deducted, base.deducted, 0.011),
+     'ⓒ 추정이 맞으면 조정하지 않는다', `${same.deducted} (조정 ${same.adjusted})`)
+
+  // ⓓ 폴링은 여러 번 들어온다 — 두 번째부터는 아무 일도 일어나지 않아야 한다
+  const db = makeDB(USER)
+  const token = await gc.issueGenCharge(db, '1', { model: 'Seedance 2.0', units: 5, res: '1080p' })
+  const key = '/api/generate?task=' + token
+  await gc.settleGenCharge(db, USER, token, key, DEPS)
+  const d1 = await gc.reconcileGenCharge(db, key, est / 2, DEPS)
+  const d2 = await gc.reconcileGenCharge(db, key, est / 2, DEPS)
+  ok(d1 < 0 && d2 === 0, 'ⓓ 같은 작업을 다시 정산해도 두 번째는 0', `1회차 ${d1} · 2회차 ${d2}`)
+  ok(db.__usage.length === 1, 'ⓓ 정산 후에도 관리자 줄은 한 줄뿐이다', `${db.__usage.length}줄`)
+
+  /* ⓔ 폴링이 겹쳐 들어오면 둘 다 "아직 정산 안 됨" 을 보고 통과한다 — 조건부 UPDATE 로
+     한쪽만 실제로 정산해야 한다. 순서대로 부르면 SELECT 에서 걸러져 이 경로를 못 밟는다. */
+  const db2 = makeDB(USER)
+  const t2 = await gc.issueGenCharge(db2, '1', { model: 'Seedance 2.0', units: 5, res: '1080p' })
+  const k2 = '/api/generate?task=' + t2
+  await gc.settleGenCharge(db2, USER, t2, k2, DEPS)
+  const before = db2.__deductions.reduce((a, b) => a + b, 0)
+  const both = await Promise.all([
+    gc.reconcileGenCharge(db2, k2, est / 2, DEPS),
+    gc.reconcileGenCharge(db2, k2, est / 2, DEPS),
+  ])
+  const applied = both.filter((d) => d !== 0)
+  ok(applied.length === 1, 'ⓔ 동시에 두 번 들어와도 한쪽만 정산된다', `${JSON.stringify(both)}`)
+  ok(near(db2.__deductions.reduce((a, b) => a + b, 0), before / 2, 0.011),
+     'ⓔ 겹쳐 들어와도 최종 차감은 실측치 그대로', `${db2.__deductions.reduce((a, b) => a + b, 0)}`)
 }
 
-console.log('\n③ 클라이언트가 옵션을 낮춰 신고해도 서버 확정값으로 빠진다')
+console.log('\n③ 신고 창구(/api/usage/record)는 금액을 건드리지 못한다')
 {
-  const r = await run(
+  /* 차감은 생성이 성공한 자리에서 이미 끝났다. 신고 창구는 보관·아카이브만 맡는다.
+     ⓐ 신고를 아예 안 해도 차감돼 있어야 하고(호출을 생략해 공짜로 쓰던 구멍),
+     ⓑ 거짓으로 신고해도 금액이 움직이면 안 된다(싸게 신고해 덜 내던 구멍). */
+  const silent = await run({ model: 'Seedance 2.0', units: 10, res: '1080p' })
+  ok(near(silent.deducted, S['1080p 10초'].deducted, 0.011),
+     'ⓐ 신고를 생략해도 이미 차감돼 있다', `${silent.deducted}`)
+
+  const lied = await run(
     { model: 'Seedance 2.0', units: 10, res: '1080p' },
-    { model: 'Seedance 1.0 Lite (텍스트→영상)', units: 1, res: '480p', kind: 'image' },
+    { reportAs: { model: 'Seedance 1.0 Lite (텍스트→영상)', units: 1, res: '480p', kind: 'image' } },
   )
-  ok(near(r.deducted, S['1080p 10초'].deducted, 0.011),
-     '1080p 10초를 "Lite 480p 1초 이미지" 로 신고 → 정상가 청구',
-     `${r.deducted} vs ${S['1080p 10초'].deducted}`)
+  ok(near(lied.deducted, S['1080p 10초'].deducted, 0.011),
+     'ⓑ "Lite 480p 1초 이미지" 로 거짓 신고해도 차감액이 그대로다',
+     `${lied.deducted} vs ${S['1080p 10초'].deducted}`)
+  ok(lied.reported && lied.reported.charged === 0, 'ⓑ 신고 창구는 추가로 청구하지 않는다', JSON.stringify(lied.reported))
+  // 금액이 붙은 줄이 두 개면 관리자 정산 합계가 갈린다
+  ok(lied.usageRows === 1, 'ⓑ 정산행은 한 줄뿐이다', `${lied.usageRows}줄`)
 }
 
 console.log('\n④ 나머지 모델군도 같은 연쇄가 성립한다')

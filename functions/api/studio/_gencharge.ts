@@ -37,7 +37,8 @@ export async function ensureGenCharges(db: D1Database): Promise<void> {
     .catch(() => {})
   /* 실제로 얼마를 뺐는지와, 어느 제공사 작업의 것인지 — 비동기 영상이 실패했을 때
      그 금액을 되돌리려면 둘 다 필요하다(기존 표에는 없어서 추가한다). */
-  for (const col of ['credits REAL DEFAULT 0', "task_key TEXT DEFAULT ''", "status TEXT DEFAULT ''", "usage_id TEXT DEFAULT ''"])
+  for (const col of ['credits REAL DEFAULT 0', "task_key TEXT DEFAULT ''", "status TEXT DEFAULT ''",
+                     "usage_id TEXT DEFAULT ''", 'reconciled_at TEXT'])
     await db.prepare(`ALTER TABLE gen_charges ADD COLUMN ${col}`).run().catch(() => {})
   await db
     .prepare(`CREATE INDEX IF NOT EXISTS idx_gen_charges_user ON gen_charges (user_id, created_at)`)
@@ -172,6 +173,76 @@ export async function settleGenCharge(
     return { credits, usageId }
   } catch {
     return NONE
+  }
+}
+
+/* ── 제공사 실측 정산 ──
+   비동기 영상은 "제출된 순간" 에 차감한다. 그때는 아직 제공사가 얼마를 청구할지 모르므로
+   해상도·길이·fps 로 토큰 수를 추정해서 매긴다(ModelArk 의 공식과 같은 식이다).
+   완료 응답에는 제공사가 실제로 쓴 토큰 수(usage.completion_tokens)가 들어온다.
+   추정과 실측이 어긋나면 그 차액만큼 회원이 더 내거나 덜 낸 채로 끝난다 —
+   완료 시점에 정확히 한 번 차액만 맞춘다(더 받았으면 돌려주고, 덜 받았으면 더 뺀다).
+
+   status 는 'charged' 그대로 둔다 — 나중에 실패로 뒤집혀도 환불 경로가 그대로 동작해야 한다.
+   중복 실행은 reconciled_at 조건부 UPDATE 로 막는다(폴링은 여러 번 들어온다). */
+export async function reconcileGenCharge(
+  db: D1Database, taskKey: string, usageTokens: number,
+  deps: {
+    computeCharge: any; getUsdKrw: any; resolveMarkup: any; resolveRefSurcharge: any
+    resolveCnSurcharge: any; creditPriceFor: any
+  },
+): Promise<number> {
+  if (!db || !taskKey || !(Number(usageTokens) > 0)) return 0
+  try {
+    await ensureGenCharges(db)
+    const row: any = await db.prepare(
+      `SELECT * FROM gen_charges WHERE task_key = ? AND status = 'charged' AND reconciled_at IS NULL LIMIT 1`,
+    ).bind(String(taskKey).slice(0, 300)).first()
+    if (!row) return 0
+    // 먼저 자리를 잡는다 — 동시에 두 번 들어와도 한쪽만 통과한다.
+    const claim: any = await db.prepare(
+      `UPDATE gen_charges SET reconciled_at = ? WHERE id = ? AND reconciled_at IS NULL`,
+    ).bind(new Date().toISOString(), row.id).run()
+    if (!claim?.meta?.changes) return 0
+
+    const me: any = await db.prepare('SELECT * FROM users WHERE id = ?').bind(String(row.user_id)).first()
+    if (!me) return 0
+    const rate = await deps.getUsdKrw(db)
+    const markup = await deps.resolveMarkup(db, me.id, String(row.model || ''), Number(me.credit_markup) || 0)
+    const creditKrw = await deps.creditPriceFor(db, me)
+    const c = deps.computeCharge(
+      { model: String(row.model || ''), units: Number(row.units) || 0,
+        res: row.res == null ? undefined : String(row.res), audio: !!row.audio,
+        ratio: row.ratio == null ? undefined : String(row.ratio),
+        refs: Number(row.refs) || 0, hdr: !!row.hdr, exr: !!row.exr,
+        usageTokens: Math.max(0, Number(usageTokens) || 0) },
+      rate, markup, creditKrw)
+    const refs = Number(row.refs) || 0
+    const cn = Number(row.cn) || 0
+    const surPct = await deps.resolveRefSurcharge(db, me.id)
+    const cnPct = cn > 0 ? await deps.resolveCnSurcharge(db) : 0
+    const exact = Math.round(c.credits * (1 + (surPct / 100) * refs) * (cn > 0 ? 1 + cnPct / 100 : 1) * 100) / 100
+    const was = Math.round(Number(row.credits || 0) * 100) / 100
+    const delta = Math.round((exact - was) * 100) / 100
+    if (Math.abs(delta) < 0.01) return 0            // 추정이 맞았다 — 건드리지 않는다
+
+    await db.prepare('UPDATE users SET credits = ROUND(COALESCE(credits,0) - ?, 2) WHERE id = ?')
+      .bind(delta, me.id).run()
+    const u2: any = await db.prepare('SELECT credits FROM users WHERE id = ?').bind(me.id).first().catch(() => null)
+    const after = Math.round((Number(u2?.credits) || 0) * 100) / 100
+    await db.prepare(`UPDATE gen_charges SET credits = ? WHERE id = ?`).bind(exact, row.id).run().catch(() => {})
+    await db.prepare(
+      `INSERT INTO transactions (id,user_id,kind,amount,balance_after,memo,created_at) VALUES (?,?,'credit',?,?,?,?)`,
+    ).bind('t_' + crypto.randomUUID().slice(0, 16), me.id, -delta, after,
+           '제공사 실측 정산 · ' + String(row.model || ''), new Date().toISOString()).run().catch(() => {})
+    // 관리자 정산 화면이 읽는 줄도 실측값으로 고쳐 둔다 — 원가·매출 합계가 어긋나지 않게.
+    if (row.usage_id)
+      await db.prepare(
+        `UPDATE ai_usage SET usd = ?, cost_krw = ?, credits = ?, revenue_krw = ? WHERE id = ?`,
+      ).bind(c.usd, c.costKrwExact, exact, Math.round(exact * creditKrw), String(row.usage_id)).run().catch(() => {})
+    return delta
+  } catch {
+    return 0
   }
 }
 
