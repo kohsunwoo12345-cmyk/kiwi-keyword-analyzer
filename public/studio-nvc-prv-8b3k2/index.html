@@ -4889,16 +4889,28 @@ function drawCaptionOn(ctx, W, H, text, opts){
   var fs=Math.max(12, Math.round(H*pct/100));
   var st=_capStyle(opts.style);
   ctx.save();
-  ctx.font='700 '+fs+'px '+CAP_FONT;
   ctx.textAlign='center'; ctx.textBaseline='alphabetic';
-  var maxW=W*0.88;
-  var lines=_capLines(ctx, text, maxW);
+  var maxW=W*0.88, margin=Math.round(H*0.05);
+  var avail=Math.max(1, H-2*margin);
+  // ⚠ 글자 크기를 크게 잡고 문구가 길면 자막 덩어리가 그림보다 높아져 화면 밖으로 잘려 나갔다.
+  //   문구를 버리지 않고, 다 들어갈 때까지 글자 크기를 줄인다(줄바꿈이 달라지므로 몇 번 반복).
+  //   박스 배경과 테두리는 글자보다 더 바깥까지 나가므로, 그만큼(extra)까지 넣어 계산한다.
+  var lines, lh, block, extra;
+  for(var _g=0; _g<8; _g++){
+    ctx.font='700 '+fs+'px '+CAP_FONT;
+    lines=_capLines(ctx, text, maxW);
+    lh=Math.round(fs*1.28); block=lh*lines.length;
+    extra=Math.round(fs*(st.box?0.40:0.12));
+    if(!lines.length || block+2*extra<=avail || fs<=12) break;
+    fs=Math.max(12, Math.floor(fs*Math.sqrt(avail/(block+2*extra))));
+  }
   if(!lines.length){ ctx.restore(); return 0; }
-  var lh=Math.round(fs*1.28), block=lh*lines.length, margin=Math.round(H*0.05);
   var top;   // 자막 덩어리의 윗변
-  if(/위/.test(String(opts.pos||''))) top=margin;
+  if(/위/.test(String(opts.pos||''))) top=margin+extra;
   else if(/가운데/.test(String(opts.pos||''))) top=Math.round((H-block)/2);
-  else top=H-margin-block;                                   // 기본: 아래
+  else top=H-margin-extra-block;                             // 기본: 아래
+  // 박스·테두리까지 포함해 그림 안에 확실히 들어오도록 마지막으로 한 번 더 가둔다
+  top=Math.max(extra, Math.min(top, H-extra-block));
   if(st.box){
     var padX=Math.round(fs*0.5), padY=Math.round(fs*0.32), wMax=0;
     lines.forEach(function(l){ wMax=Math.max(wMax, ctx.measureText(l).width); });
