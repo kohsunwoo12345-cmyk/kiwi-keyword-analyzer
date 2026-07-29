@@ -121,6 +121,33 @@ export const crmSend = (id: string, action: 'send' | 'cancel' = 'send') =>
     `/api/crm/campaigns/${encodeURIComponent(id)}/send`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ action }) },
   )
 
+/* ───────── 후속 발송 — 신청자 / 미신청자 ───────── */
+
+export type SegmentKey = 'applied' | 'not_applied'
+
+export interface CrmSegments {
+  ok: boolean
+  error?: string
+  campaign?: { id: string; name: string; run_date: string; landing_slug: string | null; status: string; channel: string }
+  counts: {
+    sent: number; applied: number; notApplied: number; failed: number; leadTotal: number; applyRate: number
+  }
+  applied: { name: string; phone: string; appliedAt: string }[]
+  notApplied: { name: string; phone: string }[]
+  failed: { name: string; phone: string }[]
+  groups: { id: string; name: string; count: number }[]
+}
+
+export const crmSegments = (id: string) =>
+  req<CrmSegments>(`/api/crm/campaigns/${encodeURIComponent(id)}/segments`)
+
+/** 그 무리로 타깃 그룹을 만든다(다시 부르면 최신 상태로 갱신) */
+export const crmMakeSegmentGroup = (id: string, segment: SegmentKey, name?: string) =>
+  req<{ ok: boolean; error?: string; groupId: string; name: string; count: number; segmentLabel: string; suggestName: string }>(
+    `/api/crm/campaigns/${encodeURIComponent(id)}/segments`,
+    { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ segment, name }) },
+  )
+
 export const crmSummary = (p: { from?: string; to?: string; all?: boolean } = {}) => {
   const q = new URLSearchParams()
   if (p.from) q.set('from', p.from)
