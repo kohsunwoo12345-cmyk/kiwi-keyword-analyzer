@@ -58,7 +58,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const admin = { id: guard.me.id, email: guard.me.email }
 
   const b: any = await (request.json().catch(() => null)) ?? {}
-  const action = String(b.action || '')
+  const action = asText(b.action, 20)
   const now = new Date().toISOString()
 
   if (action === 'add') {
@@ -66,17 +66,17 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (phone.length < 9) return json({ ok: false, error: '올바른 전화번호를 입력하세요.' }, 400)
     const dup: any = await db.prepare('SELECT id, status FROM sender_numbers WHERE phone = ? AND user_id = ?').bind(phone, admin.id).first().catch(() => null)
     if (dup) {
-      await db.prepare("UPDATE sender_numbers SET status='approved', decided_at=?, label=? WHERE id=?").bind(now, String(b.label || ''), dup.id).run()
+      await db.prepare("UPDATE sender_numbers SET status='approved', decided_at=?, label=? WHERE id=?").bind(now, asText(b.label, 60), dup.id).run()
       return json({ ok: true, id: dup.id, message: '이미 등록된 번호를 승인 처리했습니다.' })
     }
     const id = 'sn_' + crypto.randomUUID().slice(0, 14)
     await db.prepare(`INSERT INTO sender_numbers (id, user_id, phone, label, status, created_at, decided_at) VALUES (?, ?, ?, ?, 'approved', ?, ?)`)
-      .bind(id, admin.id, phone, String(b.label || ''), now, now).run()
+      .bind(id, admin.id, phone, asText(b.label, 60), now, now).run()
     await logAudit(db, admin, 'sender_add', phone, '관리자 발신번호 직접 등록', 'info', clientIp(request))
     return json({ ok: true, id, message: '발신번호가 등록·승인되었습니다.' })
   }
 
-  const id = String(b.id || '')
+  const id = asText(b.id, 64)
   if (!id) return json({ ok: false, error: 'id 필요' }, 400)
   const row: any = await db.prepare('SELECT * FROM sender_numbers WHERE id = ?').bind(id).first().catch(() => null)
   if (!row) return json({ ok: false, error: '신청을 찾을 수 없습니다.' }, 404)

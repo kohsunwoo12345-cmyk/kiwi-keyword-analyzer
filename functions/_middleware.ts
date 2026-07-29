@@ -143,8 +143,63 @@ export const onRequest: PagesFunction<any> = async (context) => {
     }
   }
 
-  const res = await next()
+  // 들어오는 JSON 본문에서 "원시값으로 바꿀 수 없는 값" 을 무력화한다.
+  const safe = await defusedRequest(request, path)
+
+  let res: Response
+  try {
+    res = safe ? await next(safe) : await next()
+  } catch (err: any) {
+    // 처리기에서 새어 나온 예외 — 여기서 잡지 않으면 스택 추적이 그대로 본문에 실린다.
+    await logSecurity(resolveDB(env), {
+      ip: clientIp(request), method: request.method, path, status: 500, severity: 'medium',
+      detail: `처리 중 예외: ${String(err?.message || err).slice(0, 200)}`,
+      country: geoFrom(request).country, city: geoFrom(request).city,
+      ua: request.headers.get('User-Agent') || '',
+    }).catch(() => {})
+    const out = path.startsWith('/api/')
+      ? json({ ok: false, error: '요청을 처리하지 못했습니다.' }, 500)
+      : new Response('Internal Server Error', { status: 500 })
+    return withSecurityHeaders(out, path)
+  }
   return withSecurityHeaders(res, path)
+}
+
+/**
+ * {"toString":1} 같은 값은 String()/Number() 에 넣는 순간 TypeError 를 던진다.
+ * 본문 값을 그대로 String() 에 넘기는 곳이 곳곳에 있어(로그인·문의 같은 비로그인 경로 포함)
+ * 그 한 줄로 400 이어야 할 요청이 500 이 됐다. 문턱에서 한 번에 막는다.
+ * toString·valueOf·__proto__·constructor 는 JSON 본문의 키로 쓰일 이유가 없다.
+ */
+function defuse(v: any, depth = 0): any {
+  if (v === null || typeof v !== 'object' || depth > 12) return v
+  if (Array.isArray(v)) return v.map((x) => defuse(x, depth + 1))
+  const out: any = {}
+  for (const k of Object.keys(v)) {
+    if (k === 'toString' || k === 'valueOf' || k === '__proto__' || k === 'constructor') continue
+    out[k] = defuse(v[k], depth + 1)
+  }
+  return out
+}
+
+/** 손 볼 필요가 있을 때만 본문을 다시 만든다(평상시 요청은 그대로 흘려보낸다) */
+async function defusedRequest(request: Request, path: string): Promise<Request | undefined> {
+  try {
+    if (!path.startsWith('/api/')) return undefined
+    const m = request.method.toUpperCase()
+    if (m === 'GET' || m === 'HEAD') return undefined
+    if (!/application\/json/i.test(request.headers.get('content-type') || '')) return undefined
+    // 서명이 붙은 요청(웹훅)은 본문 바이트 그대로가 서명 대상이다 — 한 글자만 바뀌어도 검증이 깨진다.
+    for (const h of ['x-hub-signature', 'x-hub-signature-256', 'x-signature', 'x-signature-256', 'stripe-signature']) {
+      if (request.headers.get(h)) return undefined
+    }
+    const raw = await request.clone().text()
+    // 문제되는 키가 없으면(거의 모든 요청) 아무것도 하지 않는다
+    if (!raw || raw.length > 2_000_000 || !/"(toString|valueOf|__proto__|constructor)"\s*:/.test(raw)) return undefined
+    return new Request(request, { body: JSON.stringify(defuse(JSON.parse(raw))) })
+  } catch {
+    return undefined // 파싱 실패는 각 처리기가 알아서 400 으로 돌려준다
+  }
 }
 
 // 응답에 보안 헤더 부착 (문서 응답에 한함 — 정적 자산/_next는 위에서 이미 통과)
