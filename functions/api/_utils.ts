@@ -894,6 +894,52 @@ export function sameOriginOk(request: Request): boolean {
     return false
   }
 }
+/**
+ * 요청 본문의 값을 "절대 예외를 던지지 않고" 문자열로 바꾼다.
+ *
+ * ⚠ String(v) 는 던질 수 있다. {"name":{"toString":1}} 처럼 toString 이 함수가 아닌 객체를 주면
+ *   TypeError: Cannot convert object to primitive value 가 나고, try/catch 가 없는 핸들러는
+ *   통째로 500 + 클라우드플레어 HTML 오류 페이지를 뱉는다(JSON 을 기대하는 클라이언트는 그대로 깨진다).
+ *   실제로 /api/signup · /api/leads/collect 같은 공개 경로가 이 한 줄짜리 본문에 죽었다.
+ *   문자열/숫자/불리언만 값으로 보고, 객체·배열은 "값 없음" 으로 취급한다.
+ */
+export function asText(v: any, max = 0): string {
+  let out = ''
+  try {
+    if (v == null) out = ''
+    else if (typeof v === 'string') out = v
+    else if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'bigint') out = String(v)
+    else out = '' // 객체·배열·심볼·함수
+  } catch { out = '' }
+  return max > 0 ? out.slice(0, max) : out
+}
+
+/** D1 바인딩에 넣어도 안전한 스칼라만 남긴다(객체/배열/undefined 를 바인딩하면 D1 이 던진다). */
+export function asBindable(v: any): string | number | null {
+  if (v == null) return null
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null
+  if (typeof v === 'string') return v
+  if (typeof v === 'boolean') return v ? 1 : 0
+  return null
+}
+
+/** id 목록 정규화 — 스칼라만, 중복 제거, 최대 개수 제한 */
+export function asIdList(v: any, max = 500): (string | number)[] {
+  if (!Array.isArray(v)) return []
+  const out: (string | number)[] = []
+  const seen = new Set<string>()
+  for (const it of v) {
+    const b = asBindable(it)
+    if (b == null || b === '') continue
+    const k = String(b)
+    if (seen.has(k)) continue
+    seen.add(k)
+    out.push(b as string | number)
+    if (out.length >= max) break
+  }
+  return out
+}
+
 export function clientIp(request: Request): string {
   return (
     request.headers.get('CF-Connecting-IP') ||

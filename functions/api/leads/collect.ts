@@ -1,4 +1,4 @@
-import { Env, json, ensureSchema, resolveDB, clientIp, geoFrom, rateLimitOk } from '../_utils'
+import { Env, json, ensureSchema, resolveDB, clientIp, geoFrom, rateLimitOk, asText } from '../_utils'
 
 // POST /api/leads/collect { name, phone, email?, source? } → 랜딩 DB 수집 데모 (공개)
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -15,16 +15,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const _raw: any = await request.json().catch(() => null)
   const body: any = _raw && typeof _raw === 'object' ? _raw : {}
   // 로그인 없이 부를 수 있는 경로라 길이 제한이 특히 중요하다(제한이 없어 20만 자가 들어갔다)
-  const name = String(body.name || '').trim().slice(0, 60)
-  const phone = String(body.phone || '').replace(/[^0-9]/g, '').slice(0, 20)
-  const email = String(body.email || '').trim().slice(0, 120)
+  const name = asText(body.name, 60).trim()
+  const phone = asText(body.phone).replace(/[^0-9]/g, '').slice(0, 20)
+  const email = asText(body.email, 120).trim()
   if (!name) return json({ ok: false, error: '이름을 입력하세요.' }, 400)
   if (phone.length < 9 && !email) return json({ ok: false, error: '연락처(전화번호 또는 이메일)를 입력하세요.' }, 400)
 
   const geo = geoFrom(request)
   // 랜딩페이지 연동 (slug 있으면 해당 페이지 리드로 집계)
   let landingId = ''
-  const slug = String(body.landing_slug || '')
+  const slug = asText(body.landing_slug, 120)
   if (slug) {
     const lp: any = await db.prepare('SELECT id FROM landing_pages WHERE slug = ?').bind(slug).first()
     if (lp) {
@@ -34,7 +34,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
   await db
     .prepare(`INSERT INTO public_leads (id, name, phone, email, source, ip, country, landing_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind('ld_' + crypto.randomUUID().slice(0, 14), name, phone, email, String(body.source || 'landing-demo').slice(0, 60), clientIp(request), geo.country, landingId, new Date().toISOString())
+    .bind('ld_' + crypto.randomUUID().slice(0, 14), name, phone, email, (asText(body.source, 60) || 'landing-demo'), clientIp(request), geo.country, landingId, new Date().toISOString())
     .run()
 
   const cnt: any = await db.prepare('SELECT COUNT(*) AS n FROM public_leads').first()

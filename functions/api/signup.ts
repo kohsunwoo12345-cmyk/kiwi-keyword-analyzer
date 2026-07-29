@@ -1,5 +1,6 @@
 import {
   Env,
+  asText,
   json,
   ensureSchema,
   hashPassword,
@@ -26,11 +27,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // 그대로 구조분해하면 예외가 나 공개 엔드포인트가 500 으로 죽는다 — 객체가 아니면 빈 객체로 본다.
   const _raw: any = await request.json().catch(() => null)
   const body: any = _raw && typeof _raw === 'object' ? _raw : {}
-  const name = String(body.name || '').trim()
-  const email = String(body.email || '').trim().toLowerCase()
-  const password = String(body.password || '')
-  const company = String(body.company || '').trim()
-  const phone = String(body.phone || '').replace(/[^0-9]/g, '')
+  const name = asText(body.name).trim()
+  const email = asText(body.email).trim().toLowerCase()
+  const password = asText(body.password)
+  const company = asText(body.company).trim()
+  const phone = asText(body.phone).replace(/[^0-9]/g, '')
   const marketingConsent = body.marketingConsent ? 1 : 0
   const aiConsent = body.aiConsent ? 1 : 0
   // 이용약관·개인정보처리방침은 가입 필수 동의 → 항상 1
@@ -61,7 +62,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // 추천인 코드 발급
   await ensureReferralCode(db, id)
   // 추천인 코드로 가입한 경우: 추천 관계 + 상호 친구 등록
-  const refInput = String(body.ref || body.referral || body.referralCode || '').trim().toUpperCase()
+  const refInput = (asText(body.ref) || asText(body.referral) || asText(body.referralCode)).trim().toUpperCase()
   if (refInput) {
     const referrer: any = await db.prepare('SELECT id, name FROM users WHERE referral_code = ?').bind(refInput).first()
     if (referrer && referrer.id !== id) {
