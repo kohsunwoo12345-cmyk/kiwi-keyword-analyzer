@@ -191,7 +191,7 @@ export async function reconcileGenCharge(
   db: D1Database, taskKey: string, usageTokens: number,
   deps: {
     computeCharge: any; getUsdKrw: any; resolveMarkup: any; resolveRefSurcharge: any
-    resolveCnSurcharge: any; creditPriceFor: any
+    resolveCnSurcharge: any; creditPriceFor: any; resolveCostOverride?: any
   },
 ): Promise<number> {
   if (!db || !taskKey || !(Number(usageTokens) > 0)) return 0
@@ -209,6 +209,11 @@ export async function reconcileGenCharge(
 
     const me: any = await db.prepare('SELECT * FROM users WHERE id = ?').bind(String(row.user_id)).first()
     if (!me) return 0
+    /* 관리자가 청구서를 보고 넣은 실측 단가가 있으면 그게 우선이다 — 그건 "이 값으로 청구하라" 는
+       명시적 지시라서, 제공사 토큰 수로 다시 계산해 덮으면 그 지시를 말없이 뒤집는 것이 된다.
+       (reconciled_at 은 이미 찍었으므로 폴링이 계속 들어와도 여기서 반복 조회하지 않는다.) */
+    const ovUsd = deps.resolveCostOverride ? await deps.resolveCostOverride(db, String(row.model || '')) : undefined
+    if (Number.isFinite(Number(ovUsd)) && Number(ovUsd) > 0) return 0
     const rate = await deps.getUsdKrw(db)
     const markup = await deps.resolveMarkup(db, me.id, String(row.model || ''), Number(me.credit_markup) || 0)
     const creditKrw = await deps.creditPriceFor(db, me)

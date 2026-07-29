@@ -138,6 +138,7 @@ const DEPS = {
   computeCharge: pricing.computeCharge, getUsdKrw: pricing.getUsdKrw,
   resolveMarkup: pricing.resolveMarkup, resolveRefSurcharge: pricing.resolveRefSurcharge,
   resolveCnSurcharge: pricing.resolveCnSurcharge, creditPriceFor, ensureAiUsage: pricing.ensureAiUsage,
+  resolveCostOverride: pricing.resolveCostOverride,
 }
 
 let failed = 0
@@ -283,6 +284,18 @@ console.log('\n② 제공사가 알려준 실제 소비 토큰으로 차액을 �
   ok(applied.length === 1, 'ⓔ 동시에 두 번 들어와도 한쪽만 정산된다', `${JSON.stringify(both)}`)
   ok(near(db2.__deductions.reduce((a, b) => a + b, 0), before / 2, 0.011),
      'ⓔ 겹쳐 들어와도 최종 차감은 실측치 그대로', `${db2.__deductions.reduce((a, b) => a + b, 0)}`)
+
+  /* ⓕ 관리자가 청구서를 보고 넣은 실측 단가가 있으면 그게 우선이다.
+     제공사 토큰 수로 다시 계산해 덮으면 "이 값으로 청구하라" 는 지시를 말없이 뒤집는 것이 된다. */
+  const db3 = makeDB(USER)
+  const t3 = await gc.issueGenCharge(db3, '1', { model: 'Seedance 2.0', units: 5, res: '1080p' })
+  const k3 = '/api/generate?task=' + t3
+  const OV = { ...DEPS, resolveCostOverride: async () => 0.5 }   // 초당 $0.5 로 못 박아 둔 상태
+  await gc.settleGenCharge(db3, USER, t3, k3, OV)
+  const paid = db3.__deductions.reduce((a, b) => a + b, 0)
+  const d3 = await gc.reconcileGenCharge(db3, k3, est / 2, OV)
+  ok(d3 === 0 && near(db3.__deductions.reduce((a, b) => a + b, 0), paid, 1e-9),
+     'ⓕ 실측 단가가 설정돼 있으면 토큰 정산이 그것을 덮지 않는다', `조정 ${d3}`)
 }
 
 console.log('\n③ 신고 창구(/api/usage/record)는 금액을 건드리지 못한다')
