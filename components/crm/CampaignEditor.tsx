@@ -18,7 +18,7 @@ import {
  * 저장 전에 예상 발송비와 남은 포인트를 보여 준다(보내고 나서 알면 늦다).
  */
 export function CampaignEditor({
-  open, onClose, onSaved, options, campaign, defaultDate,
+  open, onClose, onSaved, options, campaign, defaultDate, prefill,
 }: {
   open: boolean
   onClose: () => void
@@ -26,6 +26,8 @@ export function CampaignEditor({
   options: CrmOptions | null
   campaign: CrmCampaign | null
   defaultDate?: string
+  /** 새 집행을 미리 채워서 열 때 — 후속 발송(미신청자에게 다시 보내기)에서 쓴다 */
+  prefill?: { name?: string; groupId?: string; landingSlug?: string; channel?: 'sms' | 'alimtalk'; message?: string } | null
 }) {
   const editing = !!campaign
   const locked = campaign?.status === 'sent' || campaign?.status === 'sending'
@@ -66,13 +68,13 @@ export function CampaignEditor({
       setScheduledAt(toLocalFromIso(campaign.scheduled_at))
       setMemo(campaign.memo || '')
     } else {
-      setName(''); setRunDate(defaultDate || kstToday())
-      setLandingSlug(''); setLandingUrl(''); setGroupId(''); setAdBudget('')
-      setChannel('sms'); setSenderPhone(options?.senders?.[0]?.phone || '')
+      setName(prefill?.name || ''); setRunDate(defaultDate || kstToday())
+      setLandingSlug(prefill?.landingSlug || ''); setLandingUrl(''); setGroupId(prefill?.groupId || ''); setAdBudget('')
+      setChannel(prefill?.channel === 'alimtalk' ? 'alimtalk' : 'sms'); setSenderPhone(options?.senders?.[0]?.phone || '')
       setSenderKey(options?.channels?.[0]?.channel_id || ''); setTemplateCode('')
-      setMessage(''); setUseSchedule(false); setScheduledAt(''); setMemo('')
+      setMessage(prefill?.message || ''); setUseSchedule(false); setScheduledAt(''); setMemo('')
     }
-  }, [open, campaign, defaultDate, options])
+  }, [open, campaign, defaultDate, options, prefill])
 
   const group = options?.groups?.find((g) => g.id === groupId)
   const targetCount = group?.count ?? 0

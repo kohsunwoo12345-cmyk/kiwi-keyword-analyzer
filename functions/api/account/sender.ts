@@ -1,4 +1,4 @@
-import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity } from '../_utils'
+import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity, asText } from '../_utils'
 import { ensureSenderSchema, requiredDocs, DOC_SPECS } from '../sender/_schema'
 
 // GET → 본인 발신번호 목록
@@ -25,19 +25,21 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
 
   const body: any = await (request.json().catch(() => null)) ?? {}
-  const phone = String(body.phone || '').replace(/[^0-9]/g, '')
+  // asText — 객체·배열은 '' 로 떨어뜨린다. String({toString:1}) 은 TypeError 를 던져 500 이 된다.
+  const phone = asText(body.phone).replace(/[^0-9]/g, '')
   if (phone.length < 9) return json({ ok: false, error: '올바른 전화번호를 입력하세요.' }, 400)
 
   const dup = await db.prepare('SELECT id FROM sender_numbers WHERE user_id = ? AND phone = ?').bind(me.id, phone).first()
   if (dup) return json({ ok: false, error: '이미 등록된 번호입니다.' }, 409)
 
-  const ownerType = String(body.ownerType || '') === 'business' ? 'business' : 'personal'
+  const ownerType = asText(body.ownerType) === 'business' ? 'business' : 'personal'
   const thirdParty = body.thirdParty ? 1 : 0
   const now = new Date().toISOString()
   const id = 'sn_' + crypto.randomUUID().slice(0, 14)
   await db
     .prepare(`INSERT INTO sender_numbers (id, user_id, phone, label, status, created_at, owner_type, owner_name, biz_no, third_party) VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?)`)
-    .bind(id, me.id, phone, String(body.label || ''), now, ownerType, String(body.ownerName || me.name || '').slice(0, 60), String(body.bizNo || '').replace(/[^0-9]/g, '').slice(0, 12), thirdParty)
+    .bind(id, me.id, phone, asText(body.label, 60), now, ownerType,
+      (asText(body.ownerName, 60) || asText(me.name, 60)), asText(body.bizNo).replace(/[^0-9]/g, '').slice(0, 12), thirdParty)
     .run()
   await logActivity(db, me.id, 'sender', `발신번호 신청서 작성: ${phone}`)
   const need = requiredDocs(ownerType, thirdParty)

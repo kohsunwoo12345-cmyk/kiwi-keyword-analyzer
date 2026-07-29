@@ -847,6 +847,16 @@ export async function purgeUserData(db: D1Database, uid: string, env?: any): Pro
   await del('DELETE FROM kakao_templates WHERE user_id = ?', uid)
   await del('DELETE FROM kakao_channels WHERE user_id = ?', uid)
   await del('DELETE FROM kakao_alimtalk_logs WHERE user_id = ?', uid)
+  // CRM 집행 — 수신자 한 명 한 명의 이름·전화번호가 crm_execution_sends 에 그대로 들어 있다.
+  //  실제로 탈퇴 뒤에도 집행 2건·수신자 17명이 남아 있었다(그 회원 고객들의 개인정보다).
+  //  user_id 로만 지우면 옛 행에 user_id 가 비어 있을 때 새어 나가므로 집행 id 로도 훑는다.
+  await del('DELETE FROM crm_execution_sends WHERE campaign_id IN (SELECT id FROM crm_executions WHERE user_id = ?)', uid)
+  await del('DELETE FROM crm_execution_sends WHERE user_id = ?', uid)
+  await del('DELETE FROM crm_executions WHERE user_id = ?', uid)
+  // 알림 발송 내역 — 받는 사람 이름·전화번호·문구가 남는다
+  await del('DELETE FROM notify_log WHERE user_id = ?', uid)
+  // 신청자 알림 설정
+  await del('DELETE FROM settings WHERE key = ?', `lead_alert:${uid}`)
   // 스튜디오
   await del('DELETE FROM studio_schedules WHERE user_id = ?', uid)
   await del('DELETE FROM studio_brandkit WHERE user_id = ?', uid)
@@ -898,12 +908,55 @@ export async function purgeUserData(db: D1Database, uid: string, env?: any): Pro
   await del('DELETE FROM instagram_webhook_logs WHERE CAST(user_id AS TEXT) = CAST(? AS TEXT)', uid)
   await del('DELETE FROM instagram_account_settings WHERE CAST(user_id AS TEXT) = CAST(? AS TEXT)', uid)
   // 소통
-  await del('DELETE FROM support_chats WHERE conv_id = ?', uid)
+  // 상담 대화 — 회원은 conv_id 가 곧 user_id 지만, 예전에는 회원도 클라이언트가 준 conv_id 를
+  //  그대로 썼다(위 chat/send 주석 참고). 그 시절 행은 user_id 로만 이어져 있어 이름·이메일이 남는다.
+  await del('DELETE FROM support_chats WHERE conv_id = ? OR user_id = ?', uid, uid)
   await del('DELETE FROM dm_messages WHERE from_id = ? OR to_id = ?', uid, uid)
   await del('DELETE FROM friend_aliases WHERE owner_id = ? OR friend_id = ?', uid, uid)
   await del('DELETE FROM friendships WHERE user_id = ? OR friend_id = ?', uid, uid)
   await del('DELETE FROM team_members WHERE user_id = ?', uid)
   await del('DELETE FROM team_invites WHERE from_user_id = ? OR to_user_id = ?', uid, uid)
+  await del('DELETE FROM team_messages WHERE user_id = ?', uid)
+  // 로그인 수단 — 남겨 두면 탈퇴 뒤에도 발급된 토큰으로 API 가 열린다
+  await del('DELETE FROM oauth_tokens WHERE user_id = ?', uid)
+  await del('DELETE FROM oauth_codes WHERE user_id = ?', uid)
+  // 기기·푸시 — 엔드포인트·IP·UA 가 개인정보다
+  //  ⚠ 아래 표들은 user_id 를 INTEGER 로 선언해 두고 실제로는 'u_xxx' 문자열을 넣는다.
+  //    그냥 = 로 비교하면 형 친화도(affinity) 때문에 안 지워질 수 있어 CAST 로 맞춘다.
+  const delU = (t: string) => del(`DELETE FROM ${t} WHERE CAST(user_id AS TEXT) = CAST(? AS TEXT)`, uid)
+  await delU('push_subscriptions')
+  await delU('app_push_tokens')
+  await del('DELETE FROM app_installs WHERE user_id = ?', uid)
+  await del('DELETE FROM visits WHERE user_id = ?', uid)
+  await del('DELETE FROM ip_identities WHERE user_id = ?', uid)
+  await del('DELETE FROM api_rate WHERE user_id = ?', uid)
+  await delU('user_events')
+  await delU('user_marketing_meta')
+  // 회원별 단가 조정 (msg_rate_overrides 와 같은 성격)
+  await del('DELETE FROM user_model_markups WHERE user_id = ?', uid)
+  // 발송·수신 기록
+  await del('DELETE FROM alimtalk_logs WHERE user_id = ?', uid)
+  await del('DELETE FROM crm_campaign_sends WHERE user_id = ?', uid)
+  await delU('campaign_logs')
+  await delU('campaign_events')
+  await del('DELETE FROM notice_receipts WHERE user_id = ?', uid)
+  await del('DELETE FROM notice_visitor_events WHERE user_id = ?', uid)
+  // 스튜디오 — schedules·brandkit 만 지우고 나머지 작업물이 남아 있었다
+  await del('DELETE FROM studio_activity WHERE user_id = ?', uid)
+  await del('DELETE FROM studio_characters WHERE user_id = ?', uid)
+  await del('DELETE FROM studio_saved_flows WHERE user_id = ?', uid)
+  await del('DELETE FROM studio_workflows WHERE user_id = ?', uid)
+  await delU('canvas_user_state')
+  // 순위·실험 (blog_rank_tracks 와 같은 성격)
+  await delU('blogs')
+  await delU('rank_monitoring')
+  await delU('ab_test_results')
+  // 광고 관리 화면
+  await del('DELETE FROM ad_campaigns WHERE owner_id = ?', uid)
+  await del('DELETE FROM ad_calendars WHERE owner_id = ?', uid)
+  // 정기결제 — 지우지 않고 해지한다. 남겨 두면 탈퇴 뒤에도 빌링키로 계속 청구된다.
+  await del("UPDATE subscriptions SET status = 'cancelled', pg_billing_key = NULL, cancelled_at = ? WHERE user_id = ? AND status != 'cancelled'",
+    new Date().toISOString(), uid)
   // 추천 관계
   await del("UPDATE users SET referred_by = '' WHERE referred_by = ?", uid)
   await del('DELETE FROM referral_rewards WHERE referrer_id = ? OR friend_id = ?', uid, uid)
