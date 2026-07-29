@@ -744,6 +744,29 @@ export function buildFluxPayload(b) {
    fal 이 전처리(윤곽/깊이/포즈 맵 추출)를 서버에서 대신 해주므로 원본 이미지만 넘기면 됨.
    Canny/Depth = 전용 control-lora 엔드포인트, Pose = flux-general + Union(openpose, control_mode 4). */
 const FAL_QUEUE = "https://queue.fal.run/";
+/* ══ 중개(fal.ai) 사용 허가 목록 — 여기 없는 기능은 fal 로 나갈 수 없다 ══
+   원칙: 제공사 공식 API 를 연동해 둔 모델은 예외 없이 그 공식 API 로만 나간다.
+   같은 모델을 중개로 부르면 ①공식 기준으로 만든 단가표와 실제 청구가 어긋나고
+   ②제공사 쪽 사용 이력이 갈라진다.
+   아래는 "그 모델의 제공사 API 가 아예 없어서 fal 로만 되는" 기능들이다 —
+   Wan(모션 전이)·Topaz(업스케일)·sync-lipsync(립싱크/목소리교체)·
+   ffmpeg 병합(나레이션)·stable-audio(음악)·FLUX.1-dev+ControlNet Union.
+   씨댄스·씨드림·3D·클링·루마·Veo·런웨이·미니맥스·BFL·GPT·Grok 은 절대 들어오면 안 된다.
+   새 기능을 fal 로 붙이려면 이 목록에 이름을 넣어야 하고, 그때 위 원칙을 다시 따져야 한다. */
+const FAL_ALLOWED = new Set(["motion", "upscale", "narrate", "lipsync", "revoice", "music", "falcontrol", "falq", "v2v_auto"]);
+/* 공식 API 를 연동해 둔 제공사 — 이 이름으로는 fal 호출이 불가능하다(아래 falFetch 가 던진다) */
+const OFFICIAL_ONLY = new Set(["seedance", "seedream", "ark3d", "promptgen", "kling", "klingextend",
+                               "luma", "google", "nanobanana", "runway", "runway_aleph", "hailuo",
+                               "flux", "openai", "xai"]);
+/* fal 로 나가는 모든 요청은 이 함수를 거친다. 허가 목록 밖이면 호출 자체가 막힌다.
+   (예전엔 클링·씨댄스가 fal 로 새는 코드가 실제로 있었다 — 지우는 것만으로는 또 들어온다.) */
+function falFetch(routeName, url, init, timeoutMs) {
+  if (OFFICIAL_ONLY.has(routeName))
+    throw new Error("라우팅 위반: " + routeName + " 은(는) 공식 API 로만 나가야 합니다. fal 경유 금지.");
+  if (!FAL_ALLOWED.has(routeName))
+    throw new Error("라우팅 위반: " + routeName + " 은(는) fal 사용 허가 목록에 없습니다.");
+  return fetchT(url, init, timeoutMs);
+}
 const FAL_IMG_SIZE = { "1:1": "square_hd", "16:9": "landscape_16_9", "9:16": "portrait_16_9", "4:5": "portrait_4_3" };
 
 /* Kling 은 공식 오픈플랫폼 API 만 사용한다.
@@ -3556,12 +3579,12 @@ async function handle(context) {
       const model = u.searchParams.get("model") || "";
       if (!task || !model || !k.fal) return json({ status: "failed", error: "no task/model/key" }, 400);
       const base = FAL_QUEUE + model + "/requests/" + encodeURIComponent(task);
-      const sr = await fetchT(base + "/status", { headers: { "Authorization": "Key " + k.fal } });
+      const sr = await falFetch("falq", base + "/status", { headers: { "Authorization": "Key " + k.fal } });
       const sj = await sr.json().catch(() => ({}));
       const st = String(sj.status || "").toUpperCase();
       if (st === "FAILED" || sj.error) return json({ status: "failed", error: sj.error || "생성 실패" });
       if (st !== "COMPLETED") return json({ status: (st || "IN_PROGRESS").toLowerCase() });
-      const rr = await fetchT(base, { headers: { "Authorization": "Key " + k.fal } });
+      const rr = await falFetch("falq", base, { headers: { "Authorization": "Key " + k.fal } });
       const rj = await rr.json().catch(() => ({}));
       const url = (rj.video && rj.video.url) || rj.url || (rj.output && rj.output.video && rj.output.video.url) || (Array.isArray(rj.videos) && rj.videos[0] && rj.videos[0].url);
       return url ? json({ url, kind: "video" }) : json({ status: "failed", error: "모션 전이: 결과 영상 URL 없음" });
@@ -3728,7 +3751,7 @@ async function handle(context) {
     // 3순위: 모션 전이(fal) — 원본 영상의 움직임을 유지하며 스타일 변환 (base 모델 무관 공통 레이어)
     if (hasNativeSrc && k.fal) {
       const model = falV2VModel(env);
-      const r = await fetchT(FAL_QUEUE + model, {
+      const r = await falFetch("motion", FAL_QUEUE + model, {
         method: "POST", headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
         body: JSON.stringify(buildMotionPayload(b))
       });
@@ -3752,12 +3775,12 @@ async function handle(context) {
         const j = await r.json().catch(() => ({}));
         if (r.ok && j.code === 0 && j.data && j.data.task_id)
           return json({ statusUrl: "/api/generate?provider=kling&task=" + encodeURIComponent(j.data.task_id) + "&ep=image2video", routed: "kling_bridge" });
-        if (!k.fal) return json({ error: "V2V 브리지(Kling) 실패: " + String(j.message || JSON.stringify(j)).slice(0, 200) }, 502);
+        return json({ error: "V2V 브리지(Kling) 실패: " + String(j.message || JSON.stringify(j)).slice(0, 200) }, 502);
       }
       /* 클링 브리지도 공식 API 로만 간다(위 분기). fal 경유는 같은 모델을 중개로 부르는 것이라 없앴다. */
     }
 
-    return json({ error: "V2V(영상→영상)를 하려면 Runway·Seedance(최고정확도) 또는 Kling·fal 중 하나 이상의 키가 필요합니다." }, 500);
+    return json({ error: "V2V(영상→영상)를 하려면 Runway·Seedance·Kling 중 하나 이상의 공식 API 키가 필요합니다(모션 전이만 쓰려면 FAL_API_KEY)." }, 500);
   }
 
   /* 나레이션(AI 음성 해설) — 대본→TTS 음성 생성 후 원본 영상에 오디오 트랙을 덧입힘(보이스오버).
@@ -3772,7 +3795,7 @@ async function handle(context) {
     if (tts.error) return json({ error: "나레이션 " + tts.error }, tts.status || 502);
     // fal ffmpeg — 원본 영상 + 나레이션 오디오 병합 (env 로 모델 교체 가능)
     const model = pick(env, ["FAL_MERGE_MODEL", "fal_merge_model"]) || "fal-ai/ffmpeg-api/merge-audio-video";
-    const r = await fetchT(FAL_QUEUE + model, {
+    const r = await falFetch("narrate", FAL_QUEUE + model, {
       method: "POST", headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
       body: JSON.stringify({ video_url: videoUrl, audio_url: tts.audioUrl })
     });
@@ -3795,7 +3818,7 @@ async function handle(context) {
     // fal 립싱크 모델 (env 로 교체 가능). sync-lipsync 은 video_url+audio_url 규격.
     const model = pick(env, ["FAL_LIPSYNC_MODEL", "fal_lipsync_model"]) || "fal-ai/sync-lipsync";
     const payload = { video_url: videoUrl, audio_url: tts.audioUrl, sync_mode: "cut_off" };
-    const r = await fetchT(FAL_QUEUE + model, {
+    const r = await falFetch("lipsync", FAL_QUEUE + model, {
       method: "POST", headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
@@ -3847,7 +3870,7 @@ async function handle(context) {
 
     // 4) fal 립싱크 — 원본 영상 + 교체된 음성
     const model = pick(env, ["FAL_LIPSYNC_MODEL", "fal_lipsync_model"]) || "fal-ai/sync-lipsync";
-    const r2 = await fetchT(FAL_QUEUE + model, {
+    const r2 = await falFetch("revoice", FAL_QUEUE + model, {
       method: "POST", headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
       body: JSON.stringify({ video_url: videoUrl, audio_url: newAudioUrl, sync_mode: "cut_off" })
     });
@@ -3863,7 +3886,7 @@ async function handle(context) {
     const src = b.srcVideo || "";
     if (!/^https?:\/\//.test(src)) return json({ error: "모션 전이는 원본 영상의 공개 URL이 필요합니다. 영상을 옴니 레퍼런스(영상)에 넣으면 자동 업로드됩니다(R2)." }, 400);
     const model = falV2VModel(env);
-    const r = await fetchT(FAL_QUEUE + model, {
+    const r = await falFetch("motion", FAL_QUEUE + model, {
       method: "POST", headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
       body: JSON.stringify(buildMotionPayload(b))
     });
@@ -4202,7 +4225,7 @@ async function handle(context) {
       return json({ error: "ControlNet 타입을 하나 이상 선택하세요 (Canny/Depth/Pose)." }, 400);
     if (!body.controlnets.every(c => c.control_image_url))
       return json({ error: "ControlNet은 레퍼런스 이미지가 필요합니다. 사진/영상 레퍼런스를 연결하세요." }, 400);
-    const r = await fetchT(FAL_QUEUE + model, {
+    const r = await falFetch("falcontrol", FAL_QUEUE + model, {
       method: "POST",
       headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json", "accept": "application/json" },
       body: JSON.stringify(body)
@@ -4356,7 +4379,7 @@ async function handle(context) {
           errs.push("minimax: " + ((j.base_resp && j.base_resp.status_msg) || ("HTTP " + r.status)));
         } else if (eng === "fal") {
           const model = pick(env, ["FAL_MUSIC_MODEL", "fal_music_model"]) || "fal-ai/stable-audio-25/text-to-audio";
-          const r = await fetchT("https://fal.run/" + model, {
+          const r = await falFetch("music", "https://fal.run/" + model, {
             method: "POST",
             headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
             body: JSON.stringify({ prompt: promptTxt, seconds_total: secs })
@@ -4377,7 +4400,7 @@ async function handle(context) {
     const src = b.srcVideo || "";
     if (!/^https?:\/\//.test(src)) return json({ error: "업스케일할 원본 영상이 필요합니다. 영상을 옴니 레퍼런스(영상)에 넣으면 자동 업로드됩니다(R2)." }, 400);
     const model = pick(env, ["FAL_UPSCALE_MODEL", "fal_upscale_model"]) || "fal-ai/topaz/upscale/video";
-    const r = await fetchT(FAL_QUEUE + model, {
+    const r = await falFetch("upscale", FAL_QUEUE + model, {
       method: "POST",
       headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
       body: JSON.stringify({ video_url: src, upscale_factor: b.res === "4K" ? 4 : 2 })
