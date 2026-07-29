@@ -2,7 +2,9 @@
 
 import { CampaignCalendar } from '@/components/crm/CampaignCalendar'
 
-/** 관리자 — 전 회원의 CRM 마케팅 집행을 달력으로 본다 */
+const BASE = '/adminsunkoh028741_11263'
+
+/** 관리자 — 전 회원의 CRM 마케팅 집행 */
 export default function AdminCrmCampaignsPage() {
-  return <CampaignCalendar all resultsHref="/adminsunkoh028741_11263/crm-results" />
+  return <CampaignCalendar all resultsHref={`${BASE}/crm-results`} detailHref={`${BASE}/crm-campaigns/detail`} />
 }
