@@ -1,5 +1,6 @@
 import { json, getSessionUser, resolveDB, spendPoints, refundPoints } from '../../_utils'
 import { unitCost } from '../../_msgcost'
+import { logNotifyMany } from '../../_notify'
 import { ownsKakaoChannel, notMyChannel } from '../_own'
 import { aligoAlimtalk } from '../../_aligo'
 
@@ -114,6 +115,13 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
         error: sendRes.error || '알림톡 발송 실패',
         detail: sendRes.data,
       })
+    await logNotifyMany(db, recipients.map((r: any, i: number) => ({
+      userId, trigger: 'manual' as const, event: 'alimtalk', kind: 'alimtalk',
+      recipient: String(r?.to ?? r?.phone ?? ''), subject: String(templateCode || ''),
+      content: String(r?.message ?? content ?? ''),
+      ok: i < successCount, reason: i < successCount ? '' : String(errMsg || ''),
+      points: i < successCount ? unit : 0,
+    })))
     return json({ ok: true, successCount, pointsUsed: totalCost, unitPoints: unit })
   } catch (e: any) {
     return json({ ok: false, error: '서버 오류가 발생했습니다.' }, 500)

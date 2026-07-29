@@ -1,6 +1,7 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB, spendPoints, refundPoints, logActivity, publicUser, asText } from '../_utils'
 import { smsKindOf, unitCost, KIND_LABEL } from '../_msgcost'
 import { sendSms, aligoConfigured, kstStringToReserve } from '../_aligo'
+import { logNotifyMany } from '../_notify'
 
 // POST /api/sms/send → 알리고 발송. 비용은 포인트로 나간다.
 //   { to: string | string[], text }        같은 문구를 여러 명에게
@@ -95,7 +96,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // 실패분 포인트 환불 — 나가지 않은 문자까지 받을 이유가 없다
   if (refund > 0) await refundPoints(db, me.id, refund, `문자 발송 실패 ${fails.length}건 환불`)
 
-  await logActivity(db, me.id, 'sms', `문자 발송 ${sent}/${recipients.length}건`)
+  await logActivity(db, me.id, 'sms', `문자 발송 ${sent}/${jobs.length}건`)
+  // 알림 발송 내역(수동 발송) — 자동응답·캠페인과 한 화면에서 같이 본다
+  const failMap = new Map(fails.map((f) => [f.to, f.reason || '']))
+  await logNotifyMany(db, jobs.map((jb) => ({
+    userId: me.id, trigger: 'manual' as const, event: reserve ? 'sms_reserved' : 'sms',
+    kind: smsKindOf(jb.text), recipient: jb.to, content: jb.text,
+    ok: !failMap.has(jb.to), reason: failMap.get(jb.to) || '',
+    points: failMap.has(jb.to) ? 0 : unitOf(jb.text),
+  })))
 
   // 발송 이력 기록 (발송 이력·통계 페이지 실데이터용). 실패해도 발송 결과에는 영향 없음.
   try {

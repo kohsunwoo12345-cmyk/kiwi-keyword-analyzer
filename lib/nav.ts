@@ -27,6 +27,7 @@ import {
   CalendarRange,
   ShieldCheck,
   KeyRound,
+  BellRing,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -103,6 +104,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
     items: [
       { title: '랜딩페이지 제작', href: '/dashboard_USE17237_612/landing', icon: Palette },
       { title: '랜딩 성과분석', href: '/dashboard_USE17237_612/landing/analytics', icon: BarChart3 },
+      { title: '신청자 알림 설정', href: '/dashboard_USE17237_612/landing/alerts', icon: BellRing },
     ],
   },
   {

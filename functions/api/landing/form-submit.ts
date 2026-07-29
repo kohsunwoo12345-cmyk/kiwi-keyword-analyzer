@@ -4,6 +4,7 @@
 import { resolveDB, ensureSchema, clientIp, rateLimitOk } from '../_utils'
 import { ensureFunnelSchema } from '../funnel/_schema'
 import { fireAutoResponses } from '../funnel/_autofire'
+import { alertOwnerOfLead } from '../_leadalert'
 
 // 공개 엔드포인트 남용 한도 — funnel/apply 와 같은 기준(제출 1건 = 유료 문자 1건)
 const IP_LIMIT = 20
@@ -74,7 +75,17 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
           .bind(funnelPage.id, name || '', phone || '', email || '', additionalData, new Date().toISOString()).run()
       } catch (e) {}
       // 자동응답(문자/알림톡/이메일) 발송 — best-effort
-      try { await fireAutoResponses(env, db, funnelPage, { name, phone, email }) } catch (e) {}
+      try { await fireAutoResponses(env, db, funnelPage, { name, phone, email }, { slug: landing_slug }) } catch (e) {}
+      // 페이지 주인에게 "신청 들어왔다" 자동 알림 — 규칙을 안 만들어 뒀어도 반드시 알린다
+      try {
+        const own: any = await db.prepare('SELECT user_id FROM funnel_groups WHERE id = ?').bind(funnelPage.group_id).first().catch(() => null)
+        if (own?.user_id) {
+          await alertOwnerOfLead(env, db, {
+            ownerId: own.user_id, landingSlug: landing_slug, landingTitle: funnelPage.title,
+            lead: { name, phone, email },
+          })
+        }
+      } catch (e) {}
       return j({ success: true, message: '신청이 완료되었습니다.' })
     }
 
@@ -94,6 +105,16 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
           .bind(name || '', phone || '', email || '', new Date().toISOString()).run().catch(() => {})
       }
     }
+    // 빌더로 만든 일반 랜딩페이지에는 알림이 아예 없었다 — 주인이 신청 DB 화면을 직접
+    //  열어보기 전엔 신청이 들어온 줄도 몰랐다. 여기서도 똑같이 알린다.
+    try {
+      if (page.user_id) {
+        await alertOwnerOfLead(env, db, {
+          ownerId: page.user_id, landingSlug: landing_slug, landingTitle,
+          lead: { name, phone, email },
+        })
+      }
+    } catch (e) {}
     return j({ success: true, message: '신청이 완료되었습니다.' })
   } catch (err) {
     return j({ success: false, error: String(err) })

@@ -3,6 +3,7 @@
 //  두 경로가 갈라지면 "수동은 되는데 예약은 안 되는" 종류의 고장이 생긴다.
 import { spendPoints, refundPoints, logActivity, addNotification } from '../_utils'
 import { unitCost, smsKindOf, KIND_LABEL } from '../_msgcost'
+import { logNotifyMany } from '../_notify'
 import { sendSms, aligoAlimtalk } from '../_aligo'
 
 export interface DispatchResult {
@@ -163,6 +164,14 @@ export async function dispatchCampaign(db: D1Database, env: any, campaignId: str
   ).run().catch(() => {})
 
   await logActivity(db, c.user_id, 'sms', `CRM 집행 "${c.name}" 발송 ${sent}/${targets.length}건`).catch(() => {})
+  // 알림 발송 내역(캠페인) — 자동응답·수동 발송과 한 화면에서 같이 본다
+  await logNotifyMany(db, rows.map((r) => ({
+    userId: c.user_id, trigger: 'campaign' as const, event: c.scheduled_at ? 'campaign_scheduled' : 'campaign_send',
+    kind: msgKind, recipient: r.phone, recipientName: r.name,
+    subject: String(c.name || ''), content: message,
+    ok: r.ok === 1, reason: r.reason || '', points: r.ok === 1 ? unit : 0,
+    landingSlug: String(c.landing_slug || ''), refId: campaignId,
+  })))
   await addNotification(
     db, c.user_id,
     sent > 0 ? 'CRM 집행 발송 완료' : 'CRM 집행 발송 실패',
