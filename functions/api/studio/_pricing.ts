@@ -101,12 +101,25 @@ export async function getUsdKrw(db: D1Database): Promise<number> {
   return last && Number(last.usd_krw) > 0 ? Number(last.usd_krw) : USD_KRW
 }
 
-/* 1080p 기준 해상도 배율.
-   540p 는 표에 없어 배율 1(=1080p)로 잡혔다. 루마에 540p 를 노출하면서 생긴 구멍으로,
-   회원이 540p 를 골라도 1080p 와 같은 금액이 청구된다 — 화질만 낮추고 요금은 그대로다.
-   화소는 1080p 의 1/4, 720p 의 약 56% 다. 720p 가 0.6 이므로 비례해 0.35 를 잠정값으로 둔다.
-   ※ 제공사 가격표를 확인하면 실측값으로 교체할 것. */
-const RES_MULT: Record<string, number> = { '540p': 0.35, '720p': 0.6, '1080p': 1.0, '4K': 2.6 }
+/** 해상도별 실제 픽셀 크기. 토큰 과금 계산과 배율 산출의 공통 기준이다. */
+export const RES_PX: Record<string, [number, number]> = {
+  '480p': [854, 480],
+  '540p': [960, 540],
+  '720p': [1280, 720],
+  '1080p': [1920, 1080],
+  '4K': [3840, 2160],
+}
+const PX_1080P = RES_PX['1080p'][0] * RES_PX['1080p'][1]
+
+/* 1080p 기준 해상도 배율 — 화소 수에 정비례한다.
+   예전 값(540p 0.35 · 720p 0.6 · 4K 2.6)은 근거 없이 눈대중으로 넣은 것이었고,
+   실제 화소비(0.25 · 0.444 · 4.0)와 어긋나 고해상도일수록 원가보다 적게 받았다.
+   4K 는 원가의 65% 만 받고 있었다 — 마크업을 곱해도 남지 않는 구간이 생긴다.
+   영상 원가는 어느 제공사든 화소 수에 비례하므로(토큰 과금이든 등급별 정액이든)
+   비례식을 기본으로 두고, 정액제 제공사는 아래 전용 함수에서 따로 처리한다. */
+const RES_MULT: Record<string, number> = Object.fromEntries(
+  Object.entries(RES_PX).map(([k, [w, h]]) => [k, (w * h) / PX_1080P]),
+)
 
 // 모델 표시명 → 단가.
 // u:'sec'(영상 초당) | 'img'(이미지 장당) | '3d'(모델 1개당) | 'tok'(호출 1회당), usd, audio(오디오 초당 추가), prov(집계용)
@@ -130,31 +143,18 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
   'Runway Gen-4': { u: 'sec', usd: 0.05, prov: 'runway' },
   'Runway Gen-3 Alpha Turbo': { u: 'sec', usd: 0.05, prov: 'runway' },
   'Grok Imagine (영상)': { u: 'sec', usd: 0.10, prov: 'xai' },
-  /* ⚠ 씨댄스 2.0 단가는 미확인이고, 반대 방향 신호가 하나 있다.
-     런웨이 공식 표(docs.dev.runwayml.com/guides/pricing.md)는 남의 모델도 재판매하는데
-     거기서 `seedance2` (1080p) 가 초당 40크레딧 = $0.40 이다. 우리 값의 6.5배다.
-     같은 표의 `veo3.1 (audio)` 는 초당 40크레딧 = $0.40 으로 구글 공식가와 정확히 같다
-     — 런웨이가 원가 그대로 파는 항목이 있다는 뜻이라, 씨댄스도 그럴 가능성이 있다.
-     다만 같은 표의 `seedream5_pro` 는 1K 장당 5크레딧($0.05)로 우리 값($0.075)보다 오히려 싸다.
-     한 표 안에서 어떤 건 우리보다 비싸고 어떤 건 싸므로 "런웨이 = 원가" 라고 단정할 수 없다.
-     → 값을 바꾸지 않는다. BytePlus 공식 단가를 봐야 한다.
-
-     자동으로 확인할 방법은 두 갈래 다 막혔다(둘 다 실제로 해 봤다):
-       · 문서(docs.byteplus.com/.../Pricing) — 자바스크립트로 그려서 .md·llms.txt 로도 껍데기만 온다.
-       · 계정 API(/models) — 응답에 price·cost·billing 계열 필드가 아예 없다(모델 메타데이터만).
-     남은 방법은 BytePlus 콘솔(웹) 의 요금/청구 화면을 사람이 직접 보는 것뿐이다.
-     실제 청구서(월 사용액 ÷ 생성 초수)로 역산하는 것이 가장 확실하다.
-
-     만약 실제로 초당 $0.40 이라면 마크업 2.5배(매출 $0.155)로도 초당 $0.245 손실 —
-     10초 한 편에 약 3,400원 적자다. 이 항목이 현재 남은 위험 중 가장 크다. */
-  'Seedance 2.0': { u: 'sec', usd: 0.062, audio: 0.02, prov: 'seedance' },
-  'Seedance 2.0 Fast': { u: 'sec', usd: 0.036, audio: 0.02, prov: 'seedance' },
-  'Seedance 2.0 Mini': { u: 'sec', usd: 0.028, audio: 0.02, prov: 'seedance' },
-  'Seedance 1.5 Pro': { u: 'sec', usd: 0.05, prov: 'seedance' },
-  'Seedance 1.0 Pro': { u: 'sec', usd: 0.062, prov: 'seedance' },
-  'Seedance 1.0 Pro Fast': { u: 'sec', usd: 0.036, prov: 'seedance' },
-  'Seedance 1.0 Lite (텍스트→영상)': { u: 'sec', usd: 0.018, prov: 'seedance' },
-  'Seedance 1.0 Lite (이미지→영상)': { u: 'sec', usd: 0.018, prov: 'seedance' },
+  /* 씨댄스는 초당 정액이 아니라 토큰 과금이다 — 실제 계산은 아래 seedanceUsd() 가 한다.
+     여기 usd 값은 그 함수를 타지 못했을 때의 폴백이자 관리자 화면 표시용이며,
+     100만 토큰당 단가로 1080p 초당 원가를 환산해 맞춰 둔다(1080p 1초 = 48,600토큰).
+     audio 는 토큰과 별개로 붙는 항목이라 seedanceUsd() 에서도 그대로 더한다. */
+  'Seedance 2.0': { u: 'sec', usd: 0.2284, audio: 0.02, prov: 'seedance' },
+  'Seedance 2.0 Fast': { u: 'sec', usd: 0.1827, audio: 0.02, prov: 'seedance' },
+  'Seedance 2.0 Mini': { u: 'sec', usd: 0.1142, audio: 0.02, prov: 'seedance' },
+  'Seedance 1.5 Pro': { u: 'sec', usd: 0.1701, prov: 'seedance' },
+  'Seedance 1.0 Pro': { u: 'sec', usd: 0.1458, prov: 'seedance' },
+  'Seedance 1.0 Pro Fast': { u: 'sec', usd: 0.0846, prov: 'seedance' },
+  'Seedance 1.0 Lite (텍스트→영상)': { u: 'sec', usd: 0.0875, prov: 'seedance' },
+  'Seedance 1.0 Lite (이미지→영상)': { u: 'sec', usd: 0.0875, prov: 'seedance' },
   'MiniMax Hailuo 02': { u: 'sec', usd: 0.048, prov: 'hailuo' },
   'MiniMax T2V-01 Director': { u: 'sec', usd: 0.043, prov: 'hailuo' },
   'MiniMax I2V-01 Director': { u: 'sec', usd: 0.043, prov: 'hailuo' },
@@ -333,6 +333,51 @@ const LUMA_IMG_BASE: Record<string, number> = { 'Luma Uni 1': 0.0404, 'Luma Uni 
 const LUMA_IMG_1REF: Record<string, number> = { 'Luma Uni 1': 0.0434, 'Luma Uni 1 Max': 0.1030 }
 const LUMA_REF_STEP = 0.0030   // 레퍼런스 1장 추가마다
 
+/* ── 씨댄스: 초당 정액이 아니라 토큰 과금이다 ──────────────────────────────
+   BytePlus ModelArk·fal 이 같은 식을 쓴다.
+     토큰 = 가로 × 세로 × fps × 초 ÷ 1024
+     원가(USD) = 토큰 × (100만 토큰당 단가) ÷ 1,000,000
+   즉 원가가 화소 수에 정확히 비례한다. "초당 얼마 × 어림 배율" 로는 맞출 수 없다.
+
+   식 검증(fal 공시가와 대조):
+     1.0 Pro   1080p 5초 = 1920×1080×24×5÷1024 = 243,000토큰 × $3.0/M = $0.729  (공시 약 $0.74)
+     1.0 Lite   720p 5초 = 1280× 720×24×5÷1024 = 108,000토큰 × $1.8/M = $0.194  (공시 약 $0.18)
+
+   단가 출처:
+     · 1.0 Pro $3.0/M · 1.0 Lite $1.8/M — fal 공개 가격(위 대조로 확인).
+     · 2.0 $4.7/M — ModelArk 1080p 영상입력 없음 기준. 여러 곳이 같은 값을 싣는다.
+       참고로 런웨이가 seedance2 1080p 를 초당 $0.40 에 재판매하는데,
+       이 값으로 계산한 초당 원가 $0.228 의 1.75배다 — 재판매 마진으로 설명된다.
+     · 2.0 Fast·Mini — 공개된 등급비(표준 1 : Fast 0.8 : Mini 0.5)를 2.0 단가에 적용.
+     · 1.5 Pro — 1.0 Pro 와 2.0 사이. 공식 표를 못 구해 잠정값이다.
+   ※ 실제 청구서로 검증되면 이 표만 고치면 된다. 계산식은 그대로 쓴다. */
+const SEEDANCE_FPS = 24
+const SEEDANCE_PER_M: Record<string, number> = {
+  'Seedance 2.0': 4.7,
+  'Seedance 2.0 Fast': 3.76,          // 4.7 × 0.8
+  'Seedance 2.0 Mini': 2.35,          // 4.7 × 0.5
+  'Seedance 1.5 Pro': 3.5,            // 잠정
+  'Seedance 1.0 Pro': 3.0,
+  'Seedance 1.0 Pro Fast': 1.74,      // 3.0 × 0.58 (기존 표의 Pro 대비 비율 유지)
+  'Seedance 1.0 Lite (텍스트→영상)': 1.8,
+  'Seedance 1.0 Lite (이미지→영상)': 1.8,
+}
+
+/** 씨댄스면 토큰식으로 원가(USD)를 낸다. 아니면 null → 다음 규칙으로 간다. */
+function seedanceUsd(input: ChargeInput): number | null {
+  const model = String(input.model || '')
+  const perM = SEEDANCE_PER_M[model]
+  if (perM == null) return null
+  const [w, h] = RES_PX[String(input.res || '1080p')] || RES_PX['1080p']
+  const secs = Math.max(1, Math.round(Number(input.units) || 5))
+  const tokens = (w * h * SEEDANCE_FPS * secs) / 1024
+  const usd = (tokens * perM) / 1_000_000
+  // 오디오는 토큰 과금과 별개로 붙는 항목이라 표의 초당 가산을 그대로 더한다.
+  const m = MODEL_COST[model]
+  const audioAdd = input.audio && m && m.audio ? m.audio * secs : 0
+  return usd + audioAdd
+}
+
 /** 루마 모델이면 실측 표로 원가(USD)를 낸다. 아니면 null → 일반 공식으로 간다. */
 function lumaUsd(input: ChargeInput): number | null {
   const model = String(input.model || '')
@@ -432,7 +477,7 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
   const isFlat = m ? (m.u === 'img' || m.u === '3d' || m.u === 'tok') : input.kind === 'image'
   const isImg = isFlat
   let usd: number
-  const lu = lumaUsd(input) ?? veoUsd(input) ?? fluxUsd(input) ?? runwayUsd(input)   // 공식 요금표가 있는 제공사 우선
+  const lu = lumaUsd(input) ?? veoUsd(input) ?? fluxUsd(input) ?? runwayUsd(input) ?? seedanceUsd(input)   // 공식 요금표가 있는 제공사 우선
   if (lu != null) {
     usd = lu
   } else if (isImg) {

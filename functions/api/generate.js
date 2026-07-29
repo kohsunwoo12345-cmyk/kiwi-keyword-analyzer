@@ -423,7 +423,9 @@ export function buildSeedancePayload(b, env, forceModel) {
   const isV2 = /seedance-2/.test(model);   // dreamina-seedance-2-0-* 계열
   // 해상도 — 공식 지원은 480p·720p·1080p. 2.0 은 최상위 resolution 필드, 1.x 는 --resolution 텍스트 명령.
   //  예전엔 아예 보내지 않아, 노드에서 720p/4K 를 골라도 결과는 그대로인데 과금만 달라졌다.
-  const SEEDANCE_RES = { "480p": "480p", "720p": "720p", "1080p": "1080p", "4K": "1080p", "4k": "1080p" };
+  //  540p 는 표에 없어 기본값 1080p 로 떨어졌다 — 가장 낮은 화질을 고른 회원에게
+  //  1080p 를 내보내고 1080p 요금(4배)을 물리던 자리다. 지원되는 최근접 480p 로 내린다.
+  const SEEDANCE_RES = { "480p": "480p", "540p": "480p", "720p": "720p", "1080p": "1080p", "4K": "1080p", "4k": "1080p" };
   const resolution = SEEDANCE_RES[String(b.res || "").trim()] || "1080p";
 
   if (isV2) {
