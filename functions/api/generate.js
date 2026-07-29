@@ -744,29 +744,12 @@ export function buildFluxPayload(b) {
 const FAL_QUEUE = "https://queue.fal.run/";
 const FAL_IMG_SIZE = { "1:1": "square_hd", "16:9": "landscape_16_9", "9:16": "portrait_16_9", "4:5": "portrait_4_3" };
 
-/* ── Kling (클링) fal.ai 폴백용 엔드포인트. 텍스트→영상 / 이미지→영상 (진짜 V2V는 Runway Aleph 사용) ── */
-const KLING_FAL = {
-  "Kling 3.0 Pro (텍스트→영상)": "fal-ai/kling-video/v3/pro/text-to-video",
-  "Kling 3.0 Pro (이미지→영상)": "fal-ai/kling-video/v3/pro/image-to-video",
-  "Kling 3.0 Fast (텍스트→영상)": "fal-ai/kling-video/v3/standard/text-to-video",
-  "Kling 3.0 Fast (이미지→영상)": "fal-ai/kling-video/v3/standard/image-to-video",
-  "Kling 2.1 Master (텍스트→영상)": "fal-ai/kling-video/v2.1/master/text-to-video",
-  "Kling 2.1 Master (이미지→영상)": "fal-ai/kling-video/v2.1/master/image-to-video",
-  "Kling 2.0 Master (텍스트→영상)": "fal-ai/kling-video/v2/master/text-to-video",
-  "Kling 2.0 Master (이미지→영상)": "fal-ai/kling-video/v2/master/image-to-video",
-  "Kling 1.6 Pro (텍스트→영상)": "fal-ai/kling-video/v1.6/pro/text-to-video",
-  "Kling 1.6 Pro (이미지→영상)": "fal-ai/kling-video/v1.6/pro/image-to-video",
-  "Kling 1.6 Standard (이미지→영상)": "fal-ai/kling-video/v1.6/standard/image-to-video",
-  "Kling 2.0": "fal-ai/kling-video/v2/master/image-to-video",
-  "Kling 1.6": "fal-ai/kling-video/v1.6/pro/image-to-video",
-};
+/* Kling 은 공식 오픈플랫폼 API 만 사용한다.
+   예전엔 fal.ai 경유 엔드포인트 표(KLING_FAL)와 그 페이로드 빌더를 두고 공식 키가 없을 때
+   폴백했는데, 같은 모델을 중개로 부르면 요금이 우리 단가표(공식 기준)와 달라지고
+   제공사 쪽 사용 이력도 갈라진다. 표·빌더째로 지워 다시 배선되지 않게 했다. */
 // 원본 프레임(영상 브리지)이 있으면 텍스트→영상이라도 이미지→영상으로 강제 (V2V 브리지)
 function hasSrcFrame(b) { return !!(b && (b.firstFrame || b.refImage || b.image_url)); }
-function klingModelId(b) {
-  let id = KLING_FAL[b.model] || "fal-ai/kling-video/v2/master/image-to-video";
-  if (hasSrcFrame(b) && /text-to-video/.test(id)) id = id.replace("text-to-video", "image-to-video");
-  return id;
-}
 
 /* ── Kling 공식 오픈플랫폼 API (직접 호출) — 환경변수 KLING_* 만 넣으면 우선 사용 ──
    AccessKey/SecretKey(JWT HS256) 방식 또는 단일 토큰(KLING_API_KEY) 방식 모두 지원. */
@@ -873,18 +856,6 @@ export function buildMotionPayload(b) {
   return p;
 }
 
-function buildKlingPayload(b) {
-  const id = klingModelId(b);
-  const p = { prompt: String(b.prompt || ""), duration: (Number(b.seconds) > 7 ? "10" : "5"), aspect_ratio: (b.ratio || "16:9") };
-  if (b.negative) p.negative_prompt = String(b.negative);
-  if (b.cfg != null) p.cfg_scale = Number(b.cfg);
-  if (/image-to-video/.test(id)) {
-    const img = b.firstFrame || b.refImage || b.image_url;
-    if (img) p.image_url = img;
-    if (b.lastFrame) p.tail_image_url = b.lastFrame;
-  }
-  return p;
-}
 const FAL_UNION_PATH = "Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro";
 const FAL_UNION_MODE = { canny: 0, tile: 1, depth: 2, blur: 3, pose: 4, gray: 5 };   // Union-Pro control_mode
 const _cl = (v, lo, hi, def) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : def; };
@@ -1559,9 +1530,13 @@ async function handle(context) {
         luma:     lumaOk,          // 키 유무가 아니라 "그 키가 실제로 통하는가"
         lumaKeySet: !!k.luma,      // 키 자체는 있는지(진단용) — 키는 있는데 luma:false 면 키가 거부된 것
         fal:      !!k.fal,
-        kling:    !!(klingCreds(env) || k.fal),
-        klingOfficial: !!klingCreds(env),   // true=클링 공식 API, false=공식키 없음(→ fal 폴백으로 감)
-        klingRoute: klingCreds(env) ? "official" : (k.fal ? "fal-fallback" : "none"),
+        /* 클링은 공식 오픈플랫폼 API 로만 나간다(중개 폴백 제거). fal 키가 있어도 대체되지 않으므로
+           공식 키가 없으면 여기서 false 를 돌려 스튜디오가 클링 모델을 아예 숨기게 한다.
+           예전엔 (klingCreds || fal) 로 답해, 공식 키가 없어도 모델이 목록에 남아 매번 실패했다. */
+        kling:    !!klingCreds(env),
+        klingOfficial: !!klingCreds(env),
+        klingRoute: klingCreds(env) ? "official" : "none",
+        ark3d:    !!k.seedance,   // 3D 메시(Hyper3D·Hitem3D) — 씨댄스와 같은 ModelArk 키
         v2vAuto:  !!(k.runway || k.seedance || k.fal),
         // 배포된 ByteDance 키 지문(값 노출 없이 회원 콘솔 키와 동일한지 대조용)
         seedanceKeyId: k.seedance ? (String(k.seedance).slice(0, 8) + "…" + String(k.seedance).slice(-4)) : null,
@@ -3613,20 +3588,10 @@ async function handle(context) {
         return url ? json({ url, kind: "video", videoId, videoProvider: "kling" })
                    : json({ status: "failed", error: "Kling: 결과 영상 URL 없음" });
       }
-      // 2순위(폴백): fal.ai 폴링
-      const task = u.searchParams.get("task");
-      const model = u.searchParams.get("model") || "";
-      if (!task || !model || !k.fal) return json({ status: "failed", error: "no task/model/key" }, 400);
-      const base = FAL_QUEUE + model + "/requests/" + encodeURIComponent(task);
-      const sr = await fetchT(base + "/status", { headers: { "Authorization": "Key " + k.fal } });
-      const sj = await sr.json().catch(() => ({}));
-      const st = String(sj.status || "").toUpperCase();
-      if (st === "FAILED" || sj.error) return json({ status: "failed", error: sj.error || "Kling 생성 실패" });
-      if (st !== "COMPLETED") return json({ status: (st || "IN_PROGRESS").toLowerCase() });
-      const rr = await fetchT(base, { headers: { "Authorization": "Key " + k.fal } });
-      const rj = await rr.json().catch(() => ({}));
-      const url = (rj.video && rj.video.url) || rj.url || (rj.output && rj.output.video && rj.output.video.url);
-      return url ? json({ url, kind: "video" }) : json({ status: "failed", error: "Kling: 결과에 영상 URL 없음" });
+      /* 예전엔 여기에 fal.ai 폴링 폴백이 있었다. 제출 자체가 공식 API 로만 나가게 바뀌어
+         새로 들어올 작업이 없고, model 을 쿼리로 받아 fal 로 중계하는 모양이라
+         남의 fal 작업을 우리 키로 조회하는 통로가 되기도 했다 → 없앴다. */
+      return json({ status: "failed", error: "Kling 연동이 설정되지 않았습니다(공식 API 키 필요)" }, 400);
     }
     return json({ error: "unknown provider" }, 400);
   }
@@ -3787,17 +3752,7 @@ async function handle(context) {
           return json({ statusUrl: "/api/generate?provider=kling&task=" + encodeURIComponent(j.data.task_id) + "&ep=image2video", routed: "kling_bridge" });
         if (!k.fal) return json({ error: "V2V 브리지(Kling) 실패: " + String(j.message || JSON.stringify(j)).slice(0, 200) }, 502);
       }
-      if (k.fal) {
-        const model = klingModelId(kb);
-        const r = await fetchT(FAL_QUEUE + model, {
-          method: "POST", headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
-          body: JSON.stringify(buildKlingPayload(kb))
-        });
-        const j = await r.json().catch(() => ({}));
-        const reqId = j.request_id || j.requestId;
-        if (r.ok && reqId) return json({ statusUrl: "/api/generate?provider=kling&task=" + encodeURIComponent(reqId) + "&model=" + encodeURIComponent(model), routed: "kling_bridge_fal" });
-        return json({ error: "V2V 브리지(fal Kling) 실패: " + String(j.error || JSON.stringify(j)).slice(0, 200) }, 502);
-      }
+      /* 클링 브리지도 공식 API 로만 간다(위 분기). fal 경유는 같은 모델을 중개로 부르는 것이라 없앴다. */
     }
 
     return json({ error: "V2V(영상→영상)를 하려면 Runway·Seedance(최고정확도) 또는 Kling·fal 중 하나 이상의 키가 필요합니다." }, 500);
@@ -4494,19 +4449,11 @@ async function handle(context) {
       }
       return json({ error: "Kling: " + lastMsg.slice(0, 220) }, 502);
     }
-    // 2순위(폴백): fal.ai 경유 (FAL_KEY 있을 때만)
-    if (!k.fal) return json({ error: "Kling 연동이 설정되지 않았습니다. 환경변수 KLING_ACCESS_KEY·KLING_SECRET_KEY(또는 KLING_API_KEY) 를 넣어주세요." }, 500);
-    const model = klingModelId(b);
-    const r = await fetchT(FAL_QUEUE + model, {
-      method: "POST",
-      headers: { "Authorization": "Key " + k.fal, "Content-Type": "application/json" },
-      body: JSON.stringify(buildKlingPayload(b))
-    });
-    const j = await r.json().catch(() => ({}));
-    const reqId = j.request_id || j.requestId;
-    if (!r.ok || !reqId)
-      return json({ error: "Kling: " + (JSON.stringify(j.detail || j.error || j) || "").slice(0, 200) }, 502);
-    return json({ statusUrl: "/api/generate?provider=kling&task=" + encodeURIComponent(reqId) + "&model=" + encodeURIComponent(model) });
+    /* 예전엔 여기서 fal.ai 를 경유해 같은 클링 모델을 불렀다. 지금은 하지 않는다 —
+       클링은 공식 오픈플랫폼 API 를 직접 연동해 두었고, 같은 모델을 제공하는 중개(fal)로
+       나가면 ①요금이 우리 단가표(공식 기준)와 달라지고 ②제공사 쪽 사용 이력이 갈라진다.
+       공식 키가 없으면 조용히 우회하지 말고 설정하라고 알린다. */
+    return json({ error: "Kling 연동이 설정되지 않았습니다. 환경변수 KLING_ACCESS_KEY·KLING_SECRET_KEY(또는 KLING_API_KEY) 를 넣어주세요." }, 500);
   }
 
   return json({ error: "지원하지 않는 provider: " + provider + " (runway/runway_aleph/xai/google/seedance/flux/hailuo/luma/kling)" }, 400);
