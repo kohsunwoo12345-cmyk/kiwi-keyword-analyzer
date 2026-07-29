@@ -5001,7 +5001,8 @@ function captionVideo(src, opts, onProg){
     var tm=setTimeout(function(){ if(!done){ done=true; cleanup(); reject(new Error('처리 시간 초과')); } }, 600000);
     function cleanup(){ try{ if(actx) actx.close(); }catch(_){} try{ v.src=''; }catch(_){} }
     v.addEventListener('loadedmetadata',function(){
-      var W=v.videoWidth||1280, H=v.videoHeight||720, dur=v.duration||0;
+      var W=v.videoWidth||1280, H=v.videoHeight||720;
+      var dur=isFinite(v.duration)?v.duration:0;   // 길이를 못 읽어도 '길이 Infinity초' 로 표시되지 않게
       var c=document.createElement('canvas'); c.width=W; c.height=H;
       var ctx=c.getContext('2d');
       var fps=30, stream=c.captureStream(fps), hasAudio=false;
