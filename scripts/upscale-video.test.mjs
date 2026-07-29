@@ -15,7 +15,10 @@
  * (검사가 자기 설명문을 읽고 안심하지 않도록 주석을 먼저 지운다 — 예전에 그 함정에 빠진 적이 있다)
  */
 import fs from 'node:fs'
-const ROOT = '/home/user/kiwi-keyword-analyzer/'
+/* 저장소 위치는 체크아웃마다 다르다 — 배포 서버는 /home/user 가 아니다.
+   빌드가 npm test 를 먼저 돌리므로, 경로를 박아 두면 그 서버에서 테스트가 파일을 못 찾아
+   빌드 자체가 죽는다. 이 파일 위치에서 저장소 뿌리를 구한다. */
+const ROOT = new URL('../', import.meta.url).pathname
 const raw = fs.readFileSync(ROOT + 'public/studio-nvc-prv-8b3k2/index.html', 'utf8')
 const src = raw.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/[^\n]*/gm, ' ')
 
