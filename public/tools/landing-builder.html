@@ -1159,8 +1159,15 @@ async function saveAndDeploy() {
     return
   }
 
-  // 저장 전 항상 iframe DOM에서 최신 HTML 추출 (프리뷰에서 직접 편집한 내용 반영)
-  spSyncIframeToEditor()
+  // 저장 전, 프리뷰에서 직접 고친 내용이 있으면 그것만 끌어온다.
+  // ⚠ 예전에는 조건 없이 spSyncIframeToEditor() 를 불렀다. 그 함수는 iframe 의 DOM 을
+  //   htmlEditor 에 "덮어쓴다". HTML 편집기에 코드를 쓰고 프리뷰(400ms 디바운스)가
+  //   따라오기 전에 저장을 누르면, 방금 쓴 내용이 예전 프리뷰 DOM 으로 덮여 사라졌다.
+  //   실제로 편집기에 통짜 HTML 을 넣고 바로 저장했더니
+  //   <!DOCTYPE html><html><head></head><body></body></html> 55자만 저장됐다.
+  //   _spDirty 는 "프리뷰 쪽에 아직 편집기로 안 넘어온 수정이 있다" 는 뜻이고,
+  //   updatePreview() 는 이미 이 조건으로 동기화한다. 저장도 같은 기준을 쓴다.
+  if (_spDirty) { spSyncIframeToEditor(); _spDirty = false }
 
   let html_content = spNormalizeAllowedCdnHtml(document.getElementById('htmlEditor').value)
   const og_title = document.getElementById('ogTitle').value.trim()
