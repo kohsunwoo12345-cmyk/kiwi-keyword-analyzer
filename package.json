@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit && tsc -p functions --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p functions --noEmit",
+    "test:pricing": "node scripts/pricing.test.mjs"
   },
   "dependencies": {
     "@types/node": "^20",
@@ -27,6 +28,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260702.1",
     "eslint": "^8",
-    "eslint-config-next": "14.2.35"
+    "eslint-config-next": "14.2.35",
+    "esbuild": "^0.28.1"
   }
 }
