@@ -121,6 +121,38 @@ for(const lang of ALL){
      live.count ? `${live.count}곳 (예: "${live.found[0].t}")` : `노드 ${live.types}종 전부 번역 표시`)
 }
 
+// ── 노드 밖(메뉴·툴바·대화상자 등) 화면 전체도 본다 ──
+//  화면에 실제로 보이는(숨겨지지 않은) 글자만 센다 — 숨은 대화상자까지 세면 뜻이 흐려진다.
+const whole = await page.evaluate(async () => {
+  const C = window.__cn
+  C.applyLang('en'); await new Promise(k=>setTimeout(k,400))
+  const vis = (el) => { for(let e=el; e && e!==document.body; e=e.parentElement){
+      const s=getComputedStyle(e)
+      if(s.display==='none'||s.visibility==='hidden'||s.opacity==='0') return false } return true }
+  const found=[]
+  const w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null)
+  let n
+  while((n=w.nextNode())){
+    const t=(n.nodeValue||'').trim()
+    if(!/[가-힣]/.test(t)) continue
+    const el=n.parentElement; if(!el) continue
+    if(el.closest('script,style')) continue
+    if(!vis(el)) continue
+    found.push({ t: t.slice(0,60), where: (el.id?('#'+el.id):'')+(el.className&&typeof el.className==='string'?('.'+el.className.split(' ')[0]):'') })
+  }
+  return { found: found.slice(0,30), count: found.length }
+}).catch(e=>({ err:String(e&&e.message||e).slice(0,120) }))
+if(whole.err) ok('영어 화면 전체(메뉴·툴바 포함)에 한국어가 남지 않음', false, whole.err)
+else {
+  if(whole.count){
+    console.log(`영어 화면 전체에 남은 한국어 ${whole.count}곳 (앞 30개):`)
+    whole.found.forEach(x=>console.log(`   ${x.where.padEnd(24)} "${x.t}"`))
+    console.log('')
+  }
+  ok('영어 화면 전체(메뉴·툴바 포함)에 한국어가 남지 않음', whole.count===0,
+     whole.count ? `${whole.count}곳 (예: "${whole.found[0].t}")` : '보이는 글자 전부 번역됨')
+}
+
 ok('페이지 오류 없음', errs.length===0, errs.slice(0,2).join(' | ')||'없음')
 
 await browser.close(); server.close()

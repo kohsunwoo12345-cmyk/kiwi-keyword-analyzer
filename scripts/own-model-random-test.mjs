@@ -64,6 +64,10 @@ for(const k of ['grad','flat']) cases.push({ i: cases.length, w: ri(200,900), h:
   kind: k, shape: 'seam', mode: pick([{scale:2},{scale:4},{longTarget:3840}]), seed: ri(1,1e9) })
 cases.push({ i: cases.length, w: ri(60,400), h: ri(60,300),
   kind: 'alpha', shape: 'alpha', mode: pick([{scale:2},{scale:4}]), seed: ri(1,1e9) })
+// 아주 큰 사진(수천만 픽셀)은 캔버스·메모리 한계에 걸린다. 그때 터지지 않고 규칙대로
+//  줄여서 내놓는지 반드시 확인한다(사용자가 DSLR 사진을 그대로 올리는 경우).
+cases.push({ i: cases.length, w: pick([4000,5000,6000]), h: pick([3000,3400,4000]),
+  kind: pick(['circles','lines']), shape: '초대형', mode: pick([{scale:2},{scale:4},{longTarget:5120}]), seed: ri(1,1e9) })
 
 // ── 기대 출력 크기를 '규칙' 으로 따로 계산한다 (스튜디오 코드를 베끼지 않고 사양대로) ──
 //  · 배율 지정: 원본 × 배율
@@ -355,6 +359,47 @@ const swBad = sweep.filter(s=> s.st>=4 ? s.d<=0 : s.d<-0.25)
 ok('선 간격 전 구간에서 기대대로 (4px 이상은 이기고, 그 아래도 크게 지지 않음)', swBad.length===0,
    swBad.length ? swBad.map(s=>`${s.st}px ${s.d}dB`).join(' , ')
                 : sweep.map(s=>`${s.st}px ${s.d>=0?'+':''}${s.d}`).join(' · '))
+
+// ── 동시에 여러 개를 돌려도 서로 망가뜨리지 않는가 ──
+//  사용자는 노드 여러 개의 실행 버튼을 연달아 누른다. 모델 세션을 함께 쓰므로
+//  순서대로 돌린 결과와 한꺼번에 돌린 결과가 완전히 같아야 한다.
+const conc = await page.evaluate(async () => {
+  const T = window.__rt
+  const srcs = [T.draw(300,200,11,0), T.draw(260,180,22,0), T.draw(340,220,33,0)].map(c=>c.toDataURL('image/png'))
+  const seq = []
+  for(const s of srcs) seq.push(await window.__cn.upscaleImageURL(s, 2))
+  let par
+  try{ par = await Promise.all(srcs.map(s=>window.__cn.upscaleImageURL(s, 2))) }
+  catch(e){ return { err: String(e&&e.message||e).slice(0,120) } }
+  const px = async (u) => { const img=await T.load(u); const c=T.toCanvas(img)
+    return { w:c.width, h:c.height, d:c.getContext('2d').getImageData(0,0,c.width,c.height).data } }
+  let worst=0, dimBad=0
+  for(let i=0;i<srcs.length;i++){
+    const a=await px(seq[i].url), b=await px(par[i].url)
+    if(a.w!==b.w || a.h!==b.h){ dimBad++; continue }
+    for(let j=0;j<a.d.length;j+=4) for(let k=0;k<3;k++){ const dd=Math.abs(a.d[j+k]-b.d[j+k]); if(dd>worst) worst=dd }
+  }
+  return { worst, dimBad, n:srcs.length }
+})
+ok('동시에 여러 개를 돌려도 결과가 같음', !conc.err && conc.dimBad===0 && conc.worst===0,
+   conc.err ? conc.err : (conc.dimBad ? `${conc.dimBad}건 크기가 다름` : `${conc.n}건 · 픽셀 최대차 ${conc.worst}`))
+
+// ── 반복해서 써도 메모리가 계속 쌓이지 않는가 ──
+//  많이 쓰는 사용자의 탭이 무거워지다 죽는 일이 없어야 한다.
+const mem = await page.evaluate(async () => {
+  if(!performance.memory) return { skip:true }
+  const T = window.__rt
+  const src = T.draw(420, 300, 77, 0).toDataURL('image/png')
+  for(let i=0;i<3;i++) await window.__cn.upscaleImageURL(src, 2)      // 예열
+  const before = performance.memory.usedJSHeapSize
+  for(let i=0;i<20;i++) await window.__cn.upscaleImageURL(src, 2)
+  await new Promise(k=>setTimeout(k,1200))
+  const after = performance.memory.usedJSHeapSize
+  return { beforeMB:+(before/1048576).toFixed(1), afterMB:+(after/1048576).toFixed(1),
+           growMB:+((after-before)/1048576).toFixed(1) }
+})
+ok('20번 반복해도 메모리가 크게 쌓이지 않음', mem.skip || mem.growMB < 120,
+   mem.skip ? '이 브라우저는 메모리 측정 미지원(건너뜀)' : `${mem.beforeMB}MB → ${mem.afterMB}MB (증가 ${mem.growMB}MB)`)
 
 // ── 영상도 무작위 크기로 ──
 const vw = ri(60,160)*2, vh = ri(40,100)*2
