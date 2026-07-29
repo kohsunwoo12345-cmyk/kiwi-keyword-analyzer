@@ -4607,6 +4607,19 @@ function upscaleVideoURL(src,scale,onProg,opts){
         //  그때 통째로 실패시키면 초해상까지 버려지므로, 한 단계씩 줄여 가며 되는 크기를 찾는다.
         //  줄인 경우에는 숨기지 않고 '실제로 몇 px 로 나왔는지' 를 알려준다.
         var out, octx, stream, track, rec, sizeNote='';
+        // ⚠ 영상은 '실시간 속도' 로 인코딩해야 길이가 원본과 같아진다(안 그러면 슬로모션이 된다).
+        //   브라우저 인코더가 실시간으로 감당하는 한계를 실측했다:
+        //     2560×1440(369만) 정상 · 2880×1620(467만) 길이 어긋남 · 3200×1800(576만) 사실상 실패
+        //     3840×2160(829만) 0바이트 — 영상이 아예 안 만들어짐
+        //   그래서 영상은 이 한계 안으로 낮추고, 낮췄다는 사실을 숨기지 않고 알린다.
+        //   (사진은 해당 없음 — 4K·5K 그대로 나온다)
+        var VID_MAX_PIX=3.6e6;
+        if(tw*th > VID_MAX_PIX){
+          var _vs=Math.sqrt(VID_MAX_PIX/(tw*th));
+          var _ntw=Math.max(2, Math.round(tw*_vs/2)*2), _nth=Math.max(2, Math.round(th*_vs/2)*2);
+          sizeNote='영상은 브라우저가 실시간으로 만들 수 있는 크기까지만 가능합니다 → '+_ntw+'×'+_nth+'로 맞췄습니다(요청 '+tw+'×'+th+'). 사진은 4K·5K 그대로 됩니다.';
+          tw=_ntw; th=_nth;
+        }
         (function build(){
           for(var tryN=0; tryN<3; tryN++){
             try{
@@ -4654,22 +4667,80 @@ function upscaleVideoURL(src,scale,onProg,opts){
         };
         try{ rec.start(2000); }catch(e){ try{ rec.start(); }catch(e2){ return fallback('레코더 시작 실패'); } }   // 2초마다 청크 flush
         var total=Math.max(1, Math.round(clip*FPS)), idx=0;
+        // ⚠ 녹화기는 프레임에 '만들어진 시각' 이 아니라 '도착한 시각' 을 찍는다.
+        //   프레임마다 초해상에 시간이 걸리므로, 그대로 흘려보내면 결과가 슬로모션이 된다
+        //   (실측: 0.9초 영상이 7.1초로 늘어남).
+        //   그래서 ① 녹화를 멈춘 채 한 묶음을 처리해 압축 보관하고
+        //          ② 녹화를 재개해 '진짜 초당 프레임 수' 속도로 되뿌린 뒤 다시 멈춘다.
+        //   멈춘 동안의 시간은 결과에 들어가지 않으므로 길이가 원본과 같아진다.
+        //   묶음 크기는 화면이 클수록 줄여 메모리를 묶어둔다(4K 20장 ≈ 20MB).
+        var CHUNK=Math.max(20, Math.min(240, Math.round(1.6e8/Math.max(1,tw*th))));
+        var pending=[];
         function seekTo(t){ return new Promise(function(res){ var done2=false; function on(){ if(done2)return; done2=true; v.removeEventListener('seeked',on); res(); } v.addEventListener('seeked',on); setTimeout(on,8000); try{ v.currentTime=Math.min(t, Math.max(0,(dur||clip)-0.02)); }catch(e){ on(); } }); }
         // 프레임 워치독: SR 이 90초 넘으면 null(→ 리샘플 대체) 로 넘겨 절대 멈추지 않게.
         function srFrame(){ return new Promise(function(res){ var to=setTimeout(function(){ res(null); },90000); _srCanvas2(runner, frameC).then(function(c){ clearTimeout(to); res(c); }, function(){ clearTimeout(to); res(null); }); }); }
-        function step(){
-          if(settled)return;
-          if(idx>=total){ setTimeout(function(){ try{rec.stop();}catch(e){} },200); return; }
-          seekTo(idx/FPS).then(function(){ try{ fctx.drawImage(v,0,0,sw,sh); }catch(e){} return srFrame(); })
+        // ① 한 프레임을 초해상해 압축 보관한다(녹화는 멈춘 상태)
+        function makeFrame(){
+          return seekTo(idx/FPS).then(function(){ try{ fctx.drawImage(v,0,0,sw,sh); }catch(e){} return srFrame(); })
             .then(function(srC){
               octx.clearRect(0,0,tw,th);
               if(srC){ octx.drawImage(srC,0,0,tw,th); } else { srFail++; try{ octx.drawImage(v,0,0,tw,th); }catch(e){} }  // 실패 프레임은 리샘플로 채움
-              try{ track.requestFrame(); }catch(e){}
-              idx++; if(onProg)onProg(idx/total); setTimeout(step,0);
+              return new Promise(function(res){
+                try{ out.toBlob(function(bb){ if(bb) return res(bb); try{ out.toBlob(res,'image/png'); }catch(e2){ res(null); } }, 'image/webp', 0.92); }
+                catch(e){ res(null); }
+              });
             })
-            .catch(function(){ idx++; if(onProg)onProg(idx/total); setTimeout(step,0); });
+            .then(function(bb){ pending.push(bb); idx++; if(onProg)onProg(idx/total); })
+            .catch(function(){ idx++; if(onProg)onProg(idx/total); });
         }
-        step();
+        // ② 보관해 둔 묶음을 '진짜 속도' 로 되뿌리며 녹화한다
+        function playChunk(){
+          if(!pending.length) return Promise.resolve();
+          var blobs=pending; pending=[];
+          // ⚠ 묶음을 통째로 풀어놓으면 안 된다 — 4K 한 장이 33MB 라 20장이면 660MB 다.
+          //   실제로 그렇게 했더니 4K 영상이 통째로 깨져 나왔다(재생 크기 0×0).
+          //   그래서 '몇 장 앞' 까지만 미리 풀고, 쓴 것은 바로 버린다.
+          var AHEAD=Math.max(2, Math.min(8, Math.round(2.4e7/Math.max(1,tw*th))));
+          var dec=new Array(blobs.length).fill(null);
+          function want(i){
+            for(var k=i;k<Math.min(blobs.length,i+AHEAD);k++){
+              if(!dec[k] && blobs[k]) dec[k]=createImageBitmap(blobs[k]).catch(function(){ return null; });
+            }
+          }
+          want(0);
+          return Promise.resolve(dec[0]).then(function(){
+            try{ rec.resume(); }catch(e){}
+            return new Promise(function(res){
+              var start=performance.now(), j=0;
+              (function tick(){
+                if(j>=blobs.length){ setTimeout(function(){ try{ rec.pause(); }catch(e){} res(); }, Math.round(1000/FPS)+20); return; }
+                var wait=(start+j*1000/FPS)-performance.now();
+                setTimeout(function(){
+                  var p=dec[j]; want(j+1);
+                  Promise.resolve(p).then(function(bm){
+                    if(bm){ try{ octx.clearRect(0,0,tw,th); octx.drawImage(bm,0,0); }catch(e){}
+                            try{ bm.close&&bm.close(); }catch(e){} }
+                    dec[j]=null; blobs[j]=null;                     // 바로 버려 메모리를 비운다
+                    try{ track.requestFrame(); }catch(e){}          // 이 순간이 그 프레임의 시각이 된다
+                    j++; tick();
+                  });
+                }, wait>0?wait:0);
+              })();
+            });
+          });
+        }
+        function runChunk(){
+          if(settled)return;
+          if(idx>=total){ playChunk().then(function(){ setTimeout(function(){ try{rec.stop();}catch(e){} },200); }); return; }
+          var target=Math.min(total, idx+CHUNK);
+          (function next(){
+            if(settled)return;
+            if(idx>=target){ playChunk().then(function(){ setTimeout(runChunk,0); }); return; }
+            makeFrame().then(function(){ setTimeout(next,0); });
+          })();
+        }
+        try{ rec.pause(); }catch(e){}      // 처리하는 동안은 녹화 시간이 흐르지 않게
+        runChunk();
       }).catch(function(err){ fallback(String((err&&err.message)||err)); });   // 모델 불가 → 실시간 리샘플 폴백
     });
     v.addEventListener('error',function(){ if(!settled){ settled=true; reject(new Error('영상 로드 실패')); } });

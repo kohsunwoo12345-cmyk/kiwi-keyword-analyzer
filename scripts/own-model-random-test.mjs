@@ -58,9 +58,12 @@ for(let i=0;i<N;i++){
   const mode = pick([{scale:2},{scale:2},{scale:4},{longTarget:3840},{longTarget:5120}])
   cases.push({ i, w, h, kind: pick(KINDS), shape, mode, seed: ri(1,1e9) })
 }
-// 이음매 검사는 '매끈하고 충분히 큰 그림' 에서만 뜻이 있다 → 씨앗 운에 맡기지 말고 반드시 넣는다
+// 어떤 검사는 특정 종류의 그림이 있어야만 뜻이 있다(이음매=매끈하고 큰 그림, 투명도=투명 그림).
+//  씨앗 운에 맡기면 그 종류가 한 번도 안 뽑혀 '검사한 게 0건' 이 된다 → 반드시 넣는다.
 for(const k of ['grad','flat']) cases.push({ i: cases.length, w: ri(200,900), h: ri(120,600),
   kind: k, shape: 'seam', mode: pick([{scale:2},{scale:4},{longTarget:3840}]), seed: ri(1,1e9) })
+cases.push({ i: cases.length, w: ri(60,400), h: ri(60,300),
+  kind: 'alpha', shape: 'alpha', mode: pick([{scale:2},{scale:4}]), seed: ri(1,1e9) })
 
 // ── 기대 출력 크기를 '규칙' 으로 따로 계산한다 (스튜디오 코드를 베끼지 않고 사양대로) ──
 //  · 배율 지정: 원본 × 배율

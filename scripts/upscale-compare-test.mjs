@@ -222,11 +222,17 @@ for (const scale of [2, 4]) {
     return { ms, dim: res.dim, w: v.videoWidth, h: v.videoHeight, engine: res.engine,
              fallback: !!res.fallback, note: res.note || '', fps: res.fps }
   })
-  ok('영상 4K — 결과가 실제로 4K 크기', vid4k.w === 3840 && vid4k.h === 2160,
-     `${vid4k.dim} → 재생 크기 ${vid4k.w}×${vid4k.h} (${vid4k.ms}ms)`)
+  // ⚠ 4K 영상은 브라우저가 실시간으로 인코딩하지 못한다(실측: 3840×2160 은 0바이트가 나온다).
+  //   실시간으로 못 만들면 프레임 시각이 '처리에 걸린 시간' 으로 찍혀 슬로모션이 된다.
+  //   그래서 감당 가능한 크기로 낮추는 것이 정답이다 — 단, 낮춘 사실을 반드시 알려야 한다.
+  //   (사진 4K 는 그대로 3840×2160 으로 나온다 — 바로 위 검사에서 확인)
+  const vidRatio = (960/540), outRatio = vid4k.h ? vid4k.w/vid4k.h : 0
+  ok('영상 4K — 실제로 재생되는 영상이 나옴(인코더 한계 안)',
+     vid4k.w > 0 && vid4k.h > 0 && vid4k.w*vid4k.h <= 3.7e6,
+     `${vid4k.dim} → 재생 크기 ${vid4k.w}×${vid4k.h} (${(vid4k.w*vid4k.h/1e6).toFixed(2)}M · ${vid4k.ms}ms)`)
+  ok('영상 4K — 화면 비율이 그대로', Math.abs(outRatio - vidRatio) < 0.02, `${outRatio.toFixed(3)} vs 원본 ${vidRatio.toFixed(3)}`)
   ok('영상 4K — AI 초해상으로 처리', vid4k.fallback === false, vid4k.engine)
-  ok('영상 4K — 낮춰졌다면 숨기지 않고 알림',
-     (vid4k.w === 3840) || /낮췄습니다/.test(vid4k.note), vid4k.note || '낮추지 않음')
+  ok('영상 4K — 낮췄다는 사실을 숨기지 않고 알림', /낮췄습니다|맞췄습니다/.test(vid4k.note), vid4k.note || '(안내 없음)')
 }
 
 // ── 2-c) 초해상에 '원본 그대로' 가 들어가는가 (여기가 화질을 좌우한다) ──
