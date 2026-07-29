@@ -317,7 +317,7 @@ export default function NoticesPage() {
                 </div>
                 {target === 'visitors' && (
                   <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50/50 p-2.5">
-                    <p className="text-[11px] leading-relaxed text-blue-700">홈페이지·랜딩에 <b>접속한 모든 사람(비회원 포함)</b>에게 접속 즉시 하단→상단 슬라이드 팝업으로 표시됩니다.</p>
+                    <p className="text-[11px] leading-relaxed text-blue-700">홈페이지·랜딩에 <b>접속한 모든 사람 — 로그인한 회원과 비회원 모두</b>에게 접속 즉시 표시됩니다. (일반은 하단 슬라이드 팝업, 강력 알림은 화면 정중앙)</p>
                     <label className="mb-1 mt-2 block text-[11px] font-semibold text-[var(--text-dim)]">특정 랜딩 경로만 (선택 · 비우면 전체 페이지)</label>
                     <input value={scopePath} onChange={(e) => setScopePath(e.target.value)} placeholder="예) /f/f-abc123 (우리 빌더로 만든 랜딩 경로)" className="input w-full text-xs" />
 
@@ -336,6 +336,7 @@ export default function NoticesPage() {
                           </span>
                           <span className="mt-0.5 block text-[11px] leading-relaxed text-amber-700">
                             접속 즉시 <b>화면 정중앙</b>에 가림막과 함께 크게 띄웁니다(하단 팝업 아님).
+                            <b>비회원·회원 모두</b>에게 뜹니다 — 로그인한 회원이 대시보드를 쓰는 중에도 노출됩니다.
                             사진·영상이 그대로 재생되고, CTA 버튼은 스크롤과 무관하게 항상 보입니다.
                           </span>
                         </span>

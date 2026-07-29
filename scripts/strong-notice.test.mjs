@@ -37,6 +37,7 @@ const ok = (cond, name, detail = '') => {
    notice_campaigns / notice_visitor_events / notice_snoozes 만 흉내 낸다.
    ALTER TABLE 로 붙는 컬럼(strong·snooze_days 등)은 행 객체에 기본값으로 넣어 둔다. */
 function makeDB(sessionUser) {
+  let who = sessionUser          // 지금 이 요청을 보낸 사람(관리자 발송 → 방문 로 바꿔 가며 쓴다)
   const camps = new Map()
   const events = new Map()   // "campaign|visitor|kind" → row  (실제 UNIQUE INDEX 와 같은 열쇠)
   const snoozes = new Map()  // "campaign|visitor" → row
@@ -57,7 +58,7 @@ function makeDB(sessionUser) {
           if (/FROM notice_campaigns WHERE id/i.test(s)) return camps.get(b[0]) || null
           if (/COUNT\(\*\).*FROM notice_snoozes/i.test(s))
             return { n: [...snoozes.values()].filter((r) => r.campaign_id === b[0]).length }
-          if (/FROM users|session/i.test(s)) return sessionUser
+          if (/FROM users|session/i.test(s)) return who
           return null
         },
         all: async () => {
@@ -123,6 +124,8 @@ function makeDB(sessionUser) {
     exec: async () => ({}),
     dump: async () => new ArrayBuffer(0),
     __camps: camps, __events: events, __snoozes: snoozes,
+    //  발송은 관리자로, 방문은 회원/비회원으로 — 같은 DB 에서 사람만 바꿔 끼운다
+    __as(u) { who = u; return this },
   }
 }
 
@@ -142,15 +145,18 @@ async function send(db, payload) {
   const res = await adminNotices.onRequestPost(ctx(db, request))
   return { status: res.status, body: await res.json() }
 }
-async function visit(db, { path = '/', visitor = 'vz_1' } = {}) {
-  const request = new Request(`https://bygency.com/api/public-notices?path=${encodeURIComponent(path)}&visitor=${visitor}`)
+/* loggedIn=true 면 세션 쿠키를 실어 보낸다 — 로그인한 회원이 접속한 상황이다.
+   쿠키가 없으면 서버는 비회원으로 분류하므로, 회원/비회원 집계를 보려면 이 구분이 필요하다. */
+async function visit(db, { path = '/', visitor = 'vz_1', loggedIn = false } = {}) {
+  const request = new Request(`https://bygency.com/api/public-notices?path=${encodeURIComponent(path)}&visitor=${visitor}`,
+    loggedIn ? { headers: { cookie: 'bg_session=fake' } } : undefined)
   const res = await publicNotices.onRequestGet(ctx(db, request))
   return (await res.json()).notices || []
 }
-async function act(db, { campaignId, visitor = 'vz_1', kind, days, path = '/' }) {
+async function act(db, { campaignId, visitor = 'vz_1', kind, days, path = '/', loggedIn = false }) {
   const request = new Request('https://bygency.com/api/public-notices', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', origin: 'https://bygency.com' },
+    headers: { 'content-type': 'application/json', origin: 'https://bygency.com', ...(loggedIn ? { cookie: 'bg_session=fake' } : {}) },
     body: JSON.stringify({ campaignId, visitor, kind, days, path }),
   })
   const res = await publicNotices.onRequestPost(ctx(db, request))
@@ -302,7 +308,41 @@ console.log('\n⑥ 강력 알림은 "접속 전체" 집행에서만 쓸 수 있�
   ok(seen[0] && seen[0].strong === false, '일반 팝업은 strong=false 로 내려간다 → 하단 토스트')
 }
 
-console.log('\n⑦ 화면 쪽 구현이 요구를 지키는지 (정중앙 · 미디어 재생 · 보지 않기)')
+console.log('\n⑦ 비회원과 로그인한 회원 모두에게 나가고, 성과가 따로 집계된다')
+{
+  const MEMBER = { id: 'u9', user_id: 'u9', email: 'mem@x.co', name: '회원', role: 'user', expires_at: '2099-01-01T00:00:00Z' }
+  //  ⓐ 로그인한 회원 — 세션이 있으면 회원으로 분류돼야 한다
+  {
+    const db = makeDB(ADMIN)
+    const r = await send(db, { ...AD, endAt: new Date(Date.now() + 30 * 86400000).toISOString() })
+    db.__as(MEMBER)                                   // 여기부터는 로그인한 회원이 접속한 상황
+    const seen = await visit(db, { visitor: 'vz_member', loggedIn: true })
+    ok(seen.length === 1 && seen[0].strong === true, 'ⓐ 로그인한 회원에게도 강력 알림이 나간다', `${seen.length}건`)
+    await act(db, { campaignId: r.body.campaignId, visitor: 'vz_member', kind: 'convert', loggedIn: true })
+    const st = await statsOf(db, r.body.campaignId)
+    ok(st.views.members === 1 && st.views.guests === 0, 'ⓐ 회원 노출로 집계된다', JSON.stringify(st.views))
+    ok(st.conversions.members === 1, 'ⓐ 회원 전환으로 집계된다', JSON.stringify(st.conversions))
+  }
+  //  ⓑ 비회원 — 세션이 없으면 비회원으로 분류돼야 한다
+  {
+    const db = makeDB(ADMIN)
+    const r = await send(db, { ...AD, endAt: new Date(Date.now() + 30 * 86400000).toISOString() })
+    db.__as(null)                                     // 여기부터는 로그인하지 않은 방문자
+    const seen = await visit(db, { visitor: 'vz_guest' })
+    ok(seen.length === 1 && seen[0].strong === true, 'ⓑ 비회원에게도 강력 알림이 나간다', `${seen.length}건`)
+    const st = await statsOf(db, r.body.campaignId)
+    ok(st.views.guests === 1 && st.views.members === 0, 'ⓑ 비회원 노출로 집계된다', JSON.stringify(st.views))
+  }
+  /* 화면 쪽: 회원 콘솔에서도 강력 알림이 떠야 한다.
+     예전에는 /dashboard 로 시작하는 경로를 통째로 건너뛰어, 로그인한 회원은 집행을 한 번도 못 봤다. */
+  const pop = fs.readFileSync('components/PublicNoticePopups.tsx', 'utf8')
+  //  "|| isMemberConsole" 처럼 뒤에 조건이 붙으면 회원 콘솔이 다시 통째로 빠진다 — 줄 끝까지 본다.
+  ok(/const skip = isAdminConsole\s*$/m.test(pop), '관리자 콘솔만 제외한다(회원 콘솔을 통째로 건너뛰지 않는다)',
+     (/const skip = .*/.exec(pop) || [''])[0])
+  ok(/isMemberConsole \? \[\]/.test(pop), '회원 콘솔에서는 일반 토스트만 빼고 강력 알림은 띄운다')
+}
+
+console.log('\n⑧ 화면 쪽 구현이 요구를 지키는지 (정중앙 · 미디어 재생 · 보지 않기)')
 {
   const pop = fs.readFileSync('components/PublicNoticePopups.tsx', 'utf8')
   const media = fs.readFileSync('components/NoticeMedia.tsx', 'utf8')

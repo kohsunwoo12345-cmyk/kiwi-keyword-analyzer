@@ -38,8 +38,14 @@ export function PublicNoticePopups() {
   const [closing, setClosing] = useState<Record<string, boolean>>({})
   const [shown, setShown] = useState(false)
 
-  // 회원 전용 콘솔(대시보드/관리자)에서는 회원용 팝업이 따로 뜨므로 제외
-  const skip = pathname.startsWith('/dashboard') || pathname.startsWith('/adminsunkoh')
+  /* ── 어디까지 띄울지 ──
+     관리자 콘솔은 완전히 제외한다 — 광고를 만드는 화면을 그 광고가 가로막으면 일을 못 한다.
+     회원 콘솔(대시보드)에서는 "강력 알림" 만 띄운다. 광고 집행은 비회원뿐 아니라 회원도 봐야 하는데,
+     예전에는 콘솔 경로를 통째로 건너뛰어 로그인한 회원은 집행을 한 번도 보지 못했다.
+     일반 토스트는 콘솔에 회원 전용 팝업(NoticePopups)이 따로 있어 겹치므로 콘솔에서는 계속 뺀다. */
+  const isAdminConsole = pathname.startsWith('/adminsunkoh')
+  const isMemberConsole = pathname.startsWith('/dashboard')
+  const skip = isAdminConsole
 
   const poll = useCallback(() => {
     if (skip) return
@@ -103,7 +109,8 @@ export function PublicNoticePopups() {
   /* 강력 알림은 화면을 가로막으므로 한 번에 하나만 띄운다(가장 최근 집행).
      나머지는 예전처럼 하단 토스트로 쌓인다 — 두 종류가 동시에 떠도 서로 가리지 않는다. */
   const strongOne = items.find((n) => n.strong)
-  const toasts = items.filter((n) => n !== strongOne).slice(0, 3)
+  //  회원 콘솔에서는 광고(강력 알림)만 — 일반 토스트는 콘솔 자체 팝업과 겹친다
+  const toasts = isMemberConsole ? [] : items.filter((n) => n !== strongOne).slice(0, 3)
 
   return (
     <>
