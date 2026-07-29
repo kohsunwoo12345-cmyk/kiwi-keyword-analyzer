@@ -1,4 +1,5 @@
-import { json, getSessionUser, resolveDB } from '../../_utils'
+import { json, getSessionUser, resolveDB, spendPoints, refundPoints } from '../../_utils'
+import { unitCost } from '../../_msgcost'
 import { ownsKakaoChannel, notMyChannel } from '../_own'
 import { aligoAlimtalk } from '../../_aligo'
 
@@ -39,28 +40,13 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
     if (!apiKey || !userIdEnv) return json({ ok: false, error: 'ALIGO_API_KEY / ALIGO_USER_ID 환경변수 미설정' }, 500)
     if (!senderKey) return json({ ok: false, error: '알림톡 발신프로필 키(ALIGO_SENDER_KEY)가 필요합니다.' }, 500)
 
-    // ── 포인트 선차감 (25P × 수신자 수) ──
-    const COST_PER_MSG = 25
-    const totalCost = COST_PER_MSG * recipients.length
-    let userRow: any = null
-    try {
-      userRow = await db.prepare('SELECT id, points FROM users WHERE id = ? LIMIT 1').bind(userId).first()
-    } catch (_) {}
-    const curPoints = userRow?.points || 0
-    if (curPoints < totalCost) {
-      return json({ ok: false, error: `포인트가 부족합니다. 필요: ${totalCost}P, 보유: ${curPoints}P` })
-    }
-    try {
-      // ⚠ 실제로 차감됐는지(changes) 확인해야 한다. 위의 잔액 검사는 읽기 시점 기준이라
-      //   같은 순간에 두 요청이 들어오면 둘 다 통과하는데, 조건부 UPDATE 는 한 쪽만 성공한다.
-      //   결과를 안 보면 진 쪽이 차감 없이 알림톡을 그냥 보낸다(= 무료 발송).
-      const upd: any = await db.prepare('UPDATE users SET points = points - ? WHERE id = ? AND points >= ?')
-        .bind(totalCost, userId, totalCost).run()
-      if (Number(upd?.meta?.changes || 0) === 0)
-        return json({ ok: false, error: `포인트가 부족합니다. 필요: ${totalCost}P` })
-    } catch (_) {
-      return json({ ok: false, error: '포인트 차감 중 오류가 발생했습니다.' })
-    }
+    // ── 포인트 선차감 ──
+    //  단가는 알리고 기준 단가 × 배수(기본 2배)로 관리자 설정에서 읽는다.
+    //  예전에는 25P 로 코드에 못 박혀 있어 알리고 요금이 바뀌어도 따라가지 못했다.
+    const unit = await unitCost(db, 'alimtalk')
+    const totalCost = unit * recipients.length
+    const spend = await spendPoints(db, userId, totalCost, '알림톡 발송', `알림톡 ${recipients.length}건 · ${unit}P/건`)
+    if (!spend.ok) return json({ ok: false, error: spend.error, need: (spend as any).need, balance: (spend as any).balance, unit })
 
     // 발신번호: 선택 채널의 발신번호 → 본인 승인 발신번호 → 환경변수 폴백
     let fromPhone = ''
@@ -92,11 +78,8 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
       items,
     })
     const okSend = sendRes.ok
-    if (!okSend) {
-      try {
-        await db.prepare('UPDATE users SET points = points + ? WHERE id = ?').bind(totalCost, userId).run()
-      } catch (_) {}
-    }
+    // 실패하면 선차감분을 전액 환불 — 거래내역에도 남긴다(예전엔 잔액만 조용히 되돌렸다)
+    if (!okSend) await refundPoints(db, userId, totalCost, `알림톡 발송 실패 ${recipients.length}건 환불`)
 
     // 발송 로그 저장
     const successCount = okSend ? (sendRes.sent || recipients.length) : 0
@@ -131,7 +114,7 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
         error: sendRes.error || '알림톡 발송 실패',
         detail: sendRes.data,
       })
-    return json({ ok: true, successCount, pointsUsed: totalCost })
+    return json({ ok: true, successCount, pointsUsed: totalCost, unitPoints: unit })
   } catch (e: any) {
     return json({ ok: false, error: '서버 오류가 발생했습니다.' }, 500)
   }
