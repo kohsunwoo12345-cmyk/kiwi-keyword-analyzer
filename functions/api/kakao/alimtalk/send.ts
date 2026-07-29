@@ -1,4 +1,5 @@
 import { json, getSessionUser, resolveDB } from '../../_utils'
+import { ownsKakaoChannel, notMyChannel } from '../_own'
 import { aligoAlimtalk } from '../../_aligo'
 
 // #{변수} 치환: 템플릿 본문 + 수신자 변수 → 최종 알림톡 문구
@@ -29,7 +30,12 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
     const apiKey = String((env as any)?.ALIGO_API_KEY || '').trim()
     const userIdEnv = String((env as any)?.ALIGO_USER_ID || '').trim()
     // 발신프로필 키: pfId(선택된 채널) 우선, 없으면 환경변수
-    const senderKey = String(pfId || (env as any)?.ALIGO_SENDER_KEY || '').trim()
+    // ⚠ pfId 를 그대로 썼다. senderkey 는 "그 회원이 전화 인증으로 등록한 카카오 채널" 식별자라,
+    //   남의 senderkey 를 적으면 남의 공식 채널 이름으로 알림톡이 나가고, 아래 발신번호 조회도
+    //   그 채널에 등록된 남의 전화번호를 발신번호로 집어 온다(발신번호 사전등록제 위반).
+    const wantKey = String(pfId || '').trim()
+    if (wantKey && !(await ownsKakaoChannel(db, userId, wantKey))) return notMyChannel()
+    const senderKey = String(wantKey || (env as any)?.ALIGO_SENDER_KEY || '').trim()
     if (!apiKey || !userIdEnv) return json({ ok: false, error: 'ALIGO_API_KEY / ALIGO_USER_ID 환경변수 미설정' }, 500)
     if (!senderKey) return json({ ok: false, error: '알림톡 발신프로필 키(ALIGO_SENDER_KEY)가 필요합니다.' }, 500)
 
@@ -59,7 +65,7 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
     // 발신번호: 선택 채널의 발신번호 → 본인 승인 발신번호 → 환경변수 폴백
     let fromPhone = ''
     try {
-      const chRow: any = await db.prepare(`SELECT phone_number FROM kakao_channels WHERE channel_id = ? LIMIT 1`).bind(senderKey).first()
+      const chRow: any = await db.prepare(`SELECT phone_number FROM kakao_channels WHERE channel_id = ? AND user_id = ? LIMIT 1`).bind(senderKey, userId).first()
       if (chRow?.phone_number) fromPhone = String(chRow.phone_number).replace(/[^0-9]/g, '')
     } catch (_) {}
     if (!fromPhone) {

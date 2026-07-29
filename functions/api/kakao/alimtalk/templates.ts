@@ -1,5 +1,6 @@
 import { json, getSessionUser, resolveDB } from '../../_utils'
 import { aligoTemplates } from '../../_aligo'
+import { ownsKakaoChannel, notMyChannel } from '../_own'
 
 // GET /api/kakao/alimtalk/templates?channelId=... → 발신프로필의 승인 템플릿 목록
 // 알리고(Aligo) 우선, 실패 시 DB(kakao_templates) 폴백.
@@ -12,7 +13,10 @@ export const onRequestGet: PagesFunction<any> = async ({ request, env }) => {
     const userId = String(me.id)
     const url = new URL(request.url)
     // channelId 는 알리고 발신프로필 키(senderkey). 미지정 시 환경변수 사용.
-    const channelId = url.searchParams.get('channelId') || url.searchParams.get('pfId') || String((env as any)?.ALIGO_SENDER_KEY || '')
+    // ⚠ channelId(=senderkey)를 그대로 받아 남의 채널 템플릿 목록(문구 전체)을 열 수 있었다.
+    const wantKey = url.searchParams.get('channelId') || url.searchParams.get('pfId') || ''
+    if (wantKey && !(await ownsKakaoChannel(db, userId, wantKey))) return notMyChannel()
+    const channelId = wantKey || String((env as any)?.ALIGO_SENDER_KEY || '')
 
     let templates: any[] = []
 
