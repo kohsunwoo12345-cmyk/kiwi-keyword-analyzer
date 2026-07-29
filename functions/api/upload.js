@@ -55,6 +55,52 @@ export async function onRequest(context) {
   // R2 도 D1 도 없으면 저장 불가
   if (!bucket && !db) return j({ error: "저장소가 없습니다 (R2/D1 미설정). Cloudflare Pages → Settings → Functions 바인딩을 확인하세요." }, 500);
 
+  /* ── 나눠 올리기(multipart) ──
+     Cloudflare 함수는 요청 본문을 100MB 까지만 받는다. 30분짜리 업스케일 결과는 그보다 크다
+     (720p 30분 ≈ 300MB) — 한 번에 보내면 통째로 실패하고, 사용자는 몇 시간 돌린 결과를
+     새로고침하는 순간 잃는다. R2 의 multipart 로 조각내어 올려 그대로 보관한다. */
+  const mp = new URL(request.url).searchParams.get("mp") || "";
+  if (mp) {
+    if (!bucket) return j({ error: "큰 파일 저장에는 R2 버킷이 필요합니다.", needR2: true }, 413);
+    const q = new URL(request.url).searchParams;
+    // 키는 반드시 우리가 발급한 형식이어야 한다 — 임의 경로 덮어쓰기 차단
+    const okKey = (k) => /^u\/[0-9a-f-]{36}\.[a-z0-9]{1,8}$/i.test(String(k || ""));
+    try {
+      if (mp === "start") {
+        const ct0 = q.get("ct") || "video/webm";
+        if (!ALLOWED_CT.test(ct0)) return j({ error: "이미지/영상/오디오 파일만 업로드할 수 있습니다." }, 415);
+        const ext0 = (ct0.split("/")[1] || "bin").split(";")[0].split("+")[0];
+        const k = "u/" + crypto.randomUUID() + "." + ext0;
+        const up = await bucket.createMultipartUpload(k, { httpMetadata: { contentType: ct0 } });
+        return j({ key: k, uploadId: up.uploadId });
+      }
+      if (mp === "part") {
+        const k = q.get("key"), id = q.get("uploadId"), n = Number(q.get("n") || 0);
+        if (!okKey(k) || !id || !(n >= 1)) return j({ error: "잘못된 요청" }, 400);
+        const up = bucket.resumeMultipartUpload(k, id);
+        const p = await up.uploadPart(n, request.body || (await request.arrayBuffer()));
+        return j({ partNumber: p.partNumber, etag: p.etag });
+      }
+      if (mp === "done") {
+        const body = await request.json();
+        if (!okKey(body.key) || !body.uploadId || !Array.isArray(body.parts) || !body.parts.length)
+          return j({ error: "잘못된 요청" }, 400);
+        const up = bucket.resumeMultipartUpload(body.key, body.uploadId);
+        const obj = await up.complete(body.parts);
+        const origin0 = new URL(request.url).origin;
+        return j({ url: origin0 + "/api/media/" + body.key, key: body.key, size: (obj && obj.size) || 0, store: "r2" });
+      }
+      if (mp === "abort") {
+        const body = await request.json().catch(() => ({}));
+        if (okKey(body.key) && body.uploadId) await bucket.resumeMultipartUpload(body.key, body.uploadId).abort().catch(() => {});
+        return j({ ok: true });
+      }
+      return j({ error: "알 수 없는 요청" }, 400);
+    } catch (e) {
+      return j({ error: "나눠 올리기 실패: " + String((e && e.message) || e).slice(0, 200) }, 502);
+    }
+  }
+
   try {
     const ct = request.headers.get("Content-Type") || "application/octet-stream";
     if (!ALLOWED_CT.test(ct)) return j({ error: "이미지/영상/오디오 파일만 업로드할 수 있습니다." }, 415);
