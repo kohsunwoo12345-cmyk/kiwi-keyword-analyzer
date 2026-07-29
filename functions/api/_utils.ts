@@ -837,6 +837,7 @@ export async function purgeUserData(db: D1Database, uid: string, env?: any): Pro
     }
   } catch { /* 버킷 미설정이면 넘어간다 */ }
   await del('DELETE FROM sender_documents WHERE user_id = ?', uid)
+  await del('DELETE FROM msg_rate_overrides WHERE user_id = ?', uid)
   await del('DELETE FROM sender_numbers WHERE user_id = ?', uid)
   await del('DELETE FROM contact_group_members WHERE group_id IN (SELECT id FROM contact_groups WHERE user_id = ?)', uid)
   await del('DELETE FROM contact_groups WHERE user_id = ?', uid)

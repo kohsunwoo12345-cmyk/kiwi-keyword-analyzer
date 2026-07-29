@@ -180,7 +180,7 @@ export const smsPage = `    <!DOCTYPE html>
 
                             <div class="flex items-center justify-between mt-3">
                                 <span id="messageType" class="text-sm font-medium px-3 py-1 bg-violet-100 text-violet-800 rounded-full">SMS (단문)</span>
-                                <p class="text-xs text-gray-500">100자 초과 시 LMS(장문 90P)로 자동 전환 / 100자 이내 SMS 45P</p>
+                                <p class="text-xs text-gray-500">90byte(한글 45자) 초과 시 LMS(장문)로 자동 전환됩니다. 건당 요금은 아래 예상 비용에 표시됩니다.</p>
                             </div>
                         </div>
 
@@ -333,7 +333,7 @@ export const smsPage = `    <!DOCTYPE html>
                                 </div>
                                 <div class="flex justify-between text-sm">
                                     <span class="text-gray-600">건당 요금</span>
-                                    <span id="costPerMessage" class="font-medium">45P</span>
+                                    <span id="costPerMessage" class="font-medium">조회 중…</span>
                                 </div>
                                 <div class="border-t border-purple-200 pt-2 mt-2">
                                     <div class="flex justify-between">
@@ -450,9 +450,35 @@ export const smsPage = `    <!DOCTYPE html>
                 return phone;
             }
 
-            // 바이트 수 계산
+            // 바이트 수 계산 — 과금·SMS/LMS 판정과 같은 기준(한글 2byte)
+            //  Blob 크기(UTF-8, 한글 3byte)를 보여주면 "135byte 인데 단문" 처럼 앞뒤가 안 맞는다.
             function calculateBytes(str) {
-                return new Blob([str]).size;
+                return msgByteLen(str);
+            }
+
+            // ── 발송 단가 ──
+            // 화면에 45P/90P 가 박혀 있었는데 서버는 요금표(회원별 단가 포함)대로 청구한다.
+            // 보이는 금액과 빠지는 금액이 달라지므로 서버에서 그대로 받아 쓴다.
+            let MSG_RATES = null;
+            async function loadMsgRates() {
+                try {
+                    const r = await fetch('/api/admin/msg-rates', { credentials: 'include', cache: 'no-store' });
+                    const d = await r.json();
+                    if (d && d.ok && d.charge) MSG_RATES = d.charge;
+                } catch (e) { /* 못 읽으면 아래 안내로 대체 */ }
+                updateCost();
+            }
+            // 서버와 같은 기준: 한글 2byte, 90byte 초과면 LMS
+            function msgByteLen(str) {
+                let n = 0;
+                for (const ch of String(str || '')) n += ch.charCodeAt(0) > 0x7f ? 2 : 1;
+                return n;
+            }
+            function msgKindOf(str) { return msgByteLen(str) > 90 ? 'lms' : 'sms'; }
+            function unitPointsFor(str) {
+                if (!MSG_RATES) return null;
+                const k = msgKindOf(str);
+                return MSG_RATES[k] != null ? MSG_RATES[k] : MSG_RATES.sms;
             }
 
             // 메시지 입력 이벤트
@@ -464,18 +490,16 @@ export const smsPage = `    <!DOCTYPE html>
                 document.getElementById('byteCount').textContent = byteSize;
                 
                 const messageTypeEl = document.getElementById('messageType');
-                const costPerMessageEl = document.getElementById('costPerMessage');
-                
-                if (charCount > 100) {
-                    messageTypeEl.textContent = 'LMS (장문 · ' + charCount + '자)';
+
+                // 과금 기준과 같게 바이트로 판정한다(글자수로 보면 표시와 청구가 어긋난다)
+                if (msgKindOf(message) === 'lms') {
+                    messageTypeEl.textContent = 'LMS (장문 · ' + charCount + '자 / ' + byteSize + 'byte)';
                     messageTypeEl.className = 'text-sm font-medium px-3 py-1 bg-orange-100 text-orange-800 rounded-full';
-                    costPerMessageEl.textContent = '90P';
                 } else {
-                    messageTypeEl.textContent = 'SMS (단문 · ' + charCount + '자)';
+                    messageTypeEl.textContent = 'SMS (단문 · ' + charCount + '자 / ' + byteSize + 'byte)';
                     messageTypeEl.className = 'text-sm font-medium px-3 py-1 bg-violet-100 text-violet-800 rounded-full';
-                    costPerMessageEl.textContent = '45P';
                 }
-                
+
                 updateCost();
             });
 
@@ -929,13 +953,16 @@ export const smsPage = `    <!DOCTYPE html>
                 if (isAdMode()) {
                     msg = '(광고)\\n' + msg + '\\n\\n무료수신거부 080-500-4233';
                 }
-                const charCount = msg.length;
-                const costPerMessage = charCount > 100 ? 90 : 45;
-                const totalCost = costPerMessage * receivers.length;
-                
+                const unit = unitPointsFor(msg);
                 document.getElementById('costReceivers').textContent = receivers.length + '명';
-                document.getElementById('costPerMessage').textContent = costPerMessage + 'P';
-                document.getElementById('totalCost').textContent = totalCost + 'P';
+                if (unit == null) {
+                    // 요금표를 못 읽었으면 추측한 숫자를 보여주지 않는다(틀린 금액이 더 나쁘다)
+                    document.getElementById('costPerMessage').textContent = '조회 중…';
+                    document.getElementById('totalCost').textContent = '-';
+                    return;
+                }
+                document.getElementById('costPerMessage').textContent = unit.toLocaleString() + 'P';
+                document.getElementById('totalCost').textContent = (unit * receivers.length).toLocaleString() + 'P';
             }
 
             // 광고 prefix/suffix를 붙여 최종 메시지를 반환
@@ -1007,13 +1034,22 @@ export const smsPage = `    <!DOCTYPE html>
                     }
 
                     const subjectVal = (document.getElementById('smsSubject').value || '').trim();
+                    // 서버(/api/sms/send)가 받는 형식으로 보낸다.
+                    //  예전엔 receivers/message 로 보내서 서버가 "문자 내용을 입력하세요" 로 거절했다
+                    //  — 발송 버튼이 아무 일도 하지 않았다.
                     const payload = {
-                        userId: currentUserId,
-                        senderId: parseInt(senderId),
-                        receivers: receiversToSend,
-                        message: messageToSend,
+                        senderId: senderId,
                         subject: subjectVal || undefined
                     };
+                    if (uploadedSmsRows.length > 0) {
+                        // 수신자마다 문구가 다르다(이름·랜딩 URL 치환)
+                        payload.items = receiversToSend.map(function (r) {
+                            return { to: r.phone, text: r.message || messageToSend };
+                        });
+                    } else {
+                        payload.to = receiversToSend.map(function (r) { return r.phone; });
+                        payload.text = messageToSend;
+                    }
 
                     if (reserveEnabled && reserveTime) {
                         payload.reserveTime = reserveTime;
@@ -1027,10 +1063,18 @@ export const smsPage = `    <!DOCTYPE html>
 
                     const data = await response.json();
 
-                    if (data.success) {
-                        const remainPts = data.remainingPoints || data.remainingBalance;
-                        const remainStr = (typeof remainPts === 'number') ? remainPts + 'P' : String(remainPts || '-');
-                        alert('✅ 문자 발송이 완료되었습니다!\\n\\n발송 건수: ' + data.sentCount + '건\\n차감 포인트: ' + data.totalCost + 'P\\n남은 포인트: ' + remainStr);
+                    if (data.ok || data.success) {
+                        const remainPts = (data.user && data.user.points != null) ? data.user.points : (data.remainingPoints != null ? data.remainingPoints : data.remainingBalance);
+                        const remainStr = (typeof remainPts === 'number') ? remainPts.toLocaleString() + 'P' : String(remainPts || '-');
+                        const sentN = (data.sent != null ? data.sent : data.sentCount) || 0;
+                        const usedP = (data.pointsUsed != null ? data.pointsUsed : data.totalCost) || 0;
+                        const failN = data.failed || 0;
+                        alert('✅ 문자 ' + (data.reserved ? '예약이 접수되었습니다!' : '발송이 완료되었습니다!')
+                            + '\\n\\n발송 건수: ' + sentN + '건'
+                            + (failN ? ' (실패 ' + failN + '건 · 포인트 환불)' : '')
+                            + (data.reserved && data.reservedAt ? '\\n예약 시각: ' + data.reservedAt + ' (KST)' : '')
+                            + '\\n차감 포인트: ' + usedP.toLocaleString() + 'P'
+                            + '\\n남은 포인트: ' + remainStr);
                         
                         // 초기화
                         document.getElementById('message').value = '';
@@ -1046,7 +1090,7 @@ export const smsPage = `    <!DOCTYPE html>
                             window.location.href = '/sms/logs';
                         }
                     } else {
-                        alert('❌ ' + data.error);
+                        alert('❌ ' + (data.error || '문자 발송에 실패했습니다.'));
                     }
                 } catch (err) {
                     console.error('Send SMS error:', err);
@@ -1058,19 +1102,17 @@ export const smsPage = `    <!DOCTYPE html>
             function updateByteCount() {
                 const rawMsg = document.getElementById('message').value;
                 const finalMsg = buildFinalMessage(rawMsg);
-                const byteSize = new Blob([finalMsg]).size;
+                const byteSize = msgByteLen(finalMsg);
                 const charCount = finalMsg.length;
                 document.getElementById('byteCount').textContent = byteSize;
                 const messageTypeEl = document.getElementById('messageType');
-                const costPerMessageEl = document.getElementById('costPerMessage');
-                if (charCount > 100) {
-                    messageTypeEl.textContent = 'LMS (장문 · ' + charCount + '자)';
+                // 과금 기준(90byte)과 같게 판정한다 — updateCost 가 단가를 서버값으로 채운다
+                if (msgKindOf(finalMsg) === 'lms') {
+                    messageTypeEl.textContent = 'LMS (장문 · ' + charCount + '자 / ' + byteSize + 'byte)';
                     messageTypeEl.className = 'text-sm font-medium px-3 py-1 bg-orange-100 text-orange-800 rounded-full';
-                    if (costPerMessageEl) costPerMessageEl.textContent = '90P';
                 } else {
-                    messageTypeEl.textContent = 'SMS (단문 · ' + charCount + '자)';
+                    messageTypeEl.textContent = 'SMS (단문 · ' + charCount + '자 / ' + byteSize + 'byte)';
                     messageTypeEl.className = 'text-sm font-medium px-3 py-1 bg-violet-100 text-violet-800 rounded-full';
-                    if (costPerMessageEl) costPerMessageEl.textContent = '45P';
                 }
                 updateCost();
             }
@@ -1234,6 +1276,7 @@ export const smsPage = `    <!DOCTYPE html>
             (async () => {
                 await checkAuth();
                 if (currentUserId) {
+                    await loadMsgRates();
                     await loadSenders();
                     await loadTemplates();
                     loadGroupsIntoSelect();

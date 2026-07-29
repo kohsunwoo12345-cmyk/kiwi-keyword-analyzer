@@ -74,11 +74,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
      정작 모델만 빠져 있었다. 비싼 모델로 만들고 싼 모델로 신고하면 그 차액만큼 덜 냈다.
      생성 시점에 서버가 발급한 토큰이 있으면 그 안의 확정값을 쓴다(1회용이라 중복 청구도 막힌다).
      토큰이 없으면 예전 방식 그대로 — 구버전 클라이언트가 갑자기 무과금되지 않게 한 폴백이다. */
+  /* 토큰은 서버가 생성 시점에 이미 소비하며 차감까지 끝냈다. 여기서 다시 보는 이유는
+     "무엇을 만든 생성인지" 를 서버 확정값으로 적어 두기 위해서다 — 아카이브도 신고값을 믿지 않는다. */
   const staked = await consumeGenCharge(db, me.id, String(b.chargeToken || ''))
-  if (staked?.alreadyConsumed) {
-    // 같은 생성이 두 번 신고됐다 — 이미 청구했으므로 다시 빼지 않는다.
-    return json({ ok: true, stored: false, charged: 0, duplicate: true })
-  }
   const model = staked ? staked.model : String(b.model || '')
   const memberMarkup = me ? Number(me.credit_markup) || 0 : 0 // 회원별 전체 배수(원가=1). 0=미설정
   // 회원×모델 override > 회원 전체 배수 > 전역 모델 배수 > 기본값
@@ -135,53 +133,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const cnMult = cnCount > 0 ? 1 + cnPct / 100 : 1
   const wantCredits = Math.round(c.credits * refMult * cnMult * 100) / 100
 
-  // 크레딧 100% 차감 (로그인 사용자만).
-  //  · 생성은 이미 유료 제공사에서 완료된 상태이므로, 잔액이 부족하더라도 실제 원가만큼 전액 차감한다.
-  //    (예전처럼 "남은 잔액만" 차감하면 0.01크레딧 계정이 고가 영상을 사실상 공짜로 생성 → 손해).
-  //  · 잔액이 음수가 되면 이후 생성은 /api/generate 의 credits>0 게이트에서 자동 차단(=미납 잠금).
-  //  · 원자적 무조건 차감으로 동시 요청 시에도 이중차감 없이 정확히 원가만큼만 반영된다.
-  /* ── 같은 생성에 두 번 청구되지 않게 ──
-     비동기 영상은 제출 시 받은 statusUrl 을 노드에 pendingUrl 로 적어 두고 autosave 로 서버에 올린다.
-     그래서 생성 중에 다른 탭(또는 다른 기기)에서 스튜디오를 열면, 그 탭도 같은 pendingUrl 을 이어받아
-     폴링하고 완료 시 또 청구한다 — 한 번 만든 영상에 두 번 돈이 빠진다.
-     제공사 작업 주소는 작업마다 유일하므로 그걸 열쇠로 삼아, 먼저 꽂힌 요청 하나만 청구한다. */
-  const taskKey = String(b.taskKey || '').slice(0, 300)
-  if (taskKey) {
-    try {
-      await db.prepare(
-        `CREATE TABLE IF NOT EXISTS ai_usage_keys (task_key TEXT PRIMARY KEY, user_id TEXT DEFAULT '', created_at TEXT NOT NULL)`,
-      ).run()
-      const ins: any = await db.prepare(
-        `INSERT OR IGNORE INTO ai_usage_keys (task_key, user_id, created_at) VALUES (?, ?, ?)`,
-      ).bind(taskKey, me.id, new Date().toISOString()).run()
-      if (!ins?.meta?.changes)
-        return json({ ok: true, stored: false, duplicate: true, charged: 0, credits: 0,
-                      note: '이미 청구된 생성입니다(다른 탭에서 먼저 기록됨).' })
-    } catch { /* 열쇠 테이블에 문제가 있어도 청구 자체는 막지 않는다 */ }
-  }
-
-  let charged = 0
-  let afterBal = Number(me?.credits) || 0
-  if (me && wantCredits > 0) {
-    const full: any = await db
-      .prepare('UPDATE users SET credits = ROUND(credits - ?, 2) WHERE id = ?')
-      .bind(wantCredits, me.id)
-      .run()
-    if (full?.meta?.changes === 1) charged = wantCredits
-    if (charged > 0) {
-      const row: any = await db.prepare('SELECT credits FROM users WHERE id = ?').bind(me.id).first()
-      afterBal = Math.round((Number(row?.credits) || 0) * 100) / 100
-      await db
-        .prepare(
-          `INSERT INTO transactions (id, user_id, kind, amount, balance_after, memo, created_at) VALUES (?, ?, 'credit', ?, ?, ?, ?)`,
-        )
-        .bind('t_' + crypto.randomUUID().slice(0, 16), me.id, -charged, afterBal, `AI 생성 · ${c.model}`, new Date().toISOString())
-        .run()
-      await logActivity(db, me.id, 'credit', `-${charged} 크레딧 · AI 생성(${c.model})`)
-    }
-  }
-
-  const revenueKrw = Math.round(charged * creditKrw) // 실제 차감 크레딧 × 1크레딧 단가(원) = 매출
+  /* ── 여기서는 더 이상 차감하지 않는다 ──
+     차감은 생성이 성공한 자리에서 서버가 직접 한다(generate.js → settleGenCharge).
+     예전처럼 이 신고 창구가 차감까지 맡으면, 그 호출을 생략한 클라이언트는 생성물만 받고
+     한 푼도 내지 않는다 — 토큰으로 "얼마인지" 는 서버가 정하게 됐지만 "낼지 말지" 는
+     여전히 클라이언트가 정하고 있었다. 양쪽에서 받으면 그건 곧 이중 차감이라 여기서는 0 이다.
+     (토큰은 서버가 이미 소비했으므로 아래 consumeGenCharge 는 늘 alreadyConsumed 로 돌아온다.) */
+  const charged = 0
+  const afterBal = Number(me?.credits) || 0
+  const revenueKrw = 0
 
   // 생성 콘텐츠 아카이브 — 프롬프트/레퍼런스/결과. 실패해도 기록/차감은 유지.
   const prompt = String(b.prompt || '').slice(0, 4000)
@@ -201,6 +161,23 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     /* 아카이브 실패 무시 */
   }
 
+  /* 금액이 붙은 줄은 정산(generate.js → settleGenCharge)이 이미 넣었다. 그 줄 번호를 받았으면
+     프롬프트·레퍼런스·결과물만 거기에 채운다 — 관리자 화면에 한 생성이 한 줄로 남는다.
+     못 붙였을 때만 아래에서 별도 줄을 만들고, 금액 칸은 0 이라 합계를 흔들지 않는다. */
+  /* 클라이언트가 chargeRef 를 돌려주지 않아도(오래된 캐시 등) 토큰에 적어 둔 줄 번호로 찾는다.
+     못 찾으면 아래에서 별도 줄이 생기는데, 그러면 관리자 "생성 건수" 가 한 생성에 두 번 세어진다. */
+  const chargeRef = String(b.chargeRef || staked?.usageId || '').slice(0, 40)
+  if (chargeRef) {
+    try {
+      const upd: any = await db
+        .prepare('UPDATE ai_usage SET prompt = ?, refs = ?, result_url = ?, result_kind = ? WHERE id = ? AND user_id = ?')
+        .bind(prompt, refsJson, resultUrl, resultKind, chargeRef, me.id)
+        .run()
+      if (upd?.meta?.changes === 1)
+        return json({ ok: true, stored: true, archiveOnly: true, charged: 0, credits: wantCredits,
+                      refCount, refSurchargePct: surPct, cnCount, cnSurchargePct: cnPct })
+    } catch { /* 못 붙이면 아래에서 별도 줄로 남긴다 */ }
+  }
   try {
     const id = 'au' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
     await db
@@ -217,8 +194,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         c.model,
         c.kind,
         units || (c.kind === 'image' ? 1 : 0),   // 과금에 쓴 값과 같은 값을 기록(감사 일치)
-        c.usd,
-        c.costKrwExact,   // 1원 미만도 그대로 — 관리자 원가 합계가 0 으로 쌓이지 않게
+        0,                // 금액은 정산 줄이 갖는다 — 여기서 또 넣으면 관리자 원가 합계가 두 배가 된다
+        0,
         charged,
         revenueKrw,
         c.markup,
@@ -234,7 +211,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: String((e as any)?.message || e).slice(0, 160) }, 500)
   }
 
-  return json({ ok: true, stored: true, charged, credits: wantCredits, refCount, refSurchargePct: surPct, cnCount, cnSurchargePct: cnPct })
+  return json({ ok: true, stored: true, archiveOnly: true, charged: 0, credits: wantCredits, refCount, refSurchargePct: surPct, cnCount, cnSurchargePct: cnPct })
 }
 
 export const onRequestOptions: PagesFunction<Env> = async () =>

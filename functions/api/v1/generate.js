@@ -113,7 +113,9 @@ export const onRequestPost = async ({ request, env }) => {
     const headers = { "Content-Type": "application/json" };
     if (genTok) headers["Authorization"] = "Bearer " + genTok;
     const innerReq = new Request(origin + "/api/generate", { method: "POST", headers, body: JSON.stringify(body) });
-    const res = await generateApi({ request: innerReq, env });
+    /* 이 경로는 아래 commitCharge 로 스스로 차감한다 — 생성 API 안의 자동 차감(settleGenCharge)까지
+       걸리면 같은 생성에 두 번 빠진다. 서버가 만든 컨텍스트 값이라 클라이언트가 흉내낼 수 없다. */
+    const res = await generateApi({ request: innerReq, env, __internalBilling: true });
     const data = await res.json().catch(() => ({}));
 
     const ok = res.ok && !data.error;
@@ -146,7 +148,7 @@ export const onRequestGet = async ({ request, env }) => {
   const headers = {};
   if (genTok) headers["Authorization"] = "Bearer " + genTok;
   const innerReq = new Request(origin + "/api/generate" + url.search, { headers });
-  const out = await generateApi({ request: innerReq, env });
+  const out = await generateApi({ request: innerReq, env, __internalBilling: true });
   //  실패로 확정된 태스크면, 제출 시 차감했던 크레딧을 1회만 돌려준다.
   let body = null;
   try { body = await out.clone().json(); } catch { return out; }

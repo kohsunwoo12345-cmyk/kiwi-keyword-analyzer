@@ -72,6 +72,21 @@ export async function ensureSenderSchema(db: D1Database) {
     .run()
     .catch(() => {})
   await db.prepare('CREATE INDEX IF NOT EXISTS idx_sender_docs ON sender_documents(sender_id)').run().catch(() => {})
+  // 한 신청에 같은 종류 서류는 하나뿐이어야 한다.
+  //  예전엔 "읽고 → 지우고 → 넣기" 였는데, 같은 칸을 동시에 여러 번 올리면 그 사이를 비집고
+  //  여러 행이 남았다(동시 8회 업로드 → 6행). 그러면 "필수 서류 6/2" 같은 숫자가 뜨고
+  //  심사자는 같은 서류를 여러 장 보게 된다. DB 제약으로 애초에 못 생기게 막는다.
+  const mkIndex = () => db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_sender_docs_uniq ON sender_documents(sender_id, doc_type)').run()
+  try {
+    await mkIndex()
+  } catch {
+    // 이미 쌓인 중복이 있으면 가장 최근 것만 남기고 정리한 뒤 다시 만든다.
+    await db
+      .prepare('DELETE FROM sender_documents WHERE rowid NOT IN (SELECT MAX(rowid) FROM sender_documents GROUP BY sender_id, doc_type)')
+      .run()
+      .catch(() => {})
+    await mkIndex().catch(() => {})
+  }
   // sender_numbers 는 이미 있는 테이블 — 신청서 항목만 덧붙인다(있으면 조용히 실패).
   for (const col of [
     "owner_type TEXT DEFAULT 'personal'",

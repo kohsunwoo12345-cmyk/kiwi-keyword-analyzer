@@ -2,6 +2,7 @@ import { Env, json, ensureSchema, getSessionUser, resolveDB, spendPoints, refund
 import { unitCost } from '../_msgcost'
 import { ownsKakaoChannel, notMyChannel } from '../kakao/_own'
 import { aligoAlimtalk, aligoAlimtalkConfigured } from '../_aligo'
+import { logNotifyMany } from '../_notify'
 
 // POST /api/alimtalk/send { to, text, templateId, senderKey?, failover? } → 알리고 카카오 알림톡 (건당 1 크레딧)
 export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
@@ -33,7 +34,7 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
   if (!text) return json({ ok: false, error: '내용을 입력하세요.' }, 400)
 
   // 발송 비용은 포인트로 나간다(크레딧과 별개). 단가는 알리고 기준가 × 배수.
-  const unit = await unitCost(db, 'alimtalk')
+  const unit = await unitCost(db, 'alimtalk', me.id)
   const cost = unit * recipients.length
   const spend = await spendPoints(db, me.id, cost, '알림톡 발송', `알림톡 ${recipients.length}건 · ${unit}P/건`)
   if (!spend.ok) return json({ ok: false, error: spend.error, need: (spend as any).need, balance: (spend as any).balance, unit }, 402)
@@ -59,6 +60,11 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
   if (failed > 0) await refundPoints(db, me.id, unit * failed, `알림톡 발송 실패 ${failed}건 환불`)
 
   await logActivity(db, me.id, 'point', `알림톡 발송 ${sent}/${recipients.length}건`)
+  await logNotifyMany(db, recipients.map((to: string, i: number) => ({
+    userId: me.id, trigger: 'manual' as const, event: 'alimtalk', kind: 'alimtalk',
+    recipient: to, subject: String(body.subject || 'BYGENCY'), content: text,
+    ok: i < sent, reason: i < sent ? '' : String(r.error || ''), points: i < sent ? unit : 0,
+  })))
 
   // 발송 이력 기록 (알림톡 발송 이력·통계 페이지 실데이터용). 실패해도 발송 결과에는 영향 없음.
   try {

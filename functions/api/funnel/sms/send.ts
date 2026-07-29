@@ -4,6 +4,7 @@
 //  resp: { success, successCount, failCount, results[] }
 import { resolveDB, getSessionUser, spendPoints, refundPoints, logActivity } from '../../_utils'
 import { smsKindOf, unitCost, KIND_LABEL } from '../../_msgcost'
+import { logNotifyMany } from '../../_notify'
 import { ensureFunnelSchema } from '../_schema'
 import { sendSms } from '../../_aligo'
 import { resendEmail, emailShell } from '../../_external'
@@ -58,7 +59,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     //     발송 비용은 포인트(알리고 단가 × 배수). 이메일은 다른 경로와 마찬가지로 과금하지 않는다.
     const smsTargets = emailOnly ? 0 : recipients.filter((r: any) => digits(r.phone).length >= 10).length
     const msgKind = smsKindOf(message)
-    const unit = await unitCost(db, msgKind)
+    const unit = await unitCost(db, msgKind, me.id)
     if (smsTargets > 0) {
       const spend = await spendPoints(db, me.id, unit * smsTargets, '퍼널 문자 발송', `${KIND_LABEL[msgKind]} ${smsTargets}건 · ${unit}P/건`)
       if (!spend.ok) return j({ success: false, error: spend.error, need: (spend as any).need, balance: (spend as any).balance, unit }, 402)
@@ -111,6 +112,11 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     // 실패분 포인트 환불 — 나가지 않은 문자까지 받을 이유가 없다(/api/sms/send 와 동일)
     if (smsFailed > 0) await refundPoints(db, me.id, unit * smsFailed, `퍼널 문자 발송 실패 ${smsFailed}건 환불`)
     if (smsTargets > 0) await logActivity(db, me.id, 'sms', `퍼널 문자 발송 ${smsTargets - smsFailed}/${smsTargets}건`).catch(() => {})
+    await logNotifyMany(db, results.map((x: any) => ({
+      userId: me.id, trigger: 'manual' as const, event: 'funnel_sms', kind: msgKind,
+      recipient: x.phone || x.email || '', content: message,
+      ok: !!(x.sms || x.email_sent), reason: x.reason || '', points: x.sms ? unit : 0,
+    })))
 
     return j({ success: successCount > 0, successCount, failCount, results })
   } catch (error: any) {

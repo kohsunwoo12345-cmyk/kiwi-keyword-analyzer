@@ -127,7 +127,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, params })
   if (!c) return json({ ok: false, error: '집행을 찾을 수 없습니다.' }, 404)
 
   const result = await buildResult(db, c)
-  const rates = await getMsgRates(db)
+  // 관리자가 남의 집행을 볼 때도 "그 회원에게 얼마가 청구되는지"가 맞다
+  const rates = await getMsgRates(db, c.user_id)
   const kind = c.channel === 'alimtalk' ? 'alimtalk' : smsKindOf(c.message || '')
   return json({
     ok: true,

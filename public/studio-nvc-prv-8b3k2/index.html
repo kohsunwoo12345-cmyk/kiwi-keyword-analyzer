@@ -2277,7 +2277,7 @@ function runwayUsd(model, secs){
 /* buildOpenAIImagePayload 의 크기표(OPENAI_SIZE)에 있는 "긴 쪽" 비율들.
    여기 없는 값은 정사각(1024x1024)으로 나가므로 가산이 붙으면 안 된다. */
 var OPENAI_LONG_RATIOS = { '3:2':1, '2:3':1, '16:9':1, '9:16':1, '4:5':1, '4:3':1, '3:4':1 };
-function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl, cnCount, hdrOn, exrOn, ratioIn, usageTokensIn, taskKeyIn, chargeTokenIn){
+function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prompt, refUrls, resultUrl, cnCount, hdrOn, exrOn, ratioIn, usageTokensIn, taskKeyIn, chargeTokenIn, chargeRefIn){
   var m = MODEL_COST[model];
   /* 'img'(장당) 외에 '3d'(모델 1개당)·'tok'(호출 1회당)도 "단위 1개" 정액이다 — 서버 computeCharge 와 같은 기준.
      예전엔 'img' 만 봐서 3D·프롬프트 모델이 초당 계산을 타 8배로 표시됐다(청구는 서버 기준이라 정상). */
@@ -2323,6 +2323,9 @@ function recordCost(provider, model, seconds, kind, res, audioOn, refCount, prom
         taskKey:String(taskKeyIn||''),
         // 생성 때 서버가 발급한 과금 토큰 — 있으면 서버가 확정한 모델·길이로 청구한다
         chargeToken:(chargeTokenIn||''),
+        /* 서버가 이 생성에 매긴 요금 기록의 행 번호. 주면 그 줄에 프롬프트·결과물이 붙고,
+           안 주면 금액 0짜리 아카이브 줄이 따로 생겨 관리자 화면에 한 생성이 두 줄로 보인다. */
+        chargeRef:(chargeRefIn||''),
         prompt:(prompt||'').slice(0,4000), refUrls:_refs, resultUrl:mediaForRecord(resultUrl), resultKind:isImg?'image':'video' }) }).catch(function(){});
   }catch(e){}
   // 상세 활동 로그(관리자 감사): "어떤 모델로 무엇을 생성" (정확 크레딧은 ai_usage 에 별도 집계)
@@ -3108,7 +3111,11 @@ async function callProxy(params){
   var t=await r.text(), j={}; try{ j=JSON.parse(t); }catch(e){}   // 본문이 JSON이 아니어도 원문을 살림
   if(!r.ok) throw new Error(j.error || ('HTTP '+r.status+(t?': '+String(t).replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,140):'')));
   // lastFrame: 제공사(Seedance return_last_frame)가 돌려준 진짜 마지막 프레임 URL — 이어보기에 그대로 쓴다.
-  if(j.url) return { url:j.url, kind:j.kind||'video', poster:j.poster||params.firstFrame||null, lastFrame:j.lastFrame||null, videoId:j.videoId||null, videoProvider:j.videoProvider||null, type:params.provider };
+  /* chargeToken: 서버가 생성 시점에 확정한 "무엇을 얼마나 만들었는지" 의 열쇠.
+     chargeRef : 그 생성에 실제로 매겨진 요금 기록의 행 번호.
+     둘 다 응답에 실려 오는데 여기서 안 담아 두면 recordCost 까지 전달되지 않는다
+     (그러면 아카이브가 신고값으로 남고, 요금 줄과 따로 논다). */
+  if(j.url) return { url:j.url, kind:j.kind||'video', poster:j.poster||params.firstFrame||null, lastFrame:j.lastFrame||null, videoId:j.videoId||null, videoProvider:j.videoProvider||null, type:params.provider, chargeToken:j.chargeToken||null, chargeRef:j.chargeRef||null };
   if(j.statusUrl){
     // 진행 중 작업을 노드 밖(전역)에 기록 — 새로고침해도 이어받을 수 있다.
     if(_pnode){ _pnode.w.pendingUrl=j.statusUrl; try{ autosave(); }catch(_e){} }
@@ -3119,7 +3126,7 @@ async function callProxy(params){
     if(_pnode){ _pnode.w.pendingUrl=null; }
     /* 이 작업의 고유 주소를 결과에 실어 보낸다 — 과금 기록이 "같은 생성" 임을 알아보는 열쇠다.
        생성 중 다른 탭에서 스튜디오를 열면 그 탭도 같은 pendingUrl 을 이어받아 완료 시 또 청구했다. */
-    return { url:out.url, kind:out.kind||'video', poster:out.poster||params.firstFrame||null, lastFrame:out.lastFrame||null, videoId:out.videoId||null, videoProvider:out.videoProvider||null, type:params.provider, taskKey:j.statusUrl };
+    return { url:out.url, kind:out.kind||'video', poster:out.poster||params.firstFrame||null, lastFrame:out.lastFrame||null, videoId:out.videoId||null, videoProvider:out.videoProvider||null, type:params.provider, taskKey:j.statusUrl, chargeToken:j.chargeToken||null, chargeRef:j.chargeRef||null };
   }
   throw new Error(j.error||'proxy: 응답에 url 없음');
 }
@@ -4168,7 +4175,10 @@ async function narrateNode(n){
   n.w.generating=true; n.w.error=null; render();
   (function(){ var em=document.getElementById('nd-'+n.id); if(em)em.classList.add('exec'); })();
   toast(isLip?'립싱크 생성 중… 입 모양 동기화는 시간이 걸립니다.':'나레이션 합성 중…');
-  callProxy({ provider:prov, videoUrl:srcU, text:text, voice:voiceId, rate:rate })
+  /* model·seconds 를 반드시 함께 보낸다 — 서버는 이 둘로 과금 토큰을 만든다.
+     안 보내면 토큰이 발급되지 않아 제공사 비용은 나가는데 한 푼도 청구되지 않는다
+     (차감이 신고 창구에서 생성 시점으로 옮겨진 뒤 생긴 조건이다). */
+  callProxy({ provider:prov, model:modelNm, seconds:_secN, videoUrl:srcU, text:text, voice:voiceId, rate:rate })
     .then(function(res){
       n.w.generating=false;
       if(!res || res.error){
@@ -4241,7 +4251,8 @@ async function revoiceNode(n){
       // revoice 는 원본 영상도 공개 URL 이어야 립싱크 가능
       if(!/^https?:\/\//.test(srcU)) throw new Error('립싱크할 영상은 공개 URL 이어야 합니다. 출력 노드의 완성 영상을 연결하세요.');
       toast('일레븐랩스 목소리 교체 + 립싱크 중… (시간이 걸립니다)');
-      return callProxy({ provider:'revoice', videoUrl:srcU, audioUrl:audioUrl, voice:voiceId });
+      //  위와 같은 이유로 model·seconds 를 함께 보낸다(원본 길이만큼 초당 과금).
+      return callProxy({ provider:'revoice', model:'립싱크 (인물 말하기)', seconds:_secR, videoUrl:srcU, audioUrl:audioUrl, voice:voiceId });
     })
     .then(function(res){
       n.w.generating=false;
@@ -4419,7 +4430,7 @@ function generateImageNode(n){
           _on.w.vid=res.url; _on.w.kind=res.kind||'image'; _on.w.lastImg=res.url; _on.w.model=n.w.model;
         }catch(_e){}
       }
-      try{ if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image', null, false, refCountUsed, prompt, refUsedList, res.url, cnChargeCount, false, false, n.w.ratio, 0, '', res.chargeToken); }catch(_e){}
+      try{ if(res.url && res.type!=='error') recordCost(res.type||providerOf(n.w.model), n.w.model, 0, 'image', null, false, refCountUsed, prompt, refUsedList, res.url, cnChargeCount, false, false, n.w.ratio, 0, '', res.chargeToken, res.chargeRef); }catch(_e){}
       try{ saveToGallery(res.url, 'image', n.w.model, 0, null); }catch(_e){}
       try{ if(res.url && res.type!=='error') autoRefFromResult(n, res.url); }catch(_e){}
       toast('이미지 생성 완료'); try{ snapshot(); }catch(_e){} render();
@@ -7132,7 +7143,11 @@ canvas.addEventListener('click',function(e){
     n2.w.extending=true; n2.w.error=null; render();
     (function(nd){
       var prevSec=Number(nd.w.sec)||5;
-      callProxy({ provider:'klingextend', model:nd.w.model||'Kling', kind:'video',
+      /* 과금 토큰은 model 이 단가표에 있어야 발급된다 — 'Kling' 은 표에 없는 이름이라
+         그대로 두면 확장이 공짜가 된다. 표에 있는 이름으로 떨어뜨린다.
+         길이는 클링 확장이 한 번에 늘려 주는 5초 기준(아래 실제 길이 측정도 같은 값을 가정한다). */
+      callProxy({ provider:'klingextend', model:(MODEL_COST[nd.w.model]?nd.w.model:'Kling 2.1 Master (이미지→영상)'),
+                  kind:'video', seconds:5,
                   videoId:nd.w.videoId, prompt:nd.w.extPrompt||'' })
       .then(function(res){
         nd.w.extending=false;
@@ -7782,7 +7797,7 @@ function runQueue(onlyId){
               // ② 부수작업(과금 기록·보관함 저장)은 각각 격리 — 실패해도 UI 에 영향 없음
               try{ if(res.url && res.type!=='error')
                 recordCost(res.type||providerOf(chosenModel), chosenModel, _effSec, res.kind, _effRes, n.w.seedAudio===true, 0, basePrompt, [].concat(refList||[], srcVid?[srcVid]:[]), res.url,
-                  0, n.w.lumaHdr===true, n.w.lumaExr===true, n.w.ratio, res.usageTokens, res.taskKey, res.chargeToken); }catch(_e){}
+                  0, n.w.lumaHdr===true, n.w.lumaExr===true, n.w.ratio, res.usageTokens, res.taskKey, res.chargeToken, res.chargeRef); }catch(_e){}
               try{ saveToGallery(res.url, res.kind||'video', chosenModel, vSet?vSet.w.sec:8, res.poster); }catch(_e){}
               var el2=document.getElementById('nd-'+id); if(el2)el2.classList.add('exec');
               // 제공사 프레임이 없을 때만 브라우저에서 뽑는다(폴백).

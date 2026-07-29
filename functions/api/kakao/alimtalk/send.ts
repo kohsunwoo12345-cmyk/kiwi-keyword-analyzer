@@ -1,5 +1,6 @@
 import { json, getSessionUser, resolveDB, spendPoints, refundPoints } from '../../_utils'
 import { unitCost } from '../../_msgcost'
+import { logNotifyMany } from '../../_notify'
 import { ownsKakaoChannel, notMyChannel } from '../_own'
 import { aligoAlimtalk } from '../../_aligo'
 
@@ -43,7 +44,7 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
     // ── 포인트 선차감 ──
     //  단가는 알리고 기준 단가 × 배수(기본 2배)로 관리자 설정에서 읽는다.
     //  예전에는 25P 로 코드에 못 박혀 있어 알리고 요금이 바뀌어도 따라가지 못했다.
-    const unit = await unitCost(db, 'alimtalk')
+    const unit = await unitCost(db, 'alimtalk', userId)
     const totalCost = unit * recipients.length
     const spend = await spendPoints(db, userId, totalCost, '알림톡 발송', `알림톡 ${recipients.length}건 · ${unit}P/건`)
     if (!spend.ok) return json({ ok: false, error: spend.error, need: (spend as any).need, balance: (spend as any).balance, unit })
@@ -114,6 +115,13 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
         error: sendRes.error || '알림톡 발송 실패',
         detail: sendRes.data,
       })
+    await logNotifyMany(db, recipients.map((r: any, i: number) => ({
+      userId, trigger: 'manual' as const, event: 'alimtalk', kind: 'alimtalk',
+      recipient: String(r?.to ?? r?.phone ?? ''), subject: String(templateCode || ''),
+      content: String(r?.message ?? content ?? ''),
+      ok: i < successCount, reason: i < successCount ? '' : String(errMsg || ''),
+      points: i < successCount ? unit : 0,
+    })))
     return json({ ok: true, successCount, pointsUsed: totalCost, unitPoints: unit })
   } catch (e: any) {
     return json({ ok: false, error: '서버 오류가 발생했습니다.' }, 500)
