@@ -472,11 +472,17 @@ export interface AiGenerationRow {
   provider: string
   model: string
   kind: string
+  units: number
   credits: number
   costKrw: number
   usd: number
   usdKrw: number
   markup: number
+  /** 실제로 회원 지갑에서 빠진 금액(원) = 크레딧 × 그 회원의 1크레딧 단가 */
+  revenueKrw: number
+  profitKrw: number
+  /** 금액이 안 붙은 보관 전용 기록(차감은 다른 줄에 있다) — 0원으로 오해하면 안 된다 */
+  archiveOnly: boolean
   prompt: string
   refs: string[]
   resultUrl: string

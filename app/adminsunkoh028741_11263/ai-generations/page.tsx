@@ -28,10 +28,10 @@ function csvDownload(rows: AiGenerationRow[]) {
     const s = String(v ?? '')
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
   }
-  const head = ['생성시각(KST)', '사용자', '이메일', '종류', '모델', '제공사', '크레딧', 'AI비용(USD)', '당일환율', 'AI비용(KRW)', '프롬프트', '결과URL']
+  const head = ['생성시각(KST)', '사용자', '이메일', '종류', '모델', '제공사', '단위', '크레딧', '실제차감(KRW)', 'AI비용(USD)', '당일환율', 'AI비용(KRW)', '마진(KRW)', '배수', '프롬프트', '결과URL']
   const body = rows.map((r) => [
     kstDateTime(r.createdAt), r.name, r.email, r.resultKind || r.kind, r.model, r.provider,
-    r.credits, r.usd, r.usdKrw, r.costKrw, r.prompt, r.resultUrl,
+    r.units, r.credits, r.revenueKrw, r.usd, r.usdKrw, r.costKrw, r.profitKrw, r.markup, r.prompt, r.resultUrl,
   ])
   const text = [head, ...body].map((row) => row.map(esc).join(',')).join('\r\n')
   const blob = new Blob(['﻿' + text], { type: 'text/csv;charset=utf-8;' })
@@ -210,23 +210,35 @@ function GenCard({ r }: { r: AiGenerationRow }) {
           </div>
         )}
 
-        {/* 모델 · 비용 */}
+        {/* 모델 · 금액 */}
         <div className="mt-auto grid grid-cols-2 gap-x-3 gap-y-1 border-t border-[var(--border-soft)] pt-2.5 text-[11px]">
           <Meta k="모델" v={r.model || r.provider || '-'} />
-          <Meta k="크레딧" v={`${r.credits} 크레딧`} />
-          <Meta k="AI 원가" v={`${usd(r.usd)} · ${krw(r.costKrw)}`} />
-          <Meta k="당일 환율" v={r.usdKrw ? `₩${Math.round(r.usdKrw).toLocaleString('ko-KR')}/$` : '-'} />
+          <Meta k={r.kind === 'image' ? '장수' : '길이'} v={r.units ? (r.kind === 'image' ? `${r.units}장` : `${r.units}초`) : '-'} />
+          {r.archiveOnly ? (
+            /* 금액이 안 붙은 보관 전용 줄 — 차감은 다른 줄에 기록돼 있다.
+               ₩0 으로 보여 주면 공짜 생성으로 읽히므로 그렇게 쓰지 않는다. */
+            <div className="col-span-2 rounded-md bg-[var(--panel-2)] px-2 py-1.5 text-[10px] text-[var(--text-dim)]">
+              보관 전용 기록 — 이 생성의 금액은 정산 줄에 기록돼 있습니다.
+            </div>
+          ) : (
+            <>
+              <Meta k="실제 차감" v={`${krw(r.revenueKrw)} · ${r.credits} 크레딧`} strong />
+              <Meta k="AI 원가" v={`${krw(r.costKrw)} · ${usd(r.usd)}`} />
+              <Meta k="마진" v={`${krw(r.profitKrw)}${r.markup ? ` (×${r.markup})` : ''}`} />
+              <Meta k="당일 환율" v={r.usdKrw ? `₩${Math.round(r.usdKrw).toLocaleString('ko-KR')}/$` : '-'} />
+            </>
+          )}
         </div>
       </div>
     </div>
   )
 }
 
-function Meta({ k, v }: { k: string; v: string }) {
+function Meta({ k, v, strong }: { k: string; v: string; strong?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-2">
       <span className="text-[var(--text-dim)]">{k}</span>
-      <span className="truncate font-medium text-[var(--text)]" title={v}>{v}</span>
+      <span className={strong ? 'truncate font-semibold text-[var(--text)]' : 'truncate font-medium text-[var(--text)]'} title={v}>{v}</span>
     </div>
   )
 }

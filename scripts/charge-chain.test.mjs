@@ -40,6 +40,10 @@ const FX = 1400        // 환율 고정 — fx_rates 캐시 행으로 넣어 준
 const CREDIT_KRW = 65  // 회원 1크레딧 단가 — users.credit_price 로 고정
 const MARKUP = 2.5     // 기본 배수(회원·모델 override 없음)
 
+/* ai_usage 의 INSERT 컬럼 순서 — 정산(15칸)과 보관 신고(19칸)가 앞 15칸을 공유한다. */
+const AI_USAGE_COLS = ['id', 'user_id', 'email', 'name', 'provider', 'model', 'kind', 'units', 'usd',
+  'cost_krw', 'credits', 'revenue_krw', 'markup', 'usd_krw', 'created_at', 'prompt', 'refs', 'result_url', 'result_kind']
+
 /* 인메모리 D1 — gen_charges / users / ai_usage 만 흉내 낸다.
    isLikelyD1 이 prepare·batch·dump 로 판별하므로 셋 다 있어야 진짜 D1 취급을 받는다. */
 function makeDB(user) {
@@ -66,11 +70,16 @@ function makeDB(user) {
             return r && String(r.user_id) === String(bound[1]) ? r : null
           }
           if (/FROM fx_rates/i.test(s)) return { usd_krw: FX }
+          if (/COUNT\(\*\).*FROM ai_usage/i.test(s)) return { c: usage.size }
           if (/SELECT credits/i.test(s)) return { credits }
           if (/FROM\s+users|session/i.test(s)) return { ...user, credits }
           return null
         },
-        all: async () => ({ results: [] }),
+        //  관리자 화면은 ai_usage 를 목록으로 읽는다 — 저장한 컬럼 배열을 이름 있는 행으로 되돌린다.
+        all: async () => {
+          if (!/FROM ai_usage/i.test(s)) return { results: [] }
+          return { results: [...usage.values()].map((b) => Object.fromEntries(AI_USAGE_COLS.map((c, i) => [c, b[i]]))) }
+        },
         run: async () => {
           if (/INSERT INTO gen_charges/i.test(s)) {
             const [id, user_id, model, units, res, audio, ratio, refs, cn, hdr, exr, created_at] = bound
@@ -129,6 +138,7 @@ const USER = {
 const gen = await load('functions/api/generate.js')
 const gc = await load('functions/api/studio/_gencharge.ts')
 const rec = await load('functions/api/usage/record.ts')
+const agen = await load('functions/api/admin/ai-generations.ts')
 const pricing = await load('functions/api/studio/_pricing.ts')
 const { creditPriceFor } = await load('functions/api/payments/prepare.ts')
 const { computeCharge, MODEL_COST } = pricing
@@ -365,6 +375,50 @@ console.log('\n⑤ 오디오 가산은 오디오가 실제로 나가는 모델�
     const b = computeCharge({ model: m, units: 5, res: '1080p', audio: true, kind: 'video' }, FX, MARKUP, CREDIT_KRW)
     ok((b.usd > a.usd) === charged, `${m} · audio 플래그가 요금을 움직이는지가 요금표와 일치`, `${a.usd}→${b.usd}`)
   }
+}
+
+console.log('\n⑥ 관리자 생성기록 화면이 "실제로 나간 금액" 을 그대로 보여 준다')
+{
+  /* 화면이 읽는 건 ai_usage 인데, 예전에는 크레딧과 원가만 내보내고
+     "회원 지갑에서 실제로 얼마가 빠졌는지(원)" 는 아예 없었다.
+     여기서는 진짜 관리자 핸들러를 돌려서, 화면에 나가는 숫자가 실제 차감액과 같은지 본다. */
+  const db = makeDB({ ...USER, role: 'admin' })   // 조회는 관리자 세션으로
+  const token = await gc.issueGenCharge(db, '1', { model: 'Seedance 2.0', units: 10, res: '1080p' })
+  //  settle 은 me 를 인자로 받는다 — 차감은 일반 회원으로, 조회는 관리자로 돌릴 수 있다.
+  const settled = await gc.settleGenCharge(db, USER, token, '/api/generate?task=' + token, DEPS)
+  const deducted = db.__deductions.reduce((a, b) => a + b, 0)
+
+  const request = new Request('https://x/api/admin/ai-generations?limit=10', { headers: { cookie: 'bg_session=fake' } })
+  const res = await agen.onRequestGet({ request, env: { DB: db, marketing: db }, params: {}, waitUntil: () => {}, next: async () => new Response('') })
+  const body = await res.json()
+  const row = (body.items || [])[0]
+
+  ok(!!row, '생성기록에 줄이 나온다', JSON.stringify(body).slice(0, 120))
+  if (row) {
+    ok(near(row.credits, deducted, 1e-9), '크레딧 = 실제 차감 크레딧', `${row.credits} vs ${deducted}`)
+    ok(near(row.revenueKrw, Math.round(deducted * CREDIT_KRW), 0.5),
+       '실제 차감(원) = 크레딧 × 회원 단가', `${row.revenueKrw} vs ${Math.round(deducted * CREDIT_KRW)}`)
+    ok(near(row.costKrw, row.usd * row.usdKrw, 0.00005 * row.usdKrw + 0.01),
+       'AI 원가(원) = 실비USD × 그날 환율', `${row.costKrw} vs ${row.usd}×${row.usdKrw}`)
+    ok(near(row.profitKrw, row.revenueKrw - row.costKrw, 1e-9), '마진 = 실제 차감 − 원가')
+    ok(row.units === 10, '길이가 함께 나온다(금액을 눈으로 검산할 수 있게)', `${row.units}`)
+    ok(row.archiveOnly === false, '금액이 붙은 줄은 보관 전용으로 표시되지 않는다')
+    ok(near(row.credits, settled.credits, 1e-9), '화면 값과 정산이 돌려준 값이 같다')
+  }
+
+  //  금액이 안 붙은 보관 전용 줄은 "0원" 이 아니라 보관 기록으로 구분돼야 한다
+  const db2 = makeDB({ ...USER, role: 'admin' })
+  await db2.prepare(
+    `INSERT INTO ai_usage (id,user_id,email,name,provider,model,kind,units,usd,cost_krw,credits,revenue_krw,markup,usd_krw,created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  ).bind('au_arch', '1', '', '', 'seedance', 'Seedance 2.0', 'video', 10, 0, 0, 0, 0, 2.5, FX, new Date().toISOString()).run()
+  const r2 = await agen.onRequestGet({
+    request: new Request('https://x/api/admin/ai-generations?limit=10', { headers: { cookie: 'bg_session=fake' } }),
+    env: { DB: db2, marketing: db2 }, params: {}, waitUntil: () => {}, next: async () => new Response(''),
+  })
+  const b2 = await r2.json()
+  const arch = (b2.items || [])[0]
+  ok(arch && arch.archiveOnly === true, '금액 0 인 줄은 보관 전용으로 표시된다(공짜 생성으로 읽히지 않게)', JSON.stringify(arch || {}).slice(0, 100))
 }
 
 console.log(failed === 0 ? '\n과금 연쇄 — 실패 0\n' : `\n실패 ${failed}건\n`)
