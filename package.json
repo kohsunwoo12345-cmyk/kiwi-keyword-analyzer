@@ -4,11 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "npm run test:pricing",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit && tsc -p functions --noEmit",
-    "test:pricing": "node scripts/pricing.test.mjs && node scripts/charge-token.test.mjs"
+    "test:pricing": "node scripts/pricing.test.mjs && node scripts/charge-token.test.mjs && node scripts/charge-chain.test.mjs"
   },
   "dependencies": {
     "@types/node": "^20",
