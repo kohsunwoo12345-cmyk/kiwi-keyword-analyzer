@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Send, Phone, Plus, RefreshCw, Check, X, Trash2, Loader2, MessageCircle, ShieldCheck, KeyRound, Mail } from 'lucide-react'
+import { Send, Phone, Plus, RefreshCw, Check, X, Trash2, Loader2, MessageCircle, ShieldCheck, KeyRound, Mail, Coins } from 'lucide-react'
 import { MktCanvas, MktHeader, MktPanel, MktButton } from '@/components/marketing/node'
 import { EmojiText } from '@/components/Emoji'
 import { adminSenders, adminSenderAdd, adminSenderAction, kakaoChannels, kakaoChannelAuth, kakaoChannelAdd, kakaoCategories, adminSendEmail, type AdminSender, type KakaoChannel } from '@/lib/auth'
@@ -19,9 +19,113 @@ export default function MessagingPage() {
         <KakaoSection />
       </div>
       <div className="mt-4">
+        <RateSection />
+      </div>
+      <div className="mt-4">
         <EmailSection />
       </div>
     </MktCanvas>
+  )
+}
+
+/**
+ * 발송 요금표 — 알리고 기준 단가 × 배수 = 회원에게 청구하는 포인트.
+ * 알리고 요금 정책이 바뀌면 여기서 기준가만 고치면 전 발송 경로에 바로 반영된다.
+ * (문자·알림톡 비용은 크레딧이 아니라 포인트에서 나간다)
+ */
+const RATE_KINDS: ['sms' | 'lms' | 'mms' | 'alimtalk', string][] = [
+  ['sms', '단문 SMS'], ['lms', '장문 LMS'], ['mms', '사진 MMS'], ['alimtalk', '카카오 알림톡'],
+]
+
+function RateSection() {
+  const [base, setBase] = useState<Record<string, string>>({})
+  const [mult, setMult] = useState('2')
+  const [charge, setCharge] = useState<Record<string, number>>({})
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  const load = () => {
+    fetch('/api/admin/msg-rates', { credentials: 'include', cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.ok) return
+        const b: Record<string, string> = {}
+        for (const [k] of RATE_KINDS) b[k] = String(d.base?.[k] ?? '')
+        setBase(b); setMult(String(d.multiplier ?? 2)); setCharge(d.charge || {})
+      })
+      .catch(() => {})
+  }
+  useEffect(() => { load() }, [])
+
+  // 화면에서 미리 계산해 보여 준다 — 저장 전에 얼마가 될지 알 수 있게(서버와 같은 식: 올림)
+  const preview = (k: string) => {
+    const b = Number(base[k]); const m = Number(mult)
+    if (!Number.isFinite(b) || !Number.isFinite(m) || b < 0 || m <= 0) return null
+    return Math.max(1, Math.ceil(b * m))
+  }
+
+  async function save() {
+    setBusy(true); setMsg('')
+    try {
+      const payload: any = { base: {}, multiplier: Number(mult) }
+      for (const [k] of RATE_KINDS) payload.base[k] = Number(base[k])
+      const r = await fetch('/api/admin/msg-rates', {
+        method: 'POST', credentials: 'include',
+        headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
+      }).then((x) => x.json())
+      if (r.ok) { setCharge(r.charge || {}); setMsg('저장했습니다. 다음 발송부터 이 단가로 청구됩니다.') }
+      else setMsg(r.error || '저장 실패')
+    } catch { setMsg('네트워크 오류') } finally { setBusy(false) }
+  }
+
+  return (
+    <MktPanel icon={Coins} title="발송 요금표">
+      <p className="mb-3 text-xs text-[var(--mkt-text-soft)]">
+        알리고 기준 단가 × 배수 = 회원 청구 포인트 (1P = 1원). 문자·알림톡 비용은 크레딧이 아니라 포인트에서 나갑니다.
+      </p>
+      <div className="mb-3 flex items-center gap-2">
+        <label className="text-sm font-semibold text-[var(--mkt-text-soft)]">청구 배수</label>
+        <input value={mult} onChange={(e) => setMult(e.target.value)} type="number" min={0.1} step={0.1} className="input w-24" />
+        <span className="text-xs text-[var(--mkt-text-soft)]">배</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[420px] text-sm">
+          <thead>
+            <tr className="border-b border-[var(--border)] text-left text-xs text-[var(--mkt-text-soft)]">
+              <th className="py-2 font-semibold">구분</th>
+              <th className="py-2 font-semibold">알리고 기준 단가(원)</th>
+              <th className="py-2 text-right font-semibold">회원 청구</th>
+            </tr>
+          </thead>
+          <tbody>
+            {RATE_KINDS.map(([k, label]) => {
+              const p = preview(k)
+              const changed = p != null && charge[k] != null && p !== charge[k]
+              return (
+                <tr key={k} className="border-b border-[var(--border)] last:border-0">
+                  <td className="py-2 font-semibold">{label}</td>
+                  <td className="py-2">
+                    <input value={base[k] ?? ''} onChange={(e) => setBase((b) => ({ ...b, [k]: e.target.value }))}
+                      type="number" min={0} step={0.1} className="input w-28" />
+                  </td>
+                  <td className="py-2 text-right font-bold tabular-nums">
+                    {p != null ? `${p.toLocaleString()}P` : '-'}
+                    {changed && <span className="ml-1.5 text-xs font-medium text-[var(--mkt-text-soft)]">(현재 {charge[k]?.toLocaleString()}P)</span>}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      {msg && <div className="mt-3 rounded-lg bg-[var(--panel-2)] px-3 py-2 text-sm font-semibold text-[var(--mkt-text-soft)]"><EmojiText>{msg}</EmojiText></div>}
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <p className="text-xs text-[var(--mkt-text-soft)]">
+          기준 단가는 알리고 정책이 바뀌면 달라집니다. 실제 계약 단가와 다르면 여기서 맞춰 주세요.
+        </p>
+        <MktButton onClick={save} disabled={busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 저장</MktButton>
+      </div>
+    </MktPanel>
   )
 }
 

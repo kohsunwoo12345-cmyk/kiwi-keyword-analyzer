@@ -1,4 +1,5 @@
-import { Env, json, ensureSchema, getSessionUser, resolveDB, spendCredits, logActivity } from '../_utils'
+import { Env, json, ensureSchema, getSessionUser, resolveDB, spendPoints, refundPoints, logActivity } from '../_utils'
+import { unitCost } from '../_msgcost'
 import { ownsKakaoChannel, notMyChannel } from '../kakao/_own'
 import { aligoAlimtalk, aligoAlimtalkConfigured } from '../_aligo'
 
@@ -31,9 +32,11 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
   if (recipients.length > 1000) return json({ ok: false, error: '한 번에 최대 1,000명까지 발송할 수 있습니다.' }, 400)
   if (!text) return json({ ok: false, error: '내용을 입력하세요.' }, 400)
 
-  const cost = recipients.length
-  const spend = await spendCredits(db, me.id, cost, '알림톡 발송', `${recipients.length}건`)
-  if (!spend.ok) return json({ ok: false, error: spend.error }, 402)
+  // 발송 비용은 포인트로 나간다(크레딧과 별개). 단가는 알리고 기준가 × 배수.
+  const unit = await unitCost(db, 'alimtalk')
+  const cost = unit * recipients.length
+  const spend = await spendPoints(db, me.id, cost, '알림톡 발송', `알림톡 ${recipients.length}건 · ${unit}P/건`)
+  if (!spend.ok) return json({ ok: false, error: spend.error, need: (spend as any).need, balance: (spend as any).balance, unit }, 402)
 
   // 발신번호: 요청 지정 → 본인 승인 발신번호 → 환경변수 폴백 (등록된 번호를 API로 전달)
   let from = String(body.sender || body.from || '').replace(/[^0-9]/g, '')
@@ -53,9 +56,9 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
   })
   const sent = r.ok ? (r.sent || recipients.length) : 0
   const failed = recipients.length - sent
-  if (failed > 0) await db.prepare('UPDATE users SET credits = credits + ? WHERE id = ?').bind(failed, me.id).run()
+  if (failed > 0) await refundPoints(db, me.id, unit * failed, `알림톡 발송 실패 ${failed}건 환불`)
 
-  await logActivity(db, me.id, 'credit', `알림톡 발송 ${sent}/${recipients.length}건`)
+  await logActivity(db, me.id, 'point', `알림톡 발송 ${sent}/${recipients.length}건`)
 
   // 발송 이력 기록 (알림톡 발송 이력·통계 페이지 실데이터용). 실패해도 발송 결과에는 영향 없음.
   try {
@@ -66,15 +69,18 @@ export const onRequestPost: PagesFunction<any> = async ({ request, env }) => {
     await db.prepare(`INSERT INTO alimtalk_logs (id,user_id,template_id,sender_key,text,recipients,sent,failed,cost,created_at)
       VALUES (?,?,?,?,?,?,?,?,?,?)`).bind(
         'al_' + crypto.randomUUID().replace(/-/g, '').slice(0, 18), me.id, templateId, senderKey, text.slice(0, 500),
-        recipients.length, sent, failed, sent, new Date().toISOString()).run()
+        recipients.length, sent, failed, unit * sent, new Date().toISOString()).run()
   } catch { /* 로그 실패 무시 */ }
 
-  const fresh: any = await db.prepare('SELECT credits FROM users WHERE id = ?').bind(me.id).first()
+  const fresh: any = await db.prepare('SELECT credits, points FROM users WHERE id = ?').bind(me.id).first()
   const configured = aligoAlimtalkConfigured(env) && !!templateId
   return json({
     ok: true, sent, failed, total: recipients.length, configured,
     note: configured ? undefined : '알림톡은 알리고 키(ALIGO_API_KEY/USER_ID/SENDER)·발신프로필 키(ALIGO_SENDER_KEY)·템플릿 코드가 필요합니다. (실패분 크레딧 환불됨)',
     reason: r.ok ? undefined : r.error,
     credits: fresh?.credits ?? null,
+    points: fresh?.points ?? null,
+    unitPoints: unit,
+    pointsUsed: unit * sent,
   })
 }

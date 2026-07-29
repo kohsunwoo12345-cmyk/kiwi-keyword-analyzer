@@ -130,7 +130,7 @@ async function commitCharge(db, me, c, units) {
     await db.prepare(
       "INSERT INTO ai_usage (id,user_id,email,name,provider,model,kind,units,usd,cost_krw,credits,revenue_krw,markup,usd_krw,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
     ).bind(id, me.id, me.email || "", me.name || "", c.provider, c.model, c.kind,
-      units || (c.kind === "image" ? 1 : 0), c.usd, c.costKrw, charged, charged * 50, c.markup, c.usdKrw, new Date().toISOString()).run();
+      units || (c.kind === "image" ? 1 : 0), c.usd, c.costKrwExact, charged, charged * 50, c.markup, c.usdKrw, new Date().toISOString()).run();
   } catch {}
   return charged;
 }

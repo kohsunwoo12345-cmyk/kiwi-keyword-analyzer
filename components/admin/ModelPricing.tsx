@@ -70,6 +70,13 @@ export function ModelPricing() {
         각 AI 모델의 <b>크레딧 차감 배수</b>를 조절합니다. 실제 원가(API비용×환율) × 배수 ÷ {data.creditKrw || 50}원 = 차감 크레딧.
         우선순위: <b>회원×모델 &gt; 회원 전체 배수 &gt; 전역 모델 배수 &gt; 기본값</b>.
       </p>
+      {/* 원가는 길이·해상도에 따라 달라진다(영상). 기준을 안 밝히면 표의 숫자 하나만 보고
+          "이 모델은 무조건 이만큼" 으로 오해한다 — 서버가 준 산출 기준을 그대로 적는다. */}
+      <p className="mb-3 text-xs text-[var(--text-dim)]">
+        표의 원가는 <b>영상 {data.basis?.videoSeconds ?? 8}초 · {data.basis?.res ?? '1080p'}</b> 기준입니다
+        (이미지·3D·프롬프트는 1단위). 실제 차감은 생성할 때의 길이·해상도·레퍼런스 장수로 다시 계산됩니다
+        — 환율 1달러 = {data.usdKrw || 1400}원 적용.
+      </p>
 
       {/* 적용 대상 */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -144,7 +151,13 @@ function FragmentRows({ cat, list, edits, setEdits, busy, scope, activeUserId, a
           <tr key={m.model} className="border-b border-[var(--border-soft)] last:border-0 hover:bg-slate-50">
             <td className="px-2 py-2 font-medium">{m.model}</td>
             <td className="px-2 py-2"><Badge className="border-slate-200 bg-slate-50 text-slate-600">{m.provider}</Badge></td>
-            <td className="px-2 py-2 text-[var(--text-soft)]">{r2(m.baseCredits)} 크레딧</td>
+            {/* 크레딧 소수 2자리로 0.00 이 되는 아주 싼 모델은 원 단위를 같이 보여 준다 —
+                "원가 0" 으로 보이면 배수를 정할 때 오해한다. */}
+            <td className="px-2 py-2 text-[var(--text-soft)]">
+              {m.baseCredits >= 0.01
+                ? `${r2(m.baseCredits)} 크레딧`
+                : <span>&lt;0.01 크레딧<span className="ml-1 text-[11px] text-[var(--text-dim)]">(₩{m.baseKrw})</span></span>}
+            </td>
             <td className="px-2 py-2">
               <div className="flex items-center gap-1">
                 <span className="text-[var(--text-dim)]">×</span>

@@ -718,6 +718,55 @@ export async function spendCredits(db: D1Database, userId: string, amount: numbe
   return { ok: true as const, balanceAfter }
 }
 
+/**
+ * 포인트 차감 (잔액 부족 시 실패). 문자·알림톡 발송 비용은 전부 이 경로를 쓴다.
+ *
+ * 크레딧(AI 생성)과 포인트(발송)는 완전히 별개의 지갑이다.
+ * spendCredits 와 같은 원자적 조건부 차감 — 동시 요청에도 이중 차감·음수 잔액이 나지 않는다.
+ */
+export async function spendPoints(db: D1Database, userId: string, amount: number, feature: string, memo = '') {
+  const amt = Math.max(0, Math.floor(Number(amount) || 0)) // 포인트는 정수
+  if (amt <= 0) return { ok: false as const, error: '차감할 포인트 수량이 올바르지 않습니다.' }
+  const upd: any = await db
+    .prepare('UPDATE users SET points = points - ? WHERE id = ? AND points >= ?')
+    .bind(amt, userId, amt)
+    .run()
+  if (!upd || !upd.meta || upd.meta.changes !== 1) {
+    const cur: any = await db.prepare('SELECT points FROM users WHERE id = ?').bind(userId).first()
+    if (!cur) return { ok: false as const, error: '사용자를 찾을 수 없습니다.' }
+    const bal = Number(cur.points) || 0
+    return {
+      ok: false as const,
+      error: `포인트가 부족합니다. 필요 ${amt.toLocaleString()}P · 보유 ${bal.toLocaleString()}P`,
+      balance: bal,
+      need: amt,
+    }
+  }
+  const after: any = await db.prepare('SELECT points FROM users WHERE id = ?').bind(userId).first()
+  const balanceAfter = Number(after?.points) || 0
+  await db
+    .prepare(`INSERT INTO transactions (id, user_id, kind, amount, balance_after, memo, created_at) VALUES (?, ?, 'point', ?, ?, ?, ?)`)
+    .bind('t_' + crypto.randomUUID().slice(0, 16), userId, -amt, balanceAfter, memo || feature, new Date().toISOString())
+    .run()
+  await logActivity(db, userId, 'point', `-${amt.toLocaleString()}P · ${feature}`)
+  return { ok: true as const, balanceAfter, spent: amt }
+}
+
+/** 포인트 환불 — 나가지 않은 발송분을 돌려준다(상대 증감이라 동시 차감과 겹쳐도 안전) */
+export async function refundPoints(db: D1Database, userId: string, amount: number, memo: string) {
+  const amt = Math.max(0, Math.floor(Number(amount) || 0))
+  if (amt <= 0) return
+  await db.prepare('UPDATE users SET points = points + ? WHERE id = ?').bind(amt, userId).run().catch(() => {})
+  await db
+    .prepare(
+      `INSERT INTO transactions (id, user_id, kind, amount, balance_after, memo, created_at)
+       SELECT ?, ?, 'point', ?, points, ?, ? FROM users WHERE id = ?`,
+    )
+    .bind('t_' + crypto.randomUUID().slice(0, 16), userId, amt, memo, new Date().toISOString(), userId)
+    .run()
+    .catch(() => {})
+}
+
 /** 알림 생성 */
 export async function addNotification(db: D1Database, userId: string, title: string, body: string) {
   await db

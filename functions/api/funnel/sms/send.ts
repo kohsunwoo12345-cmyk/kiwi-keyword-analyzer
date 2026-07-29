@@ -2,7 +2,8 @@
 //  퍼널 신청자에게 대량 발송. 전화번호는 문자(SMS/LMS, Aligo), 이메일은 Resend 로 함께 발송.
 //  body: { sender, recipients:[{phone,name,email}], message, msg_type? }
 //  resp: { success, successCount, failCount, results[] }
-import { resolveDB, getSessionUser, spendCredits, logActivity } from '../../_utils'
+import { resolveDB, getSessionUser, spendPoints, refundPoints, logActivity } from '../../_utils'
+import { smsKindOf, unitCost, KIND_LABEL } from '../../_msgcost'
 import { ensureFunnelSchema } from '../_schema'
 import { sendSms } from '../../_aligo'
 import { resendEmail, emailShell } from '../../_external'
@@ -51,14 +52,16 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
       if (!from) from = String((env as any)?.ALIGO_SENDER || '').replace(/[^0-9]/g, '')
     }
 
-    // ── 크레딧 선차감 ────────────────────────────────────────────────────────
-    //  ⚠ 예전에는 이 경로만 과금이 없었다. 크레딧 0인 회원도 대량 문자를 보낼 수 있어
-    //     알리고 요금이 그대로 우리 쪽 손실이 됐다. /api/sms/send 와 같이 건당 1 크레딧.
-    //     이메일은 다른 경로와 마찬가지로 과금하지 않는다.
+    // ── 포인트 선차감 ────────────────────────────────────────────────────────
+    //  ⚠ 예전에는 이 경로만 과금이 없었다. 잔액 0인 회원도 대량 문자를 보낼 수 있어
+    //     알리고 요금이 그대로 우리 쪽 손실이 됐다. /api/sms/send 와 같은 기준으로 받는다.
+    //     발송 비용은 포인트(알리고 단가 × 배수). 이메일은 다른 경로와 마찬가지로 과금하지 않는다.
     const smsTargets = emailOnly ? 0 : recipients.filter((r: any) => digits(r.phone).length >= 10).length
+    const msgKind = smsKindOf(message)
+    const unit = await unitCost(db, msgKind)
     if (smsTargets > 0) {
-      const spend = await spendCredits(db, me.id, smsTargets, '퍼널 문자 발송', `SMS ${smsTargets}건`)
-      if (!spend.ok) return j({ success: false, error: spend.error }, 402)
+      const spend = await spendPoints(db, me.id, unit * smsTargets, '퍼널 문자 발송', `${KIND_LABEL[msgKind]} ${smsTargets}건 · ${unit}P/건`)
+      if (!spend.ok) return j({ success: false, error: spend.error, need: (spend as any).need, balance: (spend as any).balance, unit }, 402)
     }
 
     let successCount = 0
@@ -105,15 +108,8 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
       results.push({ phone: r.phone || '', email: r.email || '', sms: smsOk, email_sent: emailOk, reason: ok ? '' : reason })
     }
 
-    // 실패분 크레딧 환불 — 나가지 않은 문자까지 받을 이유가 없다(/api/sms/send 와 동일)
-    if (smsFailed > 0) {
-      await db.prepare('UPDATE users SET credits = ROUND(credits + ?, 2) WHERE id = ?').bind(smsFailed, me.id).run().catch(() => {})
-      await db.prepare(
-        `INSERT INTO transactions (id, user_id, kind, amount, balance_after, memo, created_at)
-         SELECT ?, ?, 'credit', ?, credits, ?, ? FROM users WHERE id = ?`,
-      ).bind('t_' + crypto.randomUUID().slice(0, 16), me.id, smsFailed,
-        `퍼널 문자 발송 실패 ${smsFailed}건 환불`, new Date().toISOString(), me.id).run().catch(() => {})
-    }
+    // 실패분 포인트 환불 — 나가지 않은 문자까지 받을 이유가 없다(/api/sms/send 와 동일)
+    if (smsFailed > 0) await refundPoints(db, me.id, unit * smsFailed, `퍼널 문자 발송 실패 ${smsFailed}건 환불`)
     if (smsTargets > 0) await logActivity(db, me.id, 'sms', `퍼널 문자 발송 ${smsTargets - smsFailed}/${smsTargets}건`).catch(() => {})
 
     return j({ success: successCount > 0, successCount, failCount, results })
