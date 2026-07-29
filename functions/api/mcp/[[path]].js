@@ -261,14 +261,16 @@ async function callGeneratePOST(env, origin, body, token) {
   // 내부 호출도 /api/generate 인증 게이트를 통과하도록 인증 토큰(회원 개인 토큰 또는 전역 MCP 토큰) 전달
   if (token) headers["Authorization"] = "Bearer " + token;
   const req = new Request(origin + "/api/generate", { method: "POST", headers, body: JSON.stringify(body) });
-  const res = await generateApi({ request: req, env });
+  // MCP 도 스스로 차감한다(commitCharge) — 생성 API 안의 자동 차감은 꺼 둔다(이중 차감 방지).
+  const res = await generateApi({ request: req, env, __internalBilling: true });
   return res.json();
 }
 async function callGenerateGET(env, origin, statusUrl, token) {
   const headers = {};
   if (token) headers["Authorization"] = "Bearer " + token;
   const req = new Request(origin + statusUrl, { headers });
-  const res = await generateApi({ request: req, env });
+  // MCP 도 스스로 차감한다(commitCharge) — 생성 API 안의 자동 차감은 꺼 둔다(이중 차감 방지).
+  const res = await generateApi({ request: req, env, __internalBilling: true });
   return res.json();
 }
 /* 제공사 CDN 영상 URL(수 시간~수일 내 만료)을 R2 로 재호스팅해 "영구 URL" 로 교체.

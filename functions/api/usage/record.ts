@@ -164,7 +164,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   /* 금액이 붙은 줄은 정산(generate.js → settleGenCharge)이 이미 넣었다. 그 줄 번호를 받았으면
      프롬프트·레퍼런스·결과물만 거기에 채운다 — 관리자 화면에 한 생성이 한 줄로 남는다.
      못 붙였을 때만 아래에서 별도 줄을 만들고, 금액 칸은 0 이라 합계를 흔들지 않는다. */
-  const chargeRef = String(b.chargeRef || '').slice(0, 40)
+  /* 클라이언트가 chargeRef 를 돌려주지 않아도(오래된 캐시 등) 토큰에 적어 둔 줄 번호로 찾는다.
+     못 찾으면 아래에서 별도 줄이 생기는데, 그러면 관리자 "생성 건수" 가 한 생성에 두 번 세어진다. */
+  const chargeRef = String(b.chargeRef || staked?.usageId || '').slice(0, 40)
   if (chargeRef) {
     try {
       const upd: any = await db

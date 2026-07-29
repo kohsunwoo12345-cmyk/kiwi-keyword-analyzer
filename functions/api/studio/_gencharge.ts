@@ -37,7 +37,7 @@ export async function ensureGenCharges(db: D1Database): Promise<void> {
     .catch(() => {})
   /* 실제로 얼마를 뺐는지와, 어느 제공사 작업의 것인지 — 비동기 영상이 실패했을 때
      그 금액을 되돌리려면 둘 다 필요하다(기존 표에는 없어서 추가한다). */
-  for (const col of ['credits REAL DEFAULT 0', "task_key TEXT DEFAULT ''", "status TEXT DEFAULT ''"])
+  for (const col of ['credits REAL DEFAULT 0', "task_key TEXT DEFAULT ''", "status TEXT DEFAULT ''", "usage_id TEXT DEFAULT ''"])
     await db.prepare(`ALTER TABLE gen_charges ADD COLUMN ${col}`).run().catch(() => {})
   await db
     .prepare(`CREATE INDEX IF NOT EXISTS idx_gen_charges_user ON gen_charges (user_id, created_at)`)
@@ -74,7 +74,7 @@ export async function consumeGenCharge(
   db: D1Database,
   userId: string,
   token: string,
-): Promise<(GenChargeSpec & { alreadyConsumed?: boolean }) | null> {
+): Promise<(GenChargeSpec & { alreadyConsumed?: boolean; usageId?: string }) | null> {
   const id = String(token || '').trim()
   if (!id) return null
   try {
@@ -85,7 +85,11 @@ export async function consumeGenCharge(
       .first()
     if (!row) return null
     // 이미 쓴 토큰이면 두 번째 요청은 과금하지 않는다(재시도·중복 전송으로 두 번 빠지는 것을 막는다).
-    if (row.consumed_at) return { model: String(row.model || ''), units: Number(row.units) || 0, alreadyConsumed: true }
+    /* 이미 소비된 토큰이라도 "그 생성이 어느 줄에 기록됐는지" 는 알려 준다.
+       보관 신고(usage/record)가 프롬프트·결과물을 그 줄에 붙일 때 쓴다 —
+       클라이언트가 chargeRef 를 되돌려 주지 않아도(오래된 캐시 등) 서버끼리 이어진다. */
+    if (row.consumed_at) return { model: String(row.model || ''), units: Number(row.units) || 0,
+                                  usageId: String(row.usage_id || ''), alreadyConsumed: true }
     const upd: any = await db
       .prepare(`UPDATE gen_charges SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL`)
       .bind(new Date().toISOString(), id)
@@ -163,6 +167,8 @@ export async function settleGenCharge(
              spec.units, c.usd, c.costKrwExact, credits, Math.round(credits * creditKrw),
              c.markup, c.usdKrw, new Date().toISOString()).run()
     } catch { usageId = '' }
+    //  이 생성이 기록된 줄 번호를 토큰에 적어 둔다 — 보관 신고가 나중에 같은 줄을 찾아 붙는다.
+    if (usageId) await db.prepare('UPDATE gen_charges SET usage_id = ? WHERE id = ?').bind(usageId, token).run().catch(() => {})
     return { credits, usageId }
   } catch {
     return NONE

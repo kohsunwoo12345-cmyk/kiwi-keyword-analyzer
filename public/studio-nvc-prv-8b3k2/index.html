@@ -4175,7 +4175,10 @@ async function narrateNode(n){
   n.w.generating=true; n.w.error=null; render();
   (function(){ var em=document.getElementById('nd-'+n.id); if(em)em.classList.add('exec'); })();
   toast(isLip?'립싱크 생성 중… 입 모양 동기화는 시간이 걸립니다.':'나레이션 합성 중…');
-  callProxy({ provider:prov, videoUrl:srcU, text:text, voice:voiceId, rate:rate })
+  /* model·seconds 를 반드시 함께 보낸다 — 서버는 이 둘로 과금 토큰을 만든다.
+     안 보내면 토큰이 발급되지 않아 제공사 비용은 나가는데 한 푼도 청구되지 않는다
+     (차감이 신고 창구에서 생성 시점으로 옮겨진 뒤 생긴 조건이다). */
+  callProxy({ provider:prov, model:modelNm, seconds:_secN, videoUrl:srcU, text:text, voice:voiceId, rate:rate })
     .then(function(res){
       n.w.generating=false;
       if(!res || res.error){
@@ -4248,7 +4251,8 @@ async function revoiceNode(n){
       // revoice 는 원본 영상도 공개 URL 이어야 립싱크 가능
       if(!/^https?:\/\//.test(srcU)) throw new Error('립싱크할 영상은 공개 URL 이어야 합니다. 출력 노드의 완성 영상을 연결하세요.');
       toast('일레븐랩스 목소리 교체 + 립싱크 중… (시간이 걸립니다)');
-      return callProxy({ provider:'revoice', videoUrl:srcU, audioUrl:audioUrl, voice:voiceId });
+      //  위와 같은 이유로 model·seconds 를 함께 보낸다(원본 길이만큼 초당 과금).
+      return callProxy({ provider:'revoice', model:'립싱크 (인물 말하기)', seconds:_secR, videoUrl:srcU, audioUrl:audioUrl, voice:voiceId });
     })
     .then(function(res){
       n.w.generating=false;
@@ -7139,7 +7143,11 @@ canvas.addEventListener('click',function(e){
     n2.w.extending=true; n2.w.error=null; render();
     (function(nd){
       var prevSec=Number(nd.w.sec)||5;
-      callProxy({ provider:'klingextend', model:nd.w.model||'Kling', kind:'video',
+      /* 과금 토큰은 model 이 단가표에 있어야 발급된다 — 'Kling' 은 표에 없는 이름이라
+         그대로 두면 확장이 공짜가 된다. 표에 있는 이름으로 떨어뜨린다.
+         길이는 클링 확장이 한 번에 늘려 주는 5초 기준(아래 실제 길이 측정도 같은 값을 가정한다). */
+      callProxy({ provider:'klingextend', model:(MODEL_COST[nd.w.model]?nd.w.model:'Kling 2.1 Master (이미지→영상)'),
+                  kind:'video', seconds:5,
                   videoId:nd.w.videoId, prompt:nd.w.extPrompt||'' })
       .then(function(res){
         nd.w.extending=false;

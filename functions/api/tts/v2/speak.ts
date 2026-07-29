@@ -2,7 +2,7 @@
 // 남용 방지: 로그인 세션 필수(유료 TTS 공급자 호출을 익명에게 노출하지 않음).
 //   스튜디오·영상 도구의 브라우저 호출은 세션 쿠키를 지니므로 그대로 통과하고,
 //   내부 서버 호출(generate.js synthTTSUrl)은 원 사용자 쿠키를 전달해 통과한다.
-import { getSessionUser, resolveDB } from '../../_utils'
+import { getSessionUser, resolveDB, rateLimitOk } from '../../_utils'
 const PARLER_VOICE_DESC: Record<string, string> = {
   'Jon':    "Jon's voice is monotone yet slightly fast in delivery, with a very close recording that almost has no background noise.",
   'Lea':    "Lea speaks with a slightly expressive and animated voice, at a moderate speed. The recording is of very high quality.",
@@ -63,6 +63,11 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     const db = resolveDB(env as any)
     const me: any = db ? await getSessionUser(request, db) : null
     if (!me) return cjson({ error: '로그인이 필요합니다.', traceId }, 401)
+    /* 로그인만 막아 두면 회원 한 명이 반복 호출로 제공사 비용을 무제한 태울 수 있다
+       (일레븐랩스·OpenAI 음성은 요청당 최대 5,000자까지 실제로 나간다).
+       미리듣기 용도라 분당 30회면 충분하다 — 그 이상은 비용을 태우려는 호출이다. */
+    if (db && me?.id && !(await rateLimitOk(db, `tts:${me.id}`, 30, 1)))
+      return cjson({ error: '음성 미리듣기 요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.', traceId }, 429)
   } catch { /* DB 미가용 시엔 게이트를 건너뛰지 않고 안전하게 차단 */ return cjson({ error: '인증 확인 실패', traceId }, 401) }
   try {
     // 잘못된 JSON 이 그대로 던져져 500 이 나던 자리 — 파싱 실패는 아래 text 검사에서 400 으로 걸린다

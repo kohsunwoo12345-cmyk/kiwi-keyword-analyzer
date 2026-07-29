@@ -1582,6 +1582,21 @@ export async function onRequest(context) {
   }
 }
 
+/* 제공사 자체가 곧 기능인 경로들의 과금 모델명.
+   과금 토큰은 pbody.model 이 단가표에 있을 때만 발급된다. 그런데 나레이션·립싱크·목소리 교체는
+   스튜디오가 model 을 안 실어 보냈다 — 예전에는 클라이언트가 recordCost 로 직접 신고했으니
+   문제가 없었지만, 차감이 생성 시점으로 옮겨진 뒤로는 토큰이 없으면 제공사 비용만 나가고
+   한 푼도 안 받는다. 클라이언트가 무엇을 빠뜨리든 서버가 이름을 채운다. */
+const PROVIDER_BILL_MODEL = {
+  narrate:  "나레이션 (AI 음성 해설)",
+  lipsync:  "립싱크 (인물 말하기)",
+  revoice:  "립싱크 (인물 말하기)",      // 목소리 교체 + 립싱크 — 같은 초당 단가
+  music:    "음악 생성 (BGM·뮤직)",
+  upscale:  "업스케일 4K (영상 화질 향상)",
+  motion:   "모션 전이 (원본 움직임 유지·Motion Transfer)",
+  v2v_auto: "V2V 자동 (최고정확도·모델 자동선택)",
+};
+
 async function handle(context) {
   const { request, env } = context;
   const k = keys(env);
@@ -1636,7 +1651,9 @@ async function handle(context) {
         //  유료 제공사 호출 "이전"에 차단하므로, 잔액이 부족하면 제공사 비용 자체가 발생하지 않는다.
         //  precheck 와 동일한 공식(computeCharge)을 서버에서 재계산해 클라이언트 우회를 무력화한다.
         try {
-          const mdl = String(pbody.model || "");
+          const asked = String(pbody.model || "");
+          //  단가표에 없는 이름(또는 빈 값)이면 제공사로 정해지는 기능인지 본다 — 위 표 참조.
+          const mdl = MODEL_COST[asked] ? asked : (PROVIDER_BILL_MODEL[String(pbody.provider || "")] || asked);
           if (mdl && MODEL_COST[mdl]) {
             const rate = await getUsdKrw(db);
             const mk = await resolveMarkup(db, me.id, mdl, Number(me.credit_markup) || 0);
@@ -1647,8 +1664,8 @@ async function handle(context) {
                확정 과금(usage/record·precheck·/api/v1)은 이미 u!=='sec' 로 맞춰 두었는데
                이 게이트만 남아, 잔액이 충분한 사람을 "크레딧 부족" 으로 막을 수 있었다. */
             const isImg = MODEL_COST[mdl] && MODEL_COST[mdl].u !== "sec";
-            const gUnits = isImg ? 1 : effectiveUnits(pbody, env);
-            const gRes = isImg ? undefined : effectiveRes(pbody, env);
+            const gUnits = isImg ? 1 : effectiveUnits({ ...pbody, model: mdl }, env);
+            const gRes = isImg ? undefined : effectiveRes({ ...pbody, model: mdl }, env);
             const cc = computeCharge({ model: mdl, units: gUnits, res: gRes, audio: !!pbody.generateAudio }, rate, mk, ckw);
             const surPct = await resolveRefSurcharge(db, me.id);
             const refMult = 1 + (surPct / 100) * Math.max(0, Number(pbody.refCount) || 0);

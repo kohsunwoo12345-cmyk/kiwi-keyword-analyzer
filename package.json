@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit && tsc -p functions --noEmit",
-    "test:pricing": "node scripts/pricing.test.mjs && node scripts/charge-token.test.mjs"
+    "test:pricing": "node scripts/pricing.test.mjs && node scripts/charge-token.test.mjs && node scripts/money-chain.test.mjs"
   },
   "dependencies": {
     "@types/node": "^20",
