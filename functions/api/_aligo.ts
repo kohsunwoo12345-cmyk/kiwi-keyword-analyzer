@@ -351,8 +351,12 @@ export async function aligoCategories(env: any): Promise<{ ok: boolean; categori
     const code = codeOf(node)
     if (code && !seen.has(code)) { seen.add(code); out.push({ code, name: nextPath.join(' > ') || code }) }
   }
-  // 응답 루트 후보: data(객체/배열) 또는 list
-  const root = r.data?.data ?? r.data?.list ?? []
+  // 응답 루트 후보: data / list / info / categories
+  //  ⚠ 알리고는 알맹이를 info 에 담아 내려준다(발신프로필 등록의 senderKey 도 같았다).
+  //    info 를 안 보다가 카테고리가 늘 빈 목록이었고, 카테고리는 채널 등록 필수값이라
+  //    회원이 알림톡 채널을 아예 등록할 수 없었다.
+  const d: any = r.data || {}
+  const root = d.data ?? d.list ?? d.info ?? d.categories ?? d.result ?? []
   const roots = Array.isArray(root) ? root : kidsOf(root).length ? kidsOf(root) : Object.values(root || {}).flat()
   for (const node of roots as any[]) walk(node, [])
   return { ok: true, categories: out }
