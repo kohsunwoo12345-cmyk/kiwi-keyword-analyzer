@@ -1,6 +1,6 @@
 // 타깃 그룹(연락처 그룹) — 엑셀 DB 업로드로 만든 수신자 그룹을 저장·재사용.
 //  캘린더 일정, 문자/알림톡 발송에서 동일한 그룹을 선택해 사용한다.
-import { Env, json, resolveDB, ensureSchema, getSessionUser } from './_utils'
+import { Env, json, resolveDB, ensureSchema, getSessionUser, normPhoneKR } from './_utils'
 
 async function ensureGroupTables(db: D1Database) {
   await db.batch([
@@ -11,7 +11,8 @@ async function ensureGroupTables(db: D1Database) {
   ])
 }
 const uid = (p: string) => p + crypto.randomUUID().slice(0, 16)
-const normPhone = (v: any) => String(v || '').replace(/[^0-9]/g, '')
+// 엑셀에 +82 10-… 로 적힌 번호도 국내 형식으로 맞춘다(그대로 두면 알리고가 못 보낸다)
+const normPhone = (v: any) => normPhoneKR(v)
 
 async function ownsGroup(db: D1Database, groupId: string, userId: string) {
   const r = await db.prepare('SELECT id FROM contact_groups WHERE id = ? AND user_id = ?').bind(groupId, userId).first()

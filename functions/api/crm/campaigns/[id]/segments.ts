@@ -7,11 +7,13 @@
 //  POST /api/crm/campaigns/:id/segments
 //       { segment: 'not_applied' | 'applied', name? }
 //         → 그 무리로 타깃 그룹을 만든다(이미 있으면 갱신) → 새 집행에 바로 쓸 수 있다
-import { Env, json, ensureSchema, getSessionUser, resolveDB, asText, sameOriginOk } from '../../../_utils'
+import { Env, json, ensureSchema, getSessionUser, resolveDB, asText, sameOriginOk, normPhoneKR } from '../../../_utils'
 import { ensureCrmSchema, ownsCampaign } from '../../_schema'
 import { ensureLandingSchema } from '../../../landing/_lschema'
 
-const digits = (v: any) => String(v ?? '').replace(/[^0-9]/g, '')
+// 국제 표기(+82 10-…)로 신청한 사람도 같은 사람으로 알아봐야 한다 —
+// 안 그러면 이미 신청한 사람에게 후속 문자가 또 나가고 포인트도 또 빠진다.
+const digits = (v: any) => normPhoneKR(v)
 const uid = (p: string) => p + crypto.randomUUID().slice(0, 16)
 
 export type SegmentKey = 'applied' | 'not_applied'
