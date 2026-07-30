@@ -1034,6 +1034,23 @@ export function asText(v: any, max = 0): string {
   return max > 0 ? out.slice(0, max) : out
 }
 
+/**
+ * 국내 전화번호를 한 가지 모양(01012345678)으로 맞춘다.
+ *
+ *  랜딩 신청 폼에 "+82 10-1234-5678" 처럼 국제 표기로 적는 사람이 있다.
+ *  숫자만 남기면 821012345678 이 되어 01012345678 과 다른 번호가 되어 버린다.
+ *  실제로 이 때문에 이미 신청한 사람이 "미신청자" 로 분류돼 후속 문자를 또 받았고,
+ *  그 건수만큼 포인트도 나갔다. 알리고도 82… 형식은 받지 않는다.
+ *  국내 번호는 0 으로 시작하므로 82 로 시작하는 숫자열은 국제 표기로 봐도 안전하다.
+ */
+export function normPhoneKR(v: any): string {
+  let d = asText(v).replace(/[^0-9]/g, '')
+  if (!d) return ''
+  if (d.startsWith('0082')) d = '0' + d.slice(4)          // 0082-10-…
+  else if (d.startsWith('82') && d.length >= 11) d = '0' + d.slice(2)  // +82-10-…
+  return d
+}
+
 /** D1 바인딩에 넣어도 안전한 스칼라만 남긴다(객체/배열/undefined 를 바인딩하면 D1 이 던진다). */
 export function asBindable(v: any): string | number | null {
   if (v == null) return null

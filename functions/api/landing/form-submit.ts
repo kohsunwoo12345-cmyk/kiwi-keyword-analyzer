@@ -1,7 +1,7 @@
 // SUPERPLACE 이식: POST /api/landing/form-submit — 외부 임베드/랜딩 폼 제출 공개 엔드포인트
 //  1) funnel_landing_pages(active) 매칭 시 → DB중복방지 후 funnel_applicants 저장 + 자동응답(문자/이메일) 발송
 //  2) 아니면 landing_pages → form_submissions 폴백
-import { resolveDB, ensureSchema, clientIp, rateLimitOk } from '../_utils'
+import { resolveDB, ensureSchema, clientIp, rateLimitOk, normPhoneKR } from '../_utils'
 import { ensureFunnelSchema } from '../funnel/_schema'
 import { fireAutoResponses } from '../funnel/_autofire'
 import { alertOwnerOfLead } from '../_leadalert'
@@ -13,7 +13,8 @@ const WINDOW_MIN = 10
 
 const j = (o: any, status = 200) =>
   new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' } })
-const digits = (s: any) => String(s || '').replace(/[^0-9]/g, '')
+// 국제 표기(+82 10-…)도 국내 형식으로 맞춘다 — 안 그러면 나중에 같은 사람을 못 알아본다
+const digits = (s: any) => normPhoneKR(s)
 
 export const onRequestOptions: PagesFunction = async () =>
   new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } })
