@@ -4607,9 +4607,31 @@ function _esrRunTile(sess, cv){
   }).catch(function(){ return null; });
 }
 // 통합 초해상 러너: Real-ESRGAN(최상) → Swin2SR → (둘 다 불가 시 상위에서 리샘플). runner={factor,tile,run}
+/* 타일 크기가 속도를 직접 정한다. 이음매를 없애려 상하좌우 16px 을 겹쳐 자르고 가운데만 쓰므로
+   타일이 작으면 버리는 계산이 많다 — 128 이면 (128²−96²)/128² = 44% 를 버렸다.
+   실제 엔진으로 재 보니 입력 픽셀 1개당 비용은 타일 크기와 거의 무관했다(초당 13.5만 픽셀 내외).
+   즉 빠르기는 "몇 픽셀을 계산하느냐" 로 결정된다 → 프레임마다 계산량이 가장 적은 타일을 고른다.
+   고정값으로는 안 된다: 1920×1080 은 큰 타일이 유리하지만(29.0초→23.2초),
+   320×180 에서 192 를 쓰면 가장자리 여백까지 계산해 오히려 느려졌다(1173ms→1238ms, 실측). */
+function _pickTile(W,H,max){
+  var cands=[96,128,160,192,224,256], PAD=16, best=null;
+  for(var i=0;i<cands.length;i++){
+    var T=cands[i]; if(T>max) continue;
+    var C=T-2*PAD; if(C<=0) continue;
+    var px=0;
+    for(var cy=0;cy<H;cy+=C) for(var cx=0;cx<W;cx+=C){
+      //  아래 _srCanvas2 의 자르기와 똑같이 계산한다(다르게 재면 고른 값이 틀린다)
+      var wx=Math.max(0, Math.min(cx-PAD, Math.max(0,W-T))); if(W<=T) wx=0;
+      var wy=Math.max(0, Math.min(cy-PAD, Math.max(0,H-T))); if(H<=T) wy=0;
+      px += Math.min(T, W-wx)*Math.min(T, H-wy);
+    }
+    if(!best || px<best.px) best={ T:T, px:px };
+  }
+  return best?best.T:max;
+}
 function getUpscaler(factor){
   return ensureEsrgan().then(function(sess){
-    return { factor:4, tile:128, run:function(cv){ return _esrRunTile(sess, cv); } };
+    return { factor:4, tile:256, tileAuto:true, run:function(cv){ return _esrRunTile(sess, cv); } };
   }).catch(function(){
     return ensureUpscaleModel(factor).then(function(pipe){
       return { factor:(factor>=4?4:2), tile:256, run:function(cv){ return pipe(cv.toDataURL('image/png')).then(function(res){ return (res&&res.toCanvas)?res.toCanvas():null; }); } };
@@ -4620,7 +4642,9 @@ function getUpscaler(factor){
 function _srCanvas2(runner, srcCanvas){
   var factor=runner.factor, W=srcCanvas.width, H=srcCanvas.height;
   var out=document.createElement('canvas'); out.width=W*factor; out.height=H*factor; var octx=out.getContext('2d');
-  var TILE=runner.tile||256, PAD=16, CORE=TILE-2*PAD;
+  //  Real-ESRGAN 은 입력 크기가 고정이 아니라 프레임마다 가장 싼 타일을 고를 수 있다.
+  //  Swin2SR(창 기반)은 크기 제약이 있어 손대지 않는다 — tileAuto 를 켠 러너만 고른다.
+  var TILE=runner.tileAuto ? _pickTile(W,H,runner.tile||256) : (runner.tile||256), PAD=16, CORE=TILE-2*PAD;
   var jobs=[]; for(var cy=0;cy<H;cy+=CORE)for(var cx=0;cx<W;cx+=CORE) jobs.push([cx,cy]);
   var i=0;
   function next(){
