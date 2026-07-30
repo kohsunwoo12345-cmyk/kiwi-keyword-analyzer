@@ -4567,6 +4567,10 @@ function ensureOrt(){
   if(_ortTry) return _ortTry;
   _ortTry=import(location.origin+'/models/lib/ortweb').then(function(ort){
     try{ ort.env.wasm.wasmPaths=location.origin+'/models/ort/'; }catch(_){}
+    /* 스레드는 교차출처 격리(COOP/COEP) 없이는 못 쓴다. 우리 페이지에는 그 헤더가 없어서
+       엔진이 스레드 2개를 잡으려다 실패하고 경고만 남긴다(실측 콘솔 확인).
+       쓸 수 있을 때만 쓰고, 아니면 1개로 못 박아 준비 과정을 아끼게 한다. */
+    try{ if(!self.crossOriginIsolated) ort.env.wasm.numThreads=1; }catch(_){}
     _ortMod=ort; return ort;
   }).catch(function(e){ _ortTry=null; throw e; });
   return _ortTry;
@@ -4936,14 +4940,23 @@ function upscaleVideoURL(src,scale,onProg,opts){
             /* 30분×15fps = 27,000 프레임이다. 프레임당 몇 초가 걸리면 며칠이 된다.
                그래서 실제 속도를 재서 예상 시간을 내고, 감당 못 할 때는 ①처리 크기를 줄여 다시 재고
                ②그래도 안 되면 고속 향상으로 바꾼다 — 말없이 몇 날을 돌리지 않는다. */
+            /* 감당 가능한 시간의 기준은 원본 길이에 비례해 정한다.
+               예전엔 12시간 고정이었다. 실제 추론 엔진 속도로 재 보니 5분짜리 720p→4K 가
+               "10시간 20분" 으로 잡혔고, 기준(12시간) 아래라 그대로 통과했다 — 10시간짜리 작업을
+               말없이 계속 돌린 것이다(실측). 10시간은 되는 게 아니다.
+               원본 길이의 6배까지 허용하고(30초 영상이면 3분), 아무리 길어도 3시간을 넘기지 않는다. */
+            var BUDGET_H = Math.min(3, Math.max(0.5, clip*6/3600));
             function retune(){
               if(!srOn||tuned>=2||srN<8)return;
               var projH=(total*(srMs/srN)/1000)/3600;
-              if(projH<=12){ tuned=2; return; }
+              if(projH<=BUDGET_H){ tuned=2; return; }
               tuned++;
-              if(tuned===1&&CAP>360){ CAP=Math.max(320,Math.round(CAP/2)); applyCap(); srMs=0; srN=0;
+              /* 처리 크기를 줄이는 건 "원본이 그 크기보다 클 때" 만 효과가 있다.
+                 작은 원본에서는 줄여도 그대로라, 예전 조건은 몇 분을 더 재고 나서야 다음 단계로 갔다. */
+              var half=Math.max(320,Math.round(CAP/2));
+              if(tuned===1 && half<Math.max(iw,ih)){ CAP=half; applyCap(); srMs=0; srN=0;
                 try{ toast('예상 '+projH.toFixed(1)+'시간 — 처리 크기를 줄여 다시 잡습니다'); }catch(_){} return; }
-              srOn=false;
+              srOn=false; tuned=2;
               try{ toast('예상 '+projH.toFixed(1)+'시간이라 전 프레임 초해상은 무리입니다 — 고속 화질 향상으로 전환합니다(크기·소리·길이는 그대로).'); }catch(_){}
             }
             function seekTo(t){ return new Promise(function(res){ var d2=false;

@@ -119,6 +119,19 @@ ok('본문을 찾았다 (upscaleVideoURL·_grabAudioOpus·webmWriter)', !!up && 
 {
   ok('⑧ 남은 시간을 계산해 알려 준다', /etaSec:\s*left/.test(up) && /남은 시간 약/.test(src))
   ok('⑧-b 감당 못 할 예상 시간이면 스스로 줄인다', /function retune\(\)/.test(up))
+  /* 그 기준이 원본 길이에서 나와야 한다.
+     12시간 고정이던 시절, 진짜 엔진 속도로 재 보니 5분짜리 720p→4K 가 "10시간 20분" 으로 잡혔고
+     기준 아래라 그대로 통과했다 — 10시간짜리 작업을 말없이 계속 돌렸다(실측).
+     고정값으로 되돌아가면 같은 일이 다시 일어난다. */
+  ok('⑧-c 감당 기준이 원본 길이에 비례한다',
+     /BUDGET_H\s*=\s*Math\.min\(3,\s*Math\.max\(0\.5,\s*clip\s*\*\s*6\s*\/\s*3600\)\)/.test(up) &&
+     /projH\s*<=\s*BUDGET_H/.test(up),
+     '고정 시간 기준이면 몇 시간짜리 작업이 기준 아래로 새어 나간다')
+  ok('⑧-d 처리 크기 줄이기가 효과 없으면 건너뛴다',
+     /half\s*<\s*Math\.max\(iw,\s*ih\)/.test(up), '작은 원본에서는 줄여도 그대로라 재는 시간만 버린다')
+  //  스레드는 교차출처 격리 없이는 못 쓴다 — 쓸 수 있을 때만 쓰게 해 둔 부분
+  ok('⑧-e 스레드를 쓸 수 없는 환경에서는 1개로 못 박는다',
+     /crossOriginIsolated\)\s*ort\.env\.wasm\.numThreads\s*=\s*1/.test(src))
 }
 
 console.log(fails.length === 0
