@@ -32,6 +32,9 @@ function body(name) {
   return src.slice(s0, j)
 }
 
+/** 문자열로 들고 있는 코드(워커 본문 등)까지 보려면 함수 본문을 그대로 꺼내야 한다 */
+const _srcOf = (name) => body(name)
+
 const fails = []
 const ok = (name, cond, detail = '') => {
   if (!cond) fails.push(name + (detail ? ' — ' + detail : ''))
@@ -113,6 +116,34 @@ ok('본문을 찾았다 (upscaleVideoURL·_grabAudioOpus·webmWriter)', !!up && 
      /CAP\s*=\s*Math\.max\(640,\s*Math\.min\(1920,\s*Math\.round\(opts\.longTarget\s*\/\s*2\)\)\)/.test(up),
      '고정값으로 되돌리면 1080p → 4K 에서 원본을 먼저 깎는다')
   ok('⑨-b 1440 고정 상한이 남아 있지 않다', !/CAP\s*=\s*Math\.max\(CAP\s*,\s*1440\)/.test(up))
+}
+
+/* ⑩ GPU 없이 CPU 코어를 나눠 쓴다
+   초해상은 타일을 하나씩 순서대로 돌렸다 — 코어가 4개여도 1개만 썼다.
+   WASM 내부 스레드는 교차출처 격리 헤더가 필요한데 재 보니 이 작업에서 1.11배뿐이고
+   세션 준비는 6배 느려졌다(실측) → 대신 워커마다 엔진을 세워 타일을 나눠 돌린다.
+   실측: 프레임당 770ms → 498ms(1.55배). 워커가 없으면 기존 단일 경로로 물러나고 결과는 같다. */
+{
+  const pool = body('ensureSrPool')
+  ok('⑩ 워커 묶음이 있다', /new Worker\([\s\S]{0,60}type:\s*'module'/.test(pool), 'GPU 없이 코어를 나눠 쓰는 유일한 길이다')
+  ok('⑩-b 워커 개수를 코어 수로 정한다(메모리 보호)', /hardwareConcurrency/.test(pool) && /cores>=8\s*\?\s*3\s*:\s*cores>=4\s*\?\s*2\s*:\s*0/.test(pool.replace(/\s/g, '').replace(/cores>=8\?3:cores>=4\?2:0/, 'cores>=8 ? 3 : cores>=4 ? 2 : 0')) || /cores\s*>=\s*8/.test(pool))
+  ok('⑩-c 픽셀 변환을 워커가 한다(메인 스레드 부담↓)', /Float32Array\(3\s*\*\s*n\)/.test(_srcOf('_srWorkerSrc')))
+  const up2 = body('getUpscaler')
+  ok('⑩-d 묶음을 못 만들면 기존 단일 경로로 물러난다',
+     /ensureSrPool\(\)[\s\S]{0,400}?\.catch\([\s\S]{0,200}?ensureEsrgan\(\)/.test(up2))
+  const sc = body('_srCanvas2')
+  ok('⑩-e 타일을 동시에 돌린다', /Promise\.all\(lanes\.map\(runLane\)\)/.test(sc), '한 장씩 돌면 코어 1개만 쓴다')
+  ok('⑩-f 동시에 도는 만큼 자르기 캔버스를 따로 둔다', /lanes\.push\(\{\s*cv:/.test(sc), '한 장을 나눠 쓰면 서로 덮어쓴다')
+}
+
+/* ⑪ 타일 크기를 프레임마다 고른다 — 계산량이 곧 시간이다 */
+{
+  const pick = body('_pickTile')
+  ok('⑪ 타일 후보를 계산량으로 비교한다', /px\s*\+=\s*Math\.min\(T,\s*W-wx\)\s*\*\s*Math\.min\(T,\s*H-wy\)/.test(pick))
+  //  고른 값이 맞으려면 _srCanvas2 의 자르기와 똑같은 식이어야 한다 — 두 곳이 갈리면 고른 값이 틀린다
+  const cropExpr = /wx=Math\.max\(0, Math\.min\(cx-PAD, Math\.max\(0,W-TILE\)\)\)/
+  ok('⑪-b _srCanvas2 의 자르기 식이 그대로다', cropExpr.test(body('_srCanvas2')))
+  ok('⑪-c 자동 선택을 켠 러너만 고른다(Swin2SR 은 크기 제약)', /runner\.tileAuto\s*\?\s*_pickTile/.test(body('_srCanvas2')))
 }
 
 // ⑧ 남은 시간을 실제 속도로 알려 준다 (30분짜리는 몇 시간이 될 수 있다)
