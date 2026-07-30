@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { X, MoonStar } from 'lucide-react'
 import { NoticeMedia } from '@/components/NoticeMedia'
@@ -36,6 +36,9 @@ export function PublicNoticePopups() {
   const pathname = usePathname() || '/'
   const [items, setItems] = useState<PubNotice[]>([])
   const [closing, setClosing] = useState<Record<string, boolean>>({})
+  //  폴링 콜백이 최신 closing 을 보게 한다(useCallback 의존성에 넣으면 닫을 때마다 폴링이 새로 걸린다)
+  const closingRef = useRef<Record<string, boolean>>({})
+  closingRef.current = closing
   const [shown, setShown] = useState(false)
 
   /* ── 어디까지 띄울지 ──
@@ -55,10 +58,20 @@ export function PublicNoticePopups() {
       .then((d) => {
         if (d && d.ok && Array.isArray(d.notices)) {
           const dismissed = sessionDismissed()
+          /* 서버가 지금 내려 준 목록이 곧 "지금 떠 있어야 할 것" 이다.
+             예전에는 합치기만 하고 빼지 않아서, 한 번 뜬 알림이 세션 내내 따라다녔다:
+               · 랜딩 경로 한정 집행(scope_path)이 다른 페이지로 넘어가도 계속 떴다.
+               · 집행 종료 시각이 지나도 열려 있던 탭에서는 계속 떴다.
+               · 다른 탭에서 "N일 보지 않기" 를 눌러도 이 탭에서는 계속 떴다.
+             이미 떠 있는 것의 객체는 그대로 물려준다 — 새 객체로 갈아끼우면 영상이 처음부터 다시 돈다. */
           setItems((prev) => {
-            const map = new Map(prev.map((n) => [n.id, n]))
-            d.notices.forEach((n: PubNotice) => { if (!map.has(n.id) && !dismissed.has(n.id)) map.set(n.id, n) })
-            return Array.from(map.values())
+            const byId = new Map(prev.map((n) => [n.id, n]))
+            const next = (d.notices as PubNotice[])
+              .filter((n) => !dismissed.has(n.id))
+              .map((n) => byId.get(n.id) || n)
+            //  닫히는 중인 것은 남겨 둔다(내려가는 애니메이션이 중간에 끊기지 않게)
+            const closingNow = prev.filter((n) => closingRef.current[n.id] && !next.some((x) => x.id === n.id))
+            return [...next, ...closingNow]
           })
         }
       })

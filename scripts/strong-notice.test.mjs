@@ -115,6 +115,12 @@ function makeDB(sessionUser) {
             snoozes.set(`${campaign_id}|${visitor}`, { campaign_id, visitor, until, created_at })  // ON CONFLICT DO UPDATE
           }
           if (/INSERT INTO audit/i.test(s)) audit.push(b)
+          //  발송 취소(삭제) — 캠페인과 딸린 기록을 실제로 지운다
+          if (/DELETE FROM notice_campaigns/i.test(s)) camps.delete(b[0])
+          if (/DELETE FROM notice_visitor_events/i.test(s))
+            for (const [k, v] of events) if (v.campaign_id === b[0]) events.delete(k)
+          if (/DELETE FROM notice_snoozes/i.test(s))
+            for (const [k, v] of snoozes) if (v.campaign_id === b[0]) snoozes.delete(k)
           return { success: true, meta: { changes: 1 } }
         },
       }
@@ -160,6 +166,21 @@ async function act(db, { campaignId, visitor = 'vz_1', kind, days, path = '/', l
     body: JSON.stringify({ campaignId, visitor, kind, days, path }),
   })
   const res = await publicNotices.onRequestPost(ctx(db, request))
+  return { status: res.status, body: await res.json() }
+}
+
+async function detail(db, id) {
+  const request = new Request(`https://bygency.com/api/admin/notices?id=${encodeURIComponent(id)}`, {
+    headers: { cookie: 'bg_session=fake', origin: 'https://bygency.com' },
+  })
+  const res = await adminNotices.onRequestGet(ctx(db, request))
+  return { status: res.status, body: await res.json() }
+}
+async function remove(db, id) {
+  const request = new Request(`https://bygency.com/api/admin/notices?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE', headers: { cookie: 'bg_session=fake', origin: 'https://bygency.com' },
+  })
+  const res = await adminNotices.onRequestDelete(ctx(db, request))
   return { status: res.status, body: await res.json() }
 }
 
@@ -342,7 +363,86 @@ console.log('\n⑦ 비회원과 로그인한 회원 모두에게 나가고, 성�
   ok(/isMemberConsole \? \[\]/.test(pop), '회원 콘솔에서는 일반 토스트만 빼고 강력 알림은 띄운다')
 }
 
-console.log('\n⑧ 화면 쪽 구현이 요구를 지키는지 (정중앙 · 미디어 재생 · 보지 않기)')
+console.log('\n⑧ 관리자 상세 조회에 강력 알림 정보와 성과가 함께 나온다')
+{
+  const db = makeDB(ADMIN)
+  const r = await send(db, { ...AD, snoozeDays: 7, scopePath: '/pricing', endAt: new Date(Date.now() + 30 * 86400000).toISOString() })
+  const id = r.body.campaignId
+  await visit(db, { path: '/pricing', visitor: 'd1' })
+  await act(db, { campaignId: id, visitor: 'd1', kind: 'convert', path: '/pricing' })
+  await act(db, { campaignId: id, visitor: 'd2', kind: 'snooze', days: 7 })
+
+  const d = await detail(db, id)
+  ok(d.body.ok === true, '상세 조회가 된다', JSON.stringify(d.body).slice(0, 120))
+  const c = d.body.campaign || {}
+  ok(c.strong === true, '강력 알림 여부가 나온다', String(c.strong))
+  ok(c.snoozeDays === 7, '보지 않기 일수가 나온다', String(c.snoozeDays))
+  ok(c.scopePath === '/pricing', '집행 경로가 나온다', c.scopePath)
+  ok(!!c.endAt, '집행 종료 시각이 나온다', c.endAt)
+  const vs = d.body.visitorStats || {}
+  ok(vs.views?.total === 1, '노출 집계가 함께 나온다', JSON.stringify(vs.views))
+  ok(vs.conversions?.total === 1, '전환 집계가 함께 나온다', JSON.stringify(vs.conversions))
+  ok(vs.snoozes === 1, '보지 않기 집계가 함께 나온다', String(vs.snoozes))
+}
+
+console.log('\n⑨ 경로 한정 집행은 그 경로에서만 나간다')
+{
+  const db = makeDB(ADMIN)
+  const r = await send(db, { ...AD, scopePath: '/pricing', endAt: new Date(Date.now() + 30 * 86400000).toISOString() })
+  ok((await visit(db, { path: '/pricing', visitor: 'p1' })).length === 1, '지정 경로에서는 나간다')
+  ok((await visit(db, { path: '/pricing/detail', visitor: 'p2' })).length === 1, '하위 경로에서도 나간다')
+  ok((await visit(db, { path: '/', visitor: 'p3' })).length === 0, '다른 경로에서는 나가지 않는다')
+  ok(r.body.ok === true, '경로 한정 강력 집행이 생성된다')
+}
+
+console.log('\n⑩ 발송 취소(삭제)하면 집행과 기록이 함께 사라진다')
+{
+  const db = makeDB(ADMIN)
+  const r = await send(db, { ...AD, endAt: new Date(Date.now() + 30 * 86400000).toISOString() })
+  const id = r.body.campaignId
+  await visit(db, { visitor: 'x1' })
+  await act(db, { campaignId: id, visitor: 'x1', kind: 'convert' })
+  await act(db, { campaignId: id, visitor: 'x2', kind: 'snooze', days: 3 })
+  ok(db.__events.size > 0 && db.__snoozes.size > 0, '삭제 전에는 기록이 있다')
+
+  const del = await remove(db, id)
+  ok(del.body.ok === true, '삭제된다', JSON.stringify(del.body))
+  ok((await visit(db, { visitor: 'x3' })).length === 0, '삭제 후에는 더 이상 노출되지 않는다')
+  ok(db.__events.size === 0, '방문자 이벤트도 함께 지워진다', `${db.__events.size}건 남음`)
+  ok(db.__snoozes.size === 0, '숨김 기록도 함께 지워진다', `${db.__snoozes.size}건 남음`)
+  ok((await remove(db, id)).status === 404, '없는 집행을 지우려 하면 404 다')
+}
+
+console.log('\n⑪ 잘못된 입력과 권한 없는 요청을 막는다')
+{
+  const db = makeDB(ADMIN)
+  //  미디어 주소도 CTA 와 같은 기준으로 막아야 한다 — 팝업 안에서 실행되면 안 된다
+  ok((await send(db, { ...AD, imageUrl: 'javascript:alert(1)' })).status === 400, '사진 주소에 javascript: 는 거부된다')
+  ok((await send(db, { ...AD, videoUrl: 'javascript:alert(1)' })).status === 400, '영상 주소에 javascript: 는 거부된다')
+  ok((await send(db, { ...AD, scopePath: 'pricing' })).status === 400, '/ 로 시작하지 않는 경로는 거부된다')
+  ok((await send(db, { ...AD, title: '' })).status === 400, '제목이 비면 거부된다')
+
+  //  보지 않기 일수는 1~30 으로 강제돼야 한다(0 이면 영원히 안 숨고, 9999 면 사실상 영구 차단)
+  const zero = await send(db, { ...AD, snoozeDays: 0 })
+  ok(zero.body.snoozeDays === 3, '0 을 넣으면 기본 3일로 잡힌다', String(zero.body.snoozeDays))
+  const huge = await send(db, { ...AD, snoozeDays: 9999 })
+  ok(huge.body.snoozeDays === 30, '너무 큰 값은 30일로 잘린다', String(huge.body.snoozeDays))
+
+  //  방문자 쪽에서 임의 일수를 보내도 서버가 잘라야 한다
+  const camp = await send(db, { ...AD, endAt: new Date(Date.now() + 30 * 86400000).toISOString() })
+  const sn = await act(db, { campaignId: camp.body.campaignId, visitor: 'z1', kind: 'snooze', days: 9999 })
+  ok(sn.body.snoozedDays === 30, '방문자가 9999일을 보내도 30일로 잘린다', String(sn.body.snoozedDays))
+
+  //  관리자가 아니면 집행할 수 없다
+  const dbUser = makeDB({ id: 'u1', user_id: 'u1', email: 'u@x.co', name: '회원', role: 'user', expires_at: '2099-01-01T00:00:00Z' })
+  ok((await send(dbUser, AD)).status === 403, '일반 회원은 집행할 수 없다')
+  const dbNone = makeDB(null)
+  ok((await send(dbNone, AD)).status === 401, '비로그인은 집행할 수 없다')
+  ok((await detail(dbUser, 'nc_x')).status === 403, '일반 회원은 성과를 볼 수 없다')
+  ok((await remove(dbUser, 'nc_x')).status === 403, '일반 회원은 집행을 지울 수 없다')
+}
+
+console.log('\n⑫ 화면 쪽 구현이 요구를 지키는지 (정중앙 · 미디어 재생 · 보지 않기)')
 {
   const pop = fs.readFileSync('components/PublicNoticePopups.tsx', 'utf8')
   const media = fs.readFileSync('components/NoticeMedia.tsx', 'utf8')
