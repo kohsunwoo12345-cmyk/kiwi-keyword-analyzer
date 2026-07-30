@@ -4743,14 +4743,44 @@ function getUpscaler(factor){
   });
   });
 }
+/* 타일 하나의 "겉모습"을 아주 싸게 요약한다 — 이전 프레임과 같은지 보려는 용도.
+   3픽셀마다 한 번씩만 훑으므로 224×224 타일에서 5만 번이 아니라 1.7만 번이면 끝난다
+   (모델 추론 한 번이 수백 ms 인 것에 비하면 없는 비용이다). */
+function _tileSample(ctx,w,h){
+  var d=ctx.getImageData(0,0,w,h).data, n=w*h, step=3, m=Math.floor(n/step), s=new Uint8Array(m*3);
+  for(var k=0,p=0;k<m;k++,p+=step){ var q=p*4; s[k*3]=d[q]; s[k*3+1]=d[q+1]; s[k*3+2]=d[q+2]; }
+  return s;
+}
+function _sampleDiff(a,b){
+  if(!a||!b||a.length!==b.length) return 255;
+  var sum=0; for(var k=0;k<a.length;k++){ var v=a[k]-b[k]; sum+= v<0?-v:v; }
+  return sum/a.length;
+}
 // 러너로 캔버스를 타일 SR → 출력 캔버스(runner.factor 배).
 function _srCanvas2(runner, srcCanvas){
   var factor=runner.factor, W=srcCanvas.width, H=srcCanvas.height;
-  var out=document.createElement('canvas'); out.width=W*factor; out.height=H*factor; var octx=out.getContext('2d');
   //  Real-ESRGAN 은 입력 크기가 고정이 아니라 프레임마다 가장 싼 타일을 고를 수 있다.
   //  Swin2SR(창 기반)은 크기 제약이 있어 손대지 않는다 — tileAuto 를 켠 러너만 고른다.
   var TILE=runner.tileAuto ? _pickTile(W,H,runner.tile||256) : (runner.tile||256), PAD=16, CORE=TILE-2*PAD;
   var jobs=[]; for(var cy=0;cy<H;cy+=CORE)for(var cx=0;cx<W;cx+=CORE) jobs.push([cx,cy]);
+  /* ── 안 바뀐 자리는 다시 계산하지 않는다 ──
+     영상은 프레임 사이가 대부분 같다. 배경·자막·레터박스는 몇 초 동안 한 픽셀도 안 변하는데
+     지금까지는 매 프레임 전부를 모델에 다시 넣었다. 가장 큰 낭비다.
+     출력 캔버스를 프레임마다 새로 만들지 않고 계속 쓰면, 안 바뀐 타일은 아무것도 안 해도
+     이미 그 자리에 이전 결과가 그대로 남아 있다 — 그리는 일조차 필요 없다.
+     "같다" 의 기준은 완전 일치가 아니라 아주 작은 차이까지 허용한다(영상 압축 잡음 때문).
+     차이가 조금씩 쌓이는 경우(서서히 밝아지는 장면)는, 마지막으로 실제 계산한 시점의 모습과
+     비교하므로 결국 기준을 넘어 다시 계산된다. 그래도 60프레임마다 한 번은 강제로 다시 한다. */
+  var cacheKey=W+'x'+H+'x'+TILE+'x'+factor;
+  var cache=runner._tcache;
+  if(!cache || cache.key!==cacheKey){ cache=runner._tcache={ key:cacheKey, samp:[], age:[], buf:null }; }
+  var out=cache.buf;
+  if(!out || out.width!==W*factor || out.height!==H*factor){
+    out=cache.buf=document.createElement('canvas'); out.width=W*factor; out.height=H*factor;
+    cache.samp=[]; cache.age=[];
+  }
+  var octx=out.getContext('2d');
+  var reused=0;
   /* 워커 묶음이 있으면 타일을 동시에 돌린다 — 예전엔 한 장씩 순서대로라 코어 1개만 썼다.
      자르기 캔버스는 동시에 도는 만큼 따로 둔다(한 장을 나눠 쓰면 서로 덮어쓴다). */
   var conc=Math.max(1, Math.min(runner.concurrency||1, jobs.length));
@@ -4771,7 +4801,16 @@ function _srCanvas2(runner, srcCanvas){
   }
   function runLane(lane){
     if(i>=jobs.length) return Promise.resolve();
-    var j=jobs[i++], g=crop(lane, j[0], j[1]);
+    var ix=i++, j=jobs[ix], g=crop(lane, j[0], j[1]);
+    //  이전에 계산했을 때와 같은 그림이면 건너뛴다 — 결과는 이미 출력 캔버스에 남아 있다
+    if(runner.reuse!==false){
+      var samp=_tileSample(g.ctx, g.ww, g.wh);
+      if(_sampleDiff(cache.samp[ix], samp)<=1.2 && (cache.age[ix]||0)<60){
+        cache.age[ix]=(cache.age[ix]||0)+1; reused++;
+        return runLane(lane);
+      }
+      cache.samp[ix]=samp; cache.age[ix]=0;
+    }
     var p;
     if(runner.runRaw){
       //  픽셀만 워커로 넘긴다(RGBA 버퍼 이동 — 복사 없음). 실수 변환은 워커가 한다.
@@ -4788,7 +4827,10 @@ function _srCanvas2(runner, srcCanvas){
     }
     return p.then(function(){ return runLane(lane); },function(){ return runLane(lane); });
   }
-  return Promise.all(lanes.map(runLane)).then(function(){ return out; });
+  return Promise.all(lanes.map(runLane)).then(function(){
+    runner._stat={ tiles:jobs.length, reused:reused };   // 얼마나 건너뛰었는지 — 진행률·검사에서 쓴다
+    return out;
+  });
 }
 // 이미지 업스케일: SR 시도 → 목표 배율/해상도로 맞춤. 실패 시 리샘플러 폴백.
 //  opts.longTarget(px) 지정 시 긴 변을 그 크기(예: 5120=5K)로 맞춤 — x4 모델·풀해상 입력으로 실제 5K 디테일.
