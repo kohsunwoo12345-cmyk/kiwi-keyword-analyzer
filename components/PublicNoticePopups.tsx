@@ -12,6 +12,8 @@ interface PubNotice {
   strong?: boolean
   /** "N일 동안 보지 않기" 의 N — 집행마다 정한다(기본 3일) */
   snoozeDays?: number
+  /** 집행 종료 시각(ISO). 있으면 그 순간에 정확히 내린다 */
+  endAt?: string
 }
 
 // 같은 세션에서 닫은 알림은 새로고침 전까지 다시 뜨지 않게 (기간형은 새 방문 때 다시 노출)
@@ -39,6 +41,9 @@ export function PublicNoticePopups() {
   //  폴링 콜백이 최신 closing 을 보게 한다(useCallback 의존성에 넣으면 닫을 때마다 폴링이 새로 걸린다)
   const closingRef = useRef<Record<string, boolean>>({})
   closingRef.current = closing
+  /* 방문자 PC 시계와 서버 시계의 차이(ms). 응답의 now 로 매번 갱신한다.
+     이걸 보정하지 않으면 시계가 틀어진 사람에게 광고가 일찍 사라지거나 끝난 뒤에도 남는다. */
+  const skewRef = useRef(0)
   const [shown, setShown] = useState(false)
 
   /* ── 어디까지 띄울지 ──
@@ -57,6 +62,7 @@ export function PublicNoticePopups() {
       .then((r) => r.json())
       .then((d) => {
         if (d && d.ok && Array.isArray(d.notices)) {
+          if (d.now) { const t = Date.parse(d.now); if (Number.isFinite(t)) skewRef.current = t - Date.now() }
           const dismissed = sessionDismissed()
           /* 서버가 지금 내려 준 목록이 곧 "지금 떠 있어야 할 것" 이다.
              예전에는 합치기만 하고 빼지 않아서, 한 번 뜬 알림이 세션 내내 따라다녔다:
@@ -83,8 +89,35 @@ export function PublicNoticePopups() {
     poll()
     const iv = setInterval(poll, 45000)
     const t = setTimeout(() => setShown(true), 60)
-    return () => { clearInterval(iv); clearTimeout(t) }
+    /* 탭을 다시 볼 때 곧바로 확인한다 — 다른 탭에서 "보지 않기" 를 눌렀거나 집행이 끝났는데도
+       이 탭만 45초 동안 옛 상태로 남아 있는 일을 없앤다. */
+    const onWake = () => { if (document.visibilityState === 'visible') poll() }
+    document.addEventListener('visibilitychange', onWake)
+    window.addEventListener('focus', onWake)
+    return () => {
+      clearInterval(iv); clearTimeout(t)
+      document.removeEventListener('visibilitychange', onWake)
+      window.removeEventListener('focus', onWake)
+    }
   }, [poll, skip])
+
+  /* 집행 종료 시각이 지나면 그 순간에 내린다(다음 폴링을 기다리지 않는다).
+     서버와의 시계 차이를 보정한 시각으로 판단한다. */
+  useEffect(() => {
+    if (items.length === 0) return
+    const serverNow = () => Date.now() + skewRef.current
+    const drop = () => {
+      const t = serverNow()
+      setItems((prev) => {
+        const next = prev.filter((n) => !(n.endAt && Date.parse(n.endAt) <= t))
+        //  바뀐 게 없으면 같은 배열을 그대로 돌려준다 — 매초 새 배열을 넣으면 이 effect 가 스스로를 다시 돌린다
+        return next.length === prev.length ? prev : next
+      })
+    }
+    drop()
+    const iv = setInterval(drop, 1000)
+    return () => clearInterval(iv)
+  }, [items])
 
   const post = (campaignId: string, kind: 'read' | 'convert' | 'snooze', days?: number) => {
     try {

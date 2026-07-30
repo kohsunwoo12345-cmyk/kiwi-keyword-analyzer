@@ -214,6 +214,19 @@ let campId = ''
   ok(n.videoUrl === AD.videoUrl, '영상이 전달된다')
   ok(n.ctaLabel === AD.ctaLabel && n.ctaUrl === AD.ctaUrl, 'CTA 라벨·링크가 전달된다')
   ok(n.title === AD.title && n.body === AD.body, '제목·내용이 전달된다')
+
+  /* 종료 시각과 서버 시각도 함께 내려 준다.
+     이게 없으면 화면은 다음 폴링(45초)이 와야 집행이 끝난 걸 알아, 끝난 광고가 최대 45초 더 떠 있었다.
+     now 를 같이 주는 이유는 방문자 PC 시계가 틀어져 있을 수 있어서다. */
+  const withEnd = await send(db, { ...AD, endAt: new Date(Date.now() + 3600000).toISOString() })
+  const seen2 = await visit(db, { visitor: 'vz_end' })
+  const e = seen2.find((x) => x.id === withEnd.body.campaignId)
+  ok(!!e && !!e.endAt, '집행 종료 시각이 방문자 쪽으로 전달된다', e && e.endAt)
+  const raw = await (async () => {
+    const request = new Request('https://bygency.com/api/public-notices?path=/&visitor=vz_end2')
+    return (await (await publicNotices.onRequestGet(ctx(db, request))).json())
+  })()
+  ok(!!raw.now && Math.abs(Date.parse(raw.now) - Date.now()) < 5000, '서버 시각을 함께 준다(시계 차이 보정용)', raw.now)
 }
 
 console.log('\n② 집행 날짜 — 시작 전에는 안 뜨고, 기간 안에서만 뜨고, 끝나면 사라진다')

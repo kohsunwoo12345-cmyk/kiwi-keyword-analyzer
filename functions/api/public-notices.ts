@@ -24,6 +24,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     }
     return json({
       ok: true,
+      /* 서버 시각과 집행 종료 시각을 함께 준다.
+         이게 없으면 화면은 다음 폴링(45초)이 와야 집행이 끝난 걸 알아서, 끝난 광고가 최대 45초 더 떠 있었다.
+         종료 시각을 알면 그 순간에 정확히 내릴 수 있다. now 를 같이 주는 이유는 방문자 PC 시계가
+         틀어져 있을 수 있어서다 — 그 차이를 보정하지 않으면 광고가 일찍 사라지거나 늦게까지 남는다. */
+      now: new Date().toISOString(),
       notices: camps.map((c) => ({
         id: c.id, title: c.title, body: c.body,
         imageUrl: c.image_url || '', videoUrl: c.video_url || '',
@@ -31,6 +36,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         // 강력 알림이면 화면 정중앙에 가림막과 함께 띄운다(그 외는 하단 토스트)
         strong: !!Number(c.strong || 0),
         snoozeDays: Math.max(1, Math.min(30, Number(c.snooze_days) || 3)),
+        endAt: c.end_at || '',           // 집행 종료 시각(있으면) — 화면이 그 순간에 정확히 내린다
         createdAt: c.created_at,
       })),
     })
