@@ -4647,11 +4647,18 @@ function _srWorkerSrc(){
 function ensureSrPool(){
   if(_srPool) return Promise.resolve(_srPool);
   if(_srPoolTry) return _srPoolTry;
-  /* 워커마다 모델 가중치를 따로 들고 있으므로(수십 MB) 개수를 함부로 늘리지 않는다.
-     코어 8개 이상이면 3개, 4개 이상이면 2개, 그 아래는 묶음을 쓰지 않는다. */
+  /* 워커 개수 — 시간의 90%가 초해상이라 여기가 속도를 거의 다 정한다.
+     단계별로 재 보니(1280×720 → 4K, 진짜 엔진) 최적점이 정확히 "코어 수" 였다:
+       워커 1개 6770ms · 2개 3720ms · 3개 2492ms · 4개 1970ms · 5개 2021 · 6개 2065 · 8개 2147
+     4코어에서 4개가 가장 빠르고 그 이상은 서로 방해해 느려진다.
+     처음엔 메모리가 걱정돼 2개로 묶어 뒀는데, 그게 1.89배를 버리고 있었다.
+     대신 기기 메모리로 상한을 둔다 — 워커마다 가중치를 따로 들고 있어서(수십 MB) 무한정 늘릴 수 없다.
+     워커가 1개라도 메인 스레드 단독보다 빠르다(428ms vs 770ms) → 묶음을 아예 안 쓰는 경우는 없앤다. */
   var cores=navigator.hardwareConcurrency||2;
-  var n = cores>=8 ? 3 : cores>=4 ? 2 : 0;
-  if(!n || typeof Worker==='undefined'){ _srPoolTry=Promise.reject(new Error('no pool')); return _srPoolTry; }
+  var mem=navigator.deviceMemory||4;                       // GB (모르면 4GB 로 본다)
+  var memCap = mem>=8 ? 6 : mem>=4 ? 4 : mem>=2 ? 2 : 1;
+  var n = Math.max(1, Math.min(cores, memCap));
+  if(typeof Worker==='undefined'){ _srPoolTry=Promise.reject(new Error('no pool')); return _srPoolTry; }
   var lib=location.origin+'/models/lib/ortweb', wasm=location.origin+'/models/ort/';
   var urls=ESRGAN_URLS.map(function(u){ return location.origin+u; });
   var blobUrl=URL.createObjectURL(new Blob([_srWorkerSrc()],{type:'text/javascript'}));

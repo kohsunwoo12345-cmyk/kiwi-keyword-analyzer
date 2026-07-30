@@ -126,7 +126,14 @@ ok('본문을 찾았다 (upscaleVideoURL·_grabAudioOpus·webmWriter)', !!up && 
 {
   const pool = body('ensureSrPool')
   ok('⑩ 워커 묶음이 있다', /new Worker\([\s\S]{0,60}type:\s*'module'/.test(pool), 'GPU 없이 코어를 나눠 쓰는 유일한 길이다')
-  ok('⑩-b 워커 개수를 코어 수로 정한다(메모리 보호)', /hardwareConcurrency/.test(pool) && /cores>=8\s*\?\s*3\s*:\s*cores>=4\s*\?\s*2\s*:\s*0/.test(pool.replace(/\s/g, '').replace(/cores>=8\?3:cores>=4\?2:0/, 'cores>=8 ? 3 : cores>=4 ? 2 : 0')) || /cores\s*>=\s*8/.test(pool))
+  /*  워커 개수가 속도를 거의 다 정한다(시간의 90%가 초해상). 단계별 실측에서 최적점이
+      정확히 "코어 수" 였다: 4코어에서 1개 6770ms · 2개 3720 · 3개 2492 · 4개 1970 · 5개 2021 · 8개 2147.
+      한때 메모리가 걱정돼 2개로 묶어 뒀고, 그게 1.89배를 버리고 있었다 — 다시 줄이지 못하게 못을 박는다. */
+  ok('⑩-b 워커 개수가 코어 수까지 올라간다', /Math\.min\(cores,\s*memCap\)/.test(pool),
+     '코어 수보다 적게 묶으면 그만큼 그냥 느려진다')
+  ok('⑩-b2 기기 메모리로 상한을 둔다', /navigator\.deviceMemory/.test(pool), '워커마다 가중치를 따로 들고 있다')
+  ok('⑩-b3 워커를 하나도 안 쓰는 경우는 없다', /Math\.max\(1,\s*Math\.min\(cores/.test(pool),
+     '워커 1개라도 메인 스레드 단독보다 빠르다(428ms vs 770ms 실측)')
   ok('⑩-c 픽셀 변환을 워커가 한다(메인 스레드 부담↓)', /Float32Array\(3\s*\*\s*n\)/.test(_srcOf('_srWorkerSrc')))
   const up2 = body('getUpscaler')
   ok('⑩-d 묶음을 못 만들면 기존 단일 경로로 물러난다',
