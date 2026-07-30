@@ -4743,20 +4743,28 @@ function webmWriter(cfg){
      그렇다고 muted 로 재생하면 캡처되는 소리도 무음이 된다. 그래서 오디오 그래프로만 빼낸다. */
 function _grabAudioOpus(src, onChunk, onReady){
   return new Promise(function(resolve){
-    if(typeof AudioEncoder==='undefined' || typeof MediaStreamTrackProcessor==='undefined' || typeof Worker==='undefined'){
-      onReady(null); resolve(null); return; }
     var a=document.createElement('video'); a.crossOrigin='anonymous'; a.playsInline=true; a.preload='auto';
-    var info=null, ended=false, readied=false, w=null, ac=null;
-    function ready(x){ if(readied)return; readied=true; try{ onReady(x); }catch(e){} }
+    var info=null, ended=false, readied=false, w=null, ac=null, hadAudio=false;
+    /* onReady(정보, 원본에소리가있었나) — 둘을 구분해야 한다.
+       "소리 없는 원본" 과 "소리는 있는데 이 브라우저에서 못 담았다" 는 완전히 다른 일이고,
+       뒤쪽은 사용자에게 반드시 알려야 한다(말없이 무음 영상을 주면 안 된다). */
+    function ready(x){ if(readied)return; readied=true; try{ onReady(x, hadAudio); }catch(e){} }
     function fin(){ if(ended)return; ended=true;
       try{ a.pause(); a.removeAttribute('src'); a.load(); }catch(e){}
       try{ if(ac) ac.close(); }catch(e){}
       try{ if(w) w.terminate(); }catch(e){}
       ready(info); resolve(info); }
+    if(typeof AudioEncoder==='undefined'){ fin(); return; }
     a.addEventListener('loadedmetadata',function(){
       //  소리가 있는 원본인지 먼저 본다 — 없는데 무음 트랙을 붙이면 없던 소리가 생긴다
       var st=null; try{ st=a.captureStream?a.captureStream():(a.mozCaptureStream?a.mozCaptureStream():null); }catch(e){}
       if(!(st && st.getAudioTracks && st.getAudioTracks().length)){ fin(); return; }
+      hadAudio=true;
+      /* MediaStreamTrackProcessor 는 크로뮴에만 있다. 사파리에서는 이 경로가 통째로 없어
+         초해상으로 만든 영상에서 소리가 빠졌다. 그런 브라우저에서는 파일을 직접 디코드해
+         Opus 로 인코딩한다(실시간 재생이 아니라 메모리를 쓰는 대신 확실하다). */
+      if(typeof MediaStreamTrackProcessor==='undefined' || typeof Worker==='undefined'){
+        _audioViaDecode(src, a.duration||0, onChunk, function(i){ info=i; ready(info); }, fin); return; }
       var tr2=null;
       try{
         ac=new (window.AudioContext||window.webkitAudioContext)();
@@ -4799,6 +4807,40 @@ function _grabAudioOpus(src, onChunk, onReady){
     a.addEventListener('error',function(){ fin(); });
     a.src=sameOriginMedia(src);
   });
+}
+/* 실시간 캡처가 안 되는 브라우저(사파리 등)용 — 원본 파일을 통째로 디코드해 Opus 로 인코딩한다.
+   원본 PCM 을 메모리에 올려야 해서 아주 긴 영상에는 쓸 수 없다(30분이면 수백 MB).
+   못 담는 경우에는 조용히 무음을 주지 않고 위에서 알린다. */
+function _audioViaDecode(src, dur, onChunk, onReady, onDone){
+  var LIMIT=900;                                   // 15분까지 — 그 이상은 PCM 이 메모리를 넘본다
+  if(dur && dur > LIMIT){ onDone(); return; }
+  var ac=null;
+  fetch(sameOriginMedia(src)).then(function(r){ return r.arrayBuffer(); }).then(function(ab){
+    ac=new (window.AudioContext||window.webkitAudioContext)();
+    return ac.decodeAudioData(ab);
+  }).then(function(buf){
+    var ch=buf.numberOfChannels, rate=buf.sampleRate, N=buf.length, planes=[];
+    for(var c=0;c<ch;c++) planes.push(buf.getChannelData(c));
+    var enc=new AudioEncoder({ output:function(k){ var d=new Uint8Array(k.byteLength); k.copyTo(d);
+                                 try{ onChunk({ ms:Math.max(0,Math.round(k.timestamp/1000)), data:d }); }catch(e){} },
+                               error:function(){ onDone(); } });
+    enc.configure({ codec:'opus', sampleRate:rate, numberOfChannels:ch, bitrate:96000 });
+    onReady({ rate:rate, channels:ch, codecPrivate:null });
+    var FR=1024, i=0;
+    (function pump(){
+      var t0=Date.now();
+      while(i<N && Date.now()-t0<12){                       // 12ms 씩 끊어 화면이 멈추지 않게
+        var n=Math.min(FR,N-i), d=new Float32Array(n*ch);
+        for(var c2=0;c2<ch;c2++) d.set(planes[c2].subarray(i,i+n), c2*n);
+        try{ enc.encode(new AudioData({ format:'f32-planar', sampleRate:rate, numberOfFrames:n,
+                                        numberOfChannels:ch, timestamp:Math.round(i*1000000/rate), data:d })); }catch(e){}
+        i+=n;
+      }
+      if(i<N){ setTimeout(pump,0); return; }
+      enc.flush().then(function(){ try{ enc.close(); }catch(e){} try{ if(ac)ac.close(); }catch(e){} onDone(); },
+                       function(){ onDone(); });
+    })();
+  }).catch(function(){ try{ if(ac)ac.close(); }catch(e){} onDone(); });
 }
 /* 영상 업스케일: 프레임을 하나씩 시킹 → 자체 초해상 모델 → WebCodecs 로 정확한 시각을 찍어 인코딩.
    최대 30분(1800초)까지. 장시간에도 안 죽도록: 프레임별 워치독(멈춘 프레임은 리샘플로 대체),
@@ -4850,7 +4892,12 @@ function upscaleVideoURL(src,scale,onProg,opts){
            원본 길이를 넘는 조각은 받는 자리에서 버린다(타이머에 기대지 않는다). */
         var clipMs=Math.round(clip*1000)+120;
         function pushAudio(c){ if(c.ms>clipMs) return; if(writer) writer.addAudio(c); else aPre.push(c); }
-        _grabAudioOpus(src, pushAudio, function(info){ clearTimeout(aTimer); readyRes(info); })
+        _grabAudioOpus(src, pushAudio, function(info, had){
+            clearTimeout(aTimer);
+            //  소리가 있었는데 못 담았으면 반드시 알린다 — 말없이 무음 영상을 주지 않는다
+            if(!info && had){ try{ toast('이 브라우저에서는 원본 소리를 함께 담지 못했습니다 — 영상만 만들어집니다.'); }catch(_){} }
+            readyRes(info);
+          })
           .then(function(){ audioDone=true; },function(){ audioDone=true; });
 
         function pickCodec(){
