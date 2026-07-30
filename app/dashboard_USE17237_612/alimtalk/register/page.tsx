@@ -178,7 +178,10 @@ export default function AlimtalkRegisterPage() {
               <Field label="인증번호">
                 <input value={authnum} onChange={(e) => setAuthnum(e.target.value)} placeholder="카카오톡으로 받은 번호" inputMode="numeric" className={inputCls} disabled={step < 2} />
               </Field>
-              <Field label="채널 카테고리" optional hint={cats.length ? undefined : '카테고리를 불러오지 못하면 비워두어도 등록됩니다.'}>
+              {/* 카테고리는 알리고 발신프로필 등록의 필수값이다.
+                  예전엔 "비워두어도 등록됩니다" 라고 안내했는데, 그대로 두고 누르면
+                  서버가 400 으로 막아 회원은 이유도 모른 채 등록에 실패했다. */}
+              <Field label="채널 카테고리" hint={cats.length ? undefined : '카테고리를 불러오지 못했습니다. 채널 등록에 반드시 필요하니 잠시 후 다시 시도해 주세요.'}>
                 <select value={cat} onChange={(e) => setCat(e.target.value)} className={inputCls} disabled={step < 2}>
                   <option value="">선택 안 함</option>
                   {cats.map((c, i) => (
