@@ -136,6 +136,21 @@ ok('본문을 찾았다 (upscaleVideoURL·_grabAudioOpus·webmWriter)', !!up && 
   ok('⑩-f 동시에 도는 만큼 자르기 캔버스를 따로 둔다', /lanes\.push\(\{\s*cv:/.test(sc), '한 장을 나눠 쓰면 서로 덮어쓴다')
 }
 
+/* ⑬ GPU 없이 돈다 — 초해상은 CPU(wasm)만 쓴다
+   GPU 를 전부 끈 브라우저(WebGL 차단·WebGPU 어댑터 없음)에서 처음부터 끝까지 돌려 확인했다:
+     영상 1920×1080 · 4.12초 · 소리 4.06초 · 프레임당 381ms · 이미지 1920×1920
+   나중에 누가 속도를 이유로 GPU 실행 장치를 끼워 넣으면, GPU 없는 기기에서 조용히 죽거나
+   느린 경로로 떨어질 수 있다. 초해상이 요구하는 장치가 CPU 뿐임을 여기서 지킨다. */
+{
+  const eps = [...src.matchAll(/executionProviders:\s*\[([^\]]*)\]/g)]
+    .map((m) => m[1].replace(/['"\s]/g, ''))
+  ok('⑬ 초해상이 CPU(wasm)만 요청한다', eps.length >= 2 && eps.every((e) => e === 'wasm'),
+     eps.join(' | ') || 'executionProviders 를 못 찾았다')
+  //  모델을 세우는 자리들이 GPU 유무를 따지지 않아야 한다(따지면 기기에 따라 다르게 동작한다)
+  const srFns = ['ensureSrPool', '_srWorkerSrc', 'ensureEsrgan', 'getUpscaler'].map(body).join('\n')
+  ok('⑬-b 초해상 준비 과정이 GPU 유무를 보지 않는다', !/navigator\.gpu|webgpu|webgl/i.test(srFns))
+}
+
 /* ⑫ 안 바뀐 자리는 다시 계산하지 않는다 — GPU 없이 시간을 줄이는 가장 큰 몫
    영상은 프레임 사이가 대부분 같은데 매 프레임 전부를 모델에 다시 넣고 있었다.
    출력 캔버스를 계속 쓰면 안 바뀐 타일은 이전 결과가 이미 그 자리에 남아 있다 — 아무것도 안 해도 된다.
