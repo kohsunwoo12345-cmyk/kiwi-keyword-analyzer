@@ -1878,7 +1878,7 @@ try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cn
 // (검증용) ?refexport=1 접속 시 레퍼런스 번호 관련 함수만 노출 — 번호가 연결 순서대로
 //  붙는지, 블럭 하나에 하나만 담기는지를 자동으로 확인하기 위한 것. 비밀값은 들어 있지 않고
 //  편집기 상태는 어차피 그 브라우저 안에 있는 것이라 밖으로 새는 것이 없다.
-try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('refexport=1')>=0){ setTimeout(function(){ try{ window.__ref={ get state(){return state;}, addNode:addNode, addOmniRefFiles:addOmniRefFiles, refNoOf:refNoOf, collectLabeledRefs:collectLabeledRefs, refMentionProblem:refMentionProblem, render:render }; }catch(_e){} },0); } }catch(_e){}
+try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('refexport=1')>=0){ setTimeout(function(){ try{ window.__ref={ get state(){return state;}, set state(v){state=v;}, addNode:addNode, addOmniRefFiles:addOmniRefFiles, refNoOf:refNoOf, refSlotsOf:refSlotsOf, refOrderedBlocks:refOrderedBlocks, collectLabeledRefs:collectLabeledRefs, refMentionProblem:refMentionProblem, render:render }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
   function s(inner,vb){ return '<svg class="ico" viewBox="'+(vb||'0 0 24 24')+'" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+inner+'</svg>'; }
@@ -4374,6 +4374,7 @@ function generateMesh3dNode(n){
     refCountUsed=refs.length;
     return generateWithAPI({ model:n.w.model, prompt:prompt,   // 제공사는 MODEL_PROVIDER 가 정한다(ark3d)
       refImage:refs[0]||null, refImages:refs, refCount:refs.length, refLabels:refLabelsA,
+      refSlots:refLabelsA.filter(Boolean).map(function(){ return 'ref'; }),
       meshMode:n.w.meshMode||'Raw', material:n.w.material||'PBR',
       hdTexture:n.w.hdTexture!==false, taPose:n.w.taPose===true });
   })
@@ -4444,6 +4445,7 @@ function generateImageNode(n){
      if(finalRefs.length>1) toast('레퍼런스 '+finalRefs.length+'장으로 생성 중… (1장당 크레딧 소폭 가산)');
      return generateWithAPI({ model:n.w.model, prompt:prompt, ratio:n.w.ratio||'1:1',
       refImage:refImg, refImages:finalRefs, firstFrame:refImg, refCount:finalRefs.length, refLabels:_lbls,
+      refSlots:_lbls.filter(Boolean).map(function(){ return 'ref'; }),
       controlnets:isFlux?cnList:[],
       cnSteps:(n.w.cnSteps==null?28:n.w.cnSteps), cnGuidance:(n.w.cnGuidance==null?3.5:n.w.cnGuidance) });
    };
@@ -8194,13 +8196,34 @@ function inputNodesOf(id,port){
 function refBlocksOf(id){
   return inputNodesOf(id,'ref').concat(inputNodesOf(id,'vidref')).filter(function(nd){ return nd && nd.w; });
 }
-/** 이 레퍼런스 블럭이 몇 번인가 (연결된 곳이 없으면 0) */
+/** 번호가 붙는 차례대로 모은다 → [{node, kind:'first'|'last'|'ref'}]
+ *  첫·마지막 프레임을 이었으면 그것이 레퍼런스 1·2 다 — "레퍼런스 1에서 2로 넘어가는 영상"
+ *  이라고 할 때 대개 그 둘을 가리키기 때문이다. 프레임을 안 이었으면 붙인 순서 그대로. */
+function refOrderedBlocks(id){
+  var out=[], seen={};
+  var f=inputNodeOf(id,'first'), l=inputNodeOf(id,'last');
+  if(f){ out.push({node:f, kind:'first'}); seen[f.id]=1; }
+  if(l && !seen[l.id]){ out.push({node:l, kind:'last'}); seen[l.id]=1; }
+  refBlocksOf(id).forEach(function(nd){
+    if(seen[nd.id]) return; seen[nd.id]=1;
+    out.push({node:nd, kind:'ref'});
+  });
+  return out;
+}
+/** 이 블럭이 몇 번인가 (연결된 곳이 없으면 0) */
 function refNoOf(nodeId){
-  var lk=state.links.filter(function(l){ return l.from===nodeId && (l.toPort==='ref'||l.toPort==='vidref'); })[0];
+  var lk=state.links.filter(function(l){ return l.from===nodeId &&
+    (l.toPort==='ref'||l.toPort==='vidref'||l.toPort==='first'||l.toPort==='last'); })[0];
   if(!lk) return 0;
-  var b=refBlocksOf(lk.to);
-  for(var i=0;i<b.length;i++) if(b[i].id===nodeId) return i+1;
+  var b=refOrderedBlocks(lk.to);
+  for(var i=0;i<b.length;i++) if(b[i].node.id===nodeId) return i+1;
   return 0;
+}
+/** 번호가 붙는 차례를 서버에 그대로 알려 준다 (화면의 번호 = 프롬프트의 번호) */
+function refSlotsOf(id, selfCount){
+  var s=refOrderedBlocks(id).map(function(x){ return x.kind; });
+  for(var i=0;i<(selfCount||0);i++) s.push('ref');
+  return s;
 }
 /** 보낼 레퍼런스를 순서대로 모은다 → [{url, label}] (label 이 빈 값이면 번호 없는 보조 프레임) */
 function collectLabeledRefs(id, selfImgs){
@@ -8429,10 +8452,19 @@ function runQueue(onlyId){
                프레임으로 따로 받는다). 나머지가 순서대로 레퍼런스 1, 2, 3… 이 된다.
                이 순서가 곧 제공사에 실리는 reference_image 순서이고, 프롬프트의 번호와 맞물린다. */
             var _vno=0;
+            //  refLabels 는 refImages 안에서의 "레퍼런스 자리"(@Image 순서)를 잡는 용도라
+            //  프레임은 비워 둔다. 회원에게 보이는 번호는 아래 refSlots 가 정한다.
             var refLabelsV = refList.map(function(u){
               if(u===ffImg || u===lfImg) return '';
               return '레퍼런스 '+(++_vno);
             });
+            //  화면에 띄운 번호 그대로: 첫 프레임 → 마지막 프레임 → 레퍼런스 붙인 순서
+            var refSlotsV=[];
+            if(ffImg) refSlotsV.push('first');
+            if(lfImg) refSlotsV.push('last');
+            for(var _si=0;_si<_vno;_si++) refSlotsV.push('ref');
+            var _vWarn=refMentionProblem(basePrompt, refSlotsV.length);
+            if(_vWarn){ try{ toast(_vWarn); }catch(_e){} }
             var vSet=linkedSetting(id,'video');
             // 백그라운드 프롬프트 보강 — 영상은 "프레임 단위"로 들어감을 명시하고, 배경 참고 사진을 명확히 구분·적용.
             var hasVideoRef = !!srcVid || vFrames.length>0;
@@ -8499,6 +8531,7 @@ function runQueue(onlyId){
               refImage: ffImg,
               refImages: refList,
               refLabels: refLabelsV,
+              refSlots: refSlotsV,
               // 첫 프레임은 "첫 프레임 포트(또는 영상 프레임)"에 실제로 연결된 것만 넘긴다.
               //  ffImg 는 없으면 레퍼런스 첫 장으로 폴백하는데, 그걸 그대로 firstFrame 으로 보내면
               //  레퍼런스만 붙인 요청이 이미지→영상 모드로 바뀐다(Seedance 2.0 은 두 모드가 다름).

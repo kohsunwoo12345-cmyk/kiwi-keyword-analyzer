@@ -311,25 +311,65 @@ export function cut(s, max) {
    · 나머지 제공사는 태그 문법이 없으므로 "Image 1" 로 통일하고, 첨부 순서를
      밝히는 줄을 앞에 붙여 번호가 무엇을 가리키는지 못 박는다.
    회원이 '래퍼런스'(흔한 표기)·띄어쓰기·1번째 사진 같이 써도 모두 같은 것으로 본다. */
+/* 번호를 다른 말로 바꾸면 뒤에 붙은 조사가 어긋난다 —
+   "레퍼런스 2로" 를 그대로 바꾸면 "마지막 프레임로" 가 된다. 받침을 보고 골라 준다. */
+function refJong(tok) {
+  const t = String(tok).replace(/[)\]\s]+$/, "");
+  const c = t.charCodeAt(t.length - 1);
+  if (c >= 0xac00 && c <= 0xd7a3) { const r = (c - 0xac00) % 28; return { jong: r !== 0, rieul: r === 8 }; }
+  const d = t[t.length - 1];
+  if (/[0-9]/.test(d)) return { jong: "01368".indexOf(d) >= 0 || d === "7" || d === "8", rieul: "178".indexOf(d) >= 0 };
+  return { jong: true, rieul: false };   // 영문·기호는 받침 있는 쪽으로 (…을/…으로)
+}
+function refJosa(tok, j) {
+  if (!j) return "";
+  const { jong, rieul } = refJong(tok);
+  if (j === "로" || j === "으로") return jong && !rieul ? "으로" : "로";
+  if (j === "을" || j === "를") return jong ? "을" : "를";
+  if (j === "은" || j === "는") return jong ? "은" : "는";
+  if (j === "이" || j === "가") return jong ? "이" : "가";
+  if (j === "와" || j === "과") return jong ? "과" : "와";
+  if (j === "랑" || j === "이랑") return jong ? "이랑" : "랑";
+  return j;
+}
 const REF_ORDINAL_KO = { 첫: 1, 한: 1, 두: 2, 세: 3, 네: 4, 다섯: 5, 여섯: 6, 일곱: 7, 여덟: 8, 아홉: 9, 열: 10 };
+const REF_JOSA = "(으로|로|을|를|은|는|이|가|와|과|이랑|랑)?";
 const REF_PATTERNS = [
-  // 레퍼런스 1 · 래퍼런스1 · 레퍼런스 #2 · reference 3 · ref2
-  /(?:레|래)\s*퍼\s*런\s*스\s*(?:이미지|사진|영상)?\s*#?\s*(\d{1,2})\s*(?:번|번째)?/g,
+  // 레퍼런스 1 · 래퍼런스1 · 레퍼런스 #2 · reference 3 · ref2  (뒤 조사까지 함께 잡는다)
+  new RegExp("(?:레|래)\\s*퍼\\s*런\\s*스\\s*(?:이미지|사진|영상)?\\s*#?\\s*(\\d{1,2})\\s*(?:번|번째)?" + REF_JOSA, "g"),
   /\bref(?:erence)?\s*#?\s*(\d{1,2})\b/gi,
   // 1번 레퍼런스 · 2번째 이미지 · 3번 사진
-  /(\d{1,2})\s*번\s*째?\s*(?:(?:레|래)\s*퍼\s*런\s*스|이미지|사진|그림|영상)/g,
+  new RegExp("(\\d{1,2})\\s*번\\s*째?\\s*(?:(?:레|래)\\s*퍼\\s*런\\s*스|이미지|사진|그림|영상)" + REF_JOSA, "g"),
   // 이미지 1 · 사진2
-  /(?:이미지|사진|그림)\s*#?\s*(\d{1,2})\b/g,
+  new RegExp("(?:이미지|사진|그림)\\s*#?\\s*(\\d{1,2})\\b" + REF_JOSA, "g"),
 ];
 /** 프롬프트 속 레퍼런스 번호를 제공사가 알아듣는 표기로 바꾼다.
+ *  slots = 번호가 붙는 차례 ['first','last','ref','ref'…] — 자리 순서가 곧 레퍼런스 번호다.
+ *    · 첫/마지막 프레임을 이었으면 그것이 레퍼런스 1·2 다("레퍼런스 1에서 2로 넘어가는 영상"
+ *      이라고 할 때 대개 그 둘을 가리킨다). 프레임을 안 이었으면 붙인 순서 그대로.
+ *    · 프레임은 제공사가 reference_image 가 아니라 first_frame/last_frame 으로 따로 받으므로
+ *      @Image 번호를 쓰면 안 된다 — 우리말 그대로 "첫 프레임"이라고 짚어 준다.
  *  @returns {{text:string, used:number[], missing:number[]}} */
-export function bindRefMentions(text, count, style) {
+export function bindRefMentions(text, slots, style) {
   const src = String(text == null ? "" : text);
-  const n = Math.max(0, Number(count) || 0);
+  const list = Array.isArray(slots) ? slots : [];
+  const n = list.length;
   if (!src.trim() || n <= 0) return { text: src, used: [], missing: [] };
-  const tag = (i) => (style === "at" ? "@Image" + i : "Image " + i);
+  // 번호 → 제공사가 알아듣는 표기
+  const token = [], desc = [];
+  let refK = 0;
+  for (let i = 0; i < n; i++) {
+    const kind = String(list[i] || "ref");
+    if (kind === "first") { token[i + 1] = "첫 프레임"; desc[i + 1] = "첫 프레임"; }
+    else if (kind === "last") { token[i + 1] = "마지막 프레임"; desc[i + 1] = "마지막 프레임"; }
+    else {
+      refK += 1;
+      token[i + 1] = style === "at" ? "@Image" + refK : "Image " + refK;
+      desc[i + 1] = token[i + 1] + "(" + refK + "번째 첨부)";
+    }
+  }
   const used = new Set(), missing = new Set();
-  // 이미 @Image1 로 직접 쓴 회원의 표기는 건드리지 않는다(공식 문법을 아는 사람이다).
+  const hit = (i) => { if (i >= 1 && i <= n) { used.add(i); return token[i]; } missing.add(i); return null; };
   //  자리 표시는 회원이 칠 수 없는 글자여야 한다 — " 0 " 처럼 숫자로 두면 프롬프트에
   //  원래 있던 맨숫자("5 초")까지 되돌리기 규칙에 걸려 뭉개진다.
   //  (소스에 제어문자를 원바이트로 박으면 grep 이 파일을 바이너리로 보므로 이스케이프로 쓴다)
@@ -339,27 +379,22 @@ export function bindRefMentions(text, count, style) {
     guard.push(m); return GA + (guard.length - 1) + GB;
   });
   // "첫 번째 레퍼런스" 같은 우리말 차례말도 번호로 본다
-  out = out.replace(/(첫|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열)\s*번\s*째?\s*(?:(?:레|래)\s*퍼\s*런\s*스|이미지|사진|그림)/g,
-    (m, w) => {
-      const i = REF_ORDINAL_KO[w]; if (!i) return m;
-      if (i > n) { missing.add(i); return m; }
-      used.add(i); return tag(i);
-    });
+  out = out.replace(new RegExp("(첫|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열)\\s*번\\s*째?\\s*(?:(?:레|래)\\s*퍼\\s*런\\s*스|이미지|사진|그림)" + REF_JOSA, "g"),
+    (m, w, jo) => { const i = REF_ORDINAL_KO[w]; if (!i) return m; const t = hit(i); if (!t) return m; return t + refJosa(t, jo); });
   for (const re of REF_PATTERNS) {
-    out = out.replace(re, (m, d) => {
-      const i = Number(d);
-      if (!i) return m;
-      if (i > n) { missing.add(i); return m; }   // 없는 번호는 바꾸지 않고 알려만 준다
-      used.add(i); return tag(i);
+    out = out.replace(re, (m, d, jo) => {
+      const i = Number(d); if (!i) return m;
+      const t = hit(i); if (!t) return m;
+      return t + refJosa(t, jo);
     });
   }
   out = out.replace(new RegExp(GA + "(\\d+)" + GB, "g"), (_m, k) => guard[Number(k)]);
-  if (!used.size) return { text: out, used: [], missing: [...missing].sort((a, b) => a - b) };
-  // 번호가 몇 번째 첨부인지 못 박는 줄 — 태그 문법이 없는 제공사에 특히 필요하다.
+  const usedArr = [...used].sort((a, b) => a - b);
+  const missArr = [...missing].sort((a, b) => a - b);
+  if (!usedArr.length) return { text: out, used: [], missing: missArr };
   const order = [];
-  for (let i = 1; i <= n; i++) order.push(tag(i) + "=" + i + "번째 첨부");
-  const decl = "[레퍼런스 순서 — " + order.join(", ") + "]";
-  return { text: out + "\n" + decl, used: [...used].sort((a, b) => a - b), missing: [...missing].sort((a, b) => a - b) };
+  for (let i = 1; i <= n; i++) order.push("레퍼런스 " + i + "=" + desc[i]);
+  return { text: out + "\n[레퍼런스 순서 — " + order.join(", ") + "]", used: usedArr, missing: missArr };
 }
 
 /* ── 페이로드 빌더 (dryRun 검증도 이 함수를 그대로 사용) ── */
@@ -4018,13 +4053,19 @@ async function handle(context) {
      (이어보기용으로 자동으로 끼워 넣은 프레임은 번호를 받지 않는다).
      그게 없으면 예전처럼 refImages 개수를 그대로 쓴다. */
   {
-    const labeled = Array.isArray(b.refLabels)
-      ? b.refLabels.filter((x) => x !== null && x !== undefined && String(x) !== "").length
-      : (Array.isArray(b.refImages) ? b.refImages.filter(Boolean).length : 0);
+    //  refSlots 는 번호가 붙는 차례다 — ['first','last','ref',…]. 스튜디오가 화면에 띄운
+    //  번호와 정확히 같은 것을 보낸다. 구버전 클라이언트라 없으면 레퍼런스만 있는 것으로 본다.
+    let slots = Array.isArray(b.refSlots) ? b.refSlots.map((x) => String(x || "ref")) : null;
+    if (!slots) {
+      const cnt = Array.isArray(b.refLabels)
+        ? b.refLabels.filter((x) => x !== null && x !== undefined && String(x) !== "").length
+        : (Array.isArray(b.refImages) ? b.refImages.filter(Boolean).length : 0);
+      slots = new Array(cnt).fill("ref");
+    }
     const style = provider === "seedance" && /seedance-2/.test(seedanceModelId(b, env) || "") ? "at" : "text";
-    const bound = bindRefMentions(b.prompt, labeled, style);
+    const bound = bindRefMentions(b.prompt, slots, style);
     if (bound.text !== b.prompt) b = { ...b, prompt: bound.text };
-    b.__refBind = { used: bound.used, missing: bound.missing, count: labeled, style };
+    b.__refBind = { used: bound.used, missing: bound.missing, count: slots.length, slots, style };
   }
 
   /* dryRun — 실제 호출 없이 매핑된 페이로드만 반환 (검증용) */
