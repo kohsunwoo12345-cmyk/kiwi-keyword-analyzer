@@ -48,7 +48,11 @@ export const onRequestGet: PagesFunction = async ({ request, env, params }) => {
       headers.set('X-Content-Type-Options', 'nosniff')
       headers.set('Accept-Ranges', 'none')
       headers.set('Access-Control-Allow-Origin', '*')
-      headers.set('Cache-Control', 'private, max-age=3600')
+      // private 은 여기서 아무것도 지켜 주지 못한다 — 이 경로는 애초에 인증이 없고 키만 알면
+      // 누구나 받는다(승인 서류는 위에서 404 로 막는다). 대신 엣지 캐시를 못 쓰게 만들어,
+      // 외부 제공사(ModelArk 등)가 첫 프레임 이미지를 받아 갈 때마다 함수+R2 를 거치게 했다.
+      // 그 왕복이 제출을 늘어지게 만들고 → 함수가 끊겨 플랫폼 502 로 이어졌다.
+      headers.set('Cache-Control', 'public, max-age=3600')
       headers.set('Content-Disposition', (dl0 || active ? 'attachment' : 'inline') + '; filename="' + (key.split('/').pop() || 'file') + '"')
       if (active) headers.set('Content-Security-Policy', "default-src 'none'; sandbox")
       const body = row.data // D1 BLOB → ArrayBuffer
@@ -76,7 +80,11 @@ export const onRequestGet: PagesFunction = async ({ request, env, params }) => {
       headers.set('X-Content-Type-Options', 'nosniff')
       headers.set('Accept-Ranges', 'bytes')
       headers.set('Access-Control-Allow-Origin', '*')
-      headers.set('Cache-Control', 'private, max-age=3600')
+      // private 은 여기서 아무것도 지켜 주지 못한다 — 이 경로는 애초에 인증이 없고 키만 알면
+      // 누구나 받는다(승인 서류는 위에서 404 로 막는다). 대신 엣지 캐시를 못 쓰게 만들어,
+      // 외부 제공사(ModelArk 등)가 첫 프레임 이미지를 받아 갈 때마다 함수+R2 를 거치게 했다.
+      // 그 왕복이 제출을 늘어지게 만들고 → 함수가 끊겨 플랫폼 502 로 이어졌다.
+      headers.set('Cache-Control', 'public, max-age=3600')
       // 활성 콘텐츠는 무조건 attachment, 그 외에는 ?dl=1 일 때만 attachment
       headers.set('Content-Disposition', (dl || active ? 'attachment' : 'inline') + '; filename="' + fileBaseName + '"')
       if (active) headers.set('Content-Security-Policy', "default-src 'none'; sandbox")

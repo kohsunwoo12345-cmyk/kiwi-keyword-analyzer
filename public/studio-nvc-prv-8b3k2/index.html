@@ -1867,7 +1867,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 <script>
 (function(){
 'use strict';
-var STUDIO_BUILD_TAG='2026-07-13-v56';   // 서버 health.build 와 정확히 같아야 최신(캐시/배포지연 아님)
+var STUDIO_BUILD_TAG='2026-07-31-v57';   // 서버 health.build 와 정확히 같아야 최신(캐시/배포지연 아님)
 // (검증용) ?cnexport=1 접속 시 전처리 함수만 window 로 노출 — 순수 이미지 함수라 보안 영향 없음
 try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum, upscaleImageURL:upscaleImageURL }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
@@ -3525,8 +3525,12 @@ async function generateWithAPI(params){
   var bodyKB=Math.round(bodyStr.length/1024);
   var shortv=function(x){ x=String(x==null?'':x); return x.length>70?x.slice(0,70)+'…('+x.length+')':x; };
   var err=null;
+  // 502 가 다시 나면 "얼마나 붙잡고 있다가 끊겼는지" 가 원인 판단의 핵심이다 — 시간을 남긴다.
+  //  (플랫폼이 함수를 끊은 것이면 수십 초, 우리 코드가 낸 에러면 짧다)
+  var _t0=Date.now();
   try{ return await callProxy(params); }        // ① 프록시(기본 /api/generate) — 서버 키 사용
   catch(e){ err=String(e.message||e); }
+  var elapsed=Date.now()-_t0;
   // ①-b Seedance 는 POST 가 원인불명 플랫폼 502 나는 경우가 있어, 안정적인 GET 제출로 우회 재시도.
   //   단, 이미지가 공개 URL 일 때만(base64 는 쿼리스트링 길이 초과로 되레 502). 영상도 URL 필수.
   var ffIsUrl = !params.firstFrame || /^https?:\/\//i.test(params.firstFrame);
@@ -3565,7 +3569,7 @@ async function generateWithAPI(params){
         body:JSON.stringify(Object.assign({},params,{dryRun:true}))}); probe='HTTP'+pr.status; }
   catch(_p){ probe='ERR'; }
   // 진단은 잘리기 쉬운 앞쪽에 핵심(probe/우회/본문크기)을 먼저 둔다
-  var diag=' [probe:'+probe+' · req '+bodyKB+'KB · studio:'+(STUDIO_BUILD_TAG.split('-').pop())+
+  var diag=' [probe:'+probe+' · '+elapsed+'ms · req '+bodyKB+'KB · studio:'+(STUDIO_BUILD_TAG.split('-').pop())+
     ' · 서버:'+String(srv).split('-').pop()+' · model:'+shortv(params.model)+
     ' · ff:'+shortv(params.firstFrame)+' · lf:'+shortv(params.lastFrame)+
     ' · vid:'+shortv(params.srcVideo)+hostErr+']';

@@ -226,6 +226,67 @@ async function fetchT(url, opts, ms) {
   }
 }
 
+/* ── 제출 인계(handoff) ─────────────────────────────────────────────────────
+   ModelArk(씨댄스/씨드림)은 첫 프레임·레퍼런스 이미지를 자기들이 직접 내려받아 검증한
+   뒤에야 태스크 ID 를 돌려준다. 그래서 "제출" 한 번에 십수 초가 걸리는 일이 잦다.
+   그 시간 동안 요청을 붙잡고 있으면 Cloudflare 가 함수를 끊어 버리고, 우리 코드가
+   손댈 수 없는 raw 502(Bad gateway) HTML 이 회원에게 그대로 간다 — onRequest 의
+   try/catch 바깥이라 읽을 수 있는 에러조차 남기지 못한다(그래서 GET 우회 경로까지
+   똑같이 502 가 났다. 원인이 본문·페이로드가 아니라 "오래 붙잡고 있는 것" 이었다).
+   개별 타임아웃을 늘리는 방향(22s)은 붙잡는 시간을 늘려 이 문제를 오히려 키웠다.
+
+   → 정해진 시간 안에 제출이 안 끝나면 접수증(sub=…)만 먼저 돌려주고, 제출 자체는
+     waitUntil 로 뒤에서 계속 진행한다. 회원 쪽은 하던 대로 폴링만 하면 되고,
+     태스크 ID 가 도착하는 즉시 평소 경로로 이어진다. 과금 표(gen_charges.task_key)는
+     우리가 돌려준 statusUrl 문자열을 그대로 쓰므로 청구·환불도 그대로 맞물린다. */
+const HANDOFF_MS = 9000;
+async function ensureGenSubmits(db) {
+  await db.prepare(
+    `CREATE TABLE IF NOT EXISTS gen_submits (id TEXT PRIMARY KEY, provider TEXT, host TEXT,
+       task TEXT, error TEXT, created_at TEXT, done_at TEXT)`).run();
+}
+async function handoffSubmit(context, work, provider) {
+  // 아무도 받지 않는 rejection 은 그 자체로 함수를 죽인다 — 먼저 결과 객체로 바꿔 둔다.
+  const safe = work.then((r) => ({ r }), (e) => ({ e }));
+  const settled = async () => { const o = await safe; if (o.e) throw o.e; return o.r; };
+  let timer;
+  const late = new Promise((res) => { timer = setTimeout(() => res(null), HANDOFF_MS); });
+  const first = await Promise.race([safe, late]);
+  clearTimeout(timer);
+  if (first) { if (first.e) throw first.e; return first.r; }   // 제때 끝났다 — 예전과 완전히 동일
+  const db = resolveDB(context.env);
+  if (!db) return await settled();   // 접수증을 적어 둘 곳이 없으면 예전처럼 기다린다
+  const sid = "gs_" + crypto.randomUUID().replace(/-/g, "");
+  try {
+    await ensureGenSubmits(db);
+    await db.prepare(`INSERT INTO gen_submits (id, provider, created_at) VALUES (?,?,?)`)
+      .bind(sid, String(provider), new Date().toISOString()).run();
+  } catch (_e) {
+    return await settled();
+  }
+  const finish = async () => {
+    const o = await safe;
+    let task = null, host = "bp", err = null;
+    if (o.e) err = String((o.e && o.e.message) || o.e).slice(0, 300);
+    else {
+      let body = null;
+      try { body = await o.r.clone().json(); } catch (_e2) { body = null; }
+      const su = body && body.statusUrl;
+      if (su) {
+        try {
+          const q = new URL(su, "http://x").searchParams;
+          task = q.get("task"); host = q.get("host") || "bp";
+        } catch (_e3) { /* 형식이 어긋나면 아래에서 실패로 처리 */ }
+      }
+      if (!task) err = String((body && body.error) || "제출 결과를 확인하지 못했습니다.").slice(0, 300);
+    }
+    await db.prepare(`UPDATE gen_submits SET task = ?, host = ?, error = ?, done_at = ? WHERE id = ?`)
+      .bind(task, host, err, new Date().toISOString(), sid).run().catch(() => {});
+  };
+  if (context.waitUntil) context.waitUntil(finish()); else finish().catch(() => {});
+  return json({ statusUrl: "/api/generate?provider=" + provider + "&sub=" + sid, pending: true });
+}
+
 /* 프롬프트 길이 제한.
    카메라 프리셋·비율 힌트·레퍼런스 @태그 바인딩은 모두 프롬프트 "뒤"에 붙는다.
    그런데 각 제공사 한도에 맞춰 뒤를 그냥 잘라내면(=예전 .slice(0,N)) 프롬프트가 조금만
@@ -452,8 +513,11 @@ export function buildSeedancePayload(b, env, forceModel) {
     const dur = SEEDANCE2_DURATIONS.reduce(
       (a, c) => (Math.abs(c - wantSec) < Math.abs(a - wantSec) ? c : a), SEEDANCE2_DURATIONS[0]);
     // 2.0 의 이미지는 공개 URL 과 base64 를 모두 받는다(공식: data:image/<소문자>;base64,…).
-    //  base64 인라인을 쓰는 이유: URL 로 주면 제공사가 우리 R2 를 가져오느라 제출이 길어져
-    //  타임아웃 → 502 로 이어진다(영상 레퍼런스만 URL 전용이라 어쩔 수 없이 URL).
+    //  들어온 값을 그대로 넘긴다 — 여기서 base64 로 바꾸지는 않는다.
+    //  (예전 주석은 "URL 로 주면 제공사가 우리 R2 를 가져오느라 제출이 길어져 502" 라며
+    //   base64 인라인을 쓴다고 적혀 있었지만, 실제로는 변환하는 코드가 없었다. 워커가 몇 MB 를
+    //   내려받아 base64 로 부풀리는 비용이 더 크고, 늘어지는 제출은 handoffSubmit 이 인계로
+    //   받아 내므로 더는 502 로 이어지지 않는다. /api/media 응답도 엣지 캐시가 되게 바꿨다.)
     //  형식이 어긋난 값(대문자 포맷·data:가 아닌 스킴)은 제출 자체를 깨뜨리므로 여기서 거른다.
     const okImg = (s) => /^https?:\/\//.test(s) || /^data:image\/[a-z0-9.+-]+;base64,/.test(s);
     // ── 역할 분리 ──
@@ -937,7 +1001,13 @@ async function urlToDataUri(u) {
     if (!/^image\//.test(ct)) return null;
     const buf = new Uint8Array(await r.arrayBuffer());
     if (!buf.length || buf.length > 6 * 1024 * 1024) return null;
-    let bin = ""; for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+    /* 한 글자씩 이어 붙이면(bin += String.fromCharCode(buf[i])) 6MB 이미지 한 장에
+       600만 번의 문자열 재할당이 일어난다. 레퍼런스는 최대 12장까지 변환하므로
+       그 자리에서 워커의 CPU·메모리 한도를 넘겨 함수가 통째로 죽고(→ raw 502),
+       try/catch 로도 못 잡는다. 덩어리 단위로 바꿔 그 위험을 없앤다. */
+    let bin = "";
+    for (let i = 0; i < buf.length; i += 0x8000)
+      bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
     return "data:" + ct + ";base64," + btoa(bin);
   } catch { return null; }
 }
@@ -1740,7 +1810,7 @@ async function handle(context) {
       const lumaOk = await lumaUsable(k.luma);
       return json({
         version:  "2026-07-13-v56 (remove-keys-page)", // 이 필드가 보이면 최신 코드가 프로덕션에 반영된 것
-        build:    "2026-07-13-v56",                      // 스튜디오 STUDIO_BUILD 와 정확히 일치해야 최신
+        build:    "2026-07-31-v57",                      // 스튜디오 STUDIO_BUILD 와 정확히 일치해야 최신
         runway:   !!k.runway,
         xai:      !!k.xai,
         google:   !!(k.google || gcpCreds(env)),
@@ -1815,22 +1885,26 @@ async function handle(context) {
         generateAudio: u.searchParams.get("genaudio") === "1",
         watermark: u.searchParams.get("wm") === "1"
       };
-      const payload = buildSeedancePayload(b, env);
-      let r, j; const t0 = Date.now();
-      try {
-        r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
-          method: "POST",
-          headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        }, 22000);
-        j = await r.json().catch(() => ({}));
-      } catch (e) {
-        return json({ error: "Seedance 제출 실패(" + (Date.now() - t0) + "ms): " + String((e && e.message) || e).slice(0, 140) }, 502);
-      }
-      if (r.ok && j.id)
-        return json({ statusUrl: "/api/generate?provider=seedance&host=bp&task=" + encodeURIComponent(j.id) });
-      return json({ error: "Seedance HTTP " + r.status + " " +
-        String((j.error && (j.error.message || j.error.code)) || JSON.stringify(j)).slice(0, 180) }, 502);
+      // POST 와 같은 이유로 이 경로도 제출을 붙잡고 있으면 플랫폼 502 가 난다 — 똑같이 인계한다.
+      const work = (async () => {
+        const payload = buildSeedancePayload(b, env);
+        let r, j; const t0 = Date.now();
+        try {
+          r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+            method: "POST",
+            headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          }, 22000);
+          j = await r.json().catch(() => ({}));
+        } catch (e) {
+          return json({ error: "Seedance 제출 실패(" + (Date.now() - t0) + "ms): " + String((e && e.message) || e).slice(0, 140) }, 502);
+        }
+        if (r.ok && j.id)
+          return json({ statusUrl: "/api/generate?provider=seedance&host=bp&task=" + encodeURIComponent(j.id) });
+        return json({ error: "Seedance HTTP " + r.status + " " +
+          String((j.error && (j.error.message || j.error.code)) || JSON.stringify(j)).slice(0, 180) }, 502);
+      })();
+      return await handoffSubmit(context, work, "seedance");
     }
     // 진단(2.0 공식 형식): BytePlus 공식 샘플 URL(이미지+영상)로 정확한 2.0 페이로드 제출.
     // bp 자기네 공개 URL이라 즉시 로드됨 → 형식/키/네트워크가 맞으면 무조건 태스크ID 반환.
@@ -3684,8 +3758,24 @@ async function handle(context) {
       return json({ status: j.status || "RUNNING" });
     }
     if (provider === "seedance") {
-      const task = u.searchParams.get("task");
-      const hostId = u.searchParams.get("host") === "vc" ? "vc" : "bp";
+      let task = u.searchParams.get("task");
+      let hostId = u.searchParams.get("host") === "vc" ? "vc" : "bp";
+      // 인계된 제출(handoffSubmit) — 태스크 ID 가 도착할 때까지 "진행 중" 으로 답한다.
+      //  제출이 최종 실패로 끝났으면 failed 로 알려 준다(그 자리에서 자동 환불된다).
+      const sub = u.searchParams.get("sub");
+      if (sub) {
+        const sdb = resolveDB(env);
+        const row = sdb ? await sdb.prepare(
+          `SELECT task, host, error, created_at FROM gen_submits WHERE id = ?`).bind(sub).first().catch(() => null) : null;
+        //  뒷작업(waitUntil)이 잘려 결과가 영영 안 적히는 경우 — 그대로 두면 "진행 중" 으로
+        //  영원히 돌면서 제출 때 뺀 금액도 안 돌아온다. 일정 시간이 지나면 실패로 확정한다.
+        const age = row ? Date.now() - Date.parse(String(row.created_at || "")) : 0;
+        if (row && !row.task && !row.error && age > 180000)
+          return json({ status: "failed", error: "제출 결과를 받지 못했습니다. 다시 시도해 주세요." });
+        if (!row || (!row.task && !row.error)) return json({ status: "RUNNING" });
+        if (!row.task) return json({ status: "failed", error: String(row.error) });
+        task = String(row.task); hostId = row.host === "vc" ? "vc" : "bp";
+      }
       if (!task || !k.seedance) return json({ status: "failed", error: "no task/key" }, 400);
       const r = await fetchT(ARK_HOSTS[hostId] + "/contents/generations/tasks/" + encodeURIComponent(task), {
         headers: { "Authorization": "Bearer " + k.seedance }
@@ -4256,116 +4346,123 @@ async function handle(context) {
   }
   if (provider === "seedance") {
     if (!k.seedance) return json({ error: "Seedance 연동이 설정되지 않았습니다" }, 500);
-    // 해외(bp) 호스트만 사용. 중국(vc) 호스트는 Cloudflare 글로벌 네트워크에서 무한정 멈춰(hang)
-    // 플랫폼 502를 유발하므로 기본 제외. 필요하면 SEEDANCE_USE_CN=1 로 켤 수 있음.
-    const hosts = pick(env, ["SEEDANCE_USE_CN", "seedance_use_cn"]) ? ["bp", "vc"] : ["bp"];
-    const candidates = seedanceModelIds(b, env);   // 모델 ID 후보(콘솔 표기·날짜 차이 자동 흡수)
-    const tag = "[m:" + candidates[0] + "]";
-    let lastErr = null;
-    const tried = [];   // 후보별 결과를 모아 에러에 실어 준다(어느 ID 에서 무엇이 났는지 보이게)
-    // 후보를 여러 개 시도하면 최악의 경우 (후보수 × 개별 타임아웃) 만큼 걸려 함수 자체가
-    // 플랫폼 타임아웃(502)에 걸릴 수 있다. 전체 예산을 두고, 남은 시간에 맞춰 개별 타임아웃을 줄인다.
-    const BUDGET_MS = 30000;
-    const started = Date.now();
-    outer:
-    for (const hostId of hosts) {
-      for (const mid of candidates) {
-        const leftMs = BUDGET_MS - (Date.now() - started);
-        if (leftMs < 4000) {   // 남은 시간이 너무 적으면 새 후보를 시작하지 않는다
-          if (tried.length) { tried.push("(시간부족·중단)"); }
-          break outer;
+    //  제출은 인계 가능한 작업으로 감싼다 — 아래 handoffSubmit 주석 참고.
+    const work = (async () => {
+      // 해외(bp) 호스트만 사용. 중국(vc) 호스트는 Cloudflare 글로벌 네트워크에서 무한정 멈춰(hang)
+      // 플랫폼 502를 유발하므로 기본 제외. 필요하면 SEEDANCE_USE_CN=1 로 켤 수 있음.
+      const hosts = pick(env, ["SEEDANCE_USE_CN", "seedance_use_cn"]) ? ["bp", "vc"] : ["bp"];
+      const candidates = seedanceModelIds(b, env);   // 모델 ID 후보(콘솔 표기·날짜 차이 자동 흡수)
+      const tag = "[m:" + candidates[0] + "]";
+      let lastErr = null;
+      const tried = [];   // 후보별 결과를 모아 에러에 실어 준다(어느 ID 에서 무엇이 났는지 보이게)
+      // 후보를 여러 개 시도하면 최악의 경우 (후보수 × 개별 타임아웃) 만큼 걸려 함수 자체가
+      // 플랫폼 타임아웃(502)에 걸릴 수 있다. 전체 예산을 두고, 남은 시간에 맞춰 개별 타임아웃을 줄인다.
+      const BUDGET_MS = 30000;
+      const started = Date.now();
+      outer:
+      for (const hostId of hosts) {
+        for (const mid of candidates) {
+          const leftMs = BUDGET_MS - (Date.now() - started);
+          if (leftMs < 4000) {   // 남은 시간이 너무 적으면 새 후보를 시작하지 않는다
+            if (tried.length) { tried.push("(시간부족·중단)"); }
+            break outer;
+          }
+          const payload = buildSeedancePayload(b, env, mid);
+          // 스튜디오가 실제로 보낸 값을 에러에 그대로 실어, 노드에 원인이 보이게 한다.
+          const imgN = payload.content.filter(c => c.type === "image_url").length;
+          let r, j; const t0 = Date.now();
+          try {
+            // fetchT 의 unhandled-rejection 차단으로 raw 502 는 사라졌으므로, bp 가 이미지
+            // 검증 등으로 제출이 느려도(태스크 ID 반환까지 십수 초) 안전하게 기다린다.
+            // 초과 시엔 crash 없이 읽을 수 있는 "시간 초과" JSON 이 노드에 표시된다.
+            r = await fetchT(ARK_HOSTS[hostId] + "/contents/generations/tasks", {
+              method: "POST",
+              headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            }, Math.min(22000, leftMs));
+            j = await r.json().catch(() => ({}));
+          } catch (e) {
+            lastErr = hostId + " 제출 실패(" + (Date.now() - t0) + "ms): " + String((e && e.message) || e).slice(0, 140);
+            tried.push(mid + "=ERR");
+            continue;   // 다음 후보/호스트로
+          }
+          if (r.ok && j.id)
+            return json({ statusUrl: "/api/generate?provider=seedance&host=" + hostId + "&task=" + encodeURIComponent(j.id), modelId: mid });
+          // 제공사 코드와 메시지를 둘 다 남긴다 — 코드만 보면 "미개통(ModelNotOpen)" 인지
+          //  "파라미터 오류(InvalidParameter)" 인지 한눈에 갈린다(예전엔 메시지만 남아 구분이 안 됐다).
+          const eCode = (j.error && j.error.code) || "";
+          const eMsg = (j.error && j.error.message) || String(JSON.stringify(j)).slice(0, 140);
+          lastErr = "HTTP " + r.status + " [" + mid + " img:" + imgN + "]"
+            + (eCode ? " <" + eCode + ">" : "") + " " + eMsg
+            + (/modelnotopen|not activated|not enabled/i.test(eCode + " " + eMsg)
+                ? " — 이 모델은 계정에서 아직 개통되지 않았습니다(BytePlus 콘솔에서 활성화 필요)." : "");
+          tried.push(mid + "=" + r.status);
+          // 다음 후보로 넘어갈 조건: 모델 ID 없음(404) 또는 제공사 5xx.
+          //  ModelArk 는 미개통·미배포 모델에 404 가 아니라 500(InternalServiceError)을 주는 경우가 있어,
+          //  5xx 에서 멈추면 남은 후보 ID 를 한 번도 못 써 보고 "제공사 서버 오류"로 끝나 버린다.
+          //  400(파라미터)·401/403(인증)·402(잔액)·429(한도)는 ID 를 바꿔도 동일하므로 즉시 중단.
+          if (!(seedreamModelMissing(r.status, j) || r.status >= 500)) break outer;
         }
-        const payload = buildSeedancePayload(b, env, mid);
-        // 스튜디오가 실제로 보낸 값을 에러에 그대로 실어, 노드에 원인이 보이게 한다.
-        const imgN = payload.content.filter(c => c.type === "image_url").length;
-        let r, j; const t0 = Date.now();
+      }
+      // 모든 후보가 "모델 없음" 으로 끝났다면, 계정 카탈로그에서 같은 계열의 실제 ID 를 찾아 1회 더 시도한다.
+      //  (콘솔에서 개통했는데 날짜 접미사가 우리 표와 다른 경우 — 코드 수정 없이 자동으로 맞춘다)
+      //  카탈로그 조회(최대 4회 탐침)까지 무한정 붙이면 제출 한 건이 1분을 훌쩍 넘긴다 —
+      //  인계된 뒤라도 뒷작업이 잘려 결과가 영영 안 오므로, 전체 예산 안에서만 시도한다.
+      if (/InvalidEndpointOrModel|NotFound|404/i.test(String(lastErr || "")) &&
+          BUDGET_MS + 20000 - (Date.now() - started) > 8000) {
         try {
-          // fetchT 의 unhandled-rejection 차단으로 raw 502 는 사라졌으므로, bp 가 이미지
-          // 검증 등으로 제출이 느려도(태스크 ID 반환까지 십수 초) 안전하게 기다린다.
-          // 초과 시엔 crash 없이 읽을 수 있는 "시간 초과" JSON 이 노드에 표시된다.
-          r = await fetchT(ARK_HOSTS[hostId] + "/contents/generations/tasks", {
-            method: "POST",
-            headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          }, Math.min(22000, leftMs));
-          j = await r.json().catch(() => ({}));
-        } catch (e) {
-          lastErr = hostId + " 제출 실패(" + (Date.now() - t0) + "ms): " + String((e && e.message) || e).slice(0, 140);
-          tried.push(mid + "=ERR");
-          continue;   // 다음 후보/호스트로
-        }
-        if (r.ok && j.id)
-          return json({ statusUrl: "/api/generate?provider=seedance&host=" + hostId + "&task=" + encodeURIComponent(j.id), modelId: mid });
-        // 제공사 코드와 메시지를 둘 다 남긴다 — 코드만 보면 "미개통(ModelNotOpen)" 인지
-        //  "파라미터 오류(InvalidParameter)" 인지 한눈에 갈린다(예전엔 메시지만 남아 구분이 안 됐다).
-        const eCode = (j.error && j.error.code) || "";
-        const eMsg = (j.error && j.error.message) || String(JSON.stringify(j)).slice(0, 140);
-        lastErr = "HTTP " + r.status + " [" + mid + " img:" + imgN + "]"
-          + (eCode ? " <" + eCode + ">" : "") + " " + eMsg
-          + (/modelnotopen|not activated|not enabled/i.test(eCode + " " + eMsg)
-              ? " — 이 모델은 계정에서 아직 개통되지 않았습니다(BytePlus 콘솔에서 활성화 필요)." : "");
-        tried.push(mid + "=" + r.status);
-        // 다음 후보로 넘어갈 조건: 모델 ID 없음(404) 또는 제공사 5xx.
-        //  ModelArk 는 미개통·미배포 모델에 404 가 아니라 500(InternalServiceError)을 주는 경우가 있어,
-        //  5xx 에서 멈추면 남은 후보 ID 를 한 번도 못 써 보고 "제공사 서버 오류"로 끝나 버린다.
-        //  400(파라미터)·401/403(인증)·402(잔액)·429(한도)는 ID 를 바꿔도 동일하므로 즉시 중단.
-        if (!(seedreamModelMissing(r.status, j) || r.status >= 500)) break outer;
+          const cat = await arkModelCatalog(k.seedance);
+          const alt = arkPickByStem(cat, candidates);
+          if (alt) {
+            const r2 = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+              method: "POST",
+              headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
+              body: JSON.stringify(buildSeedancePayload(b, env, alt))
+            }, Math.max(6000, BUDGET_MS + 20000 - (Date.now() - started)));
+            const j2 = await r2.json().catch(() => ({}));
+            tried.push(alt + "=" + r2.status + "(카탈로그)");
+            if (r2.ok && j2.id)
+              return json({ statusUrl: "/api/generate?provider=seedance&host=bp&task=" + encodeURIComponent(j2.id), modelId: alt });
+            lastErr = "HTTP " + r2.status + " [" + alt + " 카탈로그]"
+              + ((j2.error && j2.error.code) ? " <" + j2.error.code + ">" : "") + " "
+              + ((j2.error && j2.error.message) || "");
+          } else if (cat && cat.length) {
+            const listed = cat.filter(x => candidates.indexOf(x) >= 0);
+            lastErr = String(lastErr || "") + (listed.length
+              ? " · 이 모델 ID 는 계정 카탈로그에 있으나 호출은 404 입니다 → BytePlus 콘솔에서 해당 모델을 개통(Activate)해 주세요."
+              : " · 계정 카탈로그(" + cat.length + "개)에 같은 계열 ID 가 없습니다 — 이 계정/리전에서 사용할 수 없는 모델입니다.");
+          }
+        } catch (_e) { /* 카탈로그 조회 실패는 무시 */ }
       }
-    }
-    // 모든 후보가 "모델 없음" 으로 끝났다면, 계정 카탈로그에서 같은 계열의 실제 ID 를 찾아 1회 더 시도한다.
-    //  (콘솔에서 개통했는데 날짜 접미사가 우리 표와 다른 경우 — 코드 수정 없이 자동으로 맞춘다)
-    if (/InvalidEndpointOrModel|NotFound|404/i.test(String(lastErr || ""))) {
+      const trail = tried.length > 1 ? " · 시도: " + tried.join(", ") : "";
+      // 실패한 제출을 서버에 남긴다 — 노드 화면의 원문을 사람이 옮겨 적어야만 원인을 알 수 있는 상황을 없앤다.
+      //  (diag=gen-errors 로 조회. 실패 시에만 기록하고, 본문은 요약만 남겨 용량을 묶는다.)
       try {
-        const cat = await arkModelCatalog(k.seedance);
-        const alt = arkPickByStem(cat, candidates);
-        if (alt) {
-          const r2 = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
-            method: "POST",
-            headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
-            body: JSON.stringify(buildSeedancePayload(b, env, alt))
-          }, 22000);
-          const j2 = await r2.json().catch(() => ({}));
-          tried.push(alt + "=" + r2.status + "(카탈로그)");
-          if (r2.ok && j2.id)
-            return json({ statusUrl: "/api/generate?provider=seedance&host=bp&task=" + encodeURIComponent(j2.id), modelId: alt });
-          lastErr = "HTTP " + r2.status + " [" + alt + " 카탈로그]"
-            + ((j2.error && j2.error.code) ? " <" + j2.error.code + ">" : "") + " "
-            + ((j2.error && j2.error.message) || "");
-        } else if (cat && cat.length) {
-          const listed = cat.filter(x => candidates.indexOf(x) >= 0);
-          lastErr = String(lastErr || "") + (listed.length
-            ? " · 이 모델 ID 는 계정 카탈로그에 있으나 호출은 404 입니다 → BytePlus 콘솔에서 해당 모델을 개통(Activate)해 주세요."
-            : " · 계정 카탈로그(" + cat.length + "개)에 같은 계열 ID 가 없습니다 — 이 계정/리전에서 사용할 수 없는 모델입니다.");
+        const edb = resolveDB(env);
+        if (edb) {
+          const p0 = buildSeedancePayload(b, env, candidates[0]);
+          const shape = {
+            model: p0.model, ratio: p0.ratio, duration: p0.duration,
+            watermark: p0.watermark, generate_audio: p0.generate_audio,
+            content: (p0.content || []).map(c => c.type === "text"
+              ? { type: "text", len: String(c.text || "").length }
+              : { type: c.type, role: c.role, scheme: String(
+                  (c.image_url && c.image_url.url) || (c.video_url && c.video_url.url) ||
+                  (c.audio_url && c.audio_url.url) || "").slice(0, 12) })
+          };
+          await edb.prepare(
+            `CREATE TABLE IF NOT EXISTS gen_errors (id TEXT PRIMARY KEY, provider TEXT, model TEXT,
+               err TEXT, shape TEXT, created_at TEXT)`).run();
+          await edb.prepare(
+            `INSERT INTO gen_errors (id, provider, model, err, shape, created_at) VALUES (?,?,?,?,?,?)`)
+            .bind("ge_" + crypto.randomUUID().slice(0, 12), "seedance", String(b.model || ""),
+                  String(lastErr).slice(0, 400) + trail, JSON.stringify(shape).slice(0, 900),
+                  new Date().toISOString()).run();
         }
-      } catch (_e) { /* 카탈로그 조회 실패는 무시 */ }
-    }
-    const trail = tried.length > 1 ? " · 시도: " + tried.join(", ") : "";
-    // 실패한 제출을 서버에 남긴다 — 노드 화면의 원문을 사람이 옮겨 적어야만 원인을 알 수 있는 상황을 없앤다.
-    //  (diag=gen-errors 로 조회. 실패 시에만 기록하고, 본문은 요약만 남겨 용량을 묶는다.)
-    try {
-      const edb = resolveDB(env);
-      if (edb) {
-        const p0 = buildSeedancePayload(b, env, candidates[0]);
-        const shape = {
-          model: p0.model, ratio: p0.ratio, duration: p0.duration,
-          watermark: p0.watermark, generate_audio: p0.generate_audio,
-          content: (p0.content || []).map(c => c.type === "text"
-            ? { type: "text", len: String(c.text || "").length }
-            : { type: c.type, role: c.role, scheme: String(
-                (c.image_url && c.image_url.url) || (c.video_url && c.video_url.url) ||
-                (c.audio_url && c.audio_url.url) || "").slice(0, 12) })
-        };
-        await edb.prepare(
-          `CREATE TABLE IF NOT EXISTS gen_errors (id TEXT PRIMARY KEY, provider TEXT, model TEXT,
-             err TEXT, shape TEXT, created_at TEXT)`).run();
-        await edb.prepare(
-          `INSERT INTO gen_errors (id, provider, model, err, shape, created_at) VALUES (?,?,?,?,?,?)`)
-          .bind("ge_" + crypto.randomUUID().slice(0, 12), "seedance", String(b.model || ""),
-                String(lastErr).slice(0, 400) + trail, JSON.stringify(shape).slice(0, 900),
-                new Date().toISOString()).run();
-      }
-    } catch (_e) { /* 로깅 실패가 생성 응답을 막지 않도록 */ }
-    return json({ error: "Seedance " + tag + ": " + String(lastErr).slice(0, 200) + trail }, 502);
+      } catch (_e) { /* 로깅 실패가 생성 응답을 막지 않도록 */ }
+      return json({ error: "Seedance " + tag + ": " + String(lastErr).slice(0, 200) + trail }, 502);
+    })();
+    return await handoffSubmit(context, work, "seedance");
   }
 
   if (provider === "seedream") {
