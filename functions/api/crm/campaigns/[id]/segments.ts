@@ -33,6 +33,11 @@ async function leadPhones(db: D1Database, c: any): Promise<Map<string, string>> 
   if (!slug) return out
   // 집행일 00:00(KST) 이후 신청만 — 그 전 신청은 이 집행의 성과가 아니다
   const since = c.run_date ? new Date(`${c.run_date}T00:00:00+09:00`).toISOString() : ''
+  /* ⚠ 표마다 시각 저장 형식이 다르다 — CURRENT_TIMESTAMP 는 '2026-07-31 15:04:43'(공백),
+       앱이 넣는 값은 ISO '…T15:04:43.000Z'. 글자 그대로 견주면 공백(0x20)이 'T'(0x54)보다
+       앞서서 같은 날 자료가 통째로 빠진다. 여기서 빠지면 "이미 신청한 사람" 이 미신청자로
+       분류돼 후속 문자가 또 나가고 포인트도 또 빠진다 — 형식을 맞춘 뒤 견준다. */
+  const GE = (col: string) => `substr(replace(${col}, ' ', 'T'), 1, 19) >= substr(?, 1, 19)`
 
   const push = (rows: any[]) => {
     for (const r of rows) {
@@ -43,12 +48,12 @@ async function leadPhones(db: D1Database, c: any): Promise<Map<string, string>> 
   push(((await db.prepare(
     `SELECT fs.phone, fs.created_at FROM form_submissions fs
        JOIN landing_pages lp ON lp.id = fs.landing_page_id
-      WHERE lp.slug = ?${since ? ' AND fs.created_at >= ?' : ''} LIMIT 20000`,
+      WHERE lp.slug = ?${since ? ` AND ${GE('fs.created_at')}` : ''} LIMIT 20000`,
   ).bind(...(since ? [slug, since] : [slug])).all().catch(() => ({ results: [] as any[] }))).results as any[]) || [])
   push(((await db.prepare(
     `SELECT fa.phone, fa.created_at FROM funnel_applicants fa
        JOIN funnel_landing_pages flp ON flp.id = fa.landing_page_id
-      WHERE flp.slug = ?${since ? ' AND fa.created_at >= ?' : ''} LIMIT 20000`,
+      WHERE flp.slug = ?${since ? ` AND ${GE('fa.created_at')}` : ''} LIMIT 20000`,
   ).bind(...(since ? [slug, since] : [slug])).all().catch(() => ({ results: [] as any[] }))).results as any[]) || [])
   return out
 }

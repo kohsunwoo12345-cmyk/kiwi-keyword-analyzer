@@ -25,6 +25,17 @@ async function buildResult(db: D1Database, c: any) {
   const sinceUtc = c.run_date ? new Date(`${c.run_date}T00:00:00+09:00`).toISOString() : ''
   const slug = c.landing_slug || ''
 
+  /* ⚠ 시각을 글자 그대로 비교하면 안 된다 — 표마다 저장 형식이 다르다.
+       landing_page_views.created_at 은 CURRENT_TIMESTAMP 기본값이라 '2026-07-31 15:04:43'
+       (사이가 공백), form_submissions 는 앱이 넣는 ISO '2026-07-31T15:04:43.000Z'.
+       SQLite 는 이걸 문자열로 견주는데 공백(0x20)이 'T'(0x54)보다 앞서서
+       '2026-07-31 15:04:43' >= '2026-07-31T15:00:00.000Z' 가 거짓이 된다.
+       그래서 집행일 00:00~09:00(KST) 사이에 들어온 조회가 통째로 빠졌다 —
+       조회수가 0으로 보이고, 조회 1회당 단가와 발송→조회 전환율까지 같이 틀어졌다.
+       양쪽을 'YYYY-MM-DDTHH:MM:SS' 한 형태로 맞춘 뒤 견준다(옛 자료도 그대로 살아난다). */
+  const AT = (col: string) => `substr(replace(${col}, ' ', 'T'), 1, 19)`
+  const GE = (col: string) => `${AT(col)} >= substr(?, 1, 19)`
+
   let views = 0, viewsTotal = 0, leads = 0, leadsTotal = 0
   let recent: any[] = []
   if (slug) {
@@ -36,15 +47,15 @@ async function buildResult(db: D1Database, c: any) {
     leadsTotal = await q(
       `SELECT COUNT(*) AS n FROM form_submissions fs JOIN landing_pages lp ON lp.id = fs.landing_page_id WHERE lp.slug = ?`, slug)
     if (sinceUtc) {
-      views = await q('SELECT COUNT(*) AS n FROM landing_page_views WHERE landing_slug = ? AND created_at >= ?', slug, sinceUtc)
+      views = await q(`SELECT COUNT(*) AS n FROM landing_page_views WHERE landing_slug = ? AND ${GE('created_at')}`, slug, sinceUtc)
       leads = await q(
         `SELECT COUNT(*) AS n FROM form_submissions fs JOIN landing_pages lp ON lp.id = fs.landing_page_id
-          WHERE lp.slug = ? AND fs.created_at >= ?`, slug, sinceUtc)
+          WHERE lp.slug = ? AND ${GE('fs.created_at')}`, slug, sinceUtc)
     } else { views = viewsTotal; leads = leadsTotal }
     recent = ((await db.prepare(
       `SELECT fs.name, fs.phone, fs.email, fs.created_at FROM form_submissions fs
          JOIN landing_pages lp ON lp.id = fs.landing_page_id
-        WHERE lp.slug = ?${sinceUtc ? ' AND fs.created_at >= ?' : ''}
+        WHERE lp.slug = ?${sinceUtc ? ` AND ${GE('fs.created_at')}` : ''}
         ORDER BY fs.created_at DESC LIMIT 100`,
     ).bind(...(sinceUtc ? [slug, sinceUtc] : [slug])).all().catch(() => ({ results: [] }))).results as any[]) || []
 
@@ -57,7 +68,7 @@ async function buildResult(db: D1Database, c: any) {
           WHEN referrer!='' AND referrer IS NOT NULL THEN '기타 외부 링크'
           ELSE '직접 방문' END AS channel, COUNT(*) AS cnt
          FROM landing_page_views
-        WHERE landing_slug = ?${sinceUtc ? ' AND created_at >= ?' : ''}
+        WHERE landing_slug = ?${sinceUtc ? ` AND ${GE('created_at')}` : ''}
         GROUP BY channel ORDER BY cnt DESC LIMIT 12`,
     ).bind(...(sinceUtc ? [slug, sinceUtc] : [slug])).all().catch(() => ({ results: [] }))).results as any[]) || []
     ;(c as any)._channels = chans

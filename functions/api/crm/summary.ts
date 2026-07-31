@@ -46,13 +46,18 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     let views = 0, leads = 0
     if (c.landing_slug) {
       const since = c.run_date ? new Date(`${c.run_date}T00:00:00+09:00`).toISOString() : ''
+      /* ⚠ 시각 저장 형식이 표마다 다르다 — landing_page_views 는 CURRENT_TIMESTAMP 라
+         '2026-07-31 15:04:43'(공백), 앱이 넣는 값은 ISO '…T15:04:43.000Z'.
+         글자 그대로 견주면 공백(0x20)이 'T'(0x54)보다 앞서서 같은 날 조회가 통째로 빠진다.
+         (캠페인 결과 표의 조회수가 0으로 나오던 자리다.) 형식을 맞춘 뒤 견준다. */
+      const GE = (col: string) => `substr(replace(${col}, ' ', 'T'), 1, 19) >= substr(?, 1, 19)`
       const v: any = await db.prepare(
-        `SELECT COUNT(*) AS n FROM landing_page_views WHERE landing_slug = ?${since ? ' AND created_at >= ?' : ''}`,
+        `SELECT COUNT(*) AS n FROM landing_page_views WHERE landing_slug = ?${since ? ` AND ${GE('created_at')}` : ''}`,
       ).bind(...(since ? [c.landing_slug, since] : [c.landing_slug])).first().catch(() => null)
       views = Number(v?.n || 0)
       const l: any = await db.prepare(
         `SELECT COUNT(*) AS n FROM form_submissions fs JOIN landing_pages lp ON lp.id = fs.landing_page_id
-          WHERE lp.slug = ?${since ? ' AND fs.created_at >= ?' : ''}`,
+          WHERE lp.slug = ?${since ? ` AND ${GE('fs.created_at')}` : ''}`,
       ).bind(...(since ? [c.landing_slug, since] : [c.landing_slug])).first().catch(() => null)
       leads = Number(l?.n || 0)
     }
