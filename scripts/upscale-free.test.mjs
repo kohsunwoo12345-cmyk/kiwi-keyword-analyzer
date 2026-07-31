@@ -99,7 +99,8 @@ const ok = (name, cond, detail = '') => {
   const px = [...studio.matchAll(/id:'(\w+)',\s*label:'([^']+)',\s*px:(\d+)/g)].map((m) => `${m[2]}=${m[3]}px`)
   ok('⑥-b 화질마다 목표 픽셀이 정해져 있다', px.length >= 3, px.join(' · '))
   //  고른 화질이 실제 초해상 실행에 목표값으로 전달되는지 (안 그러면 이름만 바뀐 것이다)
-  ok('⑥-c 고른 화질이 longTarget 으로 전달된다', /uOpts\s*=\s*\{\s*longTarget:\s*uQ\.px\s*\}/.test(studio))
+  //  다른 설정(속도 모드 등)이 같이 실려도 되지만, 고른 화질은 반드시 longTarget 으로 나가야 한다
+  ok('⑥-c 고른 화질이 longTarget 으로 전달된다', /uOpts\s*=\s*\{\s*longTarget:\s*uQ\.px\b/.test(studio))
   //  버튼이 배율 표기로 되돌아가지 않았는지
   ok('⑥-d 배율(2×/4×) 버튼이 남아 있지 않다', !/data-upscaleset="[24]"/.test(studio))
 }

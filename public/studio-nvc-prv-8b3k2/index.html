@@ -4561,7 +4561,7 @@ var ESRGAN_URLS=[
   '/models/hf/onnx-community/Real-ESRGAN_x4plus/resolve/main/onnx/model.onnx',
   '/models/hf/Xenova/4x-UltraSharp/resolve/main/onnx/model.onnx'
 ];
-var _ortMod=null,_ortTry=null,_esrSess=null,_esrTry=null;
+var _ortMod=null,_ortTry=null,_esrSess={},_esrTry={};
 function ensureOrt(){
   if(_ortMod) return Promise.resolve(_ortMod);
   if(_ortTry) return _ortTry;
@@ -4575,20 +4575,24 @@ function ensureOrt(){
   }).catch(function(e){ _ortTry=null; throw e; });
   return _ortTry;
 }
-function ensureEsrgan(){
-  if(_esrSess) return Promise.resolve(_esrSess);
-  if(_esrTry) return _esrTry;
-  _esrTry=ensureOrt().then(function(ort){
+/* 워커를 못 쓰는 브라우저용 단일 경로. 여기도 고른 모드를 따라야 한다 —
+   안 그러면 "빠르게" 를 골라도 무거운 모델이 돌아 아무 것도 빨라지지 않는다. */
+function ensureEsrgan(fast){
+  var mode = fast ? 'fast' : 'best';
+  if(_esrSess[mode]) return Promise.resolve(_esrSess[mode]);
+  if(_esrTry[mode]) return _esrTry[mode];
+  _esrTry[mode]=ensureOrt().then(function(ort){
+    var list = fast ? ESRGAN_FAST_URLS : ESRGAN_URLS;
     var idx=0;
     function tryNext(){
-      if(idx>=ESRGAN_URLS.length) return Promise.reject(new Error('no esrgan model'));
-      var u=ESRGAN_URLS[idx++];
+      if(idx>=list.length) return Promise.reject(new Error('no esrgan model'));
+      var u=list[idx++];
       return ort.InferenceSession.create(location.origin+u, { executionProviders:['wasm'], graphOptimizationLevel:'all' })
         .catch(function(){ return tryNext(); });   // 이 후보 실패 → 다음 후보
     }
     return tryNext();
-  }).then(function(s){ _esrSess=s; return s; }).catch(function(e){ _esrTry=null; throw e; });
-  return _esrTry;
+  }).then(function(x){ _esrSess[mode]=x; return x; }).catch(function(e){ _esrTry[mode]=null; throw e; });
+  return _esrTry[mode];
 }
 function _c255(v){ v=v*255; return v<0?0:v>255?255:v; }
 // 타일 캔버스 → Real-ESRGAN(×4) → 출력 캔버스. NCHW float[0,1] 입출력.
@@ -4615,7 +4619,12 @@ function _esrRunTile(sess, cv){
    대신 워커마다 각자 엔진을 세워 타일을 나눠 돌린다. 격리 헤더도, GPU 도 필요 없다.
    픽셀 변환(RGBA↔실수)도 워커 안에서 해 메인 스레드는 자르고 그리는 일만 한다.
    워커를 못 쓰거나 모델을 못 받으면 기존 단일 경로로 그대로 물러난다. */
-var _srPool=null, _srPoolTry=null;
+/* 빠르게 모드에 쓰는 가벼운 모델 — 우리 서버에 직접 올려 둔다(외부 저장소가 죽어도 동작한다).
+   UpscalerJS 의 esrgan-medium(RDN ×4, 70만 파라미터, MIT)을 ONNX 로 옮긴 것이다.
+   정답을 놓고 잰 비교: 기본(726만 파라미터) 대비 10배 빠르고 PSNR 차이 0.02dB · SSIM 0.026.
+   자세한 근거와 출처는 /models-sr/README.md 에 적어 뒀다. */
+var ESRGAN_FAST_URLS=['/models-sr/rdn-medium-x4.onnx'];
+var _srPools={}, _srPoolTries={};
 function _srWorkerSrc(){
   return [
     'let ort=null, sess=null, IN="", OUT="";',
@@ -4644,9 +4653,10 @@ function _srWorkerSrc(){
     ' } };'
   ].join('\n');
 }
-function ensureSrPool(){
-  if(_srPool) return Promise.resolve(_srPool);
-  if(_srPoolTry) return _srPoolTry;
+function ensureSrPool(fast){
+  var mode = fast ? 'fast' : 'best';
+  if(_srPools[mode]) return Promise.resolve(_srPools[mode]);
+  if(_srPoolTries[mode]) return _srPoolTries[mode];
   /* 워커 개수 — 시간의 90%가 초해상이라 여기가 속도를 거의 다 정한다.
      단계별로 재 보니(1280×720 → 4K, 진짜 엔진) 최적점이 정확히 "코어 수" 였다:
        워커 1개 6770ms · 2개 3720ms · 3개 2492ms · 4개 1970ms · 5개 2021 · 6개 2065 · 8개 2147
@@ -4658,9 +4668,10 @@ function ensureSrPool(){
   var mem=navigator.deviceMemory||4;                       // GB (모르면 4GB 로 본다)
   var memCap = mem>=8 ? 6 : mem>=4 ? 4 : mem>=2 ? 2 : 1;
   var n = Math.max(1, Math.min(cores, memCap));
-  if(typeof Worker==='undefined'){ _srPoolTry=Promise.reject(new Error('no pool')); return _srPoolTry; }
+  if(typeof Worker==='undefined'){ _srPoolTries[mode]=Promise.reject(new Error('no pool')); return _srPoolTries[mode]; }
   var lib=location.origin+'/models/lib/ortweb', wasm=location.origin+'/models/ort/';
-  var urls=ESRGAN_URLS.map(function(u){ return location.origin+u; });
+  //  빠르게 = 우리가 직접 올린 가벼운 모델 하나 · 최고 화질 = 기존 후보 목록
+  var urls=(fast?ESRGAN_FAST_URLS:ESRGAN_URLS).map(function(u){ return location.origin+u; });
   var blobUrl=URL.createObjectURL(new Blob([_srWorkerSrc()],{type:'text/javascript'}));
   function spawn(){
     return new Promise(function(res,rej){
@@ -4675,7 +4686,7 @@ function ensureSrPool(){
     });
   }
   //  첫 워커가 성공해야 모델을 받을 수 있다는 뜻이다 — 그 다음에 나머지를 띄운다
-  _srPoolTry=spawn().then(function(w0){
+  _srPoolTries[mode]=spawn().then(function(w0){
     var rest=[]; for(var i=1;i<n;i++) rest.push(spawn().catch(function(){ return null; }));
     return Promise.all(rest).then(function(ws){
       var workers=[w0].concat(ws.filter(Boolean));
@@ -4695,8 +4706,8 @@ function ensureSrPool(){
           if(!take()) waiters.push(take);
         });
       }
-      _srPool={
-        size: workers.length,
+      _srPools[mode]={
+        size: workers.length, fast: !!fast,
         run: function(rgbaBuf, w, h){
           return slot().then(function(ix){
             return new Promise(function(res){
@@ -4707,10 +4718,10 @@ function ensureSrPool(){
           });
         }
       };
-      return _srPool;
+      return _srPools[mode];
     });
-  }).catch(function(e){ _srPoolTry=null; throw e; });
-  return _srPoolTry;
+  }).catch(function(e){ _srPoolTries[mode]=null; throw e; });
+  return _srPoolTries[mode];
 }
 
 /* 타일 크기가 속도를 직접 정한다. 이음매를 없애려 상하좌우 16px 을 겹쳐 자르고 가운데만 쓰므로
@@ -4735,14 +4746,14 @@ function _pickTile(W,H,max){
   }
   return best?best.T:max;
 }
-function getUpscaler(factor){
+function getUpscaler(factor, fast){
   //  ① 워커 묶음 — 코어를 나눠 쓰고 화면도 안 멈춘다  ② 안 되면 기존 단일 경로
-  return ensureSrPool().then(function(pool){
-    return { factor:4, tile:256, tileAuto:true, concurrency:pool.size,
+  return ensureSrPool(fast).then(function(pool){
+    return { factor:4, tile:256, tileAuto:true, concurrency:pool.size, fast:!!fast,
              runRaw:function(rgbaBuf,w,h){ return pool.run(rgbaBuf,w,h); } };
   }).catch(function(){
-  return ensureEsrgan().then(function(sess){
-    return { factor:4, tile:256, tileAuto:true, concurrency:1, run:function(cv){ return _esrRunTile(sess, cv); } };
+  return ensureEsrgan(fast).then(function(sess){
+    return { factor:4, tile:256, tileAuto:true, concurrency:1, fast:!!fast, run:function(cv){ return _esrRunTile(sess, cv); } };
   }).catch(function(){
     return ensureUpscaleModel(factor).then(function(pipe){
       return { factor:(factor>=4?4:2), tile:256, concurrency:1, run:function(cv){ return pipe(cv.toDataURL('image/png')).then(function(res){ return (res&&res.toCanvas)?res.toCanvas():null; }); } };
@@ -4850,7 +4861,7 @@ function upscaleImageURL(src,scale,opts){
       if(opts&&opts.longTarget){ effScale=Math.max(1, Math.min(8, opts.longTarget/Math.max(iw,ih))); factor=4; }
       var srcC=document.createElement('canvas'); srcC.width=iw; srcC.height=ih; srcC.getContext('2d').drawImage(img,0,0);
       try{ toast(tr('초해상 모델 로딩 중… (최초 1회 다운로드)')); }catch(_){}
-      getUpscaler(factor).then(function(runner){
+      getUpscaler(factor, opts&&opts.fast).then(function(runner){
         return _srCanvas2(runner, srcC).then(function(srC){
           var tw=Math.round(iw*effScale), th=Math.round(ih*effScale), o=srC;
           if(srC.width!==tw||srC.height!==th){ var fc=document.createElement('canvas'); fc.width=tw; fc.height=th; var fx=fc.getContext('2d'); fx.imageSmoothingEnabled=true; fx.imageSmoothingQuality='high'; fx.drawImage(srC,0,0,tw,th); o=fc; }
@@ -5063,7 +5074,7 @@ function upscaleVideoURL(src,scale,onProg,opts){
     v.addEventListener('loadedmetadata',function(){
       var dur=v.duration||0, MAXSEC=1800, clip=Math.min(dur||MAXSEC, MAXSEC), FPS=15;   // 최대 30분
       try{ toast(tr('초해상 모델 로딩 중… (최초 1회 다운로드)')); }catch(_){}
-      getUpscaler(factor).then(function(runner){
+      getUpscaler(factor, opts&&opts.fast).then(function(runner){
         if(settled)return;
         var iw=v.videoWidth||1280, ih=v.videoHeight||720;
         var effScale=scale, CAP=(opts&&opts.cap)||640;
@@ -6742,11 +6753,20 @@ function widgetHTML(n,w){
          같은 2× 도 결과가 달라져서, 배율만 보고는 무엇이 나올지 알 수 없었다.
          고른 화질은 긴 변 픽셀 목표(UP_QUALITY)로 그대로 나간다. 전부 우리 자체 모델·무료다. */
       var _uq = upQualityOf(n);
+      /* 속도 선택 — 화질을 낮추는 게 아니라 "어느 모델로 복원할지" 를 고르는 것이다.
+         정답을 놓고 잰 결과: 빠르게(70만 파라미터)는 최고 화질(726만) 대비 약 10배 빠르고
+         PSNR 차이 0.02dB · SSIM 0.026 이다. 크기·길이·소리는 어느 쪽이든 똑같이 나온다.
+         기본값은 최고 화질이다 — 급할 때만 사용자가 바꾸게 한다. */
+      var _fast = n.w.upSpeed==='fast';
       ctrl='<div class="up-row"><span class="up-seg">'+
         UP_QUALITY.map(function(q){
           return '<button class="up-x'+(_uq.id===q.id?' on':'')+'" data-upscaleset="'+q.id+'" title="'+esc(q.hint)+'">'+q.label+'</button>';
         }).join('')+'</span>'+
         '<button class="wbtn up-go" data-upscale>'+ICON.sparkle+' 화질 올리기</button></div>'+
+        '<div class="up-row" style="margin-top:4px;"><span class="up-seg">'+
+          '<button class="up-x'+(_fast?'':' on')+'" data-upspeed="best" title="가장 또렷하게 복원합니다. 긴 영상은 오래 걸립니다.">최고 화질</button>'+
+          '<button class="up-x'+(_fast?' on':'')+'" data-upspeed="fast" title="가벼운 모델로 약 10배 빠르게. 크기·길이·소리는 같고 미세한 질감만 조금 덜 살아납니다.">빠르게 (약 10배)</button>'+
+        '</span></div>'+
         '<div class="refcnt">우리 자체 초해상 모델로 처리합니다 — <b>크레딧이 들지 않습니다</b>.</div>'+
         (up?'<div class="refcnt">'+ICON.check+' '+esc(_uq.label)+' 완료 · '+esc(n.w.upDim||'')+' · <a href="#" data-upreset>원본으로</a></div>':'')+
         // Kling 공식 API 결과에만 "영상 확장" 이 가능하다(제공사 제약: Kling 생성분·30일 이내).
@@ -7638,6 +7658,9 @@ canvas.addEventListener('click',function(e){
   var rdel=e.target.closest('[data-refdel]');
   if(rdel){ var ri=+rdel.getAttribute('data-refdel');
     (n2.w.imgs||[]).splice(ri,1); if(n2.w.vids)n2.w.vids.splice(ri,1); snapshot(); render(); return; }
+  if(e.target.closest('[data-upspeed]')){
+    n2.w.upSpeed=String(e.target.closest('[data-upspeed]').getAttribute('data-upspeed')); render(); return;
+  }
   if(e.target.closest('[data-upscaleset]')){
     n2.w.upQuality=String(e.target.getAttribute('data-upscaleset')); render(); return;
   }
@@ -7774,7 +7797,8 @@ canvas.addEventListener('click',function(e){
     /* 고른 화질의 긴 변 픽셀을 그대로 목표로 넘긴다 — 원본 크기와 무관하게 그 화질로 나온다.
        이 경로는 전부 브라우저 안(우리 자체 모델)에서 끝난다: 서버·외부 API 호출이 없어 크레딧이 0이다. */
     var uQ=upQualityOf(n2), is5k=(uQ.id==='5k');
-    var uOpts={ longTarget: uQ.px };
+    var uFast = n2.w.upSpeed==='fast';
+    var uOpts={ longTarget: uQ.px, fast: uFast };
     var uScale=4;                                   // 자체 모델은 x4 로 돌리고 목표 화질에 맞춰 정확히 줄인다
     var uIsImg = n2.w.kind==='image' || /^data:image\//i.test(n2.w.vid) || /\.(png|jpe?g|webp|gif)(\?|$)/i.test(n2.w.vid);
     if(is5k && !uIsImg){ try{ toast('5K 영상은 매우 오래 걸리고(수 시간+) 브라우저가 5K 인코딩을 못 하면 자동으로 낮춰집니다.'); }catch(_){} }
@@ -7799,7 +7823,7 @@ canvas.addEventListener('click',function(e){
       }catch(_e){}
     })();
     n2.w.upscaling=true; n2.w.upPct=0; render();
-    toast((uIsImg?'이미지':'영상')+' 화질 올리는 중… '+uQ.label+' (자체 모델 · 무료)');
+    toast((uIsImg?'이미지':'영상')+' 화질 올리는 중… '+uQ.label+(uFast?' · 빠르게':' · 최고 화질')+' (자체 모델 · 무료)');
     /* 30분짜리는 몇 시간이 걸릴 수 있다 — "몇 %" 만 보여 주면 언제 끝나는지 알 수 없다.
        실제 프레임 처리 속도로 남은 시간을 재서 같이 보여 준다. */
     function uEta(s){ s=Math.round(s||0); if(s<60)return s+'초';

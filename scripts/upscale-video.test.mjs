@@ -137,10 +137,33 @@ ok('본문을 찾았다 (upscaleVideoURL·_grabAudioOpus·webmWriter)', !!up && 
   ok('⑩-c 픽셀 변환을 워커가 한다(메인 스레드 부담↓)', /Float32Array\(3\s*\*\s*n\)/.test(_srcOf('_srWorkerSrc')))
   const up2 = body('getUpscaler')
   ok('⑩-d 묶음을 못 만들면 기존 단일 경로로 물러난다',
-     /ensureSrPool\(\)[\s\S]{0,400}?\.catch\([\s\S]{0,200}?ensureEsrgan\(\)/.test(up2))
+     /ensureSrPool\([\s\S]{0,400}?\.catch\([\s\S]{0,200}?ensureEsrgan\(/.test(up2))
   const sc = body('_srCanvas2')
   ok('⑩-e 타일을 동시에 돌린다', /Promise\.all\(lanes\.map\(runLane\)\)/.test(sc), '한 장씩 돌면 코어 1개만 쓴다')
   ok('⑩-f 동시에 도는 만큼 자르기 캔버스를 따로 둔다', /lanes\.push\(\{\s*cv:/.test(sc), '한 장을 나눠 쓰면 서로 덮어쓴다')
+}
+
+/* ⑭ "빠르게" 는 화질을 낮추는 게 아니라 가벼운 모델로 바꾸는 것이다
+   정답을 놓고 잰 비교(실제 학습된 ESRGAN 계열 3종): 70만 파라미터 모델이 726만짜리 대비
+   10배 빠르고 PSNR 차이 0.02dB · SSIM 0.026 이었다. 그래서 선택지로 넣었다(기본은 최고 화질).
+   모델 파일은 우리 서버에 직접 둔다 — 외부 저장소가 죽어도 이 기능이 살아 있어야 한다. */
+{
+  ok('⑭ 빠른 모델을 우리 서버에서 직접 준다',
+     /var ESRGAN_FAST_URLS=\['\/models-sr\//.test(src), '외부에서 받아오면 그쪽이 죽을 때 같이 죽는다')
+  const m = /ESRGAN_FAST_URLS=\['([^']+)'\]/.exec(src)
+  ok('⑭-b 그 파일이 실제로 저장소에 있다', !!m && fs.existsSync(ROOT + 'public' + m[1]), m ? m[1] : '경로를 못 읽었다')
+  ok('⑭-c 출처·라이선스를 적어 뒀다',
+     fs.existsSync(ROOT + 'public/models-sr/LICENSE-esrgan-medium.txt') && fs.existsSync(ROOT + 'public/models-sr/README.md'))
+  const pool = body('ensureSrPool')
+  ok('⑭-d 모델 묶음을 모드별로 따로 만든다', /_srPools\[mode\]/.test(pool) && /fast\?ESRGAN_FAST_URLS:ESRGAN_URLS/.test(pool.replace(/\s/g, '')),
+     '한 묶음을 돌려 쓰면 먼저 고른 모드가 계속 쓰인다')
+  ok('⑭-e 기본은 최고 화질이다', /n\.w\.upSpeed==='fast'/.test(src) && /data-upspeed="best"/.test(src),
+     'upSpeed 가 비어 있으면 최고 화질이어야 한다')
+  ok('⑭-f 고른 모드가 실제 실행까지 전달된다',
+     /fast:\s*uFast/.test(src) && /getUpscaler\(factor,\s*opts&&opts\.fast\)/.test(src))
+  //  워커를 못 쓰는 브라우저에서도 "빠르게" 가 빨라야 한다 — 폴백이 모드를 무시하면 아무 의미가 없다
+  ok('⑭-g 워커 없는 경로도 고른 모드를 따른다',
+     /ensureEsrgan\(fast\)/.test(body('getUpscaler')) && /fast \? ESRGAN_FAST_URLS : ESRGAN_URLS/.test(body('ensureEsrgan')))
 }
 
 /* ⑬ GPU 없이 돈다 — 초해상은 CPU(wasm)만 쓴다
