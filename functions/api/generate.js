@@ -300,6 +300,68 @@ export function cut(s, max) {
   return s.slice(0, max - keep - 1) + "…" + s.slice(s.length - keep);
 }
 
+/* ── 레퍼런스 번호 바인딩 ────────────────────────────────────────────────
+   노드에 붙인 순서가 곧 "레퍼런스 1, 2, 3…" 이고, 회원은 그 번호로 지시한다.
+     "레퍼런스 1에서 레퍼런스 2로 넘어가는 영상 만들어줘"
+   그런데 이 문장을 그대로 제공사에 보내면 모델은 "레퍼런스 1" 이 몇 번째로 붙인
+   사진인지 알 길이 없다 — 그냥 글자로 읽고 아무 사진이나 쓴다. 번호와 첨부 순서가
+   이어져 있다는 사실을 프롬프트 안에서 말해 줘야 실제로 그 사진을 가리킨다.
+
+   · Seedance 2.0 은 공식 표기가 @Image1 이라 그 형태로 바꾼다.
+   · 나머지 제공사는 태그 문법이 없으므로 "Image 1" 로 통일하고, 첨부 순서를
+     밝히는 줄을 앞에 붙여 번호가 무엇을 가리키는지 못 박는다.
+   회원이 '래퍼런스'(흔한 표기)·띄어쓰기·1번째 사진 같이 써도 모두 같은 것으로 본다. */
+const REF_ORDINAL_KO = { 첫: 1, 한: 1, 두: 2, 세: 3, 네: 4, 다섯: 5, 여섯: 6, 일곱: 7, 여덟: 8, 아홉: 9, 열: 10 };
+const REF_PATTERNS = [
+  // 레퍼런스 1 · 래퍼런스1 · 레퍼런스 #2 · reference 3 · ref2
+  /(?:레|래)\s*퍼\s*런\s*스\s*(?:이미지|사진|영상)?\s*#?\s*(\d{1,2})\s*(?:번|번째)?/g,
+  /\bref(?:erence)?\s*#?\s*(\d{1,2})\b/gi,
+  // 1번 레퍼런스 · 2번째 이미지 · 3번 사진
+  /(\d{1,2})\s*번\s*째?\s*(?:(?:레|래)\s*퍼\s*런\s*스|이미지|사진|그림|영상)/g,
+  // 이미지 1 · 사진2
+  /(?:이미지|사진|그림)\s*#?\s*(\d{1,2})\b/g,
+];
+/** 프롬프트 속 레퍼런스 번호를 제공사가 알아듣는 표기로 바꾼다.
+ *  @returns {{text:string, used:number[], missing:number[]}} */
+export function bindRefMentions(text, count, style) {
+  const src = String(text == null ? "" : text);
+  const n = Math.max(0, Number(count) || 0);
+  if (!src.trim() || n <= 0) return { text: src, used: [], missing: [] };
+  const tag = (i) => (style === "at" ? "@Image" + i : "Image " + i);
+  const used = new Set(), missing = new Set();
+  // 이미 @Image1 로 직접 쓴 회원의 표기는 건드리지 않는다(공식 문법을 아는 사람이다).
+  //  자리 표시는 회원이 칠 수 없는 글자여야 한다 — " 0 " 처럼 숫자로 두면 프롬프트에
+  //  원래 있던 맨숫자("5 초")까지 되돌리기 규칙에 걸려 뭉개진다.
+  //  (소스에 제어문자를 원바이트로 박으면 grep 이 파일을 바이너리로 보므로 이스케이프로 쓴다)
+  const GA = "\uE000", GB = "\uE001";
+  const guard = [];
+  let out = src.replace(/@(?:Image|Video|Audio)\d{1,2}/g, (m) => {
+    guard.push(m); return GA + (guard.length - 1) + GB;
+  });
+  // "첫 번째 레퍼런스" 같은 우리말 차례말도 번호로 본다
+  out = out.replace(/(첫|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열)\s*번\s*째?\s*(?:(?:레|래)\s*퍼\s*런\s*스|이미지|사진|그림)/g,
+    (m, w) => {
+      const i = REF_ORDINAL_KO[w]; if (!i) return m;
+      if (i > n) { missing.add(i); return m; }
+      used.add(i); return tag(i);
+    });
+  for (const re of REF_PATTERNS) {
+    out = out.replace(re, (m, d) => {
+      const i = Number(d);
+      if (!i) return m;
+      if (i > n) { missing.add(i); return m; }   // 없는 번호는 바꾸지 않고 알려만 준다
+      used.add(i); return tag(i);
+    });
+  }
+  out = out.replace(new RegExp(GA + "(\\d+)" + GB, "g"), (_m, k) => guard[Number(k)]);
+  if (!used.size) return { text: out, used: [], missing: [...missing].sort((a, b) => a - b) };
+  // 번호가 몇 번째 첨부인지 못 박는 줄 — 태그 문법이 없는 제공사에 특히 필요하다.
+  const order = [];
+  for (let i = 1; i <= n; i++) order.push(tag(i) + "=" + i + "번째 첨부");
+  const decl = "[레퍼런스 순서 — " + order.join(", ") + "]";
+  return { text: out + "\n" + decl, used: [...used].sort((a, b) => a - b), missing: [...missing].sort((a, b) => a - b) };
+}
+
 /* ── 페이로드 빌더 (dryRun 검증도 이 함수를 그대로 사용) ── */
 // Runway 표시명 → API 모델 ID (Gen-3/Gen-4 모두 image_to_video 엔드포인트 공용)
 export const RUNWAY_MODELS = {
@@ -530,10 +592,18 @@ export function buildSeedancePayload(b, env, forceModel) {
     const firstF = b.firstFrame && okImg(b.firstFrame) ? b.firstFrame : null;
     const lastF  = b.lastFrame && okImg(b.lastFrame) ? b.lastFrame : null;
     // 스튜디오는 firstFrame 을 refImages[0] 과 겹쳐 보내므로, 프레임으로 쓴 것은 레퍼런스에서 뺀다.
-    let refs = (Array.isArray(b.refImages) ? b.refImages.slice() : []);
+    /* ⚠ 공식 @ImageN 은 "reference_image 중 N번째" 를 가리킨다 — 이름표가 아니라 자리다.
+       그래서 여기 담기는 차례가 회원이 화면에서 본 "레퍼런스 N" 과 반드시 같아야 한다.
+       스튜디오가 보낸 번호(refLabels)가 있으면 그 번호 순으로 세워, 프롬프트의
+       "레퍼런스 2" 와 페이로드의 @Image2 가 같은 사진을 가리키게 만든다. */
+    const _lbl = Array.isArray(b.refLabels) ? b.refLabels : [];
+    const _no = (v) => { const m = /(\d+)/.exec(String(v == null ? "" : v)); return m ? Number(m[1]) : 0; };
     const seenI = {};
-    refs = refs.filter(u => u && okImg(u) && u !== firstF && u !== lastF
-                            && !seenI[u] && (seenI[u] = 1)).slice(0, 9);
+    let _pairs = (Array.isArray(b.refImages) ? b.refImages : [])
+      .map((u, i) => ({ u, n: _no(_lbl[i]) }))
+      .filter(p => p.u && okImg(p.u) && p.u !== firstF && p.u !== lastF && !seenI[p.u] && (seenI[p.u] = 1));
+    if (_pairs.some(p => p.n)) _pairs.sort((a, c) => (a.n || 99) - (c.n || 99));
+    let refs = _pairs.map(p => p.u).slice(0, 9);
     // 영상 레퍼런스(공개 URL 전용, 최대 3) — 단일 srcVideo + 선택적 refVideos 배열
     const vids = [], seenV = {};
     [b.srcVideo].concat(Array.isArray(b.refVideos) ? b.refVideos : [])
@@ -3942,6 +4012,21 @@ async function handle(context) {
   }
   const provider = b.provider;
 
+  /* 레퍼런스 번호 바인딩 — 제공사별 빌더보다 앞에서 한 번만 한다.
+     여기서 덮어야 스튜디오·/api/v1·MCP 어느 경로로 들어와도 같게 동작한다.
+     refLabels 는 스튜디오가 "번호를 매긴 레퍼런스" 만 골라 보낸 목록이다
+     (이어보기용으로 자동으로 끼워 넣은 프레임은 번호를 받지 않는다).
+     그게 없으면 예전처럼 refImages 개수를 그대로 쓴다. */
+  {
+    const labeled = Array.isArray(b.refLabels)
+      ? b.refLabels.filter((x) => x !== null && x !== undefined && String(x) !== "").length
+      : (Array.isArray(b.refImages) ? b.refImages.filter(Boolean).length : 0);
+    const style = provider === "seedance" && /seedance-2/.test(seedanceModelId(b, env) || "") ? "at" : "text";
+    const bound = bindRefMentions(b.prompt, labeled, style);
+    if (bound.text !== b.prompt) b = { ...b, prompt: bound.text };
+    b.__refBind = { used: bound.used, missing: bound.missing, count: labeled, style };
+  }
+
   /* dryRun — 실제 호출 없이 매핑된 페이로드만 반환 (검증용) */
   if (b.dryRun) {
     const payload = provider === "runway" ? buildRunwayPayload(b)
@@ -3964,6 +4049,7 @@ async function handle(context) {
                                prompt: (b.prompt || "").slice(0, 200), duration: (Number(b.seconds) || 5) <= 6 ? 5 : 10,
                                aspect_ratio: b.ratio || "16:9" }; })() : null;
     return json({ dryRun: true, provider, payload,
+                  refBind: b.__refBind || null,
                   note: "No provider API was called." });
   }
 

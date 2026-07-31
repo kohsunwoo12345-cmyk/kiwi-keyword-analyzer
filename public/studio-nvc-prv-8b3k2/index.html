@@ -449,6 +449,11 @@ body.create-open #btnQueue{ display:none !important; }
   background:rgba(129,199,132,.94); color:#0c1a0c; padding:2px 7px; border-radius:5px; letter-spacing:.02em; line-height:1.3;
   box-shadow:0 1px 4px rgba(0,0,0,.4); }
 .refcnt{ font-size:10px; color:#8a8a8a; text-align:center; }
+/* 레퍼런스 번호 — 프롬프트에서 이 번호로 부른다. 눈에 잘 띄어야 한다. */
+.refno{ font-size:11px; font-weight:800; letter-spacing:.02em; text-align:center;
+  color:#0f1115; background:linear-gradient(180deg,#ffe08a,#f5c451); border-radius:999px;
+  padding:2px 8px; margin:0 auto 6px; width:fit-content; }
+.refno-off{ background:none; color:#c98b8b; font-weight:600; font-size:10px; }
 .refcnt.ref-over{ color:#e6b25a; }
 .refcnt b{ color:#cdd6ff; font-weight:800; }
 /* ── 자체 업스케일러 UI ── */
@@ -1870,6 +1875,10 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 var STUDIO_BUILD_TAG='2026-07-31-v57';   // 서버 health.build 와 정확히 같아야 최신(캐시/배포지연 아님)
 // (검증용) ?cnexport=1 접속 시 전처리 함수만 window 로 노출 — 순수 이미지 함수라 보안 영향 없음
 try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum, upscaleImageURL:upscaleImageURL }; }catch(_e){} },0); } }catch(_e){}
+// (검증용) ?refexport=1 접속 시 레퍼런스 번호 관련 함수만 노출 — 번호가 연결 순서대로
+//  붙는지, 블럭 하나에 하나만 담기는지를 자동으로 확인하기 위한 것. 비밀값은 들어 있지 않고
+//  편집기 상태는 어차피 그 브라우저 안에 있는 것이라 밖으로 새는 것이 없다.
+try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('refexport=1')>=0){ setTimeout(function(){ try{ window.__ref={ get state(){return state;}, addNode:addNode, addOmniRefFiles:addOmniRefFiles, refNoOf:refNoOf, collectLabeledRefs:collectLabeledRefs, refMentionProblem:refMentionProblem, render:render }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
   function s(inner,vb){ return '<svg class="ico" viewBox="'+(vb||'0 0 24 24')+'" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+inner+'</svg>'; }
@@ -4347,13 +4356,9 @@ function generateMesh3dNode(n){
   if(!n || n.w.meshGenerating) return;
   var pn=inputNodeOf(n.id,'prompt');
   var prompt=((pn&&pn.w&&pn.w.text)||n.w.prompt||'').trim();
-  var raw=[];
-  inputNodesOf(n.id,'ref').forEach(function(nd){
-    if(!nd||!nd.w) return;
-    var ims=(nd.w.imgs&&nd.w.imgs.length)?nd.w.imgs.slice():(imgOfNode(nd)?[imgOfNode(nd)]:[]);
-    ims.forEach(function(u){ if(u&&raw.indexOf(u)<0)raw.push(u); });
-  });
-  (n.w.imgs||[]).forEach(function(u){ if(u&&raw.indexOf(u)<0)raw.push(u); });   // 노드에 직접 업로드
+  // 연결 순서대로 번호(레퍼런스 1, 2, 3…)를 함께 뽑는다 — 프롬프트가 이 번호로 지시한다
+  var _lr=collectLabeledRefs(n.id, n.w.imgs||[]);
+  var raw=_lr.map(function(x){return x.url;}), rawLabels=_lr.map(function(x){return x.label;});
   if(!prompt && !raw.length){ toast('설명을 입력하거나 레퍼런스 사진을 연결하세요'); return; }
   var limit=modelRefLimit(n.w.model);
   if(raw.length>limit){
@@ -4363,9 +4368,12 @@ function generateMesh3dNode(n){
   n.w.meshGenerating=true; n.w.meshError=null; render();
   var refCountUsed=0;
   Promise.all(raw.map(function(r){ return shrinkImageSrc(r,1024,0.85); })).then(function(shr){
-    var refs=shr.filter(Boolean); refCountUsed=refs.length;
+    // 줄이기에 실패한 장은 빠지므로, 번호도 같이 걸러 자리를 맞춘다
+    var refs=[], refLabelsA=[];
+    shr.forEach(function(u,i){ if(u){ refs.push(u); refLabelsA.push(rawLabels[i]||''); } });
+    refCountUsed=refs.length;
     return generateWithAPI({ model:n.w.model, prompt:prompt,   // 제공사는 MODEL_PROVIDER 가 정한다(ark3d)
-      refImage:refs[0]||null, refImages:refs, refCount:refs.length,
+      refImage:refs[0]||null, refImages:refs, refCount:refs.length, refLabels:refLabelsA,
       meshMode:n.w.meshMode||'Raw', material:n.w.material||'PBR',
       hdTexture:n.w.hdTexture!==false, taPose:n.w.taPose===true });
   })
@@ -4401,13 +4409,11 @@ function generateImageNode(n){
   if(is3D){ prompt=style3dPrompt(n.w.style3d)+(userPrompt?(' — 추가 지시: '+userPrompt):''); }  // 3D 스타일 지시문 + (선택)사용자 지시
   if(!prompt){ toast('프롬프트를 입력하세요 (노드 안 또는 프롬프트 노드 연결)'); return; }
   // ── 레퍼런스 최대 12장: (1) ref 포트 다중 연결 각 노드의 이미지 + (2) 이 노드에 직접 업로드한 사진 ──
-  var raw=[];
-  inputNodesOf(n.id,'ref').concat(inputNodesOf(n.id,'vidref')).forEach(function(nd){
-    if(!nd||!nd.w) return;
-    var ims=(nd.w.imgs&&nd.w.imgs.length)?nd.w.imgs.slice():(imgOfNode(nd)?[imgOfNode(nd)]:[]);
-    ims.forEach(function(u){ if(u&&raw.indexOf(u)<0)raw.push(u); });
-  });
-  (n.w.imgs||[]).forEach(function(u){ if(u&&raw.indexOf(u)<0)raw.push(u); });   // 직접 업로드
+  // 연결 순서대로 번호(레퍼런스 1, 2, 3…)를 함께 뽑는다 — 프롬프트가 이 번호로 지시한다
+  var _lr=collectLabeledRefs(n.id, n.w.imgs||[]);
+  var raw=_lr.map(function(x){return x.url;}), rawLabels=_lr.map(function(x){return x.label;});
+  var _refWarn=refMentionProblem(prompt, _lr.filter(function(x){return x.label;}).length);
+  if(_refWarn){ toast(_refWarn); n.w.imgError=_refWarn; render(); return; }
   if(n.type==='img3d' && !raw.length){ toast('3D로 변환할 레퍼런스 이미지를 연결하거나 직접 업로드하세요'); return; }  // 3D 변환은 레퍼런스 필수
   var limit=modelRefLimit(n.w.model);
   var isFlux=/^Flux/.test(n.w.model||'') && !/Kontext/.test(n.w.model||'');
@@ -4428,12 +4434,16 @@ function generateImageNode(n){
   var cnChargeCount=isFlux?cnList.length:0;   // fal ControlNet 가산(+10%)은 Flux 에만; 비-Flux 는 맵이 레퍼런스로 이미 가산됨
   n.w.imgGenerating=true; n.w.imgError=null; render();
   Promise.all(raw.map(function(r){ return shrinkImageSrc(r,1024,0.85); })).then(function(shr){
-   var refs=shr.filter(Boolean);
+   // 줄이기에 실패한 장은 빠지므로, 번호도 같이 걸러 자리를 맞춘다
+   var refs=[], refLabelsA=[];
+   shr.forEach(function(u,i){ if(u){ refs.push(u); refLabelsA.push(rawLabels[i]||''); } });
    var _fire=function(finalRefs){
      var refImg=finalRefs[0]||null; refCountUsed=finalRefs.length; refUsedList=finalRefs.slice(0,4);
+     // 컨트롤넷 맵은 레퍼런스 뒤에 덧붙으므로 번호를 받지 않는다
+     var _lbls=finalRefs.map(function(_u,i){ return i<refLabelsA.length ? refLabelsA[i] : ''; });
      if(finalRefs.length>1) toast('레퍼런스 '+finalRefs.length+'장으로 생성 중… (1장당 크레딧 소폭 가산)');
      return generateWithAPI({ model:n.w.model, prompt:prompt, ratio:n.w.ratio||'1:1',
-      refImage:refImg, refImages:finalRefs, firstFrame:refImg, refCount:finalRefs.length,
+      refImage:refImg, refImages:finalRefs, firstFrame:refImg, refCount:finalRefs.length, refLabels:_lbls,
       controlnets:isFlux?cnList:[],
       cnSteps:(n.w.cnSteps==null?28:n.w.cnSteps), cnGuidance:(n.w.cnGuidance==null?3.5:n.w.cnGuidance) });
    };
@@ -6716,6 +6726,13 @@ function widgetHTML(n,w){
         }).join('')+'</div>';
     }
     var nVid=vids.filter(Boolean).length;
+    /* 이 블럭이 몇 번 레퍼런스인지 눈에 보여 준다 — 프롬프트에 "레퍼런스 2" 라고 쓰려면
+       어느 블럭이 2번인지 화면에서 바로 알 수 있어야 한다. */
+    var _refNo=(n.type==='imageref'||n.type==='videoref'||n.type==='reference') ? refNoOf(n.id) : 0;
+    var refBadge=_refNo
+      ? '<div class="refno">레퍼런스 '+_refNo+'</div>'
+      : ((n.type==='imageref'||n.type==='videoref') && imgs.length
+          ? '<div class="refno refno-off">연결 안 됨 — 모델 블럭에 이어야 번호가 붙어요</div>' : '');
     var _lim=refDownstreamLimit(n.id);   // 연결된 모델의 최대 첨부 장수 (0=미연결)
     var cnt = nVid>1 ? ('영상 프레임 '+nVid+'장 · 첫·마지막을 모델의 first/last로 전달')
             : imgs.length>1 ? (imgs.length+'개'+(nVid?' · 영상 '+nVid:'')+' · 첫 번째가 대표')
@@ -6724,7 +6741,7 @@ function widgetHTML(n,w){
             (imgs.length>_lim?' · 초과 '+(imgs.length-_lim)+'장은 생성 시 제외':'')+'</div>' : '';
     var v2v = n.w.srcVideoUploading ? '<div class="refcnt" style="color:#e6cf7f">'+ICON.spin+' 원본 영상 업로드 중… (V2V 준비)</div>'
             : n.w.srcVideoUrl ? '<div class="refcnt" style="color:#8fe6b8">'+ICON.check+' V2V 가능 — 어떤 모델이든 원본 프레임을 이어받아 변환됩니다. (최고정확도는 "V2V 자동" 또는 "Runway Aleph")</div>' : '';
-    return grid+
+    return refBadge+grid+
       (cnt?'<div class="refcnt">'+cnt+'</div>':'')+ limNote + v2v+
       (imgs.length?'<button class="wbtn" data-upload style="height:24px;">＋ 추가</button>':'')+
       '<input type="file" accept="image/*,video/*,.mp4,.mov,.webm,.m4v,.avi,.mkv,.gif" multiple data-file style="display:none">';
@@ -7455,12 +7472,33 @@ function spawnRefFor(target, kind){
                           : '이미지 레퍼런스 노드를 연결했어요. 이미지를 업로드하세요.');
 }
 
-/* 여러 파일 순차 추가 (영상 프레임 추출이 비동기라 순서 보장) */
+/* 같은 종류의 레퍼런스 블럭을 하나 더 만들고, 원본이 연결돼 있던 곳에 똑같이 이어 준다.
+   링크는 맨 뒤에 붙인다 — 연결 순서가 곧 레퍼런스 번호이므로 나중에 만든 것이 뒤 번호가 된다. */
+function spawnSiblingRef(src, step){
+  var nn=addNode(src.type, src.x, src.y + 150*(step||1), false);
+  nn.w.imgs=[]; nn.w.vids=[];
+  state.links.filter(function(l){ return l.from===src.id && (l.toPort==='ref'||l.toPort==='vidref'); })
+    .forEach(function(l){ state.links.push({ from:nn.id, fromPort:'out', to:l.to, toPort:l.toPort, type:l.type }); });
+  return nn;
+}
+/* 여러 파일 순차 추가 (영상 프레임 추출이 비동기라 순서 보장)
+   ⚠ 블럭 하나에는 사진 또는 영상 하나만 담는다.
+     예전에는 한 블럭에 10장을 몰아넣을 수 있었는데, 그러면 "레퍼런스 1, 2, 3…" 이
+     블럭 안 어느 자리인지 화면에서 확인할 방법이 없어 프롬프트로 번호를 짚어도
+     서로 어긋났다. 파일이 여러 개면 블럭을 그만큼 만들어 하나씩 담는다. */
 function addOmniRefFiles(n, files, doneMsg){
-  (function next(i){
-    if(i>=files.length){ snapshot(); render(); if(doneMsg)toast(doneMsg.replace('%n',n.w.imgs.length)); return; }
-    addOmniRefFile(n,files[i]).then(function(){ render(); next(i+1); });
-  })(0);
+  var made=0;
+  (function next(i, target){
+    if(i>=files.length){
+      snapshot(); render();
+      if(doneMsg) toast(doneMsg.replace('%n', files.length));
+      else if(made) toast('레퍼런스 블럭 '+(made+1)+'개로 나눠 담았어요 — 블럭 하나에 하나씩입니다');
+      return;
+    }
+    // 이미 무언가 담긴 블럭이면 새 블럭을 만들어 거기에 담는다
+    var slot = (target.w.imgs && target.w.imgs.length) ? spawnSiblingRef(target, ++made) : target;
+    addOmniRefFile(slot, files[i]).then(function(){ render(); next(i+1, slot); });
+  })(0, n);
 }
 
 /* 이미지·영상 드래그&드롭 → 옴니 레퍼런스 노드 자동 생성 */
@@ -8147,6 +8185,51 @@ function inputNodesOf(id,port){
     .map(function(l){ return state.nodes.find(function(x){return x.id===l.from;}); })
     .filter(Boolean);
 }
+/* ── 레퍼런스 번호 ──────────────────────────────────────────────
+   연결한 순서가 곧 "레퍼런스 1, 2, 3…" 이고, 회원은 프롬프트에서 그 번호로 지시한다
+   ("레퍼런스 1에서 2로 넘어가는 영상"). 그래서 번호는 세 곳에서 반드시 같아야 한다.
+     ① 블럭에 붙는 표시  ② 제공사에 보내는 순서  ③ 프롬프트 속 번호
+   블럭 하나가 레퍼런스 한 개다. 영상 레퍼런스는 안에서 프레임을 여러 장 뽑지만
+   그건 영상 한 개이므로 번호도 하나만 차지한다. */
+function refBlocksOf(id){
+  return inputNodesOf(id,'ref').concat(inputNodesOf(id,'vidref')).filter(function(nd){ return nd && nd.w; });
+}
+/** 이 레퍼런스 블럭이 몇 번인가 (연결된 곳이 없으면 0) */
+function refNoOf(nodeId){
+  var lk=state.links.filter(function(l){ return l.from===nodeId && (l.toPort==='ref'||l.toPort==='vidref'); })[0];
+  if(!lk) return 0;
+  var b=refBlocksOf(lk.to);
+  for(var i=0;i<b.length;i++) if(b[i].id===nodeId) return i+1;
+  return 0;
+}
+/** 보낼 레퍼런스를 순서대로 모은다 → [{url, label}] (label 이 빈 값이면 번호 없는 보조 프레임) */
+function collectLabeledRefs(id, selfImgs){
+  var out=[], seen={};
+  refBlocksOf(id).forEach(function(nd){
+    var ims=(nd.w.imgs&&nd.w.imgs.length)?nd.w.imgs.slice():(imgOfNode(nd)?[imgOfNode(nd)]:[]);
+    ims=ims.filter(Boolean);
+    if(!ims.length) return;
+    var no=out.filter(function(x){return x.label;}).length+1;
+    ims.forEach(function(u,ui){
+      if(seen[u]) return; seen[u]=1;
+      out.push({ url:u, label: ui===0 ? ('레퍼런스 '+no) : '' });
+    });
+  });
+  (selfImgs||[]).forEach(function(u){          // 이 노드에 직접 올린 사진도 번호를 잇는다
+    if(!u||seen[u]) return; seen[u]=1;
+    out.push({ url:u, label:'레퍼런스 '+(out.filter(function(x){return x.label;}).length+1) });
+  });
+  return out;
+}
+/** 프롬프트가 없는 번호를 가리키면 알려 준다 (크레딧 쓰기 전에 잡는다) */
+function refMentionProblem(prompt, count){
+  var t=String(prompt||''), max=0, m;
+  var pats=[/(?:레|래)\s*퍼\s*런\s*스\s*(?:이미지|사진|영상)?\s*#?\s*(\d{1,2})/g,
+            /(\d{1,2})\s*번\s*째?\s*(?:(?:레|래)\s*퍼\s*런\s*스|이미지|사진|그림)/g];
+  for(var i=0;i<pats.length;i++){ while((m=pats[i].exec(t))) max=Math.max(max, Number(m[1])||0); }
+  if(max>count) return '프롬프트에 "레퍼런스 '+max+'" 이라고 쓰셨는데 연결된 레퍼런스는 '+count+'개예요. 블럭을 더 연결하거나 번호를 고쳐주세요.';
+  return null;
+}
 function upstream(id,type){
   var found=null,seen={};
   (function walk(cur){
@@ -8342,6 +8425,14 @@ function runQueue(onlyId){
             if(_dropped) { try{ toast('이 모델의 사진 레퍼런스 한도는 '+_refMax+'장입니다 — 초과된 '+_dropped+'장은 제외했습니다'+(threeD?' (첫 프레임이 1장 사용)':'')); }catch(_e){} }
             var ffImg = threeD || refList[0] || null;
             var lfImg = imgsOf(lf)[0] || (vFrames.length>1?vFrames[vFrames.length-1]:null) || null;
+            /* 레퍼런스 번호 — 첫/마지막 프레임은 번호를 받지 않는다(제공사도 레퍼런스가 아니라
+               프레임으로 따로 받는다). 나머지가 순서대로 레퍼런스 1, 2, 3… 이 된다.
+               이 순서가 곧 제공사에 실리는 reference_image 순서이고, 프롬프트의 번호와 맞물린다. */
+            var _vno=0;
+            var refLabelsV = refList.map(function(u){
+              if(u===ffImg || u===lfImg) return '';
+              return '레퍼런스 '+(++_vno);
+            });
             var vSet=linkedSetting(id,'video');
             // 백그라운드 프롬프트 보강 — 영상은 "프레임 단위"로 들어감을 명시하고, 배경 참고 사진을 명확히 구분·적용.
             var hasVideoRef = !!srcVid || vFrames.length>0;
@@ -8407,6 +8498,7 @@ function runQueue(onlyId){
               negative: ng?ng.w.text:'',
               refImage: ffImg,
               refImages: refList,
+              refLabels: refLabelsV,
               // 첫 프레임은 "첫 프레임 포트(또는 영상 프레임)"에 실제로 연결된 것만 넘긴다.
               //  ffImg 는 없으면 레퍼런스 첫 장으로 폴백하는데, 그걸 그대로 firstFrame 으로 보내면
               //  레퍼런스만 붙인 요청이 이미지→영상 모드로 바뀐다(Seedance 2.0 은 두 모드가 다름).
