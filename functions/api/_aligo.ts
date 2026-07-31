@@ -243,7 +243,9 @@ export async function aligoTemplates(env: any, senderKey?: string): Promise<{ ok
   const r = await aligoCall(env, TEMPLATE_LIST_URL, { apikey: key, userid: userId, token: tok.token, senderkey: sk })
   if (r.error) return { ok: false, error: r.error }
   if (Number(r.data?.code) === 0) {
-    const list = r.data?.list || []
+    // 목록도 list · data · info 어디로든 올 수 있다
+    const list = [r.data?.list, r.data?.data, r.data?.info, r.data?.templateList]
+      .find((v: any) => Array.isArray(v)) || []
     const templates = list.map((t: any) => {
       const insp = String(t.inspStatus || t.insp_status || '').toUpperCase()
       const raw = String(t.status || '').toUpperCase()
@@ -272,6 +274,31 @@ export async function aligoTemplates(env: any, senderKey?: string): Promise<{ ok
 /* ───────── 카카오 채널(발신프로필) 등록 ───────── */
 const PROFILE_AUTH_URL = 'https://kakaoapi.aligo.in/akv10/profile/auth/'
 const PROFILE_ADD_URL = 'https://kakaoapi.aligo.in/akv10/profile/add/'
+/**
+ * 알리고 응답에서 값을 찾아낸다 — 같은 값이 최상위·info·data·result 어디로든 온다.
+ *
+ *  이 한 가지를 놓쳐서 세 번 사고가 났다.
+ *   · 발신프로필 등록: info.senderKey 를 못 읽어 "채널 등록 실패 (0)"
+ *   · 채널 카테고리: info 배열을 못 읽어 목록이 늘 비어 등록 자체가 불가능
+ *   · 템플릿 등록: info.templtCode 를 못 읽어 등록됐는데도 "등록 실패: success"
+ *  이제 한 곳에서 찾는다.
+ */
+function pickDeep(obj: any, keys: string[], depth = 0): any {
+  if (!obj || typeof obj !== 'object' || depth > 4) return undefined
+  for (const k of keys) {
+    const v = (obj as any)[k]
+    if (v !== undefined && v !== null && v !== '') return v
+  }
+  for (const holder of ['info', 'data', 'result', 'list']) {
+    const nested = (obj as any)[holder]
+    if (nested && typeof nested === 'object') {
+      const hit = pickDeep(Array.isArray(nested) ? nested[0] : nested, keys, depth + 1)
+      if (hit !== undefined) return hit
+    }
+  }
+  return undefined
+}
+
 const CATEGORY_URL = 'https://kakaoapi.aligo.in/akv10/category/'
 const TEMPLATE_ADD_URL = 'https://kakaoapi.aligo.in/akv10/template/add/'
 const TEMPLATE_REQUEST_URL = 'https://kakaoapi.aligo.in/akv10/template/request/'
@@ -317,11 +344,7 @@ export async function aligoProfileAdd(env: any, o: { plusid: string; phonenumber
   //  senderKey 를 최상위에서만 찾고 있어서, info 로 내려오면 code:0(성공) 인데도
   //  "채널 등록 실패 (0)" 로 떨어졌다 — 회원은 인증까지 마치고도 채널을 못 만든다.
   //  키 위치·대소문자를 모두 훑는다.
-  const d: any = r.data || {}
-  const sk =
-    d.senderKey || d.senderkey || d.sender_key ||
-    d.info?.senderKey || d.info?.senderkey || d.info?.sender_key ||
-    d.data?.senderKey || d.data?.senderkey || d.data?.sender_key
+  const sk = pickDeep(r.data, ['senderKey', 'senderkey', 'sender_key'])
   if (Number(r.data?.code) === 0 && sk) return { ok: true, senderKey: String(sk), data: r.data }
   return { ok: false, error: r.data?.message || `채널 등록 실패 (${r.data?.code ?? r.status})`, data: r.data }
 }
@@ -383,7 +406,10 @@ export async function aligoTemplateAdd(
   if (o.ad) params.tpl_ad = o.ad
   const r = await aligoCall(env, TEMPLATE_ADD_URL, params)
   if (r.error) return { ok: false, error: r.error }
-  const code = r.data?.data?.templtCode || r.data?.templtCode || r.data?.tpl_code
+  // ⚠ 알리고는 알맹이를 info 에 담아 준다. info 를 빠뜨려서 코드가 안 잡히면
+  //   등록이 실제로 됐는데도 "등록 실패: success" 라는 말이 안 되는 안내가 나갔다.
+  //   (발신프로필 senderKey · 채널 카테고리에서도 똑같은 실수가 있었다)
+  const code = pickDeep(r.data, ['templtCode', 'templateCode', 'tpl_code'])
   if (Number(r.data?.code) === 0 && code) return { ok: true, tplCode: String(code), data: r.data }
   return { ok: false, error: r.data?.message || `템플릿 등록 실패 (${r.data?.code ?? r.status})`, data: r.data }
 }
