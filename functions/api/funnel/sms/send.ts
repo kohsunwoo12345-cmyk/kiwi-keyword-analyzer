@@ -6,7 +6,7 @@ import { resolveDB, getSessionUser, spendPoints, refundPoints, logActivity } fro
 import { smsKindOf, unitCost, KIND_LABEL } from '../../_msgcost'
 import { logNotifyMany } from '../../_notify'
 import { ensureFunnelSchema } from '../_schema'
-import { sendSms } from '../../_aligo'
+import { sendSmsMass } from '../../_aligo'
 import { resendEmail, emailShell } from '../../_external'
 
 const j = (o: any, status = 200) =>
@@ -70,6 +70,28 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     let smsFailed = 0
     const results: any[] = []
 
+    /* 문자는 수신자별로 부르지 않고 한 번에 묶어 보낸다.
+       Cloudflare 는 바깥으로 나가는 요청을 하나하나 세고 요청당 한도가 있어서,
+       한 명당 한 번씩 부르면 수신자가 서른 몇 명만 넘어도 함수가 통째로 끊겼다 —
+       포인트는 이미 빠진 뒤라 환불도 결과 저장도 못 하고 끝났다. */
+    const smsOkSet = new Set<string>()
+    let massReason = ''
+    if (!emailOnly && from) {
+      const items = recipients
+        .map((r: any) => ({ to: digits(r.phone), name: String(r.name || '').slice(0, 60) }))
+        .filter((x) => x.to.length >= 10)
+        .map((x) => ({ to: x.to, message: message.replace(/\{이름\}|\{name\}/g, x.name || '고객') }))
+      if (items.length) {
+        try {
+          const mr = await sendSmsMass(env, items, { from })
+          //  알리고는 어느 건이 실패했는지 알려주지 않는다 — 성공 건수만큼 앞에서부터 성공으로 본다.
+          //  건수는 정확하므로 환불 금액은 정확하다(아래 smsFailed 집계가 그 값을 쓴다).
+          items.slice(0, Math.max(0, Math.min(items.length, mr.successCnt))).forEach((x) => smsOkSet.add(x.to))
+          if (mr.errorCnt > 0) massReason = String(mr.reason || '문자 발송 실패').slice(0, 120)
+        } catch (e: any) { massReason = String(e?.message || e).slice(0, 80) }
+      }
+    }
+
     for (const r of recipients) {
       const phone = digits(r.phone)
       const name = String(r.name || '').slice(0, 60)
@@ -79,15 +101,12 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
       let emailOk = false
       let reason = ''
 
-      // 1) 문자 발송 (이메일 전용 모드가 아니고 번호가 있을 때)
+      // 1) 문자 — 루프 밖에서 한 번에 묶어 보낸다(아래 참조). 여기서는 그 결과만 받는다.
       if (!emailOnly && phone) {
         if (!from) { reason = '승인된 발신번호가 없습니다. 발신번호를 등록하고 관리자 승인을 받아주세요.' }
         else {
-          try {
-            const sr = await sendSms(env, phone, personalized, { from })
-            smsOk = !!sr.sent
-            if (!smsOk) reason = sr.reason || '문자 발송 실패'
-          } catch (e: any) { reason = String(e?.message || e).slice(0, 80) }
+          smsOk = smsOkSet.has(phone)
+          if (!smsOk) reason = massReason || '문자 발송 실패'
         }
         if (!smsOk && phone.length >= 10) smsFailed++
       }

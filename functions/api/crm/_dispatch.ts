@@ -4,7 +4,7 @@
 import { spendPoints, refundPoints, logActivity, addNotification } from '../_utils'
 import { unitCost, smsKindOf, KIND_LABEL } from '../_msgcost'
 import { logNotifyMany } from '../_notify'
-import { sendSms, aligoAlimtalk } from '../_aligo'
+import { sendSmsMass, aligoAlimtalk } from '../_aligo'
 
 export interface DispatchResult {
   ok: boolean
@@ -127,17 +127,32 @@ export async function dispatchCampaign(db: D1Database, env: any, campaignId: str
       await revert('승인된 발신번호가 없습니다.')
       return { ok: false, error: '승인된 발신번호가 없습니다. 발신번호를 등록하고 관리자 승인을 받아주세요.' }
     }
-    for (const t of targets) {
-      const personalized = message.replace(/\{이름\}|\{name\}/g, t.name || '고객')
-      let ok = false, reason = ''
-      try {
-        const r = await sendSms(env, t.phone, personalized, { from })
-        ok = !!r.sent
-        if (!ok) reason = String(r.reason || '문자 발송 실패').slice(0, 200)
-      } catch (e: any) { reason = String(e?.message || e).slice(0, 200) }
-      if (ok) sent++
-      rows.push({ ...t, ok: ok ? 1 : 0, reason })
+    /* 한 번에 묶어 보낸다(rec_N/msg_N, 회당 500명).
+       예전에는 수신자 한 명당 한 번씩 불렀는데, Cloudflare 는 바깥으로 나가는 요청을
+       하나하나 세고 요청당 한도가 있어서 서른 몇 명만 넘어도 함수가 통째로 끊겼다.
+       그때 포인트는 이미 빠진 뒤라, 일부만 문자를 받고 결과 저장·상태 갱신·실패 환불이
+       전부 실행되지 않았다. 이제 수신자가 몇 명이든 500명당 한 번으로 끝난다. */
+    const items = targets.map((t) => ({
+      to: t.phone,
+      message: message.replace(/\{이름\}|\{name\}/g, t.name || '고객'),
+    }))
+    let massReason = ''
+    try {
+      const r = await sendSmsMass(env, items, { from, title: String(c.name || 'BYGENCY').slice(0, 40) })
+      sent = Math.max(0, Math.min(targets.length, r.successCnt))
+      if (r.errorCnt > 0) massReason = String(r.reason || '문자 발송 실패').slice(0, 200)
+    } catch (e: any) {
+      sent = 0
+      massReason = String(e?.message || e).slice(0, 200)
     }
+    /* 알리고는 "몇 건 성공/실패" 만 주고 어느 건이 실패했는지는 알려주지 않는다.
+       성공 건수는 정확하므로 환불 금액은 정확하다. 다만 결과 화면에서 누가 실패인지는
+       특정할 수 없어, 실패로 집계된 수만큼 뒤쪽을 실패로 적고 그 사정을 사유에 남긴다. */
+    targets.forEach((t, i) => {
+      const ok = i < sent
+      rows.push({ ...t, ok: ok ? 1 : 0,
+        reason: ok ? '' : (massReason || '제공사가 실패로 집계했습니다(어느 건인지는 제공사가 알려주지 않습니다)') })
+    })
   }
 
   const failed = targets.length - sent
