@@ -6549,6 +6549,17 @@ function migrateVideoSettings(g){
 }
 function loadDocIntoState(d){
   var g=d.data||{};
+  /* ── 옮기기 전 원본을 따로 남긴다 ──
+     이관은 문서를 '고쳐 쓰고' 그 결과가 자동저장으로 덮인다. 즉 한 번 잘못 돌면
+     원래 워크플로우가 사라지고 되돌릴 방법이 없다 — 자동저장은 되돌리기가 없다.
+     그래서 손대기 전 모습을 통째로 따로 보관한다(계정별 1벌). 뭔가 잘못되면
+     여기서 되살릴 수 있다. 저장은 실패해도 이관은 진행한다(막으면 아무것도 못 연다). */
+  try{
+    if((g.nodes||[]).some(function(n){ return n && n.type==='video'; })){
+      var _bk={ at:Date.now(), docId:d&&d.id, name:d&&d.name, data:JSON.parse(JSON.stringify(g)) };
+      if(IDB.ok) IDB.set('kv',_bk,nsKey('docs_pre_migrate')).catch(function(){});
+    }
+  }catch(_e){}
   try{ if(migrateVideoSettings(g)) setTimeout(function(){ try{ toast('영상 설정 노드는 오른쪽 옵션 패널로 옮겼습니다 — 값은 그대로입니다'); }catch(_e){} }, 800); }catch(_e){}
   (g.nodes||[]).forEach(function(n){ if(n.w){ if(n.w.generating)n.w.generating=false; if(n.w.upscaling)n.w.upscaling=false; if(n.w.extracting)n.w.extracting=false;
     if(n.w.upscaled&&String(n.w.upscaled).indexOf('blob:')===0){ n.w.upscaled=null; n.w.upKind=null; n.w.upDim=null; } } });
@@ -6605,6 +6616,17 @@ window.__nvExportGraph=function(){
   return { nodeCount:(g.nodes||[]).length, graph:g };
 };
 // 공유받은 그래프를 새 워크플로우 탭으로 저장. keep=true 면 현재 탭 유지(방해 없이 추가).
+/* 이관 직전 모습으로 되돌린다. 자동저장은 되돌리기가 없어서, 문제가 생겼을 때
+   기댈 곳이 필요하다. 콘솔에서 __nvRestorePreMigrate() 로 부른다. */
+window.__nvRestorePreMigrate=function(){
+  if(!IDB.ok) return Promise.reject(new Error('저장소를 쓸 수 없습니다'));
+  return IDB.get('kv',nsKey('docs_pre_migrate')).then(function(bk){
+    if(!bk||!bk.data) throw new Error('되살릴 백업이 없습니다');
+    window.__nvImportGraph(bk.data, (bk.name||'복구')+' (복구)', true);
+    try{ toast('이관 전 워크플로우를 되살렸습니다'); }catch(_e){}
+    return true;
+  });
+};
 window.__nvImportGraph=function(graph, name, keep){
   if(!graph||!graph.nodes) return false;
   saveActiveIntoDoc();
