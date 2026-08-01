@@ -229,6 +229,41 @@ ok('본문을 찾았다 (upscaleVideoURL·_grabAudioOpus·webmWriter)', !!up && 
      /crossOriginIsolated\)\s*ort\.env\.wasm\.numThreads\s*=\s*1/.test(src))
 }
 
+/* ⑮ GPU 없는 기기에서 초해상을 "끄기" 전에 가벼운 모델로 갈아탄다
+   같은 조건(CPU·WASM, GPU 차단, 타일 128)에서 실측:
+     기본 Real-ESRGAN x4plus(1670만) 32.50초/타일 · rdn-medium(70만) 1.44초/타일 → 22.6배
+   이 단계가 없으면 어떤 영상도 예산 안에 못 들어와 결국 초해상이 꺼지고,
+   GPU 없는 사용자는 AI 화질 향상을 아예 못 받고 단순 확대만 받는다. */
+{
+  /* 조건까지 같이 본다 — 코드가 "있기만" 하면 통과하는 검사는 의미가 없다.
+     실제로 if(false) 로 막아 두고 재 봤더니 이 줄만으로는 잡히지 않았다. */
+  ok('⑮ 끄기 전에 가벼운 모델로 갈아타는 단계가 있다',
+     /if\(tuned<=1\s*&&\s*!runner\.fast\)/.test(up) &&
+     /getUpscaler\(factor,\s*true\)/.test(up) && /runner\s*=\s*r2/.test(up),
+     '이 단계가 없으면 CPU 사용자는 초해상을 전혀 못 받는다')
+  //  순서가 뒤집히면(끄기가 먼저) 갈아타는 단계에 영영 도달하지 못한다
+  ok('⑮-b 갈아타기가 "초해상 끄기" 보다 먼저 온다',
+     up.indexOf('!runner.fast') >= 0 && up.indexOf('!runner.fast') < up.lastIndexOf('srOn=false'))
+  ok('⑮-c 갈아탄 뒤 속도를 다시 잰다(옛 측정으로 또 끄면 안 된다)',
+     /runner\s*=\s*r2;\s*srMs\s*=\s*0,?\s*;?\s*srN\s*=\s*0|runner=r2;\s*srMs=0;\s*srN=0/.test(up.replace(/\s+/g, ' ').replace(/ /g, '')) ||
+     /runner=r2;srMs=0;srN=0/.test(up.replace(/\s/g, '')))
+  ok('⑮-d 갈아타는 동안 판단을 멈춘다(중복 교체 방지)', /swapping/.test(up))
+  //  한 프레임에 90초씩 걸리는 기기에서 8프레임을 채우려면 12분이 든다 — 그 전에 판단해야 한다
+  ok('⑮-e 프레임이 아주 느리면 8프레임을 기다리지 않는다',
+     /srN\s*<\s*8\s*&&\s*srMs\s*<\s*60000/.test(up),
+     '느린 기기일수록 오래 기다리는 건 거꾸로다')
+  //  이미지는 한 장이라 "돌리면서 고칠" 기회가 없다 → 시작 전에 한 타일로 재 본다
+  const probe = body('_srProbe')
+  ok('⑮-f 이미지도 시작 전에 속도를 재 본다', probe.length > 0 && /projSec/.test(probe))
+  ok('⑮-g 재 본 결과가 예산을 넘으면 가벼운 모델로 바꾼다',
+     /projSec\s*<=\s*180/.test(probe) && /getUpscaler\(4,\s*true\)/.test(probe))
+  ok('⑮-h 재다가 실패해도 업스케일은 계속된다',
+     /function\s*\(\)\s*\{\s*return runner;\s*\}/.test(probe), '재는 일 때문에 기능이 막히면 안 된다')
+  ok('⑮-i 이미지 경로가 실제로 재 본 러너를 쓴다',
+     /_srProbe\(runner,\s*srcC,\s*iw,\s*ih\)/.test(body('upscaleImageURL')) &&
+     /_srCanvas2\(rr,\s*srcC\)/.test(body('upscaleImageURL')))
+}
+
 console.log(fails.length === 0
   ? '\n영상 업스케일 구조 — 실패 0 (길이·소리·30분 한도 전부 살아 있음)'
   : `\n실패 ${fails.length}건:`)
