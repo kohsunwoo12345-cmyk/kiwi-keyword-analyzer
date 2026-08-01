@@ -42,14 +42,14 @@ for (let i = 0; i < SIZE; i++) DATA[i] = (i * 7 + 13) & 0xff   // 구간이 맞�
 
 /* R2 규격대로만 동작하는 가짜 버킷.
    range 로 문자열이 오면 규격 위반이므로 던진다 — 실제 R2 도 그 값을 구간으로 해석해 주지 않는다. */
-function makeR2() {
+function makeR2(only = 'u/ad.webm') {
   return {
     //  isLikelyR2 는 get·put·list·head 가 다 있어야 R2 로 본다 — 실제 판별 조건에 맞춘다
     async put() { return {} },
     async list() { return { objects: [] } },
     async head() { return null },
     async get(key, opts) {
-      if (key !== 'u/ad.webm') return null
+      if (key !== only) return null
       let offset = 0
       let length = SIZE
       const r = opts && opts.range
@@ -79,60 +79,93 @@ function makeR2() {
   }
 }
 
-const media = await load('functions/api/media/[[key]].ts')
+/* 영상을 내보내는 자리는 둘이다 — 광고·스튜디오·보관함의 /api/media 와
+   제작 영상 보관함의 /api/videos/file. 둘 다 같은 방식으로 깨져 있었으므로 같이 본다. */
+const ENDPOINTS = [
+  {
+    label: '/api/media',
+    mod: await load('functions/api/media/[[key]].ts'),
+    url: 'https://bygency.com/api/media/u/ad.webm',
+    key: 'u/ad.webm',
+    params: { key: ['u', 'ad.webm'] },
+  },
+  {
+    label: '/api/videos/file',
+    mod: await load('functions/api/videos/file/[[key]].ts'),
+    url: 'https://bygency.com/api/videos/file/u/ad.webm',
+    key: 'u/ad.webm',
+    params: { key: ['u', 'ad.webm'] },
+  },
+]
 
-async function get(rangeHeader) {
+async function get(ep, rangeHeader) {
   const headers = rangeHeader ? { Range: rangeHeader } : undefined
-  const request = new Request('https://bygency.com/api/media/u/ad.webm', { headers })
-  const res = await media.onRequestGet({
-    request, env: { BUCKET: makeR2() }, params: { key: ['u', 'ad.webm'] },
+  const request = new Request(ep.url, { headers })
+  const res = await ep.mod.onRequestGet({
+    request, env: { BUCKET: makeR2(ep.key) }, params: ep.params,
     waitUntil: () => {}, next: async () => new Response(''),
   })
   const buf = new Uint8Array(await res.arrayBuffer())
   return { status: res.status, headers: res.headers, body: buf }
 }
 
-console.log('\n① Range 없는 요청은 전체 파일을 200 으로 준다')
-{
-  const r = await get()
-  ok(r.status === 200, '200 이다', String(r.status))
-  ok(r.headers.get('Content-Length') === String(SIZE), '전체 길이를 알려 준다', r.headers.get('Content-Length'))
-  ok(r.headers.get('Accept-Ranges') === 'bytes', '구간 요청을 받는다고 알린다')
-  ok(r.body.length === SIZE, '본문이 전체다', `${r.body.length}바이트`)
-}
+for (const ep of ENDPOINTS) {
+  console.log(`\n===== ${ep.label} =====`)
 
-console.log('\n② 구간 요청에는 206 과 그 구간만 준다')
-{
-  const r = await get('bytes=0-1023')
-  ok(r.status === 206, '206 Partial Content 다(200 이면 탐색이 깨진다)', String(r.status))
-  ok(r.headers.get('Content-Range') === `bytes 0-1023/${SIZE}`, 'Content-Range 가 정확하다', r.headers.get('Content-Range'))
-  ok(r.headers.get('Content-Length') === '1024', '길이가 구간 크기다', r.headers.get('Content-Length'))
-  ok(r.body.length === 1024, '본문이 요청한 만큼만 온다', `${r.body.length}바이트`)
-  ok([...r.body].every((v, i) => v === DATA[i]), '본문이 실제로 그 구간의 바이트다')
-}
+  console.log('\n① Range 없는 요청은 전체 파일을 200 으로 준다')
+  {
+    const r = await get(ep)
+    ok(r.status === 200, '200 이다', String(r.status))
+    ok(r.headers.get('Content-Length') === String(SIZE), '전체 길이를 알려 준다', r.headers.get('Content-Length'))
+    ok(r.headers.get('Accept-Ranges') === 'bytes', '구간 요청을 받는다고 알린다')
+    ok(r.body.length === SIZE, '본문이 전체다', `${r.body.length}바이트`)
+  }
 
-console.log('\n③ 뒤로 탐색(끝 열린 구간)도 정확하다')
-{
-  const from = 50000
-  const r = await get(`bytes=${from}-`)
-  ok(r.status === 206, '206 이다', String(r.status))
-  ok(r.headers.get('Content-Range') === `bytes ${from}-${SIZE - 1}/${SIZE}`, 'Content-Range 가 끝까지다', r.headers.get('Content-Range'))
-  ok(r.body.length === SIZE - from, '남은 길이만큼 온다', `${r.body.length}바이트`)
-  ok([...r.body].every((v, i) => v === DATA[from + i]), '본문이 그 지점부터의 바이트다')
-}
+  console.log('\n② 구간 요청에는 206 과 그 구간만 준다')
+  {
+    const r = await get(ep, 'bytes=0-1023')
+    ok(r.status === 206, '206 Partial Content 다(200 이면 탐색이 깨진다)', String(r.status))
+    ok(r.headers.get('Content-Range') === `bytes 0-1023/${SIZE}`, 'Content-Range 가 정확하다', r.headers.get('Content-Range'))
+    ok(r.headers.get('Content-Length') === '1024', '길이가 구간 크기다', r.headers.get('Content-Length'))
+    ok(r.body.length === 1024, '본문이 요청한 만큼만 온다', `${r.body.length}바이트`)
+    ok([...r.body].every((v, i) => v === DATA[i]), '본문이 실제로 그 구간의 바이트다')
+  }
 
-console.log('\n④ 중간 구간도 정확하다 (타임라인 가운데를 끌었을 때)')
-{
-  const r = await get('bytes=100-199')
-  ok(r.status === 206 && r.body.length === 100, '100바이트 구간이 온다', `${r.status} · ${r.body.length}바이트`)
-  ok([...r.body].every((v, i) => v === DATA[100 + i]), '본문이 100~199 구간과 정확히 같다')
-}
+  console.log('\n③ 뒤로 탐색(끝 열린 구간)도 정확하다')
+  {
+    const from = 50000
+    const r = await get(ep, `bytes=${from}-`)
+    ok(r.status === 206, '206 이다', String(r.status))
+    ok(r.headers.get('Content-Range') === `bytes ${from}-${SIZE - 1}/${SIZE}`, 'Content-Range 가 끝까지다', r.headers.get('Content-Range'))
+    ok(r.body.length === SIZE - from, '남은 길이만큼 온다', `${r.body.length}바이트`)
+    ok([...r.body].every((v, i) => v === DATA[from + i]), '본문이 그 지점부터의 바이트다')
+  }
 
-console.log('\n⑤ 이상한 Range 는 전체 파일로 안전하게 떨어진다')
-{
-  const r = await get('bytes=abc')
-  ok(r.status === 200 && r.body.length === SIZE, '해석 못 하는 Range 면 전체를 200 으로 준다(오류로 끊지 않는다)',
-     `${r.status} · ${r.body.length}바이트`)
+  console.log('\n④ 중간 구간도 정확하다 (타임라인 가운데를 끌었을 때)')
+  {
+    const r = await get(ep, 'bytes=100-199')
+    ok(r.status === 206 && r.body.length === 100, '100바이트 구간이 온다', `${r.status} · ${r.body.length}바이트`)
+    ok([...r.body].every((v, i) => v === DATA[100 + i]), '본문이 100~199 구간과 정확히 같다')
+  }
+
+  console.log('\n⑤ 이상한 Range 는 전체 파일로 안전하게 떨어진다')
+  {
+    const r = await get(ep, 'bytes=abc')
+    ok(r.status === 200 && r.body.length === SIZE, '해석 못 하는 Range 면 전체를 200 으로 준다(오류로 끊지 않는다)',
+       `${r.status} · ${r.body.length}바이트`)
+    /* 206 인데 Content-Range 가 없으면 규격 위반이다 — 브라우저가 재생을 포기한다. */
+    ok(!(r.status === 206 && !r.headers.get('Content-Range')), 'Content-Range 없는 206 을 내보내지 않는다')
+  }
+
+  console.log('\n⑥ 없는 파일은 404 다 (전체 파일 폴백으로 새지 않는다)')
+  {
+    const request = new Request(ep.url.replace('ad.webm', 'none.webm'), { headers: { Range: 'bytes=0-99' } })
+    const res = await ep.mod.onRequestGet({
+      request, env: { BUCKET: makeR2(ep.key) }, params: { key: ['u', 'none.webm'] },
+      waitUntil: () => {}, next: async () => new Response(''),
+    })
+    ok(res.status === 404, '404 다', String(res.status))
+  }
 }
 
 console.log(failed === 0 ? '\n미디어 구간 요청 — 실패 0\n' : `\n실패 ${failed}건\n`)
