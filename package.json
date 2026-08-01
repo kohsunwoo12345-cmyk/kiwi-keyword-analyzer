@@ -12,7 +12,7 @@
     "test": "npm run test:pricing && node scripts/strong-notice.test.mjs && node scripts/media-range.test.mjs",
     "test:ui": "node scripts/strong-notice.ui.test.mjs",
     "verify": "npm run typecheck && npm run build && npm run test:ui",
-    "test:pricing": "node scripts/pricing.test.mjs && node scripts/charge-token.test.mjs && node scripts/charge-chain.test.mjs && node scripts/studio-rates.test.mjs && node scripts/money-chain.test.mjs && node scripts/gate-vs-charge.test.mjs && node scripts/vidlen.test.mjs && node scripts/upscale-free.test.mjs && node scripts/upscale-video.test.mjs"
+    "test:pricing": "node scripts/pricing.test.mjs && node scripts/charge-token.test.mjs && node scripts/charge-chain.test.mjs && node scripts/studio-rates.test.mjs && node scripts/money-chain.test.mjs && node scripts/gate-vs-charge.test.mjs && node scripts/vidlen.test.mjs && node scripts/upscale-charge.test.mjs && node scripts/upscale-video.test.mjs"
   },
   "dependencies": {
     "@types/node": "^20",

@@ -382,7 +382,26 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
   'gemini-2.5-pro': { u: 'tok', usd: 0.0036, prov: 'promptgen' },
   'gemini-2.5-flash': { u: 'tok', usd: 0.0009, prov: 'promptgen' },
   'gemini-2.5-flash-lite': { u: 'tok', usd: 0.00017, prov: 'promptgen' },
+  /* ── 화질 올리기(업스케일) — 우리 자체 초해상 모델 ──
+     다른 항목과 성격이 다르다. 여기 적힌 usd 는 "제공사에 나가는 원가" 가 아니다 —
+     추론이 사용자 기기(브라우저 WASM)나 빌려간 쪽에서 돌아 우리가 내는 돈은 0이다.
+     그래서 이 값은 우리가 매긴 값이며, 아래 크레딧이 목표치가 되도록 거꾸로 잡았다.
+       크레딧 = usd × 환율(1400) × 마크업 ÷ 50원
+       이미지: 0.014 × 1400 × 2.5 ÷ 50 ≈ 1.0크레딧 / 장
+       영상  : 0.0024 × 1400 × 3.0 ÷ 50 ≈ 0.2크레딧 / 초  (46초 영상 ≈ 9.3크레딧)
+     영상은 목표 화질(4K 등)에 따라 RES_MULT 가 곱해진다 — 더 큰 결과가 더 비싸진다.
+     값을 바꾸려면 코드를 고칠 필요 없다: 관리자 → 모델 단가(model_cost_overrides)에서
+     이 이름으로 실측 단가를 넣으면 그 값이 이긴다. */
+  '화질 올리기 (이미지 초해상 ×4)': { u: 'img', usd: 0.014, prov: 'upscale' },
+  '화질 올리기 (영상 초해상 ×4)': { u: 'sec', usd: 0.0024, prov: 'upscale' },
+  /* 외부에 모델을 빌려줄 때(대여 1건 = 발급된 리스 토큰 1개). 유효기간 동안 그 기기에서 돌린다.
+     'tok' 은 1건 과금이라 마크업이 2.5다: 0.30 × 1400 × 2.5 ÷ 50 = 21크레딧 / 대여 */
+  '모델 대여 (초해상 ×4)': { u: 'tok', usd: 0.30, prov: 'lease' },
 }
+//  과금 이름을 한 곳에서만 쓰도록 묶는다 — 문자열을 여기저기 적으면 표와 어긋난다
+export const UPSCALE_IMG = '화질 올리기 (이미지 초해상 ×4)'
+export const UPSCALE_VID = '화질 올리기 (영상 초해상 ×4)'
+export const LEASE_SR = '모델 대여 (초해상 ×4)'
 
 export const PROV_LABEL: Record<string, string> = {
   google: 'Google Veo', runway: 'Runway', runway_aleph: 'Runway Aleph', v2v_auto: 'V2V 자동', motion: '모션 전이', seedance: 'Seedance', seedream: 'Seedream',
@@ -628,22 +647,19 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
     return Number.isFinite(n) && n > 0 ? Math.min(n, max) : dflt
   }
   input = { ...input, units: fin(input.units, 0, 3600), refs: fin((input as any).refs, 0, 64) }
-  const model = String(input.model || '')
-  /* ── 화질 올리기(업스케일)는 언제나 0원이다 ──
-     브라우저에서 우리 자체 초해상 모델로 처리하므로 제공사에 나가는 비용이 없다.
-     단가표에서 뺐고 서버 경로도 막았지만, 요금이 만들어지는 자리에서 한 번 더 못을 박는다 —
-     누군가 나중에 단가표에 되살리거나 다른 경로로 이 이름을 넣어도 크레딧이 빠지지 않게.
-     (방어는 여러 겹이어야 한 겹이 뚫려도 회원 돈이 안 나간다) */
-  if (/업스케일|화질 올리기|upscale/i.test(model)) {
-    /* ChargeResult 를 그대로 만든다 — 예전에는 priceKrw(존재하지 않는 칸)를 넣고 profitKrw 를 빠뜨린 채
-       'as ChargeResult' 로 눌러 놨다. 그러면 순이익을 읽는 쪽(관리자 정산·MCP 추정)이 undefined 를 받아
-       합계가 NaN 이 된다. 캐스팅을 없애면 컴파일러가 이런 누락을 대신 잡아 준다. */
-    const free: ChargeResult = {
-      model, provider: 'upscale', kind: 'video',
-      usd: 0, usdKrw: rate, costKrw: 0, costKrwExact: 0,
-      markup: 1, credits: 0, revenueKrw: 0, profitKrw: 0,
-    }
-    return free
+  let model = String(input.model || '')
+  /* ── 화질 올리기(업스케일) 과금 ──
+     예전에는 여기서 무조건 0원으로 되돌렸다. 브라우저에서 우리 모델로 돌아 제공사 비용이
+     0이라는 이유였고, "절대 유료가 되면 안 된다" 는 지시에 따라 다섯 겹으로 막아 뒀었다.
+     그 방침이 뒤집혔다 — 업스케일도 과금한다(스튜디오·외부 대여 모두).
+     제공사 원가가 0이라 이 값은 원가 보전이 아니라 우리가 매기는 값이다. 그래서
+     추정식에 맡기지 않고 아래 MODEL_COST 에 이름을 올려 두고, 관리자가 실제 단가
+     override(admin/model-pricing)로 언제든 바꿀 수 있게 한다.
+     이름을 못 알아본 옛 그래프가 들어와도 업스케일로 잡히도록 별칭을 여기서 정규화한다 —
+     안 그러면 표에 없는 이름이 되어 영상 기본값($0.06/초)으로 청구된다(25배 과청구). */
+  if (/업스케일|화질 올리기|upscale/i.test(model) && !MODEL_COST[model]) {
+    const asImg = input.kind === 'image' || /이미지|image|img/i.test(model)
+    model = asImg ? UPSCALE_IMG : UPSCALE_VID
   }
   const m = MODEL_COST[model]
   // 'img'(장당) 외에 '3d'(모델 1개당)·'tok'(호출 1회당) 도 "단위 1개" 과금이다 — 초당 계산을 타면 안 된다.
