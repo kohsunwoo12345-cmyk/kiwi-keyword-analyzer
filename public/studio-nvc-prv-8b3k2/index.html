@@ -1268,6 +1268,69 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 
 /* 선택 박스 · 검색/드롭다운 하이라이트 (--w-accent 자동 반영) */
 #selbox{ border:1px dashed var(--w-accent); background:rgba(59,130,246,.10); }
+
+/* ══════ 무채색 통일 — 블럭을 검정에 가까운 회색으로 ══════
+   노드 색은 지금까지 종류마다 달랐다(--hd 로 초록·주황·청록…). 화면이 알록달록해서
+   정작 중요한 것(어디로 흐르는지)이 안 보였다. 블럭은 전부 같은 무채색으로 두고,
+   구분은 '선 색' 하나로만 준다. --hd 는 값 자체를 남겨 두되(다른 코드가 읽는다)
+   배경에는 안 쓴다. */
+.node{ background:#141414 !important; border-color:#2a2a2a !important; }
+.node .node-title{ background:#1c1c1c !important; border-bottom-color:#2a2a2a !important; color:#dcdcdc; }
+.node .nid{ color:#5f6169 !important; }
+.node.sel{ outline:1px solid #6b6f7a; }
+.node.sel .node-title{ background:#242424 !important; }
+/* 메모 노드는 "종이" 라는 게 뜻이라 색을 남긴다 — 나머지만 무채색으로 */
+.node.notenode{ background:#cfbd68 !important; border-color:#a3934b !important; }
+.node.notenode .node-title{ background:#bcab58 !important; color:#3a340f; }
+
+/* 출력 블럭은 결과를 보는 자리라 크게 */
+.node[data-type="output"]{ width:392px; }
+.node[data-type="output"] .vout, .node[data-type="output"] video,
+.node[data-type="output"] img{ max-height:280px; }
+
+/* ══════ 오른쪽 옵션 사이드바 (슬라이드) ══════
+   영상 설정을 노드로 두면 자리를 차지하고 선까지 하나 더 늘어난다.
+   모델을 고르면 오른쪽에서 밀려 나오는 패널에서 바로 만지게 한다. */
+#optbar{ position:fixed; top:0; right:0; width:320px; height:100%; z-index:70;
+  background:#131316; border-left:1px solid #2a2a2e; box-shadow:-18px 0 46px rgba(0,0,0,.55);
+  transform:translateX(100%); transition:transform .22s cubic-bezier(.4,0,.2,1);
+  display:flex; flex-direction:column; }
+#optbar.open{ transform:translateX(0); }
+#optbar .ob-head{ display:flex; align-items:center; gap:8px; padding:14px 14px 12px;
+  border-bottom:1px solid #26262b; }
+#optbar .ob-title{ font-size:13.5px; font-weight:700; color:#e8e8ec; flex:1;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#optbar .ob-x{ width:26px; height:26px; border-radius:7px; border:1px solid #313138;
+  background:#1b1b1f; color:#9a9ca4; cursor:pointer; font-size:15px; line-height:1; }
+#optbar .ob-x:hover{ background:#26262c; color:#e8e8ec; }
+#optbar .ob-body{ flex:1; overflow:auto; padding:14px; display:flex; flex-direction:column; gap:14px; }
+#optbar .ob-sec{ font-size:10.5px; font-weight:800; letter-spacing:.08em; color:#6b6d76; text-transform:uppercase; }
+#optbar .ob-row{ display:flex; flex-direction:column; gap:6px; }
+#optbar .ob-lab{ font-size:11.5px; color:#a4a6ae; display:flex; justify-content:space-between; }
+#optbar .ob-lab b{ color:#e4e4e8; font-weight:700; }
+#optbar select, #optbar input[type=range]{ width:100%; }
+#optbar select{ background:#1b1b1f; border:1px solid #303038; color:#e4e4e8;
+  border-radius:7px; padding:7px 9px; font-size:12.5px; }
+#optbar .ob-chips{ display:flex; flex-wrap:wrap; gap:6px; }
+#optbar .ob-chip{ padding:6px 11px; border-radius:999px; font-size:12px; cursor:pointer;
+  background:#1b1b1f; border:1px solid #303038; color:#a4a6ae; }
+#optbar .ob-chip.on{ background:#2b2b32; border-color:#5a5d68; color:#fff; font-weight:700; }
+#optbar .ob-note{ font-size:11.5px; line-height:1.6; color:#75777f;
+  background:#17171b; border:1px solid #26262b; border-radius:8px; padding:9px 10px; }
+#optbar .ob-empty{ color:#6b6d76; font-size:12.5px; text-align:center; padding:30px 10px; }
+
+/* ══════ 실행 카운트다운 (10초) · 진행률 ══════ */
+.node .run-armed{ margin-top:6px; border:1px solid #4a3a12; background:#1e1a10; border-radius:8px;
+  padding:8px 10px; display:flex; flex-direction:column; gap:6px; }
+.node .run-armed .ra-top{ display:flex; justify-content:space-between; font-size:11.5px; color:#e8c76a; font-weight:700; }
+.node .run-armed .ra-bar{ height:4px; border-radius:3px; background:#2c2716; overflow:hidden; }
+.node .run-armed .ra-bar i{ display:block; height:100%; background:#e8b93a; width:0; }
+.node .run-armed .ra-hint{ font-size:10.5px; color:#9a8b57; }
+.node .run-live{ margin-top:6px; border:1px solid #2a3a2a; background:#121a12; border-radius:8px;
+  padding:8px 10px; display:flex; flex-direction:column; gap:6px; }
+.node .run-live .rl-top{ display:flex; justify-content:space-between; font-size:11.5px; color:#8fe0a0; font-weight:700; }
+.node .run-live .rl-bar{ height:4px; border-radius:3px; background:#1d2a1d; overflow:hidden; }
+.node .run-live .rl-bar i{ display:block; height:100%; background:#4ec26a; width:0; transition:width .3s linear; }
 </style>
 </head>
 <body>
@@ -1868,6 +1931,14 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 <div id="dd"></div>
 <div id="zoomBadge">100%</div>
 <div id="minimap"><canvas id="miniCv" width="200" height="130"></canvas></div>
+<!-- 오른쪽 옵션 사이드바 — 모델 노드를 고르면 밀려 나온다 -->
+<aside id="optbar" aria-label="모델 옵션">
+  <div class="ob-head">
+    <div class="ob-title" id="obTitle">옵션</div>
+    <button class="ob-x" id="obClose" type="button" title="닫기">×</button>
+  </div>
+  <div class="ob-body" id="obBody"></div>
+</aside>
 <div id="toast"></div>
 
 <script>
@@ -1953,6 +2024,20 @@ paintIcons();
 var PORT_COLORS = { TEXT:'#ffab40', IMAGE:'#42a5f5', GEN:'#f48fb1', VIDEO:'#81c784', MODEL:'#60a5fa', AUDIO:'#4dd0e1',
   MEDIA:'#8bc9a6',   // 영상 계열 입력 — 이미지·영상·생성물만 받는다
   '*':'#9aa0b5' };
+/* ── 선 색은 세 가지만 ──
+   포트 점은 종류를 구분해야 하니 위 색을 그대로 쓰고, "선" 만 줄인다.
+   색이 일곱 가지면 어느 것도 눈에 안 들어온다. 정말 봐야 하는 세 흐름만 색을 준다:
+     레퍼런스(이미지·미디어) = 하늘색 · 프롬프트(텍스트) = 노란색 · 영상 결과 = 빨간색
+   나머지(모델·오디오·미지정)는 색을 빼고 어두운 회색으로 둔다 — 연결은 보이되 시선을 안 끈다.
+   ※ "나머지는 안 나오게" 를 선을 아예 지우는 것으로 읽지 않았다. 선이 없으면 무엇이
+     어디에 붙었는지 알 수 없어 그래프가 못 쓰게 된다. '색이 안 나오게' 로 해석했다. */
+var LINK_COLORS = {
+  IMAGE:'#7dd3fc', MEDIA:'#7dd3fc',      // 레퍼런스 — 하늘색
+  TEXT:'#facc15',                        // 프롬프트 — 노란색
+  VIDEO:'#ef4444', GEN:'#ef4444',        // 영상 출력(엑싯) — 빨간색
+};
+var LINK_MUTED = '#3a3d46';
+function linkColor(t){ return LINK_COLORS[t] || LINK_MUTED; }
 /* 나레이션 목소리 (표시명 → TTS voice_id). 서버 /api/tts/v2/speak 규격. */
 var VOICE_OPTS = [
   '일레븐랩스·여성(Rachel)','일레븐랩스·여성(Sarah)','일레븐랩스·남성(Adam)','일레븐랩스·남성(Antoni)','일레븐랩스·여성(Aria)',
@@ -6992,7 +7077,7 @@ function render(){
     var el=document.createElement('div');
     el.className='node'+(sel.has(n.id)?' sel':'')+(n.collapsed?' collapsed':'')+(n.bypass?' bypass':'')+
       (n.type==='note'?' notenode':'')+(n.type==='reroute'?' reroute':'')+(n.pinned?' pinned':'');
-    el.id='nd-'+n.id; el.dataset.node=n.id;
+    el.id='nd-'+n.id; el.dataset.node=n.id; el.dataset.type=n.type;   // 출력 블럭을 크게 하는 CSS 가 이 값을 본다
     el.style.left=n.x+'px'; el.style.top=n.y+'px';
     el.style.setProperty('--hd', n.color||DEFS[n.type].hd||'#2e2e2e');
     if(n.width) el.style.width=n.width+'px';
@@ -7027,11 +7112,101 @@ function drawLinks(){
     if(!a||!b)return;
     var path=document.createElementNS('http://www.w3.org/2000/svg','path');
     path.setAttribute('d',linkPath(a,b));
-    path.setAttribute('class','link'+(idx===selLink?' linksel':'')); path.setAttribute('stroke',PORT_COLORS[l.type]||'#888');
+    path.setAttribute('class','link'+(idx===selLink?' linksel':'')); path.setAttribute('stroke',linkColor(l.type));
     path.dataset.idx=idx;
     edges.appendChild(path);
   });
 }
+/* ══════ 오른쪽 옵션 사이드바 ══════
+   영상 설정을 노드로 두면 자리도 먹고 선도 하나 더 생긴다. 모델 노드를 고르면
+   오른쪽에서 패널이 밀려 나오고 거기서 길이·비율·해상도를 만진다.
+
+   값은 모델 노드 자신의 w.vsec / w.vratio / w.vres 에 쓴다. 이 칸들은 원래부터
+   "영상 설정 노드가 없을 때의 값" 으로 쓰이고 있었다(effVideoSec/Ratio/Res 참조) —
+   그래서 생성 파이프라인은 한 줄도 안 고쳐도 된다.
+   옛 그래프에 영상 설정 노드가 붙어 있으면 그쪽이 계속 이긴다(하위호환). 그 경우
+   패널에서 만져도 안 먹히므로, 헷갈리지 않게 그 사실을 패널에 적어 준다. */
+var _obNode=null;
+function obEl(id){ return document.getElementById(id); }
+function closeOptbar(){ _obNode=null; var b=obEl('optbar'); if(b)b.classList.remove('open'); }
+function openOptbar(id){
+  var n=(state.nodes||[]).find(function(x){ return x.id===id; });
+  if(!n || n.type!=='model'){ closeOptbar(); return; }
+  _obNode=id; var bar=obEl('optbar'); if(!bar)return;
+  bar.classList.add('open');
+  renderOptbar();
+}
+function renderOptbar(){
+  var bar=obEl('optbar'); if(!bar || !bar.classList.contains('open'))return;
+  var n=(state.nodes||[]).find(function(x){ return x.id===_obNode; });
+  if(!n){ closeOptbar(); return; }
+  var t=obEl('obTitle'); if(t) t.textContent=(DEFS[n.type]&&DEFS[n.type].title)||'옵션';
+  var body=obEl('obBody'); if(!body)return;
+
+  var opts=videoModelOpts(effModel(n));
+  var legacy=linkedSetting(n.id,'video');
+  var h='';
+
+  //  모델
+  var models=(typeof VIDEO_MODELS!=='undefined'?VIDEO_MODELS:[]);
+  if(models.length){
+    //  MODELS 는 [카테고리, 표시명] 쌍이다 — 표시명만 꺼내 쓴다
+    h+='<div class="ob-row"><div class="ob-sec">모델</div>'
+      +'<select data-ob="model">'+models.map(function(m){
+          var nm=Array.isArray(m)?m[1]:m;
+          return '<option value="'+esc(nm)+'"'+(String(n.w.model||'')===nm?' selected':'')+'>'+esc(nm)+'</option>'; }).join('')
+      +'</select></div>';
+  }
+
+  //  길이 — 모델이 받는 값만 보여 준다. 안 받는 값을 고르게 두면 몰래 스냅되어 요금만 달라진다.
+  if(opts.secs && opts.secs.length){
+    var curSec=effVideoSec(n);
+    h+='<div class="ob-row"><div class="ob-lab">길이 <b>'+curSec+'초</b></div><div class="ob-chips">'
+      +opts.secs.map(function(s){ return '<button class="ob-chip'+(s===curSec?' on':'')+'" data-ob="sec" data-v="'+s+'" type="button">'+s+'초</button>'; }).join('')
+      +'</div></div>';
+  }
+  //  비율
+  if(opts.ratios && opts.ratios.length){
+    var curAr=effVideoRatio(n);
+    h+='<div class="ob-row"><div class="ob-lab">비율 <b>'+esc(curAr||'-')+'</b></div><div class="ob-chips">'
+      +opts.ratios.map(function(r){ return '<button class="ob-chip'+(r===curAr?' on':'')+'" data-ob="ar" data-v="'+esc(r)+'" type="button">'+esc(r)+'</button>'; }).join('')
+      +'</div></div>';
+  }
+  //  해상도 — 받지 않는 모델은 아예 안 보여 준다(골라 봐야 결과는 그대로고 요금만 달라진다)
+  if(opts.res && opts.res.length){
+    var curRes=effVideoRes(n);
+    h+='<div class="ob-row"><div class="ob-lab">해상도 <b>'+esc(curRes||'-')+'</b></div><div class="ob-chips">'
+      +opts.res.map(function(r){ return '<button class="ob-chip'+(r===curRes?' on':'')+'" data-ob="res" data-v="'+esc(r)+'" type="button">'+esc(r)+'</button>'; }).join('')
+      +'</div></div>';
+  }
+
+  if(!opts.secs.length && !opts.ratios.length && (!opts.res||!opts.res.length))
+    h+='<div class="ob-empty">이 모델은 조절할 옵션이 없습니다.</div>';
+
+  if(legacy) h+='<div class="ob-note">이 노드에는 <b>영상 설정 노드</b>가 연결돼 있어 그쪽 값이 우선합니다. 여기서 바꾼 값은 그 노드를 지워야 적용됩니다.</div>';
+  else h+='<div class="ob-note">모델이 실제로 받는 값만 보여 줍니다. 목록에 없는 길이·해상도는 이 모델이 지원하지 않습니다.</div>';
+
+  body.innerHTML=h;
+}
+/* 사이드바 조작 — 값은 노드에 바로 쓰고 다시 그린다 */
+document.addEventListener('click',function(e){
+  var x=e.target.closest&&e.target.closest('#obClose'); if(x){ closeOptbar(); return; }
+  var c=e.target.closest&&e.target.closest('#optbar [data-ob]'); if(!c)return;
+  var n=(state.nodes||[]).find(function(y){ return y.id===_obNode; }); if(!n)return;
+  var k=c.getAttribute('data-ob');
+  if(k==='model'){ return; }                      // select 는 change 로 받는다
+  var v=c.getAttribute('data-v');
+  if(k==='sec') n.w.vsec=Number(v);
+  else if(k==='ar') n.w.vratio=v;
+  else if(k==='res') n.w.vres=v;
+  snapshot(); render(); renderOptbar();
+});
+document.addEventListener('change',function(e){
+  var s=e.target.closest&&e.target.closest('#optbar select[data-ob="model"]'); if(!s)return;
+  var n=(state.nodes||[]).find(function(y){ return y.id===_obNode; }); if(!n)return;
+  n.w.model=s.value; snapshot(); render(); renderOptbar();
+});
+
 /* 선분-선분 교차 */
 function segX(a,b,c,d){
   function ccw(p,q,r){ return (r.y-p.y)*(q.x-p.x) > (q.y-p.y)*(r.x-p.x); }
@@ -7165,6 +7340,8 @@ canvas.addEventListener('mousedown',function(e){
     var pn=state.nodes.find(function(x){return x.id===id;});
     if(pn&&pn.pinned){ if(!sel.has(id)){ if(!e.shiftKey) sel.clear(); sel.add(id); markSel(); } return; }
     if(!sel.has(id)){ if(!e.shiftKey) sel.clear(); sel.add(id); markSel(); }
+    //  영상 모델을 고르면 오른쪽 옵션 패널을 연다(다른 종류를 고르면 닫는다)
+    if(pn && pn.type==='model') openOptbar(id); else closeOptbar();
     var w=screenToWorld(e.clientX,e.clientY);
     var offs={}; sel.forEach(function(sid){ var sn=state.nodes.find(function(x){return x.id===sid;}); if(sn)offs[sid]={dx:w.x-sn.x,dy:w.y-sn.y}; });
     drag={move:true,offs:offs,moved:false};
@@ -7173,6 +7350,8 @@ canvas.addEventListener('mousedown',function(e){
   if(nodeEl){
     var id2=nodeEl.dataset.node;
     if(!sel.has(id2)){ if(!e.shiftKey) sel.clear(); sel.add(id2); markSel(); }
+    var pn2=state.nodes.find(function(x){return x.id===id2;});
+    if(pn2 && pn2.type==='model') openOptbar(id2);
     return;
   }
   if(e.altKey){
@@ -7344,7 +7523,7 @@ function nextNodeFor(node){
 function startConnect(fromNode,fromPort,type,toFixed){
   connect={ from:fromNode?{node:fromNode,port:fromPort}:null, type:type, toFixed:toFixed };
   var tmp=document.createElementNS('http://www.w3.org/2000/svg','path');
-  tmp.setAttribute('class','tmp'); tmp.setAttribute('stroke',PORT_COLORS[type]||'#eee');
+  tmp.setAttribute('class','tmp'); tmp.setAttribute('stroke',linkColor(type));
   edges.appendChild(tmp); connect.el=tmp;
 }
 window.addEventListener('mousemove',function(e){
@@ -7745,7 +7924,7 @@ canvas.addEventListener('click',function(e){
   // 캔버스의 모든 모델 노드가 함께 생성되고 전부 과금됐다.
   if(e.target.closest('[data-runnode]')){
     var _rn=e.target.closest('.node');
-    runQueue(_rn?_rn.dataset.node:undefined); return;
+    armRun(_rn?_rn.dataset.node:undefined); return;
   }
   if(e.target.closest('[data-imggen]')){ generateImageNode(n2); return; }
   if(e.target.closest('[data-mesh3d]')){ generateMesh3dNode(n2); return; }
@@ -8216,6 +8395,10 @@ canvas.addEventListener('contextmenu',function(e){
   var cats={};
   Object.keys(DEFS).forEach(function(t){
     if(t==='reference')return;   // 옴니 레퍼런스 제거 (이미지/영상 레퍼런스로 대체)
+    /* 영상 설정 노드는 더 이상 새로 만들지 않는다 — 길이·비율·해상도는 오른쪽 옵션
+       사이드바로 옮겼다. 이미 그 노드가 들어 있는 옛 그래프는 그대로 열리고 그대로 우선한다
+       (지워 버리면 저장된 워크플로우의 설정이 통째로 날아간다). */
+    if(t==='video')return;
     var c=DEFS[t].cat; (cats[c]=cats[c]||[]).push({label:DEFS[t].title,fn:(function(tt){return function(){ addNode(tt,w.x,w.y); };})(t)});
   });
   var catSub=Object.keys(cats).map(function(c){ return {label:c,sub:cats[c]}; });
@@ -8254,6 +8437,7 @@ function buildSearch(q){
   var html='';
   Object.keys(DEFS).forEach(function(t){
     if(t==='reference')return;   // 옴니 레퍼런스 숨김
+    if(t==='video')return;       // 영상 설정 → 오른쪽 옵션 사이드바로 이동
     var d=DEFS[t], label=(d.cat+' '+d.title).toLowerCase();
     if(label.indexOf(q)>-1||t.indexOf(q)>-1)
       html+='<div class="si" data-t="'+t+'"><span>'+esc(d.title)+'</span><small>'+esc(d.cat)+'</small></div>';
@@ -8471,6 +8655,91 @@ function clearExecOne(id){
   state.links.forEach(function(l,idx){ if(l.from===id){
     var p=edges.querySelector('path.link[data-idx="'+idx+'"]'); if(p)p.classList.remove('exec'); } });
 }
+/* ══════ 실행 전 10초 · 취소 · 진행률 ══════
+   [실행]을 누르면 곧바로 API 로 나가고 그 순간 돈이 빠진다. 잘못 눌렀다는 걸
+   깨달았을 때는 이미 늦다. 그래서 10초를 먼저 센다 — 그 동안은 아무것도 안 나간다.
+   그 사이에 다시 누르면 취소다(제작 자체가 없던 일이 된다).
+   10초가 지나야 비로소 실제 실행으로 넘어간다. */
+var _armed={};                      // nodeId → { t0, timer, tick }
+var ARM_MS=10000;
+function armState(id){ return _armed[id]; }
+function clearArm(id){
+  var a=_armed[id]; if(!a)return;
+  clearTimeout(a.timer); clearInterval(a.tick); delete _armed[id];
+}
+function armRun(id){
+  if(!id){ runQueue(undefined); return; }        // 그래프 전체 실행은 지금처럼 바로
+  if(_armed[id]){                                 // 이미 세고 있는 중에 또 눌렀다 = 취소
+    clearArm(id); paintArm(id); toast('영상 제작을 취소했습니다 (요금 없음)');
+    return;
+  }
+  if(_runningNodes[id]){ toast('이 노드는 이미 실행 중입니다'); return; }
+  var a={ t0:Date.now() };
+  a.timer=setTimeout(function(){
+    clearArm(id); paintArm(id);
+    runQueue(id);                                 // 여기서 처음으로 API 로 나간다
+  }, ARM_MS);
+  a.tick=setInterval(function(){ paintArm(id); }, 100);
+  _armed[id]=a;
+  paintArm(id);
+  toast('10초 뒤에 제작을 시작합니다 — 다시 누르면 취소');
+}
+/* 카운트다운·진행률을 노드 안에 그린다. render() 를 다시 돌리지 않는다 —
+   0.1초마다 노드를 통째로 다시 만들면 입력 중인 칸이 날아간다. */
+function paintArm(id){
+  var el=document.getElementById('nd-'+id); if(!el)return;
+  var body=el.querySelector('.node-body'); if(!body)return;
+  var box=body.querySelector('.run-armed');
+  var a=_armed[id];
+  if(!a){ if(box)box.remove(); return; }
+  var left=Math.max(0, ARM_MS-(Date.now()-a.t0));
+  var pct=Math.min(100, Math.round((1-left/ARM_MS)*100));
+  if(!box){
+    box=document.createElement('div'); box.className='run-armed';
+    box.innerHTML='<div class="ra-top"><span>제작 대기</span><span class="ra-pct">0%</span></div>'
+      +'<div class="ra-bar"><i></i></div><div class="ra-hint">다시 누르면 취소됩니다</div>';
+    body.appendChild(box);
+  }
+  box.querySelector('.ra-pct').textContent=pct+'% · '+(left/1000).toFixed(1)+'초';
+  box.querySelector('.ra-bar i').style.width=pct+'%';
+}
+/* 실제 제작이 도는 동안의 진행률.
+   제공사 API 는 "몇 % 됐다" 를 알려 주지 않는다. 그래서 지나간 시간을 그 모델의
+   보통 걸리는 시간으로 나눠 어림한다 — 어림값이라는 걸 화면에도 적는다.
+   끝나기 전에 100% 로 보이면 안 되므로 95% 에서 멈춰 두고, 끝나면 그때 지운다. */
+var _live={};
+function startLive(id){
+  stopLive(id);
+  var n=(state.nodes||[]).find(function(x){ return x.id===id; });
+  var secs=(n&&effVideoSec(n))||8;
+  var expect=Math.max(20000, secs*9000);      // 8초 영상이면 대략 70초쯤
+  var t0=Date.now();
+  _live[id]=setInterval(function(){
+    /* 끝났으면 스스로 걷는다.
+       처음엔 생성 promise 의 then/catch 에서만 지웠는데, 실제로 돌려 보니 어떤 경로로
+       끝나면 막대가 그대로 남아 "영원히 제작 중" 처럼 보였다(실측). 끝나는 길이 여러 갈래라
+       그 중 하나만 잡아서는 새는 곳이 생긴다 — 그래서 "이 노드가 아직 실행 중인가" 라는
+       하나의 사실에 묶는다. 어느 길로 끝나든 _runningNodes 에서 빠지는 건 같다. */
+    if(!_runningNodes[id]){ stopLive(id); return; }
+    var el=document.getElementById('nd-'+id); if(!el)return;
+    var body=el.querySelector('.node-body'); if(!body)return;
+    var box=body.querySelector('.run-live');
+    if(!box){
+      box=document.createElement('div'); box.className='run-live';
+      box.innerHTML='<div class="rl-top"><span>제작 중</span><span class="rl-pct">0%</span></div>'
+        +'<div class="rl-bar"><i></i></div>';
+      body.appendChild(box);
+    }
+    var pct=Math.min(95, Math.round((Date.now()-t0)/expect*100));
+    box.querySelector('.rl-pct').textContent=pct+'% (예상)';
+    box.querySelector('.rl-bar i').style.width=pct+'%';
+  }, 300);
+}
+function stopLive(id){
+  if(_live[id]){ clearInterval(_live[id]); delete _live[id]; }
+  var el=document.getElementById('nd-'+id); if(!el)return;
+  var box=el.querySelector('.run-live'); if(box)box.remove();
+}
 function runQueue(onlyId){
   // 노드 지정 실행끼리는 서로 독립이라 동시에 돌린다.
   //  같은 노드를 두 번 돌리는 것만 막는다(중복 과금·결과 덮어쓰기 방지).
@@ -8676,6 +8945,7 @@ function runQueue(onlyId){
                 });
               }
             }).then(function(){
+            startLive(id);              // 여기서부터 진짜로 제작이 돈다 → 진행률(예상)을 띄운다
             return generateWithAPI({   // 영상은 ControlNet 미적용(이미지 노드 전용)
               model:chosenModel,
               camera: camSel,
@@ -8706,7 +8976,7 @@ function runQueue(onlyId){
               cnSteps: (n.w.cnSteps==null?28:n.w.cnSteps), cnGuidance: (n.w.cnGuidance==null?3.5:n.w.cnGuidance),
               cfg:n.w.cfg, seed:n.w.seed,
               __node:n   // 진행 중 statusUrl 기록용(서버 전송에서는 제외됨)
-            }); }).then(function(res){
+            }); }).then(function(res){ stopLive(id);
               if(!res || res.error){   // 실제 생성 실패 — 데모로 감추지 않고 원인 표시
                 var msg=(res&&res.error)||'생성 실패';
                 liveNodes(outIds).forEach(function(o){ o.w.generating=false; o.w.error=msg; });
@@ -8741,7 +9011,7 @@ function runQueue(onlyId){
               Promise.all(liveNodes(outIds).map(function(o){
                 return o.w.lastImg ? Promise.resolve() : extractLastFrame(o);
               })).then(function(){ render(); step(); });
-            }).catch(function(e){
+            }).catch(function(e){ stopLive(id);
               var em=String(e&&e.message||e||'오류');
               liveNodes(outIds).forEach(function(o){ o.w.generating=false; o.w.error=em; });
               var _mn3=liveNode(id); if(_mn3) _mn3.w.pendingUrl=null;
@@ -8886,6 +9156,7 @@ function buildLib(q){
   var cats={};
   Object.keys(DEFS).forEach(function(t){
     if(t==='reference')return;   // 옴니 레퍼런스 숨김
+    if(t==='video')return;       // 영상 설정 → 오른쪽 옵션 사이드바로 이동
     var d=DEFS[t];
     if(q && d.title.toLowerCase().indexOf(q)===-1 && d.cat.toLowerCase().indexOf(q)===-1) return;
     (cats[d.cat]=cats[d.cat]||[]).push(t);
