@@ -837,6 +837,103 @@ while True:
             </div>
           </section>
 
+          {/* ControlNet */}
+          <section>
+            <Anchor id="controlnet" />
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('12. ControlNet 이미지 생성')}</h2>
+            <p className="mb-3 text-[13.5px] text-[var(--text-soft)]">{t('기준 이미지의 윤곽·깊이·자세를 따라 구도를 고정한 채 이미지를 생성합니다. 최대 3개까지 겹쳐 쓸 수 있습니다.')}</p>
+            <div className="mb-4 overflow-hidden rounded-xl border border-[var(--border-soft)]">
+              <table className="w-full text-left text-[13px]">
+                <thead className="bg-white/[.03] text-[var(--text-dim)]">
+                  <tr><th className="px-4 py-2.5 font-semibold">type</th><th className="px-4 py-2.5 font-semibold">{t('무엇을 따라가나')}</th></tr>
+                </thead>
+                <tbody className="text-[var(--text-soft)]">
+                  {[
+                    ['canny', '윤곽선 — 형태를 가장 강하게 고정'],
+                    ['depth', '깊이 — 원근·배치를 유지'],
+                    ['pose', '자세 — 사람의 관절 위치를 유지'],
+                    ['tile', '타일 — 세부 질감 보강'],
+                    ['blur', '흐림 — 대략적 명암 구도'],
+                    ['gray', '흑백 — 밝기 구조만 유지'],
+                  ].map(([a, b]) => (
+                    <tr key={a} className="border-t border-[var(--border-soft)]">
+                      <td className="px-4 py-2.5 font-mono text-[12px] text-blue-300">{a}</td><td className="px-4 py-2.5">{t(b)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <CodeTabs
+              tabs={[
+                { label: 'cURL', code: `curl -X POST https://nextbygency.com/api/v1/controlnet \\
+  -H "Authorization: Bearer bg_live_..." \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "prompt": "눈 내리는 골목의 검은 고양이, 시네마틱",
+    "type": "canny",
+    "image_url": "https://example.com/ref.png",
+    "strength": 0.8,
+    "ratio": "16:9"
+  }'` },
+                { label: '겹쳐 쓰기', code: `curl -X POST https://nextbygency.com/api/v1/controlnet \\
+  -H "Authorization: Bearer bg_live_..." \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "prompt": "…",
+    "controls": [
+      { "type": "canny", "image_url": "https://…/edge.png", "strength": 0.9 },
+      { "type": "depth", "image_url": "https://…/depth.png", "strength": 0.5, "start": 0, "end": 0.7 }
+    ]
+  }'` },
+              ]}
+            />
+            <ul className="mt-4 space-y-2 text-[13.5px] leading-relaxed text-[var(--text-soft)]">
+              <li className="flex gap-2.5"><Check size={16} className="mt-0.5 flex-shrink-0 text-blue-400" /> <span>{t('요금은 이미지 생성 요금에 ControlNet 가산(기본 +10%)이 더해집니다. 스튜디오와 같은 규칙입니다.')}</span></li>
+              <li className="flex gap-2.5"><Check size={16} className="mt-0.5 flex-shrink-0 text-blue-400" /> <span><code className="font-mono text-[12px]">GET /api/v1/controlnet</code> {t('로 쓸 수 있는 타입과 요청 형식을 확인할 수 있습니다.')}</span></li>
+              <li className="flex gap-2.5"><Check size={16} className="mt-0.5 flex-shrink-0 text-blue-400" /> <span>{t('ControlNet 가중치는 제휴 제공사(fal.ai)가 실행합니다 — 아래 모델 대여 대상이 아닙니다.')}</span></li>
+            </ul>
+          </section>
+
+          {/* 모델 대여 */}
+          <section>
+            <Anchor id="lease" />
+            <h2 className="mb-3 text-2xl font-bold text-white">{t('13. 모델 대여 (초해상 ×4)')}</h2>
+            <p className="mb-3 text-[13.5px] text-[var(--text-soft)]">{t('BYGENCY 가 만든 초해상(화질 올리기) 모델을 파일째 빌려갑니다. 추론은 빌려가신 쪽 기기에서 돌며 GPU 가 필요 없습니다 — 우리 서버는 추론하지 않습니다.')}</p>
+            <div className="mb-4 rounded-xl border border-amber-400/20 bg-amber-500/[.06] p-4 text-[13.5px] leading-relaxed text-[var(--text-soft)]">
+              {t('왜 파일을 빌려주나: 이 모델은 브라우저·CPU 에서 도는 구조라 서버에서 대신 돌려주기 어렵습니다. 실제로 재 보면 1920×1080 사진 한 장에 타일 45장이 필요하고, 가벼운 모델도 65초가 걸립니다. 그래서 "이미지를 보내면 결과를 준다" 가 아니라 "모델을 빌려준다" 로 제공합니다.')}
+            </div>
+            <CodeTabs
+              tabs={[
+                { label: '1. 목록', code: `curl https://nextbygency.com/api/v1/models
+# → { models: [{ id:"sr-x4-fast", title, license, files, lease_credits }] }` },
+                { label: '2. 대여', code: `curl -X POST https://nextbygency.com/api/v1/lease \\
+  -H "Authorization: Bearer bg_live_..." \\
+  -H "Content-Type: application/json" \\
+  -d '{ "model": "sr-x4-fast", "days": 7 }'
+
+# → { lease, expires_at, files:[{name,url}], sdk, credits_charged, credits_remaining }
+#   크레딧이 이때 차감됩니다. files[].url 은 리스 토큰이 붙은 주소입니다.` },
+                { label: '3. 사용 (SDK)', code: `<script type="module">
+  import * as ort from 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/+esm'
+  import { createUpscaler } from 'https://nextbygency.com/sdk/bygency-sr.js'
+
+  const up = await createUpscaler({ ort, lease: 'eyJ...' })   // 대여 응답의 lease
+  const out = await up.upscaleImage(document.querySelector('img'), {
+    longTarget: 1920,                       // 긴 변 목표(선택)
+    onProgress: (p) => console.log(p),      // 0~1
+  })
+  document.body.appendChild(out)            // canvas
+</script>` },
+              ]}
+            />
+            <ul className="mt-4 space-y-2 text-[13.5px] leading-relaxed text-[var(--text-soft)]">
+              <li className="flex gap-2.5"><Check size={16} className="mt-0.5 flex-shrink-0 text-blue-400" /> <span>{t('대여 기간은 1~30일입니다. 기간이 지나거나 취소되면 파일 주소가 즉시 막힙니다.')}</span></li>
+              <li className="flex gap-2.5"><Check size={16} className="mt-0.5 flex-shrink-0 text-blue-400" /> <span><code className="font-mono text-[12px]">GET /api/v1/lease</code> {t('로 내가 가진 대여 목록(남은 기간·내려받은 횟수)을 볼 수 있습니다.')}</span></li>
+              <li className="flex gap-2.5"><Check size={16} className="mt-0.5 flex-shrink-0 text-blue-400" /> <span>{t('가중치 라이선스는 모델마다 다릅니다 — 목록 응답의')} <code className="font-mono text-[12px]">license</code>{t('·')}<code className="font-mono text-[12px]">source</code> {t('를 반드시 확인하고 그 조건을 따르세요.')}</span></li>
+              <li className="flex gap-2.5"><Check size={16} className="mt-0.5 flex-shrink-0 text-blue-400" /> <span>{t('입출력은 NCHW float32 0~1 입니다. SDK 를 쓰지 않고 직접 onnxruntime 으로 돌려도 됩니다.')}</span></li>
+            </ul>
+          </section>
+
           <div className="rounded-2xl border border-blue-400/20 bg-gradient-to-br from-blue-500/[.08] to-sky-500/[.05] p-6 text-center">
             <p className="text-[15px] font-semibold text-slate-100">{t('준비됐나요? 스튜디오에서 API 키를 발급하고 바로 호출하세요.')}</p>
             <div className="mt-4 flex flex-wrap justify-center gap-3">

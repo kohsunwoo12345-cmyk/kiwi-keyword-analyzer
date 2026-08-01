@@ -394,6 +394,15 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
      이 이름으로 실측 단가를 넣으면 그 값이 이긴다. */
   '화질 올리기 (이미지 초해상 ×4)': { u: 'img', usd: 0.014, prov: 'upscale' },
   '화질 올리기 (영상 초해상 ×4)': { u: 'sec', usd: 0.0024, prov: 'upscale' },
+  /* ControlNet 생성 — fal.ai 의 flux-general + ControlNet Union 으로 나간다.
+     스튜디오에서는 회원이 고른 이미지 모델 이름으로 청구돼서 이 이름이 필요 없었지만,
+     API·MCP 로 바로 부를 때는 청구할 이름이 없어 표에 없는 모델이 되고 — 그러면
+     이미지 기본값($0.05)으로 잡히거나 아예 안 잡힌다. 그래서 자기 줄을 만든다.
+     ⚠ 이 값($0.035/장)은 미확인 추정이다. fal 의 flux-general 공식 단가 원문을 못 구했다.
+        확실한 확인은 제공사 청구서를 그 달 장수로 나눠 역산하는 것이고, 그때
+        관리자 → 모델 단가에서 이 이름으로 실측값을 넣으면 그 값이 이긴다.
+     여기에 ControlNet 가산(기본 +10%)이 따로 곱해진다. */
+  'ControlNet 이미지 (Canny·Depth·Pose)': { u: 'img', usd: 0.035, prov: 'falcontrol' },
   /* 외부에 모델을 빌려줄 때(대여 1건 = 발급된 리스 토큰 1개). 유효기간 동안 그 기기에서 돌린다.
      'tok' 은 1건 과금이라 마크업이 2.5다: 0.30 × 1400 × 2.5 ÷ 50 = 21크레딧 / 대여 */
   '모델 대여 (초해상 ×4)': { u: 'tok', usd: 0.30, prov: 'lease' },
@@ -402,6 +411,7 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
 export const UPSCALE_IMG = '화질 올리기 (이미지 초해상 ×4)'
 export const UPSCALE_VID = '화질 올리기 (영상 초해상 ×4)'
 export const LEASE_SR = '모델 대여 (초해상 ×4)'
+export const CONTROLNET_IMG = 'ControlNet 이미지 (Canny·Depth·Pose)'
 
 export const PROV_LABEL: Record<string, string> = {
   google: 'Google Veo', runway: 'Runway', runway_aleph: 'Runway Aleph', v2v_auto: 'V2V 자동', motion: '모션 전이', seedance: 'Seedance', seedream: 'Seedream',
