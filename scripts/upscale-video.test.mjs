@@ -248,6 +248,13 @@ ok('본문을 찾았다 (upscaleVideoURL·_grabAudioOpus·webmWriter)', !!up && 
      /runner\s*=\s*r2;\s*srMs\s*=\s*0,?\s*;?\s*srN\s*=\s*0|runner=r2;\s*srMs=0;\s*srN=0/.test(up.replace(/\s+/g, ' ').replace(/ /g, '')) ||
      /runner=r2;srMs=0;srN=0/.test(up.replace(/\s/g, '')))
   ok('⑮-d 갈아타는 동안 판단을 멈춘다(중복 교체 방지)', /swapping/.test(up))
+  /* 실제로 브라우저에서 돌려 보고 잡은 것 — 구조 검사만으로는 안 보였다.
+     갈아타기 직전에 시작된 프레임은 옛(무거운) 모델로 끝나는데, 그게 새 모델의 첫 측정으로
+     들어가 "1.5시간 → 가벼운 모델로 전환" 바로 뒤에 "1.4시간이라 무리 — 초해상 끔" 이 떴다.
+     갈아타 놓고 곧바로 꺼 버리면 이 기능이 있으나 마나다. */
+  ok('⑮-d2 옛 모델로 끝난 프레임을 새 모델 속도로 세지 않는다',
+     /used\s*=\s*runner/.test(up) && /if\(used===runner\)\{\s*srMs\+=/.test(up.replace(/\s*\n\s*/g, '')),
+     '갈아타자마자 다시 꺼지는 원인이 된다')
   //  한 프레임에 90초씩 걸리는 기기에서 8프레임을 채우려면 12분이 든다 — 그 전에 판단해야 한다
   ok('⑮-e 프레임이 아주 느리면 8프레임을 기다리지 않는다',
      /srN\s*<\s*8\s*&&\s*srMs\s*<\s*60000/.test(up),

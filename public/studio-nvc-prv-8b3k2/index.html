@@ -5266,8 +5266,9 @@ function upscaleVideoURL(src,scale,onProg,opts){
             function step(){
               if(encFailed){ if(!settled){ settled=true; reject(new Error('인코딩 실패')); } return; }
               if(idx>=total){ finish(); return; }
-              var t0=performance.now();
+              var t0=performance.now(), used=null;
               seekTo(idx/FPS).then(function(){ try{ fctx.drawImage(v,0,0,sw,sh); }catch(e){}
+                                               used=runner;      // 이 프레임이 실제로 쓴 모델
                                                return srOn?srFrame():Promise.resolve(null); })
                 .then(function(srC){
                   octx.clearRect(0,0,tw,th);
@@ -5277,7 +5278,12 @@ function upscaleVideoURL(src,scale,onProg,opts){
                     var fr=new VideoFrame(out,{ timestamp:Math.round(idx*1000000/FPS), duration:Math.round(1000000/FPS) });
                     enc.encode(fr,{ keyFrame:(idx%(FPS*4))===0 }); fr.close();
                   }catch(e){}
-                  srMs+=performance.now()-t0; srN++; idx++; retune(); report();
+                  /* 갈아타기 직전에 시작된 프레임은 옛 모델로 끝난다. 그걸 새 모델의 속도로 세면
+                     새 모델까지 느리다고 잘못 판단해 초해상을 꺼 버린다 —
+                     실제로 "1.5시간 → 가벼운 모델로 전환" 직후 "1.4시간이라 무리" 가 이어서 떴다(실측).
+                     그래서 지금 쓰는 모델로 처리한 프레임만 센다. */
+                  if(used===runner){ srMs+=performance.now()-t0; srN++; }
+                  idx++; retune(); report();
                   setTimeout(step, enc.encodeQueueSize>6?40:0);
                 })
                 .catch(function(){ idx++; report(); setTimeout(step,0); });
