@@ -1319,6 +1319,31 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
   background:#17171b; border:1px solid #26262b; border-radius:8px; padding:9px 10px; }
 #optbar .ob-empty{ color:#6b6d76; font-size:12.5px; text-align:center; padding:30px 10px; }
 
+/* ══════ 블럭 모양 — 피그마 Weave 풍 ══════
+   설정이 사이드바로 빠지면서 블럭에 남는 건 "무엇이 들어오고 무엇이 나가는지" 뿐이다.
+   그러면 빽빽할 이유가 없다 — 모서리를 더 둥글게, 여백을 넉넉히, 테두리는 얇고 흐리게. */
+.node{ border-radius:14px; box-shadow:0 8px 28px rgba(0,0,0,.45); }
+.node .node-title{ height:38px; padding:0 13px; border-radius:13px 13px 0 0;
+  font-size:12.5px; font-weight:600; letter-spacing:-.01em; }
+.node.collapsed .node-title{ border-radius:13px; }
+.node .node-body{ padding:9px 12px 12px; gap:2px; }
+.node .iorow{ height:27px; }
+.node .iorow .in-label, .node .iorow .out-label{ font-size:11.5px; color:#8b8d96; }
+.node .port{ width:10px; height:10px; top:8px; border-color:#0e0e0e; }
+/* 입력 추가 — Weave 의 'Add another input' 자리 */
+.nw-add{ margin-top:7px; width:100%; display:flex; align-items:center; gap:7px;
+  padding:8px 10px; border-radius:9px; cursor:pointer;
+  background:transparent; border:1px dashed #33343b; color:#7c7e88;
+  font-size:11.5px; font-family:inherit; text-align:left; }
+.nw-add:hover{ background:#1a1a1e; border-color:#464852; color:#c9cbd3; }
+.nw-add .nw-plus{ font-size:14px; line-height:1; color:#5d5f69; }
+.nw-add:hover .nw-plus{ color:#c9cbd3; }
+
+/* 사이드바 안에 그려지는 노드 복제본 — 캔버스 블럭이 아니라 패널 내용처럼 보이게 */
+#optbar .ob-proxy{ position:static; width:auto; background:transparent !important;
+  border:none !important; box-shadow:none; border-radius:0; }
+#optbar .ob-proxy .node-body{ padding:0; gap:7px; }
+
 /* ══════ 실행 카운트다운 (10초) · 진행률 ══════ */
 .node .run-armed{ margin-top:6px; border:1px solid #4a3a12; background:#1e1a10; border-radius:8px;
   padding:8px 10px; display:flex; flex-direction:column; gap:6px; }
@@ -7038,6 +7063,8 @@ function widgetHTML(n,w){
   return '';
 }
 
+/* 설정을 오른쪽 사이드바에서 만지는 노드. 블럭에는 포트만 남는다. */
+var OPT_IN_SIDEBAR = { model:1 };
 function nodeHTML(n){
   var def=DEFS[n.type];
   var rows='';
@@ -7070,16 +7097,26 @@ function nodeHTML(n){
       (out?'<span class="out-label">'+out[1]+'</span><span class="port out" data-port="'+out[0]+'" data-dir="out" data-type="'+out[2]+'" style="background:'+PORT_COLORS[out[2]]+'"></span>':'')+
       '</div>';
   }
-  var widgets=def.widgets.map(function(w){ return widgetHTML(n,w); }).join('');
+  /* 모델 블럭은 설정을 안 담는다 — 전부 오른쪽 사이드바로 갔다.
+     블럭에는 "무엇이 들어오고 무엇이 나가는지" 만 남긴다(피그마 Weave 처럼).
+     위젯을 여기서도 그리면 같은 칸이 화면에 둘이 되어 어느 쪽이 진짜인지 알 수 없다. */
+  var toSide = OPT_IN_SIDEBAR[n.type];
+  var widgets = toSide ? '' : def.widgets.map(function(w){ return widgetHTML(n,w); }).join('');
+  var addRow = toSide
+    ? '<button class="nw-add" data-openopts type="button">'+
+        '<span class="nw-plus">+</span> Add another input</button>'
+    : '';
   return '<div class="node-title" style="--hd:'+(n.color||def.hd||'#2a2a2a')+'">'+
       '<span class="node-dot" data-collapse title="접기/펼치기"></span>'+
       '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(n.title)+'</span></div>'+
     '<div class="node-prog"></div>'+
-    '<div class="node-body">'+rows+widgets+'</div>';
+    '<div class="node-body">'+rows+widgets+addRow+'</div>';
 }
 
 function render(){
   renderGroups();
+  //  사이드바에도 같은 노드가 그려져 있다 → 함께 갱신한다(안 하면 옛 값이 남는다)
+  setTimeout(function(){ try{ renderOptbar(); }catch(_e){} }, 0);
   Array.prototype.slice.call(world.querySelectorAll('.node')).forEach(function(x){x.remove();});
   state.nodes.forEach(function(n){
     var el=document.createElement('div');
@@ -7193,6 +7230,20 @@ function renderOptbar(){
 
   if(legacy) h+='<div class="ob-note">이 노드에는 <b>영상 설정 노드</b>가 연결돼 있어 그쪽 값이 우선합니다. 여기서 바꾼 값은 그 노드를 지워야 적용됩니다.</div>';
   else h+='<div class="ob-note">모델이 실제로 받는 값만 보여 줍니다. 목록에 없는 길이·해상도는 이 모델이 지원하지 않습니다.</div>';
+
+  /* ── 노드가 원래 갖고 있던 설정들을 여기에 그대로 그린다 ──
+     하나씩 손으로 옮겨 적으면(20종이 넘는다) 언젠가 원본과 어긋난다. 그래서 노드를 그릴 때
+     쓰는 widgetHTML 을 그대로 부른다 — 새 위젯이 생겨도 자동으로 따라온다.
+     감싸는 상자에 class="node" 와 data-node 를 준다: 이 스튜디오의 위젯 처리기들은
+     전부 document 에 위임돼 있고 e.target.closest('.node').dataset.node 로 어느 노드인지
+     찾는다. 같은 모양을 만들어 주면 손대지 않은 채로 그대로 동작한다.
+     id 는 주지 않는다 — 'nd-<id>' 는 캔버스의 진짜 블럭 것이고, 같은 id 가 둘이면
+     진행률·선택 표시가 엉뚱한 데로 간다. */
+  var def=DEFS[n.type];
+  h+='<div class="ob-sec">설정</div>'
+    +'<div class="node ob-proxy" data-node="'+n.id+'" data-type="'+n.type+'"><div class="node-body">'
+    +def.widgets.map(function(w){ return widgetHTML(n,w); }).join('')
+    +'</div></div>';
 
   body.innerHTML=h;
 }
@@ -7828,7 +7879,7 @@ canvas.addEventListener('drop',function(e){
 });
 
 /* 위젯 이벤트(위임) */
-canvas.addEventListener('input',function(e){
+function _nodeEv_input(e){
   var host=e.target.closest('.node'); if(!host)return;
   var n=state.nodes.find(function(x){return x.id===host.dataset.node;}); if(!n)return;
   // ControlNet 스택 per-type 슬라이더 (강도/시작/끝)
@@ -7841,8 +7892,8 @@ canvas.addEventListener('input',function(e){
   var k=e.target.dataset.w;
   if(k!=null){ n.w[k]=e.target.type==='checkbox'?e.target.checked:(e.target.type==='range'?+e.target.value:e.target.value);
     var num=host.querySelector('[data-num="'+k+'"]'); if(num)num.textContent=e.target.value; autosave(); }
-});
-canvas.addEventListener('change',function(e){
+}
+function _nodeEv_change(e){
   var host=e.target.closest('.node'); if(!host)return;
   var n=state.nodes.find(function(x){return x.id===host.dataset.node;}); if(!n)return;
   // 영상 노드 내장 설정(길이·비율) 드롭다운
@@ -7866,8 +7917,8 @@ canvas.addEventListener('change',function(e){
     e.target.value='';
     addOmniRefFiles(n, fs);
   }
-});
-canvas.addEventListener('click',function(e){
+}
+function _nodeEv_click(e){
   var host=e.target.closest('.node');
   if(e.target.closest('[data-collapse]')&&host){
     var nC=state.nodes.find(function(x){return x.id===host.dataset.node;});
@@ -7930,6 +7981,9 @@ canvas.addEventListener('click',function(e){
   if(_cz){ var pp=(_cz.getAttribute('data-cnzoom')||'').split('|'); var zurl=n2.w.cnPreviews&&n2.w.cnPreviews[pp[1]]; if(zurl && String(zurl).indexOf('data:')===0) openImageLightbox(zurl, pp[1]); return; }
   // 노드의 "Execute Node" 는 그 노드만 실행한다. 예전엔 runQueue() 를 그냥 불러서
   // 캔버스의 모든 모델 노드가 함께 생성되고 전부 과금됐다.
+  if(e.target.closest('[data-openopts]')){
+    var _on=e.target.closest('.node'); if(_on) openOptbar(_on.dataset.node); return;
+  }
   if(e.target.closest('[data-runnode]')){
     var _rn=e.target.closest('.node');
     armRun(_rn?_rn.dataset.node:undefined); return;
@@ -8244,7 +8298,7 @@ canvas.addEventListener('click',function(e){
       .catch(function(){ trigger(src,false); });   // 릴레이 실패 시 원본 링크로 폴백
     return;
   }
-});
+}
 
 /* 콤보 드롭다운 */
 var dd=document.getElementById('dd'), ddCtx=null;
@@ -8358,6 +8412,21 @@ function showCtx(x,y,items){
   ctxEl.style.left=Math.min(x,innerWidth-r.width-8)+'px';
   ctxEl.style.top=Math.min(y,innerHeight-r.height-8)+'px';
 }
+/* ── 노드 위젯 이벤트를 사이드바에도 붙인다 ──
+   위젯 처리기는 원래 canvas 에만 걸려 있었다. 설정이 오른쪽 사이드바로 옮겨 가면서
+   그 안의 버튼·콤보·입력이 전부 죽었다(실행 버튼조차 안 먹혔다 — 실측).
+   처리기 자체는 e.target.closest('.node') 로 노드를 찾으므로 어디에 걸려 있든 같게 동작한다.
+   그래서 함수로 빼서 두 곳에 건다. 두 영역은 겹치지 않으니 이중 실행은 없다. */
+canvas.addEventListener('click', _nodeEv_click);
+canvas.addEventListener('change', _nodeEv_change);
+canvas.addEventListener('input', _nodeEv_input);
+(function(){
+  var ob=document.getElementById('optbar'); if(!ob)return;
+  ob.addEventListener('click', _nodeEv_click);
+  ob.addEventListener('change', _nodeEv_change);
+  ob.addEventListener('input', _nodeEv_input);
+})();
+
 canvas.addEventListener('contextmenu',function(e){
   e.preventDefault();
   var linkEl=e.target.closest&&e.target.closest('path.link');
