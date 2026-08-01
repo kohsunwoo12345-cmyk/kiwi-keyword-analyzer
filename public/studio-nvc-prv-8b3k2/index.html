@@ -450,10 +450,11 @@ body.create-open #btnQueue{ display:none !important; }
   box-shadow:0 1px 4px rgba(0,0,0,.4); }
 .refcnt{ font-size:10px; color:#8a8a8a; text-align:center; }
 /* 레퍼런스 번호 — 프롬프트에서 이 번호로 부른다. 눈에 잘 띄어야 한다. */
-.refno{ font-size:11px; font-weight:800; letter-spacing:.02em; text-align:center;
-  color:#0f1115; background:linear-gradient(180deg,#ffe08a,#f5c451); border-radius:999px;
-  padding:2px 8px; margin:0 auto 6px; width:fit-content; }
-.refno-off{ background:none; color:#c98b8b; font-weight:600; font-size:10px; }
+/* 레퍼런스 번호 — 프롬프트에서 이 번호로 부른다. 필요할 때 눈에 들어오되
+   작업 화면을 어지럽히지 않게 조용히 둔다(색 배지 대신 작은 회색 글씨). */
+.refno{ font-size:9.5px; font-weight:600; letter-spacing:.09em; text-align:center;
+  color:var(--w-text-2,#8a8a8a); margin:0 0 4px; opacity:.75; }
+.refno-off{ color:#b98a8a; letter-spacing:.02em; }
 .refcnt.ref-over{ color:#e6b25a; }
 .refcnt b{ color:#cdd6ff; font-weight:800; }
 /* ── 자체 업스케일러 UI ── */
@@ -6732,9 +6733,9 @@ function widgetHTML(n,w){
        어느 블럭이 2번인지 화면에서 바로 알 수 있어야 한다. */
     var _refNo=(n.type==='imageref'||n.type==='videoref'||n.type==='reference') ? refNoOf(n.id) : 0;
     var refBadge=_refNo
-      ? '<div class="refno">레퍼런스 '+_refNo+'</div>'
+      ? '<div class="refno">REF '+_refNo+'</div>'
       : ((n.type==='imageref'||n.type==='videoref') && imgs.length
-          ? '<div class="refno refno-off">연결 안 됨 — 모델 블럭에 이어야 번호가 붙어요</div>' : '');
+          ? '<div class="refno refno-off">NOT LINKED</div>' : '');
     var _lim=refDownstreamLimit(n.id);   // 연결된 모델의 최대 첨부 장수 (0=미연결)
     var cnt = nVid>1 ? ('영상 프레임 '+nVid+'장 · 첫·마지막을 모델의 first/last로 전달')
             : imgs.length>1 ? (imgs.length+'개'+(nVid?' · 영상 '+nVid:'')+' · 첫 번째가 대표')
@@ -8248,7 +8249,8 @@ function collectLabeledRefs(id, selfImgs){
 function refMentionProblem(prompt, count){
   var t=String(prompt||''), max=0, m;
   var pats=[/(?:레|래)\s*퍼\s*런\s*스\s*(?:이미지|사진|영상)?\s*#?\s*(\d{1,2})/g,
-            /(\d{1,2})\s*번\s*째?\s*(?:(?:레|래)\s*퍼\s*런\s*스|이미지|사진|그림)/g];
+            /(\d{1,2})\s*번\s*째?\s*(?:(?:레|래)\s*퍼\s*런\s*스|이미지|사진|그림)/g,
+            /\bref(?:erence)?\s*#?\s*(\d{1,2})\b/gi];   // 화면 표기가 REF 라 영어로도 쓴다
   for(var i=0;i<pats.length;i++){ while((m=pats[i].exec(t))) max=Math.max(max, Number(m[1])||0); }
   if(max>count) return '프롬프트에 "레퍼런스 '+max+'" 이라고 쓰셨는데 연결된 레퍼런스는 '+count+'개예요. 블럭을 더 연결하거나 번호를 고쳐주세요.';
   return null;
