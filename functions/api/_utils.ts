@@ -946,6 +946,11 @@ export async function purgeUserData(db: D1Database, uid: string, env?: any): Pro
   await del('DELETE FROM studio_brandkit WHERE user_id = ?', uid)
   await del('DELETE FROM api_calls WHERE user_id = ?', uid)
   await del('DELETE FROM api_keys WHERE user_id = ?', uid)
+  /*  모델 대여 — 그 회원이 어떤 모델을 언제 빌려 갔는지가 남는다.
+      표를 새로 만들면서 이 목록에 넣는 걸 빠뜨렸다(검사가 잡았다).
+      ⚠ 매출 원장(payments·refunds·세금계산서·gen_charges·subscriptions)은 일부러 남긴다 —
+        회원과의 연결은 users 를 지우면서 끊긴다. 대여 기록은 원장이 아니라 이용 기록이라 지운다. */
+  await del('DELETE FROM model_leases WHERE user_id = ?', uid)
   await del('DELETE FROM video_gallery WHERE CAST(user_id AS TEXT) = CAST(? AS TEXT)', uid)
   // 퍼널 — 신청자(이름·전화·이메일)까지 아래에서 위로 지운다
   await del(`DELETE FROM funnel_applicants WHERE landing_page_id IN (
