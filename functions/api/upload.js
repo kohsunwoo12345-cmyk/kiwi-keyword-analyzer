@@ -1,3 +1,6 @@
+/* ⚠ 실패를 502 로 돌려주면 회원은 그 이유를 못 본다 — Cloudflare 가 5xx 응답을
+   자기 오류 페이지("Bad gateway")로 바꿔치기하기 때문이다(generate.js FAIL 주석 참조).
+   요청은 정상 처리됐으므로 200 으로 돌려주고, 실패는 본문의 error 로 알린다. */
 // /api/upload — 업로드된 이미지/영상을 R2 에 저장하고 공개 URL 을 돌려준다.
 // 이 URL 은 Luma / Runway Aleph 등 "공개 URL 만 받는" 제공사에 그대로 넘길 수 있고,
 // 큰 미디어를 요청 본문에 담지 않게 해 Cloudflare 함수 502(용량초과)도 막는다.
@@ -97,7 +100,7 @@ export async function onRequest(context) {
       }
       return j({ error: "알 수 없는 요청" }, 400);
     } catch (e) {
-      return j({ error: "나눠 올리기 실패: " + String((e && e.message) || e).slice(0, 200) }, 502);
+      return j({ error: "나눠 올리기 실패: " + String((e && e.message) || e).slice(0, 200) }, 200);
     }
   }
 
@@ -144,6 +147,6 @@ export async function onRequest(context) {
       .bind(key, ct, new Uint8Array(buf), buf.byteLength, new Date().toISOString()).run();
     return j({ url: origin + "/api/media/" + key, key, size: buf.byteLength, contentType: ct, store: "d1" });
   } catch (e) {
-    return j({ error: "업로드 실패: " + String((e && e.message) || e).slice(0, 220) }, 502);
+    return j({ error: "업로드 실패: " + String((e && e.message) || e).slice(0, 220) }, 200);
   }
 }

@@ -6070,6 +6070,15 @@ var PROV_KO = { google:'Google Veo', seedance:'Seedance(BytePlus)', runway:'Runw
   hailuo:'MiniMax Hailuo', luma:'Luma', xai:'Grok', flux:'Flux(BFL)', falcontrol:'fal ControlNet',
   nanobanana:'Nano Banana(Google)', openai:'GPT Image(OpenAI)', fal:'fal.ai' };
 var GEN_ERROR_RULES = [
+  /*  사진이 거절된 경우 — 영상 규칙보다 먼저 본다.
+      실제로 이 메시지가 회원에게 한 번도 도달한 적이 없었다. 제공사가 사진을 거절해
+      HTTP 400 을 줬는데, 우리가 그걸 502 로 돌려주는 바람에 Cloudflare 가 자기 오류
+      페이지로 바꿔치기했고, 회원 화면에는 "제공사 서버 오류 · 잠시 후 다시 시도하세요"
+      만 떴다. 몇 번을 다시 눌러도 될 리가 없었다(generate.js FAIL 주석 참조). */
+  { re:/inputimagesensitive|input image.{0,40}(sensitive|privacy|real person)|이미지.{0,10}민감/, cat:'policy',
+    title:'이 사진은 제공사가 받아 주지 않습니다',
+    reason:'넣으신 사진에서 사람 얼굴이나 신분증·명함 같은 개인정보가 감지되었습니다. 제공사(BytePlus)가 초상권·개인정보 보호를 위해 자동으로 막습니다. 우리 설정 문제가 아니고, 다시 시도해도 같은 사진이면 계속 막힙니다.',
+    fix:'사람 얼굴이 나오지 않는 사진으로 바꿔 주세요. 얼굴이 꼭 필요하면 크게 잘라 내거나 가린 사진, 또는 사람이 없는 배경·사물·풍경 사진을 쓰시면 됩니다.' },
   { re:/inputvideosensitive|privacyinformation|input video may contain real person|real person|실존 ?인물/, cat:'policy',
     title:'실존 인물이 담긴 영상은 사용할 수 없습니다',
     reason:'레퍼런스로 넣은 영상에서 실제 사람이 감지되었습니다. 제공사가 초상권·딥페이크 악용을 막기 위해 실존 인물 영상 입력을 자동 차단합니다.',

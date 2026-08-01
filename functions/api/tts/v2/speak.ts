@@ -1,3 +1,6 @@
+/* ⚠ 실패를 502 로 돌려주면 회원은 그 이유를 못 본다 — Cloudflare 가 5xx 응답을
+   자기 오류 페이지("Bad gateway")로 바꿔치기하기 때문이다(generate.js FAIL 주석 참조).
+   요청은 정상 처리됐으므로 200 으로 돌려주고, 실패는 본문의 error 로 알린다. */
 // Ported from SUPERPLACE: POST /api/tts/v2/speak — 다중 엔진 TTS (Google / OpenAI / ElevenLabs / HuggingFace)
 // 남용 방지: 로그인 세션 필수(유료 TTS 공급자 호출을 익명에게 노출하지 않음).
 //   스튜디오·영상 도구의 브라우저 호출은 세션 쿠키를 지니므로 그대로 통과하고,
@@ -205,21 +208,21 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
             requestedVoice: openaiVoice,
           }, 401, { 'X-TTS-Trace': traceId, 'X-TTS-Fail-Code': openaiErrorCode || 'unknown' })
         }
-        return cjson({ error: `[v2] OpenAI TTS 오류 ${status}: ${lastErrText.slice(0, 300)}`, openaiErrorCode, openaiErrorMsg, traceId }, 502)
+        return cjson({ error: `[v2] OpenAI TTS 오류 ${status}: ${lastErrText.slice(0, 300)}`, openaiErrorCode, openaiErrorMsg, traceId }, 200)
       }
 
       const audioBuf = await openaiResp.arrayBuffer()
       console.log(`[TTS] OpenAI OK voice="${openaiVoice}" speed=${openaiSpeed} bytes=${audioBuf.byteLength}`)
       if (audioBuf.byteLength === 0) {
         console.error(`[TTS:OpenAI:${traceId}] ❌ OpenAI 응답 OK지만 오디오 바이트가 0`)
-        return cjson({ error: '[v2] OpenAI TTS: 오디오 데이터 없음 (빈 응답)', traceId }, 502)
+        return cjson({ error: '[v2] OpenAI TTS: 오디오 데이터 없음 (빈 응답)', traceId }, 200)
       }
       const firstByte = new Uint8Array(audioBuf, 0, 1)[0]
       if (firstByte === 0x7B || firstByte === 0x5B) {
         let bodyStr = ''
         try { bodyStr = new TextDecoder().decode(audioBuf).slice(0, 200) } catch (_) {}
         console.error(`[TTS:OpenAI:${traceId}] ❌ OpenAI가 JSON을 audio로 반환: ${bodyStr}`)
-        return cjson({ error: '[v2] OpenAI TTS: JSON 응답 (비 오디오)', detail: bodyStr, traceId }, 502)
+        return cjson({ error: '[v2] OpenAI TTS: JSON 응답 (비 오디오)', detail: bodyStr, traceId }, 200)
       }
       return new Response(audioBuf, {
         status: 200,
@@ -289,12 +292,12 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
         if (status === 401 || status === 403) {
           return cjson({ error: `ElevenLabs API 키가 유효하지 않습니다. (${status}) ElevenLabs_API_KEY 환경변수를 확인하세요.` }, status)
         }
-        return cjson({ error: `ElevenLabs TTS 오류 ${status}: ${elLastErr.slice(0, 200)}` }, 502)
+        return cjson({ error: `ElevenLabs TTS 오류 ${status}: ${elLastErr.slice(0, 200)}` }, 200)
       }
 
       const elAudioBuf = await elResp.arrayBuffer()
       if (elAudioBuf.byteLength === 0) {
-        return cjson({ error: 'ElevenLabs TTS: 오디오 데이터 없음 (빈 응답)' }, 502)
+        return cjson({ error: 'ElevenLabs TTS: 오디오 데이터 없음 (빈 응답)' }, 200)
       }
       console.log(`[TTS] ElevenLabs OK voice="${elVoiceId}" bytes=${elAudioBuf.byteLength}`)
       return new Response(elAudioBuf, {
@@ -360,12 +363,12 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
         if (googleResp.status === 401 || googleResp.status === 403) {
           return cjson({ error: 'Google TTS API 키가 유효하지 않습니다. Text_to_Speech 환경변수 값을 확인하세요.' }, 401)
         }
-        return cjson({ error: `Google TTS 오류 ${googleResp.status}` }, 502)
+        return cjson({ error: `Google TTS 오류 ${googleResp.status}` }, 200)
       }
 
       const googleData = await googleResp.json() as { audioContent?: string }
       if (!googleData.audioContent) {
-        return cjson({ error: 'Google TTS: 오디오 데이터 없음' }, 502)
+        return cjson({ error: 'Google TTS: 오디오 데이터 없음' }, 200)
       }
 
       const binaryStr = atob(googleData.audioContent)
@@ -374,7 +377,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
 
       console.log(`[TTS] Google OK voice="${normalizedVoiceId}" lang="${langCode}" bytes=${bytes.length}`)
       if (bytes.length === 0) {
-        return cjson({ error: '[v2] Google TTS: 오디오 데이터 없음 (빈 응답)', traceId }, 502)
+        return cjson({ error: '[v2] Google TTS: 오디오 데이터 없음 (빈 응답)', traceId }, 200)
       }
       return new Response(bytes.buffer, {
         status: 200,
@@ -427,7 +430,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
           if (hfResp.status === 401 || hfResp.status === 403) {
             return cjson({ error: 'HF_TOKEN이 유효하지 않습니다.' }, 401)
           }
-          return cjson({ error: `Parler TTS 오류 ${hfResp.status}: ${errText.slice(0, 150)}` }, 502)
+          return cjson({ error: `Parler TTS 오류 ${hfResp.status}: ${errText.slice(0, 150)}` }, 200)
         }
 
         const audioBuf = await hfResp.arrayBuffer()
@@ -468,7 +471,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
           if (hfResp.status === 401 || hfResp.status === 403) {
             return cjson({ error: 'HF_TOKEN이 유효하지 않습니다.' }, 401)
           }
-          return cjson({ error: `MMS TTS 오류 ${hfResp.status}: ${errText.slice(0, 150)}` }, 502)
+          return cjson({ error: `MMS TTS 오류 ${hfResp.status}: ${errText.slice(0, 150)}` }, 200)
         }
 
         const audioBuf = await hfResp.arrayBuffer()

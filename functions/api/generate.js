@@ -19,6 +19,22 @@ import { creditPriceFor } from "./payments/prepare";
 
 const RUNWAY_VER = "2024-11-06";
 
+/* ⚠ 실패를 5xx 로 돌려주면 안 된다 — 회원은 그 이유를 영영 못 본다.
+   Cloudflare 는 5xx 응답을 자기 오류 페이지(파란 "502 Bad gateway")로 바꿔치기한다.
+   그래서 우리가 본문에 담아 보낸 진짜 이유가 한 번도 회원에게 도달하지 못했다.
+
+   실제로 이렇게 됐다 — 발자국(gen_trace)으로 확인한 그대로다:
+     제공사 응답: HTTP 400 <InputImageSensitiveContentDetected.PrivacyInformation>
+       "입력 이미지에 사생활 정보가 있어 거절"
+     우리 응답:  HTTP 502 {"error":"Seedance …사생활 정보…"}   ← 제대로 담았다
+     회원 화면:  Cloudflare 의 "Bad gateway"                    ← 통째로 바꿔치기됨
+   그 결과 "사진을 바꾸세요" 라고 알려 줬어야 할 자리에서 "잠시 후 다시 시도하세요" 가 떴고,
+   몇 번을 다시 눌러도 될 리가 없었다. 우리 함수가 죽은 게 아니라 메시지가 가로채인 것이다.
+
+   요청 자체는 정상적으로 처리됐다. 실패는 본문의 error 로 알린다 —
+   스튜디오(callProxy)도 /api/v1 도 MCP 도 모두 error 를 보고 실패로 처리한다. */
+const FAIL = 200;
+
 // 상수 시간 문자열 비교 (토큰 타이밍 사이드채널 방지)
 function ctEqStr(a, b) {
   a = String(a || ""); b = String(b || "");
@@ -1859,7 +1875,7 @@ export async function onRequest(context) {
     return json({ ...body, chargeToken: tok, charged: out.credits, chargeRef: out.usageId });
   } catch (e) {
     // 예상 못 한 예외도 원인이 보이도록 항상 읽을 수 있는 JSON 으로 반환 (raw 502 방지)
-    return json({ error: "서버 예외: " + String((e && e.message) || e).slice(0, 300) }, 502);
+    return json({ error: "서버 예외: " + String((e && e.message) || e).slice(0, 300) }, FAIL);
   }
 }
 
@@ -2179,12 +2195,12 @@ async function handle(context) {
           }, 22000);
           j = await r.json().catch(() => ({}));
         } catch (e) {
-          return json({ error: "Seedance 제출 실패(" + (Date.now() - t0) + "ms): " + String((e && e.message) || e).slice(0, 140) }, 502);
+          return json({ error: "Seedance 제출 실패(" + (Date.now() - t0) + "ms): " + String((e && e.message) || e).slice(0, 140) }, FAIL);
         }
         if (r.ok && j.id)
           return json({ statusUrl: "/api/generate?provider=seedance&host=bp&task=" + encodeURIComponent(j.id) });
         return json({ error: "Seedance HTTP " + r.status + " " +
-          String((j.error && (j.error.message || j.error.code)) || JSON.stringify(j)).slice(0, 180) }, 502);
+          String((j.error && (j.error.message || j.error.code)) || JSON.stringify(j)).slice(0, 180) }, FAIL);
       })();
       return await handoffSubmit(context, work, "seedance");
     }
@@ -4293,7 +4309,7 @@ async function handle(context) {
       // 모델 이름 문제가 아니면(잔액·검열·파라미터) 다른 ID 로 바꿔도 결과가 같다
       if (!/model|not\s*found|invalid|unsupported|deprecat|sunset/i.test(rwMsg)) break;
     }
-    return json({ error: "Runway HTTP " + rwStatus + ": " + rwMsg }, 502);
+    return json({ error: "Runway HTTP " + rwStatus + ": " + rwMsg }, FAIL);
   }
 
   /* ── V2V 자동 라우팅 (정확도 최상) ──
@@ -4316,7 +4332,7 @@ async function handle(context) {
       });
       const j = await r.json().catch(() => ({}));
       if (r.ok && j.id) return json({ statusUrl: "/api/generate?provider=runway&task=" + encodeURIComponent(j.id), routed: "runway_aleph" });
-      if (!k.seedance) return json({ error: "Runway Aleph V2V 실패 HTTP " + r.status + ": " + String(j.error || j.message || JSON.stringify(j)).slice(0, 200) }, 502);
+      if (!k.seedance) return json({ error: "Runway Aleph V2V 실패 HTTP " + r.status + ": " + String(j.error || j.message || JSON.stringify(j)).slice(0, 200) }, FAIL);
       // Aleph 실패 → Seedance 로 폴백
     }
 
@@ -4340,7 +4356,7 @@ async function handle(context) {
         lastErr = "HTTP " + r.status + " " + ((j.error && (j.error.message || j.error.code)) || "");
         if (r.status !== 401 && r.status !== 403 && r.status !== 404) break;
       }
-      return json({ error: "Seedance V2V 실패: " + String(lastErr).slice(0, 200) }, 502);
+      return json({ error: "Seedance V2V 실패: " + String(lastErr).slice(0, 200) }, FAIL);
     }
 
     // 3순위: 모션 전이(fal) — 원본 영상의 움직임을 유지하며 스타일 변환 (base 모델 무관 공통 레이어)
@@ -4370,7 +4386,7 @@ async function handle(context) {
         const j = await r.json().catch(() => ({}));
         if (r.ok && j.code === 0 && j.data && j.data.task_id)
           return json({ statusUrl: "/api/generate?provider=kling&task=" + encodeURIComponent(j.data.task_id) + "&ep=image2video", routed: "kling_bridge" });
-        return json({ error: "V2V 브리지(Kling) 실패: " + String(j.message || JSON.stringify(j)).slice(0, 200) }, 502);
+        return json({ error: "V2V 브리지(Kling) 실패: " + String(j.message || JSON.stringify(j)).slice(0, 200) }, FAIL);
       }
       /* 클링 브리지도 공식 API 로만 간다(위 분기). fal 경유는 같은 모델을 중개로 부르는 것이라 없앴다. */
     }
@@ -4387,7 +4403,7 @@ async function handle(context) {
       return json({ error: "나레이션을 입힐 영상의 공개 URL이 필요합니다. (출력 노드의 영상을 음성 노드에 연결하세요)" }, 400);
     const origin = new URL(request.url).origin;
     const tts = await synthTTSUrl(env, origin, b, fetchT, request.headers.get("cookie"));
-    if (tts.error) return json({ error: "나레이션 " + tts.error }, tts.status || 502);
+    if (tts.error) return json({ error: "나레이션 " + tts.error }, FAIL);
     // fal ffmpeg — 원본 영상 + 나레이션 오디오 병합 (env 로 모델 교체 가능)
     const model = pick(env, ["FAL_MERGE_MODEL", "fal_merge_model"]) || "fal-ai/ffmpeg-api/merge-audio-video";
     const r = await falFetch("narrate", FAL_QUEUE + model, {
@@ -4396,7 +4412,7 @@ async function handle(context) {
     });
     const j = await r.json().catch(() => ({}));
     const reqId = j.request_id || j.requestId;
-    if (!r.ok || !reqId) return json({ error: "나레이션 합성(fal " + model + ") 실패: " + String(j.detail || j.error || JSON.stringify(j)).slice(0, 220) }, 502);
+    if (!r.ok || !reqId) return json({ error: "나레이션 합성(fal " + model + ") 실패: " + String(j.detail || j.error || JSON.stringify(j)).slice(0, 220) }, FAIL);
     return json({ statusUrl: "/api/generate?provider=falq&task=" + encodeURIComponent(reqId) + "&model=" + encodeURIComponent(model), audioUrl: tts.audioUrl });
   }
 
@@ -4409,7 +4425,7 @@ async function handle(context) {
       return json({ error: "립싱크할 영상의 공개 URL이 필요합니다. (얼굴/인물이 나오는 영상을 연결하세요)" }, 400);
     const origin = new URL(request.url).origin;
     const tts = await synthTTSUrl(env, origin, b, fetchT, request.headers.get("cookie"));
-    if (tts.error) return json({ error: "립싱크 " + tts.error }, tts.status || 502);
+    if (tts.error) return json({ error: "립싱크 " + tts.error }, FAIL);
     // fal 립싱크 모델 (env 로 교체 가능). sync-lipsync 은 video_url+audio_url 규격.
     const model = pick(env, ["FAL_LIPSYNC_MODEL", "fal_lipsync_model"]) || "fal-ai/sync-lipsync";
     const payload = { video_url: videoUrl, audio_url: tts.audioUrl, sync_mode: "cut_off" };
@@ -4419,7 +4435,7 @@ async function handle(context) {
     });
     const j = await r.json().catch(() => ({}));
     const reqId = j.request_id || j.requestId;
-    if (!r.ok || !reqId) return json({ error: "립싱크(fal " + model + ") 실패: " + String(j.detail || j.error || JSON.stringify(j)).slice(0, 220) }, 502);
+    if (!r.ok || !reqId) return json({ error: "립싱크(fal " + model + ") 실패: " + String(j.detail || j.error || JSON.stringify(j)).slice(0, 220) }, FAIL);
     return json({ statusUrl: "/api/generate?provider=falq&task=" + encodeURIComponent(reqId) + "&model=" + encodeURIComponent(model), audioUrl: tts.audioUrl });
   }
 
@@ -4439,7 +4455,7 @@ async function handle(context) {
 
     // 1) 추출 음성 가져오기
     const ar = await fetchT(audioUrl, {}, 30000);
-    if (!ar.ok) return json({ error: "추출한 음성을 불러오지 못했습니다." }, 502);
+    if (!ar.ok) return json({ error: "추출한 음성을 불러오지 못했습니다." }, FAIL);
     const inBuf = await ar.arrayBuffer();
     if (!inBuf || inBuf.byteLength < 128) return json({ error: "추출한 음성이 비어 있습니다(영상에 말소리가 없을 수 있습니다)." }, 400);
     const inType = ar.headers.get("content-type") || "audio/wav";
@@ -4452,9 +4468,9 @@ async function handle(context) {
     fd.append("remove_background_noise", "true");
     const sr = await fetchT("https://api.elevenlabs.io/v1/speech-to-speech/" + encodeURIComponent(voice),
       { method: "POST", headers: { "xi-api-key": el, "accept": "audio/mpeg" }, body: fd }, 120000);
-    if (!sr.ok) { let et = ""; try { et = await sr.text(); } catch {} return json({ error: "일레븐랩스 목소리 교체 실패 HTTP " + sr.status + ": " + et.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 220) }, 502); }
+    if (!sr.ok) { let et = ""; try { et = await sr.text(); } catch {} return json({ error: "일레븐랩스 목소리 교체 실패 HTTP " + sr.status + ": " + et.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 220) }, FAIL); }
     const newBuf = await sr.arrayBuffer();
-    if (!newBuf || newBuf.byteLength < 128) return json({ error: "교체된 음성이 비어 있습니다." }, 502);
+    if (!newBuf || newBuf.byteLength < 128) return json({ error: "교체된 음성이 비어 있습니다." }, FAIL);
 
     // 3) R2 호스팅
     const bucket = r2BucketOf(env);
@@ -4471,7 +4487,7 @@ async function handle(context) {
     });
     const j2 = await r2.json().catch(() => ({}));
     const reqId2 = j2.request_id || j2.requestId;
-    if (!r2.ok || !reqId2) return json({ error: "립싱크(fal " + model + ") 실패: " + String(j2.detail || j2.error || JSON.stringify(j2)).slice(0, 220) }, 502);
+    if (!r2.ok || !reqId2) return json({ error: "립싱크(fal " + model + ") 실패: " + String(j2.detail || j2.error || JSON.stringify(j2)).slice(0, 220) }, FAIL);
     return json({ statusUrl: "/api/generate?provider=falq&task=" + encodeURIComponent(reqId2) + "&model=" + encodeURIComponent(model), audioUrl: newAudioUrl });
   }
 
@@ -4487,7 +4503,7 @@ async function handle(context) {
     });
     const j = await r.json().catch(() => ({}));
     const reqId = j.request_id || j.requestId;
-    if (!r.ok || !reqId) return json({ error: "모션 전이(fal " + model + ") 실패: " + String(j.detail || j.error || JSON.stringify(j)).slice(0, 200) }, 502);
+    if (!r.ok || !reqId) return json({ error: "모션 전이(fal " + model + ") 실패: " + String(j.detail || j.error || JSON.stringify(j)).slice(0, 200) }, FAIL);
     return json({ statusUrl: "/api/generate?provider=falq&task=" + encodeURIComponent(reqId) + "&model=" + encodeURIComponent(model) });
   }
 
@@ -4511,7 +4527,7 @@ async function handle(context) {
       // 모델 이름 문제가 아니면(잔액·검열·파라미터) 다른 ID 를 시도해도 결과가 같다.
       if (!/model|not\s*found|invalid|unsupported|deprecat/i.test(lastMsg)) break;
     }
-    return json({ error: "Runway Aleph HTTP " + lastStatus + ": " + lastMsg }, 502);
+    return json({ error: "Runway Aleph HTTP " + lastStatus + ": " + lastMsg }, FAIL);
   }
 
   if (provider === "xai") {
@@ -4537,7 +4553,7 @@ async function handle(context) {
       if (direct) return json({ url: direct, kind: "video" });
       const id = j.request_id || j.id || null;
       if (r.ok && id) return json({ statusUrl: "/api/generate?provider=xai&task=" + encodeURIComponent(id), kind: "video" });
-      return json({ error: "Grok 영상 HTTP " + r.status + ": " + String(JSON.stringify(j.error || j)).slice(0, 220) }, 502);
+      return json({ error: "Grok 영상 HTTP " + r.status + ": " + String(JSON.stringify(j.error || j)).slice(0, 220) }, FAIL);
     }
     const r = await fetchT("https://api.x.ai/v1/images/generations", {
       method: "POST",
@@ -4546,7 +4562,7 @@ async function handle(context) {
     });
     const j = await r.json().catch(() => ({}));
     const url = j.data?.[0]?.url || null;
-    if (!r.ok || !url) return json({ error: "Grok HTTP " + r.status + ": " + String(JSON.stringify(j.error || j)).slice(0, 220) }, 502);
+    if (!r.ok || !url) return json({ error: "Grok HTTP " + r.status + ": " + String(JSON.stringify(j.error || j)).slice(0, 220) }, FAIL);
     return json({ url, kind: "image" });
   }
 
@@ -4575,8 +4591,8 @@ async function handle(context) {
         const j0 = await r0.json();
         if (r0.ok && j0.name)
           return json({ statusUrl: "/api/generate?provider=google&sop=" + encodeURIComponent(j0.name) });
-        if (j0.error) return json({ error: "Vertex(SA): " + j0.error.message }, 502);
-      } catch (e) { return json({ error: "Vertex(SA): " + String(e.message || e).slice(0, 200) }, 502); }
+        if (j0.error) return json({ error: "Vertex(SA): " + j0.error.message }, FAIL);
+      } catch (e) { return json({ error: "Vertex(SA): " + String(e.message || e).slice(0, 200) }, FAIL); }
     }
     if (!k.google) return json({ error: "Veo 연동이 설정되지 않았습니다" }, 500);
     // ① Vertex AI Express (지역 우회)
@@ -4599,7 +4615,7 @@ async function handle(context) {
       // 모델 이름 문제가 아니면(키·할당량·검열) 다른 이름으로 바꿔도 결과가 같다
       if (!/model|not found|unsupported|invalid/i.test(lastErr)) break;
     }
-    return json({ error: "Veo: " + (vj.error?.message || "") + " / " + lastErr }, 502);
+    return json({ error: "Veo: " + (vj.error?.message || "") + " / " + lastErr }, FAIL);
   }
 
   /* ── 3D 생성 제출 (Hyper3D / Hitem3D) ──
@@ -4648,7 +4664,7 @@ async function handle(context) {
         tried.push(alt + "=" + r.status);
       }
     } catch (_e) { /* 카탈로그 조회 실패는 무시 */ }
-    return json({ error: "3D 생성 제출 실패 — " + (lastErr || "원인 불명"), tried }, 502);
+    return json({ error: "3D 생성 제출 실패 — " + (lastErr || "원인 불명"), tried }, FAIL);
   }
   if (provider === "seedance") {
     if (!k.seedance) return json({ error: "Seedance 연동이 설정되지 않았습니다" }, 500);
@@ -4773,7 +4789,7 @@ async function handle(context) {
         }
       } catch (_e) { /* 로깅 실패가 생성 응답을 막지 않도록 */ }
       if (context.__trace) await traceMark(env, context.__trace, "제출 실패로 마무리", String(lastErr).slice(0, 150));
-      return json({ error: "Seedance " + tag + ": " + String(lastErr).slice(0, 200) + trail }, 502);
+      return json({ error: "Seedance " + tag + ": " + String(lastErr).slice(0, 200) + trail }, FAIL);
     })();
     if (context.__trace) await traceMark(env, context.__trace, "인계 대기 시작", "");
     const _out = await handoffSubmit(context, work, "seedance");
@@ -4813,7 +4829,7 @@ async function handle(context) {
         if (!(seedreamModelMissing(r.status, j) || r.status >= 500)) break outer;
       }
     }
-    return json({ error: "Seedream " + tag + ": " + String(lastErr).slice(0, 220) }, 502);
+    return json({ error: "Seedream " + tag + ": " + String(lastErr).slice(0, 220) }, FAIL);
   }
 
   if (provider === "flux") {
@@ -4825,7 +4841,7 @@ async function handle(context) {
       body: JSON.stringify(body)
     });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.id) return json({ error: "Flux: " + (j.error || JSON.stringify(j) || "").slice(0, 200) }, 502);
+    if (!r.ok || !j.id) return json({ error: "Flux: " + (j.error || JSON.stringify(j) || "").slice(0, 200) }, FAIL);
     const poll = j.polling_url || (FLUX_BASE + "get_result?id=" + encodeURIComponent(j.id));
     return json({ statusUrl: "/api/generate?provider=flux&poll=" + encodeURIComponent(poll) });
   }
@@ -4843,12 +4859,12 @@ async function handle(context) {
       body: JSON.stringify(body)
     }, 30000);
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) return json({ error: "fal HTTP " + r.status + ": " + String((j.detail && (j.detail.msg || JSON.stringify(j.detail))) || j.error || JSON.stringify(j)).slice(0, 220) }, 502);
+    if (!r.ok) return json({ error: "fal HTTP " + r.status + ": " + String((j.detail && (j.detail.msg || JSON.stringify(j.detail))) || j.error || JSON.stringify(j)).slice(0, 220) }, FAIL);
     // fal 이 동기로 바로 결과를 준 경우
     const sync = j.images && j.images[0] && j.images[0].url;
     if (sync) return json({ url: sync, kind: "image" });
     const st = j.status_url, rs = j.response_url;
-    if (!st || !rs) return json({ error: "fal: 응답에 status_url/이미지 없음: " + JSON.stringify(j).slice(0, 180) }, 502);
+    if (!st || !rs) return json({ error: "fal: 응답에 status_url/이미지 없음: " + JSON.stringify(j).slice(0, 180) }, FAIL);
     return json({ statusUrl: "/api/generate?provider=falcontrol&status=" + encodeURIComponent(st) + "&result=" + encodeURIComponent(rs) });
   }
 
@@ -4859,7 +4875,7 @@ async function handle(context) {
     const payload = JSON.stringify(buildNanoPayload(Object.assign({}, b, { _refs: nanoRefs })));
     let nanoUrl, nanoHeaders;
     if (sa) {   // Vertex(서비스계정) — Veo와 동일 인증
-      let tok; try { tok = await gcpToken(sa.email, sa.pem); } catch (e) { return json({ error: "나노바나나 토큰 실패: " + String((e && e.message) || e).slice(0, 160) }, 502); }
+      let tok; try { tok = await gcpToken(sa.email, sa.pem); } catch (e) { return json({ error: "나노바나나 토큰 실패: " + String((e && e.message) || e).slice(0, 160) }, FAIL); }
       nanoUrl = "https://" + VERTEX_LOC + "-aiplatform.googleapis.com/v1/projects/" + sa.pid + "/locations/" + VERTEX_LOC + "/publishers/google/models/" + NANO_MODEL + ":generateContent";
       nanoHeaders = { "Authorization": "Bearer " + tok, "Content-Type": "application/json" };
     } else {    // AI Studio 키
@@ -4872,12 +4888,12 @@ async function handle(context) {
       r = await fetchT(nanoUrl, { method: "POST", headers: nanoHeaders, body: nanoPayloadNoRatio(payload) }, 60000);
     }
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) return json({ error: "나노바나나 HTTP " + r.status + ": " + String((j.error && j.error.message) || JSON.stringify(j)).slice(0, 220) }, 502);
+    if (!r.ok) return json({ error: "나노바나나 HTTP " + r.status + ": " + String((j.error && j.error.message) || JSON.stringify(j)).slice(0, 220) }, FAIL);
     const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
     const inline = (parts.map(p => p.inlineData || p.inline_data).find(Boolean));
     if (!inline || !inline.data) {
       const fr = j.promptFeedback || (j.candidates && j.candidates[0] && j.candidates[0].finishReason);
-      return json({ error: "나노바나나: 응답에 이미지 없음(안전필터 가능): " + String(JSON.stringify(fr || j)).slice(0, 200) }, 502);
+      return json({ error: "나노바나나: 응답에 이미지 없음(안전필터 가능): " + String(JSON.stringify(fr || j)).slice(0, 200) }, FAIL);
     }
     return json({ url: "data:" + (inline.mimeType || inline.mime_type || "image/png") + ";base64," + inline.data, kind: "image" });
   }
@@ -4922,11 +4938,11 @@ async function handle(context) {
         body: JSON.stringify(p) }, 90000);
     }
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) return json({ error: "OpenAI HTTP " + r.status + ": " + String((j.error && j.error.message) || JSON.stringify(j)).slice(0, 220) }, 502);
+    if (!r.ok) return json({ error: "OpenAI HTTP " + r.status + ": " + String((j.error && j.error.message) || JSON.stringify(j)).slice(0, 220) }, FAIL);
     const d0 = j.data && j.data[0];
     if (d0 && d0.b64_json) return json({ url: "data:image/png;base64," + d0.b64_json, kind: "image" });
     if (d0 && d0.url) return json({ url: d0.url, kind: "image" });
-    return json({ error: "OpenAI: 응답에 이미지 없음: " + JSON.stringify(j).slice(0, 180) }, 502);
+    return json({ error: "OpenAI: 응답에 이미지 없음: " + JSON.stringify(j).slice(0, 180) }, FAIL);
   }
 
   if (provider === "hailuo") {
@@ -4938,7 +4954,7 @@ async function handle(context) {
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.task_id)
-      return json({ error: "Hailuo: " + ((j.base_resp && j.base_resp.status_msg) || JSON.stringify(j) || "").slice(0, 200) }, 502);
+      return json({ error: "Hailuo: " + ((j.base_resp && j.base_resp.status_msg) || JSON.stringify(j) || "").slice(0, 200) }, FAIL);
     return json({ statusUrl: "/api/generate?provider=hailuo&task=" + encodeURIComponent(j.task_id) });
   }
 
@@ -5003,7 +5019,7 @@ async function handle(context) {
         }
       } catch (e) { errs.push(eng + ": " + String((e && e.message) || e).slice(0, 100)); }
     }
-    return json({ error: "음악 생성 실패 — " + errs.join(" · ").slice(0, 300) }, 502);
+    return json({ error: "음악 생성 실패 — " + errs.join(" · ").slice(0, 300) }, FAIL);
   }
 
   /* ── 영상 업스케일 (4K 화질 향상) — fal Topaz. 원본 영상 URL 필요 ── */
@@ -5028,7 +5044,7 @@ async function handle(context) {
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.id)
-      return json({ error: "Luma: " + (JSON.stringify(j.detail || j) || "").slice(0, 200) }, 502);
+      return json({ error: "Luma: " + (JSON.stringify(j.detail || j) || "").slice(0, 200) }, FAIL);
     return json({ statusUrl: "/api/generate?provider=luma&task=" + encodeURIComponent(j.id) });
   }
 
@@ -5053,7 +5069,7 @@ async function handle(context) {
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || j.code !== 0 || !(j.data && j.data.task_id))
-      return json({ error: "Kling 확장: " + String(j.message || JSON.stringify(j) || "요청 실패").slice(0, 200) }, 502);
+      return json({ error: "Kling 확장: " + String(j.message || JSON.stringify(j) || "요청 실패").slice(0, 200) }, FAIL);
     return json({ statusUrl: "/api/generate?provider=kling&task=" + encodeURIComponent(j.data.task_id) + "&ep=video-extend", kind: "video" });
   }
 
@@ -5079,7 +5095,7 @@ async function handle(context) {
         // 모델명 문제가 아니면(잔액·검열·파라미터 등) 다른 후보를 시도해도 의미가 없다.
         if (!/model|not\s*exist|not\s*found|invalid.*name|不存在/i.test(lastMsg)) break;
       }
-      return json({ error: "Kling: " + lastMsg.slice(0, 220) }, 502);
+      return json({ error: "Kling: " + lastMsg.slice(0, 220) }, FAIL);
     }
     /* 예전엔 여기서 fal.ai 를 경유해 같은 클링 모델을 불렀다. 지금은 하지 않는다 —
        클링은 공식 오픈플랫폼 API 를 직접 연동해 두었고, 같은 모델을 제공하는 중개(fal)로
