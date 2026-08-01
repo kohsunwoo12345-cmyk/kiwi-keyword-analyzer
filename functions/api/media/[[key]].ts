@@ -94,16 +94,26 @@ export const onRequestGet: PagesFunction = async ({ request, env, params }) => {
 
     if (rangeHeader) {
       try {
-        const object: any = await R2.get(key, { range: rangeHeader })
+        /* R2 의 range 옵션은 {offset,length,suffix} 또는 Headers 만 받는다.
+           "bytes=0-1023" 같은 문자열을 그냥 넘기면 규격에 없는 값이라 무시되거나 예외가 나고,
+           그러면 아래 전체 파일 응답으로 흘러 200 + 전부가 나간다 —
+           Accept-Ranges: bytes 라고 알려 놓고 실제로는 구간을 안 주는 셈이라
+           영상 타임라인을 끌 때마다 파일을 통째로 다시 받는다(실측: 100바이트를 요청해도 95,016바이트가 왔다).
+           요청 헤더를 그대로 넘겨 R2 가 Range 를 직접 해석하게 한다. */
+        const object: any = await R2.get(key, { range: request.headers })
         if (!object) return cjson({ error: '파일 없음' }, 404)
         const rng = object.range
         const total = object.size
-        const extra: Record<string, string> = {}
-        if (rng && rng.offset != null && rng.length != null && total) {
-          extra['Content-Range'] = `bytes ${rng.offset}-${rng.offset + rng.length - 1}/${total}`
-          extra['Content-Length'] = String(rng.length)
+        //  R2 가 구간을 못 잡았으면 206 이라고 우기지 않는다 — 전체를 200 으로 준다.
+        if (!rng || rng.offset == null || rng.length == null || !total) {
+          const extra0: Record<string, string> = {}
+          if (total) extra0['Content-Length'] = String(total)
+          return put(object, 200, extra0)
         }
-        return put(object, 206, extra)
+        return put(object, 206, {
+          'Content-Range': `bytes ${rng.offset}-${rng.offset + rng.length - 1}/${total}`,
+          'Content-Length': String(rng.length),
+        })
       } catch (_e) {
         // fall through to full-file
       }
