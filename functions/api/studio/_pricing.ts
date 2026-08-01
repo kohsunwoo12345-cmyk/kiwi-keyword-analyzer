@@ -32,7 +32,28 @@ async function fetchUsdKrw(): Promise<number | null> {
 // 레퍼런스 이미지 1장 추가당 크레딧 가산율(%) 기본값
 export const REF_SURCHARGE_DEFAULT = 0.5
 // 회원별 레퍼런스 가산율 해석: 회원 지정값 > 전역 설정 > 기본(0.5%)
+/* ── 요금 설정값 짧은 캐시 ──────────────────────────────────────────────
+   환율·마크업·가산율은 관리자가 가끔 바꾸는 설정값인데, 생성 한 건에서 두 번 읽힌다 —
+   먼저 "이 요청을 시작해도 되나" 게이트에서, 다시 "얼마를 뺄까" 정산에서.
+   Cloudflare 는 D1 질의 하나를 서브리퀘스트 하나로 세고 요청당 한도가 있어서,
+   이 중복이 한도를 갉아먹다가 넘기면 함수가 통째로 끊긴다(회원만 502 나던 그 자리).
+   같은 값을 짧게 들고 있는다. 관리자가 단가를 바꾸면 최대 이 시간만큼 늦게 반영된다. */
+const PRICE_TTL_MS = 30_000
+const __pcache = new Map<string, { at: number; v: any }>()
+async function cachedRead<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const hit = __pcache.get(key)
+  const now = Date.now()
+  if (hit && now - hit.at < PRICE_TTL_MS) return hit.v as T
+  const v = await load()
+  __pcache.set(key, { at: now, v })
+  if (__pcache.size > 500) for (const k of __pcache.keys()) { __pcache.delete(k); if (__pcache.size <= 400) break }
+  return v
+}
+
 export async function resolveRefSurcharge(db: D1Database, userId: string): Promise<number> {
+  return cachedRead('refsur:' + userId, () => __resolveRefSurcharge(db, userId))
+}
+async function __resolveRefSurcharge(db: D1Database, userId: string): Promise<number> {
   try {
     if (userId) {
       const u: any = await db.prepare('SELECT ref_surcharge FROM users WHERE id = ?').bind(userId).first()
@@ -49,6 +70,9 @@ export async function resolveRefSurcharge(db: D1Database, userId: string): Promi
 export const CN_SURCHARGE_DEFAULT = 10
 // 전역 ControlNet 가산율 해석: settings.controlnet_surcharge_pct > 기본(10%)
 export async function resolveCnSurcharge(db: D1Database): Promise<number> {
+  return cachedRead('cnsur', () => __resolveCnSurcharge(db))
+}
+async function __resolveCnSurcharge(db: D1Database): Promise<number> {
   try {
     const row: any = await db.prepare("SELECT value FROM settings WHERE key = 'controlnet_surcharge_pct'").first()
     if (row && row.value != null && row.value !== '') { const n = Number(row.value); if (n >= 0) return n }
@@ -67,6 +91,9 @@ export async function getModelMarkups(db: D1Database): Promise<Record<string, nu
 }
 /** 회원·모델별 배수 해석 우선순위: 회원×모델 override > 회원 전체 배수 > 전역 모델 배수 > 기본값 */
 export async function resolveMarkup(db: D1Database, userId: string, model: string, userMarkup: number): Promise<number | undefined> {
+  return cachedRead('markup:' + userId + '|' + model + '|' + userMarkup, () => __resolveMarkup(db, userId, model, userMarkup))
+}
+async function __resolveMarkup(db: D1Database, userId: string, model: string, userMarkup: number): Promise<number | undefined> {
   try {
     const um: any = await db.prepare('SELECT multiplier FROM user_model_markups WHERE user_id = ? AND model = ?').bind(userId, model).first()
     if (um && Number(um.multiplier) > 0) return Number(um.multiplier)
@@ -105,6 +132,9 @@ async function __ensureCostOverrides(db: D1Database): Promise<void> {
 
 /** 이 모델의 실측 원가(USD/단위). 설정이 없으면 undefined → 코드의 추정값을 쓴다. */
 export async function resolveCostOverride(db: D1Database, model: string): Promise<number | undefined> {
+  return cachedRead('costov:' + model, () => __resolveCostOverride(db, model))
+}
+async function __resolveCostOverride(db: D1Database, model: string): Promise<number | undefined> {
   try {
     await ensureCostOverrides(db)
     const r: any = await db.prepare('SELECT usd FROM model_cost_overrides WHERE model = ?').bind(String(model || '')).first()
@@ -118,6 +148,9 @@ export async function resolveCostOverride(db: D1Database, model: string): Promis
 /** 오늘자 USD→KRW 환율 (하루 1회 조회 후 D1 캐시). 결제/생성 시점의 그날 환율을 반환. */
 const __fxReady = new WeakMap<object, Promise<void>>()
 export async function getUsdKrw(db: D1Database): Promise<number> {
+  return cachedRead('fx', () => __getUsdKrw(db))
+}
+async function __getUsdKrw(db: D1Database): Promise<number> {
   const today = new Date().toISOString().slice(0, 10)
   //  표 만들기는 한 번이면 된다 — 요청마다 반복하면 서브리퀘스트 한도를 갉아먹는다(위 주석 참조)
   {
