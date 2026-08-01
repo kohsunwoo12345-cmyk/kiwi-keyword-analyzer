@@ -176,6 +176,12 @@ export async function ensureOnce(
       } catch { }
     }
   })().catch((e) => { __ensured.delete(key); __marks = null; throw e })
+  /* ⚠ 이 약속(promise)은 실패를 다시 던지고, 그대로 전역 표에 담긴다.
+     지금은 부르는 쪽이 모두 await 하므로 그 실패를 누군가 받는다. 그런데 나중에 누가
+     await 를 빠뜨리면, 아무도 받지 않는 실패가 되어 워커에서는 함수 자체가 죽는다
+     (그 신호가 정확히 우리가 오래 헤맨 raw 502 다 — fetchT 주석 참고).
+     담아 두는 쪽에는 빈 받이를 하나 달아 둔다. 부르는 쪽이 받는 것과는 별개다. */
+  job.catch(() => {})
   __ensured.set(key, job)
   return job
 }
