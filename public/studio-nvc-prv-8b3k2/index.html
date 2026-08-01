@@ -1318,7 +1318,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 #optbar .ob-x{ width:26px; height:26px; border-radius:7px; border:1px solid #313138;
   background:#1b1b1f; color:#9a9ca4; cursor:pointer; font-size:15px; line-height:1; }
 #optbar .ob-x:hover{ background:#26262c; color:#e8e8ec; }
-#optbar .ob-body{ flex:1; overflow:auto; padding:14px; display:flex; flex-direction:column; gap:14px; }
+#optbar .ob-body{ flex:1; overflow:auto; padding:14px 14px 96px; display:flex; flex-direction:column; gap:14px; }
 #optbar .ob-sec{ font-size:10.5px; font-weight:800; letter-spacing:.08em; color:#6b6d76; text-transform:uppercase; }
 #optbar .ob-row{ display:flex; flex-direction:column; gap:6px; }
 #optbar .ob-lab{ font-size:11.5px; color:#a4a6ae; display:flex; justify-content:space-between; }
@@ -1357,7 +1357,44 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 /* 사이드바 안에 그려지는 노드 복제본 — 캔버스 블럭이 아니라 패널 내용처럼 보이게 */
 #optbar .ob-proxy{ position:static; width:auto; background:transparent !important;
   border:none !important; box-shadow:none; border-radius:0; }
-#optbar .ob-proxy .node-body{ padding:0; gap:7px; }
+#optbar .ob-proxy .node-body{ padding:0; gap:10px; }
+/* ── 패널용 폼 모양 ──
+   위젯은 캔버스 노드용이라 24px 높이에 화살표 스테퍼(< 값 >) 로 되어 있다. 그건 좁은
+   블럭 안에서 자리를 아끼려고 고른 모양이지, 패널에서는 낯설고 누를 곳도 애매하다.
+   여기서는 설정 앱처럼 보이게 다시 입힌다 — 한 줄에 하나, 왼쪽 이름 / 오른쪽 값.
+   화살표는 감춘다: 값을 누르면 전체 목록이 열리므로(data-open) 기능은 그대로다. */
+#optbar .ob-proxy .widget{ height:42px; border-radius:10px; background:#1b1b1f;
+  border:1px solid #2c2c33; font-size:12.5px; padding:0 4px; }
+#optbar .ob-proxy .widget:hover{ border-color:#3d3f48; background:#1f1f24; }
+#optbar .ob-proxy .widget .arr{ display:none; }
+#optbar .ob-proxy .widget .wlabel{ padding-left:12px; color:#8f919b; font-weight:500;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:48%; }
+#optbar .ob-proxy .widget .wvalue{ text-align:right; padding-right:12px; color:#f0f0f4; }
+/*  값을 누르면 목록이 열린다는 걸 알 수 있게 작은 꺾쇠를 붙인다 */
+#optbar .ob-proxy .widget[data-combo] .wvalue::after{ content:'⌄'; margin-left:8px; color:#6a6c76; font-size:13px; }
+#optbar .ob-proxy .widget .wnum{ padding-right:12px; }
+#optbar .ob-proxy .widget input[type=range]{ margin:0 12px; }
+/*  체크류는 스위치처럼 */
+#optbar .ob-proxy .widget[data-check]{ cursor:pointer; }
+/*  안내·설명 글은 패널 톤으로 */
+#optbar .ob-proxy .seedid-hint, #optbar .ob-proxy .wnote, #optbar .ob-proxy .abgen-note{
+  font-size:11.5px; line-height:1.6; color:#75777f; padding:0 2px; }
+/*  '변형 3개' + 'A/B 변형 생성' 이 한 줄에 눌려 있었다 — 패널에서는 위아래로 편다 */
+#optbar .ob-proxy .vo-row{ flex-wrap:wrap; gap:8px; }
+#optbar .ob-proxy .vo-row .vo-sel{ flex:1 1 100%; height:42px; border-radius:10px;
+  background:#1b1b1f; border:1px solid #2c2c33; padding:0 12px; }
+#optbar .ob-proxy .vo-row .vo-sel .vo-k{ color:#8f919b; font-size:12.5px; }
+#optbar .ob-proxy .vo-row .vo-sel select{ text-align:right; color:#f0f0f4; font-size:12.5px; }
+#optbar .ob-proxy .vo-row .wbtn{ flex:1 1 100% !important; }
+#optbar .ob-proxy .refcnt{ font-size:11.5px; line-height:1.6; color:#75777f; padding:0 2px; }
+#optbar .ob-proxy .seed-box, #optbar .ob-proxy .vidopts-box{
+  background:#17171b; border:1px solid #26262b; border-radius:10px; padding:11px 12px; }
+/* 위젯은 272px 노드에 맞춰 만든 것이라 패널에서는 눌린다 — 넉넉히 편다 */
+#optbar .ob-proxy .widget{ width:100%; box-sizing:border-box; }
+#optbar .ob-proxy select, #optbar .ob-proxy input[type=text], #optbar .ob-proxy input[type=number],
+#optbar .ob-proxy textarea{ width:100%; box-sizing:border-box; }
+#optbar .ob-proxy textarea.wtext{ min-height:78px; }
+#optbar .ob-proxy .wbtn{ width:100%; justify-content:center; padding:10px 12px; font-size:12.5px; }
 
 /* ══════ 실행 카운트다운 (10초) · 진행률 ══════ */
 .node .run-armed{ margin-top:6px; border:1px solid #4a3a12; background:#1e1a10; border-radius:8px;
@@ -5747,7 +5784,10 @@ var DEFS = {
                       {k:'refup',t:'image'},
                       {k:'gen',t:'mesh3dbtn',label:'3D 모델 생성'},
                       {k:'meshout',t:'mesh3dout'}] },
- video:    { cat:'설정', title:'영상 설정', hd:'#3a3323', ins:[['in','생성물','GEN']], outs:[['out','영상','VIDEO']],
+ /* 영상 설정 노드는 없앴다(길이·비율·해상도 → 오른쪽 옵션 패널).
+    정의는 남겨 둔다 — 옮기기 전에 옛 그래프를 읽어야 하고, 어딘가에서 이 종류를
+    만나도 DEFS 조회가 undefined 로 터지지 않게 하려는 것이다. 팔레트에는 안 나온다. */
+ video:    { cat:'설정', title:'영상 설정 (옮겨짐)', hd:'#3a3323', ins:[['in','생성물','GEN']], outs:[['out','영상','VIDEO']],
              widgets:[{k:'sec',t:'slider',label:'길이(초)',min:1,max:60,def:8},
                       {k:'ar',t:'combo',label:'ratio',opts:['16:9','9:16','1:1','4:5'],def:'16:9'},
                       {k:'res',t:'combo',label:'res',opts:['720p','1080p','4K'],def:'1080p'},
@@ -6349,8 +6389,43 @@ function docSnap(){ return {nodes:state.nodes,links:state.links,groups:state.gro
 function activeDoc(){ for(var i=0;i<STUDIO_DOCS.length;i++) if(STUDIO_DOCS[i].id===activeDocId) return STUDIO_DOCS[i]; return null; }
 function saveActiveIntoDoc(){ var d=activeDoc(); if(d) d.data=docSnap(); }
 function newDocId(){ return 'doc-'+Date.now()+'-'+Math.floor(Math.random()*1e6); }
+/* ── 영상 설정 노드 없애기 ──
+   길이·비율·해상도는 오른쪽 옵션 패널로 옮겼다. 그런데 예전 워크플로우에는 그 값이
+   '영상 설정' 노드 안에 들어 있다. 노드만 지우면 그 설정이 통째로 날아가고, 남겨 두면
+   패널에서 바꾼 값이 안 먹힌다(그 노드가 우선하므로) — 둘 다 사용자를 속이는 셈이다.
+   그래서 열 때 값을 쓰던 모델 노드로 옮겨 붙이고 그 노드와 연결선을 지운다.
+   한 번만 하면 되고, 결과는 눈에 보이는 그대로다(설정은 패널에 그대로 있다). */
+function migrateVideoSettings(g){
+  var nodes=g.nodes||[], links=g.links||[];
+  var vs=nodes.filter(function(n){ return n && n.type==='video'; });
+  if(!vs.length) return false;
+  var byId={}; nodes.forEach(function(n){ if(n) byId[n.id]=n; });
+  //  설정 노드에서 아래로 흘러가는 모델 노드를 찾아 값을 옮긴다
+  vs.forEach(function(v){
+    var seen={}, stack=[v.id];
+    while(stack.length){
+      var cur=stack.pop();
+      links.forEach(function(l){
+        if(l.from!==cur || seen[l.to]) return;
+        seen[l.to]=1;
+        var t=byId[l.to];
+        if(t && t.type==='model'){
+          t.w=t.w||{};
+          if(v.w && v.w.sec!=null && t.w.vsec==null)   t.w.vsec=Number(v.w.sec);
+          if(v.w && v.w.ar   && !t.w.vratio)           t.w.vratio=v.w.ar;
+          if(v.w && v.w.res  && !t.w.vres)             t.w.vres=v.w.res;
+        } else stack.push(l.to);
+      });
+    }
+  });
+  var drop={}; vs.forEach(function(v){ drop[v.id]=1; });
+  g.nodes=nodes.filter(function(n){ return !(n && drop[n.id]); });
+  g.links=links.filter(function(l){ return !drop[l.from] && !drop[l.to]; });
+  return true;
+}
 function loadDocIntoState(d){
   var g=d.data||{};
+  try{ if(migrateVideoSettings(g)) setTimeout(function(){ try{ toast('영상 설정 노드는 오른쪽 옵션 패널로 옮겼습니다 — 값은 그대로입니다'); }catch(_e){} }, 800); }catch(_e){}
   (g.nodes||[]).forEach(function(n){ if(n.w){ if(n.w.generating)n.w.generating=false; if(n.w.upscaling)n.w.upscaling=false; if(n.w.extracting)n.w.extracting=false;
     if(n.w.upscaled&&String(n.w.upscaled).indexOf('blob:')===0){ n.w.upscaled=null; n.w.upKind=null; n.w.upDim=null; } } });
   state.nodes=g.nodes||[]; state.links=g.links||[]; state.groups=g.groups||[]; state.annos=g.annos||[]; state.seq=g.seq||100;
@@ -6788,7 +6863,8 @@ function widgetHTML(n,w){
       html+=row('lumaHdr', n.w.lumaHdr===true, 'HDR 출력', '720p·1080p 에서 넓은 명암 범위로 출력 (기본 꺼짐)');
       html+=row('lumaLoop', n.w.lumaLoop===true, '끊김 없는 반복', '끝과 처음이 이어지는 루프 영상 (마지막 프레임을 연결하면 적용되지 않음)');
     }
-    html+='<div class="seedid-hint" style="margin-top:6px;">길이·비율·해상도는 <b>영상 설정</b> 노드(또는 아래 드롭다운)에서 조절됩니다.</div>';
+    //  길이·비율·해상도는 이제 이 패널 '위쪽' 에 있다 — 아래 드롭다운은 없어졌다
+    html+='<div class="seedid-hint" style="margin-top:6px;">길이·비율·해상도는 <b>위쪽</b>에서 조절됩니다.</div>';
     html+='</div>';
     return html;
   }
@@ -7235,6 +7311,10 @@ var BLOCK_KEEP = {
   videoout:1, imagegenout:1, mesh3dout:1, audioout:1, frameout:1, promptout:1,   // 결과물
   weaveinfo:1, revinfo:1, pickinfo:1, nmodehint:1, vsetapplied:1,                // 상태 안내
   sticky:1, text:1,                                                              // 메모류
+  /* 실행 버튼은 블럭에 있어야 한다 — 어느 노드를 돌리는지가 캔버스에서 바로 보여야 하고,
+     사이드바에 있으면 그 노드를 고른 상태여야만 실행할 수 있다. */
+  button:1, imggenbtn:1, mesh3dbtn:1, weavebtn:1, narratebtn:1, musicbtn:1,
+  revoicebtn:1, promptgenbtn:1, framebtn:1,
 };
 function nodeHTML(n){
   var def=DEFS[n.type];
@@ -7281,7 +7361,9 @@ function nodeHTML(n){
     : '';
   return '<div class="node-title" style="--hd:'+(n.color||def.hd||'#2a2a2a')+'">'+
       '<span class="node-dot" data-collapse title="접기/펼치기"></span>'+
-      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(n.title)+'</span></div>'+
+      /*  제목이 없는 그래프(밖에서 불러온 것·옛 저장본)에서는 제목 칸이 통째로 비어
+          무슨 블럭인지 알 수 없게 된다 → 종류의 기본 제목으로 채운다. */
+      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(n.title||def.title||'')+'</span></div>'+
     '<div class="node-prog"></div>'+
     '<div class="node-body">'+rows+widgets+addRow+'</div>';
 }
@@ -7417,7 +7499,11 @@ function renderOptbar(){
      id 는 주지 않는다 — 'nd-<id>' 는 캔버스의 진짜 블럭 것이고, 같은 id 가 둘이면
      진행률·선택 표시가 엉뚱한 데로 간다. */
   var def=DEFS[n.type];
-  var side=def.widgets.filter(function(w){ return !BLOCK_KEEP[w.t]; });
+  /* 영상 모델에서는 모델·길이·비율·해상도를 위에서 이미 그렸다(모델이 실제로 받는 값만
+     골라 주는 칩). 노드가 갖고 있는 같은 칸을 또 그리면 화면에 같은 설정이 둘이 되어
+     어느 쪽이 진짜인지 알 수 없고, 좁은 패널에서 '16' '1' 처럼 잘려 보이기까지 한다. */
+  var DUP = isVid ? { model:1, vidOpts:1 } : {};
+  var side=def.widgets.filter(function(w){ return !BLOCK_KEEP[w.t] && !DUP[w.k]; });
   if(!side.length && !isVid){ closeOptbar(); return; }     // 옮길 게 없으면 열지 않는다
   if(side.length) h+='<div class="ob-sec">설정</div>'
     +'<div class="node ob-proxy" data-node="'+n.id+'" data-type="'+n.type+'"><div class="node-body">'
