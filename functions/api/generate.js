@@ -13,7 +13,7 @@ import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharg
 import { getBrandKit, applyBrandKit } from "./studio/brandkit";
 import { issueGenCharge, settleGenCharge, refundGenCharge, reconcileGenCharge } from "./studio/_gencharge";
 import { probeRemoteVideoSeconds, SOURCE_LENGTH_MODELS, sourceVideoUrl } from "./studio/_vidlen";
-import { ensureAiUsage, resolveCostOverride } from "./studio/_pricing";
+import { ensureAiUsage, resolveCostOverride, refreshUsdKrw } from "./studio/_pricing";
 import { MODEL_COST as MODEL_COST_SRV } from "./studio/_pricing";
 import { creditPriceFor } from "./payments/prepare";
 
@@ -1790,6 +1790,13 @@ const BILL_DEPS = { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge
 export async function onRequest(context) {
   try {
     const res = await handle(context);
+    /* 오늘 환율은 응답을 내보낸 뒤에 채운다 — 요청 경로에서 남의 서버를 부르면
+       그게 늦어질 때 회원의 생성이 통째로 매달린다(_pricing.ts getUsdKrw 주석 참조).
+       실제 트래픽을 타고 하루 한 번만 실제 호출이 일어난다. */
+    if (context.waitUntil) {
+      const _db = resolveDB(context.env);
+      if (_db) context.waitUntil(refreshUsdKrw(_db));
+    }
     if (!res || !/application\/json/i.test(res.headers.get("content-type") || "")) return res;
     /* /api/v1·MCP 는 스스로 차감한다(commitCharge) — 그 내부 호출까지 여기서 또 받으면 이중 차감이다.
        이 표시는 서버가 만든 컨텍스트에만 있고 요청 헤더가 아니라, 클라이언트가 흉내낼 수 없다. */
@@ -1891,10 +1898,34 @@ async function handle(context) {
       context.__pbody = pbody;
       const dry = !!(pbody && pbody.dryRun);
       const isAdmin = me.role === "admin";
+      /* ── 단계 진단 ─────────────────────────────────────────────────────────
+         raw 502 는 격리 환경이 통째로 죽은 것이라 우리 코드가 아무것도 못 남긴다.
+         그래서 "어디서 죽었는지" 를 알아내는 유일한 길은, 한 요청에서 한 단계씩만
+         돌려 보고 어느 요청이 502 로 돌아오는지 보는 것이다.
+           auth    — 로그인까지만
+           body    — 본문 읽기까지만 (사진이 클 때 여기가 무거운지)
+           gate    — 회원 과금 계산까지 (관리자는 원래 안 타는 그 구간. 관리자도 강제로 태운다)
+           payload — 제공사에 보낼 값 만들기까지 (dryRun 과 같은 자리)
+         진단 페이지가 이 값을 하나씩 넣어 부른다. 실제 생성 코드를 그대로 태운다 —
+         따로 흉내 낸 코드를 재면 진짜 원인을 못 찾는다. */
+      const diag = String((pbody && pbody.diagStage) || "");
+      if (diag === "auth") {
+        return json({ diag: "auth", ok: true, admin: isAdmin, credits: Number(me.credits) || 0 });
+      }
+      if (diag === "body") {
+        let bytes = 0;
+        try { bytes = JSON.stringify(pbody).length; } catch (_e) {}
+        const sz = (v) => (typeof v === "string" ? v.length : 0);
+        return json({ diag: "body", ok: true, bodyChars: bytes,
+                      firstFrame: sz(pbody.firstFrame), lastFrame: sz(pbody.lastFrame),
+                      refImages: (Array.isArray(pbody.refImages) ? pbody.refImages : []).map(sz) });
+      }
+      //  gate 진단은 관리자도 회원과 똑같이 태운다 — 그래야 둘을 나란히 비교할 수 있다.
+      const forceGate = diag === "gate";
       if (!dry && !isAdmin && !(Number(me.credits) > 0)) {
         return json({ error: "크레딧이 부족합니다. 요금제를 활성화해 주세요.", needPlan: true }, 402);
       }
-      if (!dry && !isAdmin && db && me.id) {
+      if ((forceGate || (!dry && !isAdmin)) && db && me.id) {
         // ── 남용 방지 ①: 사전 잔액 게이트 — 예상 과금 이상 보유해야 생성 시작 ──
         //  유료 제공사 호출 "이전"에 차단하므로, 잔액이 부족하면 제공사 비용 자체가 발생하지 않는다.
         //  precheck 와 동일한 공식(computeCharge)을 서버에서 재계산해 클라이언트 우회를 무력화한다.
@@ -1972,6 +2003,9 @@ async function handle(context) {
         //  같은 표를 또 훑지 않는다 — 위 레이트리밋이 15초 치를 함께 세어 돌려준다.
         if (Number(rl.burst || 0) > 5) return json({ error: "짧은 시간에 너무 많은 생성을 요청했습니다. 잠시 후 다시 시도하세요.", retryAfter: 15 }, 429);
       }
+      //  과금 구간을 끝까지 지나왔다 — 진단이면 여기서 멈춘다(제공사는 부르지 않는다)
+      if (diag === "gate") return json({ diag: "gate", ok: true, admin: isAdmin, token: !!context.__chargeToken });
+      if (diag === "payload") pbody.dryRun = true;   // 아래 dryRun 자리에서 페이로드만 만들고 끝낸다
     }
   }
 

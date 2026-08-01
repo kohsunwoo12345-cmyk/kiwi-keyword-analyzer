@@ -21,7 +21,7 @@ const ROOT = new URL('../', import.meta.url).pathname
 function load(file) {
   const out = buildSync({ entryPoints: [ROOT + file], bundle: true, write: false, format: 'cjs',
                           platform: 'neutral', target: 'es2022', external: ['node:*'] })
-  const sandbox = { module: { exports: {} }, exports: {}, require: require_, console, Response, Request,
+  const sandbox = { module: { exports: {} }, exports: {}, require: require_, console, AbortController, Response, Request,
                     Headers, URL, TextEncoder, TextDecoder, crypto, fetch, btoa, atob, setTimeout, clearTimeout, structuredClone }
   sandbox.module.exports = sandbox.exports
   vm.runInNewContext(out.outputFiles[0].text, sandbox, { filename: file })

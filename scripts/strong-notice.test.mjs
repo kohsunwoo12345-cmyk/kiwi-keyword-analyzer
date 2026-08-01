@@ -18,7 +18,7 @@ const require_ = createRequire(import.meta.url)
 async function load(file) {
   const out = await build({ entryPoints: [file], bundle: true, write: false, format: 'cjs', platform: 'neutral', target: 'es2022' })
   const sandbox = {
-    module: { exports: {} }, exports: {}, require: require_, console,
+    module: { exports: {} }, exports: {}, require: require_, console, AbortController,
     Response, Request, Headers, URL, TextEncoder, TextDecoder, crypto, fetch,
     btoa, atob, setTimeout, clearTimeout, structuredClone,
   }

@@ -3629,6 +3629,14 @@ async function generateWithAPI(params){
   // 진단: 실제 보내는 요청의 값들을 에러에 첨부 (502 원인 추적용)
   var bodyStr=''; try{ bodyStr=JSON.stringify(params); }catch(e){}
   var bodyKB=Math.round(bodyStr.length/1024);
+  //  진단 페이지(diag.html)가 "방금 실패한 그 요청" 을 그대로 다시 태울 수 있게 남겨 둔다.
+  //  502 는 격리 환경이 통째로 죽는 것이라 서버에 아무 기록이 안 남는다 — 여기밖에 남길 곳이 없다.
+  //  키(apiKey)는 빼고 저장한다. 용량이 크면(5MB 한도) 저장을 건너뛴다.
+  try{
+    var _keep=JSON.parse(bodyStr); delete _keep.apiKey;
+    var _s=JSON.stringify({ at:new Date().toISOString(), kb:bodyKB, params:_keep });
+    if(_s.length<4000000) localStorage.setItem('bg_last_gen_params', _s);
+  }catch(e){}
   var shortv=function(x){ x=String(x==null?'':x); return x.length>70?x.slice(0,70)+'…('+x.length+')':x; };
   var err=null;
   // 502 가 다시 나면 "얼마나 붙잡고 있다가 끊겼는지" 가 원인 판단의 핵심이다 — 시간을 남긴다.

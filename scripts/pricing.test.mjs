@@ -19,7 +19,7 @@ async function load(file) {
   //  최상위에서 이것들을 쓰면(예: _utils 의 new TextEncoder()) 없다고 죽는다.
   //  과금 계산 자체와는 무관하니, 런타임과 같은 모양으로 채워 두고 계산만 검사한다.
   const sandbox = {
-    module: { exports: {} }, exports: {}, require: require_, console,
+    module: { exports: {} }, exports: {}, require: require_, console, AbortController,
     Response, Request, Headers, URL, TextEncoder, TextDecoder, crypto, fetch,
     btoa, atob, setTimeout, clearTimeout, structuredClone,
   }

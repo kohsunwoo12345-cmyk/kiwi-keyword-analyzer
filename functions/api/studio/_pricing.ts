@@ -9,24 +9,54 @@ export const USD_KRW = 1400 // 폴백 기본 환율 (API 실패 시)
 export const CREDIT_KRW = 50 // 50원 = 1크레딧
 
 /** 무료 FX API 에서 현재 USD→KRW 환율 조회 (키 불필요, 여러 소스 폴백) */
-async function fetchUsdKrw(): Promise<number | null> {
+/* ⚠ 반드시 시간 제한을 건다.
+   예전에는 제한이 없었다. 이 함수는 남의 서버 세 곳을 차례로 부르는데, 그중 하나가
+   응답을 안 주면 우리 요청이 거기 매달린 채로 끝나지 않았다.
+   더 나쁜 건 이 자리가 회원만 지나가는 길이라는 것이다 — 관리자는 과금 계산을 안 하니
+   환율을 볼 일이 없다. "관리자는 되는데 회원만 안 된다" 가 나올 수 있는 모양이다.
+   그리고 실패하면 아무것도 저장하지 않으므로, 한 번 막히면 그 뒤 모든 회원 요청이
+   같은 세 곳을 다시 부른다(하루 한 번이 아니다). */
+async function fetchUsdKrw(timeoutMs = 2500): Promise<number | null> {
   const sources: { url: string; pick: (j: any) => any }[] = [
     { url: 'https://open.er-api.com/v6/latest/USD', pick: (j) => j?.rates?.KRW },
     { url: 'https://api.frankfurter.app/latest?from=USD&to=KRW', pick: (j) => j?.rates?.KRW },
     { url: 'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json', pick: (j) => j?.usd?.krw },
   ]
   for (const s of sources) {
+    const ctl = new AbortController()
+    const t = setTimeout(() => ctl.abort(), timeoutMs)
     try {
-      const r = await fetch(s.url)
+      const r = await fetch(s.url, { signal: ctl.signal })
       if (!r.ok) continue
       const j: any = await r.json()
       const v = Number(s.pick(j))
       if (v && v > 300 && v < 3000) return Math.round(v)
     } catch {
       /* 다음 소스로 */
+    } finally {
+      clearTimeout(t)
     }
   }
   return null
+}
+
+/* 오늘 환율을 받아 저장한다 — 응답을 내보낸 뒤(waitUntil) 부르는 용도다.
+   요청 경로에서는 절대 부르지 않는다(위 주석 참조). 이미 오늘 것이 있으면 아무것도 안 한다. */
+let __fxCheckedDay = ''
+export async function refreshUsdKrw(db: D1Database): Promise<void> {
+  try {
+    const today = new Date().toISOString().slice(0, 10)
+    //  이 isolate 에서 오늘 것을 이미 확인했으면 아무것도 하지 않는다 —
+    //  안 그러면 요청마다 조회가 하나씩 늘어난다(줄이려고 한 일을 되돌리는 셈이다).
+    if (__fxCheckedDay === today) return
+    const cached: any = await db.prepare('SELECT usd_krw FROM fx_rates WHERE date = ?').bind(today).first().catch(() => null)
+    if (cached && Number(cached.usd_krw) > 0) { __fxCheckedDay = today; return }
+    const fetched = await fetchUsdKrw()
+    if (!fetched) return   // 못 받아왔으면 표시를 남기지 않는다 — 다음 isolate 가 다시 해 본다
+    await db.prepare('INSERT OR REPLACE INTO fx_rates (date, usd_krw, updated_at) VALUES (?, ?, ?)')
+      .bind(today, fetched, new Date().toISOString()).run().catch(() => {})
+    __fxCheckedDay = today
+  } catch { /* 환율 갱신 실패는 아무것도 막지 않는다 */ }
 }
 
 /** 전역 모델별 배수 (settings.model_markups JSON). {모델명: 배수}. 없으면 {}. */
@@ -151,9 +181,17 @@ async function __getUsdKrw(db: D1Database): Promise<number> {
   await ensureOnce(db, 'schema_fxrates_v1', async () => {
     await db.prepare(`CREATE TABLE IF NOT EXISTS fx_rates (date TEXT PRIMARY KEY, usd_krw REAL NOT NULL, updated_at TEXT)`).run().catch(() => {})
   }, ['fx_rates'])
-  const cached: any = await db.prepare('SELECT usd_krw FROM fx_rates WHERE date = ?').bind(today).first().catch(() => null)
-  if (cached && Number(cached.usd_krw) > 0) return Number(cached.usd_krw)
-
+  /* 오늘 것과 마지막 것을 한 번에 읽는다 — 왕복 하나로 끝난다. */
+  const r: any = await db.prepare(
+    'SELECT usd_krw, (date = ?) AS is_today FROM fx_rates ORDER BY (date = ?) DESC, date DESC LIMIT 1',
+  ).bind(today, today).first().catch(() => null)
+  const v = Number(r?.usd_krw)
+  /* ⚠ 오늘 것이 없어도 여기서 받아오지 않는다.
+     남의 서버를 부르는 일이라 늦어지거나 막히면 회원의 생성 요청이 통째로 매달린다.
+     환율은 하루 사이 몇 원 움직이는 값이라 어제 값으로 계산해도 요금 차이가 없다시피 하다.
+     오늘 값은 응답을 내보낸 뒤 refreshUsdKrw() 가 따로 받아 채운다(generate.js onRequest 참조). */
+  if (v > 0) return v
+  /* 저장된 값이 하나도 없을 때(첫 배포)만 어쩔 수 없이 받아온다 — 시간 제한이 걸려 있다. */
   const fetched = await fetchUsdKrw()
   if (fetched) {
     await db
@@ -163,9 +201,7 @@ async function __getUsdKrw(db: D1Database): Promise<number> {
       .catch(() => {})
     return fetched
   }
-  // API 실패 → 마지막으로 저장된 환율, 그것도 없으면 기본값
-  const last: any = await db.prepare('SELECT usd_krw FROM fx_rates ORDER BY date DESC LIMIT 1').first().catch(() => null)
-  return last && Number(last.usd_krw) > 0 ? Number(last.usd_krw) : USD_KRW
+  return USD_KRW
 }
 
 /** 해상도별 실제 픽셀 크기. 토큰 과금 계산과 배율 산출의 공통 기준이다. */
