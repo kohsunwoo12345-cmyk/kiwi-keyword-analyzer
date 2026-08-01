@@ -34,7 +34,9 @@ export function maskApiKey(plain: string): string {
 /* 표를 만드는 일은 한 번만 하면 된다. 그런데 여태 생성 요청마다 12개 DDL 을 하나씩
    실행했다 — Cloudflare 는 D1 질의 하나를 서브리퀘스트 하나로 세고, 요청당 한도를 넘으면
    함수가 통째로 끊겨 우리 try/catch 가 손댈 수 없는 raw 502 가 난다.
-   (관리자는 이 경로를 안 타서 멀쩡하고 회원만 502 가 나던 원인이다 — 실측 회원 41회 · 관리자 5회)
+   (관리자는 이 경로를 아예 안 탄다 — 실측 회원 41회 · 관리자 5회)
+   ⚠ 이 차이가 회원 502 의 원인이라고 적어 두었는데 확인된 게 아니다: 당시 무료 요금제로 알고
+     계산했지만 실제 계정은 Workers 유료였다. 왕복을 줄이는 근거일 뿐이다.
    같은 isolate 안에서는 한 번만 하고 넘어간다. 실패하면 다음 요청에서 다시 시도한다. */
 export async function ensureApiKeysSchema(db: D1Database) {
   return ensureOnce(db, 'schema_apikeys_v1', () => __ensureApiKeysSchema(db), ['api_keys', 'api_calls', 'api_rate'])

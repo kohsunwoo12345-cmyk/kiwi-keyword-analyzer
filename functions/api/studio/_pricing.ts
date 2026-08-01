@@ -112,8 +112,9 @@ async function __resolveMarkup(db: D1Database, userId: string, model: string, us
    Veo 오디오 등급처럼 문서가 애매한 항목도 같은 방법으로 바로잡는다.
    단위는 단가표와 같다: 'sec' 모델은 초당 USD, 나머지는 1건당 USD. */
 /* ⚠ 표 만들기는 한 번이면 된다. 요청마다 반복하면 Cloudflare 가 D1 질의 하나하나를
-   서브리퀘스트로 세어 요청당 한도를 넘기고, 그 순간 함수가 통째로 끊겨 우리 try/catch 로는
-   손댈 수 없는 raw 502 가 난다(회원만 502 가 나던 원인 — 실측 회원 41회 · 관리자 5회).
+   서브리퀘스트로 세어 요청당 한도를 갉아먹는다(실측 회원 41회 · 관리자 5회 — 관리자는
+   이 경로를 아예 안 탄다). ⚠ 이 차이가 회원 502 의 원인이라고 적어 두었는데 확인된 게 아니다:
+   당시 무료 요금제로 알고 계산했지만 실제 계정은 Workers 유료였다. 왕복을 줄이는 근거일 뿐이다.
    같은 isolate 안에서는 한 번만 하고, 실패하면 다음 요청에서 다시 시도한다. */
 export async function ensureCostOverrides(db: D1Database): Promise<void> {
   return ensureOnce(db, 'schema_costov_v1', () => __ensureCostOverrides(db), ['model_cost_overrides'])
