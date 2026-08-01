@@ -1965,12 +1965,8 @@ async function handle(context) {
         try { await ensureApiKeysSchema(db); } catch (_e) {}
         const rl = await enforceRateLimit(db, me.id, "post", false);
         if (!rl.ok) return json({ error: rl.reason || "요청이 너무 많습니다. 잠시 후 다시 시도하세요.", retryAfter: rl.retryAfter || 30 }, 429);
-        try {
-          const burst = await db.prepare(
-            "SELECT COUNT(*) AS n FROM api_rate WHERE user_id=? AND kind='post' AND ts>?"
-          ).bind(String(me.id), new Date(Date.now() - 15000).toISOString()).first();
-          if (Number(burst && burst.n || 0) > 5) return json({ error: "짧은 시간에 너무 많은 생성을 요청했습니다. 잠시 후 다시 시도하세요.", retryAfter: 15 }, 429);
-        } catch (_e) { /* 집계 실패는 통과 (락아웃 방지) */ }
+        //  같은 표를 또 훑지 않는다 — 위 레이트리밋이 15초 치를 함께 세어 돌려준다.
+        if (Number(rl.burst || 0) > 5) return json({ error: "짧은 시간에 너무 많은 생성을 요청했습니다. 잠시 후 다시 시도하세요.", retryAfter: 15 }, 429);
       }
     }
   }
