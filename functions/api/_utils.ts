@@ -112,33 +112,56 @@ export function json(data: unknown, status = 200, headers: Record<string, string
    isolate 는 자주 새로 생기므로 "가끔 되고 가끔 안 되는" 모습이 된다.
 
    표를 다 만들었다는 표시를 settings 에 남기고, 그 다음부터는 질의 한 번으로 건너뛴다.
-   ⚠ 표시에 판(v)을 붙였다 — 나중에 열을 더하는 등 스키마를 바꾸면 이 판을 올려야
-     기존 배포에서도 다시 돈다. 판을 안 올리면 새 열이 영영 안 생긴다.
-   ⚠ 표를 손으로 지우면 표시가 거짓이 된다. 그때는 settings 에서 그 열쇠를 지우면 된다. */
+   ⚠ 표시만 믿으면 안 된다. 표시는 있는데 표가 없는 상태가 실제로 생긴다 —
+     · 표 만들기가 한 번 실패했는데(그 안에 catch 가 있다) 표시는 남은 경우
+     · 표를 손으로 지운 경우
+     그러면 그 자리는 영영 500 이 되고, 왜 그런지 알아내기가 아주 어렵다.
+     그래서 표시를 읽는 그 한 번의 질의에 "지금 있는 표 목록" 을 같이 실어 온다.
+     표시가 있어도 표가 하나라도 비면 다시 만든다 — 스스로 낫는다. 왕복은 그대로 한 번이다.
+   ⚠ 열(column)이 늘어난 것까지는 못 본다. 나중에 열을 더하는 등 스키마를 바꾸면
+     표시의 판(v)을 올려야 기존 배포에서도 다시 돈다. 판을 안 올리면 새 열이 영영 안 생긴다. */
 const __ensured = new Map<string, Promise<void>>()
 //  표시를 하나씩 물어보면 그것만으로 왕복이 여섯 번이다 — 한 번에 다 읽어 온다.
-let __marks: Promise<Set<string>> | null = null
-function loadMarks(db: D1Database): Promise<Set<string>> {
+type Marks = { keys: Set<string>; tables: Set<string> }
+let __marks: Promise<Marks> | null = null
+function loadMarks(db: D1Database): Promise<Marks> {
   if (__marks) return __marks
   __marks = (async () => {
+    const keys = new Set<string>(), tables = new Set<string>()
     try {
-      const r: any = await db.prepare("SELECT key FROM settings WHERE key LIKE 'schema\\_%' ESCAPE '\\' AND value = '1'").all()
-      return new Set(((r && r.results) || []).map((x: any) => String(x.key)))
-    } catch { return new Set<string>() }
+      //  표시와 표 목록을 한 질의로 — 앞은 'k:열쇠', 뒤는 't:표이름' 으로 구분한다.
+      const r: any = await db.prepare(
+        "SELECT 'k:' || key AS m FROM settings WHERE key LIKE 'schema\\_%' ESCAPE '\\' AND value = '1'" +
+        " UNION ALL SELECT 't:' || name AS m FROM sqlite_master WHERE type = 'table'",
+      ).all()
+      for (const x of ((r && r.results) || []) as any[]) {
+        const m = String(x.m || '')
+        if (m.startsWith('k:')) keys.add(m.slice(2))
+        else if (m.startsWith('t:')) tables.add(m.slice(2))
+      }
+    } catch { /* 못 읽으면 표시가 없는 셈 치고 전부 만든다 — 고치기 전과 같은 동작 */ }
+    return { keys, tables }
   })()
   return __marks
 }
-export async function ensureOnce(db: D1Database, key: string, run: () => Promise<void>): Promise<void> {
+export async function ensureOnce(
+  db: D1Database,
+  key: string,
+  run: () => Promise<void>,
+  tables: string[] = [],
+): Promise<void> {
   const hit = __ensured.get(key)
   if (hit) return hit
   const job = (async () => {
     const marks = await loadMarks(db)
-    if (marks.has(key)) return
+    //  표시가 있고, 그 표시가 책임지는 표가 실제로 다 있을 때만 건너뛴다
+    if (marks.keys.has(key) && tables.every((t) => marks.tables.has(t))) return
     await run()
+    for (const t of tables) marks.tables.add(t)
     const mark = () => db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').bind(key, '1').run()
     try {
       await mark()
-      marks.add(key)
+      marks.keys.add(key)
     } catch {
       //  표시를 둘 곳(settings)이 아직 없을 수 있다 — 처음 배포된 빈 DB 에서 /api/generate 가
       //  첫 요청인 경우다. 그때만 한 번 만들고 다시 남긴다(성공하는 길에는 이 왕복이 없다).
@@ -146,7 +169,7 @@ export async function ensureOnce(db: D1Database, key: string, run: () => Promise
       try {
         await db.prepare('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)').run()
         await mark()
-        marks.add(key)
+        marks.keys.add(key)
       } catch { }
     }
   })().catch((e) => { __ensured.delete(key); __marks = null; throw e })

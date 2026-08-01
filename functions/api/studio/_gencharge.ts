@@ -31,7 +31,7 @@ export interface GenChargeSpec {
    손댈 수 없는 raw 502 가 난다(회원만 502 가 나던 원인 — 실측 회원 41회 · 관리자 5회).
    같은 isolate 안에서는 한 번만 하고, 실패하면 다음 요청에서 다시 시도한다. */
 export async function ensureGenCharges(db: D1Database): Promise<void> {
-  return ensureOnce(db, 'schema_gencharges_v1', () => __ensureGenCharges(db))
+  return ensureOnce(db, 'schema_gencharges_v1', () => __ensureGenCharges(db), ['gen_charges'])
 }
 async function __ensureGenCharges(db: D1Database): Promise<void> {
   await db

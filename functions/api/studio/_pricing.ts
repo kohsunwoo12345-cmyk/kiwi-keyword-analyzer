@@ -116,7 +116,7 @@ async function __resolveMarkup(db: D1Database, userId: string, model: string, us
    손댈 수 없는 raw 502 가 난다(회원만 502 가 나던 원인 — 실측 회원 41회 · 관리자 5회).
    같은 isolate 안에서는 한 번만 하고, 실패하면 다음 요청에서 다시 시도한다. */
 export async function ensureCostOverrides(db: D1Database): Promise<void> {
-  return ensureOnce(db, 'schema_costov_v1', () => __ensureCostOverrides(db))
+  return ensureOnce(db, 'schema_costov_v1', () => __ensureCostOverrides(db), ['model_cost_overrides'])
 }
 async function __ensureCostOverrides(db: D1Database): Promise<void> {
   await db.prepare(
@@ -149,7 +149,7 @@ async function __getUsdKrw(db: D1Database): Promise<number> {
   //  표 만들기는 한 번이면 된다 — 요청마다 반복하면 서브리퀘스트 한도를 갉아먹는다(위 주석 참조)
   await ensureOnce(db, 'schema_fxrates_v1', async () => {
     await db.prepare(`CREATE TABLE IF NOT EXISTS fx_rates (date TEXT PRIMARY KEY, usd_krw REAL NOT NULL, updated_at TEXT)`).run().catch(() => {})
-  })
+  }, ['fx_rates'])
   const cached: any = await db.prepare('SELECT usd_krw FROM fx_rates WHERE date = ?').bind(today).first().catch(() => null)
   if (cached && Number(cached.usd_krw) > 0) return Number(cached.usd_krw)
 
@@ -715,7 +715,7 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
 /** ai_usage 테이블 보장 + 정산 컬럼 마이그레이션 */
 /* 위와 같은 이유로 한 번만 한다 — 요청마다 반복하면 서브리퀘스트 한도를 갉아먹는다. */
 export async function ensureAiUsage(db: D1Database): Promise<void> {
-  return ensureOnce(db, 'schema_aiusage_v1', () => __ensureAiUsage(db))
+  return ensureOnce(db, 'schema_aiusage_v1', () => __ensureAiUsage(db), ['ai_usage'])
 }
 async function __ensureAiUsage(db: D1Database): Promise<void> {
   await db

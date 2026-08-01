@@ -37,7 +37,7 @@ export function maskApiKey(plain: string): string {
    (관리자는 이 경로를 안 타서 멀쩡하고 회원만 502 가 나던 원인이다 — 실측 회원 41회 · 관리자 5회)
    같은 isolate 안에서는 한 번만 하고 넘어간다. 실패하면 다음 요청에서 다시 시도한다. */
 export async function ensureApiKeysSchema(db: D1Database) {
-  return ensureOnce(db, 'schema_apikeys_v1', () => __ensureApiKeysSchema(db))
+  return ensureOnce(db, 'schema_apikeys_v1', () => __ensureApiKeysSchema(db), ['api_keys', 'api_calls', 'api_rate'])
 }
 async function __ensureApiKeysSchema(db: D1Database) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS api_keys (
