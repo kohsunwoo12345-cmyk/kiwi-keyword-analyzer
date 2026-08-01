@@ -7,7 +7,7 @@
 //      ?provider=google&file=URI  → Veo 결과 파일 스트리밍(키 서버측 유지)
 // 키는 Cloudflare Pages 환경변수에서만 읽으며 절대 응답에 포함되지 않습니다.
 
-import { getSessionUser, resolveDB, getUserByMcpToken } from "./_utils";
+import { getSessionUser, resolveDB, resolveBucket, getUserByMcpToken } from "./_utils";
 import { getUserByApiKey, enforceRateLimit, ensureApiKeysSchema } from "./_apikeys";
 import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from "./studio/_pricing";
 import { getBrandKit, applyBrandKit } from "./studio/brandkit";
@@ -579,6 +579,60 @@ export function seedanceModelIds(b, env) {
   return Array.isArray(v) ? v.slice() : [v];
 }
 export function seedanceModelId(b, env) { return seedanceModelIds(b, env)[0]; }
+/* ── 우리 서버에 있는 사진은 제공사가 받아 가게 두지 말고 실어 보낸다 ──────────────
+   씨댄스 2.0 은 이미지를 공개 URL 로도 base64 로도 받는다. 그런데 URL 로 주면 제공사가
+   우리 /api/media 를 직접 받아 가야 하고, 그게 늦어지면 "제출" 자체가 끝나지 않는다 —
+   실제로 회원 요청이 22초를 기다리다 "제공사 응답 시간 초과" 로 끝났다.
+   (이 파일에는 원래 그 사정이 주석으로 적혀 있었는데 정작 변환하는 코드가 없었다.)
+
+   HTTP 로 다시 받아오지 않고 R2 에서 곧바로 읽는다 — 우리 도메인을 한 바퀴 도는
+   왕복이 없어지고, Cloudflare 가 세는 바깥 요청도 늘지 않는다.
+   너무 크면(6MB↑) 실어 보내는 쪽이 되레 손해라 URL 그대로 둔다. */
+const MEDIA_KEY_RE = /\/api\/media\/(.+)$/;
+async function ownMediaDataUri(env, url) {
+  try {
+    const m = MEDIA_KEY_RE.exec(String(url || "").split("?")[0]);
+    if (!m) return null;
+    const R2 = resolveBucket(env);
+    if (!R2) return null;
+    const key = decodeURIComponent(m[1]);
+    if (/^sender-docs\//i.test(key)) return null;   // 승인 서류는 절대 나가면 안 된다
+    const obj = await R2.get(key);
+    if (!obj) return null;
+    const size = Number(obj.size || 0);
+    if (!size || size > 6 * 1024 * 1024) return null;
+    const ct = (obj.httpMetadata && obj.httpMetadata.contentType) || "image/png";
+    if (!/^image\//.test(ct)) return null;
+    const buf = new Uint8Array(await obj.arrayBuffer());
+    let bin = "";
+    for (let i = 0; i < buf.length; i += 0x8000)
+      bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+    return "data:" + ct.toLowerCase() + ";base64," + btoa(bin);
+  } catch (_e) { return null; }
+}
+/** 씨댄스 2.0 으로 보낼 이미지들 중 "우리 서버 것" 만 실어 보내도록 바꾼다 */
+export async function inlineOwnMedia(b, env) {
+  if (!b) return b;
+  const seen = new Map();
+  const conv = async (v) => {
+    if (!v || typeof v !== "string" || !MEDIA_KEY_RE.test(v)) return v;
+    if (seen.has(v)) return seen.get(v);
+    const d = await ownMediaDataUri(env, v);
+    seen.set(v, d || v);
+    return d || v;
+  };
+  const out = { ...b };
+  out.firstFrame = await conv(b.firstFrame);
+  out.lastFrame = await conv(b.lastFrame);
+  out.refImage = await conv(b.refImage);
+  if (Array.isArray(b.refImages)) {
+    const arr = [];
+    for (const u of b.refImages) arr.push(await conv(u));
+    out.refImages = arr;
+  }
+  return out;
+}
+
 export function buildSeedancePayload(b, env, forceModel) {
   const model = forceModel || seedanceModelId(b, env);
   // Seedance 2.0 공식 지원 비율: 21:9 · 16:9 · 4:3 · 1:1 · 3:4 · 9:16.
@@ -1923,7 +1977,7 @@ async function handle(context) {
       const lumaOk = await lumaUsable(k.luma);
       return json({
         version:  "2026-07-13-v56 (remove-keys-page)", // 이 필드가 보이면 최신 코드가 프로덕션에 반영된 것
-        build:    "2026-07-31-v57",                      // 스튜디오 STUDIO_BUILD 와 정확히 일치해야 최신
+        build:    "2026-08-01-v58",                      // 스튜디오 STUDIO_BUILD 와 정확히 일치해야 최신
         runway:   !!k.runway,
         xai:      !!k.xai,
         google:   !!(k.google || gcpCreds(env)),
@@ -2000,7 +2054,8 @@ async function handle(context) {
       };
       // POST 와 같은 이유로 이 경로도 제출을 붙잡고 있으면 플랫폼 502 가 난다 — 똑같이 인계한다.
       const work = (async () => {
-        const payload = buildSeedancePayload(b, env);
+        const bb = /seedance-2/.test(seedanceModelId(b, env) || "") ? await inlineOwnMedia(b, env) : b;
+        const payload = buildSeedancePayload(bb, env);
         let r, j; const t0 = Date.now();
         try {
           r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
@@ -4074,6 +4129,13 @@ async function handle(context) {
     const bound = bindRefMentions(b.prompt, slots, style);
     if (bound.text !== b.prompt) b = { ...b, prompt: bound.text };
     b.__refBind = { used: bound.used, missing: bound.missing, count: slots.length, slots, style };
+  }
+
+  /*  씨댄스 2.0 은 base64 를 받는다 — 우리 서버에 있는 사진은 제공사가 받아 가게 두지 않는다.
+      제공사가 우리 /api/media 를 못 가져와 22초를 기다리다 끝나던 자리다.
+      dryRun 보다 앞에서 한다 — 미리보기가 실제로 나갈 내용과 달라지면 확인하는 의미가 없다. */
+  if (provider === "seedance" && /seedance-2/.test(seedanceModelId(b, env) || "")) {
+    b = await inlineOwnMedia(b, env);
   }
 
   /* dryRun — 실제 호출 없이 매핑된 페이로드만 반환 (검증용) */
