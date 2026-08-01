@@ -3687,6 +3687,11 @@ async function generateWithAPI(params){
   // 502 가 다시 나면 "얼마나 붙잡고 있다가 끊겼는지" 가 원인 판단의 핵심이다 — 시간을 남긴다.
   //  (플랫폼이 함수를 끊은 것이면 수십 초, 우리 코드가 낸 에러면 짧다)
   var _t0=Date.now();
+  /*  실제 요청에 표를 붙인다 — 502 로 죽으면 응답이 아예 없으므로, 서버가 지나가며 찍어 둔
+      발자국을 나중에 이 표로 꺼내 본다. 단계별로 따로 태우면 다 통과하는데 한 번에 보내면
+      죽는 상황에서, "그 한 번" 이 어디까지 갔는지 아는 방법은 이것뿐이다. */
+  var traceId='tr_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+  params.traceId=traceId;
   try{ return await callProxy(params); }        // ① 프록시(기본 /api/generate) — 서버 키 사용
   catch(e){ err=String(e.message||e); }
   var elapsed=Date.now()-_t0;
@@ -3720,8 +3725,15 @@ async function generateWithAPI(params){
   }
   // 실패 시 서버 실제 배포 버전을 즉석에서 읽어와 에러에 박는다 — 배포지연/캐시 구분용
   var srv='?'; try{ var hr=await fetch('/api/generate?health=1',{cache:'no-store'}); var hj=await hr.json(); srv=(hj&&hj.build)||'?'; }catch(_e){}
-  //  방금 실패한 그 요청 그대로 단계별로 다시 태워, 어디서 끊기는지 짚는다.
+  //  ① 죽은 그 요청이 어디까지 갔는지 — 서버가 찍어 둔 발자국을 꺼낸다(가장 확실한 증거)
+  var trace=[];
+  try{
+    var tr=await fetch('/api/generate?trace='+encodeURIComponent(traceId),{cache:'no-store',credentials:'include'});
+    var tj=await tr.json(); trace=(tj&&tj.marks)||[];
+  }catch(_e){}
+  //  ② 그리고 같은 요청을 단계별로 다시 태워, 어느 단계가 혼자서도 죽는지 본다.
   var stageDiag=await diagnoseStages(params);
+  stageDiag.trace=trace;
   var diag=' ['+elapsed+'ms · req '+bodyKB+'KB · studio:'+(STUDIO_BUILD_TAG.split('-').pop())+
     ' · 서버:'+String(srv).split('-').pop()+' · model:'+shortv(params.model)+
     ' · ff:'+shortv(params.firstFrame)+' · lf:'+shortv(params.lastFrame)+
@@ -6115,8 +6127,29 @@ function paintStageDiag(sd){
     var t=document.createElement('div'); t.className='t'; t.textContent=(r.ms!=null?r.ms+'ms':'');
     d.appendChild(g); d.appendChild(n); d.appendChild(t); box.appendChild(d);
   });
+  /*  실제로 죽은 그 요청이 어디까지 갔는지 — 서버가 지나가며 찍어 둔 발자국.
+      단계별 검사는 "따로 태우면 통과" 를 보여 줄 뿐이고, 진짜 죽은 요청의 마지막 자리는
+      이 발자국에만 남는다. 그래서 표 아래에 이어서 보여 준다. */
+  if(sd.trace && sd.trace.length){
+    var th=document.createElement('div');
+    th.className='err-lbl'; th.style.marginTop='12px';
+    th.innerHTML='실제로 죽은 그 요청은 여기까지 갔습니다 <span class="err-stg-note">서버가 지나가며 남긴 기록</span>';
+    box.appendChild(th);
+    sd.trace.forEach(function(m,i){
+      var d=document.createElement('div'); d.className='err-stg '+(i===sd.trace.length-1?'killed':'ok');
+      var g=document.createElement('div'); g.className='g'; g.textContent=(i===sd.trace.length-1?'✕':'✓');
+      var n=document.createElement('div'); n.className='n';
+      var t1=document.createElement('div'); t1.textContent=m.step; n.appendChild(t1);
+      if(m.note){ var t2=document.createElement('div'); t2.className='nt'; t2.textContent=m.note; n.appendChild(t2); }
+      var t=document.createElement('div'); t.className='t'; t.textContent=String(m.at||'').slice(11,19);
+      d.appendChild(g); d.appendChild(n); d.appendChild(t); box.appendChild(d);
+    });
+  }
   var v=document.getElementById('errStageVerdict');
-  v.textContent=sd.verdict||'';
+  var vt=sd.verdict||'';
+  if(sd.trace && sd.trace.length) vt+=' 실제 요청은 "'+sd.trace[sd.trace.length-1].step+'" 까지 갔고 그 다음에서 끊겼습니다.';
+  else if(sd.trace) vt+=' (실제 요청은 첫 발자국도 못 남기고 끊겼습니다 — 아주 앞쪽입니다.)';
+  v.textContent=vt;
   v.className='err-stg-v'+(sd.ok?' ok':'');
   sec.style.display='block';
 }

@@ -397,6 +397,29 @@ export function bindRefMentions(text, slots, style) {
   return { text: out + "\n[레퍼런스 순서 — " + order.join(", ") + "]", used: usedArr, missing: missArr };
 }
 
+/* ── 죽는 요청에 발자국을 남긴다 ────────────────────────────────────────
+   raw 502 는 격리 환경이 통째로 죽는 것이라, 응답도 로그도 아무것도 안 남는다.
+   단계별로 따로 태우면 다 통과하는데 한 번에 보내면 죽는 상황에서는,
+   "그 한 번" 이 어디까지 갔는지를 알 방법이 이것뿐이다 — 지나갈 때마다 DB 에 찍는다.
+   죽어도 이미 찍힌 것은 남으므로, 나중에 읽으면 마지막으로 지난 자리가 보인다.
+
+   ⚠ 발자국은 스튜디오가 표를 보낼 때만 찍는다(회원이 씨댄스 2.0 을 실행할 때).
+     한 요청에 몇 줄 늘어나는 것이라, 원인을 잡고 나면 걷어내야 한다.
+   ⚠ 기다리지 않고 찍으면(await 없이) 죽는 순간 사라진다. 그래서 기다린다. */
+async function traceMark(env, id, step, note) {
+  if (!id) return;
+  try {
+    const db = resolveDB(env);
+    if (!db) return;
+    await db.prepare(
+      `CREATE TABLE IF NOT EXISTS gen_trace (id TEXT, seq INTEGER, step TEXT, note TEXT, at TEXT)`,
+    ).run().catch(() => {});
+    await db.prepare(`INSERT INTO gen_trace (id, seq, step, note, at) VALUES (?,?,?,?,?)`)
+      .bind(String(id).slice(0, 40), Date.now() % 100000000, String(step).slice(0, 40),
+            String(note == null ? "" : note).slice(0, 200), new Date().toISOString()).run();
+  } catch (_e) { /* 발자국을 못 남겨도 생성은 막지 않는다 */ }
+}
+
 /* ── 페이로드 빌더 (dryRun 검증도 이 함수를 그대로 사용) ── */
 // Runway 표시명 → API 모델 ID (Gen-3/Gen-4 모두 image_to_video 엔드포인트 공용)
 export const RUNWAY_MODELS = {
@@ -1790,6 +1813,10 @@ const BILL_DEPS = { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge
 export async function onRequest(context) {
   try {
     const res = await handle(context);
+    //  발자국 — 여기까지 왔으면 생성 처리는 끝났고, 남은 것은 응답을 다시 포장하는 일뿐이다.
+    //  (마지막 발자국이 여기서 끊기면, 죽는 자리는 아래 정산·재포장 구간이라는 뜻이다)
+    if (context.__trace) await traceMark(context.env, context.__trace, "처리 끝 · 응답 포장 전",
+      "HTTP " + (res && res.status));
     /* 오늘 환율은 응답을 내보낸 뒤에 채운다 — 요청 경로에서 남의 서버를 부르면
        그게 늦어질 때 회원의 생성이 통째로 매달린다(_pricing.ts getUsdKrw 주석 참조).
        실제 트래픽을 타고 하루 한 번만 실제 호출이 일어난다. */
@@ -1828,6 +1855,7 @@ export async function onRequest(context) {
     if (!ok) return json({ ...body, chargeToken: tok });
     const out = await settleGenCharge(resolveDB(context.env), context.__genUser,
                                       tok, body.statusUrl || null, BILL_DEPS);
+    if (context.__trace) await traceMark(context.env, context.__trace, "정산까지 끝", "차감 " + out.credits);
     return json({ ...body, chargeToken: tok, charged: out.credits, chargeRef: out.usageId });
   } catch (e) {
     // 예상 못 한 예외도 원인이 보이도록 항상 읽을 수 있는 JSON 으로 반환 (raw 502 방지)
@@ -1909,6 +1937,12 @@ async function handle(context) {
          진단 페이지가 이 값을 하나씩 넣어 부른다. 실제 생성 코드를 그대로 태운다 —
          따로 흉내 낸 코드를 재면 진짜 원인을 못 찾는다. */
       const diag = String((pbody && pbody.diagStage) || "");
+      //  발자국 — 죽어도 남는다(위 traceMark 주석 참조)
+      context.__trace = String((pbody && pbody.traceId) || "").slice(0, 40) || null;
+      if (context.__trace) await traceMark(env, context.__trace, "본문 읽음",
+        "회원=" + (isAdmin ? "관리자" : "회원") + " · 본문 " + (function () {
+          try { return JSON.stringify(pbody).length; } catch (_e) { return "?"; }
+        })() + "글자");
       if (diag === "auth") {
         return json({ diag: "auth", ok: true, admin: isAdmin, credits: Number(me.credits) || 0 });
       }
@@ -2002,8 +2036,14 @@ async function handle(context) {
         if (!rl.ok) return json({ error: rl.reason || "요청이 너무 많습니다. 잠시 후 다시 시도하세요.", retryAfter: rl.retryAfter || 30 }, 429);
         //  같은 표를 또 훑지 않는다 — 위 레이트리밋이 15초 치를 함께 세어 돌려준다.
         if (Number(rl.burst || 0) > 5) return json({ error: "짧은 시간에 너무 많은 생성을 요청했습니다. 잠시 후 다시 시도하세요.", retryAfter: 15 }, 429);
+        context.__gateRan = true;   // 이 구간을 실제로 지났다(관리자는 여기 안 온다)
       }
-      //  과금 구간을 끝까지 지나왔다 — 진단이면 여기서 멈춘다(제공사는 부르지 않는다)
+      /*  ⚠ 여기는 과금 구간 "밖" 이다 — 관리자는 그 안을 아예 안 지나가고 여기로 온다.
+          그냥 "과금 계산 끝" 이라고 찍으면 관리자도 지나간 것처럼 보인다(실제로 그렇게 찍혔다).
+          지났는지 건너뛰었는지를 그대로 적는다 — 관리자와 회원을 나란히 놓고 볼 수 있어야 한다. */
+      if (context.__trace) await traceMark(env, context.__trace,
+        context.__gateRan ? "과금 계산 끝" : "과금 구간 건너뜀",
+        context.__gateRan ? "" : (isAdmin ? "관리자라 안 지나감" : dry ? "검증 요청이라 안 지나감" : "해당 없음"));
       if (diag === "gate") return json({ diag: "gate", ok: true, admin: isAdmin, token: !!context.__chargeToken });
       if (diag === "payload") pbody.dryRun = true;   // 아래 dryRun 자리에서 페이로드만 만들고 끝낸다
       /* outbound — 제공사에 "같은 크기의 본문" 을 실제로 보내 보되, 만들어지지는 않게 한다.
@@ -2036,6 +2076,17 @@ async function handle(context) {
 
   /* ══ GET: 상태 폴링 / 파일 프록시 ══ */
   if (request.method === "GET") {
+    /* 죽은 요청의 발자국을 꺼내 본다 — 502 로 아무것도 못 받은 뒤에 부른다.
+       자기 요청에 자기가 붙인 표(임의의 긴 문자열)로만 조회되므로 남의 것은 못 본다. */
+    if (u.searchParams.get("trace")) {
+      const tid = String(u.searchParams.get("trace")).slice(0, 40);
+      const tdb = resolveDB(env);
+      if (!tdb) return json({ trace: tid, marks: [] });
+      const rows = await tdb.prepare(
+        `SELECT step, note, at FROM gen_trace WHERE id = ? ORDER BY at ASC, seq ASC`,
+      ).bind(tid).all().catch(() => null);
+      return json({ trace: tid, marks: ((rows && rows.results) || []) });
+    }
     if (u.searchParams.has("health")) { // 제공사 키 설정 여부 점검 (키 값은 절대 노출 안 함) — ?health 또는 ?health=1 모두 허용
       // 루마는 "키가 있다" 와 "그 키가 통한다" 가 다르다 — 실제로 확인한다(아래 lumaUsable 주석 참조)
       const lumaOk = await lumaUsable(k.luma);
@@ -4626,6 +4677,8 @@ async function handle(context) {
           // 스튜디오가 실제로 보낸 값을 에러에 그대로 실어, 노드에 원인이 보이게 한다.
           const imgN = payload.content.filter(c => c.type === "image_url").length;
           let r, j; const t0 = Date.now();
+          if (context.__trace) await traceMark(env, context.__trace, "제공사 호출 직전",
+            mid + " · 사진 " + imgN + "장 · " + JSON.stringify(payload).length + "글자");
           try {
             // fetchT 의 unhandled-rejection 차단으로 raw 502 는 사라졌으므로, bp 가 이미지
             // 검증 등으로 제출이 느려도(태스크 ID 반환까지 십수 초) 안전하게 기다린다.
@@ -4636,9 +4689,13 @@ async function handle(context) {
               body: JSON.stringify(payload)
             }, Math.min(22000, leftMs));
             j = await r.json().catch(() => ({}));
+            if (context.__trace) await traceMark(env, context.__trace, "제공사 응답 받음",
+              mid + " · HTTP " + r.status + " · " + (Date.now() - t0) + "ms");
           } catch (e) {
             lastErr = hostId + " 제출 실패(" + (Date.now() - t0) + "ms): " + String((e && e.message) || e).slice(0, 140);
             tried.push(mid + "=ERR");
+            if (context.__trace) await traceMark(env, context.__trace, "제공사 호출 실패",
+              mid + " · " + lastErr.slice(0, 120));
             continue;   // 다음 후보/호스트로
           }
           if (r.ok && j.id)
@@ -4715,9 +4772,13 @@ async function handle(context) {
                   new Date().toISOString()).run();
         }
       } catch (_e) { /* 로깅 실패가 생성 응답을 막지 않도록 */ }
+      if (context.__trace) await traceMark(env, context.__trace, "제출 실패로 마무리", String(lastErr).slice(0, 150));
       return json({ error: "Seedance " + tag + ": " + String(lastErr).slice(0, 200) + trail }, 502);
     })();
-    return await handoffSubmit(context, work, "seedance");
+    if (context.__trace) await traceMark(env, context.__trace, "인계 대기 시작", "");
+    const _out = await handoffSubmit(context, work, "seedance");
+    if (context.__trace) await traceMark(env, context.__trace, "인계 끝 · 응답 만듦", "HTTP " + _out.status);
+    return _out;
   }
 
   if (provider === "seedream") {
