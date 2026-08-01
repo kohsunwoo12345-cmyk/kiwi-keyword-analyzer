@@ -265,11 +265,26 @@ console.log('\n⑦ 일반 알림은 예전처럼 하단 토스트로 뜬다(강�
   const { ctx, page } = await open([NOTICE, soft])
   await page.locator('[role="dialog"]').waitFor({ state: 'visible', timeout: 15000 })
   ok(await page.locator('[role="dialog"]').count() === 1, '강력 알림은 한 번에 하나만 뜬다')
+  /* 강력 알림이 떠 있는 동안에는 토스트를 띄우지 않는다.
+     토스트는 z-300, 모달 가림막은 z-400 이라 토스트가 가림막 뒤에 깔린다 —
+     흐릿하게 보이는데 눌리지는 않는 유령 카드가 된다(실제 서버에서 확인했다). */
+  ok(await page.getByText('일반 공지').count() === 0, '모달이 떠 있는 동안에는 토스트를 띄우지 않는다')
+
+  //  모달을 닫으면 그때 토스트가 정상으로 뜨고, 실제로 눌린다
+  await page.locator('[role="dialog"]').getByLabel('닫기').click()
+  await page.waitForTimeout(900)
   const toast = page.getByText('일반 공지')
-  ok(await toast.count() === 1, '일반 알림은 따로 토스트로 뜬다')
+  ok(await toast.count() === 1, '모달을 닫으면 토스트가 뜬다')
   const tb = await toast.first().boundingBox()
   const vp = page.viewportSize()
-  ok(tb.y > vp.height * 0.5, '토스트는 화면 아래쪽에 있다(모달을 가리지 않는다)', `y=${Math.round(tb.y)} / ${vp.height}`)
+  ok(tb.y > vp.height * 0.5, '토스트는 화면 아래쪽에 있다', `y=${Math.round(tb.y)} / ${vp.height}`)
+  const onTop = await toast.first().evaluate((el) => {
+    const card = el.closest('.pointer-events-auto') || el
+    const r = card.getBoundingClientRect()
+    const mid = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+    return !!mid && card.contains(mid)
+  })
+  ok(onTop, '토스트가 가림막에 덮이지 않고 실제로 눌리는 상태다')
   await ctx.close()
 }
 

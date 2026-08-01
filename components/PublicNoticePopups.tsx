@@ -171,8 +171,11 @@ export function PublicNoticePopups() {
   /* 강력 알림은 화면을 가로막으므로 한 번에 하나만 띄운다(가장 최근 집행).
      나머지는 예전처럼 하단 토스트로 쌓인다 — 두 종류가 동시에 떠도 서로 가리지 않는다. */
   const strongOne = items.find((n) => n.strong)
-  //  회원 콘솔에서는 광고(강력 알림)만 — 일반 토스트는 콘솔 자체 팝업과 겹친다
-  const toasts = isMemberConsole ? [] : items.filter((n) => n !== strongOne).slice(0, 3)
+  /* 회원 콘솔에서는 광고(강력 알림)만 — 일반 토스트는 콘솔 자체 팝업과 겹친다.
+     강력 알림이 떠 있는 동안에도 토스트를 빼 둔다. 토스트는 z-300, 모달 가림막은 z-400 이라
+     토스트가 가림막 뒤에 깔린다 — 흐릿하게 보이는데 눌리지는 않는 유령 카드가 된다(실측 확인).
+     모달을 닫으면 그때 정상으로 뜬다. */
+  const toasts = isMemberConsole || strongOne ? [] : items.filter((n) => n !== strongOne).slice(0, 3)
 
   return (
     <>

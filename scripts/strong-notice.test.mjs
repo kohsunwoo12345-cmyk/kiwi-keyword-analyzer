@@ -377,7 +377,11 @@ console.log('\n⑦ 비회원과 로그인한 회원 모두에게 나가고, 성�
   ok(/isAdminConsole/.test(skipLine) && !/isMemberConsole/.test(skipLine),
      '관리자 콘솔·가입 길목만 제외한다(회원 콘솔을 통째로 건너뛰지 않는다)', skipLine)
   ok(/isFunnelPath/.test(skipLine), '가입·로그인 화면에서는 조회 자체를 하지 않는다(헛노출 방지)', skipLine)
-  ok(/isMemberConsole \? \[\]/.test(pop), '회원 콘솔에서는 일반 토스트만 빼고 강력 알림은 띄운다')
+  /* 회원 콘솔에서는 토스트만 빼고 강력 알림은 띄운다.
+     강력 알림이 떠 있는 동안에도 토스트를 뺀다 — 가림막 뒤에 깔려 눌리지 않는 유령 카드가 되기 때문이다. */
+  const toastLine = (/const toasts = .*/.exec(pop) || [''])[0]
+  ok(/isMemberConsole/.test(toastLine) && /\[\]/.test(toastLine), '회원 콘솔에서는 일반 토스트만 빼고 강력 알림은 띄운다', toastLine)
+  ok(/strongOne/.test(toastLine), '강력 알림이 떠 있으면 토스트를 띄우지 않는다(가림막 뒤 유령 카드 방지)', toastLine)
 }
 
 console.log('\n⑧ 관리자 상세 조회에 강력 알림 정보와 성과가 함께 나온다')
