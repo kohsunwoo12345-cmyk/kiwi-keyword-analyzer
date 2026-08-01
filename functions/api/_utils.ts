@@ -135,10 +135,20 @@ export async function ensureOnce(db: D1Database, key: string, run: () => Promise
     const marks = await loadMarks(db)
     if (marks.has(key)) return
     await run()
+    const mark = () => db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').bind(key, '1').run()
     try {
-      await db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').bind(key, '1').run()
+      await mark()
       marks.add(key)
-    } catch { /* 표시를 못 남겨도 동작에는 지장 없다(다음에 또 만들 뿐) */ }
+    } catch {
+      //  표시를 둘 곳(settings)이 아직 없을 수 있다 — 처음 배포된 빈 DB 에서 /api/generate 가
+      //  첫 요청인 경우다. 그때만 한 번 만들고 다시 남긴다(성공하는 길에는 이 왕복이 없다).
+      //  여기서 또 실패해도 동작에는 지장 없다 — 표시가 없으니 다음 isolate 에서 또 만들 뿐이다.
+      try {
+        await db.prepare('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)').run()
+        await mark()
+        marks.add(key)
+      } catch { }
+    }
   })().catch((e) => { __ensured.delete(key); __marks = null; throw e })
   __ensured.set(key, job)
   return job
