@@ -101,10 +101,19 @@ function makeDB(user) {
             r.reconciled_at = bound[0]
           }
           if (/UPDATE gen_charges SET credits = \? WHERE/i.test(s)) { const r = charges.get(bound[1]); if (r) r.credits = bound[0] }
+          /* 실패 환불은 조건부다 — status 가 'charged' 일 때만 한 번 통과해야 두 번 환불되지 않는다. */
+          if (/UPDATE gen_charges SET status = 'refunded'/i.test(s)) {
+            const r = charges.get(bound[0])
+            if (!r || r.status !== 'charged') return { success: true, meta: { changes: 0 } }
+            r.status = 'refunded'
+          }
           if (/UPDATE users SET credits/i.test(s)) {
-            // 정산은 ROUND(credits - ?) 한 줄이므로 음수 델타(환급)도 그대로 들어온다
-            deductions.push(Number(bound[0]))
-            credits = Math.round((credits - Number(bound[0])) * 100) / 100
+            /* 차감은 `credits - ?`, 환불은 `credits + ?` 다. 부호를 구분하지 않으면
+               환불까지 차감으로 세어 "합쳐서 0" 같은 검산이 통째로 무의미해진다. */
+            const add = /credits\s*,?\s*\)?\s*\+\s*\?/.test(s) || /COALESCE\(credits,0\)\s*\+/.test(s)
+            const delta = add ? -Number(bound[0]) : Number(bound[0])
+            deductions.push(delta)
+            credits = Math.round((credits - delta) * 100) / 100
           }
           if (/INSERT INTO ai_usage/i.test(s)) usage.set(bound[0], bound.slice())
           if (/UPDATE ai_usage SET usd/i.test(s)) {
@@ -423,6 +432,94 @@ console.log('\n⑥ 관리자 생성기록 화면이 "실제로 나간 금액" �
   const b2 = await r2.json()
   const arch = (b2.items || [])[0]
   ok(arch && arch.archiveOnly === true, '금액 0 인 줄은 보관 전용으로 표시된다(공짜 생성으로 읽히지 않게)', JSON.stringify(arch || {}).slice(0, 100))
+}
+
+console.log('\n⑦ 요금 설정 캐시가 회원끼리 섞이지 않는다')
+{
+  /* 요청당 D1 질의 수를 줄이려고 환율·배수·가산율을 30초간 캐시한다.
+     이 캐시의 열쇠가 회원별로 갈리지 않으면, 먼저 청구된 회원의 배수로 다음 회원이 청구된다 —
+     같은 생성이 회원에 따라 다른 값으로 빠져야 하는데 앞사람 값이 그대로 붙는 사고다.
+     읽어서 판단하지 말고 실제로 번갈아 청구해 본다. */
+  const A = { ...USER, id: 'ua', user_id: 'ua', email: 'a@x.co', credit_markup: 5, credit_price: 100 }
+  const Bb = { ...USER, id: 'ub', user_id: 'ub', email: 'b@x.co', credit_markup: 2, credit_price: 50 }
+  const SPEC = { model: 'Seedance 2.0', units: 5, res: '1080p' }
+
+  const charge = async (who) => {
+    const db = makeDB(who)
+    const token = await gc.issueGenCharge(db, who.id, SPEC)
+    const out = await gc.settleGenCharge(db, who, token, '/k/' + who.id, DEPS)
+    return { credits: out.credits, deducted: db.__deductions.reduce((a, b) => a + b, 0), row: db.__usage[0] || [] }
+  }
+
+  //  A → B → A → B 순으로 번갈아 청구한다(캐시가 살아 있는 30초 안에서)
+  const a1 = await charge(A), b1 = await charge(Bb), a2 = await charge(A), b2 = await charge(Bb)
+
+  ok(Number(a1.row[12]) === 5, 'A 는 자기 배수(5배)로 청구된다', `배수 ${a1.row[12]}`)
+  ok(Number(b1.row[12]) === 2, 'B 는 자기 배수(2배)로 청구된다 — A 값이 넘어오지 않는다', `배수 ${b1.row[12]}`)
+  ok(a1.credits === a2.credits, 'A 를 다시 청구해도 같은 값이다', `${a1.credits} / ${a2.credits}`)
+  ok(b1.credits === b2.credits, 'B 를 다시 청구해도 같은 값이다', `${b1.credits} / ${b2.credits}`)
+  ok(a1.credits !== b1.credits, '두 회원의 청구액이 서로 다르다(캐시가 뭉개지 않았다)', `A ${a1.credits} · B ${b1.credits}`)
+
+  //  크레딧 단가도 회원별이다 — 매출 = 크레딧 × 그 회원의 단가
+  ok(Math.abs(Number(a1.row[11]) - a1.credits * 100) < 1, 'A 매출은 A 단가(100원) 기준', `${a1.row[11]}`)
+  ok(Math.abs(Number(b1.row[11]) - b1.credits * 50) < 1, 'B 매출은 B 단가(50원) 기준', `${b1.row[11]}`)
+
+  //  실비(원가)는 회원과 무관하게 같아야 한다 — 배수만 다르다
+  ok(Math.abs(Number(a1.row[8]) - Number(b1.row[8])) < 1e-9, '실비는 두 회원이 같다(원가는 회원과 무관)', `${a1.row[8]} / ${b1.row[8]}`)
+  /* 차이는 오직 배수와 단가에서만 와야 한다.
+     크레딧을 배수로 되나누면 2자리 반올림이 증폭되므로, 기록된 원가로 직접 항등식을 본다:
+       크레딧 = 원가(원) × 배수 ÷ 그 회원의 1크레딧 단가 */
+  for (const [nm, r, price] of [['A', a1, 100], ['B', b1, 50]]) {
+    const want = Math.round((Number(r.row[9]) * Number(r.row[12]) / price) * 100) / 100
+    ok(Math.abs(r.credits - want) < 0.011,
+       `${nm} 크레딧 = 원가 × 배수 ÷ ${price}원`, `${r.credits} vs ${want}`)
+  }
+}
+
+console.log('\n⑧ 실측 정산과 실패 환불이 맞물려도 잔액이 정확히 제자리로 돌아온다')
+{
+  /* 비동기 영상은 제출 시 추정치로 차감하고, 완료 응답의 실측 토큰으로 차액을 맞춘다.
+     그 뒤에 그 작업이 실패로 뒤집히면 환불이 돈다 — 이때 되돌려야 할 금액은
+     "처음 차감액" 이 아니라 "정산까지 끝난 최종 차감액" 이다.
+     여기가 어긋나면 회원에게 더 주거나 덜 준 채로 끝난다. */
+  const KEY = '/api/generate?task=refund-case'
+  const est = (1920 * 1080 * (24 * 5 + 1)) / 1024
+
+  const db = makeDB(USER)
+  const start = db.__deductions.length
+  const token = await gc.issueGenCharge(db, '1', { model: 'Seedance 2.0', units: 5, res: '1080p' })
+  const settled = await gc.settleGenCharge(db, USER, token, KEY, DEPS)
+  ok(settled.credits > 0, '제출 시 추정치로 차감됐다', `${settled.credits}크레딧`)
+
+  //  제공사가 추정의 절반만 썼다고 알려 왔다 → 차액 환급
+  const adj = await gc.reconcileGenCharge(db, KEY, est / 2, DEPS)
+  const afterReconcile = db.__deductions.reduce((a, b) => a + b, 0)
+  ok(adj < 0 && Math.abs(afterReconcile - settled.credits / 2) < 0.011,
+     '실측 정산으로 최종 차감액이 절반이 됐다', `${afterReconcile}크레딧 (조정 ${adj})`)
+
+  //  그 뒤 작업이 실패로 확정 → 환불
+  const back = await gc.refundGenCharge(db, KEY)
+  ok(Math.abs(back - afterReconcile) < 0.011,
+     '환불액은 "정산까지 끝난 최종 차감액" 이다(처음 추정액이 아니다)', `환불 ${back} vs 최종차감 ${afterReconcile}`)
+
+  const net = db.__deductions.reduce((a, b) => a + b, 0)
+  ok(Math.abs(net) < 0.011, '차감·정산·환불을 다 합치면 정확히 0 이다', `합계 ${net}`)
+
+  //  환불은 한 번뿐이어야 한다
+  const again = await gc.refundGenCharge(db, KEY)
+  ok(again === 0, '같은 작업을 다시 환불하려 해도 0 이다', String(again))
+  ok(Math.abs(db.__deductions.reduce((a, b) => a + b, 0)) < 0.011, '두 번째 시도로 잔액이 늘지 않는다')
+
+  //  이미 환불된 작업은 뒤늦게 실측이 와도 다시 건드리지 않는다
+  const db2 = makeDB(USER)
+  const t2 = await gc.issueGenCharge(db2, '1', { model: 'Seedance 2.0', units: 5, res: '1080p' })
+  const k2 = '/api/generate?task=refund-first'
+  await gc.settleGenCharge(db2, USER, t2, k2, DEPS)
+  const r2 = await gc.refundGenCharge(db2, k2)
+  const afterRefund = db2.__deductions.reduce((a, b) => a + b, 0)
+  const late = await gc.reconcileGenCharge(db2, k2, est / 2, DEPS)
+  ok(r2 > 0 && late === 0, '환불된 작업에는 뒤늦은 실측 정산이 붙지 않는다', `환불 ${r2} · 정산 ${late}`)
+  ok(Math.abs(db2.__deductions.reduce((a, b) => a + b, 0) - afterRefund) < 1e-9, '환불 뒤 잔액이 더 움직이지 않는다')
 }
 
 console.log(failed === 0 ? '\n과금 연쇄 — 실패 0\n' : `\n실패 ${failed}건\n`)
