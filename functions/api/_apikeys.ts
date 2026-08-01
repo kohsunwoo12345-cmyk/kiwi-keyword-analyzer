@@ -30,7 +30,21 @@ export function maskApiKey(plain: string): string {
   return s.slice(0, 12) + '…' + s.slice(-4)
 }
 
+/* 표를 만드는 일은 한 번만 하면 된다. 그런데 여태 생성 요청마다 12개 DDL 을 하나씩
+   실행했다 — Cloudflare 는 D1 질의 하나를 서브리퀘스트 하나로 세고, 요청당 한도를 넘으면
+   함수가 통째로 끊겨 우리 try/catch 가 손댈 수 없는 raw 502 가 난다.
+   (관리자는 이 경로를 안 타서 멀쩡하고 회원만 502 가 나던 원인이다 — 실측 회원 41회 · 관리자 5회)
+   같은 isolate 안에서는 한 번만 하고 넘어간다. 실패하면 다음 요청에서 다시 시도한다. */
+const __apiKeysReady = new WeakMap<object, Promise<void>>()
 export async function ensureApiKeysSchema(db: D1Database) {
+  const key = db as unknown as object
+  const done = __apiKeysReady.get(key)
+  if (done) return done
+  const run = __ensureApiKeysSchema(db).catch((e) => { __apiKeysReady.delete(key); throw e })
+  __apiKeysReady.set(key, run)
+  return run
+}
+async function __ensureApiKeysSchema(db: D1Database) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS api_keys (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,

@@ -450,10 +450,11 @@ body.create-open #btnQueue{ display:none !important; }
   box-shadow:0 1px 4px rgba(0,0,0,.4); }
 .refcnt{ font-size:10px; color:#8a8a8a; text-align:center; }
 /* 레퍼런스 번호 — 프롬프트에서 이 번호로 부른다. 눈에 잘 띄어야 한다. */
-.refno{ font-size:11px; font-weight:800; letter-spacing:.02em; text-align:center;
-  color:#0f1115; background:linear-gradient(180deg,#ffe08a,#f5c451); border-radius:999px;
-  padding:2px 8px; margin:0 auto 6px; width:fit-content; }
-.refno-off{ background:none; color:#c98b8b; font-weight:600; font-size:10px; }
+/* 레퍼런스 번호 — 프롬프트에서 이 번호로 부른다. 필요할 때 눈에 들어오되
+   작업 화면을 어지럽히지 않게 조용히 둔다(색 배지 대신 작은 회색 글씨). */
+.refno{ font-size:9.5px; font-weight:600; letter-spacing:.09em; text-align:center;
+  color:var(--w-text-2,#8a8a8a); margin:0 0 4px; opacity:.75; }
+.refno-off{ color:#b98a8a; letter-spacing:.02em; }
 .refcnt.ref-over{ color:#e6b25a; }
 .refcnt b{ color:#cdd6ff; font-weight:800; }
 /* ── 자체 업스케일러 UI ── */
@@ -4637,7 +4638,11 @@ function _esrRunTile(sess, cv){
    워커를 못 쓰거나 모델을 못 받으면 기존 단일 경로로 그대로 물러난다. */
 /* 빠르게 모드에 쓰는 가벼운 모델 — 우리 서버에 직접 올려 둔다(외부 저장소가 죽어도 동작한다).
    UpscalerJS 의 esrgan-medium(RDN ×4, 70만 파라미터, MIT)을 ONNX 로 옮긴 것이다.
-   정답을 놓고 잰 비교: 기본(726만 파라미터) 대비 10배 빠르고 PSNR 차이 0.02dB · SSIM 0.026.
+   기본 모델(위 ESRGAN_URLS = Real-ESRGAN x4plus, 1670만 파라미터)과 같은 조건에서 잰 값
+   (CPU·WASM 단일 세션, GPU 완전 차단, 타일 128):
+       기본 32.50초 / 타일     가벼운 것 1.44초 / 타일   → 22.6배 빠름
+   ※ 예전 주석은 "10배" 라고 적어 뒀는데, 그건 제품이 쓰지 않는 다른 모델(esrgan-thick,
+     726만)을 기준으로 잰 값이었다. 제품이 실제로 받는 모델로 다시 재서 고쳤다.
    자세한 근거와 출처는 /models-sr/README.md 에 적어 뒀다. */
 var ESRGAN_FAST_URLS=['/models-sr/rdn-medium-x4.onnx'];
 var _srPools={}, _srPoolTries={};
@@ -4868,6 +4873,32 @@ function _srCanvas2(runner, srcCanvas){
 }
 // 이미지 업스케일: SR 시도 → 목표 배율/해상도로 맞춤. 실패 시 리샘플러 폴백.
 //  opts.longTarget(px) 지정 시 긴 변을 그 크기(예: 5120=5K)로 맞춤 — x4 모델·풀해상 입력으로 실제 5K 디테일.
+/* 이미지는 한 장짜리라 영상처럼 "돌리면서 재고 고치는" 기회가 없다 — 시작 전에 한 타일로 재 본다.
+   GPU 없이 CPU 로만 돌 때 기본 모델은 타일 하나에 수십 초가 걸려서, 1920×1080 한 장이
+   한 시간을 넘긴다(타일 45장 × 32.5초, 실측 근거는 ESRGAN_FAST_URLS 주석 참고).
+   영상 쪽에는 예산 판단이 있었지만 이미지에는 없어서, 아무 안내 없이 그냥 오래 걸렸다.
+   그래서 작은 타일 하나로 속도를 재 보고, 예산(3분)을 넘길 것 같으면 가벼운 모델로 바꾼다. */
+function _srProbe(runner, srcC, W, H){
+  if(runner.fast) return Promise.resolve(runner);
+  var P=Math.max(16, Math.min(64, W, H));
+  var pc=document.createElement('canvas'); pc.width=P; pc.height=P;
+  var pctx=pc.getContext('2d'); pctx.drawImage(srcC, 0,0,P,P, 0,0,P,P);
+  var t0=performance.now();
+  function decide(){
+    var ms=performance.now()-t0;
+    var conc=Math.max(1, runner.concurrency||1);
+    var projSec=(ms*(W*H)/(P*P))/conc/1000;
+    if(projSec<=180) return runner;
+    try{ toast('이 기기에서는 기본 모델이 약 '+Math.max(1,Math.round(projSec/60))+'분 걸립니다 — 가벼운 모델로 바꿔 진행합니다'); }catch(_){}
+    return getUpscaler(4, true).then(function(r2){ return (r2&&r2.fast)?r2:runner; },function(){ return runner; });
+  }
+  //  재다가 실패하면 원래 러너로 그대로 간다 — 재는 일 때문에 업스케일이 막히면 안 된다
+  if(runner.runRaw){
+    var id=pctx.getImageData(0,0,P,P);
+    return runner.runRaw(id.data.buffer,P,P).then(decide,function(){ return runner; });
+  }
+  return runner.run(pc).then(decide,function(){ return runner; });
+}
 function upscaleImageURL(src,scale,opts){
   return new Promise(function(resolve,reject){
     var img=new Image(); img.crossOrigin='anonymous';
@@ -4878,10 +4909,12 @@ function upscaleImageURL(src,scale,opts){
       var srcC=document.createElement('canvas'); srcC.width=iw; srcC.height=ih; srcC.getContext('2d').drawImage(img,0,0);
       try{ toast(tr('초해상 모델 로딩 중… (최초 1회 다운로드)')); }catch(_){}
       getUpscaler(factor, opts&&opts.fast).then(function(runner){
-        return _srCanvas2(runner, srcC).then(function(srC){
+        return _srProbe(runner, srcC, iw, ih).then(function(rr){
+        return _srCanvas2(rr, srcC).then(function(srC){
           var tw=Math.round(iw*effScale), th=Math.round(ih*effScale), o=srC;
           if(srC.width!==tw||srC.height!==th){ var fc=document.createElement('canvas'); fc.width=tw; fc.height=th; var fx=fc.getContext('2d'); fx.imageSmoothingEnabled=true; fx.imageSmoothingQuality='high'; fx.drawImage(srC,0,0,tw,th); o=fc; }
           resolve({ url:o.toDataURL('image/png'), kind:'image', dim:tw+'×'+th });
+        });
         });
       }).catch(function(){ resolve(_upscaleImageResample(src, effScale)); });   // 모델 불가 → 리샘플 폴백(동일 목표 배율)
     };
@@ -5173,17 +5206,38 @@ function upscaleVideoURL(src,scale,onProg,opts){
                말없이 계속 돌린 것이다(실측). 10시간은 되는 게 아니다.
                원본 길이의 6배까지 허용하고(30초 영상이면 3분), 아무리 길어도 3시간을 넘기지 않는다. */
             var BUDGET_H = Math.min(3, Math.max(0.5, clip*6/3600));
+            var swapping=false;
             function retune(){
-              if(!srOn||tuned>=2||srN<8)return;
+              if(!srOn||swapping||tuned>=3)return;
+              /* 판단에 필요한 표본은 보통 8프레임이다. 그런데 GPU 없이 CPU 로만 도는 기기에서는
+                 한 프레임에 90초(워치독 상한)가 걸려 8프레임을 재는 데만 12분이 든다 —
+                 그 12분 동안 사용자는 리샘플로 채워진 프레임만 받는다.
+                 이미 1분어치를 재 봤으면 판단하기에 충분한 증거다. */
+              if(srN<1 || (srN<8 && srMs<60000)) return;
               var projH=(total*(srMs/srN)/1000)/3600;
-              if(projH<=BUDGET_H){ tuned=2; return; }
-              tuned++;
+              if(projH<=BUDGET_H){ tuned=3; return; }
               /* 처리 크기를 줄이는 건 "원본이 그 크기보다 클 때" 만 효과가 있다.
                  작은 원본에서는 줄여도 그대로라, 예전 조건은 몇 분을 더 재고 나서야 다음 단계로 갔다. */
               var half=Math.max(320,Math.round(CAP/2));
-              if(tuned===1 && half<Math.max(iw,ih)){ CAP=half; applyCap(); srMs=0; srN=0;
+              if(tuned===0 && half<Math.max(iw,ih)){ tuned=1; CAP=half; applyCap(); srMs=0; srN=0;
                 try{ toast('예상 '+projH.toFixed(1)+'시간 — 처리 크기를 줄여 다시 잡습니다'); }catch(_){} return; }
-              srOn=false; tuned=2;
+              /* 초해상을 통째로 버리기 전에 가벼운 모델로 갈아탄다.
+                 GPU 없이 CPU 로만 돌면 기본 모델(Real-ESRGAN x4plus, 1670만 파라미터)은 타일 하나에
+                 32.5초가 걸린다(실측). 어떤 영상도 예산 안에 못 들어와 결국 "초해상 끔" 으로 끝났다 —
+                 즉 GPU 없는 사용자는 AI 화질 향상을 아예 못 받고 단순 확대만 받고 있었다.
+                 가벼운 모델은 같은 조건에서 1.44초로 22.6배 빠르다. 화질은 조금 손해지만
+                 "모델을 아예 안 쓰는 것" 보다는 확실히 낫다 — 그래서 끄기 전에 이 단계를 둔다. */
+              if(tuned<=1 && !runner.fast){
+                tuned=2; swapping=true;
+                try{ toast('예상 '+projH.toFixed(1)+'시간 — 가벼운 모델로 바꿔 계속합니다(화질 차이는 작습니다)'); }catch(_){}
+                getUpscaler(factor, true).then(function(r2){
+                  if(r2&&r2.fast){ runner=r2; srMs=0; srN=0; }
+                  else { srOn=false; tuned=3; }
+                  swapping=false;
+                },function(){ swapping=false; srOn=false; tuned=3; });
+                return;
+              }
+              srOn=false; tuned=3;
               try{ toast('예상 '+projH.toFixed(1)+'시간이라 전 프레임 초해상은 무리입니다 — 고속 화질 향상으로 전환합니다(크기·소리·길이는 그대로).'); }catch(_){}
             }
             function seekTo(t){ return new Promise(function(res){ var d2=false;
@@ -6732,9 +6786,9 @@ function widgetHTML(n,w){
        어느 블럭이 2번인지 화면에서 바로 알 수 있어야 한다. */
     var _refNo=(n.type==='imageref'||n.type==='videoref'||n.type==='reference') ? refNoOf(n.id) : 0;
     var refBadge=_refNo
-      ? '<div class="refno">레퍼런스 '+_refNo+'</div>'
+      ? '<div class="refno">REF '+_refNo+'</div>'
       : ((n.type==='imageref'||n.type==='videoref') && imgs.length
-          ? '<div class="refno refno-off">연결 안 됨 — 모델 블럭에 이어야 번호가 붙어요</div>' : '');
+          ? '<div class="refno refno-off">NOT LINKED</div>' : '');
     var _lim=refDownstreamLimit(n.id);   // 연결된 모델의 최대 첨부 장수 (0=미연결)
     var cnt = nVid>1 ? ('영상 프레임 '+nVid+'장 · 첫·마지막을 모델의 first/last로 전달')
             : imgs.length>1 ? (imgs.length+'개'+(nVid?' · 영상 '+nVid:'')+' · 첫 번째가 대표')
@@ -8248,7 +8302,8 @@ function collectLabeledRefs(id, selfImgs){
 function refMentionProblem(prompt, count){
   var t=String(prompt||''), max=0, m;
   var pats=[/(?:레|래)\s*퍼\s*런\s*스\s*(?:이미지|사진|영상)?\s*#?\s*(\d{1,2})/g,
-            /(\d{1,2})\s*번\s*째?\s*(?:(?:레|래)\s*퍼\s*런\s*스|이미지|사진|그림)/g];
+            /(\d{1,2})\s*번\s*째?\s*(?:(?:레|래)\s*퍼\s*런\s*스|이미지|사진|그림)/g,
+            /\bref(?:erence)?\s*#?\s*(\d{1,2})\b/gi];   // 화면 표기가 REF 라 영어로도 쓴다
   for(var i=0;i<pats.length;i++){ while((m=pats[i].exec(t))) max=Math.max(max, Number(m[1])||0); }
   if(max>count) return '프롬프트에 "레퍼런스 '+max+'" 이라고 쓰셨는데 연결된 레퍼런스는 '+count+'개예요. 블럭을 더 연결하거나 번호를 고쳐주세요.';
   return null;
