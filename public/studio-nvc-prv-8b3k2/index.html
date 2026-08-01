@@ -1318,7 +1318,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 #optbar .ob-x{ width:26px; height:26px; border-radius:7px; border:1px solid #313138;
   background:#1b1b1f; color:#9a9ca4; cursor:pointer; font-size:15px; line-height:1; }
 #optbar .ob-x:hover{ background:#26262c; color:#e8e8ec; }
-#optbar .ob-body{ flex:1; overflow:auto; padding:14px; display:flex; flex-direction:column; gap:14px; }
+#optbar .ob-body{ flex:1; overflow:auto; padding:14px 14px 96px; display:flex; flex-direction:column; gap:14px; }
 #optbar .ob-sec{ font-size:10.5px; font-weight:800; letter-spacing:.08em; color:#6b6d76; text-transform:uppercase; }
 #optbar .ob-row{ display:flex; flex-direction:column; gap:6px; }
 #optbar .ob-lab{ font-size:11.5px; color:#a4a6ae; display:flex; justify-content:space-between; }
@@ -1357,7 +1357,13 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 /* 사이드바 안에 그려지는 노드 복제본 — 캔버스 블럭이 아니라 패널 내용처럼 보이게 */
 #optbar .ob-proxy{ position:static; width:auto; background:transparent !important;
   border:none !important; box-shadow:none; border-radius:0; }
-#optbar .ob-proxy .node-body{ padding:0; gap:7px; }
+#optbar .ob-proxy .node-body{ padding:0; gap:9px; }
+/* 위젯은 272px 노드에 맞춰 만든 것이라 패널에서는 눌린다 — 넉넉히 편다 */
+#optbar .ob-proxy .widget{ width:100%; box-sizing:border-box; }
+#optbar .ob-proxy select, #optbar .ob-proxy input[type=text], #optbar .ob-proxy input[type=number],
+#optbar .ob-proxy textarea{ width:100%; box-sizing:border-box; }
+#optbar .ob-proxy textarea.wtext{ min-height:78px; }
+#optbar .ob-proxy .wbtn{ width:100%; justify-content:center; padding:10px 12px; font-size:12.5px; }
 
 /* ══════ 실행 카운트다운 (10초) · 진행률 ══════ */
 .node .run-armed{ margin-top:6px; border:1px solid #4a3a12; background:#1e1a10; border-radius:8px;
@@ -6755,7 +6761,8 @@ function widgetHTML(n,w){
       html+=row('lumaHdr', n.w.lumaHdr===true, 'HDR 출력', '720p·1080p 에서 넓은 명암 범위로 출력 (기본 꺼짐)');
       html+=row('lumaLoop', n.w.lumaLoop===true, '끊김 없는 반복', '끝과 처음이 이어지는 루프 영상 (마지막 프레임을 연결하면 적용되지 않음)');
     }
-    html+='<div class="seedid-hint" style="margin-top:6px;">길이·비율·해상도는 <b>영상 설정</b> 노드(또는 아래 드롭다운)에서 조절됩니다.</div>';
+    //  길이·비율·해상도는 이제 이 패널 '위쪽' 에 있다 — 아래 드롭다운은 없어졌다
+    html+='<div class="seedid-hint" style="margin-top:6px;">길이·비율·해상도는 <b>위쪽</b>에서 조절됩니다.</div>';
     html+='</div>';
     return html;
   }
@@ -7248,7 +7255,9 @@ function nodeHTML(n){
     : '';
   return '<div class="node-title" style="--hd:'+(n.color||def.hd||'#2a2a2a')+'">'+
       '<span class="node-dot" data-collapse title="접기/펼치기"></span>'+
-      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(n.title)+'</span></div>'+
+      /*  제목이 없는 그래프(밖에서 불러온 것·옛 저장본)에서는 제목 칸이 통째로 비어
+          무슨 블럭인지 알 수 없게 된다 → 종류의 기본 제목으로 채운다. */
+      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(n.title||def.title||'')+'</span></div>'+
     '<div class="node-prog"></div>'+
     '<div class="node-body">'+rows+widgets+addRow+'</div>';
 }
@@ -7384,7 +7393,11 @@ function renderOptbar(){
      id 는 주지 않는다 — 'nd-<id>' 는 캔버스의 진짜 블럭 것이고, 같은 id 가 둘이면
      진행률·선택 표시가 엉뚱한 데로 간다. */
   var def=DEFS[n.type];
-  var side=def.widgets.filter(function(w){ return !BLOCK_KEEP[w.t]; });
+  /* 영상 모델에서는 모델·길이·비율·해상도를 위에서 이미 그렸다(모델이 실제로 받는 값만
+     골라 주는 칩). 노드가 갖고 있는 같은 칸을 또 그리면 화면에 같은 설정이 둘이 되어
+     어느 쪽이 진짜인지 알 수 없고, 좁은 패널에서 '16' '1' 처럼 잘려 보이기까지 한다. */
+  var DUP = isVid ? { model:1, vidOpts:1 } : {};
+  var side=def.widgets.filter(function(w){ return !BLOCK_KEEP[w.t] && !DUP[w.k]; });
   if(!side.length && !isVid){ closeOptbar(); return; }     // 옮길 게 없으면 열지 않는다
   if(side.length) h+='<div class="ob-sec">설정</div>'
     +'<div class="node ob-proxy" data-node="'+n.id+'" data-type="'+n.type+'"><div class="node-body">'
