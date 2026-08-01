@@ -463,7 +463,59 @@ console.log('\n⑭ 집행 종료 시각에 정확히 내려간다 · 탭을 다�
   await ctx.close()
 }
 
-console.log('\n⑮ 관리자 폼에서 강력 알림을 실제로 집행한다')
+console.log('\n⑮ 가입·로그인 길목은 광고가 막지 않고, 헛노출도 안 남긴다')
+{
+  /* 실제 집행에서 잡은 두 가지다.
+     · /login 에서 모달이 로그인 버튼을 덮어 30초 동안 누를 수 없었다.
+       CTA 가 /signup 을 가리키는 집행이면 도착한 신청 화면을 그 광고가 다시 가린다.
+     · 화면에서 숨기는 것만으로는 부족하다 — 목록을 받아 오는 것만으로 서버에 "노출" 이 기록돼,
+       아무도 보지 않은 노출이 쌓이고 나중의 진짜 노출은 (방문자당 1건이라) 무시된다. */
+  for (const at of ['/login', '/signup', '/complete-profile']) {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+    const page = await ctx.newPage()
+    let polled = 0
+    await page.route('**/api/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }))
+    await page.route('**/api/public-notices*', (r) => {
+      polled++
+      return r.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ ok: true, now: new Date().toISOString(), notices: [NOTICE] }) })
+    })
+    await page.goto(BASE + at, { waitUntil: 'domcontentloaded' })
+    await page.waitForTimeout(2500)
+    ok(await page.locator('[role="dialog"]').count() === 0, `${at} — 광고가 화면을 막지 않는다`)
+    ok(polled === 0, `${at} — 조회조차 하지 않는다(보지 않은 노출이 안 쌓인다)`, `조회 ${polled}회`)
+    await ctx.close()
+  }
+}
+
+console.log('\n⑯ CTA 로 페이지가 넘어가도 전환 기록이 살아남는다')
+{
+  /* 실측: 보통의 fetch 는 이동과 함께 취소돼 전환이 통째로 사라졌다(광고 성과 과소 집계).
+     keepalive 를 켜야 페이지를 떠나도 요청이 끝까지 간다. */
+  const src = fs.readFileSync('components/PublicNoticePopups.tsx', 'utf8')
+  ok(/keepalive:\s*true/.test(src), '기록 요청에 keepalive 가 켜져 있다')
+
+  //  실제로 눌러서 요청이 서버까지 도달하는지 3회 본다(경합이라 한 번으로는 못 잡는다)
+  for (let i = 1; i <= 3; i++) {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+    const page = await ctx.newPage()
+    const got = []
+    await page.route('**/api/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }))
+    await page.route('**/api/public-notices*', (r) => {
+      if (r.request().method() === 'POST') { got.push(JSON.parse(r.request().postData() || '{}').kind) ; return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }) }
+      return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, now: new Date().toISOString(), notices: [NOTICE] }) })
+    })
+    await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
+    await page.locator('[role="dialog"]').waitFor({ state: 'visible', timeout: 15000 })
+    await page.getByRole('button', { name: '지금 신청하기' }).click()
+    await page.waitForLoadState('domcontentloaded')
+    await page.waitForTimeout(1200)
+    ok(got.includes('convert'), `${i}회차 — 전환 요청이 서버까지 도달했다`, JSON.stringify(got))
+    await ctx.close()
+  }
+}
+
+console.log('\n⑰ 관리자 폼에서 강력 알림을 실제로 집행한다')
 {
   /* 사람이 쓰듯 폼을 채워 발송하고, 서버로 나가는 요청 본문을 그대로 확인한다.
      "화면에는 켰는데 서버로는 안 갔다" 가 가장 흔한 실패라 여기를 눈이 아니라 값으로 본다. */

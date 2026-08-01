@@ -370,9 +370,13 @@ console.log('\n⑦ 비회원과 로그인한 회원 모두에게 나가고, 성�
   /* 화면 쪽: 회원 콘솔에서도 강력 알림이 떠야 한다.
      예전에는 /dashboard 로 시작하는 경로를 통째로 건너뛰어, 로그인한 회원은 집행을 한 번도 못 봤다. */
   const pop = fs.readFileSync('components/PublicNoticePopups.tsx', 'utf8')
-  //  "|| isMemberConsole" 처럼 뒤에 조건이 붙으면 회원 콘솔이 다시 통째로 빠진다 — 줄 끝까지 본다.
-  ok(/const skip = isAdminConsole\s*$/m.test(pop), '관리자 콘솔만 제외한다(회원 콘솔을 통째로 건너뛰지 않는다)',
-     (/const skip = .*/.exec(pop) || [''])[0])
+  /* skip 에 회원 콘솔이 들어가면 로그인한 회원이 집행을 다시 못 보게 된다.
+     가입·로그인 화면(isFunnelPath)이 들어가는 것은 의도한 것이다 — 거기서는 광고가 길을 막고,
+     보지도 않은 노출이 쌓인다. 그래서 "회원 콘솔만" 콕 집어 확인한다. */
+  const skipLine = (/const skip = .*/.exec(pop) || [''])[0]
+  ok(/isAdminConsole/.test(skipLine) && !/isMemberConsole/.test(skipLine),
+     '관리자 콘솔·가입 길목만 제외한다(회원 콘솔을 통째로 건너뛰지 않는다)', skipLine)
+  ok(/isFunnelPath/.test(skipLine), '가입·로그인 화면에서는 조회 자체를 하지 않는다(헛노출 방지)', skipLine)
   ok(/isMemberConsole \? \[\]/.test(pop), '회원 콘솔에서는 일반 토스트만 빼고 강력 알림은 띄운다')
 }
 

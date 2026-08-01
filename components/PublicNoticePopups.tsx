@@ -53,7 +53,19 @@ export function PublicNoticePopups() {
      일반 토스트는 콘솔에 회원 전용 팝업(NoticePopups)이 따로 있어 겹치므로 콘솔에서는 계속 뺀다. */
   const isAdminConsole = pathname.startsWith('/adminsunkoh')
   const isMemberConsole = pathname.startsWith('/dashboard')
-  const skip = isAdminConsole
+  /* 가입·로그인·정보입력 화면에서는 알림을 아예 띄우지 않는다.
+     이 화면들은 광고가 유도하는 목적지이거나 회원이 반드시 통과해야 하는 길목이라,
+     화면 한가운데를 가로막으면 광고가 자기 목적을 방해한다.
+     (실측: /login 에서 모달이 로그인 버튼을 덮어 30초 동안 누를 수 없었다.
+      CTA 가 /signup 을 가리키는 집행이면 도착한 신청 화면을 그 광고가 다시 가린다.)
+
+     화면에서 숨기는 것으로 끝내면 안 된다 — 목록을 받아 오는 것만으로 서버에 "노출" 이 기록되기 때문이다.
+     (실측: /login 에서 아무도 보지 않은 노출이 6건 쌓였다. 노출은 방문자·캠페인당 1건이라
+      그 뒤 실제로 본 노출은 무시되고, 회원/비회원 집계도 로그인 전 상태로 굳는다.)
+     그래서 이 화면들에서는 조회 자체를 하지 않는다. */
+  const FUNNEL_PATHS = ['/login', '/signup', '/complete-profile']
+  const isFunnelPath = FUNNEL_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
+  const skip = isAdminConsole || isFunnelPath
 
   const poll = useCallback(() => {
     if (skip) return
@@ -119,10 +131,14 @@ export function PublicNoticePopups() {
     return () => clearInterval(iv)
   }, [items])
 
+  /* CTA 를 누르면 이 요청을 보내자마자 페이지가 넘어간다. 보통의 fetch 는 그때 취소돼서
+     전환이 기록되지 않는다 — 실측으로 전환 1건이 통째로 사라졌다(광고 성과가 과소 집계된다).
+     keepalive 를 켜면 페이지를 떠나도 요청이 끝까지 간다. */
   const post = (campaignId: string, kind: 'read' | 'convert' | 'snooze', days?: number) => {
     try {
       fetch('/api/public-notices', {
         method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include',
+        keepalive: true,
         body: JSON.stringify({ campaignId, visitor: getVisitorId(), kind, days, path: pathname }),
       }).catch(() => {})
     } catch { /* noop */ }
