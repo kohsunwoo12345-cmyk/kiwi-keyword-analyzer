@@ -1873,13 +1873,13 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 <script>
 (function(){
 'use strict';
-var STUDIO_BUILD_TAG='2026-08-01-v58';   // 서버 health.build 와 정확히 같아야 최신(캐시/배포지연 아님)
+var STUDIO_BUILD_TAG='2026-08-01-v59';   // 서버 health.build 와 정확히 같아야 최신(캐시/배포지연 아님)
 // (검증용) ?cnexport=1 접속 시 전처리 함수만 window 로 노출 — 순수 이미지 함수라 보안 영향 없음
 try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum, upscaleImageURL:upscaleImageURL }; }catch(_e){} },0); } }catch(_e){}
 // (검증용) ?refexport=1 접속 시 레퍼런스 번호 관련 함수만 노출 — 번호가 연결 순서대로
 //  붙는지, 블럭 하나에 하나만 담기는지를 자동으로 확인하기 위한 것. 비밀값은 들어 있지 않고
 //  편집기 상태는 어차피 그 브라우저 안에 있는 것이라 밖으로 새는 것이 없다.
-try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('refexport=1')>=0){ setTimeout(function(){ try{ window.__ref={ get state(){return state;}, set state(v){state=v;}, addNode:addNode, addOmniRefFiles:addOmniRefFiles, refNoOf:refNoOf, refSlotsOf:refSlotsOf, refOrderedBlocks:refOrderedBlocks, collectLabeledRefs:collectLabeledRefs, refMentionProblem:refMentionProblem, render:render }; }catch(_e){} },0); } }catch(_e){}
+try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('refexport=1')>=0){ setTimeout(function(){ try{ window.__ref={ get state(){return state;}, set state(v){state=v;}, addNode:addNode, addOmniRefFiles:addOmniRefFiles, refNoOf:refNoOf, refSlotsOf:refSlotsOf, refOrderedBlocks:refOrderedBlocks, collectLabeledRefs:collectLabeledRefs, refMentionProblem:refMentionProblem, inlineOwnMediaSrc:inlineOwnMediaSrc, render:render }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
   function s(inner,vb){ return '<svg class="ico" viewBox="'+(vb||'0 0 24 24')+'" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+inner+'</svg>'; }
@@ -3535,6 +3535,12 @@ async function generateWithAPI(params){
   var hostErr='';
   try{ params=await resolveMediaForProvider(prov, params); }   // 공개 URL 필요 제공사는 이미지 → R2 URL
   catch(e){ hostErr=' 호스팅예외:'+String(e.message||e).slice(0,40); }
+  //  씨댄스 2.0 은 base64 를 받는다 — 우리 서버 사진은 제공사가 받으러 오지 않게 실어 보낸다.
+  //  (제공사가 우리 /api/media 를 못 가져와 22초를 기다리다 끝나던 자리 — 위 주석 참고)
+  if(prov==='seedance' && /Seedance 2\.0/.test(params.model||'')){
+    try{ params=await inlineOwnMediaAll(params); }
+    catch(e){ hostErr+=' 인라인예외:'+String(e.message||e).slice(0,30); }
+  }
   // 진단: 실제 보내는 요청의 값들을 에러에 첨부 (502 원인 추적용)
   var bodyStr=''; try{ bodyStr=JSON.stringify(params); }catch(e){}
   var bodyKB=Math.round(bodyStr.length/1024);
@@ -3593,6 +3599,57 @@ async function generateWithAPI(params){
 }
 
 /* 레퍼런스 이미지 압축 — data:URI 는 ≤1024px JPEG 로 축소(12장이 3MB 초과하지 않게), URL 은 그대로(서버가 처리) */
+/* 우리 서버에 있는 사진을 "실어 보낼 수 있는 형태"로 바꾼다 (씨댄스 2.0 전용).
+   제공사(BytePlus)가 우리 /api/media 에서 사진을 직접 받아 가야 하는데 그게 늦어지면
+   제출 자체가 안 끝난다 — 실제로 22초를 기다리다 "제공사 응답 시간 초과" 로 끝났다.
+   그래서 사진을 우리가 실어 보낸다.
+
+   ⚠ 이 일을 서버(워커)에서 하면 안 된다. 무료 등급은 요청당 CPU 한도가 10ms 라
+     몇 MB 를 base64 로 바꾸는 것만으로 넘겨 함수가 통째로 끊긴다(그렇게 해 봤다가
+     읽을 수 있던 실패까지 raw 502 로 바뀌었다). 브라우저에는 그 한도가 없다.
+     겸사겸사 크기를 줄여 보내므로 올라가는 양도 훨씬 작다. */
+function inlineOwnMediaSrc(src, max, q){
+  return new Promise(function(resolve){
+    if(!src || typeof src!=='string'){ resolve(src); return; }
+    if(src.indexOf('data:')===0){ resolve(src); return; }
+    // 우리 서버 사진만 대상 — 바깥 사진은 제공사가 알아서 받아 가면 된다
+    if(!/\/api\/media\//.test(src)){ resolve(src); return; }
+    var img=new Image(); img.crossOrigin='anonymous';
+    var done=false, tm=setTimeout(function(){ if(!done){ done=true; resolve(src); } }, 15000);
+    img.onload=function(){ if(done) return; done=true; clearTimeout(tm);
+      try{
+        var w=img.naturalWidth||1024, h=img.naturalHeight||1024;
+        var sc=Math.min(1,(max||1280)/Math.max(w,h));
+        var c=document.createElement('canvas');
+        c.width=Math.max(2,Math.round(w*sc)); c.height=Math.max(2,Math.round(h*sc));
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        var d=c.toDataURL('image/jpeg', q||0.88);
+        resolve(/^data:image\//.test(d) ? d : src);
+      }catch(e){ resolve(src); }   // 캔버스가 막히면(교차 출처 등) 원래 URL 로 둔다
+    };
+    img.onerror=function(){ if(done) return; done=true; clearTimeout(tm); resolve(src); };
+    img.src=sameOriginMedia(src);
+  });
+}
+/** 씨댄스 2.0 으로 보낼 사진들(첫·마지막 프레임 + 레퍼런스)을 실어 보낼 형태로 바꾼다 */
+async function inlineOwnMediaAll(params){
+  var seen={};
+  var conv=async function(v){
+    if(!v||typeof v!=='string') return v;
+    if(seen[v]!==undefined) return seen[v];
+    var out=await inlineOwnMediaSrc(v,1280,0.88);
+    seen[v]=out; return out;
+  };
+  params.firstFrame=await conv(params.firstFrame);
+  params.lastFrame =await conv(params.lastFrame);
+  params.refImage  =await conv(params.refImage);
+  if(Array.isArray(params.refImages)){
+    var arr=[];
+    for(var i=0;i<params.refImages.length;i++) arr.push(await conv(params.refImages[i]));
+    params.refImages=arr;
+  }
+  return params;
+}
 function shrinkImageSrc(src, max, q){
   return new Promise(function(resolve){
     if(!src){ resolve(null); return; }

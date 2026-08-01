@@ -610,7 +610,12 @@ async function ownMediaDataUri(env, url) {
     return "data:" + ct.toLowerCase() + ";base64," + btoa(bin);
   } catch (_e) { return null; }
 }
-/** 씨댄스 2.0 으로 보낼 이미지들 중 "우리 서버 것" 만 실어 보내도록 바꾼다 */
+/** 씨댄스 2.0 으로 보낼 이미지들 중 "우리 서버 것" 만 실어 보내도록 바꾼다.
+ *  ⚠ 서버(워커)에서는 쓰지 않는다. 무료 등급은 요청당 CPU 한도가 10ms 인데
+ *     몇 MB 를 base64 로 바꾸는 것만으로 그 자리를 넘겨 함수가 통째로 끊긴다 —
+ *     실제로 이걸 서버에 넣었더니, 그 전까지 읽을 수 있는 실패를 돌려주던 GET 우회까지
+ *     raw 502 로 바뀌었다. 이 일은 한도가 없는 브라우저에서 한다(스튜디오 참조).
+ *     API·MCP 처럼 브라우저가 없는 경로를 위해 남겨 두지만, 부르는 쪽이 크기를 책임져야 한다. */
 export async function inlineOwnMedia(b, env) {
   if (!b) return b;
   const seen = new Map();
@@ -1977,7 +1982,7 @@ async function handle(context) {
       const lumaOk = await lumaUsable(k.luma);
       return json({
         version:  "2026-07-13-v56 (remove-keys-page)", // 이 필드가 보이면 최신 코드가 프로덕션에 반영된 것
-        build:    "2026-08-01-v58",                      // 스튜디오 STUDIO_BUILD 와 정확히 일치해야 최신
+        build:    "2026-08-01-v59",                      // 스튜디오 STUDIO_BUILD 와 정확히 일치해야 최신
         runway:   !!k.runway,
         xai:      !!k.xai,
         google:   !!(k.google || gcpCreds(env)),
@@ -2054,8 +2059,7 @@ async function handle(context) {
       };
       // POST 와 같은 이유로 이 경로도 제출을 붙잡고 있으면 플랫폼 502 가 난다 — 똑같이 인계한다.
       const work = (async () => {
-        const bb = /seedance-2/.test(seedanceModelId(b, env) || "") ? await inlineOwnMedia(b, env) : b;
-        const payload = buildSeedancePayload(bb, env);
+        const payload = buildSeedancePayload(b, env);
         let r, j; const t0 = Date.now();
         try {
           r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
@@ -4129,13 +4133,6 @@ async function handle(context) {
     const bound = bindRefMentions(b.prompt, slots, style);
     if (bound.text !== b.prompt) b = { ...b, prompt: bound.text };
     b.__refBind = { used: bound.used, missing: bound.missing, count: slots.length, slots, style };
-  }
-
-  /*  씨댄스 2.0 은 base64 를 받는다 — 우리 서버에 있는 사진은 제공사가 받아 가게 두지 않는다.
-      제공사가 우리 /api/media 를 못 가져와 22초를 기다리다 끝나던 자리다.
-      dryRun 보다 앞에서 한다 — 미리보기가 실제로 나갈 내용과 달라지면 확인하는 의미가 없다. */
-  if (provider === "seedance" && /seedance-2/.test(seedanceModelId(b, env) || "")) {
-    b = await inlineOwnMedia(b, env);
   }
 
   /* dryRun — 실제 호출 없이 매핑된 페이로드만 반환 (검증용) */
