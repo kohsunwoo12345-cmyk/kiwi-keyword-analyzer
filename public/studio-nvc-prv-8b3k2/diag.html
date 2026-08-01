@@ -67,6 +67,11 @@ code{background:#0f1319;padding:1px 5px;border-radius:4px;font-size:12px}
     사진을 조금씩 키워 가며 같은 검사를 돌려, <b>몇 KB부터 무너지는지</b> 찾습니다.
     <br>제공사는 부르지 않습니다 — <b>크레딧이 빠지지 않습니다.</b></p>
   <button id="sweep">크기 훑기</button>
+  <button id="sweep2" class="ghost">과금+제출까지 훑기</button>
+  <p class="hint" style="margin-top:10px"><b>과금+제출까지 훑기</b>는 아직 한 번도 안 재 본 조합입니다 —
+    큰 본문으로 <b>회원 과금 계산</b>을 하고, 그 크기 그대로 <b>제공사까지 실제로 보냅니다</b>.
+    모델 이름만 없는 것으로 바꿔 보내서 제공사가 곧바로 거절하므로 <b>영상은 안 만들어지고 크레딧도 안 빠집니다.</b>
+    <br>과금 계산에는 "짧은 시간에 너무 많이" 를 막는 장치가 있어 <b>천천히</b> 돕니다(1분쯤 걸립니다).</p>
   <table id="sw"><thead><tr><th class="s"></th><th>보낸 양</th><th class="t">시간</th></tr></thead><tbody></tbody></table>
   <div id="swv" class="verdict"></div>
 </div>
@@ -253,19 +258,21 @@ function verdictOk(){
    그러면 남은 변수는 크기다. 조금씩 키워 가며 어느 지점부터 무너지는지 본다.
    제공사는 부르지 않는다(payload 단계까지) — 훑는다고 돈이 나가면 안 된다. */
 var SIZES=[100,200,300,353,450,600,800];   // KB
-function padTo(kb){
+function padTo(kb, tag){
   //  data:URI 모양을 그대로 지킨다 — 서버가 이 접두사를 보고 다르게 다룬다.
+  //  ⚠ 세 장을 같은 글자로 채우면 안 된다. 서버가 "같은 사진" 으로 보고 중복을 지워
+  //    실제로는 한 장만 제공사로 나간다(처음에 그렇게 만들었다가 90KB만 나갔다).
+  //    장마다 다르게 채워서, 실제처럼 세 장이 다 실려 나가게 한다.
   var head='data:image/jpeg;base64,';
   var n=Math.max(0,kb*1024-head.length);
-  return head+new Array(n+1).join('A');
+  return head+String(tag||'A').repeat(1)+new Array(n).join(tag||'A');
 }
 function bodyOf(kb){
   //  실제 요청과 같은 모양: 첫 프레임 1장 + 레퍼런스 2장에 나눠 담는다
   var each=Math.max(8,Math.floor(kb/3));
-  var img=padTo(each);
   return { provider:'seedance', model:'Seedance 2.0', prompt:'크기 훑기 진단',
            seconds:5, ratio:'16:9', res:'1080p',
-           firstFrame:img, refImages:[img,img],
+           firstFrame:padTo(each,'A'), refImages:[padTo(each,'B'),padTo(each,'C')],
            refLabels:['','레퍼런스 1','레퍼런스 2'], refSlots:['first','ref','ref'] };
 }
 $('#sweep').addEventListener('click', async function(){
@@ -319,6 +326,69 @@ $('#sweep').addEventListener('click', async function(){
   sweepRows=[].map.call(tb2.rows,function(r){ return r.children[0].textContent.trim()+' '+r.children[1].querySelector('.sz').textContent+' — '+r.children[2].textContent+' '+r.querySelector('.detail').textContent.slice(0,60); });
 });
 var sweepRows=[];
+
+/* ── 과금 + 실제 제출까지 훑기 ────────────────────────────────────────
+   여기까지 재고 나면 남는 미지수가 없다. 지금까지 확인된 것:
+     작은 본문 + 과금 + 실제 제출  → 통과
+     큰 본문(800KB) + 과금 없음    → 통과
+   그러니 아직 안 재 본 조합은 "큰 본문 + 과금 + 실제 제출" 하나다.
+   ⚠ 과금 계산에는 짧은 시간에 여러 번 부르면 막는 장치가 있다 —
+     그걸 크기 탓으로 잘못 읽지 않도록 천천히 돌고, 429 는 따로 표시한다. */
+var SIZES2=[100,273,353,500,800];
+function wait(ms){ return new Promise(function(r){ setTimeout(r,ms) }) }
+$('#sweep2').addEventListener('click', async function(){
+  var btn=this; btn.disabled=true; $('#sweep').disabled=true;
+  var tb2=$('#sw').tBodies[0]; tb2.innerHTML=''; $('#swv').className='verdict';
+  var brokeAt=null, lastOk=null;
+  for(var i=0;i<SIZES2.length;i++){
+    var kb=SIZES2[i];
+    btn.textContent='훑는 중… '+kb+'KB ('+(i+1)+'/'+SIZES2.length+')';
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td class="s">…</td><td><span class="sz">'+kb+'KB</span>'
+                +(kb===273||kb===353?' <span style="color:var(--warn)">← 실제로 502 났던 크기</span>':'')
+                +'<div class="detail">과금 계산 중…</div></td><td class="t"></td>';
+    tb2.appendChild(tr);
+    var base=bodyOf(kb);
+    var sc=tr.children[0], dd=tr.querySelector('.detail');
+    //  ① 과금 계산 (회원만 지나가는 그 구간) — 큰 본문 그대로
+    var g=await callStage('gate', base);
+    if(g.killed){ sc.textContent='✕'; sc.className='s bad';
+      dd.innerHTML='<span class="bad">과금 계산에서 끊겼습니다</span> — 플랫폼이 함수를 끊었습니다';
+      tr.children[2].textContent=g.ms+'ms'; brokeAt=kb; break; }
+    if(g.status===429){ sc.textContent='!'; sc.style.color='var(--warn)';
+      dd.textContent='잠깐 사이에 너무 많이 보냈습니다 — 30초쯤 뒤 다시 눌러 주세요';
+      tr.children[2].textContent=g.ms+'ms'; break; }
+    if(g.status>=400){ sc.textContent='!'; sc.style.color='var(--warn)';
+      dd.textContent='과금 계산 HTTP '+g.status+' · '+String((g.json&&g.json.error)||g.text).slice(0,80);
+      tr.children[2].textContent=g.ms+'ms'; brokeAt=kb; break; }
+    //  ② 그 크기 그대로 제공사까지 실제로 보낸다(모델 이름만 없는 것 → 만들어지지 않는다)
+    dd.textContent='제공사로 보내는 중…';
+    var o=await callStage('outbound', base);
+    tr.children[2].textContent=(g.ms+o.ms)+'ms';
+    if(o.killed){ sc.textContent='✕'; sc.className='s bad';
+      dd.innerHTML='<span class="bad">제공사로 보내는 중에 끊겼습니다</span> — 플랫폼이 함수를 끊었습니다';
+      brokeAt=kb; break; }
+    if(o.status>=400&&o.status!==200){ sc.textContent='!'; sc.style.color='var(--warn)';
+      dd.textContent='HTTP '+o.status+' · '+String((o.json&&o.json.error)||o.text).slice(0,80);
+      brokeAt=kb; break; }
+    var j=o.json||{};
+    sc.textContent='✓'; sc.className='s good';
+    dd.textContent='과금 통과 · 제공사에 '+Math.round((j.sentBytes||0)/1024)+'KB 보냄 → 제공사 응답 '+(j.status||'?')
+                  +(j.error?' ('+j.error+')':'');
+    lastOk=kb;
+    if(i<SIZES2.length-1) await wait(16000);   // 짧은 시간에 여러 번 막히는 것을 피한다
+  }
+  var v=$('#swv');
+  if(brokeAt){ v.className='verdict show ng';
+    v.innerHTML='<b>'+brokeAt+'KB 에서 끊겼습니다.</b>'+(lastOk?' '+lastOk+'KB 까지는 멀쩡했습니다.':'')
+      +'<div class="hint">이 조합(과금 계산 + 그 크기로 제공사 호출)이 원인입니다.</div>'; }
+  else { v.className='verdict show ok';
+    v.innerHTML='<b>이 조합도 전부 통과했습니다.</b>'
+      +'<div class="hint">과금·크기·제공사 호출 어느 것도 단독으로는 원인이 아닙니다. 남은 것은 실제 사진의 내용입니다 — 스튜디오에서 502 를 한 번 낸 뒤 위쪽 <b>검사 시작</b>을 눌러 주세요.</div>'; }
+  btn.disabled=false; $('#sweep').disabled=false; btn.textContent='다시 훑기(과금+제출)';
+  $('#copy').style.display='inline-block';
+  sweepRows=[].map.call(tb2.rows,function(r){ return r.children[0].textContent.trim()+' '+r.children[1].querySelector('.sz').textContent+' — '+r.children[2].textContent+' '+r.querySelector('.detail').textContent.slice(0,80); });
+});
 
 $('#copy').addEventListener('click',function(){
   /* ⚠ 화면에 뜬 것과 같은 기호를 찍어야 한다.

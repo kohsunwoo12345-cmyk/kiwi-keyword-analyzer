@@ -2006,6 +2006,31 @@ async function handle(context) {
       //  과금 구간을 끝까지 지나왔다 — 진단이면 여기서 멈춘다(제공사는 부르지 않는다)
       if (diag === "gate") return json({ diag: "gate", ok: true, admin: isAdmin, token: !!context.__chargeToken });
       if (diag === "payload") pbody.dryRun = true;   // 아래 dryRun 자리에서 페이로드만 만들고 끝낸다
+      /* outbound — 제공사에 "같은 크기의 본문" 을 실제로 보내 보되, 만들어지지는 않게 한다.
+         남은 미지수가 "큰 본문 + 과금 계산 + 실제 제출" 조합 하나뿐인데, 그걸 재려면
+         돈이 드는 생성을 매번 돌려야 했다. 모델 이름만 없는 것으로 바꿔 보내면
+         제공사가 곧바로 거절하므로 — 나가는 양·경로·과금 구간은 그대로 재면서 돈은 안 든다. */
+      if (diag === "outbound") {
+        const t0 = Date.now();
+        let out = { diag: "outbound", ok: false };
+        try {
+          const payload = buildSeedancePayload({ ...pbody, model: "Seedance 2.0" }, env);
+          payload.model = "__diag_no_such_model__";
+          const bodyStr = JSON.stringify(payload);
+          const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: "Bearer " + (k.seedance || "none") },
+            body: bodyStr,
+          }, 20000);
+          const txt = await r.text();
+          out = { diag: "outbound", ok: true, sentBytes: bodyStr.length, status: r.status,
+                  ms: Date.now() - t0, reply: txt.slice(0, 200) };
+        } catch (e) {
+          out = { diag: "outbound", ok: false, ms: Date.now() - t0,
+                  error: String((e && e.message) || e).slice(0, 200) };
+        }
+        return json(out);
+      }
     }
   }
 
