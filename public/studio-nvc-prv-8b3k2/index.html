@@ -658,11 +658,22 @@ input.wurl:focus{ border-color:#4fb0a5; }
 #search .si:hover small,#search .si.on small{ color:#cde; }
 
 /* 셀렉트 드롭다운 */
-#dd{ position:fixed; z-index:95; max-height:280px; overflow:auto; background:#2f2f2f; border:1px solid #555;
-  border-radius:7px; box-shadow:0 14px 38px rgba(0,0,0,.6); display:none; min-width:210px; padding:4px; }
-#dd .di{ padding:7px 12px; font-size:12px; color:#ccc; border-radius:5px; cursor:pointer; }
-#dd .di:hover{ background:#2563eb; color:#fff; }
-#dd .dh{ padding:6px 10px 4px; font-size:9.5px; color:#777; letter-spacing:.1em; text-transform:uppercase; }
+/* 드롭다운 — 사이드바와 같은 톤으로. 예전엔 회색(#2f2f2f)에 파란 하이라이트라
+   패널 옆에 뜨면 다른 앱처럼 보였다. 여백을 넓히고 선택은 은은하게. */
+#dd{ position:fixed; z-index:95; max-height:340px; overflow:auto; background:#161619;
+  border:1px solid #2e2e35; border-radius:12px; box-shadow:0 20px 52px rgba(0,0,0,.62);
+  display:none; min-width:248px; padding:6px; }
+#dd .di{ padding:9px 12px; font-size:12.5px; color:#c9cbd3; border-radius:8px; cursor:pointer;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#dd .di:hover{ background:#26262d; color:#fff; }
+#dd .di.on{ background:#2b2b33; color:#fff; font-weight:600; }
+#dd .dh{ padding:10px 12px 5px; font-size:10px; color:#63656e; font-weight:800;
+  letter-spacing:.08em; text-transform:uppercase; }
+#dd .dd-search{ margin:4px 4px 6px !important; padding:9px 11px !important;
+  border-radius:9px !important; border:1px solid #2e2e35 !important; background:#101013 !important;
+  font-size:12.5px !important; }
+#dd .dd-search:focus{ border-color:#4b7bec !important; }
+#dd .dd-none{ padding:16px 12px; font-size:12px; color:#63656e; text-align:center; }
 
 /* 박스 셀렉트 */
 #selbox{ position:fixed; z-index:40; border:1px dashed #4fb0a5; background:rgba(79,176,165,.08); display:none; pointer-events:none; }
@@ -5831,7 +5842,7 @@ var DEFS = {
                   ['first','첫 프레임','IMAGE'],['last','마지막 프레임','IMAGE'],
                   ['audio','오디오 참조 (씨댄스 2.0·선택)','AUDIO']],
              outs:[['out','생성물','GEN']],
-             widgets:[{k:'model',t:'combo',label:'model',opts:'VIDEO_MODELS',def:'Seedance 2.0'},
+             widgets:[{k:'model',t:'combo',label:'모델',opts:'VIDEO_MODELS',def:'Seedance 2.0'},
                       {k:'camera',t:'combo',label:'카메라 무빙',opts:CAMERA_OPTS,def:'없음',
                         tip:'<b>카메라 모션 프리셋</b> — 크래시 줌·돌리·360 오빗·불릿타임·FPV 드론 등 시네마틱 카메라 워크를 버튼 하나로 적용합니다. 선택하면 카메라 지시문이 프롬프트에 자동으로 더해집니다.'},
                       {k:'tpl',t:'combo',label:'바이럴 템플릿',opts:VIRAL_TPL_OPTS,def:'없음',
@@ -7596,16 +7607,7 @@ function renderOptbar(){
   var legacy = isVid ? linkedSetting(n.id,'video') : null;
   var h='';
 
-  //  모델
-  var models = isVid ? (typeof VIDEO_MODELS!=='undefined'?VIDEO_MODELS:[]) : [];
-  if(models.length){
-    //  MODELS 는 [카테고리, 표시명] 쌍이다 — 표시명만 꺼내 쓴다
-    h+='<div class="ob-row"><div class="ob-sec">모델</div>'
-      +'<select data-ob="model">'+models.map(function(m){
-          var nm=Array.isArray(m)?m[1]:m;
-          return '<option value="'+esc(nm)+'"'+(String(n.w.model||'')===nm?' selected':'')+'>'+esc(nm)+'</option>'; }).join('')
-      +'</select></div>';
-  }
+  //  모델은 아래 '설정' 의 콤보를 쓴다 — 그쪽은 검색이 붙어 있다(openDD). 여기서 또 그리면 둘이 된다.
 
   //  길이 — 모델이 받는 값만 보여 준다. 안 받는 값을 고르게 두면 몰래 스냅되어 요금만 달라진다.
   if(opts.secs && opts.secs.length){
@@ -7648,7 +7650,8 @@ function renderOptbar(){
   /* 영상 모델에서는 모델·길이·비율·해상도를 위에서 이미 그렸다(모델이 실제로 받는 값만
      골라 주는 칩). 노드가 갖고 있는 같은 칸을 또 그리면 화면에 같은 설정이 둘이 되어
      어느 쪽이 진짜인지 알 수 없고, 좁은 패널에서 '16' '1' 처럼 잘려 보이기까지 한다. */
-  var DUP = isVid ? { model:1, vidOpts:1 } : {};
+  //  길이·비율·해상도만 위 칩과 겹친다. 모델은 겹치지 않으니 그대로 둔다(검색 때문에).
+  var DUP = isVid ? { vidOpts:1 } : {};
   var side=def.widgets.filter(function(w){ return !BLOCK_KEEP[w.t] && !DUP[w.k]; });
   if(!side.length && !isVid){ closeOptbar(); return; }     // 옮길 게 없으면 열지 않는다
   if(side.length) h+='<div class="ob-sec">설정</div>'
@@ -8729,6 +8732,12 @@ function ddFilter(q){
     }
   });
   if(lastHead) lastHead.style.display=headHasVisible?'':'none';
+  /* 다 걸러져 아무것도 없으면 빈 상자만 남아 "고장났나?" 싶다 — 그렇게 두지 않는다. */
+  var none=dd.querySelector('.dd-none');
+  var any=Array.prototype.slice.call(dd.querySelectorAll('.di')).some(function(el){ return el.style.display!=='none'; });
+  if(!any){ if(!none){ none=document.createElement('div'); none.className='dd-none';
+      none.textContent='찾는 모델이 없습니다'; dd.appendChild(none); } none.style.display=''; }
+  else if(none) none.style.display='none';
 }
 /* 모델 목록 위젯의 opts 문자열 → 실제 배열. 콤보 순환·드롭다운·검색이 모두 이 표 하나를 본다
    (예전엔 세 곳에 같은 삼항 사슬이 흩어져 있어, 목록을 추가할 때 한 곳을 빠뜨리기 쉬웠다). */
@@ -8758,8 +8767,11 @@ function openDD(anchor,n,k){
   if(isModelList){
     html+='<input class="dd-search" type="text" placeholder="Search" spellcheck="false" autocomplete="off" style="position:sticky;top:0;z-index:1;display:block;width:calc(100% - 12px);margin:6px;padding:6px 9px;border-radius:7px;border:1px solid #34363e;background:#151517;color:#e6e6ea;font-size:11px;outline:none;font-family:inherit;box-sizing:border-box;">';
     var list=availModels(MODEL_LISTS[wdef.opts]()), cat='';
-    list.forEach(function(m){ if(m[0]!==cat){cat=m[0];html+='<div class="dh">'+cat+'</div>';} html+='<div class="di" data-v="'+esc(m[1])+'">'+esc(m[1])+'</div>'; });
-  } else { comboOpts(n,k).forEach(function(o){ html+='<div class="di" data-v="'+esc(o)+'">'+esc(o)+'</div>'; }); }
+    var _cur=String(n.w[k]||'');
+    list.forEach(function(m){ if(m[0]!==cat){cat=m[0];html+='<div class="dh">'+cat+'</div>';}
+      html+='<div class="di'+(m[1]===_cur?' on':'')+'" data-v="'+esc(m[1])+'">'+esc(m[1])+'</div>'; });
+  } else { var _cv=String(n.w[k]||'');
+    comboOpts(n,k).forEach(function(o){ html+='<div class="di'+(o===_cv?' on':'')+'" data-v="'+esc(o)+'">'+esc(o)+'</div>'; }); }
   dd.innerHTML=html;
   var r=anchor.getBoundingClientRect();
   dd.style.left=Math.min(r.left,innerWidth-230)+'px'; dd.style.top=Math.min(r.bottom+4,innerHeight-300)+'px';
