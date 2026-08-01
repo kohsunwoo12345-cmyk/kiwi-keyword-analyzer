@@ -2094,7 +2094,7 @@ try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cn
 // (검증용) 실패 진단 함수 노출 — 502 가 났을 때 원인을 짚어 주는 경로가 실제로 도는지
 //  검사하려면 회원이 누르는 그 함수를 그대로 불러 봐야 한다(흉내 낸 코드를 재면 의미가 없다).
 //  순수 진단 함수라 보안 영향 없음.
-try{ setTimeout(function(){ try{ window.__gen={ generateWithAPI:generateWithAPI, showGenError:showGenError, diagnoseStages:diagnoseStages }; }catch(_e){} },0); }catch(_e){}
+try{ setTimeout(function(){ try{ window.__gen={ generateWithAPI:generateWithAPI, showGenError:showGenError, diagnoseStages:diagnoseStages, dropDuplicateImages:dropDuplicateImages }; }catch(_e){} },0); }catch(_e){}
 try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('refexport=1')>=0){ setTimeout(function(){ try{ window.__ref={ get state(){return state;}, set state(v){state=v;}, addNode:addNode, addOmniRefFiles:addOmniRefFiles, refNoOf:refNoOf, refSlotsOf:refSlotsOf, refOrderedBlocks:refOrderedBlocks, collectLabeledRefs:collectLabeledRefs, refMentionProblem:refMentionProblem, inlineOwnMediaSrc:inlineOwnMediaSrc, render:render }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
@@ -3775,6 +3775,7 @@ async function generateWithAPI(params){
     try{ params=await inlineOwnMediaAll(params); }
     catch(e){ hostErr+=' 인라인예외:'+String(e.message||e).slice(0,30); }
   }
+  if(prov==='seedance'){ try{ params=dropDuplicateImages(params); }catch(e){} }
   // 진단: 실제 보내는 요청의 값들을 에러에 첨부 (502 원인 추적용)
   var bodyStr=''; try{ bodyStr=JSON.stringify(params); }catch(e){}
   var bodyKB=Math.round(bodyStr.length/1024);
@@ -3821,15 +3822,25 @@ async function generateWithAPI(params){
   }
   // 실패 시 서버 실제 배포 버전을 즉석에서 읽어와 에러에 박는다 — 배포지연/캐시 구분용
   var srv='?'; try{ var hr=await fetch('/api/generate?health=1',{cache:'no-store'}); var hj=await hr.json(); srv=(hj&&hj.build)||'?'; }catch(_e){}
-  //  ① 죽은 그 요청이 어디까지 갔는지 — 서버가 찍어 둔 발자국을 꺼낸다(가장 확실한 증거)
-  var trace=[];
-  try{
-    var tr=await fetch('/api/generate?trace='+encodeURIComponent(traceId),{cache:'no-store',credentials:'include'});
-    var tj=await tr.json(); trace=(tj&&tj.marks)||[];
-  }catch(_e){}
-  //  ② 그리고 같은 요청을 단계별로 다시 태워, 어느 단계가 혼자서도 죽는지 본다.
-  var stageDiag=await diagnoseStages(params);
-  stageDiag.trace=trace;
+  /*  ⚠ 원인이 이미 분명하면 진단을 붙이지 않는다.
+      제공사가 "이 사진은 안 됩니다" 라고 이유를 말해 준 자리에 단계 표를 잔뜩 붙이면
+      회원은 무엇을 해야 할지 더 헷갈린다. 게다가 진단은 요청을 다섯 번 더 보낸다.
+      원인을 모를 때 — 우리 메시지가 아니라 플랫폼 오류 페이지가 왔거나 아무 말도 없을 때 —
+      그때만 붙인다. (그 미궁을 풀려고 만든 물건이다) */
+  var _e=String(err||'');
+  var unexplained = !_e || /Bad gateway|<!DOCTYPE|<html|HTTP ?5\d\d/i.test(_e);
+  var stageDiag=null;
+  if(unexplained){
+    //  ① 그 요청이 어디까지 갔는지 — 서버가 찍어 둔 발자국(가장 확실한 증거)
+    var trace=[];
+    try{
+      var tr=await fetch('/api/generate?trace='+encodeURIComponent(traceId),{cache:'no-store',credentials:'include'});
+      var tj=await tr.json(); trace=(tj&&tj.marks)||[];
+    }catch(_e2){}
+    //  ② 그리고 같은 요청을 단계별로 다시 태워, 어느 단계가 혼자서도 막히는지 본다.
+    stageDiag=await diagnoseStages(params);
+    stageDiag.trace=trace;
+  }
   var diag=' ['+elapsed+'ms · req '+bodyKB+'KB · studio:'+(STUDIO_BUILD_TAG.split('-').pop())+
     ' · 서버:'+String(srv).split('-').pop()+' · model:'+shortv(params.model)+
     ' · ff:'+shortv(params.firstFrame)+' · lf:'+shortv(params.lastFrame)+
@@ -3927,6 +3938,40 @@ function inlineOwnMediaSrc(src, max, q){
     img.src=sameOriginMedia(src);
   });
 }
+/* ── 같은 사진을 여러 번 실어 보내지 않는다 ────────────────────────────────
+   사진 한 장을 붙이면 firstFrame · refImage · refImages[0] 세 군데에 같은 값이 들어간다
+   (제공사마다 보는 자리가 달라서 그렇게 채워 둔 것이다).
+   그런데 씨댄스로 나갈 때 서버는 첫 프레임과 같은 레퍼런스를 어차피 지운다 —
+   결국 92KB 짜리 사진 한 장 보내자고 273KB 를 올리고 있었다. 180KB 가 순수 낭비다.
+   (실측: 본문 273KB · 제공사로 나간 것 92KB)
+
+   ⚠ 씨댄스 계열에서만 한다. 다른 제공사는 refImage/refImages 만 보고 firstFrame 을
+     안 보는 곳이 있어, 거기서 지우면 사진이 통째로 빠진다.
+   ⚠ 요금도 실제와 맞게 된다 — 레퍼런스 가산은 "레퍼런스로 실제 나간 장수" 로 매겨져야 한다.
+     첫 프레임으로만 쓴 사진에 레퍼런스 가산을 붙이고 있었다(장당 0.5%). */
+function dropDuplicateImages(params){
+  var ff=params.firstFrame, lf=params.lastFrame;
+  var same=function(v){ return v && (v===ff || v===lf); };
+  if(Array.isArray(params.refImages)){
+    var kept=[], labels=[], slots=[];
+    for(var i=0;i<params.refImages.length;i++){
+      if(same(params.refImages[i])) continue;
+      kept.push(params.refImages[i]);
+      if(Array.isArray(params.refLabels)) labels.push(params.refLabels[i]);
+      if(Array.isArray(params.refSlots))  slots.push(params.refSlots[i]);
+    }
+    if(kept.length!==params.refImages.length){
+      params.refImages=kept;
+      //  번호표·자리표도 같이 줄여야 "레퍼런스 2" 가 엉뚱한 사진을 가리키지 않는다
+      if(Array.isArray(params.refLabels)) params.refLabels=labels;
+      if(Array.isArray(params.refSlots))  params.refSlots=slots;
+      params.refCount=kept.length;
+    }
+  }
+  if(same(params.refImage)) delete params.refImage;
+  return params;
+}
+
 /** 씨댄스 2.0 으로 보낼 사진들(첫·마지막 프레임 + 레퍼런스)을 실어 보낼 형태로 바꾼다 */
 async function inlineOwnMediaAll(params){
   var seen={};
@@ -6239,13 +6284,20 @@ function paintStageDiag(sd){
       단계별 검사는 "따로 태우면 통과" 를 보여 줄 뿐이고, 진짜 죽은 요청의 마지막 자리는
       이 발자국에만 남는다. 그래서 표 아래에 이어서 보여 준다. */
   if(sd.trace && sd.trace.length){
+    /*  ⚠ 마지막 발자국을 무조건 ✕ 로 찍으면 안 된다.
+        요청이 끝까지 정상으로 돌고 마지막 발자국을 남긴 경우도 있다 —
+        그때 ✕ 를 찍으면 "여기서 죽었다" 는 거짓말이 된다(실제로 그렇게 찍혔다).
+        마지막 발자국이 "처리 끝" 이면 요청은 무사히 끝난 것이다. */
+    var done=/처리 끝/.test(sd.trace[sd.trace.length-1].step||'');
     var th=document.createElement('div');
     th.className='err-lbl'; th.style.marginTop='12px';
-    th.innerHTML='실제로 죽은 그 요청은 여기까지 갔습니다 <span class="err-stg-note">서버가 지나가며 남긴 기록</span>';
+    th.innerHTML=(done?'그 요청은 끝까지 정상으로 돌았습니다':'그 요청은 여기까지 갔습니다')
+      +' <span class="err-stg-note">서버가 지나가며 남긴 기록</span>';
     box.appendChild(th);
     sd.trace.forEach(function(m,i){
-      var d=document.createElement('div'); d.className='err-stg '+(i===sd.trace.length-1?'killed':'ok');
-      var g=document.createElement('div'); g.className='g'; g.textContent=(i===sd.trace.length-1?'✕':'✓');
+      var last=(i===sd.trace.length-1) && !done;
+      var d=document.createElement('div'); d.className='err-stg '+(last?'killed':'ok');
+      var g=document.createElement('div'); g.className='g'; g.textContent=(last?'✕':'✓');
       var n=document.createElement('div'); n.className='n';
       var t1=document.createElement('div'); t1.textContent=m.step; n.appendChild(t1);
       if(m.note){ var t2=document.createElement('div'); t2.className='nt'; t2.textContent=m.note; n.appendChild(t2); }
@@ -6255,8 +6307,12 @@ function paintStageDiag(sd){
   }
   var v=document.getElementById('errStageVerdict');
   var vt=sd.verdict||'';
-  if(sd.trace && sd.trace.length) vt+=' 실제 요청은 "'+sd.trace[sd.trace.length-1].step+'" 까지 갔고 그 다음에서 끊겼습니다.';
-  else if(sd.trace) vt+=' (실제 요청은 첫 발자국도 못 남기고 끊겼습니다 — 아주 앞쪽입니다.)';
+  if(sd.trace && sd.trace.length){
+    var lastStep=sd.trace[sd.trace.length-1].step||'';
+    vt+=/처리 끝/.test(lastStep)
+      ? ' 그 요청은 서버에서 끝까지 정상으로 돌았습니다 — 우리 쪽이 끊긴 게 아닙니다.'
+      : ' 그 요청은 "'+lastStep+'" 까지 갔고 그 다음에서 끊겼습니다.';
+  } else if(sd.trace) vt+=' (그 요청은 첫 발자국도 못 남겼습니다 — 아주 앞쪽에서 막혔습니다.)';
   v.textContent=vt;
   v.className='err-stg-v'+(sd.ok?' ok':'');
   sec.style.display='block';
