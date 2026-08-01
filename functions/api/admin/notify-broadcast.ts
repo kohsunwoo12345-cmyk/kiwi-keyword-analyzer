@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, resolveDB, requireAdminUser, addNotification, logAudit, clientIp } from '../_utils'
-import { sendSms } from '../_aligo'
+import { sendSmsMass } from '../_aligo'
 
 // POST /api/admin/notify-broadcast { target:'user'|'plan'|'all'|'multi', userId?, plan?, userIds?, title, body, sms? }
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -45,9 +45,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   for (const r of recipients) {
     await addNotification(db, r.id, title, body).catch(() => {})
     sent++
-    if (withSms && r.phone) {
-      const sr = await sendSms(env, String(r.phone), `[BYGENCY] ${title}\n${body}`).catch(() => ({ sent: false }))
-      if ((sr as any).sent) smsSent++
+  }
+  /* 문자는 한 명씩 부르지 않고 묶어 보낸다 — Cloudflare 는 바깥으로 나가는 요청을 하나하나
+     세고 요청당 한도가 있어서, 대상이 서른 몇 명만 넘어도 함수가 통째로 끊겼다. */
+  if (withSms) {
+    const items = recipients
+      .filter((r: any) => String(r.phone || '').replace(/[^0-9]/g, '').length >= 10)
+      .map((r: any) => ({ to: String(r.phone), message: `[BYGENCY] ${title}\n${body}` }))
+    if (items.length) {
+      const mr = await sendSmsMass(env, items).catch(() => ({ successCnt: 0 } as any))
+      smsSent = Math.max(0, Math.min(items.length, Number(mr.successCnt) || 0))
     }
   }
 

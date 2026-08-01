@@ -164,6 +164,78 @@ export async function sendSms(
   return { sent: false, status: r.status, reason: r.data?.message || `알리고 응답코드 ${r.data?.result_code ?? r.status}` }
 }
 
+/**
+ * 대량 문자 발송 — 수신자마다 다른 문구를 한 번의 호출로 보낸다(rec_N/msg_N 규격, 회당 최대 500명).
+ *
+ * ⚠ 예전에는 수신자 한 명당 sendSms 를 한 번씩 불렀다. Cloudflare 는 바깥으로 나가는 요청
+ *   하나하나를 서브리퀘스트로 세고 요청당 한도가 있어서, 수신자가 서른 몇 명만 넘어도 그 한도에
+ *   걸려 함수가 통째로 끊겼다. 그러면 포인트는 발송 전에 이미 빠졌는데
+ *     · 일부만 문자를 받고
+ *     · 수신자별 결과가 저장되지 않고
+ *     · 집행 상태가 "발송중" 에서 안 바뀌고
+ *     · 실패분 환불이 돌지 않아 안 나간 문자 값까지 회원이 냈다.
+ *   묶어 보내면 500명이 호출 한 번이라 수신자 수와 상관없이 한도에 걸리지 않는다.
+ *
+ * ⚠ 알리고는 이 규격에서 "몇 건 성공/실패" 만 알려주고 어느 건이 실패했는지는 알려주지 않는다.
+ *   그래서 성공 건수는 정확하지만(=환불 금액은 정확하다) 실패한 사람이 누구인지는 특정할 수 없다.
+ *   알림톡 경로도 같은 제약을 이미 같은 방식으로 다루고 있다.
+ */
+export async function sendSmsMass(
+  env: any,
+  items: { to: string; message: string }[],
+  opts: { from?: string; title?: string; msgType?: 'SMS' | 'LMS' | 'MMS'; rdate?: string; rtime?: string } = {},
+): Promise<{ sent: boolean; successCnt: number; errorCnt: number; reason?: string; status?: number; reserved?: boolean }> {
+  const key = aligoApiKey(env)
+  const userId = aligoUserId(env)
+  const sender = onlyDigits(opts.from || env?.ALIGO_SENDER)
+  if (!key || !userId) return { sent: false, successCnt: 0, errorCnt: items.length, reason: '알리고 계정(ALIGO_API_KEY/ALIGO_USER_ID) 미설정' }
+  if (!sender) return { sent: false, successCnt: 0, errorCnt: items.length, reason: '발신번호가 없습니다. 발신번호를 등록·승인 받아 선택해 주세요.' }
+
+  const list = (items || [])
+    .map((i) => ({ to: onlyDigits(i.to), message: String(i.message || '') }))
+    .filter((i) => i.to.length >= 10 && i.message.trim())
+  if (!list.length) return { sent: false, successCnt: 0, errorCnt: 0, reason: '수신 전화번호 없음' }
+
+  // 90byte(한글 45자) 초과면 LMS — 한 번에 묶는 건들은 종류가 같아야 하므로 가장 긴 것을 기준으로 잡는다.
+  //  (짧은 문구를 LMS 로 보내면 요금이 더 나가므로, 부르는 쪽에서 종류별로 나눠 넘기는 것이 좋다)
+  const longest = list.reduce((a, c) => Math.max(a, byteLen(c.message)), 0)
+  const msgType = opts.msgType || (longest > 90 ? 'LMS' : 'SMS')
+  const reserved = !!(opts.rdate && opts.rtime)
+
+  let successCnt = 0, errorCnt = 0, lastReason = '', lastStatus = 0
+  const CHUNK = 500   // 알리고 규격 상한
+  for (let i = 0; i < list.length; i += CHUNK) {
+    const part = list.slice(i, i + CHUNK)
+    const params: Record<string, any> = {
+      key, user_id: userId, sender, msg_type: msgType, cnt: String(part.length),
+    }
+    if (msgType !== 'SMS' && opts.title) params.title = opts.title.slice(0, 44)
+    if (reserved) { params.rdate = opts.rdate; params.rtime = opts.rtime }
+    part.forEach((it, idx) => {
+      const n = idx + 1
+      params[`rec_${n}`] = it.to
+      params[`msg_${n}`] = it.message
+    })
+    const r = await aligoCall(env, SMS_MASS_URL, params)
+    lastStatus = r.status
+    if (r.error) { errorCnt += part.length; lastReason = r.error; continue }
+    const code = Number(r.data?.result_code)
+    if (code > 0) {
+      const okN = Number(r.data?.success_cnt)
+      const ngN = Number(r.data?.error_cnt)
+      //  성공 건수를 안 주면 전건 성공으로 본다(알리고가 개수를 생략하는 응답이 있다)
+      const ok = Number.isFinite(okN) && okN >= 0 ? okN : part.length - (Number.isFinite(ngN) ? ngN : 0)
+      successCnt += ok
+      errorCnt += part.length - ok
+      if (part.length - ok > 0) lastReason = r.data?.message || '제공사가 일부 실패로 집계'
+    } else {
+      errorCnt += part.length
+      lastReason = r.data?.message || `알리고 응답코드 ${r.data?.result_code ?? r.status}`
+    }
+  }
+  return { sent: successCnt > 0, successCnt, errorCnt, reason: errorCnt ? lastReason : undefined, status: lastStatus, reserved }
+}
+
 /** 알림톡 인증 토큰 발급 (30초 유효) */
 async function createAlimtalkToken(env: any): Promise<{ ok: boolean; token?: string; error?: string }> {
   const key = aligoApiKey(env)
