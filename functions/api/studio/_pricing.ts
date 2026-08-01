@@ -1,3 +1,4 @@
+import { ensureOnce } from '../_utils'
 // 스튜디오 AI 생성 과금 규칙 (서버 권위 계산) — precheck·record 공용
 //  · 실제 AI 비용(원) = 제공사 공개 단가(USD) × 환율
 //  · 판매가 = 실제 비용 × 마크업.  마크업: 씨댄스 2.0 계열·이미지 모델 = 2.5배, 그 외 = 3배
@@ -114,14 +115,8 @@ async function __resolveMarkup(db: D1Database, userId: string, model: string, us
    서브리퀘스트로 세어 요청당 한도를 넘기고, 그 순간 함수가 통째로 끊겨 우리 try/catch 로는
    손댈 수 없는 raw 502 가 난다(회원만 502 가 나던 원인 — 실측 회원 41회 · 관리자 5회).
    같은 isolate 안에서는 한 번만 하고, 실패하면 다음 요청에서 다시 시도한다. */
-const __ready_ensureCostOverrides = new WeakMap<object, Promise<void>>()
 export async function ensureCostOverrides(db: D1Database): Promise<void> {
-  const key = db as unknown as object
-  const done = __ready_ensureCostOverrides.get(key)
-  if (done) return done
-  const run = __ensureCostOverrides(db).catch((e) => { __ready_ensureCostOverrides.delete(key); throw e })
-  __ready_ensureCostOverrides.set(key, run)
-  return run
+  return ensureOnce(db, 'schema_costov_v1', () => __ensureCostOverrides(db))
 }
 async function __ensureCostOverrides(db: D1Database): Promise<void> {
   await db.prepare(
@@ -146,23 +141,15 @@ async function __resolveCostOverride(db: D1Database, model: string): Promise<num
 }
 
 /** 오늘자 USD→KRW 환율 (하루 1회 조회 후 D1 캐시). 결제/생성 시점의 그날 환율을 반환. */
-const __fxReady = new WeakMap<object, Promise<void>>()
 export async function getUsdKrw(db: D1Database): Promise<number> {
   return cachedRead('fx', () => __getUsdKrw(db))
 }
 async function __getUsdKrw(db: D1Database): Promise<number> {
   const today = new Date().toISOString().slice(0, 10)
   //  표 만들기는 한 번이면 된다 — 요청마다 반복하면 서브리퀘스트 한도를 갉아먹는다(위 주석 참조)
-  {
-    const key = db as unknown as object
-    let done = __fxReady.get(key)
-    if (!done) {
-      done = db.prepare(`CREATE TABLE IF NOT EXISTS fx_rates (date TEXT PRIMARY KEY, usd_krw REAL NOT NULL, updated_at TEXT)`)
-        .run().then(() => {}).catch(() => { __fxReady.delete(key) })
-      __fxReady.set(key, done)
-    }
-    await done
-  }
+  await ensureOnce(db, 'schema_fxrates_v1', async () => {
+    await db.prepare(`CREATE TABLE IF NOT EXISTS fx_rates (date TEXT PRIMARY KEY, usd_krw REAL NOT NULL, updated_at TEXT)`).run().catch(() => {})
+  })
   const cached: any = await db.prepare('SELECT usd_krw FROM fx_rates WHERE date = ?').bind(today).first().catch(() => null)
   if (cached && Number(cached.usd_krw) > 0) return Number(cached.usd_krw)
 
@@ -727,14 +714,8 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
 
 /** ai_usage 테이블 보장 + 정산 컬럼 마이그레이션 */
 /* 위와 같은 이유로 한 번만 한다 — 요청마다 반복하면 서브리퀘스트 한도를 갉아먹는다. */
-const __aiUsageReady = new WeakMap<object, Promise<void>>()
 export async function ensureAiUsage(db: D1Database): Promise<void> {
-  const key = db as unknown as object
-  const done = __aiUsageReady.get(key)
-  if (done) return done
-  const run = __ensureAiUsage(db).catch((e) => { __aiUsageReady.delete(key); throw e })
-  __aiUsageReady.set(key, run)
-  return run
+  return ensureOnce(db, 'schema_aiusage_v1', () => __ensureAiUsage(db))
 }
 async function __ensureAiUsage(db: D1Database): Promise<void> {
   await db

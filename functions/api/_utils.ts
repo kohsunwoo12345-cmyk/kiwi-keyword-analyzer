@@ -102,6 +102,48 @@ export function json(data: unknown, status = 200, headers: Record<string, string
 }
 
 /** 스키마 자동 부트스트랩 (users/sessions/transactions/activity_log/notifications) */
+/* ── 표 만들기를 요청 경로에서 걷어낸다 ──────────────────────────────────
+   CREATE TABLE / CREATE INDEX / ALTER 은 한 번만 하면 되는 일인데, 지금까지는
+   요청마다(정확히는 새 isolate 의 첫 요청마다) 스무 개 넘게 다시 돌았다.
+   Cloudflare 는 D1 질의 하나를 서브리퀘스트 하나로 세고 요청당 한도가 있어서
+   (무료 등급 50), 그 첫 요청만 한도를 넘겨 함수가 통째로 끊겼다 —
+   우리 try/catch 밖이라 회원에게는 플랫폼의 502 HTML 이 그대로 갔다.
+   실측: 새 isolate 첫 요청 40회 · 같은 isolate 두 번째 11회 · 관리자 6회.
+   isolate 는 자주 새로 생기므로 "가끔 되고 가끔 안 되는" 모습이 된다.
+
+   표를 다 만들었다는 표시를 settings 에 남기고, 그 다음부터는 질의 한 번으로 건너뛴다.
+   ⚠ 표시에 판(v)을 붙였다 — 나중에 열을 더하는 등 스키마를 바꾸면 이 판을 올려야
+     기존 배포에서도 다시 돈다. 판을 안 올리면 새 열이 영영 안 생긴다.
+   ⚠ 표를 손으로 지우면 표시가 거짓이 된다. 그때는 settings 에서 그 열쇠를 지우면 된다. */
+const __ensured = new Map<string, Promise<void>>()
+//  표시를 하나씩 물어보면 그것만으로 왕복이 여섯 번이다 — 한 번에 다 읽어 온다.
+let __marks: Promise<Set<string>> | null = null
+function loadMarks(db: D1Database): Promise<Set<string>> {
+  if (__marks) return __marks
+  __marks = (async () => {
+    try {
+      const r: any = await db.prepare("SELECT key FROM settings WHERE key LIKE 'schema\\_%' ESCAPE '\\' AND value = '1'").all()
+      return new Set(((r && r.results) || []).map((x: any) => String(x.key)))
+    } catch { return new Set<string>() }
+  })()
+  return __marks
+}
+export async function ensureOnce(db: D1Database, key: string, run: () => Promise<void>): Promise<void> {
+  const hit = __ensured.get(key)
+  if (hit) return hit
+  const job = (async () => {
+    const marks = await loadMarks(db)
+    if (marks.has(key)) return
+    await run()
+    try {
+      await db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').bind(key, '1').run()
+      marks.add(key)
+    } catch { /* 표시를 못 남겨도 동작에는 지장 없다(다음에 또 만들 뿐) */ }
+  })().catch((e) => { __ensured.delete(key); __marks = null; throw e })
+  __ensured.set(key, job)
+  return job
+}
+
 export async function ensureSchema(db: D1Database) {
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS users (

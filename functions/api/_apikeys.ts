@@ -1,3 +1,4 @@
+import { ensureOnce } from './_utils'
 // 회원 API 키 시스템 (_ 프리픽스 = 라우팅 제외, import 전용)
 //  - 노드형 AI 영상 플랜 보유자가 직접 API 로 이미지·영상 모델을 호출.
 //  - 키 1개로 모든 모델 호출 가능. 크레딧은 UI 사용과 동일하게 차감.
@@ -35,14 +36,8 @@ export function maskApiKey(plain: string): string {
    함수가 통째로 끊겨 우리 try/catch 가 손댈 수 없는 raw 502 가 난다.
    (관리자는 이 경로를 안 타서 멀쩡하고 회원만 502 가 나던 원인이다 — 실측 회원 41회 · 관리자 5회)
    같은 isolate 안에서는 한 번만 하고 넘어간다. 실패하면 다음 요청에서 다시 시도한다. */
-const __apiKeysReady = new WeakMap<object, Promise<void>>()
 export async function ensureApiKeysSchema(db: D1Database) {
-  const key = db as unknown as object
-  const done = __apiKeysReady.get(key)
-  if (done) return done
-  const run = __ensureApiKeysSchema(db).catch((e) => { __apiKeysReady.delete(key); throw e })
-  __apiKeysReady.set(key, run)
-  return run
+  return ensureOnce(db, 'schema_apikeys_v1', () => __ensureApiKeysSchema(db))
 }
 async function __ensureApiKeysSchema(db: D1Database) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS api_keys (

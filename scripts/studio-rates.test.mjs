@@ -17,7 +17,11 @@ const require_ = createRequire(import.meta.url)
 
 async function load(file) {
   const out = await build({ entryPoints: [file], bundle: true, write: false, format: 'cjs', platform: 'neutral', target: 'es2022' })
-  const sandbox = { module: { exports: {} }, exports: {}, require: require_, console }
+  //  워커에는 있고 맨 vm 컨텍스트에는 없는 표준 전역 — 번들에 딸려 온 모듈이 최상위에서
+  //  이것들을 쓰면(예: _utils 의 new TextEncoder()) 단가와 무관한 이유로 죽는다.
+  const sandbox = { module: { exports: {} }, exports: {}, require: require_, console,
+                    Response, Request, Headers, URL, TextEncoder, TextDecoder, crypto, fetch,
+                    btoa, atob, setTimeout, clearTimeout, structuredClone }
   sandbox.module.exports = sandbox.exports
   vm.runInNewContext(out.outputFiles[0].text, sandbox, { filename: file })
   return sandbox.module.exports

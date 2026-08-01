@@ -1,4 +1,4 @@
-import { Env, json, ensureSchema, getSessionUser, resolveDB } from '../_utils'
+import { Env, json, ensureSchema, getSessionUser, resolveDB, ensureOnce } from '../_utils'
 
 // 브랜드 킷 — "우리 브랜드답게"를 모든 생성에 자동으로 입히는 계정별 설정.
 //  톤앤매너·컬러·피해야 할 것을 한 번 저장해 두면, 스튜디오·공개 API·Claude MCP 어디서
@@ -21,14 +21,8 @@ export interface BrandKit {
    서브리퀘스트로 세어 요청당 한도를 넘기고, 그 순간 함수가 통째로 끊겨 우리 try/catch 로는
    손댈 수 없는 raw 502 가 난다(회원만 502 가 나던 원인 — 실측 회원 41회 · 관리자 5회).
    같은 isolate 안에서는 한 번만 하고, 실패하면 다음 요청에서 다시 시도한다. */
-const __ready_ensureBrandKit = new WeakMap<object, Promise<void>>()
 export async function ensureBrandKit(db: D1Database): Promise<void> {
-  const key = db as unknown as object
-  const done = __ready_ensureBrandKit.get(key)
-  if (done) return done
-  const run = __ensureBrandKit(db).catch((e) => { __ready_ensureBrandKit.delete(key); throw e })
-  __ready_ensureBrandKit.set(key, run)
-  return run
+  return ensureOnce(db, 'schema_brandkit_v1', () => __ensureBrandKit(db))
 }
 async function __ensureBrandKit(db: D1Database): Promise<void> {
   await db.prepare(
