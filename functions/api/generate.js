@@ -1840,9 +1840,13 @@ async function handle(context) {
           //  단가표에 없는 이름(또는 빈 값)이면 제공사로 정해지는 기능인지 본다 — 위 표 참조.
           const mdl = MODEL_COST[asked] ? asked : (PROVIDER_BILL_MODEL[String(pbody.provider || "")] || asked);
           if (mdl && MODEL_COST[mdl]) {
-            const rate = await getUsdKrw(db);
-            const mk = await resolveMarkup(db, me.id, mdl, Number(me.credit_markup) || 0);
-            const ckw = await creditPriceFor(db, me);
+            /* 서로 딴 값이라 순서가 필요 없다 — 하나씩 기다리면 왕복이 그만큼 쌓이고,
+               Cloudflare 의 요청당 서브리퀘스트 한도를 갉아먹는다(넘으면 raw 502). */
+            const [rate, mk, ckw] = await Promise.all([
+              getUsdKrw(db),
+              resolveMarkup(db, me.id, mdl, Number(me.credit_markup) || 0),
+              creditPriceFor(db, me),
+            ]);
             //  게이트도 "실제로 생성될 길이·해상도" 기준이어야 확정 과금과 어긋나지 않는다.
             /* 'img'(장당) 말고 '3d'(모델 1개당)·'tok'(호출 1회당)도 "단위 1개" 정액이다.
                'img' 만 보고 있어서 3D·프롬프트 모델이 초당 계산을 타 8배로 추정됐다 —
@@ -1874,12 +1878,16 @@ async function handle(context) {
             const gRefs = Array.isArray(pbody.refImages) ? pbody.refImages.length
                         : Math.max(0, Number(pbody.refCount) || Number(pbody.refs) || 0);
             const cnCount = Math.max(0, (pbody.controlnets && pbody.controlnets.length) || Number(pbody.cn) || 0);
-            const ovUsd = await resolveCostOverride(db, mdl);   // 실측 단가가 있으면 게이트도 그 값으로
+            //  이 셋도 서로 독립이다 — 함께 부른다.
+            const [ovUsd, surPct, cnPct] = await Promise.all([
+              resolveCostOverride(db, mdl),   // 실측 단가가 있으면 게이트도 그 값으로
+              resolveRefSurcharge(db, me.id),
+              cnCount > 0 ? resolveCnSurcharge(db) : Promise.resolve(0),
+            ]);
             const cc = computeCharge({ model: mdl, units: gUnits, res: gRes, audio: !!pbody.generateAudio,
                                        refs: gRefs, hdr: gFlags.hdr, exr: gFlags.exr, ratio: gRatio }, rate, mk, ckw, ovUsd);
-            const surPct = await resolveRefSurcharge(db, me.id);
             const refMult = 1 + (surPct / 100) * gRefs;
-            const cnMult = cnCount > 0 ? 1 + (await resolveCnSurcharge(db)) / 100 : 1;
+            const cnMult = cnCount > 0 ? 1 + cnPct / 100 : 1;
             const need = Math.round(cc.credits * refMult * cnMult * 100) / 100;
             if (need > 0 && Number(me.credits) < need) {
               return json({ error: `크레딧이 부족합니다. 필요 ${need.toLocaleString("ko-KR")}크레딧 · 보유 ${Number(me.credits).toLocaleString("ko-KR")}크레딧`, need, balance: Number(me.credits), needPlan: true }, 402);
