@@ -780,6 +780,21 @@ input.wurl:focus{ border-color:#4fb0a5; }
 .err-sec{ padding:12px 20px; border-bottom:1px solid #232325; }
 .err-sec .err-lbl{ font-size:11px; font-weight:700; letter-spacing:.02em; color:#7fe0b0; margin-bottom:5px; }
 .err-sec.fix .err-lbl{ color:#ffd66b; }
+/* 실패 원인을 단계별로 짚어 주는 표 — 502 는 서버에 기록이 안 남아 여기서만 볼 수 있다 */
+.err-stg-note{ font-weight:400; color:#7b8494; letter-spacing:0; margin-left:6px; font-size:10.5px; }
+.err-stg{ display:flex; align-items:flex-start; gap:8px; padding:5px 0; border-bottom:1px solid rgba(255,255,255,.05); font-size:12.5px; }
+.err-stg:last-child{ border-bottom:none; }
+.err-stg .g{ width:14px; flex:0 0 14px; text-align:center; font-weight:800; }
+.err-stg .n{ flex:1; color:#e6e9f2; }
+.err-stg .nt{ color:#9aa4b2; font-size:11.5px; margin-top:1px; }
+.err-stg .t{ color:#7b8494; font-variant-numeric:tabular-nums; font-size:11.5px; }
+.err-stg.ok .g{ color:#22c55e; } .err-stg.killed .g{ color:#ef4444; }
+.err-stg.rate .g,.err-stg.err .g,.err-stg.noauth .g{ color:#f59e0b; }
+.err-stg.skip{ opacity:.45; } .err-stg.skip .g{ color:#64748b; }
+.err-stg.killed .nt{ color:#ef4444; }
+.err-stg-v{ margin-top:9px; padding:9px 11px; border-radius:8px; background:rgba(239,68,68,.10);
+            border:1px solid rgba(239,68,68,.28); color:#ffb4b4; font-size:12.5px; line-height:1.6; }
+.err-stg-v.ok{ background:rgba(34,197,94,.10); border-color:rgba(34,197,94,.28); color:#9be8bd; }
 .err-sec .err-txt{ font-size:13px; line-height:1.65; color:#d2d4da; }
 .err-ico-wrap{ width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center;
   background:rgba(255,155,155,.1); border:1px solid rgba(255,155,155,.35); flex:0 0 auto; }
@@ -1935,9 +1950,14 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
         <div class="err-lbl">왜 막혔나요</div>
         <div class="err-txt" id="errReason"></div>
       </div>
-      <div class="err-sec fix" style="border-bottom:none;">
+      <div class="err-sec fix">
         <div class="err-lbl">이렇게 해보세요</div>
         <div class="err-txt" id="errFix"></div>
+      </div>
+      <div class="err-sec" id="errStageSec" style="border-bottom:none;display:none;">
+        <div class="err-lbl">어디서 끊겼나 <span class="err-stg-note">실패한 그 요청을 단계별로 다시 태워 본 결과입니다 · 영상은 다시 만들지 않았습니다</span></div>
+        <div id="errStages"></div>
+        <div class="err-stg-v" id="errStageVerdict"></div>
       </div>
       <details class="err-raw" id="errRawWrap">
         <summary>제공사 원문 메시지 보기</summary>
@@ -1975,6 +1995,10 @@ try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cn
 // (검증용) ?refexport=1 접속 시 레퍼런스 번호 관련 함수만 노출 — 번호가 연결 순서대로
 //  붙는지, 블럭 하나에 하나만 담기는지를 자동으로 확인하기 위한 것. 비밀값은 들어 있지 않고
 //  편집기 상태는 어차피 그 브라우저 안에 있는 것이라 밖으로 새는 것이 없다.
+// (검증용) 실패 진단 함수 노출 — 502 가 났을 때 원인을 짚어 주는 경로가 실제로 도는지
+//  검사하려면 회원이 누르는 그 함수를 그대로 불러 봐야 한다(흉내 낸 코드를 재면 의미가 없다).
+//  순수 진단 함수라 보안 영향 없음.
+try{ setTimeout(function(){ try{ window.__gen={ generateWithAPI:generateWithAPI, showGenError:showGenError, diagnoseStages:diagnoseStages }; }catch(_e){} },0); }catch(_e){}
 try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('refexport=1')>=0){ setTimeout(function(){ try{ window.__ref={ get state(){return state;}, set state(v){state=v;}, addNode:addNode, addOmniRefFiles:addOmniRefFiles, refNoOf:refNoOf, refSlotsOf:refSlotsOf, refOrderedBlocks:refOrderedBlocks, collectLabeledRefs:collectLabeledRefs, refMentionProblem:refMentionProblem, inlineOwnMediaSrc:inlineOwnMediaSrc, render:render }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
@@ -3654,14 +3678,6 @@ async function generateWithAPI(params){
   // 진단: 실제 보내는 요청의 값들을 에러에 첨부 (502 원인 추적용)
   var bodyStr=''; try{ bodyStr=JSON.stringify(params); }catch(e){}
   var bodyKB=Math.round(bodyStr.length/1024);
-  //  진단 페이지(diag.html)가 "방금 실패한 그 요청" 을 그대로 다시 태울 수 있게 남겨 둔다.
-  //  502 는 격리 환경이 통째로 죽는 것이라 서버에 아무 기록이 안 남는다 — 여기밖에 남길 곳이 없다.
-  //  키(apiKey)는 빼고 저장한다. 용량이 크면(5MB 한도) 저장을 건너뛴다.
-  try{
-    var _keep=JSON.parse(bodyStr); delete _keep.apiKey;
-    var _s=JSON.stringify({ at:new Date().toISOString(), kb:bodyKB, params:_keep });
-    if(_s.length<4000000) localStorage.setItem('bg_last_gen_params', _s);
-  }catch(e){}
   var shortv=function(x){ x=String(x==null?'':x); return x.length>70?x.slice(0,70)+'…('+x.length+')':x; };
   var err=null;
   // 502 가 다시 나면 "얼마나 붙잡고 있다가 끊겼는지" 가 원인 판단의 핵심이다 — 시간을 남긴다.
@@ -3700,20 +3716,70 @@ async function generateWithAPI(params){
   }
   // 실패 시 서버 실제 배포 버전을 즉석에서 읽어와 에러에 박는다 — 배포지연/캐시 구분용
   var srv='?'; try{ var hr=await fetch('/api/generate?health=1',{cache:'no-store'}); var hj=await hr.json(); srv=(hj&&hj.build)||'?'; }catch(_e){}
-  // 502 원인 격리 프로브: 같은 body 를 dryRun(제공사 호출 X, 페이로드만) 으로 POST.
-  //   probe=HTTP200 → POST 처리 자체는 정상 → 원인은 제공사(bp) 호출 단계
-  //   probe=HTTP502 → POST 처리 자체가 죽음 → 제공사 무관, 서버 함수/본문 문제
-  var probe='?';
-  try{ var pr=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
-        body:JSON.stringify(Object.assign({},params,{dryRun:true}))}); probe='HTTP'+pr.status; }
-  catch(_p){ probe='ERR'; }
-  // 진단은 잘리기 쉬운 앞쪽에 핵심(probe/우회/본문크기)을 먼저 둔다
-  var diag=' [probe:'+probe+' · '+elapsed+'ms · req '+bodyKB+'KB · studio:'+(STUDIO_BUILD_TAG.split('-').pop())+
+  //  방금 실패한 그 요청 그대로 단계별로 다시 태워, 어디서 끊기는지 짚는다.
+  var stageDiag=await diagnoseStages(params);
+  var diag=' ['+elapsed+'ms · req '+bodyKB+'KB · studio:'+(STUDIO_BUILD_TAG.split('-').pop())+
     ' · 서버:'+String(srv).split('-').pop()+' · model:'+shortv(params.model)+
     ' · ff:'+shortv(params.firstFrame)+' · lf:'+shortv(params.lastFrame)+
     ' · vid:'+shortv(params.srcVideo)+hostErr+']';
   if(err) err=err+diag;
-  return { error: err||('생성 실패'+diag), type:'error', provider:prov };
+  return { error: err||('생성 실패'+diag), type:'error', provider:prov, stageDiag:stageDiag };
+}
+
+/* ── 실패하면 그 자리에서 스스로 진단한다 ────────────────────────────────
+   raw 502 는 격리 환경이 통째로 죽는 것이라 서버에 아무 기록이 안 남는다.
+   어디서 죽었는지 알아내는 유일한 길은, 한 요청에서 한 단계씩만 돌려 보고
+   어느 요청이 502 로 돌아오는지 보는 것이다.
+   ⚠ 방금 실패한 그 요청(같은 사진·같은 크기)을 그대로 쓴다. 다른 걸로 재면 재현이 안 된다.
+   ⚠ 여기서 영상을 다시 만들지는 않는다 — outbound 는 모델 이름을 없는 것으로 바꿔 보내
+     제공사가 곧바로 거절하게 한다. 나가는 양·경로는 실제와 같고 크레딧은 안 빠진다. */
+var DIAG_STAGES=[
+  {k:'auth',    n:'로그인 확인'},
+  {k:'body',    n:'사진·본문 읽기'},
+  {k:'gate',    n:'과금 계산(회원만 지나가는 구간)'},
+  {k:'payload', n:'제공사용 값 만들기'},
+  {k:'outbound',n:'제공사로 보내기(영상은 안 만듦)'}
+];
+async function diagStage(stage, params){
+  var t0=Date.now();
+  try{
+    var r=await fetch('/api/generate',{method:'POST',credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(Object.assign({},params,{diagStage:stage}))});
+    var t=await r.text(); var j=null; try{ j=JSON.parse(t); }catch(e){}
+    //  우리가 낸 오류(읽을 수 있는 JSON)와 플랫폼이 끊은 것(HTML)은 완전히 다른 사건이다
+    var killed=/^\s*</.test(t)||/Bad gateway/i.test(t);
+    return { stage:stage, status:r.status, ms:Date.now()-t0, killed:killed, json:j, text:t.slice(0,160) };
+  }catch(e){
+    return { stage:stage, status:0, ms:Date.now()-t0, killed:true, net:true,
+             text:String(e&&e.message||e).slice(0,120) };
+  }
+}
+async function diagnoseStages(params){
+  var out={ rows:[], verdict:'', ok:false };
+  for(var i=0;i<DIAG_STAGES.length;i++){
+    var st=DIAG_STAGES[i];
+    var r=await diagStage(st.k, params);
+    var line={ name:st.n, status:r.status, ms:r.ms, state:'ok', note:'' };
+    if(r.killed){ line.state='killed'; line.note=r.net?'응답이 아예 없었습니다':'플랫폼이 함수를 끊었습니다'; }
+    else if(r.status===401){ line.state='noauth'; line.note='로그인이 풀렸습니다 — 검사가 성립하지 않습니다'; }
+    else if(r.status===429){ line.state='rate'; line.note='짧은 시간에 너무 많이 — 30초 뒤 다시 하면 됩니다'; }
+    else if(r.status>=400){ line.state='err'; line.note='HTTP '+r.status+' · '+((r.json&&r.json.error)||r.text); }
+    else if(r.json&&r.json.diag==='body') line.note='본문 '+r.json.bodyChars+'글자 · 첫프레임 '+r.json.firstFrame+'글자';
+    else if(r.json&&r.json.diag==='auth') line.note=(r.json.admin?'관리자':'회원')+' 계정';
+    else if(r.json&&r.json.diag==='outbound') line.note='제공사에 '+Math.round((r.json.sentBytes||0)/1024)+'KB 보냄 → 응답 '+(r.json.status||r.json.error||'?');
+    out.rows.push(line);
+    if(line.state!=='ok'){
+      out.verdict=st.n+(line.state==='killed'?' 에서 끊깁니다.':' 에서 막혔습니다.');
+      if(line.state==='killed'&&st.k==='gate') out.verdict+=' 관리자는 이 구간을 아예 안 지나가서 멀쩡했던 자리입니다.';
+      if(line.state==='killed'&&st.k==='outbound') out.verdict+=' 우리 서버가 아니라 제공사로 보내는 구간입니다.';
+      for(var j2=i+1;j2<DIAG_STAGES.length;j2++) out.rows.push({name:DIAG_STAGES[j2].n,state:'skip',note:'앞에서 끊겨 건너뜀'});
+      return out;
+    }
+  }
+  out.ok=true;
+  out.verdict='단계별로는 전부 통과했습니다 — 같은 요청인데 한 번에 보내면 끊깁니다.';
+  return out;
 }
 
 /* 레퍼런스 이미지 압축 — data:URI 는 ≤1024px JPEG 로 축소(12장이 3MB 초과하지 않게), URL 은 그대로(서버가 처리) */
@@ -4646,7 +4712,7 @@ function generateImageNode(n){
     .then(function(res){
       n.w.imgGenerating=false;
       if(!res || res.error){ n.w.imgError=(res&&res.error)||'생성 실패';
-        var info=showGenError(n.w.imgError, (res&&res.provider)||providerOf(n.w.model), n.w.model);
+        var info=showGenError(n.w.imgError, (res&&res.provider)||providerOf(n.w.model), n.w.model, res&&res.stageDiag);
         toast((info&&info.title)||('이미지 생성 실패: '+String(n.w.imgError).slice(0,80))); render(); return; }
       n.w.img=res.url; n.w.imgKind=res.kind||'image';
       render();                                                // ① 결과 먼저 표시 (부수작업 실패와 무관)
@@ -6028,7 +6094,29 @@ function explainGenError(raw, provider, model){
   return { cat:hit.cat, title:hit.title, reason:hit.reason, fix:hit.fix,
            provKo:(PROV_KO[prov]||prov||'제공사'), model:model||'', raw:s };
 }
-function showGenError(raw, provider, model){
+/* 단계별 진단 결과를 실패 안내 안에 그린다.
+   회원이 "제공사 탓인가 우리 탓인가" 를 바로 알 수 있어야 한다 — 그게 이 표의 목적이다. */
+var STG_SIGN={ ok:'✓', killed:'✕', skip:'–', rate:'!', err:'!', noauth:'!' };
+function paintStageDiag(sd){
+  var sec=document.getElementById('errStageSec'), box=document.getElementById('errStages');
+  if(!sec||!box) return;
+  if(!sd||!sd.rows||!sd.rows.length){ sec.style.display='none'; return; }
+  box.innerHTML='';
+  sd.rows.forEach(function(r){
+    var d=document.createElement('div'); d.className='err-stg '+(r.state||'ok');
+    var g=document.createElement('div'); g.className='g'; g.textContent=STG_SIGN[r.state]||'·';
+    var n=document.createElement('div'); n.className='n';
+    var t1=document.createElement('div'); t1.textContent=r.name; n.appendChild(t1);
+    if(r.note){ var t2=document.createElement('div'); t2.className='nt'; t2.textContent=r.note; n.appendChild(t2); }
+    var t=document.createElement('div'); t.className='t'; t.textContent=(r.ms!=null?r.ms+'ms':'');
+    d.appendChild(g); d.appendChild(n); d.appendChild(t); box.appendChild(d);
+  });
+  var v=document.getElementById('errStageVerdict');
+  v.textContent=sd.verdict||'';
+  v.className='err-stg-v'+(sd.ok?' ok':'');
+  sec.style.display='block';
+}
+function showGenError(raw, provider, model, stageDiag){
   var info=explainGenError(raw, provider, model);
   var meta=ERR_CAT[info.cat]||ERR_CAT.unknown;
   var box=document.getElementById('errModal'); if(!box) return toast('생성 실패: '+String(info.title));
@@ -6044,6 +6132,7 @@ function showGenError(raw, provider, model){
   var _rw=document.getElementById('errRawWrap');
   _rw.style.display=info.raw?'block':'none';
   _rw.open=true;   // 원문을 접어두면 진단할 때 아무도 펼치지 않는다 → 기본으로 펼쳐 둔다
+  paintStageDiag(stageDiag);
   box.classList.add('show');
   paintIcons(box);
   return info;
@@ -9057,7 +9146,7 @@ function runQueue(onlyId){
               if(!res || res.error){   // 실제 생성 실패 — 데모로 감추지 않고 원인 표시
                 var msg=(res&&res.error)||'생성 실패';
                 liveNodes(outIds).forEach(function(o){ o.w.generating=false; o.w.error=msg; });
-                var info=showGenError(msg, (res&&res.provider)||providerOf(chosenModel), chosenModel);   // 원인 해설 팝업
+                var info=showGenError(msg, (res&&res.provider)||providerOf(chosenModel), chosenModel, res&&res.stageDiag);   // 원인 해설 + 어디서 끊겼는지
                 toast((info&&info.title)||('생성 실패: '+String(msg).slice(0,80)));
                 render(); step(); return;
               }
