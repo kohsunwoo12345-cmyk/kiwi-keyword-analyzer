@@ -1873,7 +1873,7 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 <script>
 (function(){
 'use strict';
-var STUDIO_BUILD_TAG='2026-08-01-v59';   // 서버 health.build 와 정확히 같아야 최신(캐시/배포지연 아님)
+var STUDIO_BUILD_TAG='2026-08-01-v60';   // 서버 health.build 와 정확히 같아야 최신(캐시/배포지연 아님)
 // (검증용) ?cnexport=1 접속 시 전처리 함수만 window 로 노출 — 순수 이미지 함수라 보안 영향 없음
 try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum, upscaleImageURL:upscaleImageURL }; }catch(_e){} },0); } }catch(_e){}
 // (검증용) ?refexport=1 접속 시 레퍼런스 번호 관련 함수만 노출 — 번호가 연결 순서대로
@@ -3637,7 +3637,9 @@ async function inlineOwnMediaAll(params){
   var conv=async function(v){
     if(!v||typeof v!=='string') return v;
     if(seen[v]!==undefined) return seen[v];
-    var out=await inlineOwnMediaSrc(v,1280,0.88);
+    //  레퍼런스는 "무엇을 참고할지" 를 알려 주는 용도라 1024px 로 충분하다.
+    //  본문이 커질수록 워커가 그것을 읽고 넘기는 비용이 커진다(요청당 CPU 한도가 있다).
+    var out=await inlineOwnMediaSrc(v,1024,0.82);
     seen[v]=out; return out;
   };
   params.firstFrame=await conv(params.firstFrame);

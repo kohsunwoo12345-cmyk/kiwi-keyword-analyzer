@@ -1885,6 +1885,9 @@ async function handle(context) {
     if (method === "POST") {
       let pbody = {};
       try { pbody = await request.clone().json(); } catch (_e) {}
+      //  같은 본문을 아래에서 또 파싱하지 않게 넘겨 둔다 — 사진을 실어 보내면 수백 KB 라
+      //  한 번 더 파싱하는 것만으로 요청당 CPU 한도를 갉아먹는다.
+      context.__pbody = pbody;
       const dry = !!(pbody && pbody.dryRun);
       const isAdmin = me.role === "admin";
       if (!dry && !isAdmin && !(Number(me.credits) > 0)) {
@@ -1978,7 +1981,7 @@ async function handle(context) {
       const lumaOk = await lumaUsable(k.luma);
       return json({
         version:  "2026-07-13-v56 (remove-keys-page)", // 이 필드가 보이면 최신 코드가 프로덕션에 반영된 것
-        build:    "2026-08-01-v59",                      // 스튜디오 STUDIO_BUILD 와 정확히 일치해야 최신
+        build:    "2026-08-01-v60",                      // 스튜디오 STUDIO_BUILD 와 정확히 일치해야 최신
         runway:   !!k.runway,
         xai:      !!k.xai,
         google:   !!(k.google || gcpCreds(env)),
@@ -4086,7 +4089,9 @@ async function handle(context) {
   const cl = Number(request.headers.get("Content-Length") || 0);
   if (cl > 3 * 1024 * 1024)
     return json({ error: "요청 데이터가 너무 큽니다(" + Math.round(cl / 1024 / 1024) + "MB). 이미지가 R2로 업로드되지 않고 원본이 통째로 실렸습니다 — Ctrl+Shift+R(강력 새로고침) 후 다시 시도하세요." }, 413);
-  let b; try { b = await request.json(); } catch { return json({ error: "bad json" }, 400); }
+  //  위 인증 단계에서 이미 파싱해 뒀으면 그것을 쓴다(같은 본문을 두 번 읽지 않는다)
+  let b = context.__pbody && typeof context.__pbody === "object" ? context.__pbody : null;
+  if (!b) { try { b = await request.json(); } catch { return json({ error: "bad json" }, 400); } }
   applyCameraPreset(b);   // 카메라 모션 프리셋(b.camera) → 프롬프트에 시네마틱 지시문 주입
   // ── 브랜드 킷 자동 적용 ──
   //  계정에 저장해 둔 톤앤매너·컬러·금지 요소를 모든 생성에 자동으로 얹는다.
