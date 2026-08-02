@@ -7462,7 +7462,17 @@ function widgetHTML(n,w){
    그래서 노드 종류가 아니라 '위젯 종류' 로 가른다.
    메모·리라우트는 그 자체가 내용이라 손대지 않는다. */
 var OPT_IN_SIDEBAR_SKIP = { note:1, reroute:1 };
-function optInSidebar(t){ return !OPT_IN_SIDEBAR_SKIP[t]; }
+/* ── 입력 노드는 예전 모습 그대로 ──
+   프롬프트·네거티브·이미지/영상 레퍼런스처럼 '무엇을 넣을지' 를 담는 노드는 그 칸 자체가
+   내용이다. 캔버스에서 바로 읽고 고칠 수 있어야 흐름이 보인다 — 오른쪽으로 치우면
+   무슨 프롬프트가 어디로 들어가는지 보려고 노드를 하나씩 눌러 봐야 한다.
+   설정을 옮기는 건 '모델을 돌리는 노드' 에만 해당한다.
+   종류를 일일이 적지 않고 분류(cat)로 가른다 — 나중에 입력 노드가 늘어도 저절로 따라온다. */
+function optInSidebar(t){
+  if(OPT_IN_SIDEBAR_SKIP[t]) return false;
+  var d=DEFS[t];
+  return !!d && d.cat!=='입력';
+}
 //  블럭에 남길 위젯 — 결과 미리보기·안내처럼 "보는" 것들
 var BLOCK_KEEP = {
   videoout:1, imagegenout:1, mesh3dout:1, audioout:1, frameout:1, promptout:1,   // 결과물
