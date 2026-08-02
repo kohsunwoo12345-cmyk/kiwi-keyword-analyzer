@@ -51,6 +51,30 @@ export default function AdminAiModelsPage() {
     setVerifying(false)
   }, [])
 
+  /* 영상(씨댄스) 개통 점검 — 콘솔에서 켜 놓은 모델이 무엇인지 한 번에 본다.
+     ⚠ 무과금이다. 필수 필드를 비운 채 제출해 "그런 모델이 있는가 / 개통됐는가" 만 묻는다.
+       작업이 만들어지지 않으므로 돈이 나가지 않는다.
+     이 화면이 필요한 이유: 제공사는 모델마다 따로 켜야 하는데, 안 켠 모델을 회원이 고르면
+     8초를 기다린 끝에 404 만 받는다. 어느 것이 켜져 있는지 여기서 바로 보이게 한다. */
+  const [actLoading, setActLoading] = useState(false)
+  const [act, setAct] = useState<{ items: any[]; msg: string } | null>(null)
+  const runActivation = useCallback(async () => {
+    setActLoading(true); setAct(null)
+    try {
+      const r = await fetch('/api/generate?diag=seedance-check', { credentials: 'include', cache: 'no-store' })
+      const j = await r.json()
+      if (j?.error) setAct({ items: [], msg: `점검 실패: ${j.error}` })
+      else {
+        const items = j.items || []
+        const on = items.filter((x: any) => x.exists).length
+        setAct({ items, msg: `개통됨 ${on} / 전체 ${items.length} — 회원이 고를 수 있는 것은 "개통됨" 뿐입니다.` })
+      }
+    } catch (e: any) {
+      setAct({ items: [], msg: `점검 실패: ${String(e?.message || e)}` })
+    }
+    setActLoading(false)
+  }, [])
+
   const models = data?.models || []
   const filtered = useMemo(() => {
     const ql = q.trim().toLowerCase()
@@ -84,12 +108,57 @@ export default function AdminAiModelsPage() {
         action={
           <div className="flex gap-2">
             <Button variant="soft" size="sm" onClick={load} disabled={loading}><RefreshCw size={14} /> 새로고침</Button>
+            <Button variant="soft" size="sm" onClick={runActivation} disabled={actLoading}>
+              <Clapperboard size={14} /> {actLoading ? '점검 중…' : '영상 모델 개통 점검'}
+            </Button>
             <Button size="sm" onClick={runVerify} disabled={verifying}><Zap size={14} /> {verifying ? '검증 중…' : '실시간 검증'}</Button>
           </div>
         }
       />
 
       <div className="space-y-6 p-6 lg:p-8">
+        {/* 영상 모델 개통 점검 결과 — 무과금 */}
+        {act && (
+          <Panel title="영상 모델 개통 점검 (씨댄스 · 무과금)">
+            <p className="px-4 pt-3 text-xs text-[var(--text-dim)]">{act.msg}</p>
+            {act.items.length > 0 && (
+              <div className="overflow-x-auto p-4">
+                <table className="w-full min-w-[640px] text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-[var(--text-dim)]">
+                      <th className="pb-2">모델</th><th className="pb-2">모델 ID</th>
+                      <th className="pb-2">상태</th><th className="pb-2">제공사 원문</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {act.items.map((it: any) => (
+                      <tr key={it.model} className="border-t border-[var(--border)]">
+                        <td className="py-2 pr-3 font-medium">{it.model}</td>
+                        <td className="py-2 pr-3 font-mono text-[11px] text-[var(--text-dim)]">{it.id}</td>
+                        <td className="py-2 pr-3">
+                          <Badge className={it.exists
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : 'border-rose-200 bg-rose-50 text-rose-700'}>
+                            {it.exists ? '개통됨 · 바로 사용' : '미개통 · 콘솔에서 켜야 함'}
+                          </Badge>
+                        </td>
+                        <td className="max-w-sm break-words py-2 text-[11px] text-[var(--text-dim)]">
+                          {it.message || it.err || it.verdict || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="mt-3 text-xs leading-relaxed text-[var(--text-dim)]">
+                  · <b>미개통</b>은 키·모델 이름 문제가 아닙니다. BytePlus 콘솔 → ModelArk →
+                  <b> Model Service</b> 에서 위 모델 ID 를 찾아 <b>Activate</b> 하면 코드 수정 없이 바로 됩니다.<br />
+                  · 이 점검은 필수 항목을 비운 채 물어보기만 하므로 <b>작업이 만들어지지 않고 비용도 없습니다</b>.
+                </p>
+              </div>
+            )}
+          </Panel>
+        )}
+
         {/* 요약 */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <SummaryCard label="전체 모델" value={s ? num(s.total) : '—'} sub={s ? `이미지 ${s.image} · 영상 ${s.video}` : ''} color="#7c3aed" icon={Boxes} />
