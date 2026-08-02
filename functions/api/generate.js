@@ -2389,6 +2389,100 @@ async function handle(context) {
                       ? "이 사진을 받아 주는 모델이 있다 — 스튜디오에서 그 모델을 쓰면 된다."
                       : "계정에 열린 씨댄스 전 모델이 이 사진을 거절했다. 씨댄스 계열로는 이 사진을 못 쓴다." });
     }
+    /* 진단(같은 모델에 "보내는 모양"만 바꿔 보기):
+         /api/generate?diag=faceshape&img=<사진 주소>[&model=<모델ID>]     (관리자 전용)
+
+       faceok 은 모델을 바꿔 가며 물어본다. 여기는 반대다 — 모델은 회원이 고른 그대로 두고,
+       같은 사진을 제공사가 인정하는 여러 "모양" 으로 보내 어느 모양이 통과하는지 본다.
+       사장님 지시(다른 모델로 우회 금지)를 지키면서 열 수 있는 문은 이쪽뿐이다.
+
+       ⚠ 반드시 대조군(사람 없는 사진)을 같은 모양으로 함께 던진다.
+         대조군까지 막히면 그 모양 자체가 안 되는 것이지 얼굴 때문이 아니다.
+         (예전에 대조군 없이 재다가 "통로가 있다" 고 잘못 읽은 적이 있다)
+       ⚠ 거절은 0원이다. 통과하면 영상이 실제로 만들어져 돈이 나가지만, 그게 찾던 답이라 감수한다.
+         최저 설정(480p·5초)으로만 던진다. */
+    if (u.searchParams.get("diag") === "faceshape") {
+      if (!k.seedance) return json({ diag: "faceshape", error: "Seedance 키가 서버에 없음" });
+      const raw = String(u.searchParams.get("img") || "").trim();
+      const img = /^https?:\/\//.test(raw) ? raw : (raw ? new URL(u.origin + (raw.startsWith("/") ? raw : "/" + raw)).href : "");
+      if (!img) return json({ diag: "faceshape", error: "img 에 사진 주소를 넣어 주세요(https://… 또는 /api/media/…). 얼굴이 있는 사진이어야 의미가 있습니다." });
+      const mid = String(u.searchParams.get("model") || "dreamina-seedance-2-0-260128");
+      //  대조군 — 사람이 없는 사진. 제공사 문서에 실린 공개 이미지를 쓴다.
+      const CTRL = "https://ark-doc.tos-ap-southeast-1.bytepluses.com/doc_image/r2v_tea_pic1.jpg";
+      //  실어 보내기(base64) 모양도 재려면 사진을 직접 읽어 와야 한다.
+      let dataUri = "", b64skip = "";
+      try {
+        const ir = await fetchT(img, {}, 15000);
+        if (!ir.ok) b64skip = "사진을 못 읽음 HTTP " + ir.status;
+        else {
+          const buf = new Uint8Array(await ir.arrayBuffer());
+          if (buf.length > 4 * 1024 * 1024) b64skip = "사진이 4MB 를 넘음(" + Math.round(buf.length / 1024) + "KB)";
+          else {
+            let s = ""; for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+            dataUri = "data:" + (ir.headers.get("content-type") || "image/jpeg") + ";base64," + btoa(s);
+          }
+        }
+      } catch (e) { b64skip = String((e && e.message) || e).slice(0, 100); }
+
+      const PROMPT = "a gentle portrait, subtle motion";
+      const NEUTRAL = "slow cinematic camera push in, soft light";
+      const shape = (name, src, opts) => ({
+        name,
+        body: Object.assign({
+          model: mid,
+          content: [{ type: "text", text: (opts && opts.text) || PROMPT }].concat(
+            (opts && opts.role) === null
+              ? [{ type: "image_url", image_url: { url: src } }]
+              : [{ type: "image_url", image_url: { url: src }, role: (opts && opts.role) || "first_frame" }]),
+          ratio: "16:9", resolution: "480p", duration: 5, watermark: false,
+        }, (opts && opts.extra) || {}),
+      });
+      const tries = [
+        shape("① 첫 프레임 · 주소 (지금 방식)", img, {}),
+        shape("② 레퍼런스로 (i2v 가 아니라 레퍼런스 모드)", img, { role: "reference_image" }),
+        shape("③ 역할 표시 없이", img, { role: null }),
+        shape("④ 첫 프레임 · 워터마크 켬", img, { extra: { watermark: true } }),
+        shape("⑤ 첫 프레임 · 사람을 언급하지 않는 문구", img, { text: NEUTRAL }),
+      ];
+      if (dataUri) tries.push(shape("⑥ 첫 프레임 · 실어 보내기(base64)", dataUri, {}));
+      tries.push(shape("⑦ 대조군 — 사람 없는 사진 · 첫 프레임", CTRL, { text: NEUTRAL }));
+      tries.push(shape("⑧ 대조군 — 사람 없는 사진 · 레퍼런스", CTRL, { text: NEUTRAL, role: "reference_image" }));
+
+      const out = [];
+      for (const t of tries) {
+        const t0 = Date.now();
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify(t.body),
+          }, 25000);
+          const txt = await r.text();
+          let j = null; try { j = JSON.parse(txt); } catch (_e) {}
+          const code = (j && j.error && j.error.code) || "";
+          const msg = String((j && j.error && j.error.message) || txt).replace(/\s+/g, " ").slice(0, 160);
+          const face = /SensitiveContent|Privacy|real person/i.test(code + " " + msg);
+          out.push({ 모양: t.name, status: r.status, code,
+                     판정: (r.ok && j && j.id) ? "통과 — 영상이 만들어집니다" : face ? "얼굴 때문에 거절" : "다른 이유로 실패",
+                     taskId: (j && j.id) || undefined, msg, ms: Date.now() - t0 });
+        } catch (e) {
+          out.push({ 모양: t.name, 판정: "호출 실패", msg: String((e && e.message) || e).slice(0, 120), ms: Date.now() - t0 });
+        }
+      }
+      const passed = out.filter((x) => x.taskId);
+      const ctrlOk = out.filter((x) => /대조군/.test(x.모양) && x.taskId).length;
+      const realPass = passed.filter((x) => !/대조군/.test(x.모양)).map((x) => x.모양);
+      return json({
+        diag: "faceshape", model: mid, image: img.slice(0, 140),
+        실어보내기잼: !!dataUri, 실어보내기건너뛴이유: dataUri ? undefined : (b64skip || "알 수 없음"), 결과: out,
+        통과한모양: realPass, 대조군통과: ctrlOk,
+        해석: !ctrlOk
+          ? "대조군(사람 없는 사진)까지 막혔다 — 이번 측정은 못 믿는다(키·모델·통신 문제). 다시 재야 한다."
+          : realPass.length
+            ? "모델을 바꾸지 않고도 통과하는 모양이 있다 — 스튜디오가 그 모양으로 보내도록 바꾸면 된다: " + realPass.join(", ")
+            : "대조군은 통과하는데 이 사진은 어떤 모양으로도 막힌다 — 요청 모양의 문제가 아니라 계정 권한(실인물 허용)의 문제다.",
+      });
+    }
     if (u.searchParams.get("diag") === "seedance2") {
       if (!k.seedance) return json({ diag: "seedance2", error: "Seedance 키가 서버에 없음" });
       const model = u.searchParams.get("model") || "dreamina-seedance-2-0-260128";

@@ -2066,6 +2066,10 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
         <div id="errStages"></div>
         <div class="err-stg-v" id="errStageVerdict"></div>
       </div>
+      <div class="err-sec" id="errProbeSec" style="display:none;">
+        <div class="err-lbl">통로 찾기 <span class="err-stg-note">관리자만 보입니다 · 모델은 그대로 두고 "보내는 모양"만 바꿔 봅니다</span></div>
+        <div id="errProbe"></div>
+      </div>
       <details class="err-raw" id="errRawWrap">
         <summary>제공사 원문 메시지 보기</summary>
         <pre id="errRaw"></pre>
@@ -3887,6 +3891,15 @@ async function generateWithAPI(params){
         다른 모델로 넘기는 일은 하지 않는다 — 고른 것과 다른 모델로 만든 영상은
         그림체도 요금도 달라져서, 되는 것보다 나쁘다.
       ⚠ 되돌려 보낸 요청에는 __noInline 이 실려 있어 두 번은 돌지 않는다. */
+  /*  거절당한 그 사진의 "주소" 를 남겨 둔다 — 관리자가 실패 화면에서 곧바로
+      통로 찾기(diag=faceshape)를 돌릴 수 있게. 실어 보낸 base64 로는 제공사가 못 받아 간다. */
+  if(faceRejected(err)){
+    try{
+      var _fi = String(preInline.firstFrame||preInline.refImage||(preInline.refImages||[])[0]||'');
+      window.__lastFaceImg = /^https?:\/\/|^\/api\/media\//.test(_fi) ? _fi : '';
+      window.__lastFaceModel = params.model||'';
+    }catch(_fe){}
+  }
   if(faceRejected(err) && !params.__noInline
      && /^data:/.test(String(preInline.firstFrame||preInline.refImage||(preInline.refImages||[])[0]||''))===false
      && /\/api\/media\//.test(JSON.stringify(preInline))){
@@ -6387,9 +6400,61 @@ function showGenError(raw, provider, model, stageDiag){
   _rw.style.display=info.raw?'block':'none';
   _rw.open=true;   // 원문을 접어두면 진단할 때 아무도 펼치지 않는다 → 기본으로 펼쳐 둔다
   paintStageDiag(stageDiag);
+  paintFaceProbe(info);
   box.classList.add('show');
   paintIcons(box);
   return info;
+}
+/* ── 관리자 전용: "이 사진으로 통로 찾기" ────────────────────────────────────
+   사진이 얼굴 때문에 거절됐을 때, 같은 모델에 같은 사진을 제공사가 인정하는
+   여러 모양(첫 프레임 / 레퍼런스 / 역할 없이 / 워터마크 / 문구 바꿈 / 실어 보내기)으로
+   던져 보고, 어느 모양이 통과하는지 대조군과 함께 잰다.
+   ⚠ 모델은 절대 안 바꾼다. 바꾸는 것은 "보내는 모양" 뿐이다.
+   ⚠ 회원에게는 안 보인다 — 거절은 0원이지만 통과하면 실제로 돈이 나간다. */
+function paintFaceProbe(info){
+  var sec=document.getElementById('errProbeSec'), box=document.getElementById('errProbe');
+  if(!sec||!box) return;
+  var isFace = info && info.cat==='policy' && /사진은 제공사가 받아 주지 않습니다/.test(String(info.title||''));
+  var img = '';
+  try{ img = String(window.__lastFaceImg||''); }catch(_e){}
+  if(!isFace || !window.__IS_ADMIN){ sec.style.display='none'; return; }
+  sec.style.display='block';
+  if(!img){
+    box.innerHTML='<div class="err-stg-v">이 사진은 우리 서버 주소가 없어(직접 붙여 넣은 사진) 통로 찾기를 돌릴 수 없습니다. '+
+                  '보관함에 올린 사진으로 한 번 더 시도해 주세요.</div>';
+    return;
+  }
+  box.innerHTML='<button class="api-ghost" id="errProbeBtn">이 사진으로 통로 찾기</button>'+
+    '<div class="err-stg-v" id="errProbeOut">같은 모델·같은 사진을 여러 모양으로 8번 던져 봅니다. 거절은 0원, 통과하면 480p·5초 1건 비용이 나갑니다.</div>';
+  var btn=document.getElementById('errProbeBtn'), out=document.getElementById('errProbeOut');
+  btn.onclick=function(){
+    btn.disabled=true; btn.textContent='재는 중… (최대 2분)';
+    out.textContent='제공사에 하나씩 던지고 있습니다…';
+    fetch('/api/generate?diag=faceshape&img='+encodeURIComponent(img)+
+          (window.__lastFaceModel?('&model='+encodeURIComponent(SEEDANCE_DIAG_ID(window.__lastFaceModel))):''),
+          {cache:'no-store',credentials:'include'})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d && d.error){ out.textContent='진단 실패: '+d.error; btn.disabled=false; btn.textContent='다시 시도'; return; }
+        var rows=(d&&d.결과)||[];
+        out.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:12px;">'+
+          rows.map(function(x){
+            var good=/통과/.test(x.판정), c=good?'#39d98a':(/얼굴/.test(x.판정)?'#ff6b6b':'#8b93a8');
+            return '<tr><td style="padding:3px 6px;">'+esc(x.모양)+'</td>'+
+                   '<td style="padding:3px 6px;color:'+c+';white-space:nowrap;">'+esc(x.판정)+'</td>'+
+                   '<td style="padding:3px 6px;color:#8b93a8;">'+esc(String(x.code||x.status||''))+'</td></tr>';
+          }).join('')+'</table>'+
+          '<div style="margin-top:8px;color:#cfd6e6;">'+esc(String((d&&d.해석)||''))+'</div>';
+        btn.disabled=false; btn.textContent='다시 재기';
+        try{ navigator.clipboard.writeText(JSON.stringify(d)); }catch(_c){}
+      })
+      .catch(function(e){ out.textContent='진단 실패: '+String(e&&e.message||e); btn.disabled=false; btn.textContent='다시 시도'; });
+  };
+}
+//  스튜디오의 보이는 이름 → 제공사 모델 ID. 진단은 제공사가 아는 이름으로 물어봐야 한다.
+function SEEDANCE_DIAG_ID(name){
+  return name==='Seedance 2.5' ? 'dreamina-seedance-2-5-260628'
+       : name==='Seedance 2.0' ? 'dreamina-seedance-2-0-260128' : '';
 }
 function closeErrModal(){ var b=document.getElementById('errModal'); if(b)b.classList.remove('show'); }
 
@@ -10715,6 +10780,7 @@ function showPlanGate(){
       MAX_NODES=Number(d&&d.maxNodes)||0;                      // 요금제별 최대 노드 수
       if(u && u.id){ UID='u'+String(u.id); paintUserChip(u); }
       var isAdmin=u && u.role==='admin';
+      try{ window.__IS_ADMIN = !!isAdmin; }catch(_a){}   // 실패 화면의 "통로 찾기" 단추가 이 값을 본다
       if(u && u.id && !isAdmin && Number(u.hasPlan)!==1){ showPlanGate(); }  // 요금제 미활성 → 하드 게이트
       loadAllForUser();
     })
