@@ -2220,32 +2220,55 @@ async function handle(context) {
          그렇다면 지금 우리가 가진 키로는 401/403 이 돌아올 것이고, 그 자체가 답이 된다. */
     if (u.searchParams.get("diag") === "arkassets") {
       if (!k.seedance) return json({ diag: "arkassets", error: "Seedance 키가 서버에 없음" });
+      /*  ⚠ 상태 코드만 보면 안 된다 — 처음에 그렇게 만들었다가 스스로 속을 뻔했다.
+            이 관문은 GET 으로 아무 주소나 물어도 "200 + 빈 본문" 을 준다.
+            내가 지어낸 /human_assets · /characters 까지 전부 200 이었다.
+          그래서 두 가지를 바꾼다.
+            ① 대조군 — 절대 있을 리 없는 주소를 같이 넣는다. 그것과 답이 같으면 그 주소는 없는 것이다.
+            ② POST 로 빈 본문을 보내고 "무엇이 틀렸다" 는 답을 읽는다.
+               있는 주소는 "파라미터가 틀렸다"(InvalidParameter 등) 라고 답하고,
+               없는 주소는 "그런 건 없다"(NotFound·InvalidEndpointOrModel) 라고 답한다.
+               이 구분은 이 파일이 모델 ID 를 찾을 때 이미 쓰고 있는 방법이다. */
+      const CONTROL = "/__bygency_control_" + Math.random().toString(36).slice(2, 8) + "__";
       const paths = [
+        CONTROL,
         "/contents/assets", "/assets", "/content_assets", "/asset_groups",
         "/contents/asset_groups", "/digital_humans", "/characters",
         "/contents/generations/assets", "/human_assets",
       ];
-      const out = [];
-      for (const p of paths) {
+      const probe = async (p, method) => {
         const t0 = Date.now();
         try {
           const r = await fetchT(ARK_HOSTS.bp + p, {
-            headers: { Authorization: "Bearer " + k.seedance },
+            method,
+            headers: { Authorization: "Bearer " + k.seedance, "Content-Type": "application/json" },
+            ...(method === "POST" ? { body: "{}" } : {}),
           }, 8000);
           const t = await r.text();
-          out.push({ path: p, status: r.status, ms: Date.now() - t0, head: String(t).slice(0, 160) });
+          let code = "";
+          try { const j = JSON.parse(t); code = (j && j.error && (j.error.code || j.error.type)) || ""; } catch (_e) {}
+          return { status: r.status, ms: Date.now() - t0, bytes: t.length, code,
+                   body: String(t).replace(/\s+/g, " ").slice(0, 180) };
         } catch (e) {
-          out.push({ path: p, error: String((e && e.message) || e).slice(0, 90), ms: Date.now() - t0 });
+          return { error: String((e && e.message) || e).slice(0, 90), ms: Date.now() - t0 };
         }
-      }
-      //  404 는 "그런 주소 없음", 401/403 은 "주소는 있는데 이 키로는 못 본다",
-      //  200 은 "쓸 수 있다" — 셋을 구분해야 다음 걸음이 정해진다.
-      const live = out.filter((x) => x.status && x.status !== 404);
-      return json({ diag: "arkassets", host: ARK_HOSTS.bp, probes: out,
-                    살아있는주소: live.map((x) => x.path + "=" + x.status),
-                    해석: live.length
-                      ? "404 가 아닌 주소가 있다 — 자산 통로가 존재한다. 상태 코드로 권한 여부를 본다."
-                      : "전부 404 — 이 호스트에는 자산 통로가 없다(다른 호스트·다른 인증 방식일 가능성)." });
+      };
+      const out = [];
+      for (const p of paths) out.push({ path: p, GET: await probe(p, "GET"), POST: await probe(p, "POST") });
+      const ctl = out[0];
+      const sig = (x) => (x.GET.status + "/" + x.GET.bytes + "|" + x.POST.status + "/" + x.POST.code + "/" + x.POST.bytes);
+      const ctlSig = sig(ctl);
+      const differs = out.slice(1).filter((x) => sig(x) !== ctlSig);
+      return json({
+        diag: "arkassets", host: ARK_HOSTS.bp,
+        대조군: { path: CONTROL, 답: ctlSig, body: ctl.POST.body || ctl.GET.body || "(빈 본문)" },
+        probes: out,
+        대조군과다른주소: differs.map((x) => x.path + " → " + sig(x) + (x.POST.code ? " <" + x.POST.code + ">" : "")),
+        해석: differs.length
+          ? "대조군과 답이 다른 주소가 있다 — 그 주소는 실재한다. 아래 오류 코드를 보고 무엇을 더 보내야 하는지 정한다."
+          : "모든 주소가 대조군과 똑같이 답한다 — 이 호스트·이 키로는 자산 통로가 없다. "
+            + "(자산 라이브러리는 다른 호스트에 AK/SK 서명을 쓴다는 문서 설명과 들어맞는다)",
+      });
     }
     if (u.searchParams.get("diag") === "seedance2") {
       if (!k.seedance) return json({ diag: "seedance2", error: "Seedance 키가 서버에 없음" });
