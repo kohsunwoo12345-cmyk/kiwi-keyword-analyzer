@@ -546,6 +546,12 @@ export const SEEDANCE_IDS = {
   // 또한 공식 문서상 BytePlus/ModelArk 에 표기된 2.0 은 mini 뿐이고,
   // base·fast 는 Volcengine(중국) 쪽에 doubao- 접두사로 문서화돼 있다.
   // → dreamina-(BytePlus) 우선, 안 되면 doubao-(Volcengine 표기), 마지막으로 접미사 없는 형태.
+  /* 2.5 — 계정 카탈로그(diag=arkmodels)에서 실제로 확인한 ID 다. 추측이 아니다.
+     ⚠ 제공사가 아직 단가를 공개하지 않았다(2026-07-31 출시, 요금표 미공개).
+       그래서 원가를 2.0 보다 높게 잡아 뒀다 — 덜 받는 쪽이 손해라서 안전한 쪽으로 기울인 것이다.
+       ModelArk 는 완료 응답에 실제 사용 토큰을 실어 주므로 정산에서 차액이 정확히 맞춰진다
+       (더 받았으면 돌려준다 — reconcileGenCharge 참조). 공식 요금이 나오면 그 값으로 바꾼다. */
+  "Seedance 2.5":                ["dreamina-seedance-2-5-260628", "dreamina-seedance-2-5"],
   "Seedance 2.0":                ["dreamina-seedance-2-0-260128", "dreamina-seedance-2-0"],
   "Seedance 2.0 Fast":           ["dreamina-seedance-2-0-fast-260128", "dreamina-seedance-2-0-fast"],
   "Seedance 2.0 Mini":           ["dreamina-seedance-2-0-mini-260615", "dreamina-seedance-2-0-mini"],  // 첫 ID 는 실제 작동 확인됨

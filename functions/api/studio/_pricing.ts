@@ -277,6 +277,7 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
      여기 usd 값은 그 함수를 타지 못했을 때의 폴백이자 관리자 화면 표시용이며,
      100만 토큰당 단가로 1080p 초당 원가를 환산해 맞춰 둔다(1080p 1초 = 48,600토큰).
      audio 는 토큰과 별개로 붙는 항목이라 seedanceUsd() 에서도 그대로 더한다. */
+  'Seedance 2.5': { u: 'sec', usd: 0.4116, audio: 0.02, prov: 'seedance' },
   'Seedance 2.0': { u: 'sec', usd: 0.3430, audio: 0.02, prov: 'seedance' },
   'Seedance 2.0 Fast': { u: 'sec', usd: 0.2744, audio: 0.02, prov: 'seedance' },
   'Seedance 2.0 Mini': { u: 'sec', usd: 0.1715, audio: 0.02, prov: 'seedance' },
@@ -534,6 +535,8 @@ const seedanceFrames = (secs: number) => SEEDANCE_FPS * secs + 1
    1.x 계열과 1.5 Pro 영상 단가는 이 청구서에 항목이 없어 아직 미확인이다
    (1.5 Pro 는 "inference-audio" 줄만 있었다 — $0.0024/K). */
 export const SEEDANCE_PER_M: Record<string, number> = {
+  'Seedance 2.5': 8.4,                // 미확인(요금 미공개) — 2.0 의 1.2배로 안전하게 높게.
+                                      //  덜 받으면 손해라서 높은 쪽으로 기울였다. 실측 정산이 차액을 되돌린다.
   'Seedance 2.0': 7.0,                // 실측 — 청구서 $0.007/K
   'Seedance 2.0 Fast': 5.6,           // 실측 — 청구서 $0.0056/K
   'Seedance 2.0 Mini': 3.5,           // 추정 — 2.0 의 0.5배(위 두 값과 같은 보정 배수)
