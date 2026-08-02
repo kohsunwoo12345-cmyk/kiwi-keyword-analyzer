@@ -809,6 +809,13 @@ const ARK_HOSTS = {
   bp: "https://ark.ap-southeast.bytepluses.com/api/v3",   // BytePlus ModelArk (해외)
   vc: "https://ark.cn-beijing.volces.com/api/v3"          // Volcengine (중국)
 };
+/* 제출·조회가 바라볼 주소. 환경변수로만 덮어쓸 수 있다(회원 요청으로는 못 바꾼다).
+   검사에서 제공사를 흉내 낸 서버로 돌려 "거절 → 레퍼런스 모드 재시도" 같은 흐름을
+   실제로 태워 보려고 둔다. 비워 두면 언제나 진짜 BytePlus 로 간다. */
+function arkBase(env, hostId) {
+  const o = pick(env, ["ARK_HOST_OVERRIDE", "ark_host_override"]);
+  return (o ? String(o) : ARK_HOSTS[hostId === "vc" ? "vc" : "bp"]);
+}
 
 /* ── Seedream (씨드림) — ByteDance/BytePlus ModelArk 이미지 생성 ──
    ※ 씨댄스(Seedance)와 동일한 ByteDance ModelArk API 다. 그래서 별도 키가 아니라
@@ -4351,7 +4358,7 @@ async function handle(context) {
         task = String(row.task); hostId = row.host === "vc" ? "vc" : "bp";
       }
       if (!task || !k.seedance) return json({ status: "failed", error: "no task/key" }, 400);
-      const r = await fetchT(ARK_HOSTS[hostId] + "/contents/generations/tasks/" + encodeURIComponent(task), {
+      const r = await fetchT(arkBase(env, hostId) + "/contents/generations/tasks/" + encodeURIComponent(task), {
         headers: { "Authorization": "Bearer " + k.seedance }
       });
       const j = await r.json();
@@ -4621,7 +4628,7 @@ async function handle(context) {
       for (const hostId of hosts) {
         let r, j;
         try {
-          r = await fetchT(ARK_HOSTS[hostId] + "/contents/generations/tasks", {
+          r = await fetchT(arkBase(env, hostId) + "/contents/generations/tasks", {
             method: "POST",
             headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
             body: JSON.stringify(payload)
@@ -4975,7 +4982,7 @@ async function handle(context) {
             // fetchT 의 unhandled-rejection 차단으로 raw 502 는 사라졌으므로, bp 가 이미지
             // 검증 등으로 제출이 느려도(태스크 ID 반환까지 십수 초) 안전하게 기다린다.
             // 초과 시엔 crash 없이 읽을 수 있는 "시간 초과" JSON 이 노드에 표시된다.
-            r = await fetchT(ARK_HOSTS[hostId] + "/contents/generations/tasks", {
+            r = await fetchT(arkBase(env, hostId) + "/contents/generations/tasks", {
               method: "POST",
               headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
               body: JSON.stringify(payload)
@@ -5008,6 +5015,59 @@ async function handle(context) {
           if (!(seedreamModelMissing(r.status, j) || r.status >= 500)) break outer;
         }
       }
+      /* ── 얼굴이 든 사진이 거절됐을 때: 같은 모델·같은 사진을 "레퍼런스 모드" 로 한 번 더 ──
+         씨댄스 2.0 은 사진을 두 가지로 받는다.
+           · first_frame     — "이 사진이 영상의 첫 장면" (사진을 그대로 재현한다)
+           · reference_image — "이 사람/피사체의 외형을 참고해서 만들어" (공식 R2V 모드)
+         제공사 검열은 이 둘을 다르게 다룰 수 있다. 첫 장면은 사진을 그대로 되살리는 것이라
+         더 엄하게 보는 게 자연스럽다. 그래서 거절당하면 레퍼런스 모드로 한 번 더 물어본다.
+
+         ⚠ 모델은 그대로다. 사진도 프롬프트도 요금도 그대로다. 바뀌는 것은 "이 사진을 어떻게
+           쓸 것인가" 뿐이다. 회원이 고른 모델과 다른 모델로 넘기는 일은 여전히 하지 않는다.
+         ⚠ 결과물의 성격은 달라진다(첫 장면 고정 → 외형 참고). 그래서 반드시 알린다(notice).
+         ⚠ 거절은 0원이다. 이 재시도가 통과해야만 비용이 생기고, 그건 회원이 원하던 그 영상이다. */
+      const faceBlocked = /InputImageSensitiveContentDetected|PrivacyInformation|may contain real person/i
+        .test(String(lastErr || ""));
+      const hasFrame = !!(b.firstFrame || b.lastFrame);
+      if (faceBlocked && hasFrame && !b.__refMode) {
+        const leftMs = BUDGET_MS + 15000 - (Date.now() - started);
+        if (leftMs > 6000) {
+          //  첫/마지막 프레임을 레퍼런스 자리로 옮긴다. 순서는 그대로 지킨다.
+          const asRef = Object.assign({}, b, {
+            __refMode: true, firstFrame: null, lastFrame: null, refLabels: [],
+            refImages: [b.firstFrame, b.lastFrame]
+              .concat(Array.isArray(b.refImages) ? b.refImages : [])
+              .filter((x, i, a) => x && a.indexOf(x) === i),
+          });
+          const mid2 = candidates[0];
+          if (context.__trace) await traceMark(env, context.__trace, "레퍼런스 모드로 재시도", mid2);
+          try {
+            const r3 = await fetchT(arkBase(env, "bp") + "/contents/generations/tasks", {
+              method: "POST",
+              headers: { Authorization: "Bearer " + k.seedance, "Content-Type": "application/json" },
+              body: JSON.stringify(buildSeedancePayload(asRef, env, mid2)),
+            }, Math.min(22000, leftMs));
+            const j3 = await r3.json().catch(() => ({}));
+            tried.push(mid2 + "=" + r3.status + "(레퍼런스)");
+            if (r3.ok && j3.id) {
+              return json({
+                statusUrl: "/api/generate?provider=seedance&host=bp&task=" + encodeURIComponent(j3.id),
+                modelId: mid2, usedRefMode: true,
+                notice: "넣으신 사진을 '첫 장면'으로 쓰는 길은 제공사가 막아, 같은 모델에서 "
+                      + "'외형 참고'로 바꿔 만들었습니다. 모델과 요금은 그대로입니다 — "
+                      + "다만 사진이 첫 장면에 그대로 나오지는 않고, 사진 속 인물·피사체의 외형을 살려 만듭니다.",
+              });
+            }
+            lastErr = String(lastErr) + " | 레퍼런스 모드로도 거절됨"
+              + ((j3.error && j3.error.code) ? " <" + j3.error.code + ">" : "");
+          } catch (e) {
+            tried.push(mid2 + "=ERR(레퍼런스)");
+            lastErr = String(lastErr) + " | 레퍼런스 모드 재시도 실패: " + String((e && e.message) || e).slice(0, 90);
+          }
+        } else {
+          lastErr = String(lastErr) + " | (시간이 모자라 레퍼런스 모드를 못 해 봤습니다 — 다시 한 번 눌러 주세요)";
+        }
+      }
       // 모든 후보가 "모델 없음" 으로 끝났다면, 계정 카탈로그에서 같은 계열의 실제 ID 를 찾아 1회 더 시도한다.
       //  (콘솔에서 개통했는데 날짜 접미사가 우리 표와 다른 경우 — 코드 수정 없이 자동으로 맞춘다)
       //  카탈로그 조회(최대 4회 탐침)까지 무한정 붙이면 제출 한 건이 1분을 훌쩍 넘긴다 —
@@ -5018,7 +5078,7 @@ async function handle(context) {
           const cat = await arkModelCatalog(k.seedance);
           const alt = arkPickByStem(cat, candidates);
           if (alt) {
-            const r2 = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+            const r2 = await fetchT(arkBase(env, "bp") + "/contents/generations/tasks", {
               method: "POST",
               headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
               body: JSON.stringify(buildSeedancePayload(b, env, alt))

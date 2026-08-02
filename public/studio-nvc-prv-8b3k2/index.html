@@ -3379,6 +3379,9 @@ async function callProxy(params){
      (그러면 아카이브가 신고값으로 남고, 요금 줄과 따로 논다). */
   if(j.url) return { url:j.url, kind:j.kind||'video', poster:j.poster||params.firstFrame||null, lastFrame:j.lastFrame||null, videoId:j.videoId||null, videoProvider:j.videoProvider||null, type:params.provider, chargeToken:j.chargeToken||null, chargeRef:j.chargeRef||null };
   if(j.statusUrl){
+    /*  서버가 사진 쓰는 방식을 바꿔 살려 낸 경우(첫 장면 → 외형 참고) 알려 준다.
+        같은 모델·같은 요금이지만 결과의 성격이 달라지므로 말없이 넘어가면 안 된다. */
+    if(j.notice){ try{ toast(j.notice, 9000); }catch(_n){} }
     // 진행 중 작업을 노드 밖(전역)에 기록 — 새로고침해도 이어받을 수 있다.
     if(_pnode){ _pnode.w.pendingUrl=j.statusUrl; try{ autosave(); }catch(_e){} }
     var out=await pollJob(j.statusUrl,{},function(s){
@@ -6230,7 +6233,8 @@ var vidIdx=0, queue=0, running=false;
 
 function uid(){ return 'n'+(state.seq++); }
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
-function toast(m){ var t=document.getElementById('toast'); t.textContent=m; t.style.opacity=1; clearTimeout(t._h); t._h=setTimeout(function(){t.style.opacity=0;},1800); }
+//  ms 를 주면 그만큼 띄운다 — 길게 읽혀야 하는 안내(사진 쓰는 방식이 바뀐 경우 등)에 쓴다.
+function toast(m, ms){ var t=document.getElementById('toast'); t.textContent=m; t.style.opacity=1; clearTimeout(t._h); t._h=setTimeout(function(){t.style.opacity=0;},Number(ms)||1800); }
 
 /* ══════ 생성 실패("빠꾸") 원인 해설 팝업 ═══════════════════════════════════
    모든 제공사(Seedance/Veo/Runway/Flux/fal/GPT/Nano Banana/Grok/Luma/MiniMax)의
