@@ -17,7 +17,7 @@ import { ensureAiUsage, resolveCostOverride, refreshUsdKrw } from "./studio/_pri
 import { MODEL_COST as MODEL_COST_SRV } from "./studio/_pricing";
 import { creditPriceFor } from "./payments/prepare";
 
-const RUNWAY_VER = "2024-11-06";
+export const RUNWAY_VER = "2024-11-06";
 
 /* ⚠ 실패를 5xx 로 돌려주면 안 된다 — 회원은 그 이유를 영영 못 본다.
    Cloudflare 는 5xx 응답을 자기 오류 페이지(파란 "502 Bad gateway")로 바꿔치기한다.
@@ -48,7 +48,7 @@ function pick(env, names) {
   for (const n of names) if (env[n]) return String(env[n]).trim();   // 붙여넣기 시 끝 공백·줄바꿈 제거(구글 "API key not valid" 방지)
   return null;
 }
-function keys(env) {
+export function keys(env) {
   return {
     runway: pick(env, ["Runway_API_KEY", "RUNWAY_API_KEY", "runway_api_key"]),
     xai:    pick(env, ["Grok_API_KEY", "GROK_API_KEY", "grok_api_key"]),
@@ -817,7 +817,7 @@ const ARK_HOSTS = {
 /* 제출·조회가 바라볼 주소. 환경변수로만 덮어쓸 수 있다(회원 요청으로는 못 바꾼다).
    검사에서 제공사를 흉내 낸 서버로 돌려 "거절 → 레퍼런스 모드 재시도" 같은 흐름을
    실제로 태워 보려고 둔다. 비워 두면 언제나 진짜 BytePlus 로 간다. */
-function arkBase(env, hostId) {
+export function arkBase(env, hostId) {
   const o = pick(env, ["ARK_HOST_OVERRIDE", "ark_host_override"]);
   return (o ? String(o) : ARK_HOSTS[hostId === "vc" ? "vc" : "bp"]);
 }
@@ -1038,7 +1038,7 @@ export function buildFluxPayload(b) {
 /* ── fal.ai Flux ControlNet (Canny / Depth / Pose) — 컴피UI식 ControlNet ──
    fal 이 전처리(윤곽/깊이/포즈 맵 추출)를 서버에서 대신 해주므로 원본 이미지만 넘기면 됨.
    Canny/Depth = 전용 control-lora 엔드포인트, Pose = flux-general + Union(openpose, control_mode 4). */
-const FAL_QUEUE = "https://queue.fal.run/";
+export const FAL_QUEUE = "https://queue.fal.run/";
 /* ══ 중개(fal.ai) 사용 허가 목록 — 여기 없는 기능은 fal 로 나갈 수 없다 ══
    원칙: 제공사 공식 API 를 연동해 둔 모델은 예외 없이 그 공식 API 로만 나간다.
    같은 모델을 중개로 부르면 ①공식 기준으로 만든 단가표와 실제 청구가 어긋나고
@@ -1332,7 +1332,7 @@ export function buildHailuoPayload(b) {
 }
 
 /* ── Luma Dream Machine 영상 생성 ── */
-const LUMA_BASE = "https://agents.lumalabs.ai/v1";   // Luma Agents API (구 dream-machine/v1 은 이 키를 인증하지 않는다)
+export const LUMA_BASE = "https://agents.lumalabs.ai/v1";   // Luma Agents API (구 dream-machine/v1 은 이 키를 인증하지 않는다)
 
 /* ══ BytePlus ModelArk 3D 생성 (Hyper3D / Hitem3D) ══
    이미지·영상 모델과 달리 "실제 3D 파일(메쉬+텍스처)" 을 만든다.

@@ -1466,12 +1466,19 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 #optbar .ob-proxy textarea.wtext{ min-height:78px; }
 #optbar .ob-proxy .wbtn{ width:100%; justify-content:center; padding:10px 12px; font-size:12.5px; }
 
-/* ══════ 실행 카운트다운 (10초) · 진행률 ══════ */
+/* ══════ 제작 진행률 · 취소 ══════ */
 .node .run-live{ margin-top:6px; border:1px solid #2a3a2a; background:#121a12; border-radius:8px;
   padding:8px 10px; display:flex; flex-direction:column; gap:6px; }
-.node .run-live .rl-top{ display:flex; justify-content:space-between; font-size:11.5px; color:#8fe0a0; font-weight:700; }
+.node .run-live .rl-top{ display:flex; justify-content:space-between; align-items:center; font-size:11.5px; color:#8fe0a0; font-weight:700; }
 .node .run-live .rl-bar{ height:4px; border-radius:3px; background:#1d2a1d; overflow:hidden; }
 .node .run-live .rl-bar i{ display:block; height:100%; background:#4ec26a; width:0; transition:width .3s linear; }
+/* 취소는 눌러야 보이는 자리에 둔다. 다만 실행 버튼만큼 튀면 안 된다 —
+   되돌리는 일이 만드는 일보다 앞에 나올 이유는 없다. */
+.node .run-live .rl-x{ font:600 11px/1 inherit; color:#9aa3af; background:transparent;
+  border:1px solid #3a3f48; border-radius:6px; padding:4px 8px; cursor:pointer; }
+.node .run-live .rl-x:hover{ color:#fca5a5; border-color:#7f1d1d; background:#1b1112; }
+.node .run-live .rl-x[disabled]{ opacity:.5; cursor:default; }
+.node .run-live .rl-note{ font-size:10.5px; color:#7c8592; line-height:1.45; }
 </style>
 </head>
 <body>
@@ -3353,20 +3360,26 @@ function pruneModelPorts(){
 
 /* 비동기 job 폴링 헬퍼 (대부분의 영상 API 는 생성요청→상태폴링 구조) */
 function wait(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
-async function pollJob(url, headers, pick, tries){
+/* stop: "그만 기다려라" 를 알려 주는 함수(선택). 3초 간격을 통째로 기다린 뒤에 보면
+   취소를 누르고도 최대 3초를 더 기다리게 되므로, 잘게 쪼개 보면서 잔다. */
+async function pollJob(url, headers, pick, tries, stop){
   // Seedance 2.0 기본형은 10분도 넘길 수 있어 3초 간격 × 400회 ≈ 20분까지 기다린다.
   tries=tries||400;
   var misses=0;                            // 일시적 네트워크/JSON 오류는 최대 10회 용인 후 재시도
+  async function nap(ms){
+    for(var t=0;t<ms;t+=200){ if(stop&&stop()) throw new CancelledError(); await wait(200); }
+  }
   for(var i=0;i<tries;i++){
+    if(stop&&stop()) throw new CancelledError();
     var j=null;
     try{
       var r=await fetch(url,{headers:headers||{},credentials:'include',cache:'no-store'});
       j=await r.json();
-    }catch(_e){ misses++; if(misses>10) throw new Error('네트워크가 불안정해 상태 확인에 실패했습니다. 결과는 보관함에 저장되니 잠시 후 확인하세요.'); await wait(3000); continue; }
+    }catch(_e){ misses++; if(misses>10) throw new Error('네트워크가 불안정해 상태 확인에 실패했습니다. 결과는 보관함에 저장되니 잠시 후 확인하세요.'); await nap(3000); continue; }
     misses=0;
     if(j&&j.needLogin) throw new Error('로그인이 만료되었습니다. 새로고침 후 다시 로그인해 주세요. (완료된 결과는 보관함에 남습니다)');
     var done=pick(j); if(done) return done;
-    await wait(3000);
+    await nap(3000);
   }
   throw new Error('생성이 너무 오래 걸립니다(10분 초과). 완료되면 보관함에 저장되니 잠시 후 보관함을 확인하세요.');
 }
@@ -3385,6 +3398,11 @@ async function pollJob(url, headers, pick, tries){
 async function callProxy(params){
   // __node 는 진행 상태를 기록하기 위한 로컬 참조 — 서버 본문에는 절대 싣지 않는다.
   var _pnode=params.__node; if(_pnode) { params=Object.assign({},params); delete params.__node; }
+  var _cid=_pnode&&_pnode.id;                       // 취소 표시를 볼 노드
+  var _stop=function(){ return !!(_cid && _cancelWant[_cid]); };
+  /* 보내기 직전에 한 번 더 본다 — 여기서 걸리면 제공사에 접수조차 안 된다(진짜 0원).
+     [실행] 과 [취소] 사이에는 레퍼런스 업로드·사전 확인이 있어 이 구간이 생각보다 넓다. */
+  if(_stop()) throw new CancelledError();
   var base=(API_CONFIG.proxy||'/api/generate').replace(/\/$/,'');
   var _same=(base.charAt(0)==='/');   // 내부 /api/generate 는 세션 쿠키 포함, 외부 프록시는 미포함
   var r=await fetch(base,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(params),credentials:_same?'include':'same-origin'});
@@ -3402,10 +3420,13 @@ async function callProxy(params){
     if(j.notice){ try{ toast(j.notice, 9000); }catch(_n){} }
     // 진행 중 작업을 노드 밖(전역)에 기록 — 새로고침해도 이어받을 수 있다.
     if(_pnode){ _pnode.w.pendingUrl=j.statusUrl; try{ autosave(); }catch(_e){} }
+    /* 접수 번호가 왔다 — 이제부터 취소는 "제공사에 중지를 알리고 환불받는" 일이 된다.
+       POST 가 도는 동안 눌린 취소도 여기서 비로소 보낼 곳이 생긴다(그 사이엔 알릴 데가 없었다). */
+    if(_cid) _taskOf[_cid]=j.statusUrl;
     var out=await pollJob(j.statusUrl,{},function(s){
       if(s.status==='failed'||s.error) return Promise.reject(new Error(s.error||'failed'));
       return s.url? s : null;
-    });
+    }, 0, _stop);
     if(_pnode){ _pnode.w.pendingUrl=null; }
     /* 이 작업의 고유 주소를 결과에 실어 보낸다 — 과금 기록이 "같은 생성" 임을 알아보는 열쇠다.
        생성 중 다른 탭에서 스튜디오를 열면 그 탭도 같은 pendingUrl 을 이어받아 완료 시 또 청구했다. */
@@ -3847,8 +3868,14 @@ async function generateWithAPI(params){
       죽는 상황에서, "그 한 번" 이 어디까지 갔는지 아는 방법은 이것뿐이다. */
   var traceId='tr_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
   params.traceId=traceId;
+  /* 취소는 여기서 반드시 위로 던진다.
+     이 아래는 "실패했으니 다른 길로 한 번 더" 를 하는 자리다(GET 우회 제출·단계 진단).
+     취소를 실패로 삼키면 회원이 그만두라고 한 그 순간에 같은 생성을 다시 제출한다 —
+     한 번 더 과금되고, 화면에는 취소했다고 떠 있다. */
+  var _cid=params.__node&&params.__node.id;
+  var _stopGen=function(){ return !!(_cid && _cancelWant[_cid]); };
   try{ return await callProxy(params); }        // ① 프록시(기본 /api/generate) — 서버 키 사용
-  catch(e){ err=String(e.message||e); }
+  catch(e){ if(isCancel(e)) throw e; err=String(e.message||e); }
   var elapsed=Date.now()-_t0;
   // ①-b Seedance 는 POST 가 원인불명 플랫폼 502 나는 경우가 있어, 안정적인 GET 제출로 우회 재시도.
   //   단, 이미지가 공개 URL 일 때만(base64 는 쿼리스트링 길이 초과로 되레 502). 영상도 URL 필수.
@@ -3868,15 +3895,18 @@ async function generateWithAPI(params){
         +(params.srcVideo?'&vid='+encodeURIComponent(params.srcVideo):'')
         +(params.audioUrl?'&aud='+encodeURIComponent(params.audioUrl):'')
         +(params.generateAudio?'&genaudio=1':'')+(params.watermark?'&wm=1':'');
+      //  우회 제출도 결국 제출이다 — 그만두라고 한 뒤에는 보내지 않는다.
+      if(_stopGen()) throw new CancelledError();
       var gr=await fetch(q,{cache:'no-store'}); var gt=await gr.text(); var gj={}; try{gj=JSON.parse(gt);}catch(e){}
       if(gr.ok && gj.statusUrl){
+        if(_cid) _taskOf[_cid]=gj.statusUrl;      // 이 길로 접수됐어도 취소가 닿아야 한다
         var gout=await pollJob(gj.statusUrl,{},function(s){
           if(s.status==='failed'||s.error) return Promise.reject(new Error(s.error||'failed'));
-          return s.url? s : null; });
-        return { url:gout.url, kind:gout.kind||'video', poster:params.firstFrame||null, type:'seedance' };
+          return s.url? s : null; }, 0, _stopGen);
+        return { url:gout.url, kind:gout.kind||'video', poster:params.firstFrame||null, type:'seedance', taskKey:gj.statusUrl };
       }
       err += ' | GET우회:'+(gj.error||('HTTP'+gr.status));
-    }catch(ge){ err += ' | GET우회실패:'+String(ge&&ge.message||ge).slice(0,80); }
+    }catch(ge){ if(isCancel(ge)) throw ge; err += ' | GET우회실패:'+String(ge&&ge.message||ge).slice(0,80); }
   }
   // 실패 시 서버 실제 배포 버전을 즉석에서 읽어와 에러에 박는다 — 배포지연/캐시 구분용
   var srv='?'; try{ var hr=await fetch('/api/generate?health=1',{cache:'no-store'}); var hj=await hr.json(); srv=(hj&&hj.build)||'?'; }catch(_e){}
@@ -6977,10 +7007,18 @@ function resumePendingJobs(){
     var outIds=outs.map(function(o){ return o.id; });
     liveNodes(outIds).forEach(function(o){ o.w.generating=true; o.w.error=null; });
     render(); toast('진행 중이던 생성을 이어서 확인합니다');
+    /* 이어받은 생성도 취소할 수 있어야 한다. 새로고침했다는 이유로 [취소] 가 사라지면
+       "껐다 켰더니 멈출 방법이 없다" 가 된다 — 진행률·취소 버튼을 여기서도 띄운다.
+       접수 번호(url)는 이미 알고 있으므로 누르는 즉시 제공사에 중지를 알릴 수 있다. */
+    _runningNodes[nid]=1; _taskOf[nid]=url; delete _cancelWant[nid];
+    startLive(nid); _taskOf[nid]=url;      // startLive 가 표시를 초기화하므로 번호는 그 뒤에 다시 넣는다
+    var _rstop=function(){ return !!_cancelWant[nid]; };
+    var _rdone=function(){ delete _runningNodes[nid]; delete _taskOf[nid]; delete _cancelWant[nid]; stopLive(nid); };
     pollJob(url,{},function(st){
       if(st.status==='failed'||st.error) return Promise.reject(new Error(st.error||'failed'));
       return st.url? st : null;
-    }).then(function(out){
+    }, 0, _rstop).then(function(out){
+      _rdone();
       var mn=liveNode(nid); if(mn) mn.w.pendingUrl=null;
       var live=liveNodes(outIds);
       if(!live.length){ var m2=liveNode(nid); if(m2) live=[ensureOutputFor(m2)]; }
@@ -6995,8 +7033,12 @@ function resumePendingJobs(){
       try{ snapshot(); }catch(_e){}
       render(); toast('생성이 완료됐어요');
     }).catch(function(e){
+      var _wasCancel=isCancel(e);
+      if(_wasCancel) tellCancel(nid);        // 번호를 지우기 전에 알린다
+      _rdone();
       var mn=liveNode(nid); if(mn) mn.w.pendingUrl=null;
-      liveNodes(outIds).forEach(function(o){ o.w.generating=false; o.w.error=String((e&&e.message)||e); });
+      liveNodes(outIds).forEach(function(o){ o.w.generating=false;
+        o.w.error=_wasCancel?null:String((e&&e.message)||e); });
       render();
     });
   });
@@ -8592,6 +8634,14 @@ function _nodeEv_click(e){
     var _rn=e.target.closest('.node');
     runQueue(_rn?_rn.dataset.node:undefined); return;
   }
+  /* 제작 중 취소. 여기서는 "그만 기다린다" 는 표시만 세운다 —
+     실제로 멈추고 환불하는 것은 폴링 루프가 이 표시를 보고 한다(tellCancel).
+     여기서 바로 서버를 부르면, 아직 접수 번호가 안 온 구간에서 부를 것이 없어 조용히 지나간다. */
+  if(e.target.closest('[data-cancelrun]')){
+    var _xn=e.target.closest('.node'); var _xid=_xn&&_xn.dataset.node;
+    if(_xid && _runningNodes[_xid]) _cancelWant[_xid]=1;
+    return;
+  }
   if(e.target.closest('[data-imggen]')){ generateImageNode(n2); return; }
   if(e.target.closest('[data-mesh3d]')){ generateMesh3dNode(n2); return; }
   if(e.target.closest('[data-dlmesh]')){
@@ -9345,17 +9395,48 @@ function clearExecOne(id){
   state.links.forEach(function(l,idx){ if(l.from===id){
     var p=edges.querySelector('path.link[data-idx="'+idx+'"]'); if(p)p.classList.remove('exec'); } });
 }
-/* ══════ 제작 진행률 ══════
+/* ══════ 제작 진행률 · 취소 ══════
    예전엔 [실행] 뒤 10초를 세고 그 사이에 취소할 수 있게 했다. 잘못 눌렀을 때 되돌리려던
-   것인데, 매번 10초를 기다려야 해서 정상 사용이 더 불편했다 — 없앴다. 이제 바로 시작한다.
-   대신 "취소하면 돈이 나가는가" 는 그것대로 따로 다뤄야 한다(아래 진행률·환불 참조). */
+   것인데, 매번 10초를 기다려야 해서 정상 사용이 더 불편했다 — 없앴다. 이제 바로 시작하고,
+   대신 도는 동안 언제든 [취소] 를 누를 수 있다.
+
+   ⚠ 취소가 정확히 무엇을 되돌리는지는 구간마다 다르다. 뭉뚱그리면 거짓말이 된다.
+     ㉠ 아직 서버로 안 보냈다      → 제공사에 접수조차 안 됐다. 한 푼도 안 나간다.
+     ㉡ 보냈지만 접수 번호가 오기 전 → 우리도 아직 모르는 상태다. 번호가 오는 즉시 취소를 던진다.
+     ㉢ 접수 후, 제공사 대기열      → 제공사 취소 API 가 통한다. 대개 안 나간다.
+     ㉣ 이미 돌기 시작한 뒤        → 못 멈춘다. 제공사 원가는 나간다.
+   확인해 본 제공사들의 취소 규격이 하나같이 "아직 시작 안 한 작업만" 이라고 못 박는다
+   (fal·Luma·ModelArk). Kling·Hailuo·FLUX·Veo·Grok 은 취소 규격 자체가 없다.
+   그래서 회원에게 하는 약속은 하나로 좁힌다 — 언제 눌렀든 회원 크레딧은 전액 돌려준다.
+   ㉣ 에서 나간 제공사 원가는 우리가 떠안고, 화면에도 그렇게 적는다(서버 cancel.ts 참조). */
+var _live={};
+/* 취소 상태 — 노드 하나당 하나. 폴링 루프와 제출 응답 양쪽이 같은 값을 본다.
+   _cancelWant : [취소] 를 눌렀다(아직 접수 번호가 없을 수도 있다)
+   _taskOf     : 그 노드가 지금 붙들고 있는 작업 주소(접수 번호). 취소 요청에 이게 필요하다. */
+var _cancelWant={}, _taskOf={};
+function CancelledError(){ this.name='CancelledError'; this.message='취소했습니다'; this.__cancel=true; }
+CancelledError.prototype=Object.create(Error.prototype);
+function isCancel(e){ return !!(e && e.__cancel); }
+/* 서버에 취소를 알린다. 작업 주소를 아직 모르면 알릴 것도 없다(=제출 전 취소, 진짜 0원).
+   응답의 안내 문구를 그대로 띄운다 — "돌려줬다" 와 "제공사는 못 멈췄다" 는 다른 사실이라 둘 다 본다. */
+/* key 를 따로 받는 이유: 부르는 자리에 따라 이미 stopLive 가 지나가 번호가 지워졌을 수 있다.
+   지워진 뒤에 읽으면 "접수 전이라 요금이 없다" 고 잘못 말하게 된다 — 미리 챙긴 값을 넘긴다. */
+function tellCancel(id, key){
+  key=key||_taskOf[id];
+  if(!key){ toast('취소했습니다 — 제공사에 접수되기 전이라 요금이 발생하지 않습니다'); return Promise.resolve(); }
+  return fetch('/api/studio/cancel',{ method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({ taskKey:key }) })
+    .then(function(r){ return r.json(); })
+    .then(function(j){ toast(j&&j.message ? String(j.message).slice(0,160) : '취소했습니다'); })
+    .catch(function(){ toast('취소했지만 서버에 알리지 못했습니다 — 잠시 후 크레딧을 확인해 주세요'); });
+}
 /* 실제 제작이 도는 동안의 진행률.
    제공사 API 는 "몇 % 됐다" 를 알려 주지 않는다. 그래서 지나간 시간을 그 모델의
    보통 걸리는 시간으로 나눠 어림한다 — 어림값이라는 걸 화면에도 적는다.
    끝나기 전에 100% 로 보이면 안 되므로 95% 에서 멈춰 두고, 끝나면 그때 지운다. */
-var _live={};
 function startLive(id){
   stopLive(id);
+  delete _cancelWant[id]; delete _taskOf[id];
   var n=(state.nodes||[]).find(function(x){ return x.id===id; });
   var secs=(n&&effVideoSec(n))||8;
   var expect=Math.max(20000, secs*9000);      // 8초 영상이면 대략 70초쯤
@@ -9372,16 +9453,25 @@ function startLive(id){
     var box=body.querySelector('.run-live');
     if(!box){
       box=document.createElement('div'); box.className='run-live';
-      box.innerHTML='<div class="rl-top"><span>제작 중</span><span class="rl-pct">0%</span></div>'
+      box.innerHTML='<div class="rl-top"><span>제작 중</span>'
+        +'<span><span class="rl-pct">0%</span> '
+        +'<button class="rl-x" data-cancelrun>취소</button></span></div>'
         +'<div class="rl-bar"><i></i></div>';
       body.appendChild(box);
     }
+    //  100% 가 되기 전까지만 취소할 수 있다 — 어차피 95% 에서 멈춰 두므로 도는 내내 눌린다.
     var pct=Math.min(95, Math.round((Date.now()-t0)/expect*100));
+    if(_cancelWant[id]){
+      box.querySelector('.rl-top').firstChild.textContent='취소하는 중';
+      var xb=box.querySelector('.rl-x'); if(xb){ xb.disabled=true; xb.textContent='취소 중…'; }
+    }
     box.querySelector('.rl-pct').textContent=pct+'% (예상)';
     box.querySelector('.rl-bar i').style.width=pct+'%';
   }, 300);
 }
 function stopLive(id){
+  //  끝났으면 취소 표시도 같이 걷는다 — 남겨 두면 다음 실행이 시작하자마자 취소된다.
+  delete _cancelWant[id]; delete _taskOf[id];
   if(_live[id]){ clearInterval(_live[id]); delete _live[id]; }
   var el=document.getElementById('nd-'+id); if(!el)return;
   var box=el.querySelector('.run-live'); if(box)box.remove();
@@ -9666,8 +9756,21 @@ function runQueue(onlyId){
               Promise.all(liveNodes(outIds).map(function(o){
                 return o.w.lastImg ? Promise.resolve() : extractLastFrame(o);
               })).then(function(){ render(); step(); });
-            }).catch(function(e){ stopLive(id);
+            }).catch(function(e){
+              var _ck=_taskOf[id];                 // stopLive 가 지우기 전에 챙긴다
+              stopLive(id);
               var em=String(e&&e.message||e||'오류');
+              /* 취소는 실패가 아니다. 같은 자리로 떨어지지만 하는 일이 다르다 —
+                 빨간 오류 상자를 띄우면 회원이 "내가 취소했는데 왜 오류지?" 하게 된다.
+                 여기서 비로소 서버에 알린다(제공사 중지 시도 + 환불). 접수 번호가 없으면
+                 알릴 것도 없다 = 제공사에 들어가기 전에 멈춘 것이다. */
+              if(isCancel(e)){
+                liveNodes(outIds).forEach(function(o){ o.w.generating=false; o.w.error=null; });
+                var _mc=liveNode(id); if(_mc) _mc.w.pendingUrl=null;
+                render();
+                tellCancel(id, _ck);
+                step(); return;
+              }
               liveNodes(outIds).forEach(function(o){ o.w.generating=false; o.w.error=em; });
               var _mn3=liveNode(id); if(_mn3) _mn3.w.pendingUrl=null;
               render();                                        // 스피너 해제를 무조건 먼저
