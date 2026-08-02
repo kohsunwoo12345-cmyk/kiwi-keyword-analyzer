@@ -2207,6 +2207,46 @@ async function handle(context) {
     // 진단(2.0 공식 형식): BytePlus 공식 샘플 URL(이미지+영상)로 정확한 2.0 페이로드 제출.
     // bp 자기네 공개 URL이라 즉시 로드됨 → 형식/키/네트워크가 맞으면 무조건 태스크ID 반환.
     //   /api/generate?diag=seedance2
+    /* 진단(실사 인물 자산): 얼굴이 든 사진은 그대로 못 보낸다 —
+         HTTP 400 <InputImageSensitiveContentDetected.PrivacyInformation>
+         "input image may contain real person"
+       모델이 못 하는 게 아니라, 확인되지 않은 얼굴을 API 등급에서 막는 정책이다.
+       제공사 문서에는 "본인 확인을 거친 인물 자산" 이라는 별도 통로가 있다고 되어 있는데,
+       그 문서 페이지가 밖에서 안 열려(403) 정확한 주소·필드를 확인할 수 없었다.
+       그래서 추측 대신 API 에 직접 물어본다 — 어느 주소가 살아 있는지 상태 코드로 답이 나온다.
+         /api/generate?diag=arkassets     (관리자 전용 · 위 게이트에서 막는다)
+       ⚠ 만드는 요청이 아니라 목록을 읽는 요청만 보낸다. 아무것도 생성되지 않고 돈도 안 나간다.
+       ⚠ 자산 라이브러리는 인증 방식이 다를 수 있다(중국 볼케이노는 AK/SK 서명 + 다른 호스트).
+         그렇다면 지금 우리가 가진 키로는 401/403 이 돌아올 것이고, 그 자체가 답이 된다. */
+    if (u.searchParams.get("diag") === "arkassets") {
+      if (!k.seedance) return json({ diag: "arkassets", error: "Seedance 키가 서버에 없음" });
+      const paths = [
+        "/contents/assets", "/assets", "/content_assets", "/asset_groups",
+        "/contents/asset_groups", "/digital_humans", "/characters",
+        "/contents/generations/assets", "/human_assets",
+      ];
+      const out = [];
+      for (const p of paths) {
+        const t0 = Date.now();
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + p, {
+            headers: { Authorization: "Bearer " + k.seedance },
+          }, 8000);
+          const t = await r.text();
+          out.push({ path: p, status: r.status, ms: Date.now() - t0, head: String(t).slice(0, 160) });
+        } catch (e) {
+          out.push({ path: p, error: String((e && e.message) || e).slice(0, 90), ms: Date.now() - t0 });
+        }
+      }
+      //  404 는 "그런 주소 없음", 401/403 은 "주소는 있는데 이 키로는 못 본다",
+      //  200 은 "쓸 수 있다" — 셋을 구분해야 다음 걸음이 정해진다.
+      const live = out.filter((x) => x.status && x.status !== 404);
+      return json({ diag: "arkassets", host: ARK_HOSTS.bp, probes: out,
+                    살아있는주소: live.map((x) => x.path + "=" + x.status),
+                    해석: live.length
+                      ? "404 가 아닌 주소가 있다 — 자산 통로가 존재한다. 상태 코드로 권한 여부를 본다."
+                      : "전부 404 — 이 호스트에는 자산 통로가 없다(다른 호스트·다른 인증 방식일 가능성)." });
+    }
     if (u.searchParams.get("diag") === "seedance2") {
       if (!k.seedance) return json({ diag: "seedance2", error: "Seedance 키가 서버에 없음" });
       const model = u.searchParams.get("model") || "dreamina-seedance-2-0-260128";
