@@ -2110,7 +2110,7 @@ try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cn
 //  검사하려면 회원이 누르는 그 함수를 그대로 불러 봐야 한다(흉내 낸 코드를 재면 의미가 없다).
 //  순수 진단 함수라 보안 영향 없음.
 try{ setTimeout(function(){ try{ window.__gen={ generateWithAPI:generateWithAPI, showGenError:showGenError, diagnoseStages:diagnoseStages, dropDuplicateImages:dropDuplicateImages, faceRejected:faceRejected }; }catch(_e){} },0); }catch(_e){}
-try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('refexport=1')>=0){ setTimeout(function(){ try{ window.__ref={ get state(){return state;}, set state(v){state=v;}, addNode:addNode, addOmniRefFiles:addOmniRefFiles, refNoOf:refNoOf, refSlotsOf:refSlotsOf, refOrderedBlocks:refOrderedBlocks, collectLabeledRefs:collectLabeledRefs, refMentionProblem:refMentionProblem, inlineOwnMediaSrc:inlineOwnMediaSrc, render:render }; }catch(_e){} },0); } }catch(_e){}
+try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('refexport=1')>=0){ setTimeout(function(){ try{ window.__ref={ get state(){return state;}, set state(v){state=v;}, addNode:addNode, addOmniRefFiles:addOmniRefFiles, refNoOf:refNoOf, refSlotsOf:refSlotsOf, refOrderedBlocks:refOrderedBlocks, collectLabeledRefs:collectLabeledRefs, refMentionProblem:refMentionProblem, inlineOwnMediaSrc:inlineOwnMediaSrc, render:render, runQueue:runQueue }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
   function s(inner,vb){ return '<svg class="ico" viewBox="'+(vb||'0 0 24 24')+'" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+inner+'</svg>'; }
@@ -9505,16 +9505,25 @@ function runQueue(onlyId){
                프레임으로 따로 받는다). 나머지가 순서대로 레퍼런스 1, 2, 3… 이 된다.
                이 순서가 곧 제공사에 실리는 reference_image 순서이고, 프롬프트의 번호와 맞물린다. */
             var _vno=0;
+            /*  ⚠ 번호는 "실제로 프레임으로 나가는 것" 만 프레임으로 세야 한다.
+                ffImg 는 첫 프레임 포트가 비면 레퍼런스 첫 장으로 물러난다(refImage 용 폴백).
+                그걸 프레임으로 세던 탓에, 첫 프레임을 안 이은 흔한 경우에 번호가 한 칸씩
+                밀렸다 — 회원이 "레퍼런스 1" 이라고 쓰면 있지도 않은 "첫 프레임" 으로 바뀌고,
+                "레퍼런스 2" 가 첫 번째 사진을 가리켰다. 레퍼런스가 통째로 안 먹던 자리다.
+                제공사에 first_frame 으로 실제 나가는 것은 threeD 뿐이다(아래 firstFrame 참조).
+                마지막 프레임도 첫 프레임이 있을 때만 실린다 — 서버 규칙과 똑같이 센다. */
+            var ffSent = threeD || null;
+            var lfSent = (ffSent && lfImg) ? lfImg : null;
             //  refLabels 는 refImages 안에서의 "레퍼런스 자리"(@Image 순서)를 잡는 용도라
             //  프레임은 비워 둔다. 회원에게 보이는 번호는 아래 refSlots 가 정한다.
             var refLabelsV = refList.map(function(u){
-              if(u===ffImg || u===lfImg) return '';
+              if(u===ffSent || u===lfSent) return '';
               return '레퍼런스 '+(++_vno);
             });
             //  화면에 띄운 번호 그대로: 첫 프레임 → 마지막 프레임 → 레퍼런스 붙인 순서
             var refSlotsV=[];
-            if(ffImg) refSlotsV.push('first');
-            if(lfImg) refSlotsV.push('last');
+            if(ffSent) refSlotsV.push('first');
+            if(lfSent) refSlotsV.push('last');
             for(var _si=0;_si<_vno;_si++) refSlotsV.push('ref');
             var _vWarn=refMentionProblem(basePrompt, refSlotsV.length);
             if(_vWarn){ try{ toast(_vWarn); }catch(_e){} }

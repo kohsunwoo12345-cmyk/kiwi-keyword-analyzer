@@ -742,7 +742,12 @@ export function buildSeedancePayload(b, env, forceModel) {
     let _pairs = (Array.isArray(b.refImages) ? b.refImages : [])
       .map((u, i) => ({ u, n: _no(_lbl[i]) }))
       .filter(p => p.u && okImg(p.u) && p.u !== firstF && p.u !== lastF && !seenI[p.u] && (seenI[p.u] = 1));
-    if (_pairs.some(p => p.n)) _pairs.sort((a, c) => (a.n || 99) - (c.n || 99));
+    /*  ⚠ 번호대로 세우는 것은 "모두 번호를 달고 왔을 때" 만 한다.
+        예전에는 번호 없는 장(n=0)을 99 로 쳐서 맨 뒤로 밀어 버렸다. 그러면 회원이
+        첫 번째로 붙인 사진이 @Image 마지막 자리로 가고, 프롬프트의 번호가 딴 사진을
+        가리킨다 — 레퍼런스가 엉뚱하게 나오던 원인 중 하나였다.
+        섞여 있으면 믿을 수 없는 번호이므로, 보내 온 차례를 그대로 지킨다. */
+    if (_pairs.length && _pairs.every((p) => p.n)) _pairs.sort((a, c) => a.n - c.n);
     let refs = _pairs.map(p => p.u).slice(0, 9);
     // 영상 레퍼런스(공개 URL 전용, 최대 3) — 단일 srcVideo + 선택적 refVideos 배열
     const vids = [], seenV = {};
