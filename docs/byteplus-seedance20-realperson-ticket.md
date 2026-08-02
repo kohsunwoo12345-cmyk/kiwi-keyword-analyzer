@@ -1,14 +1,17 @@
-# BytePlus 지원 티켓 — 씨댄스 2.0 에서 인물 사진 입력 허용 요청
+# BytePlus 지원 티켓 — 씨댄스 2.0 이 AI 로 만든 얼굴을 실제 인물로 오탐함
 
 씨댄스 2.0 은 제공사(BytePlus) 서버에서 인물 사진 입력을 거절합니다. 우리 코드로는 못 바꿉니다.
-같은 계정·같은 사진으로 **씨댄스 2.5 는 통과**하므로, 계정 권한이 아니라 **2.0 이라는 모델 하나의 정책**입니다.
-2.0 을 인물 사진에 쓰시려면 제공사에 열어 달라고 요청하는 길밖에 없습니다.
+
+두 가지가 이 티켓의 근거입니다.
+1. **넣은 사진은 AI 로 만든 것이고 실제 인물이 아닙니다.** 그런데도 2.0 은 `may contain real person`
+   으로 거절합니다 — 오탐(false positive)입니다.
+2. **같은 계정·같은 사진으로 씨댄스 2.5 는 통과합니다.** 계정 권한이 아니라 2.0 하나의 정책입니다.
 
 ## 보내는 곳
 
 BytePlus 콘솔 → 우측 상단 **Support** → **Submit a ticket**
 - Category: `ModelArk` / `Content moderation` (없으면 `Other`)
-- Subject: `Request to allow real-person image input on dreamina-seedance-2-0-260128`
+- Subject: `False positive: AI-generated face rejected as "real person" on dreamina-seedance-2-0-260128`
 
 ## 붙여 넣을 본문 (영문)
 
@@ -17,14 +20,18 @@ BytePlus 콘솔 → 우측 상단 **Support** → **Submit a ticket**
 > Our account uses ModelArk video generation via the BytePlus endpoint
 > `https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks`.
 >
-> **Problem.** Every image-to-video request to `dreamina-seedance-2-0-260128` that contains a
-> human face is rejected with:
+> **Problem.** Image-to-video requests to `dreamina-seedance-2-0-260128` are rejected with:
 >
 > ```
 > HTTP 400
 > code:    InputImageSensitiveContentDetected.PrivacyInformation
 > message: The request failed because the input image 'content[1]' may contain real person.
 > ```
+>
+> **This is a false positive.** The input image is **AI-generated**. It is not a photograph, and
+> no real person is depicted — there is no identifiable individual and therefore no portrait-rights
+> or consent issue. The moderation appears to trigger on photorealism alone rather than on the
+> presence of an actual person.
 >
 > **What we already verified on our side.** The same image, same model, same prompt was submitted
 > in four different accepted request shapes. All four were rejected with the identical code:
@@ -43,9 +50,12 @@ BytePlus 콘솔 → 우측 상단 **Support** → **Submit a ticket**
 > Only `dreamina-seedance-2-0-260128` rejects it. This indicates the restriction is applied
 > per model, not per account.
 >
-> **Request.** Please enable real-person image input for `dreamina-seedance-2-0-260128` on our
-> account, or tell us the required procedure (agreement, consent verification, portrait-rights
-> attestation, whitelist application — whatever applies).
+> **Request.** Please either
+> (a) fix / relax the false positive so AI-generated faces are not rejected as real persons on
+>     `dreamina-seedance-2-0-260128`, or
+> (b) enable real-person image input for this model on our account, or
+> (c) tell us the required procedure (agreement, consent verification, portrait-rights
+>     attestation, whitelist application — whatever applies).
 >
 > If real-person input has been intentionally removed from Seedance 2.0 and is only available on
 > Seedance 2.5 going forward, please confirm that explicitly so we can plan accordingly.
@@ -66,3 +76,10 @@ BytePlus 콘솔 → 우측 상단 **Support** → **Submit a ticket**
 - **절차를 준다(동의서·초상권 확인 등)** → 그 절차를 알려 주시면 스튜디오에 필요한 화면을 붙이겠습니다.
 - **2.0 에서는 닫았고 2.5 로 옮겼다** → 인물 사진 작업은 2.5 로 하시면 됩니다. 그때는 스튜디오에서
   2.0 을 고르고 인물 사진을 넣었을 때 미리 안내하도록 바꾸겠습니다.
+
+## 티켓을 기다리는 동안
+
+- **인물 사진 작업은 씨댄스 2.5 로** — 같은 사진 그대로 통과합니다. 지금 실제로 되는 유일한 길입니다.
+- **AI 로 사진을 만드시는 단계라면** 화풍을 바꾸는 것도 방법입니다. 사실적인 인물 사진 대신
+  일러스트·3D 렌더·애니메이션 화풍으로 만들면 2.0 도 받습니다 — 실제 사람으로 보이지 않기 때문입니다.
+  (검열을 속이는 게 아니라, 애초에 실제 인물 사진이 아닌 그림이 되는 것입니다)
