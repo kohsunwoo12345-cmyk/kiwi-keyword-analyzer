@@ -2270,6 +2270,59 @@ async function handle(context) {
             + "(자산 라이브러리는 다른 호스트에 AK/SK 서명을 쓴다는 문서 설명과 들어맞는다)",
       });
     }
+    /* 진단(모델 목록): "필터가 완화된 전용 모델이 따로 있다" 는 이야기를 확인한다.
+         /api/generate?diag=arkmodels     (관리자 전용)
+       계정 카탈로그를 통째로 보여 주고, 완화 모델이라 이름 붙은 후보들이 실재하는지 본다.
+       ⚠ 대조군을 넣는다 — 아무렇게나 지어낸 ID 를 같이 던져서, 그것과 답이 같으면 없는 것이다.
+         (앞서 대조군 없이 만들었다가 "다 있다" 로 잘못 읽을 뻔했다)
+       ⚠ 만드는 요청이 아니다. 최소 본문을 보내고 "무엇이 틀렸다" 는 답만 읽는다 — 돈이 안 나간다. */
+    if (u.searchParams.get("diag") === "arkmodels") {
+      if (!k.seedance) return json({ diag: "arkmodels", error: "Seedance 키가 서버에 없음" });
+      const base = "dreamina-seedance-2-0-260128";
+      const cands = [
+        "__control_" + Math.random().toString(36).slice(2, 8),   // 대조군 — 있을 리 없는 ID
+        base,
+        base + "-less-restriction", base + "-lessrestriction",
+        "dreamina-seedance-2-0-less-restriction",
+        "seedance-2-0-less-restriction",
+        base + "-portrait", "dreamina-seedance-2-0-portrait",
+        base + "-realhuman", "dreamina-seedance-2-0-real-human",
+      ];
+      const shot = async (mid) => {
+        const t0 = Date.now();
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: mid, content: [{ type: "text", text: "t" }], duration: 5 }),
+          }, 12000);
+          const t = await r.text();
+          let code = "", msg = "";
+          try { const j = JSON.parse(t); code = (j.error && j.error.code) || ""; msg = (j.error && j.error.message) || ""; } catch (_e) {}
+          return { model: mid, status: r.status, code, msg: String(msg).slice(0, 120), ms: Date.now() - t0 };
+        } catch (e) { return { model: mid, error: String((e && e.message) || e).slice(0, 90) }; }
+      };
+      const res = [];
+      for (const c of cands) res.push(await shot(c));
+      const ctl = res[0];
+      const same = (x) => x.status === ctl.status && x.code === ctl.code;
+      let catalog = null;
+      try { catalog = await arkModelCatalog(k.seedance); } catch (_e) {}
+      return json({
+        diag: "arkmodels",
+        대조군: { model: ctl.model, 답: ctl.status + " " + ctl.code, msg: ctl.msg },
+        시험결과: res.slice(1).map((x) => x.model + " → " + x.status + " " + (x.code || "") +
+                                        (same(x) ? "  (대조군과 같음 = 없는 모델)" : "  ← 대조군과 다름")),
+        대조군과다른모델: res.slice(1).filter((x) => !same(x)).map((x) => x.model),
+        계정카탈로그수: catalog ? catalog.length : null,
+        계정카탈로그: catalog || null,
+        얼굴관련후보: catalog ? catalog.filter((x) => /portrait|human|face|restrict|avatar|digital/i.test(x)) : null,
+        해석: res.slice(1).filter((x) => !same(x)).length
+          ? "대조군과 다르게 답한 ID 가 있다 — 그 이름은 실재한다."
+          : "대조군과 전부 같다 — 그런 이름의 모델은 이 계정에 없다. "
+            + "'필터 완화 전용 모델' 이야기는 이 계정 기준으로는 사실이 아니다.",
+      });
+    }
     if (u.searchParams.get("diag") === "seedance2") {
       if (!k.seedance) return json({ diag: "seedance2", error: "Seedance 키가 서버에 없음" });
       const model = u.searchParams.get("model") || "dreamina-seedance-2-0-260128";
