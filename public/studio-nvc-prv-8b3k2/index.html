@@ -6954,14 +6954,16 @@ function widgetHTML(n,w){
     if((w.k==='camera'||w.k==='tpl') && _vo.noPrompt) return '';
   }
   if(w.t==='textarea'){
-    if(n.type==='prompt'||n.type==='negative'){   // 노션 코드블럭 스타일
-      var lang=n.type==='negative'?'negative':'prompt';
-      return '<div class="codewrap">'+
-        '<div class="codebar"><span class="cglyph">&lt;/&gt;</span>'+
-        '<span class="clang">'+lang+'</span></div>'+
-        '<textarea class="wtext code" data-w="'+w.k+'" spellcheck="false" placeholder="'+esc(w.ph||'')+'">'+esc(v)+'</textarea></div>';
-    }
-    return '<textarea class="wtext" data-w="'+w.k+'" placeholder="'+esc(w.ph||'')+'">'+esc(v)+'</textarea>';
+    /* 프롬프트·네거티브는 '</> prompt' 머리띠가 달린 코드블럭으로 감싸 있었다.
+       노드 자체가 이미 상자라 상자 안에 상자가 되어 이중으로 보였고, 머리띠는
+       무슨 노드인지 이미 제목에 적혀 있는 걸 한 번 더 말하는 것이었다.
+       그냥 글상자 하나로 둔다. spellcheck 는 계속 꺼 둔다 — 프롬프트에 빨간 밑줄이
+       그이면 오타처럼 보여 거슬린다.
+       ※ codewrap·codebar CSS 는 남겨 둔다. 지우려다 옆에 붙은 seedid·seedopts 규칙까지
+         함께 날려 본 적이 있다 — 붙어 있는 규칙을 통째로 들어내는 건 위험하다. */
+    var _plain='<textarea class="wtext" data-w="'+w.k+'" placeholder="'+esc(w.ph||'')+'"';
+    if(n.type==='prompt'||n.type==='negative') _plain+=' spellcheck="false"';
+    return _plain+'>'+esc(v)+'</textarea>';
   }
   if(w.t==='combo'){
     var disp=(w.label?'<span class="wlabel" style="padding-left:4px;">'+esc(w.label)+':</span>':'');
