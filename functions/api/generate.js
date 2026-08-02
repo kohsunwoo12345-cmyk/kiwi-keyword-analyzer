@@ -2126,7 +2126,7 @@ async function handle(context) {
       const lumaOk = await lumaUsable(k.luma);
       return json({
         version:  "2026-07-13-v56 (remove-keys-page)", // 이 필드가 보이면 최신 코드가 프로덕션에 반영된 것
-        build:    "2026-08-01-v61",                      // 스튜디오 STUDIO_BUILD 와 정확히 일치해야 최신
+        build:    "2026-08-02-v62",                      // 스튜디오 STUDIO_BUILD_TAG 와 정확히 일치해야 최신 (배포마다 함께 올린다)
         runway:   !!k.runway,
         xai:      !!k.xai,
         google:   !!(k.google || gcpCreds(env)),
