@@ -2441,7 +2441,7 @@ async function handle(context) {
       const shape = (name, src, opts) => ({
         name,
         body: Object.assign({
-          model: mid,
+          model: (opts && opts.model) || mid,
           content: [{ type: "text", text: (opts && opts.text) || PROMPT }].concat(
             (opts && opts.role) === null
               ? [{ type: "image_url", image_url: { url: src } }]
@@ -2457,8 +2457,20 @@ async function handle(context) {
         shape("⑤ 첫 프레임 · 사람을 언급하지 않는 문구", img, { text: NEUTRAL }),
       ];
       if (dataUri) tries.push(shape("⑥ 첫 프레임 · 실어 보내기(base64)", dataUri, {}));
-      tries.push(shape("⑦ 대조군 — 사람 없는 사진 · 첫 프레임", CTRL, { text: NEUTRAL }));
-      tries.push(shape("⑧ 대조군 — 사람 없는 사진 · 레퍼런스", CTRL, { text: NEUTRAL, role: "reference_image" }));
+      /*  같은 씨댄스 2.0 계열의 다른 갈래도 함께 물어본다 — 2.5 가 같은 사진을 받아 준 것을
+          보면 검열은 "모델마다" 다르게 걸려 있다. 그러면 fast·mini 도 다를 수 있다.
+          ⚠ 이건 어디까지나 "어느 문이 열려 있는지" 를 재는 것이다. 생성이 저절로 그쪽으로
+            넘어가지는 않는다 — 모델은 사장님이 목록에서 직접 고르셔야 바뀐다. */
+      const FAMILY = [
+        ["dreamina-seedance-2-0-fast-260128", "Seedance 2.0 Fast"],
+        ["dreamina-seedance-2-0-mini-260615", "Seedance 2.0 Mini"],
+        ["dreamina-seedance-2-5-260628", "Seedance 2.5"],
+      ].filter(([id]) => id !== mid);
+      FAMILY.forEach(([id, label], i) => {
+        tries.push(shape("⑦" + "abc"[i] + " 참고 — " + label + " · 첫 프레임", img, { model: id }));
+      });
+      tries.push(shape("⑧ 대조군 — 사람 없는 사진 · 첫 프레임", CTRL, { text: NEUTRAL }));
+      tries.push(shape("⑨ 대조군 — 사람 없는 사진 · 레퍼런스", CTRL, { text: NEUTRAL, role: "reference_image" }));
 
       const out = [];
       for (const t of tries) {
@@ -2474,7 +2486,7 @@ async function handle(context) {
           const code = (j && j.error && j.error.code) || "";
           const msg = String((j && j.error && j.error.message) || txt).replace(/\s+/g, " ").slice(0, 160);
           const face = /SensitiveContent|Privacy|real person/i.test(code + " " + msg);
-          out.push({ 모양: t.name, status: r.status, code,
+          out.push({ 모양: t.name, 모델: t.body.model, status: r.status, code,
                      판정: (r.ok && j && j.id) ? "통과 — 영상이 만들어집니다" : face ? "얼굴 때문에 거절" : "다른 이유로 실패",
                      taskId: (j && j.id) || undefined, msg, ms: Date.now() - t0 });
         } catch (e) {
@@ -2483,16 +2495,22 @@ async function handle(context) {
       }
       const passed = out.filter((x) => x.taskId);
       const ctrlOk = out.filter((x) => /대조군/.test(x.모양) && x.taskId).length;
-      const realPass = passed.filter((x) => !/대조군/.test(x.모양)).map((x) => x.모양);
+      //  "지금 고른 모델 그대로 통과한 모양" 과 "다른 모델이라 통과한 것" 을 반드시 갈라 본다.
+      //  섞어서 세면 "되는 길이 있다" 고 잘못 읽는다.
+      const realPass = passed.filter((x) => !/대조군|참고 —/.test(x.모양)).map((x) => x.모양);
+      const famPass = passed.filter((x) => /참고 —/.test(x.모양)).map((x) => x.모양.replace(/^\S+ 참고 — /, ""));
       return json({
         diag: "faceshape", model: mid, image: img.slice(0, 140),
         실어보내기잼: !!dataUri, 실어보내기건너뛴이유: dataUri ? undefined : (b64skip || "알 수 없음"), 결과: out,
-        통과한모양: realPass, 대조군통과: ctrlOk,
+        통과한모양: realPass, 이사진을받아준다른모델: famPass, 대조군통과: ctrlOk,
         해석: !ctrlOk
           ? "대조군(사람 없는 사진)까지 막혔다 — 이번 측정은 못 믿는다(키·모델·통신 문제). 다시 재야 한다."
           : realPass.length
-            ? "모델을 바꾸지 않고도 통과하는 모양이 있다 — 스튜디오가 그 모양으로 보내도록 바꾸면 된다: " + realPass.join(", ")
-            : "대조군은 통과하는데 이 사진은 어떤 모양으로도 막힌다 — 요청 모양의 문제가 아니라 계정 권한(실인물 허용)의 문제다.",
+            ? "고른 모델 그대로 통과하는 모양이 있다 — 스튜디오가 그 모양으로 보내도록 바꾸면 된다: " + realPass.join(", ")
+            : famPass.length
+              ? "이 모델(" + mid + ")로는 어떤 모양으로도 막힌다. 다만 같은 계열의 " + famPass.join(", ")
+                + " 는 이 사진을 받아 준다 — 목록에서 그 모델을 고르시면 된다(자동으로 넘어가지는 않는다)."
+              : "대조군은 통과하는데 이 사진은 어떤 모양·어떤 씨댄스 모델로도 막힌다 — 요청 모양이 아니라 계정 권한(실인물 허용)의 문제다.",
       });
     }
     if (u.searchParams.get("diag") === "seedance2") {

@@ -75,6 +75,27 @@ export default function AdminAiModelsPage() {
     setActLoading(false)
   }, [])
 
+  /* 인물 사진 통과 루트 찾기 — 같은 모델에 같은 사진을 여러 모양으로 던져 본다.
+     ⚠ 거절은 0원이다. 통과하면 480p·5초 1건 값이 실제로 나간다 — 그게 찾던 답이라 감수한다.
+     ⚠ 모델은 자동으로 안 바뀐다. 이 표는 "어느 문이 열려 있는지" 를 알려 줄 뿐이고,
+       모델을 바꾸는 것은 스튜디오 목록에서 직접 고르셔야 한다. */
+  const [routeImg, setRouteImg] = useState('')
+  const [routeModel, setRouteModel] = useState('dreamina-seedance-2-0-260128')
+  const [routeLoading, setRouteLoading] = useState(false)
+  const [route, setRoute] = useState<any>(null)
+  const runRoute = useCallback(async () => {
+    const u = routeImg.trim()
+    if (!u) return alert('사진 주소를 넣어 주세요. 실패한 오류 원문의 ff:https://bygency.co/api/media/… 를 그대로 붙여 넣으시면 됩니다.')
+    if (!confirm('같은 사진을 여러 모양으로 제공사에 던져 봅니다.\n거절은 0원이고, 통과하는 모양이 있으면 480p·5초 1건 값이 실제로 나갑니다.\n진행할까요?')) return
+    setRouteLoading(true); setRoute(null)
+    try {
+      const r = await fetch(`/api/generate?diag=faceshape&img=${encodeURIComponent(u)}&model=${encodeURIComponent(routeModel)}`,
+        { credentials: 'include', cache: 'no-store' })
+      setRoute(await r.json())
+    } catch (e: any) { setRoute({ error: String(e?.message || e) }) }
+    setRouteLoading(false)
+  }, [routeImg, routeModel])
+
   const models = data?.models || []
   const filtered = useMemo(() => {
     const ql = q.trim().toLowerCase()
@@ -117,6 +138,63 @@ export default function AdminAiModelsPage() {
       />
 
       <div className="space-y-6 p-6 lg:p-8">
+        {/* 인물 사진 통과 루트 찾기 */}
+        <Panel title="인물 사진 통과 루트 찾기 (씨댄스)">
+          <div className="space-y-3 p-4">
+            <p className="text-xs leading-relaxed text-[var(--text-dim)]">
+              같은 모델·같은 사진을 제공사가 인정하는 여러 모양으로 던져 보고, <b>어느 모양이 통과하는지</b> 실제로 잽니다.
+              첫 프레임 / 레퍼런스 / 역할 없이 / 워터마크 켬 / 사람을 언급 않는 문구 / 실어 보내기 +
+              같은 계열의 다른 씨댄스 + <b>사람 없는 사진 대조군</b>. 대조군까지 막히면 그 측정은 못 믿는다고 스스로 말합니다.
+              <br />· 거절은 <b>0원</b>입니다. 통과하는 모양이 있으면 그것만 480p·5초 1건 값이 나갑니다.
+              <br />· <b>생성이 저절로 다른 모델로 넘어가지는 않습니다.</b> 이 표는 어느 문이 열려 있는지만 알려 줍니다.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <input value={routeImg} onChange={(e) => setRouteImg(e.target.value)}
+                placeholder="사진 주소 — 오류 원문의 ff:https://bygency.co/api/media/… 를 붙여 넣으세요"
+                className="min-w-[280px] flex-1 rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2 text-xs" />
+              <select value={routeModel} onChange={(e) => setRouteModel(e.target.value)}
+                className="rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-2 py-2 text-xs">
+                <option value="dreamina-seedance-2-0-260128">Seedance 2.0</option>
+                <option value="dreamina-seedance-2-0-fast-260128">Seedance 2.0 Fast</option>
+                <option value="dreamina-seedance-2-0-mini-260615">Seedance 2.0 Mini</option>
+                <option value="dreamina-seedance-2-5-260628">Seedance 2.5</option>
+              </select>
+              <Button size="sm" onClick={runRoute} disabled={routeLoading}>
+                <Search size={14} /> {routeLoading ? '재는 중… (최대 3분)' : '통과 루트 찾기'}
+              </Button>
+            </div>
+            {route && (route.error ? (
+              <p className="text-xs text-rose-600">점검 실패: {String(route.error)}</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-[var(--text-dim)]">
+                      <th className="pb-2">보낸 모양</th><th className="pb-2">모델</th>
+                      <th className="pb-2">결과</th><th className="pb-2">제공사 코드</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(route['결과'] || []).map((x: any, i: number) => (
+                      <tr key={i} className="border-t border-[var(--border)]">
+                        <td className="py-2 pr-3">{x['모양']}</td>
+                        <td className="py-2 pr-3 font-mono text-[11px] text-[var(--text-dim)]">{x['모델']}</td>
+                        <td className="py-2 pr-3">
+                          <Badge className={/통과/.test(x['판정'])
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : 'border-rose-200 bg-rose-50 text-rose-700'}>{x['판정']}</Badge>
+                        </td>
+                        <td className="max-w-xs break-words py-2 text-[11px] text-[var(--text-dim)]">{x.code || x.status || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="mt-3 text-xs leading-relaxed text-[var(--text-soft)]">{route['해석']}</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+
         {/* 영상 모델 개통 점검 결과 — 무과금 */}
         {act && (
           <Panel title="영상 모델 개통 점검 (씨댄스 · 무과금)">
