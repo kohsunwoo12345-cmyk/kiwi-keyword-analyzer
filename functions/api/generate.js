@@ -2323,6 +2323,66 @@ async function handle(context) {
             + "'필터 완화 전용 모델' 이야기는 이 계정 기준으로는 사실이 아니다.",
       });
     }
+    /* 진단(얼굴 사진을 받아 주는 모델 찾기):
+         /api/generate?diag=faceok&img=<공개 이미지 주소>     (관리자 전용)
+       같은 사진을 계정에 실제로 열려 있는 씨댄스 변형들에 하나씩 던져 보고,
+       어느 것이 얼굴을 이유로 거절하는지 오류 코드로 가른다.
+       ⚠ 거절당하면 0원이다(생성 전에 막힌다). 받아 주면 영상이 실제로 만들어져 돈이 나간다 —
+         그런데 그게 바로 우리가 찾던 답이라, 그 비용은 감수한다. 최저 설정으로만 던진다.
+       ⚠ 카탈로그에 실재하는 ID 만 쓴다(diag=arkmodels 로 확인한 것). 지어낸 이름은 넣지 않는다. */
+    if (u.searchParams.get("diag") === "faceok") {
+      if (!k.seedance) return json({ diag: "faceok", error: "Seedance 키가 서버에 없음" });
+      const img = String(u.searchParams.get("img") || "").trim();
+      if (!/^https?:\/\//.test(img))
+        return json({ diag: "faceok", error: "img 에 공개 이미지 주소(https://…)를 넣어 주세요. 얼굴이 있는 사진이어야 의미가 있습니다." });
+      const variants = [
+        "dreamina-seedance-2-5-260628",       // 스튜디오에 아직 없는 최신 — 가장 기대되는 후보
+        "dreamina-seedance-2-0-260128",       // 지금 쓰는 것 (거절당하는 그 모델)
+        "dreamina-seedance-2-0-fast-260128",
+        "dreamina-seedance-2-0-mini-260615",
+        "seedance-1-5-pro-251215",
+        "seedance-1-0-pro-250528",
+        "seedance-1-0-lite-i2v-250428",
+      ];
+      const out = [];
+      for (const mid of variants) {
+        const t0 = Date.now();
+        try {
+          //  2.x 는 content 배열, 1.x 는 image_url 단일 — 각자 받는 모양으로 보낸다.
+          const body = /seedance-2/.test(mid)
+            ? { model: mid, content: [{ type: "text", text: "a gentle portrait, subtle motion" },
+                                      { type: "image_url", image_url: { url: img }, role: "first_frame" }],
+                ratio: "16:9", resolution: "480p", duration: 5, watermark: false }
+            : { model: mid, content: [{ type: "text", text: "a gentle portrait, subtle motion --resolution 480p --dur 5" },
+                                      { type: "image_url", image_url: { url: img } }] };
+          const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }, 25000);
+          const t = await r.text();
+          let j = null; try { j = JSON.parse(t); } catch (_e) {}
+          const code = (j && j.error && j.error.code) || "";
+          const face = /SensitiveContent|Privacy|real person/i.test(code + " " + ((j && j.error && j.error.message) || t));
+          out.push({ model: mid, status: r.status, code,
+                     판정: r.ok && j && j.id ? "받아 줌 — 영상이 만들어집니다"
+                          : face ? "얼굴 때문에 거절"
+                          : "다른 이유로 실패",
+                     taskId: (j && j.id) || undefined,
+                     msg: String((j && j.error && j.error.message) || t).replace(/\s+/g, " ").slice(0, 150),
+                     ms: Date.now() - t0 });
+        } catch (e) {
+          out.push({ model: mid, 판정: "호출 실패", msg: String((e && e.message) || e).slice(0, 100), ms: Date.now() - t0 });
+        }
+      }
+      const okList = out.filter((x) => x.taskId).map((x) => x.model);
+      const faceBlocked = out.filter((x) => /얼굴 때문에/.test(x.판정)).map((x) => x.model);
+      return json({ diag: "faceok", image: img.slice(0, 120), 결과: out,
+                    받아준모델: okList, 얼굴로거절한모델: faceBlocked,
+                    해석: okList.length
+                      ? "이 사진을 받아 주는 모델이 있다 — 스튜디오에서 그 모델을 쓰면 된다."
+                      : "계정에 열린 씨댄스 전 모델이 이 사진을 거절했다. 씨댄스 계열로는 이 사진을 못 쓴다." });
+    }
     if (u.searchParams.get("diag") === "seedance2") {
       if (!k.seedance) return json({ diag: "seedance2", error: "Seedance 키가 서버에 없음" });
       const model = u.searchParams.get("model") || "dreamina-seedance-2-0-260128";
