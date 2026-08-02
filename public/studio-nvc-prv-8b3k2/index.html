@@ -7576,7 +7576,11 @@ function widgetHTML(n,w){
           '<button class="up-x'+(_fast?'':' on')+'" data-upspeed="best" title="가장 또렷하게 복원합니다. 긴 영상은 오래 걸립니다.">최고 화질</button>'+
           '<button class="up-x'+(_fast?' on':'')+'" data-upspeed="fast" title="가벼운 모델로 약 10배 빠르게. 크기·길이·소리는 같고 미세한 질감만 조금 덜 살아납니다.">빠르게 (약 10배)</button>'+
         '</span></div>'+
-        '<div class="refcnt">우리 자체 초해상 모델로 처리합니다 — <b>크레딧이 들지 않습니다</b>.</div>'+
+        /* ⚠ 여기엔 "크레딧이 들지 않습니다" 라고 적혀 있었다. 업스케일이 과금으로 바뀐 뒤에도
+              이 문구만 그대로 남아, 화면은 무료라고 말하는데 실제로는 차감됐다.
+              값이 바뀌면 안내도 같이 바뀌어야 한다 — 단가표(UPSCALE_IMG/UPSCALE_VID)를 그대로 읽는다. */
+        '<div class="refcnt">우리 자체 초해상 모델로 브라우저에서 처리합니다 — '
+          +(isImg?'장당':'초당')+' 크레딧이 듭니다.</div>'+
         (up?'<div class="refcnt">'+ICON.check+' '+esc(_uq.label)+' 완료 · '+esc(n.w.upDim||'')+' · <a href="#" data-upreset>원본으로</a></div>':'')+
         // Kling 공식 API 결과에만 "영상 확장" 이 가능하다(제공사 제약: Kling 생성분·30일 이내).
         //  첫 프레임 이어붙이기와 달리 원본 클립을 그대로 늘려 모션·카메라가 끊기지 않는다.

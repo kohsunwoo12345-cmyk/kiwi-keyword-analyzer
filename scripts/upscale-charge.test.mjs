@@ -106,11 +106,30 @@ const RATE = 1400, BASIS = 50
      recIdx > thenIdx && (catchIdx < 0 || recIdx < catchIdx), '실패한 업스케일에 요금을 물리면 안 된다')
 }
 
-// ⑥ '무료'·'크레딧 0' 문구가 안 남아 있다
+/* ⑥ "돈이 안 든다" 는 말이 어디에도 안 남아 있다
+   처음엔 '자체 모델 · 무료' 라는 한 가지 문구만 찾았다. 그래서 통과했는데,
+   정작 화면에는 "크레딧이 들지 않습니다" 가 그대로 남아 있었다 — 말만 다르고 뜻은 같다.
+   한 가지 표현만 막으면 다른 표현으로 살아남는다. 뜻이 같은 말을 다 막는다. */
 {
-  const around = studio.slice(Math.max(0, studio.indexOf('화질 올리는 중')-400), studio.indexOf('화질 올리는 중')+1600)
-  ok('⑥ 업스케일 문구에 "무료" 가 없다', !/자체 모델 · 무료/.test(studio), '돈을 받으면서 무료라고 하면 안 된다')
-  ok('⑥-b 완료 문구에 "크레딧 0" 이 없다', !/완료 · '\+res\.dim\+' \(크레딧 0\)/.test(studio) && !/\(크레딧 0\)/.test(around))
+  const FREE = /무료|공짜|크레딧이 들지 않|크레딧 0|요금 0|크레딧이 차감되지 않/
+  /* 주석은 화면에 안 나온다. 걷어내지 않으면 "예전엔 무료라고 적혀 있었다" 같은
+     설명까지 위반으로 잡혀서, 고칠 것이 없는데도 계속 빨간불이 뜬다.
+     (줄 주석은 손대지 않는다 — 문자열 안의 https:// 를 잘라 먹는다.) */
+  const noComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, ' ')
+  const region = (src, anchor, before, after) => {
+    const i = src.indexOf(anchor)
+    return i < 0 ? '' : noComments(src.slice(Math.max(0, i - before), i + after))
+  }
+  //  버튼·안내가 그려지는 자리 전체(업스케일 위젯 마크업 ~ 완료 문구)
+  const ui = region(studio, 'data-upscale>', 1200, 2400)
+  const around = region(studio, '화질 올리는 중', 400, 1600)
+  ok('⑥ 업스케일 안내에 "돈이 안 든다" 는 말이 없다', !FREE.test(ui),
+     '돈을 받으면서 무료라고 하면 안 된다: ' + (ui.match(FREE) || [''])[0])
+  ok('⑥-b 진행·완료 문구에도 없다', !FREE.test(around), (around.match(FREE) || [''])[0])
+  //  서버가 돌려주는 안내문(옛 그래프가 provider=upscale 로 들어올 때 회원이 보는 문장)
+  const srv = region(genSrc, 'upscaleMovedToClient', 900, 200)
+  ok('⑥-c 서버 안내문에도 없다', !FREE.test(srv), (srv.match(FREE) || [''])[0])
+  ok('⑥-d 대신 크레딧이 든다고 말한다', /크레딧이 듭니다/.test(ui), '아무 말도 안 하면 몰래 빠지는 것처럼 보인다')
 }
 
 // ⑦ 서버에서 추론하는 경로는 여전히 없다 — 우리 모델은 사용자 기기/빌려간 쪽에서 돈다
