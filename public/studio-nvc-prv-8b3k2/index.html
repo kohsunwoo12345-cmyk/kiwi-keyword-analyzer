@@ -1467,12 +1467,6 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 #optbar .ob-proxy .wbtn{ width:100%; justify-content:center; padding:10px 12px; font-size:12.5px; }
 
 /* ══════ 실행 카운트다운 (10초) · 진행률 ══════ */
-.node .run-armed{ margin-top:6px; border:1px solid #4a3a12; background:#1e1a10; border-radius:8px;
-  padding:8px 10px; display:flex; flex-direction:column; gap:6px; }
-.node .run-armed .ra-top{ display:flex; justify-content:space-between; font-size:11.5px; color:#e8c76a; font-weight:700; }
-.node .run-armed .ra-bar{ height:4px; border-radius:3px; background:#2c2716; overflow:hidden; }
-.node .run-armed .ra-bar i{ display:block; height:100%; background:#e8b93a; width:0; }
-.node .run-armed .ra-hint{ font-size:10.5px; color:#9a8b57; }
 .node .run-live{ margin-top:6px; border:1px solid #2a3a2a; background:#121a12; border-radius:8px;
   padding:8px 10px; display:flex; flex-direction:column; gap:6px; }
 .node .run-live .rl-top{ display:flex; justify-content:space-between; font-size:11.5px; color:#8fe0a0; font-weight:700; }
@@ -8568,7 +8562,7 @@ function _nodeEv_click(e){
   }
   if(e.target.closest('[data-runnode]')){
     var _rn=e.target.closest('.node');
-    armRun(_rn?_rn.dataset.node:undefined); return;
+    runQueue(_rn?_rn.dataset.node:undefined); return;
   }
   if(e.target.closest('[data-imggen]')){ generateImageNode(n2); return; }
   if(e.target.closest('[data-mesh3d]')){ generateMesh3dNode(n2); return; }
@@ -9323,54 +9317,10 @@ function clearExecOne(id){
   state.links.forEach(function(l,idx){ if(l.from===id){
     var p=edges.querySelector('path.link[data-idx="'+idx+'"]'); if(p)p.classList.remove('exec'); } });
 }
-/* ══════ 실행 전 10초 · 취소 · 진행률 ══════
-   [실행]을 누르면 곧바로 API 로 나가고 그 순간 돈이 빠진다. 잘못 눌렀다는 걸
-   깨달았을 때는 이미 늦다. 그래서 10초를 먼저 센다 — 그 동안은 아무것도 안 나간다.
-   그 사이에 다시 누르면 취소다(제작 자체가 없던 일이 된다).
-   10초가 지나야 비로소 실제 실행으로 넘어간다. */
-var _armed={};                      // nodeId → { t0, timer, tick }
-var ARM_MS=10000;
-function armState(id){ return _armed[id]; }
-function clearArm(id){
-  var a=_armed[id]; if(!a)return;
-  clearTimeout(a.timer); clearInterval(a.tick); delete _armed[id];
-}
-function armRun(id){
-  if(!id){ runQueue(undefined); return; }        // 그래프 전체 실행은 지금처럼 바로
-  if(_armed[id]){                                 // 이미 세고 있는 중에 또 눌렀다 = 취소
-    clearArm(id); paintArm(id); toast('영상 제작을 취소했습니다 (요금 없음)');
-    return;
-  }
-  if(_runningNodes[id]){ toast('이 노드는 이미 실행 중입니다'); return; }
-  var a={ t0:Date.now() };
-  a.timer=setTimeout(function(){
-    clearArm(id); paintArm(id);
-    runQueue(id);                                 // 여기서 처음으로 API 로 나간다
-  }, ARM_MS);
-  a.tick=setInterval(function(){ paintArm(id); }, 100);
-  _armed[id]=a;
-  paintArm(id);
-  toast('10초 뒤에 제작을 시작합니다 — 다시 누르면 취소');
-}
-/* 카운트다운·진행률을 노드 안에 그린다. render() 를 다시 돌리지 않는다 —
-   0.1초마다 노드를 통째로 다시 만들면 입력 중인 칸이 날아간다. */
-function paintArm(id){
-  var el=document.getElementById('nd-'+id); if(!el)return;
-  var body=el.querySelector('.node-body'); if(!body)return;
-  var box=body.querySelector('.run-armed');
-  var a=_armed[id];
-  if(!a){ if(box)box.remove(); return; }
-  var left=Math.max(0, ARM_MS-(Date.now()-a.t0));
-  var pct=Math.min(100, Math.round((1-left/ARM_MS)*100));
-  if(!box){
-    box=document.createElement('div'); box.className='run-armed';
-    box.innerHTML='<div class="ra-top"><span>제작 대기</span><span class="ra-pct">0%</span></div>'
-      +'<div class="ra-bar"><i></i></div><div class="ra-hint">다시 누르면 취소됩니다</div>';
-    body.appendChild(box);
-  }
-  box.querySelector('.ra-pct').textContent=pct+'% · '+(left/1000).toFixed(1)+'초';
-  box.querySelector('.ra-bar i').style.width=pct+'%';
-}
+/* ══════ 제작 진행률 ══════
+   예전엔 [실행] 뒤 10초를 세고 그 사이에 취소할 수 있게 했다. 잘못 눌렀을 때 되돌리려던
+   것인데, 매번 10초를 기다려야 해서 정상 사용이 더 불편했다 — 없앴다. 이제 바로 시작한다.
+   대신 "취소하면 돈이 나가는가" 는 그것대로 따로 다뤄야 한다(아래 진행률·환불 참조). */
 /* 실제 제작이 도는 동안의 진행률.
    제공사 API 는 "몇 % 됐다" 를 알려 주지 않는다. 그래서 지나간 시간을 그 모델의
    보통 걸리는 시간으로 나눠 어림한다 — 어림값이라는 걸 화면에도 적는다.
