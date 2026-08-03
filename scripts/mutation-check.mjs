@@ -248,6 +248,27 @@ const MUTATIONS = [
   { g: 'API', name: '동시 진행 제한을 없앤다',
     file: 'functions/api/_apikeys.ts',
     from: 'if (Number(p?.n || 0) >= API_RATE.concurrent) return { ok: false, retryAfter: 15,', to: 'if (false) return { ok: false, retryAfter: 15,' },
+  // ── 미들웨어 (바깥문) ────────────────────────────────────────────────────
+  { g: '미들웨어', name: '차단된 IP 를 그대로 들여보낸다',
+    file: 'functions/_middleware.ts',
+    from: 'if (await isBlocked(db, ip)) {', to: 'if (false) {' },
+  { g: '미들웨어', name: '관리자 콘솔 접근 잠금을 푼다',
+    file: 'functions/_middleware.ts',
+    from: 'if (!(await isAdminAccessAllowed(db, ip, devTok))) {', to: 'if (false) {' },
+  { g: '미들웨어', name: '크론 토큰을 길이만 보고 통과시킨다',
+    file: 'functions/_middleware.ts',
+    from: 'if (expected && got.length === expected.length && ctEqStr(got, expected)) return next()',
+    to: 'if (expected && got.length === expected.length) return next()' },
+  { g: '미들웨어', name: '크론 토큰이 없어도 보안 검사를 건너뛴다',
+    file: 'functions/_middleware.ts',
+    from: 'if (CRON_PATH_RE.test(path)) {\n    const expected = String((env as any).CRON_TOKEN || \'\')',
+    to: 'if (CRON_PATH_RE.test(path)) {\n    return next()\n    const expected = String((env as any).CRON_TOKEN || \'\')' },
+  { g: '미들웨어', name: '화이트리스트 모드를 무시한다',
+    file: 'functions/_middleware.ts',
+    from: 'if (!(await isWhitelisted(db, ip))) {', to: 'if (false) {' },
+  { g: '미들웨어', name: '자동 차단 임계값을 없앤다 (스크래핑 무제한)',
+    file: 'functions/_middleware.ts',
+    from: 'if (recent > ABUSE_THRESHOLD) {', to: 'if (false) {' },
 ]
 
 const filter = process.argv[2] || ''
