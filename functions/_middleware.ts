@@ -193,9 +193,19 @@ async function defusedRequest(request: Request, path: string): Promise<Request |
     for (const h of ['x-hub-signature', 'x-hub-signature-256', 'x-signature', 'x-signature-256', 'stripe-signature']) {
       if (request.headers.get(h)) return undefined
     }
+    /* ⚠ 큰 본문은 읽지도 않는다.
+       이 방어는 {"toString":1} 같이 "짧게 조작한" 본문이 표적이다. 그런데 여기서
+       본문을 통째로 글자로 만들고 정규식까지 돌리면, 사진을 실어 보내는 요청(수백 KB)마다
+       그 비용을 요청마다 치른다. 짧게 조작한 본문을 막자고 큰 본문 전체를 훑을 이유가 없다.
+       (요금제 한도 때문이라고 적어 두었던 건 확인된 게 아니다 — 계정은 Workers 유료였다.
+        그래도 안 읽는 편이 맞다: 표적이 아닌 요청에 비용을 얹지 않는다.)
+       조작 본문은 작다. 큰 것은 그냥 통과시키고, 혹시 터지면 아래 안전망이 읽을 수 있는
+       JSON 으로 돌려준다. */
+    const declared = Number(request.headers.get('content-length') || 0)
+    if (declared > 131072) return undefined
     const raw = await request.clone().text()
     // 문제되는 키가 없으면(거의 모든 요청) 아무것도 하지 않는다
-    if (!raw || raw.length > 2_000_000 || !/"(toString|valueOf|__proto__|constructor)"\s*:/.test(raw)) return undefined
+    if (!raw || raw.length > 131072 || !/"(toString|valueOf|__proto__|constructor)"\s*:/.test(raw)) return undefined
     return new Request(request, { body: JSON.stringify(defuse(JSON.parse(raw))) })
   } catch {
     return undefined // 파싱 실패는 각 처리기가 알아서 400 으로 돌려준다

@@ -658,11 +658,22 @@ input.wurl:focus{ border-color:#4fb0a5; }
 #search .si:hover small,#search .si.on small{ color:#cde; }
 
 /* 셀렉트 드롭다운 */
-#dd{ position:fixed; z-index:95; max-height:280px; overflow:auto; background:#2f2f2f; border:1px solid #555;
-  border-radius:7px; box-shadow:0 14px 38px rgba(0,0,0,.6); display:none; min-width:210px; padding:4px; }
-#dd .di{ padding:7px 12px; font-size:12px; color:#ccc; border-radius:5px; cursor:pointer; }
-#dd .di:hover{ background:#2563eb; color:#fff; }
-#dd .dh{ padding:6px 10px 4px; font-size:9.5px; color:#777; letter-spacing:.1em; text-transform:uppercase; }
+/* 드롭다운 — 사이드바와 같은 톤으로. 예전엔 회색(#2f2f2f)에 파란 하이라이트라
+   패널 옆에 뜨면 다른 앱처럼 보였다. 여백을 넓히고 선택은 은은하게. */
+#dd{ position:fixed; z-index:95; max-height:340px; overflow:auto; background:#161619;
+  border:1px solid #2e2e35; border-radius:12px; box-shadow:0 20px 52px rgba(0,0,0,.62);
+  display:none; min-width:248px; padding:6px; }
+#dd .di{ padding:9px 12px; font-size:12.5px; color:#c9cbd3; border-radius:8px; cursor:pointer;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#dd .di:hover{ background:#26262d; color:#fff; }
+#dd .di.on{ background:#2b2b33; color:#fff; font-weight:600; }
+#dd .dh{ padding:10px 12px 5px; font-size:10px; color:#63656e; font-weight:800;
+  letter-spacing:.08em; text-transform:uppercase; }
+#dd .dd-search{ margin:4px 4px 6px !important; padding:9px 11px !important;
+  border-radius:9px !important; border:1px solid #2e2e35 !important; background:#101013 !important;
+  font-size:12.5px !important; }
+#dd .dd-search:focus{ border-color:#4b7bec !important; }
+#dd .dd-none{ padding:16px 12px; font-size:12px; color:#63656e; text-align:center; }
 
 /* 박스 셀렉트 */
 #selbox{ position:fixed; z-index:40; border:1px dashed #4fb0a5; background:rgba(79,176,165,.08); display:none; pointer-events:none; }
@@ -780,6 +791,21 @@ input.wurl:focus{ border-color:#4fb0a5; }
 .err-sec{ padding:12px 20px; border-bottom:1px solid #232325; }
 .err-sec .err-lbl{ font-size:11px; font-weight:700; letter-spacing:.02em; color:#7fe0b0; margin-bottom:5px; }
 .err-sec.fix .err-lbl{ color:#ffd66b; }
+/* 실패 원인을 단계별로 짚어 주는 표 — 502 는 서버에 기록이 안 남아 여기서만 볼 수 있다 */
+.err-stg-note{ font-weight:400; color:#7b8494; letter-spacing:0; margin-left:6px; font-size:10.5px; }
+.err-stg{ display:flex; align-items:flex-start; gap:8px; padding:5px 0; border-bottom:1px solid rgba(255,255,255,.05); font-size:12.5px; }
+.err-stg:last-child{ border-bottom:none; }
+.err-stg .g{ width:14px; flex:0 0 14px; text-align:center; font-weight:800; }
+.err-stg .n{ flex:1; color:#e6e9f2; }
+.err-stg .nt{ color:#9aa4b2; font-size:11.5px; margin-top:1px; }
+.err-stg .t{ color:#7b8494; font-variant-numeric:tabular-nums; font-size:11.5px; }
+.err-stg.ok .g{ color:#22c55e; } .err-stg.killed .g{ color:#ef4444; }
+.err-stg.rate .g,.err-stg.err .g,.err-stg.noauth .g{ color:#f59e0b; }
+.err-stg.skip{ opacity:.45; } .err-stg.skip .g{ color:#64748b; }
+.err-stg.killed .nt{ color:#ef4444; }
+.err-stg-v{ margin-top:9px; padding:9px 11px; border-radius:8px; background:rgba(239,68,68,.10);
+            border:1px solid rgba(239,68,68,.28); color:#ffb4b4; font-size:12.5px; line-height:1.6; }
+.err-stg-v.ok{ background:rgba(34,197,94,.10); border-color:rgba(34,197,94,.28); color:#9be8bd; }
 .err-sec .err-txt{ font-size:13px; line-height:1.65; color:#d2d4da; }
 .err-ico-wrap{ width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center;
   background:rgba(255,155,155,.1); border:1px solid rgba(255,155,155,.35); flex:0 0 auto; }
@@ -1268,6 +1294,191 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 
 /* 선택 박스 · 검색/드롭다운 하이라이트 (--w-accent 자동 반영) */
 #selbox{ border:1px dashed var(--w-accent); background:rgba(59,130,246,.10); }
+
+/* ══════ 무채색 통일 — 블럭을 검정에 가까운 회색으로 ══════
+   노드 색은 지금까지 종류마다 달랐다(--hd 로 초록·주황·청록…). 화면이 알록달록해서
+   정작 중요한 것(어디로 흐르는지)이 안 보였다. 블럭은 전부 같은 무채색으로 두고,
+   구분은 '선 색' 하나로만 준다. --hd 는 값 자체를 남겨 두되(다른 코드가 읽는다)
+   배경에는 안 쓴다. */
+.node{ background:#141414 !important; border-color:#2a2a2a !important; }
+.node .node-title{ background:#1c1c1c !important; border-bottom-color:#2a2a2a !important; color:#dcdcdc; }
+.node .nid{ color:#5f6169 !important; }
+.node.sel{ outline:1px solid #6b6f7a; }
+.node.sel .node-title{ background:#242424 !important; }
+/* 메모 노드는 "종이" 라는 게 뜻이라 색을 남긴다 — 나머지만 무채색으로 */
+.node.notenode{ background:#cfbd68 !important; border-color:#a3934b !important; }
+.node.notenode .node-title{ background:#bcab58 !important; color:#3a340f; }
+
+/* 출력 블럭은 결과를 보는 자리라 크게 */
+.node[data-type="output"]{ width:392px; }
+.node[data-type="output"] .vout, .node[data-type="output"] video,
+.node[data-type="output"] img{ max-height:280px; }
+
+/* ══════ 오른쪽 옵션 사이드바 (슬라이드) ══════
+   영상 설정을 노드로 두면 자리를 차지하고 선까지 하나 더 늘어난다.
+   모델을 고르면 오른쪽에서 밀려 나오는 패널에서 바로 만지게 한다. */
+#optbar{ position:fixed; top:0; right:0; width:320px; height:100%; z-index:70;
+  background:#131316; border-left:1px solid #2a2a2e; box-shadow:-18px 0 46px rgba(0,0,0,.55);
+  transform:translateX(100%); transition:transform .22s cubic-bezier(.4,0,.2,1);
+  display:flex; flex-direction:column; }
+#optbar.open{ transform:translateX(0); }
+#optbar .ob-head{ display:flex; align-items:center; gap:8px; padding:14px 14px 12px;
+  border-bottom:1px solid #26262b; }
+#optbar .ob-title{ font-size:13.5px; font-weight:700; color:#e8e8ec; flex:1;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#optbar .ob-x{ width:26px; height:26px; border-radius:7px; border:1px solid #313138;
+  background:#1b1b1f; color:#9a9ca4; cursor:pointer; font-size:15px; line-height:1; }
+#optbar .ob-x:hover{ background:#26262c; color:#e8e8ec; }
+#optbar .ob-body{ flex:1; overflow:auto; padding:14px 14px 96px; display:flex; flex-direction:column; gap:14px; }
+#optbar .ob-sec{ font-size:10.5px; font-weight:800; letter-spacing:.08em; color:#6b6d76; text-transform:uppercase; }
+#optbar .ob-row{ display:flex; flex-direction:column; gap:6px; }
+#optbar .ob-lab{ font-size:11.5px; color:#a4a6ae; display:flex; justify-content:space-between; }
+#optbar .ob-lab b{ color:#e4e4e8; font-weight:700; }
+#optbar select, #optbar input[type=range]{ width:100%; }
+#optbar select{ background:#1b1b1f; border:1px solid #303038; color:#e4e4e8;
+  border-radius:7px; padding:7px 9px; font-size:12.5px; }
+#optbar .ob-chips{ display:flex; flex-wrap:wrap; gap:6px; }
+#optbar .ob-chip{ padding:6px 11px; border-radius:999px; font-size:12px; cursor:pointer;
+  background:#1b1b1f; border:1px solid #303038; color:#a4a6ae; }
+#optbar .ob-chip.on{ background:#2b2b32; border-color:#5a5d68; color:#fff; font-weight:700; }
+#optbar .ob-note{ font-size:11.5px; line-height:1.6; color:#75777f;
+  background:#17171b; border:1px solid #26262b; border-radius:8px; padding:9px 10px; }
+#optbar .ob-empty{ color:#6b6d76; font-size:12.5px; text-align:center; padding:30px 10px; }
+/* 떠 있는 팀 채팅 버튼(#twBtn)은 오른쪽 아래에 고정이라 패널 내용을 가린다.
+   패널이 열려 있는 동안에는 숨긴다. #twBtn 은 스크립트가 body 에 나중에 붙이므로
+   #optbar 의 뒤 형제가 된다 — 그래서 ~ 로 잡힌다. 패널을 닫으면 다시 나온다.
+   (버튼 쪽 CSS 는 나중에 주입되지만 display 를 정하지 않아 !important 로 이긴다) */
+#optbar.open ~ #twBtn{ display:none !important; }
+#optbar.open ~ #twPanel{ display:none !important; }
+
+/* ══════ 블럭 모양 — 피그마 Weave 풍 ══════
+   설정이 사이드바로 빠지면서 블럭에 남는 건 "무엇이 들어오고 무엇이 나가는지" 뿐이다.
+   그러면 빽빽할 이유가 없다 — 모서리를 더 둥글게, 여백을 넉넉히, 테두리는 얇고 흐리게. */
+.node{ border-radius:14px; box-shadow:0 8px 28px rgba(0,0,0,.45); }
+.node .node-title{ height:38px; padding:0 13px; border-radius:13px 13px 0 0;
+  font-size:12.5px; font-weight:600; letter-spacing:-.01em; }
+.node.collapsed .node-title{ border-radius:13px; }
+.node .node-body{ padding:9px 12px 12px; gap:2px; }
+.node .iorow{ height:27px; }
+.node .iorow .in-label, .node .iorow .out-label{ font-size:11.5px; color:#8b8d96; }
+.node .port{ width:10px; height:10px; top:8px; border-color:#0e0e0e; }
+/* 입력 추가 — Weave 의 'Add another input' 자리 */
+.nw-add{ margin-top:7px; width:100%; display:flex; align-items:center; gap:7px;
+  padding:8px 10px; border-radius:9px; cursor:pointer;
+  background:transparent; border:1px dashed #33343b; color:#7c7e88;
+  font-size:11.5px; font-family:inherit; text-align:left; }
+.nw-add:hover{ background:#1a1a1e; border-color:#464852; color:#c9cbd3; }
+.nw-add .nw-plus{ font-size:14px; line-height:1; color:#5d5f69; }
+.nw-add:hover .nw-plus{ color:#c9cbd3; }
+
+/* 사이드바 안에 그려지는 노드 복제본 — 캔버스 블럭이 아니라 패널 내용처럼 보이게 */
+#optbar .ob-proxy{ position:static; width:auto; background:transparent !important;
+  border:none !important; box-shadow:none; border-radius:0; }
+#optbar .ob-proxy .node-body{ padding:0; gap:10px; }
+/* ── 패널용 폼 모양 ──
+   위젯은 캔버스 노드용이라 24px 높이에 화살표 스테퍼(< 값 >) 로 되어 있다. 그건 좁은
+   블럭 안에서 자리를 아끼려고 고른 모양이지, 패널에서는 낯설고 누를 곳도 애매하다.
+   여기서는 설정 앱처럼 보이게 다시 입힌다 — 한 줄에 하나, 왼쪽 이름 / 오른쪽 값.
+   화살표는 감춘다: 값을 누르면 전체 목록이 열리므로(data-open) 기능은 그대로다. */
+#optbar .ob-proxy .widget{ height:42px; border-radius:10px; background:#1b1b1f;
+  border:1px solid #2c2c33; font-size:12.5px; padding:0 4px; }
+#optbar .ob-proxy .widget:hover{ border-color:#3d3f48; background:#1f1f24; }
+#optbar .ob-proxy .widget .arr{ display:none; }
+#optbar .ob-proxy .widget .wlabel{ padding-left:12px; color:#8f919b; font-weight:500;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:48%; }
+#optbar .ob-proxy .widget .wvalue{ text-align:right; padding-right:12px; color:#f0f0f4; }
+/*  값을 누르면 목록이 열린다는 걸 알 수 있게 작은 꺾쇠를 붙인다 */
+#optbar .ob-proxy .widget[data-combo] .wvalue::after{ content:'⌄'; margin-left:8px; color:#6a6c76; font-size:13px; }
+#optbar .ob-proxy .widget .wnum{ padding-right:12px; }
+#optbar .ob-proxy .widget input[type=range]{ margin:0 12px; }
+/*  체크류는 스위치처럼 */
+#optbar .ob-proxy .widget[data-check]{ cursor:pointer; }
+/*  안내·설명 글은 패널 톤으로 */
+#optbar .ob-proxy .seedid-hint, #optbar .ob-proxy .wnote, #optbar .ob-proxy .abgen-note{
+  font-size:11.5px; line-height:1.6; color:#75777f; padding:0 2px; }
+/*  '변형 3개' + 'A/B 변형 생성' 이 한 줄에 눌려 있었다 — 패널에서는 위아래로 편다 */
+#optbar .ob-proxy .vo-row{ flex-wrap:wrap; gap:8px; }
+#optbar .ob-proxy .vo-row .vo-sel{ flex:1 1 100%; height:42px; border-radius:10px;
+  background:#1b1b1f; border:1px solid #2c2c33; padding:0 12px; }
+#optbar .ob-proxy .vo-row .vo-sel .vo-k{ color:#8f919b; font-size:12.5px; }
+#optbar .ob-proxy .vo-row .vo-sel select{ text-align:right; color:#f0f0f4; font-size:12.5px; }
+#optbar .ob-proxy .vo-row .wbtn{ flex:1 1 100% !important; }
+#optbar .ob-proxy .refcnt{ font-size:11.5px; line-height:1.6; color:#75777f;
+  padding:0 2px; text-align:left; margin-bottom:8px; }
+#optbar .ob-proxy .seed-box, #optbar .ob-proxy .vidopts-box{
+  background:#17171b; border:1px solid #26262b; border-radius:10px; padding:11px 12px; }
+
+/* ── 아래쪽 묶음도 위 섹션과 같은 말투로 ──
+   생성 옵션·레퍼런스·A/B 는 노드용 모양(파란 박스, 작은 글씨, 한 줄에 몰아넣기)이라
+   위의 '모델 / 길이 / 비율' 섹션과 따로 놀았다. 같은 규칙으로 맞춘다:
+     · 묶음 제목은 회색 소문자 라벨 (ob-sec 과 같은 크기·색)
+     · 한 줄에 하나, 높이 42px, 왼쪽 이름 / 오른쪽 값
+     · 설명은 그 줄 아래 작은 회색 글씨 */
+#optbar .ob-proxy .seedopts-wrap{ background:none; border:none; padding:0; margin:0; gap:0; }
+#optbar .ob-proxy .seedopts-hd{ font-size:10.5px; font-weight:800; letter-spacing:.06em;
+  color:#6b6d76; margin-bottom:8px; }
+#optbar .ob-proxy .seedopts-hd .ico{ display:none; }
+/*  체크박스를 오른쪽 스위치로 — 왼쪽 네모는 이 패널의 다른 줄과 안 어울린다 */
+#optbar .ob-proxy .seedopt-row{ align-items:center; gap:10px; min-height:42px;
+  border-radius:10px; background:#1b1b1f; border:1px solid #2c2c33;
+  padding:9px 12px; margin-bottom:8px; }
+#optbar .ob-proxy .seedopt-row:hover{ border-color:#3d3f48; background:#1f1f24; }
+/*  기본 체크박스는 어두운 패널에서 흰 네모로 튄다 — 같은 톤의 상자로 그린다.
+    input 자체는 그대로 두므로(모양만 바꾼다) 처리기는 손대지 않는다. */
+#optbar .ob-proxy .seedopt-row input[type=checkbox]{ order:2; margin:0 0 0 auto;
+  width:20px; height:20px; flex:0 0 auto; cursor:pointer;
+  -webkit-appearance:none; appearance:none;
+  background:#101013; border:1px solid #3a3c45; border-radius:6px;
+  display:grid; place-content:center; transition:background .12s, border-color .12s; }
+#optbar .ob-proxy .seedopt-row input[type=checkbox]:hover{ border-color:#565963; }
+#optbar .ob-proxy .seedopt-row input[type=checkbox]:checked{ background:#4b7bec; border-color:#4b7bec; }
+#optbar .ob-proxy .seedopt-row input[type=checkbox]:checked::after{
+  content:''; width:11px; height:6px; border-left:2px solid #fff; border-bottom:2px solid #fff;
+  transform:rotate(-45deg) translateY(-1px); }
+#optbar .ob-proxy .seedopt-tx{ order:1; gap:2px; min-width:0; }
+#optbar .ob-proxy .seedopt-tx b{ font-size:12.5px; font-weight:600; color:#e8e8ec; }
+#optbar .ob-proxy .seedopt-tx i{ font-size:11px; color:#75777f; line-height:1.5; }
+#optbar .ob-proxy .seedopt-field{ gap:6px; margin-bottom:8px; }
+#optbar .ob-proxy .seedopt-field input{ height:42px; box-sizing:border-box;
+  background:#1b1b1f; border:1px solid #2c2c33; border-radius:10px;
+  padding:0 12px; color:#e8e8ec; font-size:12.5px; }
+
+/*  레퍼런스 추가 — 블럭의 'Add another input' 과 같은 점선 모양으로 통일 */
+#optbar .ob-proxy .addref-btn{ height:42px; border-radius:10px !important;
+  background:transparent !important; border:1px dashed #33343b !important;
+  color:#8f919b !important; font-size:12.5px; margin-bottom:8px; }
+#optbar .ob-proxy .addref-btn:hover{ background:#1a1a1e !important;
+  border-color:#464852 !important; color:#dcdce2 !important; }
+
+/*  A/B 변형 — 위 섹션들과 같은 '이름 / 값' 한 줄 + 아래 버튼 */
+/*  '변형' 도 다른 줄과 같게 — 왼쪽 이름 / 오른쪽 값 + 꺾쇠.
+    ※ select 를 flex:0 0 auto + margin-left:auto 로 밀었더니 줄 밖으로 나가 값이 잘렸다.
+      원래 .vo-sel 은 폭이 좁을 때를 전제로 만든 것이라, 늘어나는 쪽은 select 여야 한다. */
+#optbar .ob-proxy .vo-row .vo-sel select{ flex:1 1 auto; min-width:0; background:none;
+  border:none; padding:0; text-align:right; text-align-last:right; }
+#optbar .ob-proxy .wbtn[data-abgo]{ height:42px; border-radius:10px; font-size:12.5px; }
+#optbar .ob-proxy textarea[data-abscript]{ min-height:64px !important; border-radius:10px;
+  background:#1b1b1f; border:1px solid #2c2c33; padding:10px 12px; font-size:12px; }
+/* 위젯은 272px 노드에 맞춰 만든 것이라 패널에서는 눌린다 — 넉넉히 편다 */
+#optbar .ob-proxy .widget{ width:100%; box-sizing:border-box; }
+#optbar .ob-proxy select, #optbar .ob-proxy input[type=text], #optbar .ob-proxy input[type=number],
+#optbar .ob-proxy textarea{ width:100%; box-sizing:border-box; }
+#optbar .ob-proxy textarea.wtext{ min-height:78px; }
+#optbar .ob-proxy .wbtn{ width:100%; justify-content:center; padding:10px 12px; font-size:12.5px; }
+
+/* ══════ 제작 진행률 · 취소 ══════ */
+.node .run-live{ margin-top:6px; border:1px solid #2a3a2a; background:#121a12; border-radius:8px;
+  padding:8px 10px; display:flex; flex-direction:column; gap:6px; }
+.node .run-live .rl-top{ display:flex; justify-content:space-between; align-items:center; font-size:11.5px; color:#8fe0a0; font-weight:700; }
+.node .run-live .rl-bar{ height:4px; border-radius:3px; background:#1d2a1d; overflow:hidden; }
+.node .run-live .rl-bar i{ display:block; height:100%; background:#4ec26a; width:0; transition:width .3s linear; }
+/* 취소는 눌러야 보이는 자리에 둔다. 다만 실행 버튼만큼 튀면 안 된다 —
+   되돌리는 일이 만드는 일보다 앞에 나올 이유는 없다. */
+.node .run-live .rl-x{ font:600 11px/1 inherit; color:#9aa3af; background:transparent;
+  border:1px solid #3a3f48; border-radius:6px; padding:4px 8px; cursor:pointer; }
+.node .run-live .rl-x:hover{ color:#fca5a5; border-color:#7f1d1d; background:#1b1112; }
+.node .run-live .rl-x[disabled]{ opacity:.5; cursor:default; }
+.node .run-live .rl-note{ font-size:10.5px; color:#7c8592; line-height:1.45; }
 </style>
 </head>
 <body>
@@ -1847,9 +2058,18 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
         <div class="err-lbl">왜 막혔나요</div>
         <div class="err-txt" id="errReason"></div>
       </div>
-      <div class="err-sec fix" style="border-bottom:none;">
+      <div class="err-sec fix">
         <div class="err-lbl">이렇게 해보세요</div>
         <div class="err-txt" id="errFix"></div>
+      </div>
+      <div class="err-sec" id="errStageSec" style="border-bottom:none;display:none;">
+        <div class="err-lbl">어디서 끊겼나 <span class="err-stg-note">실패한 그 요청을 단계별로 다시 태워 본 결과입니다 · 영상은 다시 만들지 않았습니다</span></div>
+        <div id="errStages"></div>
+        <div class="err-stg-v" id="errStageVerdict"></div>
+      </div>
+      <div class="err-sec" id="errProbeSec" style="display:none;">
+        <div class="err-lbl">통로 찾기 <span class="err-stg-note">관리자만 보입니다 · 모델은 그대로 두고 "보내는 모양"만 바꿔 봅니다</span></div>
+        <div id="errProbe"></div>
       </div>
       <details class="err-raw" id="errRawWrap">
         <summary>제공사 원문 메시지 보기</summary>
@@ -1868,18 +2088,57 @@ textarea.wtext:focus,input.wurl:focus,.seedid-in:focus,.api-input:focus,.codewra
 <div id="dd"></div>
 <div id="zoomBadge">100%</div>
 <div id="minimap"><canvas id="miniCv" width="200" height="130"></canvas></div>
+<!-- 오른쪽 옵션 사이드바 — 모델 노드를 고르면 밀려 나온다 -->
+<aside id="optbar" aria-label="모델 옵션">
+  <div class="ob-head">
+    <div class="ob-title" id="obTitle">옵션</div>
+    <button class="ob-x" id="obClose" type="button" title="닫기">×</button>
+  </div>
+  <div class="ob-body" id="obBody"></div>
+</aside>
 <div id="toast"></div>
 
 <script>
 (function(){
 'use strict';
-var STUDIO_BUILD_TAG='2026-07-31-v57';   // 서버 health.build 와 정확히 같아야 최신(캐시/배포지연 아님)
+var STUDIO_BUILD_TAG='2026-08-02-v62';   // /api/generate?health=1 의 build 와 정확히 같아야 최신(캐시/배포지연 아님)
+/* ── 옛 화면을 붙들고 있으면 알려 준다 ────────────────────────────────────
+   ⚠ 이 번호는 배포할 때마다 올려야 뜻이 있다. v61 로 여덟 번을 배포하는 동안
+     번호가 그대로여서, 고친 것이 실제로 사장님 화면까지 갔는지 아무도 몰랐다.
+     ("고쳤다는데 왜 똑같냐" 의 절반은 여기서 났다)
+   서버가 말하는 번호와 다르면 브라우저가 옛 파일을 붙들고 있는 것이다.
+   한 번은 조용히 새로 받아 보고, 그래도 다르면 눈에 보이게 알린다
+   (배포 도중에는 잠깐 어긋나는 게 정상이라 무한 새로고침은 막는다). */
+try{ setTimeout(function(){
+  //  안 보이는 창(백그라운드 탭·자동화)에서는 굳이 묻지 않는다 — 창이 닫히는 중에
+  //  걸쳐 있는 요청이 늘면 개발용 런타임이 통째로 죽는 일이 있다(제품 동작과 무관).
+  if(typeof document!=='undefined' && document.visibilityState==='hidden') return;
+  fetch('/api/generate?health=1',{cache:'no-store'}).then(function(r){ return r.json(); }).then(function(h){
+    var srv=String((h&&h.build)||''); if(!srv || srv===STUDIO_BUILD_TAG) return;
+    var once='bg_reloaded_'+srv;
+    if(!sessionStorage.getItem(once)){ sessionStorage.setItem(once,'1'); location.reload(); return; }
+    var b=document.createElement('div');
+    b.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:99999;'+
+      'background:#1f2937;color:#e5e7eb;border:1px solid #374151;border-radius:10px;padding:10px 14px;'+
+      'font-size:13px;display:flex;gap:10px;align-items:center;box-shadow:0 6px 24px rgba(0,0,0,.45)';
+    b.innerHTML='<span>새 버전이 있습니다 — 지금 화면은 옛 것입니다 ('+STUDIO_BUILD_TAG+' → '+srv+')</span>';
+    var x=document.createElement('button');
+    x.textContent='새로 받기'; x.style.cssText='background:#4a7dff;color:#fff;border:0;border-radius:7px;padding:6px 12px;cursor:pointer;font-weight:700;';
+    x.onclick=function(){ try{ sessionStorage.removeItem(once); }catch(_e){} location.href=location.pathname+'?v='+encodeURIComponent(srv); };
+    b.appendChild(x);
+    (document.body||document.documentElement).appendChild(b);
+  }).catch(function(){});
+},3000); }catch(_e){}
 // (검증용) ?cnexport=1 접속 시 전처리 함수만 window 로 노출 — 순수 이미지 함수라 보안 영향 없음
 try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum, upscaleImageURL:upscaleImageURL }; }catch(_e){} },0); } }catch(_e){}
 // (검증용) ?refexport=1 접속 시 레퍼런스 번호 관련 함수만 노출 — 번호가 연결 순서대로
 //  붙는지, 블럭 하나에 하나만 담기는지를 자동으로 확인하기 위한 것. 비밀값은 들어 있지 않고
 //  편집기 상태는 어차피 그 브라우저 안에 있는 것이라 밖으로 새는 것이 없다.
-try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('refexport=1')>=0){ setTimeout(function(){ try{ window.__ref={ get state(){return state;}, set state(v){state=v;}, addNode:addNode, addOmniRefFiles:addOmniRefFiles, refNoOf:refNoOf, refSlotsOf:refSlotsOf, refOrderedBlocks:refOrderedBlocks, collectLabeledRefs:collectLabeledRefs, refMentionProblem:refMentionProblem, render:render }; }catch(_e){} },0); } }catch(_e){}
+// (검증용) 실패 진단 함수 노출 — 502 가 났을 때 원인을 짚어 주는 경로가 실제로 도는지
+//  검사하려면 회원이 누르는 그 함수를 그대로 불러 봐야 한다(흉내 낸 코드를 재면 의미가 없다).
+//  순수 진단 함수라 보안 영향 없음.
+try{ setTimeout(function(){ try{ window.__gen={ generateWithAPI:generateWithAPI, showGenError:showGenError, diagnoseStages:diagnoseStages, dropDuplicateImages:dropDuplicateImages, faceRejected:faceRejected }; }catch(_e){} },0); }catch(_e){}
+try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('refexport=1')>=0){ setTimeout(function(){ try{ window.__ref={ get state(){return state;}, set state(v){state=v;}, addNode:addNode, addOmniRefFiles:addOmniRefFiles, refNoOf:refNoOf, refSlotsOf:refSlotsOf, refOrderedBlocks:refOrderedBlocks, collectLabeledRefs:collectLabeledRefs, refMentionProblem:refMentionProblem, inlineOwnMediaSrc:inlineOwnMediaSrc, render:render, runQueue:runQueue }; }catch(_e){} },0); } }catch(_e){}
 /* ════════ 고퀄 인라인 SVG 아이콘 (이모지 대체) ════════ */
 var ICON=(function(){
   function s(inner,vb){ return '<svg class="ico" viewBox="'+(vb||'0 0 24 24')+'" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+inner+'</svg>'; }
@@ -1953,6 +2212,20 @@ paintIcons();
 var PORT_COLORS = { TEXT:'#ffab40', IMAGE:'#42a5f5', GEN:'#f48fb1', VIDEO:'#81c784', MODEL:'#60a5fa', AUDIO:'#4dd0e1',
   MEDIA:'#8bc9a6',   // 영상 계열 입력 — 이미지·영상·생성물만 받는다
   '*':'#9aa0b5' };
+/* ── 선 색은 세 가지만 ──
+   포트 점은 종류를 구분해야 하니 위 색을 그대로 쓰고, "선" 만 줄인다.
+   색이 일곱 가지면 어느 것도 눈에 안 들어온다. 정말 봐야 하는 세 흐름만 색을 준다:
+     레퍼런스(이미지·미디어) = 하늘색 · 프롬프트(텍스트) = 노란색 · 영상 결과 = 빨간색
+   나머지(모델·오디오·미지정)는 색을 빼고 어두운 회색으로 둔다 — 연결은 보이되 시선을 안 끈다.
+   ※ "나머지는 안 나오게" 를 선을 아예 지우는 것으로 읽지 않았다. 선이 없으면 무엇이
+     어디에 붙었는지 알 수 없어 그래프가 못 쓰게 된다. '색이 안 나오게' 로 해석했다. */
+var LINK_COLORS = {
+  IMAGE:'#7dd3fc', MEDIA:'#7dd3fc',      // 레퍼런스 — 하늘색
+  TEXT:'#facc15',                        // 프롬프트 — 노란색
+  VIDEO:'#ef4444', GEN:'#ef4444',        // 영상 출력(엑싯) — 빨간색
+};
+var LINK_MUTED = '#3a3d46';
+function linkColor(t){ return LINK_COLORS[t] || LINK_MUTED; }
 /* 나레이션 목소리 (표시명 → TTS voice_id). 서버 /api/tts/v2/speak 규격. */
 var VOICE_OPTS = [
   '일레븐랩스·여성(Rachel)','일레븐랩스·여성(Sarah)','일레븐랩스·남성(Adam)','일레븐랩스·남성(Antoni)','일레븐랩스·여성(Aria)',
@@ -1988,7 +2261,7 @@ var MODELS = [
  ['영상 → 영상 (V2V·실사화)','모션 전이 (원본 움직임 유지·Motion Transfer)'],
  ['영상 → 영상 (V2V·실사화)','Runway Aleph (영상→실사 V2V)'],
  ['영상','Google Veo 3.1'],['영상','Runway Gen-4'],['영상','Runway Gen-3 Alpha Turbo'],['영상','Grok Imagine (영상)'],
- ['영상','Seedance 2.0'],['영상','Seedance 2.0 Fast'],['영상','Seedance 2.0 Mini'],['영상','Seedance 1.5 Pro'],
+ ['영상','Seedance 2.5'],['영상','Seedance 2.0'],['영상','Seedance 2.0 Fast'],['영상','Seedance 2.0 Mini'],['영상','Seedance 1.5 Pro'],
  ['영상','Seedance 1.0 Pro'],['영상','Seedance 1.0 Pro Fast'],
  ['영상','MiniMax Hailuo 02'],['영상','MiniMax T2V-01 Director'],['영상','MiniMax I2V-01 Director'],
  ['영상','Luma Ray 3.2'],
@@ -2125,6 +2398,7 @@ var MODEL_COST = {
   'Runway Gen-4':                    { u:'sec', usd:0.05, prov:'runway' },
   'Runway Gen-3 Alpha Turbo':        { u:'sec', usd:0.05, prov:'runway' },
   'Grok Imagine (영상)':              { u:'sec', usd:0.10, prov:'xai' },
+  'Seedance 2.5':                    { u:'sec', usd:0.4116, audio:0.02, prov:'seedance' },
   'Seedance 2.0':                    { u:'sec', usd:0.3430, audio:0.02, prov:'seedance' },
   'Seedance 2.0 Fast':               { u:'sec', usd:0.2744, audio:0.02, prov:'seedance' },
   'Seedance 2.0 Mini':               { u:'sec', usd:0.1715, audio:0.02, prov:'seedance' },
@@ -2188,8 +2462,13 @@ var MODEL_COST = {
   'Flux Kontext Pro (레퍼런스 편집)':  { u:'img', usd:0.04,  prov:'flux' },  // BFL 공식 $0.04/장
   // 진짜 3D 파일(메쉬+텍스처) 생성 — 이미지가 아니라 .glb 등이 나온다. 단가는 잠정값.
   'Hyper3D Gen-2 (3D 생성)':          { u:'3d',  usd:0.4,   prov:'ark3d' },
-  'Hitem3D 2.0 (3D 생성)':            { u:'3d',  usd:0.4,   prov:'ark3d' }
+  'Hitem3D 2.0 (3D 생성)':            { u:'3d',  usd:0.4,   prov:'ark3d' },
+  /* 화질 올리기 — 서버 _pricing.ts 와 같은 값이어야 한다(표시용. 실제 청구는 서버가 정한다).
+     추론은 사용자 기기에서 돌아 제공사 원가가 0이므로, 이 값은 우리가 매긴 값이다. */
+  '화질 올리기 (이미지 초해상 ×4)':    { u:'img', usd:0.014,  prov:'upscale' },
+  '화질 올리기 (영상 초해상 ×4)':      { u:'sec', usd:0.0024, prov:'upscale' }
 };
+var UPSCALE_IMG='화질 올리기 (이미지 초해상 ×4)', UPSCALE_VID='화질 올리기 (영상 초해상 ×4)';
 // 제공사 집계 라벨
 var PROV_LABEL = { google:'Google Veo', runway:'Runway', runway_aleph:'Runway Aleph', v2v_auto:'V2V 자동', motion:'모션 전이', narrate:'나레이션', lipsync:'립싱크', music:'음악 생성', upscale:'업스케일',
   seedance:'Seedance', seedream:'Seedream', hailuo:'MiniMax Hailuo', luma:'Luma', xai:'Grok', flux:'Flux',
@@ -2265,7 +2544,7 @@ function fluxUsd(model, refs){
    단가는 청구서 실측: 2.0 $0.007/K, 2.0 Fast $0.0056/K (= 100만당 $7.00 / $5.60).
    오디오는 토큰과 별개 항목이라 표의 초당 가산을 그대로 더한다. */
 var SEEDANCE_FPS = 24;
-var SEEDANCE_PER_M = { 'Seedance 2.0':7.0, 'Seedance 2.0 Fast':5.6, 'Seedance 2.0 Mini':3.5,
+var SEEDANCE_PER_M = { 'Seedance 2.5':8.4, 'Seedance 2.0':7.0, 'Seedance 2.0 Fast':5.6, 'Seedance 2.0 Mini':3.5,
   'Seedance 1.5 Pro':3.5, 'Seedance 1.0 Pro':3.0, 'Seedance 1.0 Pro Fast':1.74,
   'Seedance 1.0 Lite (텍스트→영상)':1.8, 'Seedance 1.0 Lite (이미지→영상)':1.8 };
 function seedanceUsd(model, secs, res, audioOn){
@@ -2504,7 +2783,11 @@ function lazyNow(v){ if(v&&v.getAttribute&&v.getAttribute('data-lsrc')){ v.src=v
     modal.classList.remove('show');
     toast('캔버스에 가져왔습니다'); fitView();
   }
-  function open(){ curTab='all'; syncTabs(); _srvGallery=null; renderLib(); modal.classList.add('show'); }
+  function open(){ curTab='all'; syncTabs(); _srvGallery=null; renderLib(); modal.classList.add('show');
+    /* 아직 제공사 주소로 남은 항목을 우리 R2 로 옮긴다. 원본이 만료되기 전에 옮겨야
+       살릴 수 있으므로 열 때마다 조금씩 한다. 끝나면 목록을 다시 그려 새 주소를 쓴다. */
+    try{ healGallery().then(function(){ renderLib(); }); }catch(_e){}
+  }
   function close(){ modal.classList.remove('show'); }
   function syncTabs(){ Array.prototype.forEach.call(document.querySelectorAll('.lib-tab'),function(t){ t.classList.toggle('on', t.getAttribute('data-libtab')===curTab); }); }
   paintIcons(document.getElementById('libModal'));
@@ -2558,7 +2841,7 @@ var MODEL_PROVIDER = {
   'Runway Aleph (영상→실사 V2V)':'runway_aleph',
   'Google Veo 3.1':'google',
   'Runway Gen-4':'runway','Runway Gen-3 Alpha Turbo':'runway',
-  'Seedance 2.0':'seedance','Seedance 2.0 Fast':'seedance','Seedance 2.0 Mini':'seedance','Seedance 1.5 Pro':'seedance',
+  'Seedance 2.5':'seedance','Seedance 2.0':'seedance','Seedance 2.0 Fast':'seedance','Seedance 2.0 Mini':'seedance','Seedance 1.5 Pro':'seedance',
   'Seedance 1.0 Pro':'seedance','Seedance 1.0 Pro Fast':'seedance',
   'Seedance 1.0 Lite (텍스트→영상)':'seedance',
   'Seedance 1.0 Lite (이미지→영상)':'seedance',
@@ -2723,6 +3006,7 @@ function linkedSetting(id, type){
    neg=네거티브 반영, cfg=CFG 전달, seed=시드 전달. 빈 배열이면 그 설정을 노출하지 않는다. */
 var VIDEO_MODEL_SPEC = {
   // Seedance 2.0 — 공식 4~15초, 비율 6종, 네이티브 오디오·워터마크 옵션
+  'Seedance 2.5':                { secs:[4,5,6,8,10,12,15], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], res:['720p','1080p'], audio:true,  watermark:true,  neg:true, cfg:false, seed:false },
   'Seedance 2.0':                { secs:[4,5,6,8,10,12,15], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], res:['720p','1080p'], audio:true,  watermark:true,  neg:true, cfg:false, seed:false },
   'Seedance 2.0 Fast':           { secs:[4,5,6,8,10,12,15], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], res:['720p','1080p'], audio:true,  watermark:true,  neg:true, cfg:false, seed:false },
   'Seedance 2.0 Mini':           { secs:[4,5,6,8,10,12,15], ratios:['16:9','9:16','1:1','4:3','3:4','21:9'], res:['720p','1080p'], audio:true,  watermark:true,  neg:true, cfg:false, seed:false },
@@ -2907,7 +3191,7 @@ var MODEL_REF_LIMIT = {
 /* 영상 모델의 "이미지 레퍼런스" 최대 장수 — 서버 빌더가 실제로 요청에 싣는 수와 같아야 한다.
    (표에 없으면 1장으로 막힌다. 반대로 실제보다 크게 잡으면 연결은 되는데 조용히 버려진다.) */
 var VIDEO_REF_LIMIT = {
-  'Seedance 2.0':9,'Seedance 2.0 Fast':9,'Seedance 2.0 Mini':9,   // buildSeedancePayload 가 9장으로 자른다
+  'Seedance 2.5':9,'Seedance 2.0':9,'Seedance 2.0 Fast':9,'Seedance 2.0 Mini':9,   // buildSeedancePayload 가 9장으로 자른다
   'Luma Ray 3.2':64,                                             // 다중 키프레임 앵커 최대 64
   'Luma Ray 3.2 (영상 편집)':0,'Luma Ray 3.2 (비율 변경)':0,       // 이미지 레퍼런스를 받지 않는다
   'Runway Gen-4':1,'Runway Gen-3 Alpha Turbo':1,
@@ -3079,20 +3363,26 @@ function pruneModelPorts(){
 
 /* 비동기 job 폴링 헬퍼 (대부분의 영상 API 는 생성요청→상태폴링 구조) */
 function wait(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
-async function pollJob(url, headers, pick, tries){
+/* stop: "그만 기다려라" 를 알려 주는 함수(선택). 3초 간격을 통째로 기다린 뒤에 보면
+   취소를 누르고도 최대 3초를 더 기다리게 되므로, 잘게 쪼개 보면서 잔다. */
+async function pollJob(url, headers, pick, tries, stop){
   // Seedance 2.0 기본형은 10분도 넘길 수 있어 3초 간격 × 400회 ≈ 20분까지 기다린다.
   tries=tries||400;
   var misses=0;                            // 일시적 네트워크/JSON 오류는 최대 10회 용인 후 재시도
+  async function nap(ms){
+    for(var t=0;t<ms;t+=200){ if(stop&&stop()) throw new CancelledError(); await wait(200); }
+  }
   for(var i=0;i<tries;i++){
+    if(stop&&stop()) throw new CancelledError();
     var j=null;
     try{
       var r=await fetch(url,{headers:headers||{},credentials:'include',cache:'no-store'});
       j=await r.json();
-    }catch(_e){ misses++; if(misses>10) throw new Error('네트워크가 불안정해 상태 확인에 실패했습니다. 결과는 보관함에 저장되니 잠시 후 확인하세요.'); await wait(3000); continue; }
+    }catch(_e){ misses++; if(misses>10) throw new Error('네트워크가 불안정해 상태 확인에 실패했습니다. 결과는 보관함에 저장되니 잠시 후 확인하세요.'); await nap(3000); continue; }
     misses=0;
     if(j&&j.needLogin) throw new Error('로그인이 만료되었습니다. 새로고침 후 다시 로그인해 주세요. (완료된 결과는 보관함에 남습니다)');
     var done=pick(j); if(done) return done;
-    await wait(3000);
+    await nap(3000);
   }
   throw new Error('생성이 너무 오래 걸립니다(10분 초과). 완료되면 보관함에 저장되니 잠시 후 보관함을 확인하세요.');
 }
@@ -3111,6 +3401,11 @@ async function pollJob(url, headers, pick, tries){
 async function callProxy(params){
   // __node 는 진행 상태를 기록하기 위한 로컬 참조 — 서버 본문에는 절대 싣지 않는다.
   var _pnode=params.__node; if(_pnode) { params=Object.assign({},params); delete params.__node; }
+  var _cid=_pnode&&_pnode.id;                       // 취소 표시를 볼 노드
+  var _stop=function(){ return !!(_cid && _cancelWant[_cid]); };
+  /* 보내기 직전에 한 번 더 본다 — 여기서 걸리면 제공사에 접수조차 안 된다(진짜 0원).
+     [실행] 과 [취소] 사이에는 레퍼런스 업로드·사전 확인이 있어 이 구간이 생각보다 넓다. */
+  if(_stop()) throw new CancelledError();
   var base=(API_CONFIG.proxy||'/api/generate').replace(/\/$/,'');
   var _same=(base.charAt(0)==='/');   // 내부 /api/generate 는 세션 쿠키 포함, 외부 프록시는 미포함
   var r=await fetch(base,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(params),credentials:_same?'include':'same-origin'});
@@ -3123,12 +3418,18 @@ async function callProxy(params){
      (그러면 아카이브가 신고값으로 남고, 요금 줄과 따로 논다). */
   if(j.url) return { url:j.url, kind:j.kind||'video', poster:j.poster||params.firstFrame||null, lastFrame:j.lastFrame||null, videoId:j.videoId||null, videoProvider:j.videoProvider||null, type:params.provider, chargeToken:j.chargeToken||null, chargeRef:j.chargeRef||null };
   if(j.statusUrl){
+    /*  서버가 사진 쓰는 방식을 바꿔 살려 낸 경우(첫 장면 → 외형 참고) 알려 준다.
+        같은 모델·같은 요금이지만 결과의 성격이 달라지므로 말없이 넘어가면 안 된다. */
+    if(j.notice){ try{ toast(j.notice, 9000); }catch(_n){} }
     // 진행 중 작업을 노드 밖(전역)에 기록 — 새로고침해도 이어받을 수 있다.
     if(_pnode){ _pnode.w.pendingUrl=j.statusUrl; try{ autosave(); }catch(_e){} }
+    /* 접수 번호가 왔다 — 이제부터 취소는 "제공사에 중지를 알리고 환불받는" 일이 된다.
+       POST 가 도는 동안 눌린 취소도 여기서 비로소 보낼 곳이 생긴다(그 사이엔 알릴 데가 없었다). */
+    if(_cid) _taskOf[_cid]=j.statusUrl;
     var out=await pollJob(j.statusUrl,{},function(s){
       if(s.status==='failed'||s.error) return Promise.reject(new Error(s.error||'failed'));
       return s.url? s : null;
-    });
+    }, 0, _stop);
     if(_pnode){ _pnode.w.pendingUrl=null; }
     /* 이 작업의 고유 주소를 결과에 실어 보낸다 — 과금 기록이 "같은 생성" 임을 알아보는 열쇠다.
        생성 중 다른 탭에서 스튜디오를 열면 그 탭도 같은 pendingUrl 을 이어받아 완료 시 또 청구했다. */
@@ -3507,6 +3808,19 @@ async function creditGate(pc){
   }catch(e){ /* precheck 네트워크 실패 → 통과(락아웃 방지) */ }
   return null;
 }
+/* ── 얼굴 사진이 거절될 때 ─────────────────────────────────────────────────
+   씨댄스(BytePlus)는 "확인되지 않은 얼굴" 이 든 사진을 거절한다. 정책이지 모델 한계가 아니다.
+
+   ⚠ 다른 모델로 넘기지 않는다. 회원이 씨댄스 2.0 을 골랐으면 씨댄스 2.0 으로만 만든다.
+     (한때 Kling·Runway 등으로 이어 붙였다가 걷어냈다 — 고른 모델과 다른 결과가 나오면
+      그림체도 요금도 달라져서, 되는 것보다 나쁘다)
+   딱 하나만 다시 해 본다: 같은 모델·같은 사진을 "주소로" 보내는 것.
+   실어 보내기(base64)로 바꾼 건 v59 부터고, 그 전에는 제공사가 우리 서버에서 주소로
+   받아 갔다 — 그때는 인물 사진이 됐다. 전달 방식만 되돌리는 것이라 모델도 요금도 그대로다. */
+var FACE_BLOCK_RE = /inputimagesensitive|input image[\s\S]{0,40}(sensitive|privacy|real person)|privacyinformation/i;
+var FACE_BLOCK_VID_RE = /inputvideosensitive|input video[\s\S]{0,40}(sensitive|privacy|real person)/i;
+function faceRejected(msg){ return FACE_BLOCK_RE.test(String(msg||'')) || FACE_BLOCK_VID_RE.test(String(msg||'')); }
+
 async function generateWithAPI(params){
   var prov=providerOf(params.model);
   // ControlNet(Canny/Depth/Pose · 다중 스택) 이 켜져 있으면 fal ControlNet 경로로 라우팅 (컴피UI식)
@@ -3530,6 +3844,20 @@ async function generateWithAPI(params){
   var hostErr='';
   try{ params=await resolveMediaForProvider(prov, params); }   // 공개 URL 필요 제공사는 이미지 → R2 URL
   catch(e){ hostErr=' 호스팅예외:'+String(e.message||e).slice(0,40); }
+  /*  실어 보내기 전 원본(주소) 을 남겨 둔다.
+      얼굴로 거절당했을 때 "같은 사진을 주소로 보내면 통과하는지" 를 한 번 더 볼 수 있어야 한다 —
+      예전(v58 이전)에는 제공사가 우리 서버에서 주소로 받아 갔고 그때는 인물 사진이 됐다는
+      증언이 있다. 모델도 사진도 그대로 두고 전달 방식만 되돌려 보는 것이라 가장 값싼 시도다. */
+  var preInline = { firstFrame:params.firstFrame, lastFrame:params.lastFrame,
+                    refImage:params.refImage,
+                    refImages:Array.isArray(params.refImages)?params.refImages.slice():params.refImages };
+  //  씨댄스 2.0 은 base64 를 받는다 — 우리 서버 사진은 제공사가 받으러 오지 않게 실어 보낸다.
+  //  (제공사가 우리 /api/media 를 못 가져와 22초를 기다리다 끝나던 자리 — 위 주석 참고)
+  if(prov==='seedance' && /Seedance 2\.0/.test(params.model||'') && !params.__noInline){
+    try{ params=await inlineOwnMediaAll(params); }
+    catch(e){ hostErr+=' 인라인예외:'+String(e.message||e).slice(0,30); }
+  }
+  if(prov==='seedance'){ try{ params=dropDuplicateImages(params); }catch(e){} }
   // 진단: 실제 보내는 요청의 값들을 에러에 첨부 (502 원인 추적용)
   var bodyStr=''; try{ bodyStr=JSON.stringify(params); }catch(e){}
   var bodyKB=Math.round(bodyStr.length/1024);
@@ -3538,8 +3866,19 @@ async function generateWithAPI(params){
   // 502 가 다시 나면 "얼마나 붙잡고 있다가 끊겼는지" 가 원인 판단의 핵심이다 — 시간을 남긴다.
   //  (플랫폼이 함수를 끊은 것이면 수십 초, 우리 코드가 낸 에러면 짧다)
   var _t0=Date.now();
+  /*  실제 요청에 표를 붙인다 — 502 로 죽으면 응답이 아예 없으므로, 서버가 지나가며 찍어 둔
+      발자국을 나중에 이 표로 꺼내 본다. 단계별로 따로 태우면 다 통과하는데 한 번에 보내면
+      죽는 상황에서, "그 한 번" 이 어디까지 갔는지 아는 방법은 이것뿐이다. */
+  var traceId='tr_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+  params.traceId=traceId;
+  /* 취소는 여기서 반드시 위로 던진다.
+     이 아래는 "실패했으니 다른 길로 한 번 더" 를 하는 자리다(GET 우회 제출·단계 진단).
+     취소를 실패로 삼키면 회원이 그만두라고 한 그 순간에 같은 생성을 다시 제출한다 —
+     한 번 더 과금되고, 화면에는 취소했다고 떠 있다. */
+  var _cid=params.__node&&params.__node.id;
+  var _stopGen=function(){ return !!(_cid && _cancelWant[_cid]); };
   try{ return await callProxy(params); }        // ① 프록시(기본 /api/generate) — 서버 키 사용
-  catch(e){ err=String(e.message||e); }
+  catch(e){ if(isCancel(e)) throw e; err=String(e.message||e); }
   var elapsed=Date.now()-_t0;
   // ①-b Seedance 는 POST 가 원인불명 플랫폼 502 나는 경우가 있어, 안정적인 GET 제출로 우회 재시도.
   //   단, 이미지가 공개 URL 일 때만(base64 는 쿼리스트링 길이 초과로 되레 502). 영상도 URL 필수.
@@ -3559,35 +3898,227 @@ async function generateWithAPI(params){
         +(params.srcVideo?'&vid='+encodeURIComponent(params.srcVideo):'')
         +(params.audioUrl?'&aud='+encodeURIComponent(params.audioUrl):'')
         +(params.generateAudio?'&genaudio=1':'')+(params.watermark?'&wm=1':'');
+      //  우회 제출도 결국 제출이다 — 그만두라고 한 뒤에는 보내지 않는다.
+      if(_stopGen()) throw new CancelledError();
       var gr=await fetch(q,{cache:'no-store'}); var gt=await gr.text(); var gj={}; try{gj=JSON.parse(gt);}catch(e){}
       if(gr.ok && gj.statusUrl){
+        if(_cid) _taskOf[_cid]=gj.statusUrl;      // 이 길로 접수됐어도 취소가 닿아야 한다
         var gout=await pollJob(gj.statusUrl,{},function(s){
           if(s.status==='failed'||s.error) return Promise.reject(new Error(s.error||'failed'));
-          return s.url? s : null; });
-        return { url:gout.url, kind:gout.kind||'video', poster:params.firstFrame||null, type:'seedance' };
+          return s.url? s : null; }, 0, _stopGen);
+        return { url:gout.url, kind:gout.kind||'video', poster:params.firstFrame||null, type:'seedance', taskKey:gj.statusUrl };
       }
       err += ' | GET우회:'+(gj.error||('HTTP'+gr.status));
-    }catch(ge){ err += ' | GET우회실패:'+String(ge&&ge.message||ge).slice(0,80); }
+    }catch(ge){ if(isCancel(ge)) throw ge; err += ' | GET우회실패:'+String(ge&&ge.message||ge).slice(0,80); }
   }
   // 실패 시 서버 실제 배포 버전을 즉석에서 읽어와 에러에 박는다 — 배포지연/캐시 구분용
   var srv='?'; try{ var hr=await fetch('/api/generate?health=1',{cache:'no-store'}); var hj=await hr.json(); srv=(hj&&hj.build)||'?'; }catch(_e){}
-  // 502 원인 격리 프로브: 같은 body 를 dryRun(제공사 호출 X, 페이로드만) 으로 POST.
-  //   probe=HTTP200 → POST 처리 자체는 정상 → 원인은 제공사(bp) 호출 단계
-  //   probe=HTTP502 → POST 처리 자체가 죽음 → 제공사 무관, 서버 함수/본문 문제
-  var probe='?';
-  try{ var pr=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
-        body:JSON.stringify(Object.assign({},params,{dryRun:true}))}); probe='HTTP'+pr.status; }
-  catch(_p){ probe='ERR'; }
-  // 진단은 잘리기 쉬운 앞쪽에 핵심(probe/우회/본문크기)을 먼저 둔다
-  var diag=' [probe:'+probe+' · '+elapsed+'ms · req '+bodyKB+'KB · studio:'+(STUDIO_BUILD_TAG.split('-').pop())+
+  /*  ⚠ 원인이 이미 분명하면 진단을 붙이지 않는다.
+      제공사가 "이 사진은 안 됩니다" 라고 이유를 말해 준 자리에 단계 표를 잔뜩 붙이면
+      회원은 무엇을 해야 할지 더 헷갈린다. 게다가 진단은 요청을 다섯 번 더 보낸다.
+      원인을 모를 때 — 우리 메시지가 아니라 플랫폼 오류 페이지가 왔거나 아무 말도 없을 때 —
+      그때만 붙인다. (그 미궁을 풀려고 만든 물건이다) */
+  var _e=String(err||'');
+  var unexplained = !_e || /Bad gateway|<!DOCTYPE|<html|HTTP ?5\d\d/i.test(_e);
+  var stageDiag=null;
+  if(unexplained){
+    //  ① 그 요청이 어디까지 갔는지 — 서버가 찍어 둔 발자국(가장 확실한 증거)
+    var trace=[];
+    try{
+      var tr=await fetch('/api/generate?trace='+encodeURIComponent(traceId),{cache:'no-store',credentials:'include'});
+      var tj=await tr.json(); trace=(tj&&tj.marks)||[];
+    }catch(_e2){}
+    //  ② 그리고 같은 요청을 단계별로 다시 태워, 어느 단계가 혼자서도 막히는지 본다.
+    stageDiag=await diagnoseStages(params);
+    stageDiag.trace=trace;
+  }
+  var diag=' ['+elapsed+'ms · req '+bodyKB+'KB · studio:'+(STUDIO_BUILD_TAG.split('-').pop())+
     ' · 서버:'+String(srv).split('-').pop()+' · model:'+shortv(params.model)+
     ' · ff:'+shortv(params.firstFrame)+' · lf:'+shortv(params.lastFrame)+
     ' · vid:'+shortv(params.srcVideo)+hostErr+']';
   if(err) err=err+diag;
-  return { error: err||('생성 실패'+diag), type:'error', provider:prov };
+  /*  얼굴 때문에 거절당했을 때 — "전달 방식만" 되돌려 딱 한 번 더 해 본다.
+      실어 보내기(base64)로 바꾼 건 v59 부터다. 그 전에는 제공사가 우리 서버에서 주소로
+      받아 갔고 그때는 인물 사진이 됐다. 검열이 둘을 다르게 다룰 수 있어서 이걸 해 본다.
+
+      ⚠ 여기서 바뀌는 것은 사진을 건네는 방법뿐이다. 모델은 회원이 고른 그대로다.
+        다른 모델로 넘기는 일은 하지 않는다 — 고른 것과 다른 모델로 만든 영상은
+        그림체도 요금도 달라져서, 되는 것보다 나쁘다.
+      ⚠ 되돌려 보낸 요청에는 __noInline 이 실려 있어 두 번은 돌지 않는다. */
+  /*  거절당한 그 사진의 "주소" 를 남겨 둔다 — 관리자가 실패 화면에서 곧바로
+      통로 찾기(diag=faceshape)를 돌릴 수 있게. 실어 보낸 base64 로는 제공사가 못 받아 간다. */
+  if(faceRejected(err)){
+    try{
+      var _fi = String(preInline.firstFrame||preInline.refImage||(preInline.refImages||[])[0]||'');
+      window.__lastFaceImg = /^https?:\/\/|^\/api\/media\//.test(_fi) ? _fi : '';
+      /*  주소가 없는 사진(직접 붙여 넣은 것)이면 실어 보낸 데이터라도 들고 있는다.
+          예전에는 여기서 포기하고 "주소가 없어 통로 찾기를 못 돌린다" 로 끝냈는데,
+          정작 회원이 가장 많이 쓰는 방식이 붙여 넣기다 — 그러면 원인을 영영 못 잰다.
+          단추를 누를 때 우리 서버에 한 번 올려서 주소를 만든 뒤 재면 된다. */
+      window.__lastFaceData = /^data:image\//.test(_fi) ? _fi
+        : (/^data:image\//.test(String(params.firstFrame||'')) ? String(params.firstFrame) : '');
+      window.__lastFaceModel = params.model||'';
+    }catch(_fe){}
+  }
+  if(faceRejected(err) && !params.__noInline
+     && /^data:/.test(String(preInline.firstFrame||preInline.refImage||(preInline.refImages||[])[0]||''))===false
+     && /\/api\/media\//.test(JSON.stringify(preInline))){
+    try{ toast('사진을 주소로 보내 한 번 더 시도합니다…'); }catch(_t){}
+    var pUrl = Object.assign({}, params, preInline);
+    delete pUrl.apiKey; delete pUrl.provider; delete pUrl.traceId; delete pUrl.__node;
+    pUrl.__noInline = true;
+    var outUrl = await generateWithAPI(pUrl);
+    if(outUrl && !outUrl.error){ outUrl.deliveredAs = 'url'; return outUrl; }
+    //  주소로도 막혔으면 원래 이유에 이어 붙여 그대로 알린다 (다른 모델로 넘기지 않는다)
+    err = err + ' | 주소로 보내도 같은 이유로 거절됨';
+  }
+  return { error: err||('생성 실패'+diag), type:'error', provider:prov, stageDiag:stageDiag };
+}
+
+/* ── 실패하면 그 자리에서 스스로 진단한다 ────────────────────────────────
+   raw 502 는 격리 환경이 통째로 죽는 것이라 서버에 아무 기록이 안 남는다.
+   어디서 죽었는지 알아내는 유일한 길은, 한 요청에서 한 단계씩만 돌려 보고
+   어느 요청이 502 로 돌아오는지 보는 것이다.
+   ⚠ 방금 실패한 그 요청(같은 사진·같은 크기)을 그대로 쓴다. 다른 걸로 재면 재현이 안 된다.
+   ⚠ 여기서 영상을 다시 만들지는 않는다 — outbound 는 모델 이름을 없는 것으로 바꿔 보내
+     제공사가 곧바로 거절하게 한다. 나가는 양·경로는 실제와 같고 크레딧은 안 빠진다. */
+var DIAG_STAGES=[
+  {k:'auth',    n:'로그인 확인'},
+  {k:'body',    n:'사진·본문 읽기'},
+  {k:'gate',    n:'과금 계산(회원만 지나가는 구간)'},
+  {k:'payload', n:'제공사용 값 만들기'},
+  {k:'outbound',n:'제공사로 보내기(영상은 안 만듦)'}
+];
+async function diagStage(stage, params){
+  var t0=Date.now();
+  try{
+    var r=await fetch('/api/generate',{method:'POST',credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(Object.assign({},params,{diagStage:stage}))});
+    var t=await r.text(); var j=null; try{ j=JSON.parse(t); }catch(e){}
+    //  우리가 낸 오류(읽을 수 있는 JSON)와 플랫폼이 끊은 것(HTML)은 완전히 다른 사건이다
+    var killed=/^\s*</.test(t)||/Bad gateway/i.test(t);
+    return { stage:stage, status:r.status, ms:Date.now()-t0, killed:killed, json:j, text:t.slice(0,160) };
+  }catch(e){
+    return { stage:stage, status:0, ms:Date.now()-t0, killed:true, net:true,
+             text:String(e&&e.message||e).slice(0,120) };
+  }
+}
+async function diagnoseStages(params){
+  var out={ rows:[], verdict:'', ok:false };
+  for(var i=0;i<DIAG_STAGES.length;i++){
+    var st=DIAG_STAGES[i];
+    var r=await diagStage(st.k, params);
+    var line={ name:st.n, status:r.status, ms:r.ms, state:'ok', note:'' };
+    if(r.killed){ line.state='killed'; line.note=r.net?'응답이 아예 없었습니다':'플랫폼이 함수를 끊었습니다'; }
+    else if(r.status===401){ line.state='noauth'; line.note='로그인이 풀렸습니다 — 검사가 성립하지 않습니다'; }
+    else if(r.status===429){ line.state='rate'; line.note='짧은 시간에 너무 많이 — 30초 뒤 다시 하면 됩니다'; }
+    else if(r.status>=400){ line.state='err'; line.note='HTTP '+r.status+' · '+((r.json&&r.json.error)||r.text); }
+    else if(r.json&&r.json.diag==='body') line.note='본문 '+r.json.bodyChars+'글자 · 첫프레임 '+r.json.firstFrame+'글자';
+    else if(r.json&&r.json.diag==='auth') line.note=(r.json.admin?'관리자':'회원')+' 계정';
+    else if(r.json&&r.json.diag==='outbound') line.note='제공사에 '+Math.round((r.json.sentBytes||0)/1024)+'KB 보냄 → 응답 '+(r.json.status||r.json.error||'?');
+    out.rows.push(line);
+    if(line.state!=='ok'){
+      out.verdict=st.n+(line.state==='killed'?' 에서 끊깁니다.':' 에서 막혔습니다.');
+      if(line.state==='killed'&&st.k==='gate') out.verdict+=' 관리자는 이 구간을 아예 안 지나가서 멀쩡했던 자리입니다.';
+      if(line.state==='killed'&&st.k==='outbound') out.verdict+=' 우리 서버가 아니라 제공사로 보내는 구간입니다.';
+      for(var j2=i+1;j2<DIAG_STAGES.length;j2++) out.rows.push({name:DIAG_STAGES[j2].n,state:'skip',note:'앞에서 끊겨 건너뜀'});
+      return out;
+    }
+  }
+  out.ok=true;
+  out.verdict='단계별로는 전부 통과했습니다 — 같은 요청인데 한 번에 보내면 끊깁니다.';
+  return out;
 }
 
 /* 레퍼런스 이미지 압축 — data:URI 는 ≤1024px JPEG 로 축소(12장이 3MB 초과하지 않게), URL 은 그대로(서버가 처리) */
+/* 우리 서버에 있는 사진을 "실어 보낼 수 있는 형태"로 바꾼다 (씨댄스 2.0 전용).
+   제공사(BytePlus)가 우리 /api/media 에서 사진을 직접 받아 가야 하는데 그게 늦어지면
+   제출 자체가 안 끝난다 — 실제로 22초를 기다리다 "제공사 응답 시간 초과" 로 끝났다.
+   그래서 사진을 우리가 실어 보낸다.
+
+   ⚠ 이 일을 서버(워커)에서 하면 안 된다. 서버에 넣어 봤다가(v58) 읽을 수 있던 실패까지
+     raw 502 로 바뀌었다 — 넣고 나빠졌고 빼니 돌아왔다. 그때 적어 둔 "무료 등급 CPU 10ms"
+     라는 이유는 확인된 게 아니다(계정은 Workers 유료였다). 이유는 아직 모른다.
+     겸사겸사 크기를 줄여 보내므로 올라가는 양도 훨씬 작다. */
+function inlineOwnMediaSrc(src, max, q){
+  return new Promise(function(resolve){
+    if(!src || typeof src!=='string'){ resolve(src); return; }
+    if(src.indexOf('data:')===0){ resolve(src); return; }
+    // 우리 서버 사진만 대상 — 바깥 사진은 제공사가 알아서 받아 가면 된다
+    if(!/\/api\/media\//.test(src)){ resolve(src); return; }
+    var img=new Image(); img.crossOrigin='anonymous';
+    var done=false, tm=setTimeout(function(){ if(!done){ done=true; resolve(src); } }, 15000);
+    img.onload=function(){ if(done) return; done=true; clearTimeout(tm);
+      try{
+        var w=img.naturalWidth||1024, h=img.naturalHeight||1024;
+        var sc=Math.min(1,(max||1280)/Math.max(w,h));
+        var c=document.createElement('canvas');
+        c.width=Math.max(2,Math.round(w*sc)); c.height=Math.max(2,Math.round(h*sc));
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        var d=c.toDataURL('image/jpeg', q||0.88);
+        resolve(/^data:image\//.test(d) ? d : src);
+      }catch(e){ resolve(src); }   // 캔버스가 막히면(교차 출처 등) 원래 URL 로 둔다
+    };
+    img.onerror=function(){ if(done) return; done=true; clearTimeout(tm); resolve(src); };
+    img.src=sameOriginMedia(src);
+  });
+}
+/* ── 같은 사진을 여러 번 실어 보내지 않는다 ────────────────────────────────
+   사진 한 장을 붙이면 firstFrame · refImage · refImages[0] 세 군데에 같은 값이 들어간다
+   (제공사마다 보는 자리가 달라서 그렇게 채워 둔 것이다).
+   그런데 씨댄스로 나갈 때 서버는 첫 프레임과 같은 레퍼런스를 어차피 지운다 —
+   결국 92KB 짜리 사진 한 장 보내자고 273KB 를 올리고 있었다. 180KB 가 순수 낭비다.
+   (실측: 본문 273KB · 제공사로 나간 것 92KB)
+
+   ⚠ 씨댄스 계열에서만 한다. 다른 제공사는 refImage/refImages 만 보고 firstFrame 을
+     안 보는 곳이 있어, 거기서 지우면 사진이 통째로 빠진다.
+   ⚠ 요금도 실제와 맞게 된다 — 레퍼런스 가산은 "레퍼런스로 실제 나간 장수" 로 매겨져야 한다.
+     첫 프레임으로만 쓴 사진에 레퍼런스 가산을 붙이고 있었다(장당 0.5%). */
+function dropDuplicateImages(params){
+  var ff=params.firstFrame, lf=params.lastFrame;
+  var same=function(v){ return v && (v===ff || v===lf); };
+  if(Array.isArray(params.refImages)){
+    var kept=[], labels=[], slots=[];
+    for(var i=0;i<params.refImages.length;i++){
+      if(same(params.refImages[i])) continue;
+      kept.push(params.refImages[i]);
+      if(Array.isArray(params.refLabels)) labels.push(params.refLabels[i]);
+      if(Array.isArray(params.refSlots))  slots.push(params.refSlots[i]);
+    }
+    if(kept.length!==params.refImages.length){
+      params.refImages=kept;
+      //  번호표·자리표도 같이 줄여야 "레퍼런스 2" 가 엉뚱한 사진을 가리키지 않는다
+      if(Array.isArray(params.refLabels)) params.refLabels=labels;
+      if(Array.isArray(params.refSlots))  params.refSlots=slots;
+      params.refCount=kept.length;
+    }
+  }
+  if(same(params.refImage)) delete params.refImage;
+  return params;
+}
+
+/** 씨댄스 2.0 으로 보낼 사진들(첫·마지막 프레임 + 레퍼런스)을 실어 보낼 형태로 바꾼다 */
+async function inlineOwnMediaAll(params){
+  var seen={};
+  var conv=async function(v){
+    if(!v||typeof v!=='string') return v;
+    if(seen[v]!==undefined) return seen[v];
+    //  레퍼런스는 "무엇을 참고할지" 를 알려 주는 용도라 1024px 로 충분하다.
+    //  본문이 커질수록 워커가 그것을 읽고 넘기는 비용이 커진다(요청당 CPU 한도가 있다).
+    var out=await inlineOwnMediaSrc(v,1024,0.82);
+    seen[v]=out; return out;
+  };
+  params.firstFrame=await conv(params.firstFrame);
+  params.lastFrame =await conv(params.lastFrame);
+  params.refImage  =await conv(params.refImage);
+  if(Array.isArray(params.refImages)){
+    var arr=[];
+    for(var i=0;i<params.refImages.length;i++) arr.push(await conv(params.refImages[i]));
+    params.refImages=arr;
+  }
+  return params;
+}
 function shrinkImageSrc(src, max, q){
   return new Promise(function(resolve){
     if(!src){ resolve(null); return; }
@@ -4464,7 +4995,7 @@ function generateImageNode(n){
     .then(function(res){
       n.w.imgGenerating=false;
       if(!res || res.error){ n.w.imgError=(res&&res.error)||'생성 실패';
-        var info=showGenError(n.w.imgError, (res&&res.provider)||providerOf(n.w.model), n.w.model);
+        var info=showGenError(n.w.imgError, (res&&res.provider)||providerOf(n.w.model), n.w.model, res&&res.stageDiag);
         toast((info&&info.title)||('이미지 생성 실패: '+String(n.w.imgError).slice(0,80))); render(); return; }
       n.w.img=res.url; n.w.imgKind=res.kind||'image';
       render();                                                // ① 결과 먼저 표시 (부수작업 실패와 무관)
@@ -5426,7 +5957,7 @@ var DEFS = {
                   ['first','첫 프레임','IMAGE'],['last','마지막 프레임','IMAGE'],
                   ['audio','오디오 참조 (씨댄스 2.0·선택)','AUDIO']],
              outs:[['out','생성물','GEN']],
-             widgets:[{k:'model',t:'combo',label:'model',opts:'VIDEO_MODELS',def:'Seedance 2.0'},
+             widgets:[{k:'model',t:'combo',label:'모델',opts:'VIDEO_MODELS',def:'Seedance 2.0'},
                       {k:'camera',t:'combo',label:'카메라 무빙',opts:CAMERA_OPTS,def:'없음',
                         tip:'<b>카메라 모션 프리셋</b> — 크래시 줌·돌리·360 오빗·불릿타임·FPV 드론 등 시네마틱 카메라 워크를 버튼 하나로 적용합니다. 선택하면 카메라 지시문이 프롬프트에 자동으로 더해집니다.'},
                       {k:'tpl',t:'combo',label:'바이럴 템플릿',opts:VIRAL_TPL_OPTS,def:'없음',
@@ -5483,7 +6014,10 @@ var DEFS = {
                       {k:'refup',t:'image'},
                       {k:'gen',t:'mesh3dbtn',label:'3D 모델 생성'},
                       {k:'meshout',t:'mesh3dout'}] },
- video:    { cat:'설정', title:'영상 설정', hd:'#3a3323', ins:[['in','생성물','GEN']], outs:[['out','영상','VIDEO']],
+ /* 영상 설정 노드는 없앴다(길이·비율·해상도 → 오른쪽 옵션 패널).
+    정의는 남겨 둔다 — 옮기기 전에 옛 그래프를 읽어야 하고, 어딘가에서 이 종류를
+    만나도 DEFS 조회가 undefined 로 터지지 않게 하려는 것이다. 팔레트에는 안 나온다. */
+ video:    { cat:'설정', title:'영상 설정 (옮겨짐)', hd:'#3a3323', ins:[['in','생성물','GEN']], outs:[['out','영상','VIDEO']],
              widgets:[{k:'sec',t:'slider',label:'길이(초)',min:1,max:60,def:8},
                       {k:'ar',t:'combo',label:'ratio',opts:['16:9','9:16','1:1','4:5'],def:'16:9'},
                       {k:'res',t:'combo',label:'res',opts:['720p','1080p','4K'],def:'1080p'},
@@ -5756,7 +6290,8 @@ var vidIdx=0, queue=0, running=false;
 
 function uid(){ return 'n'+(state.seq++); }
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
-function toast(m){ var t=document.getElementById('toast'); t.textContent=m; t.style.opacity=1; clearTimeout(t._h); t._h=setTimeout(function(){t.style.opacity=0;},1800); }
+//  ms 를 주면 그만큼 띄운다 — 길게 읽혀야 하는 안내(사진 쓰는 방식이 바뀐 경우 등)에 쓴다.
+function toast(m, ms){ var t=document.getElementById('toast'); t.textContent=m; t.style.opacity=1; clearTimeout(t._h); t._h=setTimeout(function(){t.style.opacity=0;},Number(ms)||1800); }
 
 /* ══════ 생성 실패("빠꾸") 원인 해설 팝업 ═══════════════════════════════════
    모든 제공사(Seedance/Veo/Runway/Flux/fal/GPT/Nano Banana/Grok/Luma/MiniMax)의
@@ -5766,6 +6301,21 @@ var PROV_KO = { google:'Google Veo', seedance:'Seedance(BytePlus)', runway:'Runw
   hailuo:'MiniMax Hailuo', luma:'Luma', xai:'Grok', flux:'Flux(BFL)', falcontrol:'fal ControlNet',
   nanobanana:'Nano Banana(Google)', openai:'GPT Image(OpenAI)', fal:'fal.ai' };
 var GEN_ERROR_RULES = [
+  /*  사진이 거절된 경우 — 영상 규칙보다 먼저 본다.
+      실제로 이 메시지가 회원에게 한 번도 도달한 적이 없었다. 제공사가 사진을 거절해
+      HTTP 400 을 줬는데, 우리가 그걸 502 로 돌려주는 바람에 Cloudflare 가 자기 오류
+      페이지로 바꿔치기했고, 회원 화면에는 "제공사 서버 오류 · 잠시 후 다시 시도하세요"
+      만 떴다. 몇 번을 다시 눌러도 될 리가 없었다(generate.js FAIL 주석 참조). */
+  { re:/inputimagesensitive|input image.{0,40}(sensitive|privacy|real person)|이미지.{0,10}민감/, cat:'policy',
+    title:'이 사진은 제공사가 받아 주지 않습니다',
+    reason:'씨댄스 2.0 이 넣으신 사진을 "실제 사람이 찍힌 사진"으로 판단했습니다. '
+          +'⚠ 이 검사는 진짜 사람인지를 가리지 못합니다 — 사람 얼굴처럼 보이는 사실적인 사진이면 AI 로 만든 얼굴도 똑같이 걸립니다. '
+          +'보내는 방법이 원인은 아닙니다: 같은 사진을 ①첫 장면 ②외형 참고 ③실어 보내기 ④주소, 네 가지로 모두 보냈고 네 번 다 같은 이유로 거절당했습니다(원문 참조). '
+          +'이 검열은 제공사 서버에서 도는 것이라 우리 코드로는 못 바꿉니다. 같은 사진이면 다시 눌러도 계속 막힙니다.',
+    fix:'① 얼굴이 안 나오거나, 얼굴을 크게 잘라 냈거나 가린 사진이면 지금 그대로 됩니다. '
+       +'② AI 로 만든 사진이라면 — 사진 단계에서 사실적인 인물 사진 대신 일러스트·3D 렌더 같은 화풍으로 만들면 받아 줍니다(실제 사람으로 안 보이기 때문입니다). '
+       +'③ 사실적인 인물 사진을 꼭 쓰셔야 한다면, 제공사(BytePlus)에 이 계정으로 "real-person image input" 허용을 신청해야 합니다. '
+       +'같은 기능을 쓰는 다른 서비스들이 있으므로 기능이 없는 게 아니라 이 계정에 안 열려 있는 것입니다 — 관리자에게 문의해 주세요.' },
   { re:/inputvideosensitive|privacyinformation|input video may contain real person|real person|실존 ?인물/, cat:'policy',
     title:'실존 인물이 담긴 영상은 사용할 수 없습니다',
     reason:'레퍼런스로 넣은 영상에서 실제 사람이 감지되었습니다. 제공사가 초상권·딥페이크 악용을 막기 위해 실존 인물 영상 입력을 자동 차단합니다.',
@@ -5790,6 +6340,20 @@ var GEN_ERROR_RULES = [
     title:'API 키가 설정되어 있지 않습니다',
     reason:'이 모델을 제공하는 곳의 API 키가 서버(Cloudflare)에 등록되어 있지 않습니다.',
     fix:'Cloudflare 환경변수에 해당 제공사 키를 추가한 뒤 재배포하세요.' },
+  /*  제공사 콘솔에서 그 모델을 아직 "개통(Activate)" 하지 않은 경우 —
+      키도 멀쩡하고 모델 이름도 맞다. 콘솔에서 스위치 하나만 켜면 되는 일인데,
+      예전 문구는 "권한이 없습니다 · Vertex Model Garden 사용 설정" 이라고 안내했다.
+      Vertex 는 구글이다 — 씨댄스(BytePlus)를 쓰는 사람에게 남의 집 주소를 알려 준 셈이라,
+      맞는 곳을 아무리 뒤져도 그런 메뉴가 없었다. 제공사별로 갈라서 정확히 짚어 준다.
+      ⚠ 아래 일반 권한 규칙(403)보다 먼저 와야 한다 — 먼저 걸리는 규칙이 이긴다. */
+  { re:/has not activated the model|not activated|activate the model service|modelnotopen|model not open/i, cat:'config',
+    title:'이 모델이 제공사 콘솔에서 아직 켜져 있지 않습니다',
+    reason:'API 키도 모델 이름도 맞습니다. 다만 제공사 계정에서 이 모델을 아직 "개통(Activate)" 하지 않아 호출이 거부되었습니다. 제공사는 모델마다 따로 켜야 합니다 — 하나를 켰다고 나머지가 같이 켜지지 않습니다.',
+    fix:'씨댄스·씨드림(BytePlus)이라면 — BytePlus 콘솔 → ModelArk → Model Service(모델 서비스)에서 오류 원문에 적힌 모델 ID 를 찾아 Activate(개통) 하세요. 원문에 계정 번호와 모델 ID 가 그대로 적혀 있으니 그대로 찾으시면 됩니다. 켠 뒤에는 코드 수정 없이 바로 됩니다.' },
+  { re:/invalidendpointormodel|does not exist or you do not have access|model or endpoint .{0,60}does not exist/i, cat:'config',
+    title:'제공사 계정에 이 모델이 없습니다',
+    reason:'제공사가 "그런 모델이 없거나 접근 권한이 없다"고 답했습니다. 모델이 그 계정/리전에서 아직 열리지 않았거나, 개통(Activate)이 안 된 상태입니다.',
+    fix:'BytePlus 콘솔 → ModelArk → Model Service 에서 오류 원문의 모델 ID 를 찾아 개통하세요. 목록에 아예 없다면 그 계정·리전에서는 쓸 수 없는 모델입니다 — 다른 모델을 골라 주세요.' },
   { re:/invalid api key|api key not valid|invalid_api_key|unauthorized|authentication|401/, cat:'auth',
     title:'API 키가 유효하지 않습니다',
     reason:'등록된 API 키가 만료되었거나 잘못되어 인증에 실패했습니다.',
@@ -5801,7 +6365,7 @@ var GEN_ERROR_RULES = [
   { re:/permission|access denied|forbidden|권한|not have access|접근 권한|403/, cat:'auth',
     title:'이 모델에 접근할 권한이 없습니다',
     reason:'키는 유효하지만 요청한 모델/기능을 쓸 권한이 없습니다.',
-    fix:'제공사 콘솔에서 해당 모델을 활성화(예: Vertex Model Garden 사용 설정)하세요.' },
+    fix:'제공사 콘솔에서 해당 모델을 활성화하세요 — 씨댄스·씨드림은 BytePlus 콘솔 → ModelArk → Model Service, 구글 Veo 는 Vertex Model Garden 사용 설정입니다.' },
   { re:/insufficient|not enough (balance|credit)|arrearage|欠费|잔액|크레딧 ?부족|payment required|402|billing/, cat:'billing',
     title:'크레딧 또는 잔액이 부족합니다',
     reason:'제공사 계정의 크레딧/결제 잔액이 부족해 요청이 거부되었습니다.',
@@ -5846,7 +6410,61 @@ function explainGenError(raw, provider, model){
   return { cat:hit.cat, title:hit.title, reason:hit.reason, fix:hit.fix,
            provKo:(PROV_KO[prov]||prov||'제공사'), model:model||'', raw:s };
 }
-function showGenError(raw, provider, model){
+/* 단계별 진단 결과를 실패 안내 안에 그린다.
+   회원이 "제공사 탓인가 우리 탓인가" 를 바로 알 수 있어야 한다 — 그게 이 표의 목적이다. */
+var STG_SIGN={ ok:'✓', killed:'✕', skip:'–', rate:'!', err:'!', noauth:'!' };
+function paintStageDiag(sd){
+  var sec=document.getElementById('errStageSec'), box=document.getElementById('errStages');
+  if(!sec||!box) return;
+  if(!sd||!sd.rows||!sd.rows.length){ sec.style.display='none'; return; }
+  box.innerHTML='';
+  sd.rows.forEach(function(r){
+    var d=document.createElement('div'); d.className='err-stg '+(r.state||'ok');
+    var g=document.createElement('div'); g.className='g'; g.textContent=STG_SIGN[r.state]||'·';
+    var n=document.createElement('div'); n.className='n';
+    var t1=document.createElement('div'); t1.textContent=r.name; n.appendChild(t1);
+    if(r.note){ var t2=document.createElement('div'); t2.className='nt'; t2.textContent=r.note; n.appendChild(t2); }
+    var t=document.createElement('div'); t.className='t'; t.textContent=(r.ms!=null?r.ms+'ms':'');
+    d.appendChild(g); d.appendChild(n); d.appendChild(t); box.appendChild(d);
+  });
+  /*  실제로 죽은 그 요청이 어디까지 갔는지 — 서버가 지나가며 찍어 둔 발자국.
+      단계별 검사는 "따로 태우면 통과" 를 보여 줄 뿐이고, 진짜 죽은 요청의 마지막 자리는
+      이 발자국에만 남는다. 그래서 표 아래에 이어서 보여 준다. */
+  if(sd.trace && sd.trace.length){
+    /*  ⚠ 마지막 발자국을 무조건 ✕ 로 찍으면 안 된다.
+        요청이 끝까지 정상으로 돌고 마지막 발자국을 남긴 경우도 있다 —
+        그때 ✕ 를 찍으면 "여기서 죽었다" 는 거짓말이 된다(실제로 그렇게 찍혔다).
+        마지막 발자국이 "처리 끝" 이면 요청은 무사히 끝난 것이다. */
+    var done=/처리 끝/.test(sd.trace[sd.trace.length-1].step||'');
+    var th=document.createElement('div');
+    th.className='err-lbl'; th.style.marginTop='12px';
+    th.innerHTML=(done?'그 요청은 끝까지 정상으로 돌았습니다':'그 요청은 여기까지 갔습니다')
+      +' <span class="err-stg-note">서버가 지나가며 남긴 기록</span>';
+    box.appendChild(th);
+    sd.trace.forEach(function(m,i){
+      var last=(i===sd.trace.length-1) && !done;
+      var d=document.createElement('div'); d.className='err-stg '+(last?'killed':'ok');
+      var g=document.createElement('div'); g.className='g'; g.textContent=(last?'✕':'✓');
+      var n=document.createElement('div'); n.className='n';
+      var t1=document.createElement('div'); t1.textContent=m.step; n.appendChild(t1);
+      if(m.note){ var t2=document.createElement('div'); t2.className='nt'; t2.textContent=m.note; n.appendChild(t2); }
+      var t=document.createElement('div'); t.className='t'; t.textContent=String(m.at||'').slice(11,19);
+      d.appendChild(g); d.appendChild(n); d.appendChild(t); box.appendChild(d);
+    });
+  }
+  var v=document.getElementById('errStageVerdict');
+  var vt=sd.verdict||'';
+  if(sd.trace && sd.trace.length){
+    var lastStep=sd.trace[sd.trace.length-1].step||'';
+    vt+=/처리 끝/.test(lastStep)
+      ? ' 그 요청은 서버에서 끝까지 정상으로 돌았습니다 — 우리 쪽이 끊긴 게 아닙니다.'
+      : ' 그 요청은 "'+lastStep+'" 까지 갔고 그 다음에서 끊겼습니다.';
+  } else if(sd.trace) vt+=' (그 요청은 첫 발자국도 못 남겼습니다 — 아주 앞쪽에서 막혔습니다.)';
+  v.textContent=vt;
+  v.className='err-stg-v'+(sd.ok?' ok':'');
+  sec.style.display='block';
+}
+function showGenError(raw, provider, model, stageDiag){
   var info=explainGenError(raw, provider, model);
   var meta=ERR_CAT[info.cat]||ERR_CAT.unknown;
   var box=document.getElementById('errModal'); if(!box) return toast('생성 실패: '+String(info.title));
@@ -5862,9 +6480,96 @@ function showGenError(raw, provider, model){
   var _rw=document.getElementById('errRawWrap');
   _rw.style.display=info.raw?'block':'none';
   _rw.open=true;   // 원문을 접어두면 진단할 때 아무도 펼치지 않는다 → 기본으로 펼쳐 둔다
+  paintStageDiag(stageDiag);
+  paintFaceProbe(info);
   box.classList.add('show');
   paintIcons(box);
   return info;
+}
+/* ── 관리자 전용: "이 사진으로 통로 찾기" ────────────────────────────────────
+   사진이 얼굴 때문에 거절됐을 때, 같은 모델에 같은 사진을 제공사가 인정하는
+   여러 모양(첫 프레임 / 레퍼런스 / 역할 없이 / 워터마크 / 문구 바꿈 / 실어 보내기)으로
+   던져 보고, 어느 모양이 통과하는지 대조군과 함께 잰다.
+   ⚠ 모델은 절대 안 바꾼다. 바꾸는 것은 "보내는 모양" 뿐이다.
+   ⚠ 회원에게는 안 보인다 — 거절은 0원이지만 통과하면 실제로 돈이 나간다. */
+function paintFaceProbe(info){
+  var sec=document.getElementById('errProbeSec'), box=document.getElementById('errProbe');
+  if(!sec||!box) return;
+  var isFace = info && info.cat==='policy' && /사진은 제공사가 받아 주지 않습니다/.test(String(info.title||''));
+  var img = '', dat = '';
+  try{ img = String(window.__lastFaceImg||''); dat = String(window.__lastFaceData||''); }catch(_e){}
+  if(!isFace || !window.__IS_ADMIN){ sec.style.display='none'; return; }
+  sec.style.display='block';
+  if(!img && !dat){
+    box.innerHTML='<div class="err-stg-v">이 사진을 다시 찾을 수 없어 통로 찾기를 돌릴 수 없습니다. '+
+                  '한 번 더 생성해 보신 뒤 이 창에서 눌러 주세요.</div>';
+    return;
+  }
+  box.innerHTML='<button class="api-ghost" id="errProbeBtn">이 사진으로 통로 찾기</button>'+
+    '<div class="err-stg-v" id="errProbeOut">같은 모델·같은 사진을 여러 모양으로 던져 봅니다. 막히면 0원이고, 되는 모양이 있을 때만 480p·5초 1건 값이 나갑니다.'+
+    (img?'':' (붙여 넣은 사진이라 먼저 우리 서버에 한 번 올립니다)')+'</div>';
+  var btn=document.getElementById('errProbeBtn'), out=document.getElementById('errProbeOut');
+  /*  ⚠ 눌러 달라고 해서는 답이 안 나온다. 같은 벽에 부딪힐 때마다 창을 닫고 다시 시도하게
+      되기 때문이다. 그래서 관리자에게는 창이 뜨는 즉시 스스로 잰다.
+      · 같은 사진은 한 번만 잰다(창을 다시 열어도 또 돌지 않는다).
+      · 거절은 0원이다. 통과하는 모양이 있을 때만 480p·5초 1건 값이 나가는데,
+        그게 바로 우리가 찾던 답이라 그 비용은 감수한다. */
+  var _autoKey = 'probe:' + (img || dat.slice(0, 64)) + ':' + (window.__lastFaceModel || '');
+  btn.onclick=async function(){
+    try{ window.__probeDone = window.__probeDone || {}; window.__probeDone[_autoKey] = 1; }catch(_pk){}
+    btn.disabled=true; btn.textContent='재는 중… (최대 2분)';
+    out.textContent='제공사에 하나씩 던지고 있습니다…';
+    /*  주소가 없으면 먼저 만든다 — 제공사는 base64 를 "가져가는" 게 아니라 받기만 하는데,
+        진단은 같은 사진을 주소로도 던져 봐야 해서 주소가 반드시 필요하다. */
+    if(!img && dat){
+      try{
+        out.textContent='사진을 먼저 서버에 올리는 중…';
+        var _bin = await (await fetch(dat)).blob();
+        var _up = await fetch('/api/upload',{ method:'POST', credentials:'include',
+          headers:{'Content-Type':_bin.type||'image/jpeg'}, body:_bin });
+        var _uj = await _up.json();
+        img = String(_uj.url||'');
+      }catch(_ue){ }
+      if(!img){ out.textContent='사진을 서버에 올리지 못해 진단을 못 돌렸습니다. 보관함에 올린 사진으로 다시 시도해 주세요.';
+                btn.disabled=false; btn.textContent='다시 시도'; return; }
+      try{ window.__lastFaceImg = img; }catch(_se){}
+      out.textContent='제공사에 하나씩 던지고 있습니다…';
+    }
+    fetch('/api/generate?diag=faceshape&img='+encodeURIComponent(img)+
+          (window.__lastFaceModel?('&model='+encodeURIComponent(SEEDANCE_DIAG_ID(window.__lastFaceModel))):''),
+          {cache:'no-store',credentials:'include'})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d && d.error){ out.textContent='진단 실패: '+d.error; btn.disabled=false; btn.textContent='다시 시도'; return; }
+        var rows=(d&&d.결과)||[];
+        out.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:12px;">'+
+          rows.map(function(x){
+            var good=/통과/.test(x.판정), c=good?'#39d98a':(/얼굴/.test(x.판정)?'#ff6b6b':'#8b93a8');
+            return '<tr><td style="padding:3px 6px;">'+esc(x.모양)+'</td>'+
+                   '<td style="padding:3px 6px;color:'+c+';white-space:nowrap;">'+esc(x.판정)+'</td>'+
+                   '<td style="padding:3px 6px;color:#8b93a8;">'+esc(String(x.code||x.status||''))+'</td></tr>';
+          }).join('')+'</table>'+
+          '<div style="margin-top:8px;color:#cfd6e6;">'+esc(String((d&&d.해석)||''))+'</div>';
+        btn.disabled=false; btn.textContent='다시 재기';
+        try{ navigator.clipboard.writeText(JSON.stringify(d)); }catch(_c){}
+      })
+      .catch(function(e){ out.textContent='진단 실패: '+String(e&&e.message||e); btn.disabled=false; btn.textContent='다시 시도'; });
+  };
+  try{
+    window.__probeDone = window.__probeDone || {};
+    //  ⚠ "돌았다" 표시는 누를 때가 아니라 걸어 둘 때 남긴다. 누르기 전에 창을 다시 그리면
+    //    또 하나가 걸려 같은 사진을 두 번 재게 된다(그만큼 돈이 더 나갈 수 있다).
+    if(!window.__probeDone[_autoKey]){
+      window.__probeDone[_autoKey] = 1;
+      setTimeout(function(){ try{ btn.click(); }catch(_ac){} }, 400);
+    }
+    else out.textContent = '이 사진은 이미 재 봤습니다 — 다시 재려면 단추를 누르세요.';
+  }catch(_ae){}
+}
+//  스튜디오의 보이는 이름 → 제공사 모델 ID. 진단은 제공사가 아는 이름으로 물어봐야 한다.
+function SEEDANCE_DIAG_ID(name){
+  return name==='Seedance 2.5' ? 'dreamina-seedance-2-5-260628'
+       : name==='Seedance 2.0' ? 'dreamina-seedance-2-0-260128' : '';
 }
 function closeErrModal(){ var b=document.getElementById('errModal'); if(b)b.classList.remove('show'); }
 
@@ -5963,21 +6668,53 @@ function galleryDel(id){
   }
   return IDB.ok ? IDB.del('gallery',id).catch(function(){}) : Promise.resolve();
 }
-function trimGallery(){ if(!IDB.ok) return Promise.resolve();
-  return IDB.all('gallery').then(function(a){
-    var mine=(a||[]).filter(function(g){ return g.uid===UID; }).sort(function(x,y){ return (y.ts||0)-(x.ts||0); });
-    if(mine.length>120){ return Promise.all(mine.slice(120).map(function(g){ return IDB.del('gallery',g.id); })); }
-  }).catch(function(){}); }
+/* 예전에는 120개를 넘으면 오래된 것부터 지웠다. 그래서 많이 만든 사람은 옛 결과물이
+   말없이 사라졌다 — 보관함인데 보관이 안 됐다.
+   보관함에는 파일이 아니라 R2 주소(짧은 문자열)만 들어간다. 1만 건이라도 몇 MB 수준이라
+   지울 이유가 없다. 이제 아무것도 지우지 않는다(호출부는 그대로 두려고 함수는 남긴다). */
+function trimGallery(){ return Promise.resolve(); }
 /* 생성 완료물 1건을 보관함에 영구 저장.
    제공사 URL 은 ①만료될 수 있고 ②영상을 통짜 data URI 로 IndexedDB 에 넣으면 용량초과로 저장이
    조용히 실패한다 → 우리 R2 로 재업로드해 "영구 공개 URL" 만 저장한다(용량 문제 없음). 실패 시 원본 URL 유지. */
-function rehostToR2(url){
+/* 제공사 URL 은 며칠 뒤 사라진다. 우리 R2 로 옮겨야 영구 주소가 된다.
+   예전엔 한 번 해 보고 실패하면 제공사 URL 을 그대로 저장했다 — 그 순간엔 잘 보이니
+   아무도 모르다가, 며칠 뒤 보관함에서 "원본 만료" 로 바뀐다. 되돌릴 방법도 없다.
+   그래서 몇 번 다시 해 본다(네트워크가 잠깐 흔들린 것뿐인 경우가 대부분이다). */
+function rehostToR2(url, tries){
   if(!url) return Promise.resolve(null);
   if(/\/api\/media\//.test(url)) return Promise.resolve(url);  // 이미 우리 R2
+  tries = tries==null ? 3 : tries;
   return fetch(/^data:/.test(url)?url:sameOriginMedia(url))
     .then(function(r){ return r.ok? r.blob() : null; })
     .then(function(blob){ return blob? hostMediaBlob(blob) : null; })   // POST /api/upload → R2 URL
-    .catch(function(){ return null; });
+    .catch(function(){ return null; })
+    .then(function(u){
+      if(u || tries<=1) return u;
+      return new Promise(function(res){ setTimeout(res, (4-tries)*1500); })
+        .then(function(){ return rehostToR2(url, tries-1); });
+    });
+}
+/* 아직 제공사 주소로 남아 있는 항목을 뒤늦게라도 우리 R2 로 옮긴다.
+   저장할 때 실패했더라도 보관함을 열 때 다시 시도하면 대부분 살릴 수 있다 —
+   원본이 아직 안 만료됐을 때 옮겨야 하므로 미루지 않고 열 때마다 해 본다. */
+var _healing=false;
+function healGallery(){
+  if(!IDB.ok || _healing) return Promise.resolve();
+  _healing=true;
+  return IDB.all('gallery').then(function(a){
+    var stale=(a||[]).filter(function(g){
+      return g.uid===UID && g.url && !/\/api\/media\//.test(g.url) && !/^data:/.test(g.url);
+    }).slice(0,8);                                  // 한 번에 몇 개씩만 — 열 때마다 조금씩 낫는다
+    return stale.reduce(function(p,g){
+      return p.then(function(){
+        return rehostToR2(g.url,1).then(function(u){
+          if(!u) return;
+          g.url=u; if(g.kind==='image'){ g.data=u; if(!g.poster)g.poster=u; }
+          return IDB.set('gallery',g);
+        });
+      });
+    }, Promise.resolve());
+  }).catch(function(){}).then(function(){ _healing=false; });
 }
 function saveToGallery(url, kind, model, sec, poster, meta){
   if(!IDB.ok || !url) return;
@@ -5993,7 +6730,8 @@ function saveToGallery(url, kind, model, sec, poster, meta){
     IDB.set('gallery',item).then(function(){ trimGallery(); try{updateLibChip();}catch(e){} }).catch(function(){});
   }
   rehostToR2(url).then(function(r2){
-    var finalUrl = r2 || url;   // R2 실패하면 원본 URL 이라도 저장(만료 전까지 유효)
+    //  세 번 다시 해 보고도 안 되면 원본이라도 저장한다 — 보관함을 열 때 healGallery 가 다시 시도한다
+    var finalUrl = r2 || url;
     if(isImg){ finish(finalUrl, null); return; }
     // 영상: 작은 포스터 썸네일만 data URI 로(가벼움)
     (poster? _toDataURI(poster) : Promise.resolve(null)).then(function(pos){ finish(finalUrl, pos); });
@@ -6008,8 +6746,54 @@ function docSnap(){ return {nodes:state.nodes,links:state.links,groups:state.gro
 function activeDoc(){ for(var i=0;i<STUDIO_DOCS.length;i++) if(STUDIO_DOCS[i].id===activeDocId) return STUDIO_DOCS[i]; return null; }
 function saveActiveIntoDoc(){ var d=activeDoc(); if(d) d.data=docSnap(); }
 function newDocId(){ return 'doc-'+Date.now()+'-'+Math.floor(Math.random()*1e6); }
+/* ── 영상 설정 노드 없애기 ──
+   길이·비율·해상도는 오른쪽 옵션 패널로 옮겼다. 그런데 예전 워크플로우에는 그 값이
+   '영상 설정' 노드 안에 들어 있다. 노드만 지우면 그 설정이 통째로 날아가고, 남겨 두면
+   패널에서 바꾼 값이 안 먹힌다(그 노드가 우선하므로) — 둘 다 사용자를 속이는 셈이다.
+   그래서 열 때 값을 쓰던 모델 노드로 옮겨 붙이고 그 노드와 연결선을 지운다.
+   한 번만 하면 되고, 결과는 눈에 보이는 그대로다(설정은 패널에 그대로 있다). */
+function migrateVideoSettings(g){
+  var nodes=g.nodes||[], links=g.links||[];
+  var vs=nodes.filter(function(n){ return n && n.type==='video'; });
+  if(!vs.length) return false;
+  var byId={}; nodes.forEach(function(n){ if(n) byId[n.id]=n; });
+  //  설정 노드에서 아래로 흘러가는 모델 노드를 찾아 값을 옮긴다
+  vs.forEach(function(v){
+    var seen={}, stack=[v.id];
+    while(stack.length){
+      var cur=stack.pop();
+      links.forEach(function(l){
+        if(l.from!==cur || seen[l.to]) return;
+        seen[l.to]=1;
+        var t=byId[l.to];
+        if(t && t.type==='model'){
+          t.w=t.w||{};
+          if(v.w && v.w.sec!=null && t.w.vsec==null)   t.w.vsec=Number(v.w.sec);
+          if(v.w && v.w.ar   && !t.w.vratio)           t.w.vratio=v.w.ar;
+          if(v.w && v.w.res  && !t.w.vres)             t.w.vres=v.w.res;
+        } else stack.push(l.to);
+      });
+    }
+  });
+  var drop={}; vs.forEach(function(v){ drop[v.id]=1; });
+  g.nodes=nodes.filter(function(n){ return !(n && drop[n.id]); });
+  g.links=links.filter(function(l){ return !drop[l.from] && !drop[l.to]; });
+  return true;
+}
 function loadDocIntoState(d){
   var g=d.data||{};
+  /* ── 옮기기 전 원본을 따로 남긴다 ──
+     이관은 문서를 '고쳐 쓰고' 그 결과가 자동저장으로 덮인다. 즉 한 번 잘못 돌면
+     원래 워크플로우가 사라지고 되돌릴 방법이 없다 — 자동저장은 되돌리기가 없다.
+     그래서 손대기 전 모습을 통째로 따로 보관한다(계정별 1벌). 뭔가 잘못되면
+     여기서 되살릴 수 있다. 저장은 실패해도 이관은 진행한다(막으면 아무것도 못 연다). */
+  try{
+    if((g.nodes||[]).some(function(n){ return n && n.type==='video'; })){
+      var _bk={ at:Date.now(), docId:d&&d.id, name:d&&d.name, data:JSON.parse(JSON.stringify(g)) };
+      if(IDB.ok) IDB.set('kv',_bk,nsKey('docs_pre_migrate')).catch(function(){});
+    }
+  }catch(_e){}
+  try{ if(migrateVideoSettings(g)) setTimeout(function(){ try{ toast('영상 설정 노드는 오른쪽 옵션 패널로 옮겼습니다 — 값은 그대로입니다'); }catch(_e){} }, 800); }catch(_e){}
   (g.nodes||[]).forEach(function(n){ if(n.w){ if(n.w.generating)n.w.generating=false; if(n.w.upscaling)n.w.upscaling=false; if(n.w.extracting)n.w.extracting=false;
     if(n.w.upscaled&&String(n.w.upscaled).indexOf('blob:')===0){ n.w.upscaled=null; n.w.upKind=null; n.w.upDim=null; } } });
   state.nodes=g.nodes||[]; state.links=g.links||[]; state.groups=g.groups||[]; state.annos=g.annos||[]; state.seq=g.seq||100;
@@ -6065,6 +6849,17 @@ window.__nvExportGraph=function(){
   return { nodeCount:(g.nodes||[]).length, graph:g };
 };
 // 공유받은 그래프를 새 워크플로우 탭으로 저장. keep=true 면 현재 탭 유지(방해 없이 추가).
+/* 이관 직전 모습으로 되돌린다. 자동저장은 되돌리기가 없어서, 문제가 생겼을 때
+   기댈 곳이 필요하다. 콘솔에서 __nvRestorePreMigrate() 로 부른다. */
+window.__nvRestorePreMigrate=function(){
+  if(!IDB.ok) return Promise.reject(new Error('저장소를 쓸 수 없습니다'));
+  return IDB.get('kv',nsKey('docs_pre_migrate')).then(function(bk){
+    if(!bk||!bk.data) throw new Error('되살릴 백업이 없습니다');
+    window.__nvImportGraph(bk.data, (bk.name||'복구')+' (복구)', true);
+    try{ toast('이관 전 워크플로우를 되살렸습니다'); }catch(_e){}
+    return true;
+  });
+};
 window.__nvImportGraph=function(graph, name, keep){
   if(!graph||!graph.nodes) return false;
   saveActiveIntoDoc();
@@ -6230,10 +7025,21 @@ function resumePendingJobs(){
     var outIds=outs.map(function(o){ return o.id; });
     liveNodes(outIds).forEach(function(o){ o.w.generating=true; o.w.error=null; });
     render(); toast('진행 중이던 생성을 이어서 확인합니다');
+    /* 이어받은 생성도 취소할 수 있어야 한다. 새로고침했다는 이유로 [취소] 가 사라지면
+       "껐다 켰더니 멈출 방법이 없다" 가 된다 — 진행률·취소 버튼을 여기서도 띄운다.
+       접수 번호(url)는 이미 알고 있으므로 누르는 즉시 제공사에 중지를 알릴 수 있다. */
+    _runningNodes[nid]=1; _taskOf[nid]=url; delete _cancelWant[nid];
+    startLive(nid); _taskOf[nid]=url;      // startLive 가 표시를 초기화하므로 번호는 그 뒤에 다시 넣는다
+    /* 이건 이미 제공사로 나간 작업이다 — 대기 구간(앞 30%)을 다시 보여 주면
+       "아직 안 보냈다" 는 뜻의 [취소] 가 붙는데, 그건 사실이 아니다. 바로 뒤 구간으로 넘긴다. */
+    if(_liveSt[nid]){ _liveSt[nid].phase='run'; _liveSt[nid].t0=Date.now(); }
+    var _rstop=function(){ return !!_cancelWant[nid]; };
+    var _rdone=function(){ delete _runningNodes[nid]; delete _taskOf[nid]; delete _cancelWant[nid]; stopLive(nid); };
     pollJob(url,{},function(st){
       if(st.status==='failed'||st.error) return Promise.reject(new Error(st.error||'failed'));
       return st.url? st : null;
-    }).then(function(out){
+    }, 0, _rstop).then(function(out){
+      _rdone();
       var mn=liveNode(nid); if(mn) mn.w.pendingUrl=null;
       var live=liveNodes(outIds);
       if(!live.length){ var m2=liveNode(nid); if(m2) live=[ensureOutputFor(m2)]; }
@@ -6248,8 +7054,12 @@ function resumePendingJobs(){
       try{ snapshot(); }catch(_e){}
       render(); toast('생성이 완료됐어요');
     }).catch(function(e){
+      var _wasCancel=isCancel(e);
+      if(_wasCancel) tellCancel(nid);        // 번호를 지우기 전에 알린다
+      _rdone();
       var mn=liveNode(nid); if(mn) mn.w.pendingUrl=null;
-      liveNodes(outIds).forEach(function(o){ o.w.generating=false; o.w.error=String((e&&e.message)||e); });
+      liveNodes(outIds).forEach(function(o){ o.w.generating=false;
+        o.w.error=_wasCancel?null:String((e&&e.message)||e); });
       render();
     });
   });
@@ -6381,14 +7191,16 @@ function widgetHTML(n,w){
     if((w.k==='camera'||w.k==='tpl') && _vo.noPrompt) return '';
   }
   if(w.t==='textarea'){
-    if(n.type==='prompt'||n.type==='negative'){   // 노션 코드블럭 스타일
-      var lang=n.type==='negative'?'negative':'prompt';
-      return '<div class="codewrap">'+
-        '<div class="codebar"><span class="cglyph">&lt;/&gt;</span>'+
-        '<span class="clang">'+lang+'</span></div>'+
-        '<textarea class="wtext code" data-w="'+w.k+'" spellcheck="false" placeholder="'+esc(w.ph||'')+'">'+esc(v)+'</textarea></div>';
-    }
-    return '<textarea class="wtext" data-w="'+w.k+'" placeholder="'+esc(w.ph||'')+'">'+esc(v)+'</textarea>';
+    /* 프롬프트·네거티브는 '</> prompt' 머리띠가 달린 코드블럭으로 감싸 있었다.
+       노드 자체가 이미 상자라 상자 안에 상자가 되어 이중으로 보였고, 머리띠는
+       무슨 노드인지 이미 제목에 적혀 있는 걸 한 번 더 말하는 것이었다.
+       그냥 글상자 하나로 둔다. spellcheck 는 계속 꺼 둔다 — 프롬프트에 빨간 밑줄이
+       그이면 오타처럼 보여 거슬린다.
+       ※ codewrap·codebar CSS 는 남겨 둔다. 지우려다 옆에 붙은 seedid·seedopts 규칙까지
+         함께 날려 본 적이 있다 — 붙어 있는 규칙을 통째로 들어내는 건 위험하다. */
+    var _plain='<textarea class="wtext" data-w="'+w.k+'" placeholder="'+esc(w.ph||'')+'"';
+    if(n.type==='prompt'||n.type==='negative') _plain+=' spellcheck="false"';
+    return _plain+'>'+esc(v)+'</textarea>';
   }
   if(w.t==='combo'){
     var disp=(w.label?'<span class="wlabel" style="padding-left:4px;">'+esc(w.label)+':</span>':'');
@@ -6447,7 +7259,8 @@ function widgetHTML(n,w){
       html+=row('lumaHdr', n.w.lumaHdr===true, 'HDR 출력', '720p·1080p 에서 넓은 명암 범위로 출력 (기본 꺼짐)');
       html+=row('lumaLoop', n.w.lumaLoop===true, '끊김 없는 반복', '끝과 처음이 이어지는 루프 영상 (마지막 프레임을 연결하면 적용되지 않음)');
     }
-    html+='<div class="seedid-hint" style="margin-top:6px;">길이·비율·해상도는 <b>영상 설정</b> 노드(또는 아래 드롭다운)에서 조절됩니다.</div>';
+    //  길이·비율·해상도는 이제 이 패널 '위쪽' 에 있다 — 아래 드롭다운은 없어졌다
+    html+='<div class="seedid-hint" style="margin-top:6px;">길이·비율·해상도는 <b>위쪽</b>에서 조절됩니다.</div>';
     html+='</div>';
     return html;
   }
@@ -6834,7 +7647,7 @@ function widgetHTML(n,w){
     } else {
       /* 배율(2×·4×)이 아니라 "어느 화질로 만들지" 를 고르게 한다 — 원본이 720p 인지 1080p 인지에 따라
          같은 2× 도 결과가 달라져서, 배율만 보고는 무엇이 나올지 알 수 없었다.
-         고른 화질은 긴 변 픽셀 목표(UP_QUALITY)로 그대로 나간다. 전부 우리 자체 모델·무료다. */
+         고른 화질은 긴 변 픽셀 목표(UP_QUALITY)로 그대로 나간다. 전부 우리 자체 모델로 돌지만, 무료는 아니다 — 크레딧이 차감된다(_pricing 의 화질 올리기 단가). */
       var _uq = upQualityOf(n);
       /* 속도 선택 — 화질을 낮추는 게 아니라 "어느 모델로 복원할지" 를 고르는 것이다.
          정답을 놓고 잰 결과: 빠르게(70만 파라미터)는 최고 화질(726만) 대비 약 10배 빠르고
@@ -6850,7 +7663,11 @@ function widgetHTML(n,w){
           '<button class="up-x'+(_fast?'':' on')+'" data-upspeed="best" title="가장 또렷하게 복원합니다. 긴 영상은 오래 걸립니다.">최고 화질</button>'+
           '<button class="up-x'+(_fast?' on':'')+'" data-upspeed="fast" title="가벼운 모델로 약 10배 빠르게. 크기·길이·소리는 같고 미세한 질감만 조금 덜 살아납니다.">빠르게 (약 10배)</button>'+
         '</span></div>'+
-        '<div class="refcnt">우리 자체 초해상 모델로 처리합니다 — <b>크레딧이 들지 않습니다</b>.</div>'+
+        /* ⚠ 여기엔 "크레딧이 들지 않습니다" 라고 적혀 있었다. 업스케일이 과금으로 바뀐 뒤에도
+              이 문구만 그대로 남아, 화면은 무료라고 말하는데 실제로는 차감됐다.
+              값이 바뀌면 안내도 같이 바뀌어야 한다 — 단가표(UPSCALE_IMG/UPSCALE_VID)를 그대로 읽는다. */
+        '<div class="refcnt">우리 자체 초해상 모델로 브라우저에서 처리합니다 — '
+          +(isImg?'장당':'초당')+' 크레딧이 듭니다.</div>'+
         (up?'<div class="refcnt">'+ICON.check+' '+esc(_uq.label)+' 완료 · '+esc(n.w.upDim||'')+' · <a href="#" data-upreset>원본으로</a></div>':'')+
         // Kling 공식 API 결과에만 "영상 확장" 이 가능하다(제공사 제약: Kling 생성분·30일 이내).
         //  첫 프레임 이어붙이기와 달리 원본 클립을 그대로 늘려 모션·카메라가 끊기지 않는다.
@@ -6881,6 +7698,34 @@ function widgetHTML(n,w){
   return '';
 }
 
+/* ── 설정은 사이드바, 결과는 블럭 ──
+   설정을 오른쪽으로 옮기는 건 모든 노드에 적용한다. 다만 "결과를 보여 주는 칸" 까지
+   옮기면 캔버스에 아무것도 안 남아 무슨 노드인지 알 수 없게 된다 — 결과물은 블럭에서
+   봐야 흐름이 읽힌다(출력 블럭을 일부러 키운 것도 같은 이유다).
+   그래서 노드 종류가 아니라 '위젯 종류' 로 가른다.
+   메모·리라우트는 그 자체가 내용이라 손대지 않는다. */
+var OPT_IN_SIDEBAR_SKIP = { note:1, reroute:1 };
+/* ── 입력 노드는 예전 모습 그대로 ──
+   프롬프트·네거티브·이미지/영상 레퍼런스처럼 '무엇을 넣을지' 를 담는 노드는 그 칸 자체가
+   내용이다. 캔버스에서 바로 읽고 고칠 수 있어야 흐름이 보인다 — 오른쪽으로 치우면
+   무슨 프롬프트가 어디로 들어가는지 보려고 노드를 하나씩 눌러 봐야 한다.
+   설정을 옮기는 건 '모델을 돌리는 노드' 에만 해당한다.
+   종류를 일일이 적지 않고 분류(cat)로 가른다 — 나중에 입력 노드가 늘어도 저절로 따라온다. */
+function optInSidebar(t){
+  if(OPT_IN_SIDEBAR_SKIP[t]) return false;
+  var d=DEFS[t];
+  return !!d && d.cat!=='입력';
+}
+//  블럭에 남길 위젯 — 결과 미리보기·안내처럼 "보는" 것들
+var BLOCK_KEEP = {
+  videoout:1, imagegenout:1, mesh3dout:1, audioout:1, frameout:1, promptout:1,   // 결과물
+  weaveinfo:1, revinfo:1, pickinfo:1, nmodehint:1, vsetapplied:1,                // 상태 안내
+  sticky:1, text:1,                                                              // 메모류
+  /* 실행 버튼은 블럭에 있어야 한다 — 어느 노드를 돌리는지가 캔버스에서 바로 보여야 하고,
+     사이드바에 있으면 그 노드를 고른 상태여야만 실행할 수 있다. */
+  button:1, imggenbtn:1, mesh3dbtn:1, weavebtn:1, narratebtn:1, musicbtn:1,
+  revoicebtn:1, promptgenbtn:1, framebtn:1,
+};
 function nodeHTML(n){
   var def=DEFS[n.type];
   var rows='';
@@ -6913,22 +7758,36 @@ function nodeHTML(n){
       (out?'<span class="out-label">'+out[1]+'</span><span class="port out" data-port="'+out[0]+'" data-dir="out" data-type="'+out[2]+'" style="background:'+PORT_COLORS[out[2]]+'"></span>':'')+
       '</div>';
   }
-  var widgets=def.widgets.map(function(w){ return widgetHTML(n,w); }).join('');
+  /* 모델 블럭은 설정을 안 담는다 — 전부 오른쪽 사이드바로 갔다.
+     블럭에는 "무엇이 들어오고 무엇이 나가는지" 만 남긴다(피그마 Weave 처럼).
+     위젯을 여기서도 그리면 같은 칸이 화면에 둘이 되어 어느 쪽이 진짜인지 알 수 없다. */
+  var toSide = optInSidebar(n.type);
+  var shown = toSide ? def.widgets.filter(function(w){ return BLOCK_KEEP[w.t]; }) : def.widgets;
+  var moved = toSide && def.widgets.length > shown.length;   // 실제로 옮긴 게 있을 때만 버튼을 단다
+  var widgets = shown.map(function(w){ return widgetHTML(n,w); }).join('');
+  var addRow = moved
+    ? '<button class="nw-add" data-openopts type="button">'+
+        '<span class="nw-plus">+</span> Add another input</button>'
+    : '';
   return '<div class="node-title" style="--hd:'+(n.color||def.hd||'#2a2a2a')+'">'+
       '<span class="node-dot" data-collapse title="접기/펼치기"></span>'+
-      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(n.title)+'</span></div>'+
+      /*  제목이 없는 그래프(밖에서 불러온 것·옛 저장본)에서는 제목 칸이 통째로 비어
+          무슨 블럭인지 알 수 없게 된다 → 종류의 기본 제목으로 채운다. */
+      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(n.title||def.title||'')+'</span></div>'+
     '<div class="node-prog"></div>'+
-    '<div class="node-body">'+rows+widgets+'</div>';
+    '<div class="node-body">'+rows+widgets+addRow+'</div>';
 }
 
 function render(){
   renderGroups();
+  //  사이드바에도 같은 노드가 그려져 있다 → 함께 갱신한다(안 하면 옛 값이 남는다)
+  setTimeout(function(){ try{ renderOptbar(); }catch(_e){} }, 0);
   Array.prototype.slice.call(world.querySelectorAll('.node')).forEach(function(x){x.remove();});
   state.nodes.forEach(function(n){
     var el=document.createElement('div');
     el.className='node'+(sel.has(n.id)?' sel':'')+(n.collapsed?' collapsed':'')+(n.bypass?' bypass':'')+
       (n.type==='note'?' notenode':'')+(n.type==='reroute'?' reroute':'')+(n.pinned?' pinned':'');
-    el.id='nd-'+n.id; el.dataset.node=n.id;
+    el.id='nd-'+n.id; el.dataset.node=n.id; el.dataset.type=n.type;   // 출력 블럭을 크게 하는 CSS 가 이 값을 본다
     el.style.left=n.x+'px'; el.style.top=n.y+'px';
     el.style.setProperty('--hd', n.color||DEFS[n.type].hd||'#2e2e2e');
     if(n.width) el.style.width=n.width+'px';
@@ -6963,11 +7822,117 @@ function drawLinks(){
     if(!a||!b)return;
     var path=document.createElementNS('http://www.w3.org/2000/svg','path');
     path.setAttribute('d',linkPath(a,b));
-    path.setAttribute('class','link'+(idx===selLink?' linksel':'')); path.setAttribute('stroke',PORT_COLORS[l.type]||'#888');
+    path.setAttribute('class','link'+(idx===selLink?' linksel':'')); path.setAttribute('stroke',linkColor(l.type));
     path.dataset.idx=idx;
     edges.appendChild(path);
   });
 }
+/* ══════ 오른쪽 옵션 사이드바 ══════
+   영상 설정을 노드로 두면 자리도 먹고 선도 하나 더 생긴다. 모델 노드를 고르면
+   오른쪽에서 패널이 밀려 나오고 거기서 길이·비율·해상도를 만진다.
+
+   값은 모델 노드 자신의 w.vsec / w.vratio / w.vres 에 쓴다. 이 칸들은 원래부터
+   "영상 설정 노드가 없을 때의 값" 으로 쓰이고 있었다(effVideoSec/Ratio/Res 참조) —
+   그래서 생성 파이프라인은 한 줄도 안 고쳐도 된다.
+   옛 그래프에 영상 설정 노드가 붙어 있으면 그쪽이 계속 이긴다(하위호환). 그 경우
+   패널에서 만져도 안 먹히므로, 헷갈리지 않게 그 사실을 패널에 적어 준다. */
+var _obNode=null;
+function obEl(id){ return document.getElementById(id); }
+function closeOptbar(){ _obNode=null; var b=obEl('optbar'); if(b)b.classList.remove('open'); }
+function openOptbar(id){
+  var n=(state.nodes||[]).find(function(x){ return x.id===id; });
+  if(!n || !optInSidebar(n.type)){ closeOptbar(); return; }
+  _obNode=id; var bar=obEl('optbar'); if(!bar)return;
+  bar.classList.add('open');
+  renderOptbar();
+}
+function renderOptbar(){
+  var bar=obEl('optbar'); if(!bar || !bar.classList.contains('open'))return;
+  var n=(state.nodes||[]).find(function(x){ return x.id===_obNode; });
+  if(!n){ closeOptbar(); return; }
+  var t=obEl('obTitle'); if(t) t.textContent=(DEFS[n.type]&&DEFS[n.type].title)||'옵션';
+  var body=obEl('obBody'); if(!body)return;
+
+  /* 길이·비율·해상도 칸은 영상 모델에만 있는 개념이다. 다른 노드에서 이걸 그리면
+     엉뚱한 값이 나오거나(모델이 없다) 에러가 난다 → 영상 모델일 때만 만든다. */
+  var isVid = n.type==='model';
+  var opts = isVid ? videoModelOpts(effModel(n)) : { secs:[], ratios:[], res:[] };
+  var legacy = isVid ? linkedSetting(n.id,'video') : null;
+  var h='';
+
+  //  모델은 아래 '설정' 의 콤보를 쓴다 — 그쪽은 검색이 붙어 있다(openDD). 여기서 또 그리면 둘이 된다.
+
+  //  길이 — 모델이 받는 값만 보여 준다. 안 받는 값을 고르게 두면 몰래 스냅되어 요금만 달라진다.
+  if(opts.secs && opts.secs.length){
+    var curSec=effVideoSec(n);
+    h+='<div class="ob-row"><div class="ob-lab">길이 <b>'+curSec+'초</b></div><div class="ob-chips">'
+      +opts.secs.map(function(s){ return '<button class="ob-chip'+(s===curSec?' on':'')+'" data-ob="sec" data-v="'+s+'" type="button">'+s+'초</button>'; }).join('')
+      +'</div></div>';
+  }
+  //  비율
+  if(opts.ratios && opts.ratios.length){
+    var curAr=effVideoRatio(n);
+    h+='<div class="ob-row"><div class="ob-lab">비율 <b>'+esc(curAr||'-')+'</b></div><div class="ob-chips">'
+      +opts.ratios.map(function(r){ return '<button class="ob-chip'+(r===curAr?' on':'')+'" data-ob="ar" data-v="'+esc(r)+'" type="button">'+esc(r)+'</button>'; }).join('')
+      +'</div></div>';
+  }
+  //  해상도 — 받지 않는 모델은 아예 안 보여 준다(골라 봐야 결과는 그대로고 요금만 달라진다)
+  if(opts.res && opts.res.length){
+    var curRes=effVideoRes(n);
+    h+='<div class="ob-row"><div class="ob-lab">해상도 <b>'+esc(curRes||'-')+'</b></div><div class="ob-chips">'
+      +opts.res.map(function(r){ return '<button class="ob-chip'+(r===curRes?' on':'')+'" data-ob="res" data-v="'+esc(r)+'" type="button">'+esc(r)+'</button>'; }).join('')
+      +'</div></div>';
+  }
+
+  if(isVid){
+    if(!opts.secs.length && !opts.ratios.length && (!opts.res||!opts.res.length))
+      h+='<div class="ob-empty">이 모델은 조절할 옵션이 없습니다.</div>';
+    if(legacy) h+='<div class="ob-note">이 노드에는 <b>영상 설정 노드</b>가 연결돼 있어 그쪽 값이 우선합니다. 여기서 바꾼 값은 그 노드를 지워야 적용됩니다.</div>';
+    else h+='<div class="ob-note">모델이 실제로 받는 값만 보여 줍니다. 목록에 없는 길이·해상도는 이 모델이 지원하지 않습니다.</div>';
+  }
+
+  /* ── 노드가 원래 갖고 있던 설정들을 여기에 그대로 그린다 ──
+     하나씩 손으로 옮겨 적으면(20종이 넘는다) 언젠가 원본과 어긋난다. 그래서 노드를 그릴 때
+     쓰는 widgetHTML 을 그대로 부른다 — 새 위젯이 생겨도 자동으로 따라온다.
+     감싸는 상자에 class="node" 와 data-node 를 준다: 이 스튜디오의 위젯 처리기들은
+     전부 document 에 위임돼 있고 e.target.closest('.node').dataset.node 로 어느 노드인지
+     찾는다. 같은 모양을 만들어 주면 손대지 않은 채로 그대로 동작한다.
+     id 는 주지 않는다 — 'nd-<id>' 는 캔버스의 진짜 블럭 것이고, 같은 id 가 둘이면
+     진행률·선택 표시가 엉뚱한 데로 간다. */
+  var def=DEFS[n.type];
+  /* 영상 모델에서는 모델·길이·비율·해상도를 위에서 이미 그렸다(모델이 실제로 받는 값만
+     골라 주는 칩). 노드가 갖고 있는 같은 칸을 또 그리면 화면에 같은 설정이 둘이 되어
+     어느 쪽이 진짜인지 알 수 없고, 좁은 패널에서 '16' '1' 처럼 잘려 보이기까지 한다. */
+  //  길이·비율·해상도만 위 칩과 겹친다. 모델은 겹치지 않으니 그대로 둔다(검색 때문에).
+  var DUP = isVid ? { vidOpts:1 } : {};
+  var side=def.widgets.filter(function(w){ return !BLOCK_KEEP[w.t] && !DUP[w.k]; });
+  if(!side.length && !isVid){ closeOptbar(); return; }     // 옮길 게 없으면 열지 않는다
+  if(side.length) h+='<div class="ob-sec">설정</div>'
+    +'<div class="node ob-proxy" data-node="'+n.id+'" data-type="'+n.type+'"><div class="node-body">'
+    +side.map(function(w){ return widgetHTML(n,w); }).join('')
+    +'</div></div>';
+
+  body.innerHTML=h;
+}
+/* 사이드바 조작 — 값은 노드에 바로 쓰고 다시 그린다 */
+document.addEventListener('click',function(e){
+  var x=e.target.closest&&e.target.closest('#obClose'); if(x){ closeOptbar(); return; }
+  var c=e.target.closest&&e.target.closest('#optbar [data-ob]'); if(!c)return;
+  var n=(state.nodes||[]).find(function(y){ return y.id===_obNode; }); if(!n)return;
+  var k=c.getAttribute('data-ob');
+  if(k==='model'){ return; }                      // select 는 change 로 받는다
+  var v=c.getAttribute('data-v');
+  if(k==='sec') n.w.vsec=Number(v);
+  else if(k==='ar') n.w.vratio=v;
+  else if(k==='res') n.w.vres=v;
+  snapshot(); render(); renderOptbar();
+});
+document.addEventListener('change',function(e){
+  var s=e.target.closest&&e.target.closest('#optbar select[data-ob="model"]'); if(!s)return;
+  var n=(state.nodes||[]).find(function(y){ return y.id===_obNode; }); if(!n)return;
+  n.w.model=s.value; snapshot(); render(); renderOptbar();
+});
+
 /* 선분-선분 교차 */
 function segX(a,b,c,d){
   function ccw(p,q,r){ return (r.y-p.y)*(q.x-p.x) > (q.y-p.y)*(r.x-p.x); }
@@ -7101,6 +8066,8 @@ canvas.addEventListener('mousedown',function(e){
     var pn=state.nodes.find(function(x){return x.id===id;});
     if(pn&&pn.pinned){ if(!sel.has(id)){ if(!e.shiftKey) sel.clear(); sel.add(id); markSel(); } return; }
     if(!sel.has(id)){ if(!e.shiftKey) sel.clear(); sel.add(id); markSel(); }
+    //  영상 모델을 고르면 오른쪽 옵션 패널을 연다(다른 종류를 고르면 닫는다)
+    if(pn && optInSidebar(pn.type)) openOptbar(id); else closeOptbar();
     var w=screenToWorld(e.clientX,e.clientY);
     var offs={}; sel.forEach(function(sid){ var sn=state.nodes.find(function(x){return x.id===sid;}); if(sn)offs[sid]={dx:w.x-sn.x,dy:w.y-sn.y}; });
     drag={move:true,offs:offs,moved:false};
@@ -7109,6 +8076,8 @@ canvas.addEventListener('mousedown',function(e){
   if(nodeEl){
     var id2=nodeEl.dataset.node;
     if(!sel.has(id2)){ if(!e.shiftKey) sel.clear(); sel.add(id2); markSel(); }
+    var pn2=state.nodes.find(function(x){return x.id===id2;});
+    if(pn2 && optInSidebar(pn2.type)) openOptbar(id2);
     return;
   }
   if(e.altKey){
@@ -7280,7 +8249,7 @@ function nextNodeFor(node){
 function startConnect(fromNode,fromPort,type,toFixed){
   connect={ from:fromNode?{node:fromNode,port:fromPort}:null, type:type, toFixed:toFixed };
   var tmp=document.createElementNS('http://www.w3.org/2000/svg','path');
-  tmp.setAttribute('class','tmp'); tmp.setAttribute('stroke',PORT_COLORS[type]||'#eee');
+  tmp.setAttribute('class','tmp'); tmp.setAttribute('stroke',linkColor(type));
   edges.appendChild(tmp); connect.el=tmp;
 }
 window.addEventListener('mousemove',function(e){
@@ -7577,7 +8546,7 @@ canvas.addEventListener('drop',function(e){
 });
 
 /* 위젯 이벤트(위임) */
-canvas.addEventListener('input',function(e){
+function _nodeEv_input(e){
   var host=e.target.closest('.node'); if(!host)return;
   var n=state.nodes.find(function(x){return x.id===host.dataset.node;}); if(!n)return;
   // ControlNet 스택 per-type 슬라이더 (강도/시작/끝)
@@ -7590,8 +8559,8 @@ canvas.addEventListener('input',function(e){
   var k=e.target.dataset.w;
   if(k!=null){ n.w[k]=e.target.type==='checkbox'?e.target.checked:(e.target.type==='range'?+e.target.value:e.target.value);
     var num=host.querySelector('[data-num="'+k+'"]'); if(num)num.textContent=e.target.value; autosave(); }
-});
-canvas.addEventListener('change',function(e){
+}
+function _nodeEv_change(e){
   var host=e.target.closest('.node'); if(!host)return;
   var n=state.nodes.find(function(x){return x.id===host.dataset.node;}); if(!n)return;
   // 영상 노드 내장 설정(길이·비율) 드롭다운
@@ -7615,8 +8584,8 @@ canvas.addEventListener('change',function(e){
     e.target.value='';
     addOmniRefFiles(n, fs);
   }
-});
-canvas.addEventListener('click',function(e){
+}
+function _nodeEv_click(e){
   var host=e.target.closest('.node');
   if(e.target.closest('[data-collapse]')&&host){
     var nC=state.nodes.find(function(x){return x.id===host.dataset.node;});
@@ -7679,9 +8648,20 @@ canvas.addEventListener('click',function(e){
   if(_cz){ var pp=(_cz.getAttribute('data-cnzoom')||'').split('|'); var zurl=n2.w.cnPreviews&&n2.w.cnPreviews[pp[1]]; if(zurl && String(zurl).indexOf('data:')===0) openImageLightbox(zurl, pp[1]); return; }
   // 노드의 "Execute Node" 는 그 노드만 실행한다. 예전엔 runQueue() 를 그냥 불러서
   // 캔버스의 모든 모델 노드가 함께 생성되고 전부 과금됐다.
+  if(e.target.closest('[data-openopts]')){
+    var _on=e.target.closest('.node'); if(_on) openOptbar(_on.dataset.node); return;
+  }
   if(e.target.closest('[data-runnode]')){
     var _rn=e.target.closest('.node');
     runQueue(_rn?_rn.dataset.node:undefined); return;
+  }
+  /* 제작 중 취소. 여기서는 "그만 기다린다" 는 표시만 세운다 —
+     실제로 멈추고 환불하는 것은 폴링 루프가 이 표시를 보고 한다(tellCancel).
+     여기서 바로 서버를 부르면, 아직 접수 번호가 안 온 구간에서 부를 것이 없어 조용히 지나간다. */
+  if(e.target.closest('[data-cancelrun]')){
+    var _xn=e.target.closest('.node'); var _xid=_xn&&_xn.dataset.node;
+    if(_xid && _runningNodes[_xid]) _cancelWant[_xid]=1;
+    return;
   }
   if(e.target.closest('[data-imggen]')){ generateImageNode(n2); return; }
   if(e.target.closest('[data-mesh3d]')){ generateMesh3dNode(n2); return; }
@@ -7908,26 +8888,46 @@ canvas.addEventListener('click',function(e){
     if(is5k && !uIsImg){ try{ toast('5K 영상은 매우 오래 걸리고(수 시간+) 브라우저가 5K 인코딩을 못 하면 자동으로 낮춰집니다.'); }catch(_){} }
     /* 원본 크기를 먼저 재서 "고른 대로 나오는지" 를 알린다. 말없이 다른 크기를 주면
        사용자는 4K 를 받은 줄 안다(320px 원본에서 4K 는 실제로 2560px 까지만 간다). */
-    (function(){
-      try{
-        var probe = uIsImg ? new Image() : document.createElement('video');
-        probe.crossOrigin='anonymous';
-        var onMeta=function(){
-          var iw = uIsImg ? (probe.naturalWidth||0) : (probe.videoWidth||0);
-          var ih = uIsImg ? (probe.naturalHeight||0) : (probe.videoHeight||0);
-          var pl = upPlan(iw, ih, uQ.px);
-          if(!pl) return;
-          if(pl.already) toast('원본이 이미 '+uQ.label+' 이상입니다 — 크기는 '+pl.w+'×'+pl.h+' 그대로, 선명도만 올립니다');
-          else if(pl.capped) toast('원본이 작아 '+uQ.label+' 까지는 못 올립니다 — '+pl.w+'×'+pl.h+' 로 만듭니다 (최대 8배)');
-        };
-        if(uIsImg){ probe.onload=onMeta; probe.src=sameOriginMedia(n2.w.vid); }
-        else { probe.preload='metadata'; probe.muted=true;
-               probe.addEventListener('loadedmetadata', onMeta, {once:true});
-               probe.src=sameOriginMedia(n2.w.vid); }
-      }catch(_e){}
-    })();
+    /* 원본 크기·길이를 먼저 재고 시작한다. 두 가지에 쓴다:
+         ① "고른 대로 나오는지" 안내 (320px 원본에서 4K 는 실제로 2560px 까지만 간다)
+         ② 요금 — 영상은 초당 과금이라 길이를 알아야 잔액을 확인할 수 있다 */
+    function upMeta(){
+      return new Promise(function(res){
+        var done=false, fin=function(iw,ih,dur){ if(done)return; done=true; res({ iw:iw||0, ih:ih||0, dur:dur||0 }); };
+        try{
+          var probe = uIsImg ? new Image() : document.createElement('video');
+          probe.crossOrigin='anonymous';
+          var onMeta=function(){
+            var iw = uIsImg ? (probe.naturalWidth||0) : (probe.videoWidth||0);
+            var ih = uIsImg ? (probe.naturalHeight||0) : (probe.videoHeight||0);
+            var pl = upPlan(iw, ih, uQ.px);
+            if(pl){
+              if(pl.already) toast('원본이 이미 '+uQ.label+' 이상입니다 — 크기는 '+pl.w+'×'+pl.h+' 그대로, 선명도만 올립니다');
+              else if(pl.capped) toast('원본이 작아 '+uQ.label+' 까지는 못 올립니다 — '+pl.w+'×'+pl.h+' 로 만듭니다 (최대 8배)');
+            }
+            fin(iw, ih, uIsImg?0:(probe.duration||0));
+          };
+          setTimeout(function(){ fin(0,0,0); }, 12000);     // 못 재도 진행은 한다
+          if(uIsImg){ probe.onload=onMeta; probe.onerror=function(){ fin(0,0,0); }; probe.src=sameOriginMedia(n2.w.vid); }
+          else { probe.preload='metadata'; probe.muted=true;
+                 probe.addEventListener('loadedmetadata', onMeta, {once:true});
+                 probe.onerror=function(){ fin(0,0,0); };
+                 probe.src=sameOriginMedia(n2.w.vid); }
+        }catch(_e){ fin(0,0,0); }
+      });
+    }
+    upMeta().then(function(meta){
+    /* 화질 올리기도 크레딧이 든다. 예전에는 무료였고 그 사실이 문구에도 박혀 있었다
+       (무료·크레딧 0 이라고 적혀 있었다). 방침이 바뀌어 과금하므로, 시작 전에 잔액을 확인하고
+       (부족하면 시작조차 하지 않는다 — 몇 시간 돌린 뒤 청구가 막히면 그 시간이 통째로 헛수고다)
+       끝난 뒤 서버에 기록해 실제로 차감되게 한다. 금액은 서버가 정한다. */
+    var uModel = uIsImg ? UPSCALE_IMG : UPSCALE_VID;
+    var uUnits = uIsImg ? 1 : Math.max(1, Math.round(Math.min(meta.dur||0, 1800)));
+    var uRes = uIsImg ? null : (uQ.px>=3840?'4K':uQ.px>=1920?'1080p':'720p');
+    return creditGate({ model:uModel, units:uUnits, kind:uIsImg?'image':'video', res:uRes }).then(function(blocked){
+      if(blocked){ n2.w.upscaling=false; render(); return; }
     n2.w.upscaling=true; n2.w.upPct=0; render();
-    toast((uIsImg?'이미지':'영상')+' 화질 올리는 중… '+uQ.label+(uFast?' · 빠르게':' · 최고 화질')+' (자체 모델 · 무료)');
+    toast((uIsImg?'이미지':'영상')+' 화질 올리는 중… '+uQ.label+(uFast?' · 빠르게':' · 최고 화질')+' (자체 모델)');
     /* 30분짜리는 몇 시간이 걸릴 수 있다 — "몇 %" 만 보여 주면 언제 끝나는지 알 수 없다.
        실제 프레임 처리 속도로 남은 시간을 재서 같이 보여 준다. */
     function uEta(s){ s=Math.round(s||0); if(s<60)return s+'초';
@@ -7942,8 +8942,16 @@ canvas.addEventListener('click',function(e){
       if(inf&&inf.sr===false) t+=' · 고속 모드';
       msg.textContent=t; }
     var uJob = uIsImg ? upscaleImageURL(n2.w.vid,uScale,uOpts) : upscaleVideoURL(n2.w.vid,uScale,uProg,uOpts);
-    uJob.then(function(res){ n2.w.upscaling=false; n2.w.upscaled=res.url; n2.w.upKind=res.kind; n2.w.upDim=res.dim; render(); toast(uQ.label+' 완료 · '+res.dim+' (크레딧 0)'); })
+    return uJob.then(function(res){
+          n2.w.upscaling=false; n2.w.upscaled=res.url; n2.w.upKind=res.kind; n2.w.upDim=res.dim; render();
+          /* 성공했을 때만 기록한다 — 실패한 업스케일에 요금을 물리지 않는다.
+             금액은 서버(_pricing)가 정하고, 여기서는 무엇을 얼마나 썼는지만 보낸다. */
+          try{ recordCost('upscale', uModel, uUnits, uIsImg?'image':'video', uRes, false, 0, '', [], res.url, 0, false, false, '1:1', 0, '', '', ''); }catch(_e){}
+          toast(uQ.label+' 완료 · '+res.dim);
+        })
         .catch(function(err){ n2.w.upscaling=false; render(); toast('업스케일 실패: '+String(err&&err.message||err).slice(0,70)); });
+    });
+    });
     return;
   }
   if(e.target.closest('[data-dl]')){
@@ -7965,7 +8973,7 @@ canvas.addEventListener('click',function(e){
       .catch(function(){ trigger(src,false); });   // 릴레이 실패 시 원본 링크로 폴백
     return;
   }
-});
+}
 
 /* 콤보 드롭다운 */
 var dd=document.getElementById('dd'), ddCtx=null;
@@ -7985,6 +8993,12 @@ function ddFilter(q){
     }
   });
   if(lastHead) lastHead.style.display=headHasVisible?'':'none';
+  /* 다 걸러져 아무것도 없으면 빈 상자만 남아 "고장났나?" 싶다 — 그렇게 두지 않는다. */
+  var none=dd.querySelector('.dd-none');
+  var any=Array.prototype.slice.call(dd.querySelectorAll('.di')).some(function(el){ return el.style.display!=='none'; });
+  if(!any){ if(!none){ none=document.createElement('div'); none.className='dd-none';
+      none.textContent='찾는 모델이 없습니다'; dd.appendChild(none); } none.style.display=''; }
+  else if(none) none.style.display='none';
 }
 /* 모델 목록 위젯의 opts 문자열 → 실제 배열. 콤보 순환·드롭다운·검색이 모두 이 표 하나를 본다
    (예전엔 세 곳에 같은 삼항 사슬이 흩어져 있어, 목록을 추가할 때 한 곳을 빠뜨리기 쉬웠다). */
@@ -8014,8 +9028,11 @@ function openDD(anchor,n,k){
   if(isModelList){
     html+='<input class="dd-search" type="text" placeholder="Search" spellcheck="false" autocomplete="off" style="position:sticky;top:0;z-index:1;display:block;width:calc(100% - 12px);margin:6px;padding:6px 9px;border-radius:7px;border:1px solid #34363e;background:#151517;color:#e6e6ea;font-size:11px;outline:none;font-family:inherit;box-sizing:border-box;">';
     var list=availModels(MODEL_LISTS[wdef.opts]()), cat='';
-    list.forEach(function(m){ if(m[0]!==cat){cat=m[0];html+='<div class="dh">'+cat+'</div>';} html+='<div class="di" data-v="'+esc(m[1])+'">'+esc(m[1])+'</div>'; });
-  } else { comboOpts(n,k).forEach(function(o){ html+='<div class="di" data-v="'+esc(o)+'">'+esc(o)+'</div>'; }); }
+    var _cur=String(n.w[k]||'');
+    list.forEach(function(m){ if(m[0]!==cat){cat=m[0];html+='<div class="dh">'+cat+'</div>';}
+      html+='<div class="di'+(m[1]===_cur?' on':'')+'" data-v="'+esc(m[1])+'">'+esc(m[1])+'</div>'; });
+  } else { var _cv=String(n.w[k]||'');
+    comboOpts(n,k).forEach(function(o){ html+='<div class="di'+(o===_cv?' on':'')+'" data-v="'+esc(o)+'">'+esc(o)+'</div>'; }); }
   dd.innerHTML=html;
   var r=anchor.getBoundingClientRect();
   dd.style.left=Math.min(r.left,innerWidth-230)+'px'; dd.style.top=Math.min(r.bottom+4,innerHeight-300)+'px';
@@ -8079,6 +9096,21 @@ function showCtx(x,y,items){
   ctxEl.style.left=Math.min(x,innerWidth-r.width-8)+'px';
   ctxEl.style.top=Math.min(y,innerHeight-r.height-8)+'px';
 }
+/* ── 노드 위젯 이벤트를 사이드바에도 붙인다 ──
+   위젯 처리기는 원래 canvas 에만 걸려 있었다. 설정이 오른쪽 사이드바로 옮겨 가면서
+   그 안의 버튼·콤보·입력이 전부 죽었다(실행 버튼조차 안 먹혔다 — 실측).
+   처리기 자체는 e.target.closest('.node') 로 노드를 찾으므로 어디에 걸려 있든 같게 동작한다.
+   그래서 함수로 빼서 두 곳에 건다. 두 영역은 겹치지 않으니 이중 실행은 없다. */
+canvas.addEventListener('click', _nodeEv_click);
+canvas.addEventListener('change', _nodeEv_change);
+canvas.addEventListener('input', _nodeEv_input);
+(function(){
+  var ob=document.getElementById('optbar'); if(!ob)return;
+  ob.addEventListener('click', _nodeEv_click);
+  ob.addEventListener('change', _nodeEv_change);
+  ob.addEventListener('input', _nodeEv_input);
+})();
+
 canvas.addEventListener('contextmenu',function(e){
   e.preventDefault();
   var linkEl=e.target.closest&&e.target.closest('path.link');
@@ -8124,6 +9156,10 @@ canvas.addEventListener('contextmenu',function(e){
   var cats={};
   Object.keys(DEFS).forEach(function(t){
     if(t==='reference')return;   // 옴니 레퍼런스 제거 (이미지/영상 레퍼런스로 대체)
+    /* 영상 설정 노드는 더 이상 새로 만들지 않는다 — 길이·비율·해상도는 오른쪽 옵션
+       사이드바로 옮겼다. 이미 그 노드가 들어 있는 옛 그래프는 그대로 열리고 그대로 우선한다
+       (지워 버리면 저장된 워크플로우의 설정이 통째로 날아간다). */
+    if(t==='video')return;
     var c=DEFS[t].cat; (cats[c]=cats[c]||[]).push({label:DEFS[t].title,fn:(function(tt){return function(){ addNode(tt,w.x,w.y); };})(t)});
   });
   var catSub=Object.keys(cats).map(function(c){ return {label:c,sub:cats[c]}; });
@@ -8162,6 +9198,7 @@ function buildSearch(q){
   var html='';
   Object.keys(DEFS).forEach(function(t){
     if(t==='reference')return;   // 옴니 레퍼런스 숨김
+    if(t==='video')return;       // 영상 설정 → 오른쪽 옵션 사이드바로 이동
     var d=DEFS[t], label=(d.cat+' '+d.title).toLowerCase();
     if(label.indexOf(q)>-1||t.indexOf(q)>-1)
       html+='<div class="si" data-t="'+t+'"><span>'+esc(d.title)+'</span><small>'+esc(d.cat)+'</small></div>';
@@ -8379,6 +9416,124 @@ function clearExecOne(id){
   state.links.forEach(function(l,idx){ if(l.from===id){
     var p=edges.querySelector('path.link[data-idx="'+idx+'"]'); if(p)p.classList.remove('exec'); } });
 }
+/* ══════ 제작 진행률 · 취소 ══════
+   막대 하나로 0→100% 를 보여 주되, 앞의 30% 는 아직 아무것도 안 보낸 구간이다.
+   그 동안만 [취소] 가 있고, 30% 를 넘는 순간 제공사로 나가면서 버튼이 사라진다.
+
+   왜 이렇게 하나 — "취소했는데 왜 돈이 나갔냐" 를 애초에 만들지 않기 위해서다.
+   확인해 본 제공사들의 취소 규격이 하나같이 "아직 시작 안 한 작업만 취소된다" 고
+   못 박는다(fal·Luma·ModelArk). Kling·Hailuo·FLUX·Veo·Grok 은 취소 규격 자체가 없다.
+   즉 한 번 보내고 나면 되돌린다는 말을 지킬 수 있는 방법이 없다.
+   그래서 되돌릴 수 있는 구간에서만 되돌릴 수 있게 하고, 그 뒤로는 버튼을 없앤다 —
+   누를 수 있는데 안 되는 것보다, 없는 편이 정직하다.
+
+   예전엔 이 대기가 10초짜리 별도 화면("제작 대기")이었다. 매번 10초를 기다려야 해서
+   정상 사용이 더 불편했고, 그래서 없앴다. 지금은 진행률 막대 안에 접혀 들어가 있고
+   3초다 — 잘못 누른 것을 알아채기엔 충분하고, 기다린다는 느낌이 들 만큼 길지는 않다.
+
+   그래도 30% 뒤의 취소 경로(제공사 중지 + 환불)는 서버에 그대로 둔다.
+   29.9% 에 누른 취소가 제출과 겹치는 순간이 있고, 그때 기댈 곳이 있어야 한다. */
+var _live={}, _liveSt={};
+/* 보내기 전에 붙잡는 시간. 이 값만 바꾸면 대기 길이가 바뀐다(막대의 30% 지점은 그대로). */
+var HOLD_MS=3000, HOLD_PCT=30;
+/* 취소 상태 — 노드 하나당 하나. 폴링 루프와 제출 응답 양쪽이 같은 값을 본다.
+   _cancelWant : [취소] 를 눌렀다(아직 접수 번호가 없을 수도 있다)
+   _taskOf     : 그 노드가 지금 붙들고 있는 작업 주소(접수 번호). 취소 요청에 이게 필요하다. */
+var _cancelWant={}, _taskOf={};
+function CancelledError(){ this.name='CancelledError'; this.message='취소했습니다'; this.__cancel=true; }
+CancelledError.prototype=Object.create(Error.prototype);
+function isCancel(e){ return !!(e && e.__cancel); }
+/* 서버에 취소를 알린다. 작업 주소를 아직 모르면 알릴 것도 없다(=제출 전 취소, 진짜 0원).
+   응답의 안내 문구를 그대로 띄운다 — "돌려줬다" 와 "제공사는 못 멈췄다" 는 다른 사실이라 둘 다 본다. */
+/* key 를 따로 받는 이유: 부르는 자리에 따라 이미 stopLive 가 지나가 번호가 지워졌을 수 있다.
+   지워진 뒤에 읽으면 "접수 전이라 요금이 없다" 고 잘못 말하게 된다 — 미리 챙긴 값을 넘긴다. */
+function tellCancel(id, key){
+  key=key||_taskOf[id];
+  if(!key){ toast('취소했습니다 — 제공사에 접수되기 전이라 요금이 발생하지 않습니다'); return Promise.resolve(); }
+  return fetch('/api/studio/cancel',{ method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({ taskKey:key }) })
+    .then(function(r){ return r.json(); })
+    .then(function(j){ toast(j&&j.message ? String(j.message).slice(0,160) : '취소했습니다'); })
+    .catch(function(){ toast('취소했지만 서버에 알리지 못했습니다 — 잠시 후 크레딧을 확인해 주세요'); });
+}
+/* 진행률 막대 하나로 두 구간을 이어 그린다.
+     0 → 30%  보내기 전. 우리 브라우저 안에서만 시간이 간다. 여기서만 취소가 된다.
+    30 → 95%  실제 제작. 제공사 API 는 "몇 % 됐다" 를 알려 주지 않아서, 지나간 시간을
+              그 모델이 보통 걸리는 시간으로 나눠 어림한다.
+   뒤 구간이 어림값이라 예전엔 "(예상)" 이라고 붙여 두었는데, 진행률은 원래 다 어림이라
+   굳이 매 초 되뇔 말이 아니었다 — 숫자만 남긴다.
+   끝나기 전에 100% 로 보이면 안 되므로 95% 에서 멈춰 두고, 끝나면 그때 지운다.
+   phase 를 startLive 밖(_liveSt)에 두는 이유: 제출로 넘어가는 순간을 실행 흐름이
+   알려 줘야 하는데(beginSend), 그 함수는 이 타이머 밖에 있다. */
+function startLive(id){
+  stopLive(id);
+  delete _cancelWant[id]; delete _taskOf[id];
+  var n=(state.nodes||[]).find(function(x){ return x.id===id; });
+  var secs=(n&&effVideoSec(n))||8;
+  var st={ phase:'hold', t0:Date.now(), expect:Math.max(20000, secs*9000) };   // 8초 영상이면 대략 70초쯤
+  _liveSt[id]=st;
+  _live[id]=setInterval(function(){
+    /* 끝났으면 스스로 걷는다.
+       처음엔 생성 promise 의 then/catch 에서만 지웠는데, 실제로 돌려 보니 어떤 경로로
+       끝나면 막대가 그대로 남아 "영원히 제작 중" 처럼 보였다(실측). 끝나는 길이 여러 갈래라
+       그 중 하나만 잡아서는 새는 곳이 생긴다 — 그래서 "이 노드가 아직 실행 중인가" 라는
+       하나의 사실에 묶는다. 어느 길로 끝나든 _runningNodes 에서 빠지는 건 같다. */
+    if(!_runningNodes[id]){ stopLive(id); return; }
+    var el=document.getElementById('nd-'+id); if(!el)return;
+    var body=el.querySelector('.node-body'); if(!body)return;
+    var box=body.querySelector('.run-live');
+    if(!box){
+      box=document.createElement('div'); box.className='run-live';
+      box.innerHTML='<div class="rl-top"><span>제작 중</span>'
+        +'<span><span class="rl-pct">0%</span> '
+        +'<button class="rl-x" data-cancelrun>취소</button></span></div>'
+        +'<div class="rl-bar"><i></i></div>'
+        +'<div class="rl-note">지금 취소하면 요금이 발생하지 않습니다.</div>';
+      body.appendChild(box);
+    }
+    var pct;
+    if(st.phase==='hold'){
+      pct=Math.min(HOLD_PCT, Math.round((Date.now()-st.t0)/HOLD_MS*HOLD_PCT));
+    }else{
+      pct=HOLD_PCT+Math.min(95-HOLD_PCT, Math.round((Date.now()-st.t0)/st.expect*(95-HOLD_PCT)));
+      /* 보낸 뒤에는 취소와 안내를 같이 걷는다. 여기서 남겨 두면 "누를 수는 있는데
+         제공사는 안 멈추는" 버튼이 된다 — 그게 제일 나쁜 상태다. */
+      var xb=box.querySelector('.rl-x'); if(xb) xb.remove();
+      var nt=box.querySelector('.rl-note'); if(nt) nt.remove();
+    }
+    if(_cancelWant[id]){
+      box.querySelector('.rl-top').firstChild.textContent='취소하는 중';
+      var xb2=box.querySelector('.rl-x'); if(xb2){ xb2.disabled=true; xb2.textContent='취소 중…'; }
+    }
+    box.querySelector('.rl-pct').textContent=pct+'%';
+    box.querySelector('.rl-bar i').style.width=pct+'%';
+  }, 100);   // 앞 구간이 3초뿐이라 300ms 로는 숫자가 뚝뚝 끊겨 보인다
+}
+/* 보내기 전 대기 — 여기를 지나야 제공사로 나간다.
+   기다리는 동안 취소가 눌리면 그대로 던진다(= 아무것도 안 보낸 채로 끝난다).
+   ⚠ 마지막에 한 번 더 본다. 3초가 끝나는 그 찰나에 누른 취소를 흘려보내면
+     "눌렀는데 그대로 나갔다" 가 되고, 그건 이 구간을 둔 이유를 통째로 무너뜨린다. */
+function holdBeforeSend(id){
+  return new Promise(function(res, rej){
+    var t0=Date.now();
+    (function tick(){
+      if(_cancelWant[id]) return rej(new CancelledError());
+      if(Date.now()-t0>=HOLD_MS){
+        if(_cancelWant[id]) return rej(new CancelledError());
+        var st=_liveSt[id]; if(st){ st.phase='run'; st.t0=Date.now(); }
+        return res();
+      }
+      setTimeout(tick, 60);
+    })();
+  });
+}
+function stopLive(id){
+  //  끝났으면 취소 표시도 같이 걷는다 — 남겨 두면 다음 실행이 시작하자마자 취소된다.
+  delete _cancelWant[id]; delete _taskOf[id]; delete _liveSt[id];
+  if(_live[id]){ clearInterval(_live[id]); delete _live[id]; }
+  var el=document.getElementById('nd-'+id); if(!el)return;
+  var box=el.querySelector('.run-live'); if(box)box.remove();
+}
 function runQueue(onlyId){
   // 노드 지정 실행끼리는 서로 독립이라 동시에 돌린다.
   //  같은 노드를 두 번 돌리는 것만 막는다(중복 과금·결과 덮어쓰기 방지).
@@ -8513,16 +9668,25 @@ function runQueue(onlyId){
                프레임으로 따로 받는다). 나머지가 순서대로 레퍼런스 1, 2, 3… 이 된다.
                이 순서가 곧 제공사에 실리는 reference_image 순서이고, 프롬프트의 번호와 맞물린다. */
             var _vno=0;
+            /*  ⚠ 번호는 "실제로 프레임으로 나가는 것" 만 프레임으로 세야 한다.
+                ffImg 는 첫 프레임 포트가 비면 레퍼런스 첫 장으로 물러난다(refImage 용 폴백).
+                그걸 프레임으로 세던 탓에, 첫 프레임을 안 이은 흔한 경우에 번호가 한 칸씩
+                밀렸다 — 회원이 "레퍼런스 1" 이라고 쓰면 있지도 않은 "첫 프레임" 으로 바뀌고,
+                "레퍼런스 2" 가 첫 번째 사진을 가리켰다. 레퍼런스가 통째로 안 먹던 자리다.
+                제공사에 first_frame 으로 실제 나가는 것은 threeD 뿐이다(아래 firstFrame 참조).
+                마지막 프레임도 첫 프레임이 있을 때만 실린다 — 서버 규칙과 똑같이 센다. */
+            var ffSent = threeD || null;
+            var lfSent = (ffSent && lfImg) ? lfImg : null;
             //  refLabels 는 refImages 안에서의 "레퍼런스 자리"(@Image 순서)를 잡는 용도라
             //  프레임은 비워 둔다. 회원에게 보이는 번호는 아래 refSlots 가 정한다.
             var refLabelsV = refList.map(function(u){
-              if(u===ffImg || u===lfImg) return '';
+              if(u===ffSent || u===lfSent) return '';
               return '레퍼런스 '+(++_vno);
             });
             //  화면에 띄운 번호 그대로: 첫 프레임 → 마지막 프레임 → 레퍼런스 붙인 순서
             var refSlotsV=[];
-            if(ffImg) refSlotsV.push('first');
-            if(lfImg) refSlotsV.push('last');
+            if(ffSent) refSlotsV.push('first');
+            if(lfSent) refSlotsV.push('last');
             for(var _si=0;_si<_vno;_si++) refSlotsV.push('ref');
             var _vWarn=refMentionProblem(basePrompt, refSlotsV.length);
             if(_vWarn){ try{ toast(_vWarn); }catch(_e){} }
@@ -8584,6 +9748,9 @@ function runQueue(onlyId){
                 });
               }
             }).then(function(){
+            startLive(id);              // 막대가 0% 부터 오른다 — 앞 30% 는 아직 안 보낸 구간
+            return holdBeforeSend(id);  // 여기를 지나야 제공사로 나간다(그 전엔 취소가 진짜 0원)
+            }).then(function(){
             return generateWithAPI({   // 영상은 ControlNet 미적용(이미지 노드 전용)
               model:chosenModel,
               camera: camSel,
@@ -8614,11 +9781,11 @@ function runQueue(onlyId){
               cnSteps: (n.w.cnSteps==null?28:n.w.cnSteps), cnGuidance: (n.w.cnGuidance==null?3.5:n.w.cnGuidance),
               cfg:n.w.cfg, seed:n.w.seed,
               __node:n   // 진행 중 statusUrl 기록용(서버 전송에서는 제외됨)
-            }); }).then(function(res){
+            }); }).then(function(res){ stopLive(id);
               if(!res || res.error){   // 실제 생성 실패 — 데모로 감추지 않고 원인 표시
                 var msg=(res&&res.error)||'생성 실패';
                 liveNodes(outIds).forEach(function(o){ o.w.generating=false; o.w.error=msg; });
-                var info=showGenError(msg, (res&&res.provider)||providerOf(chosenModel), chosenModel);   // 원인 해설 팝업
+                var info=showGenError(msg, (res&&res.provider)||providerOf(chosenModel), chosenModel, res&&res.stageDiag);   // 원인 해설 + 어디서 끊겼는지
                 toast((info&&info.title)||('생성 실패: '+String(msg).slice(0,80)));
                 render(); step(); return;
               }
@@ -8650,7 +9817,20 @@ function runQueue(onlyId){
                 return o.w.lastImg ? Promise.resolve() : extractLastFrame(o);
               })).then(function(){ render(); step(); });
             }).catch(function(e){
+              var _ck=_taskOf[id];                 // stopLive 가 지우기 전에 챙긴다
+              stopLive(id);
               var em=String(e&&e.message||e||'오류');
+              /* 취소는 실패가 아니다. 같은 자리로 떨어지지만 하는 일이 다르다 —
+                 빨간 오류 상자를 띄우면 회원이 "내가 취소했는데 왜 오류지?" 하게 된다.
+                 여기서 비로소 서버에 알린다(제공사 중지 시도 + 환불). 접수 번호가 없으면
+                 알릴 것도 없다 = 제공사에 들어가기 전에 멈춘 것이다. */
+              if(isCancel(e)){
+                liveNodes(outIds).forEach(function(o){ o.w.generating=false; o.w.error=null; });
+                var _mc=liveNode(id); if(_mc) _mc.w.pendingUrl=null;
+                render();
+                tellCancel(id, _ck);
+                step(); return;
+              }
               liveNodes(outIds).forEach(function(o){ o.w.generating=false; o.w.error=em; });
               var _mn3=liveNode(id); if(_mn3) _mn3.w.pendingUrl=null;
               render();                                        // 스피너 해제를 무조건 먼저
@@ -8794,6 +9974,7 @@ function buildLib(q){
   var cats={};
   Object.keys(DEFS).forEach(function(t){
     if(t==='reference')return;   // 옴니 레퍼런스 숨김
+    if(t==='video')return;       // 영상 설정 → 오른쪽 옵션 사이드바로 이동
     var d=DEFS[t];
     if(q && d.title.toLowerCase().indexOf(q)===-1 && d.cat.toLowerCase().indexOf(q)===-1) return;
     (cats[d.cat]=cats[d.cat]||[]).push(t);
@@ -9798,6 +10979,7 @@ function showPlanGate(){
       MAX_NODES=Number(d&&d.maxNodes)||0;                      // 요금제별 최대 노드 수
       if(u && u.id){ UID='u'+String(u.id); paintUserChip(u); }
       var isAdmin=u && u.role==='admin';
+      try{ window.__IS_ADMIN = !!isAdmin; }catch(_a){}   // 실패 화면의 "통로 찾기" 단추가 이 값을 본다
       if(u && u.id && !isAdmin && Number(u.hasPlan)!==1){ showPlanGate(); }  // 요금제 미활성 → 하드 게이트
       loadAllForUser();
     })

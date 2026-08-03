@@ -15,7 +15,14 @@ async function load(file) {
     entryPoints: [file], bundle: true, write: false, format: 'cjs',
     platform: 'neutral', target: 'es2022',
   })
-  const sandbox = { module: { exports: {} }, exports: {}, require: require_, console }
+  //  워커 런타임에는 있고 맨 vm 컨텍스트에는 없는 표준 전역들 — 번들에 딸려 들어온 모듈이
+  //  최상위에서 이것들을 쓰면(예: _utils 의 new TextEncoder()) 없다고 죽는다.
+  //  과금 계산 자체와는 무관하니, 런타임과 같은 모양으로 채워 두고 계산만 검사한다.
+  const sandbox = {
+    module: { exports: {} }, exports: {}, require: require_, console, AbortController,
+    Response, Request, Headers, URL, TextEncoder, TextDecoder, crypto, fetch,
+    btoa, atob, setTimeout, clearTimeout, structuredClone,
+  }
   sandbox.module.exports = sandbox.exports
   vm.runInNewContext(out.outputFiles[0].text, sandbox, { filename: file })
   return sandbox.module.exports

@@ -1,3 +1,6 @@
+/* ⚠ 실패를 502 로 돌려주면 회원은 그 이유를 못 본다 — Cloudflare 가 5xx 응답을
+   자기 오류 페이지("Bad gateway")로 바꿔치기하기 때문이다(generate.js FAIL 주석 참조).
+   요청은 정상 처리됐으므로 200 으로 돌려주고, 실패는 본문의 error 로 알린다. */
 import { Env, json, resolveDB, ensureSchema, getSessionUser, getSetting, applyBalance } from '../_utils'
 import { getUsdKrw, CREDIT_KRW } from './_pricing'
 
@@ -120,7 +123,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         } catch { /* 무시 */ }
       }
       const j: any = await r.json().catch(() => ({}))
-      if (!r.ok) return json({ ok: false, error: 'ModelArk 오류: ' + String(j?.error?.message || j?.message || r.status).slice(0, 200) }, 502)
+      if (!r.ok) return json({ ok: false, error: 'ModelArk 오류: ' + String(j?.error?.message || j?.message || r.status).slice(0, 200) }, 200)
       prompt = String(j?.choices?.[0]?.message?.content || '').trim()
     } else if (isGemini) {
       if (!googleKey) return json({ ok: false, error: 'Gemini(Google) API 키가 설정되지 않았습니다.' }, 400)
@@ -141,7 +144,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       // 저장해 둔 워크플로우에 종료된 모델 ID 가 남아 있으면 404 가 난다 → 현행 모델로 1회 폴백.
       if (r.status === 404 && gm !== GEMINI_FALLBACK) r = await callGemini(GEMINI_FALLBACK)
       const j: any = await r.json().catch(() => ({}))
-      if (!r.ok) return json({ ok: false, error: 'Gemini 오류: ' + String(j?.error?.message || r.status).slice(0, 160) }, 502)
+      if (!r.ok) return json({ ok: false, error: 'Gemini 오류: ' + String(j?.error?.message || r.status).slice(0, 160) }, 200)
       prompt = (j?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('').trim()
     } else {
       if (!openaiKey) return json({ ok: false, error: 'OpenAI(GPT) API 키가 설정되지 않았습니다.' }, 400)
@@ -160,10 +163,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       // 은퇴한 모델 ID(예전에 저장한 워크플로우)면 model_not_found 로 404/400 → 현행 모델로 1회 폴백.
       if ((r.status === 404 || r.status === 400) && gpt !== GPT_FALLBACK) r = await callGpt(GPT_FALLBACK)
       const j: any = await r.json().catch(() => ({}))
-      if (!r.ok) return json({ ok: false, error: 'GPT 오류: ' + String(j?.error?.message || r.status).slice(0, 160) }, 502)
+      if (!r.ok) return json({ ok: false, error: 'GPT 오류: ' + String(j?.error?.message || r.status).slice(0, 160) }, 200)
       prompt = String(j?.choices?.[0]?.message?.content || '').trim()
     }
-    if (!prompt) return json({ ok: false, error: '응답이 비어 있습니다.' }, 502)
+    if (!prompt) return json({ ok: false, error: '응답이 비어 있습니다.' }, 200)
 
     // 성공 시에만 크레딧 차감
     if (db && me && cost > 0) {

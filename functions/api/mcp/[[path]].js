@@ -17,7 +17,7 @@
 import { onRequest as generateApi, CAMERA_PRESETS, effectiveUnits } from "../generate.js";
 import { resolveDB, ensureSchema, getUserByMcpToken } from "../_utils";
 import { getUserByAccessToken } from "../oauth/_oauth";
-import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage, MODEL_COST, PROV_LABEL } from "../studio/_pricing";
+import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage, resolveCnSurcharge, MODEL_COST, PROV_LABEL, LEASE_SR } from "../studio/_pricing";
 import { findCharacter, listCharacters } from "../studio/characters";
 import { ensureApiKeysSchema, beginApiCall, finishApiCall, attachApiCallTask, refundFailedTask } from "../_apikeys";
 
@@ -73,8 +73,12 @@ const CATALOG = Object.keys(MODEL_COST).map((name) => {
 // 3D('3d')·프롬프트 LLM('tok') 은 생성 도구가 아니므로 MCP 카탈로그에서 제외한다.
 //  (단가표에는 관리자 화면 표시를 위해 들어 있다)
 const GEN_UNITS = { img: 1, sec: 1 };
-const VIDEO_CATALOG = CATALOG.filter((x) => GEN_UNITS[x.unit] && x.kind === "video" && x.provider !== "music");
-const IMAGE_CATALOG = CATALOG.filter((x) => GEN_UNITS[x.unit] && x.kind === "image");
+/* 단가표에는 있지만 "프롬프트로 생성하는 모델" 이 아닌 것들 — 자기 전용 도구가 따로 있다.
+   여기를 안 거르면 generate_image / generate_video 의 모델 목록에 섞여 들어가고,
+   그걸 골라 부르면 엉뚱하게 돈다(화질 올리기를 텍스트→영상으로 부르는 식). */
+const NON_GEN_PROV = { upscale: 1, lease: 1, falcontrol: 1 };
+const VIDEO_CATALOG = CATALOG.filter((x) => GEN_UNITS[x.unit] && x.kind === "video" && x.provider !== "music" && !NON_GEN_PROV[x.provider]);
+const IMAGE_CATALOG = CATALOG.filter((x) => GEN_UNITS[x.unit] && x.kind === "image" && !NON_GEN_PROV[x.provider]);
 
 // 예전 MCP 가 쓰던 짧은 이름 → 표시명 (기존 커넥터 호환)
 const LEGACY_ALIAS = {
@@ -230,6 +234,49 @@ const TOOLS = [
     name: "list_models",
     description: "사용 가능한 AI 생성 모델과 각 모델의 특징/제약을 반환합니다.",
     inputSchema: { type: "object", properties: {} }
+  },
+  /* ── 아래 셋은 "우리 모델을 빌려주기" 와 ControlNet 용 ──
+     초해상 모델은 우리가 만든 것이라 파일째 빌려준다(추론은 빌려간 쪽 기기에서 돈다).
+     ControlNet 가중치는 fal.ai 것이라 빌려줄 수 없다 — 대신 호출만 열어 둔다. */
+  {
+    name: "list_lendable_models",
+    description:
+      "빌려갈 수 있는 BYGENCY 자체 모델 목록과 대여 값(크레딧)을 반환합니다. " +
+      "현재는 초해상(화질 올리기 ×4) 모델입니다. 추론은 빌려가는 쪽 기기에서 돌며 GPU가 필요 없습니다.",
+    inputSchema: { type: "object", properties: {} }
+  },
+  {
+    name: "lease_model",
+    description:
+      "BYGENCY 자체 초해상 모델을 빌립니다. 실제로 크레딧이 차감되며, 가중치 파일을 받을 수 있는 " +
+      "서명된 리스 토큰과 내려받기 주소를 돌려줍니다. 기간이 지나면 주소가 막힙니다. " +
+      "받은 뒤에는 /sdk/bygency-sr.js 로 그쪽 브라우저·Node 에서 직접 돌리면 됩니다.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        model: { type: "string", description: "모델 id. 기본 'sr-x4-fast' (list_lendable_models 로 확인)" },
+        days: { type: "number", description: "대여 기간(일). 1~30, 기본 7" }
+      }
+    }
+  },
+  {
+    name: "controlnet_image",
+    description:
+      "ControlNet(Canny/Depth/Pose/Tile/Blur/Gray)으로 구도를 잡아 이미지를 생성합니다. " +
+      "기준 이미지의 윤곽·깊이·자세를 따라가므로 원하는 구도를 정확히 지정할 수 있습니다. " +
+      "실제 생성이 시작되며 과금됩니다(이미지 요금 + ControlNet 가산). " +
+      "※ ControlNet 가중치는 fal.ai 가 돌립니다 — lease_model 로 빌려가는 대상이 아닙니다.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        prompt: { type: "string", description: "만들고 싶은 그림 설명" },
+        type: { type: "string", description: "canny(윤곽) | depth(깊이) | pose(자세) | tile | blur | gray" },
+        image_url: { type: "string", description: "구도의 기준이 되는 이미지 주소" },
+        strength: { type: "number", description: "따라가는 강도 0.05~2 (기본 1)" },
+        ratio: { type: "string", description: "비율 (기본 1:1)" }
+      },
+      required: ["prompt", "type", "image_url"]
+    }
   }
 ];
 
@@ -330,6 +377,98 @@ async function runTool(name, args, env, origin, ctx) {
   const genTok = (me && me.mcp_token) ? me.mcp_token : (env.MCP_AUTH_TOKEN || env.mcp_auth_token || "");
 
   if (name === "list_models") return modelInfo();
+
+  /* ── 모델 대여 ──
+     값 계산·차감·토큰 발급은 /api/v1/lease 가 이미 하고 있다. 여기서 다시 만들면
+     두 벌이 되어 언젠가 어긋난다(한쪽만 단가가 바뀌는 식) → 그 처리기를 그대로 부른다.
+     MCP 는 회원 인증이 API 키가 아니라 토큰/OAuth 라, 인증만 여기서 끝내고 넘긴다. */
+  if (name === "list_lendable_models" || name === "lease_model") {
+    if (!me || !db) throw new Error("회원 인증이 필요합니다.");
+    const { LENDABLE, ensureLeaseSchema, leaseSecret, signLease } = await import("../v1/_lease");
+    if (name === "list_lendable_models") {
+      let credits = null;
+      try {
+        const rate = await getUsdKrw(db);
+        credits = computeCharge({ model: LEASE_SR, units: 1, kind: "image" }, rate, undefined, 50).credits;
+      } catch { /* 값을 못 구해도 목록은 준다 */ }
+      return {
+        models: Object.values(LENDABLE).map((m) => ({
+          id: m.id, title: m.title, scale: m.scale, license: m.license, source: m.source,
+          files: m.files.map((f) => f.name), note: m.note, lease_credits: credits,
+        })),
+        usage: "lease_model 로 빌린 뒤 /sdk/bygency-sr.js 로 그쪽 기기에서 돌립니다. 우리 서버는 추론하지 않습니다.",
+      };
+    }
+    // lease_model — 실제 차감이 일어난다
+    const modelId = String(args.model || "sr-x4-fast");
+    const m = LENDABLE[modelId];
+    if (!m) throw new Error("모르는 모델입니다: " + modelId + " (list_lendable_models 로 확인하세요)");
+    const days = Math.max(1, Math.min(30, Math.round(Number(args.days) || 7)));
+    await ensureLeaseSchema(db);
+    const rate = await getUsdKrw(db);
+    const mk = await resolveMarkup(db, me.id, LEASE_SR, Number(me.credit_markup) || 0);
+    const c = computeCharge({ model: LEASE_SR, units: 1, kind: "image" }, rate, mk, 50);
+    const bal = Number(me.credits) || 0;
+    const isAdm = me.role === "admin";
+    if (!isAdm && bal < c.credits) throw new Error(`크레딧이 부족합니다. 필요 ${c.credits} · 보유 ${bal}`);
+    const charged = isAdm ? 0 : Math.round(Math.min(bal, c.credits) * 100) / 100;
+    let after = bal;
+    if (charged > 0) {
+      await db.prepare("UPDATE users SET credits = ROUND(COALESCE(credits,0) - ?, 2) WHERE id = ?").bind(charged, me.id).run();
+      const fresh = await db.prepare("SELECT credits FROM users WHERE id = ?").bind(me.id).first().catch(() => null);
+      after = Math.round((Number(fresh && fresh.credits) || 0) * 100) / 100;
+      try {
+        await db.prepare("INSERT INTO transactions (id,user_id,kind,amount,balance_after,memo,created_at) VALUES (?,?,'credit',?,?,?,?)")
+          .bind("t_" + crypto.randomUUID().slice(0, 16), me.id, -charged, after, "모델 대여 · " + m.title, new Date().toISOString()).run();
+      } catch { /* 거래 기록 실패가 차감을 되돌릴 일은 아니다 */ }
+      try { await ensureAiUsage(db); } catch { /* noop */ }
+    }
+    const leaseId = "lz_" + crypto.randomUUID().replace(/-/g, "").slice(0, 20);
+    const expMs = Date.now() + days * 86400000;
+    await db.prepare("INSERT INTO model_leases (id,user_id,key_id,model,credits,calls,issued_at,expires_at) VALUES (?,?,'',?,?,0,?,?)")
+      .bind(leaseId, me.id, modelId, charged, new Date().toISOString(), new Date(expMs).toISOString()).run();
+    const token = await signLease(await leaseSecret(db, env), { l: leaseId, u: me.id, m: modelId, e: Math.floor(expMs / 1000) });
+    return {
+      lease: token, lease_id: leaseId, model: modelId, expires_at: new Date(expMs).toISOString(),
+      files: m.files.map((f) => ({ name: f.name, url: `${origin}/api/v1/model-file/${f.name}?lease=${encodeURIComponent(token)}` })),
+      sdk: `${origin}/sdk/bygency-sr.js`, license: m.license,
+      credits_charged: charged, credits_remaining: after,
+      note: "추론은 빌려가신 쪽 기기에서 돕니다(GPU 불필요). 기간이 지나면 주소가 막힙니다.",
+    };
+  }
+
+  if (name === "controlnet_image") {
+    if (!args.prompt) throw new Error("prompt는 필수입니다");
+    const TYPES = ["canny", "depth", "pose", "tile", "blur", "gray"];
+    const type = String(args.type || "").toLowerCase();
+    if (!TYPES.includes(type)) throw new Error("모르는 ControlNet 타입: " + args.type + " — 쓸 수 있는 것: " + TYPES.join(", "));
+    if (!args.image_url) throw new Error("image_url(구도 기준 이미지)은 필수입니다");
+    const CN_MODEL = "ControlNet 이미지 (Canny·Depth·Pose)";
+    /* 값을 먼저 재고 부족하면 시작하지 않는다. ControlNet 가산(+10%)까지 포함해야
+       스튜디오·API 와 같은 금액이 된다 — 여기만 빠지면 MCP 로 부를 때 싸게 나간다. */
+    let est = null, cnPct = 0;
+    if (me && db) {
+      est = await estimateMcp(db, me, CN_MODEL, 1);
+      cnPct = await resolveCnSurcharge(db).catch(() => 10);
+      if (est) est = { ...est, credits: Math.round(est.credits * (1 + cnPct / 100) * 100) / 100 };
+      if (est && (Number(me.credits) || 0) < est.credits)
+        throw new Error("크레딧이 부족합니다. 필요 " + est.credits + "크레딧 · 보유 " + (Number(me.credits) || 0) + "크레딧. nextbygency.com/pricing 에서 충전하세요.");
+    }
+    const j = await callGeneratePOST(env, origin, {
+      provider: "falcontrol", model: CN_MODEL, kind: "image",
+      prompt: args.prompt, ratio: args.ratio || "1:1", cn: 1,
+      controlnets: [{ type, control_image_url: String(args.image_url), strength: args.strength }],
+    }, genTok);
+    if (j.error) throw new Error(j.error);
+    let url = j.url;
+    if (url && url.startsWith("data:")) { const hosted = await hostDataUrl(env, origin, url); if (hosted) url = hosted; }
+    let charged = null;
+    if (me && db && est) charged = await commitCharge(db, me, est, 1);
+    return { status: "succeeded", image_url: url, controlnet: type,
+      credits_charged: charged == null ? undefined : charged,
+      credits_remaining: me ? me.credits : undefined,
+      note: "ControlNet 가중치는 fal.ai 가 돌립니다 — lease_model 로 빌려가는 대상이 아닙니다." };
+  }
 
   if (name === "list_characters") {
     if (!me || !db) throw new Error("회원 인증이 필요합니다.");

@@ -7,17 +7,33 @@
 //      ?provider=google&file=URI  → Veo 결과 파일 스트리밍(키 서버측 유지)
 // 키는 Cloudflare Pages 환경변수에서만 읽으며 절대 응답에 포함되지 않습니다.
 
-import { getSessionUser, resolveDB, getUserByMcpToken } from "./_utils";
+import { getSessionUser, resolveDB, resolveBucket, getUserByMcpToken } from "./_utils";
 import { getUserByApiKey, enforceRateLimit, ensureApiKeysSchema } from "./_apikeys";
 import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from "./studio/_pricing";
 import { getBrandKit, applyBrandKit } from "./studio/brandkit";
 import { issueGenCharge, settleGenCharge, refundGenCharge, reconcileGenCharge } from "./studio/_gencharge";
 import { probeRemoteVideoSeconds, SOURCE_LENGTH_MODELS, sourceVideoUrl } from "./studio/_vidlen";
-import { ensureAiUsage, resolveCostOverride } from "./studio/_pricing";
+import { ensureAiUsage, resolveCostOverride, refreshUsdKrw } from "./studio/_pricing";
 import { MODEL_COST as MODEL_COST_SRV } from "./studio/_pricing";
 import { creditPriceFor } from "./payments/prepare";
 
-const RUNWAY_VER = "2024-11-06";
+export const RUNWAY_VER = "2024-11-06";
+
+/* ⚠ 실패를 5xx 로 돌려주면 안 된다 — 회원은 그 이유를 영영 못 본다.
+   Cloudflare 는 5xx 응답을 자기 오류 페이지(파란 "502 Bad gateway")로 바꿔치기한다.
+   그래서 우리가 본문에 담아 보낸 진짜 이유가 한 번도 회원에게 도달하지 못했다.
+
+   실제로 이렇게 됐다 — 발자국(gen_trace)으로 확인한 그대로다:
+     제공사 응답: HTTP 400 <InputImageSensitiveContentDetected.PrivacyInformation>
+       "입력 이미지에 사생활 정보가 있어 거절"
+     우리 응답:  HTTP 502 {"error":"Seedance …사생활 정보…"}   ← 제대로 담았다
+     회원 화면:  Cloudflare 의 "Bad gateway"                    ← 통째로 바꿔치기됨
+   그 결과 "사진을 바꾸세요" 라고 알려 줬어야 할 자리에서 "잠시 후 다시 시도하세요" 가 떴고,
+   몇 번을 다시 눌러도 될 리가 없었다. 우리 함수가 죽은 게 아니라 메시지가 가로채인 것이다.
+
+   요청 자체는 정상적으로 처리됐다. 실패는 본문의 error 로 알린다 —
+   스튜디오(callProxy)도 /api/v1 도 MCP 도 모두 error 를 보고 실패로 처리한다. */
+const FAIL = 200;
 
 // 상수 시간 문자열 비교 (토큰 타이밍 사이드채널 방지)
 function ctEqStr(a, b) {
@@ -32,7 +48,7 @@ function pick(env, names) {
   for (const n of names) if (env[n]) return String(env[n]).trim();   // 붙여넣기 시 끝 공백·줄바꿈 제거(구글 "API key not valid" 방지)
   return null;
 }
-function keys(env) {
+export function keys(env) {
   return {
     runway: pick(env, ["Runway_API_KEY", "RUNWAY_API_KEY", "runway_api_key"]),
     xai:    pick(env, ["Grok_API_KEY", "GROK_API_KEY", "grok_api_key"]),
@@ -397,6 +413,29 @@ export function bindRefMentions(text, slots, style) {
   return { text: out + "\n[레퍼런스 순서 — " + order.join(", ") + "]", used: usedArr, missing: missArr };
 }
 
+/* ── 죽는 요청에 발자국을 남긴다 ────────────────────────────────────────
+   raw 502 는 격리 환경이 통째로 죽는 것이라, 응답도 로그도 아무것도 안 남는다.
+   단계별로 따로 태우면 다 통과하는데 한 번에 보내면 죽는 상황에서는,
+   "그 한 번" 이 어디까지 갔는지를 알 방법이 이것뿐이다 — 지나갈 때마다 DB 에 찍는다.
+   죽어도 이미 찍힌 것은 남으므로, 나중에 읽으면 마지막으로 지난 자리가 보인다.
+
+   ⚠ 발자국은 스튜디오가 표를 보낼 때만 찍는다(회원이 씨댄스 2.0 을 실행할 때).
+     한 요청에 몇 줄 늘어나는 것이라, 원인을 잡고 나면 걷어내야 한다.
+   ⚠ 기다리지 않고 찍으면(await 없이) 죽는 순간 사라진다. 그래서 기다린다. */
+async function traceMark(env, id, step, note) {
+  if (!id) return;
+  try {
+    const db = resolveDB(env);
+    if (!db) return;
+    await db.prepare(
+      `CREATE TABLE IF NOT EXISTS gen_trace (id TEXT, seq INTEGER, step TEXT, note TEXT, at TEXT)`,
+    ).run().catch(() => {});
+    await db.prepare(`INSERT INTO gen_trace (id, seq, step, note, at) VALUES (?,?,?,?,?)`)
+      .bind(String(id).slice(0, 40), Date.now() % 100000000, String(step).slice(0, 40),
+            String(note == null ? "" : note).slice(0, 200), new Date().toISOString()).run();
+  } catch (_e) { /* 발자국을 못 남겨도 생성은 막지 않는다 */ }
+}
+
 /* ── 페이로드 빌더 (dryRun 검증도 이 함수를 그대로 사용) ── */
 // Runway 표시명 → API 모델 ID (Gen-3/Gen-4 모두 image_to_video 엔드포인트 공용)
 export const RUNWAY_MODELS = {
@@ -507,6 +546,12 @@ export const SEEDANCE_IDS = {
   // 또한 공식 문서상 BytePlus/ModelArk 에 표기된 2.0 은 mini 뿐이고,
   // base·fast 는 Volcengine(중국) 쪽에 doubao- 접두사로 문서화돼 있다.
   // → dreamina-(BytePlus) 우선, 안 되면 doubao-(Volcengine 표기), 마지막으로 접미사 없는 형태.
+  /* 2.5 — 계정 카탈로그(diag=arkmodels)에서 실제로 확인한 ID 다. 추측이 아니다.
+     ⚠ 제공사가 아직 단가를 공개하지 않았다(2026-07-31 출시, 요금표 미공개).
+       그래서 원가를 2.0 보다 높게 잡아 뒀다 — 덜 받는 쪽이 손해라서 안전한 쪽으로 기울인 것이다.
+       ModelArk 는 완료 응답에 실제 사용 토큰을 실어 주므로 정산에서 차액이 정확히 맞춰진다
+       (더 받았으면 돌려준다 — reconcileGenCharge 참조). 공식 요금이 나오면 그 값으로 바꾼다. */
+  "Seedance 2.5":                ["dreamina-seedance-2-5-260628", "dreamina-seedance-2-5"],
   "Seedance 2.0":                ["dreamina-seedance-2-0-260128", "dreamina-seedance-2-0"],
   "Seedance 2.0 Fast":           ["dreamina-seedance-2-0-fast-260128", "dreamina-seedance-2-0-fast"],
   "Seedance 2.0 Mini":           ["dreamina-seedance-2-0-mini-260615", "dreamina-seedance-2-0-mini"],  // 첫 ID 는 실제 작동 확인됨
@@ -579,6 +624,66 @@ export function seedanceModelIds(b, env) {
   return Array.isArray(v) ? v.slice() : [v];
 }
 export function seedanceModelId(b, env) { return seedanceModelIds(b, env)[0]; }
+/* ── 우리 서버에 있는 사진은 제공사가 받아 가게 두지 말고 실어 보낸다 ──────────────
+   씨댄스 2.0 은 이미지를 공개 URL 로도 base64 로도 받는다. 그런데 URL 로 주면 제공사가
+   우리 /api/media 를 직접 받아 가야 하고, 그게 늦어지면 "제출" 자체가 끝나지 않는다 —
+   실제로 회원 요청이 22초를 기다리다 "제공사 응답 시간 초과" 로 끝났다.
+   (이 파일에는 원래 그 사정이 주석으로 적혀 있었는데 정작 변환하는 코드가 없었다.)
+
+   HTTP 로 다시 받아오지 않고 R2 에서 곧바로 읽는다 — 우리 도메인을 한 바퀴 도는
+   왕복이 없어지고, Cloudflare 가 세는 바깥 요청도 늘지 않는다.
+   너무 크면(6MB↑) 실어 보내는 쪽이 되레 손해라 URL 그대로 둔다. */
+const MEDIA_KEY_RE = /\/api\/media\/(.+)$/;
+async function ownMediaDataUri(env, url) {
+  try {
+    const m = MEDIA_KEY_RE.exec(String(url || "").split("?")[0]);
+    if (!m) return null;
+    const R2 = resolveBucket(env);
+    if (!R2) return null;
+    const key = decodeURIComponent(m[1]);
+    if (/^sender-docs\//i.test(key)) return null;   // 승인 서류는 절대 나가면 안 된다
+    const obj = await R2.get(key);
+    if (!obj) return null;
+    const size = Number(obj.size || 0);
+    if (!size || size > 6 * 1024 * 1024) return null;
+    const ct = (obj.httpMetadata && obj.httpMetadata.contentType) || "image/png";
+    if (!/^image\//.test(ct)) return null;
+    const buf = new Uint8Array(await obj.arrayBuffer());
+    let bin = "";
+    for (let i = 0; i < buf.length; i += 0x8000)
+      bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+    return "data:" + ct.toLowerCase() + ";base64," + btoa(bin);
+  } catch (_e) { return null; }
+}
+/** 씨댄스 2.0 으로 보낼 이미지들 중 "우리 서버 것" 만 실어 보내도록 바꾼다.
+ *  ⚠ 서버(워커)에서는 쓰지 않는다. 실제로 이걸 서버에 넣었더니(v58) 그 전까지 읽을 수 있는
+ *     실패를 돌려주던 GET 우회까지 raw 502 로 바뀌었다 — 넣고 나빠졌고 빼니 돌아왔다.
+ *     그때는 "무료 등급 CPU 10ms 를 넘겨서" 라고 적어 두었는데 그건 확인된 게 아니다
+ *     (계정은 Workers 유료였다). 이유는 아직 모르지만 관측은 분명하니 서버에서는 안 한다.
+ *     이 일은 브라우저에서 한다(스튜디오 참조).
+ *     API·MCP 처럼 브라우저가 없는 경로를 위해 남겨 두지만, 부르는 쪽이 크기를 책임져야 한다. */
+export async function inlineOwnMedia(b, env) {
+  if (!b) return b;
+  const seen = new Map();
+  const conv = async (v) => {
+    if (!v || typeof v !== "string" || !MEDIA_KEY_RE.test(v)) return v;
+    if (seen.has(v)) return seen.get(v);
+    const d = await ownMediaDataUri(env, v);
+    seen.set(v, d || v);
+    return d || v;
+  };
+  const out = { ...b };
+  out.firstFrame = await conv(b.firstFrame);
+  out.lastFrame = await conv(b.lastFrame);
+  out.refImage = await conv(b.refImage);
+  if (Array.isArray(b.refImages)) {
+    const arr = [];
+    for (const u of b.refImages) arr.push(await conv(u));
+    out.refImages = arr;
+  }
+  return out;
+}
+
 export function buildSeedancePayload(b, env, forceModel) {
   const model = forceModel || seedanceModelId(b, env);
   // Seedance 2.0 공식 지원 비율: 21:9 · 16:9 · 4:3 · 1:1 · 3:4 · 9:16.
@@ -637,7 +742,12 @@ export function buildSeedancePayload(b, env, forceModel) {
     let _pairs = (Array.isArray(b.refImages) ? b.refImages : [])
       .map((u, i) => ({ u, n: _no(_lbl[i]) }))
       .filter(p => p.u && okImg(p.u) && p.u !== firstF && p.u !== lastF && !seenI[p.u] && (seenI[p.u] = 1));
-    if (_pairs.some(p => p.n)) _pairs.sort((a, c) => (a.n || 99) - (c.n || 99));
+    /*  ⚠ 번호대로 세우는 것은 "모두 번호를 달고 왔을 때" 만 한다.
+        예전에는 번호 없는 장(n=0)을 99 로 쳐서 맨 뒤로 밀어 버렸다. 그러면 회원이
+        첫 번째로 붙인 사진이 @Image 마지막 자리로 가고, 프롬프트의 번호가 딴 사진을
+        가리킨다 — 레퍼런스가 엉뚱하게 나오던 원인 중 하나였다.
+        섞여 있으면 믿을 수 없는 번호이므로, 보내 온 차례를 그대로 지킨다. */
+    if (_pairs.length && _pairs.every((p) => p.n)) _pairs.sort((a, c) => a.n - c.n);
     let refs = _pairs.map(p => p.u).slice(0, 9);
     // 영상 레퍼런스(공개 URL 전용, 최대 3) — 단일 srcVideo + 선택적 refVideos 배열
     const vids = [], seenV = {};
@@ -667,10 +777,17 @@ export function buildSeedancePayload(b, env, forceModel) {
       text = (text ? text + "\n\n" : "") + "[레퍼런스 바인딩: " + tags.join(", ") + " — " + hint.join(", ") + "]";
     }
     const content = [{ type: "text", text: cut(text, 1500) }];
+    /*  ⚠ __noRole 은 얼굴 거절 뒤의 마지막 되돌리기용이다 — 역할표를 아예 붙이지 않고 사진만 보낸다.
+        제공사 검열이 "이 사진을 첫 장면으로 쓰겠다"는 선언을 보고 더 엄해지는 경우가 있어,
+        선언을 빼고 같은 사진을 같은 모델에 보내 본다. 평상시 경로는 이 갈래를 타지 않는다. */
+    const noRole = b.__noRole === true;
     // 첫/마지막 프레임은 전용 role 로. last_frame 은 공식적으로 first_frame 이 있을 때만 유효하다.
-    if (firstF) content.push({ type: "image_url", image_url: { url: firstF }, role: "first_frame" });
-    if (firstF && lastF) content.push({ type: "image_url", image_url: { url: lastF }, role: "last_frame" });
-    for (const u of refs)    content.push({ type: "image_url", image_url: { url: u }, role: "reference_image" });
+    if (firstF) content.push(noRole ? { type: "image_url", image_url: { url: firstF } }
+                                    : { type: "image_url", image_url: { url: firstF }, role: "first_frame" });
+    if (firstF && lastF) content.push(noRole ? { type: "image_url", image_url: { url: lastF } }
+                                             : { type: "image_url", image_url: { url: lastF }, role: "last_frame" });
+    for (const u of refs)    content.push(noRole ? { type: "image_url", image_url: { url: u } }
+                                                 : { type: "image_url", image_url: { url: u }, role: "reference_image" });
     for (const u of useVids) content.push({ type: "video_url", video_url: { url: u }, role: "reference_video" });
     for (const u of useAuds) content.push({ type: "audio_url", audio_url: { url: u }, role: "reference_audio" });
     // 오디오 생성 기본 OFF — 2.0 은 기본으로 오디오를 만드는데, 그 오디오가 콘텐츠 검열
@@ -704,6 +821,13 @@ const ARK_HOSTS = {
   bp: "https://ark.ap-southeast.bytepluses.com/api/v3",   // BytePlus ModelArk (해외)
   vc: "https://ark.cn-beijing.volces.com/api/v3"          // Volcengine (중국)
 };
+/* 제출·조회가 바라볼 주소. 환경변수로만 덮어쓸 수 있다(회원 요청으로는 못 바꾼다).
+   검사에서 제공사를 흉내 낸 서버로 돌려 "거절 → 레퍼런스 모드 재시도" 같은 흐름을
+   실제로 태워 보려고 둔다. 비워 두면 언제나 진짜 BytePlus 로 간다. */
+export function arkBase(env, hostId) {
+  const o = pick(env, ["ARK_HOST_OVERRIDE", "ark_host_override"]);
+  return (o ? String(o) : ARK_HOSTS[hostId === "vc" ? "vc" : "bp"]);
+}
 
 /* ── Seedream (씨드림) — ByteDance/BytePlus ModelArk 이미지 생성 ──
    ※ 씨댄스(Seedance)와 동일한 ByteDance ModelArk API 다. 그래서 별도 키가 아니라
@@ -921,7 +1045,7 @@ export function buildFluxPayload(b) {
 /* ── fal.ai Flux ControlNet (Canny / Depth / Pose) — 컴피UI식 ControlNet ──
    fal 이 전처리(윤곽/깊이/포즈 맵 추출)를 서버에서 대신 해주므로 원본 이미지만 넘기면 됨.
    Canny/Depth = 전용 control-lora 엔드포인트, Pose = flux-general + Union(openpose, control_mode 4). */
-const FAL_QUEUE = "https://queue.fal.run/";
+export const FAL_QUEUE = "https://queue.fal.run/";
 /* ══ 중개(fal.ai) 사용 허가 목록 — 여기 없는 기능은 fal 로 나갈 수 없다 ══
    원칙: 제공사 공식 API 를 연동해 둔 모델은 예외 없이 그 공식 API 로만 나간다.
    같은 모델을 중개로 부르면 ①공식 기준으로 만든 단가표와 실제 청구가 어긋나고
@@ -1215,7 +1339,7 @@ export function buildHailuoPayload(b) {
 }
 
 /* ── Luma Dream Machine 영상 생성 ── */
-const LUMA_BASE = "https://agents.lumalabs.ai/v1";   // Luma Agents API (구 dream-machine/v1 은 이 키를 인증하지 않는다)
+export const LUMA_BASE = "https://agents.lumalabs.ai/v1";   // Luma Agents API (구 dream-machine/v1 은 이 키를 인증하지 않는다)
 
 /* ══ BytePlus ModelArk 3D 생성 (Hyper3D / Hitem3D) ══
    이미지·영상 모델과 달리 "실제 3D 파일(메쉬+텍스처)" 을 만든다.
@@ -1730,6 +1854,17 @@ const BILL_DEPS = { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge
 export async function onRequest(context) {
   try {
     const res = await handle(context);
+    //  발자국 — 여기까지 왔으면 생성 처리는 끝났고, 남은 것은 응답을 다시 포장하는 일뿐이다.
+    //  (마지막 발자국이 여기서 끊기면, 죽는 자리는 아래 정산·재포장 구간이라는 뜻이다)
+    if (context.__trace) await traceMark(context.env, context.__trace, "처리 끝 · 응답 포장 전",
+      "HTTP " + (res && res.status));
+    /* 오늘 환율은 응답을 내보낸 뒤에 채운다 — 요청 경로에서 남의 서버를 부르면
+       그게 늦어질 때 회원의 생성이 통째로 매달린다(_pricing.ts getUsdKrw 주석 참조).
+       실제 트래픽을 타고 하루 한 번만 실제 호출이 일어난다. */
+    if (context.waitUntil) {
+      const _db = resolveDB(context.env);
+      if (_db) context.waitUntil(refreshUsdKrw(_db));
+    }
     if (!res || !/application\/json/i.test(res.headers.get("content-type") || "")) return res;
     /* /api/v1·MCP 는 스스로 차감한다(commitCharge) — 그 내부 호출까지 여기서 또 받으면 이중 차감이다.
        이 표시는 서버가 만든 컨텍스트에만 있고 요청 헤더가 아니라, 클라이언트가 흉내낼 수 없다. */
@@ -1761,10 +1896,11 @@ export async function onRequest(context) {
     if (!ok) return json({ ...body, chargeToken: tok });
     const out = await settleGenCharge(resolveDB(context.env), context.__genUser,
                                       tok, body.statusUrl || null, BILL_DEPS);
+    if (context.__trace) await traceMark(context.env, context.__trace, "정산까지 끝", "차감 " + out.credits);
     return json({ ...body, chargeToken: tok, charged: out.credits, chargeRef: out.usageId });
   } catch (e) {
     // 예상 못 한 예외도 원인이 보이도록 항상 읽을 수 있는 JSON 으로 반환 (raw 502 방지)
-    return json({ error: "서버 예외: " + String((e && e.message) || e).slice(0, 300) }, 502);
+    return json({ error: "서버 예외: " + String((e && e.message) || e).slice(0, 300) }, FAIL);
   }
 }
 
@@ -1781,6 +1917,98 @@ const PROVIDER_BILL_MODEL = {
   motion:   "모션 전이 (원본 움직임 유지·Motion Transfer)",
   v2v_auto: "V2V 자동 (최고정확도·모델 자동선택)",
 };
+
+/* ── 잔액 게이트 + 과금 토큰 발급 ──
+   원래 이 구간은 POST 안에만 있었다. 그런데 씨댄스는 POST 가 (원인불명) 플랫폼 502 로
+   막힐 때 GET(?submit=seedance)으로 한 번 더 제출한다 — 스튜디오가 그렇게 만들어 뒀다.
+   그 길로 만들어진 영상은 여기를 안 지나가서 과금 토큰이 없었고, 토큰이 없으면
+   정산(settleGenCharge)이 소비할 것도 없다. 즉 제공사 비용은 우리가 내고
+   회원에게는 한 푼도 청구되지 않았다. 우회로는 예외 상황에서만 타므로 눈에도 안 띈다.
+
+   두 길이 같은 자리를 지나가게 한다. 어느 쪽으로 들어와도 같은 공식으로 계산하고
+   같은 토큰을 발급한다 — 우회로라고 싸지거나 공짜가 되면 안 된다.
+
+   막을 일이 있으면 Response 를 돌려주고(402·429), 통과면 null 을 돌려준다. */
+async function billingGate(context, env, u, db, me, pbody) {
+  // ── 남용 방지 ①: 사전 잔액 게이트 — 예상 과금 이상 보유해야 생성 시작 ──
+  //  유료 제공사 호출 "이전"에 차단하므로, 잔액이 부족하면 제공사 비용 자체가 발생하지 않는다.
+  //  precheck 와 동일한 공식(computeCharge)을 서버에서 재계산해 클라이언트 우회를 무력화한다.
+  try {
+    const asked = String(pbody.model || "");
+    //  단가표에 없는 이름(또는 빈 값)이면 제공사로 정해지는 기능인지 본다 — 위 표 참조.
+    const mdl = MODEL_COST[asked] ? asked : (PROVIDER_BILL_MODEL[String(pbody.provider || "")] || asked);
+    if (mdl && MODEL_COST[mdl]) {
+      /* 서로 딴 값이라 순서가 필요 없다 — 하나씩 기다리면 왕복이 그만큼 쌓이고,
+         Cloudflare 의 요청당 서브리퀘스트 한도를 갉아먹는다(넘으면 raw 502). */
+      const [rate, mk, ckw] = await Promise.all([
+        getUsdKrw(db),
+        resolveMarkup(db, me.id, mdl, Number(me.credit_markup) || 0),
+        creditPriceFor(db, me),
+      ]);
+      //  게이트도 "실제로 생성될 길이·해상도" 기준이어야 확정 과금과 어긋나지 않는다.
+      /* 'img'(장당) 말고 '3d'(모델 1개당)·'tok'(호출 1회당)도 "단위 1개" 정액이다.
+         'img' 만 보고 있어서 3D·프롬프트 모델이 초당 계산을 타 8배로 추정됐다 —
+         확정 과금(usage/record·precheck·/api/v1)은 이미 u!=='sec' 로 맞춰 두었는데
+         이 게이트만 남아, 잔액이 충분한 사람을 "크레딧 부족" 으로 막을 수 있었다. */
+      const isImg = MODEL_COST[mdl] && MODEL_COST[mdl].u !== "sec";
+      let gUnits = isImg ? 1 : effectiveUnits({ ...pbody, model: mdl }, env);
+      /* 결과 길이가 원본 영상에서 정해지는 기능들(업스케일·V2V·나레이션·립싱크·Aleph·루마 편집 등)은
+         요청에 길이 필드가 없어 빌더에 물어볼 수 없다. 그래서 여태 신고값을 그대로 청구했고,
+         짧게 신고하면 그만큼 덜 냈다. 원본을 직접 재서 그 값으로 청구한다.
+         못 재면(webm·비공개 URL·네트워크 실패) 신고값으로 물러난다 — 생성을 막지는 않는다. */
+      if (!isImg && SOURCE_LENGTH_MODELS.has(mdl)) {
+        let src = sourceVideoUrl(pbody);
+        if (src && src.startsWith("/")) src = u.origin + src;      // 우리 R2 는 상대경로로 온다
+        const measured = src ? await probeRemoteVideoSeconds(src) : null;
+        if (measured && measured > 0) gUnits = Math.min(3600, Math.max(1, Math.round(measured)));
+      }
+      const gRes = isImg ? undefined : effectiveRes({ ...pbody, model: mdl }, env);
+      /* 값을 바꾸는 나머지 옵션도 여기서 한 번에 확정한다 — 아래 게이트 계산과 토큰이
+         같은 값을 써야 "통과시켜 놓고 더 크게 빠지는" 일이 없다.
+           · hdr·exr : 스튜디오는 lumaHdr·lumaExr 라는 이름으로 보낸다. 예전엔 pbody.hdr 만
+             봐서 루마 HDR 생성이 표준 요금으로 잡혔다(원가는 2배·EXR 3배인데 덜 받았다).
+             effectiveFlags 를 태워 "실제 요청에 실릴 값" 만 인정한다.
+           · 비율 : 표에 없는 값은 빌더가 정사각으로 떨어뜨린다 → 1.5배를 붙이면 안 된다. */
+      const gFlags = effectiveFlags({ ...pbody, model: mdl,
+                                      hdr: pbody.hdr === true || pbody.lumaHdr === true,
+                                      exr: pbody.exr === true || pbody.lumaExr === true });
+      const gRatio = effectiveRatio({ ...pbody, model: mdl });
+      const gRefs = Array.isArray(pbody.refImages) ? pbody.refImages.length
+                  : Math.max(0, Number(pbody.refCount) || Number(pbody.refs) || 0);
+      const cnCount = Math.max(0, (pbody.controlnets && pbody.controlnets.length) || Number(pbody.cn) || 0);
+      //  이 셋도 서로 독립이다 — 함께 부른다.
+      const [ovUsd, surPct, cnPct] = await Promise.all([
+        resolveCostOverride(db, mdl),   // 실측 단가가 있으면 게이트도 그 값으로
+        resolveRefSurcharge(db, me.id),
+        cnCount > 0 ? resolveCnSurcharge(db) : Promise.resolve(0),
+      ]);
+      const cc = computeCharge({ model: mdl, units: gUnits, res: gRes, audio: !!pbody.generateAudio,
+                                 refs: gRefs, hdr: gFlags.hdr, exr: gFlags.exr, ratio: gRatio }, rate, mk, ckw, ovUsd);
+      const refMult = 1 + (surPct / 100) * gRefs;
+      const cnMult = cnCount > 0 ? 1 + cnPct / 100 : 1;
+      const need = Math.round(cc.credits * refMult * cnMult * 100) / 100;
+      if (need > 0 && Number(me.credits) < need) {
+        return json({ error: `크레딧이 부족합니다. 필요 ${need.toLocaleString("ko-KR")}크레딧 · 보유 ${Number(me.credits).toLocaleString("ko-KR")}크레딧`, need, balance: Number(me.credits), needPlan: true }, 402);
+      }
+      /* 여기까지 오면 "무엇을 얼마나 만들지" 를 서버가 확정한 상태다.
+         차감은 /api/usage/record 가 하는데 거기서는 모델을 요청 본문에서 받아 썼다 —
+         비싼 모델로 만들고 싼 모델로 신고하면 차액만큼 덜 냈다.
+         확정값을 토큰에 묶어 두고 차감할 때 그 값을 쓰게 한다. */
+      context.__chargeToken = await issueGenCharge(db, me.id, {
+        model: mdl, units: gUnits, res: gRes, audio: !!pbody.generateAudio,
+        ratio: gRatio, refs: gRefs, cn: cnCount, hdr: gFlags.hdr, exr: gFlags.exr,
+      });
+    }
+  } catch (_e) { /* 추정 실패 시 credits>0 게이트로 통과 (락아웃 방지) */ }
+  // ── 남용 방지 ②: 레이트리밋(분/시/일) + 15초 버스트 가드 (denial-of-wallet 완화) ──
+  try { await ensureApiKeysSchema(db); } catch (_e) {}
+  const rl = await enforceRateLimit(db, me.id, "post", false);
+  if (!rl.ok) return json({ error: rl.reason || "요청이 너무 많습니다. 잠시 후 다시 시도하세요.", retryAfter: rl.retryAfter || 30 }, 429);
+  //  같은 표를 또 훑지 않는다 — 위 레이트리밋이 15초 치를 함께 세어 돌려준다.
+  if (Number(rl.burst || 0) > 5) return json({ error: "짧은 시간에 너무 많은 생성을 요청했습니다. 잠시 후 다시 시도하세요.", retryAfter: 15 }, 429);
+  context.__gateRan = true;   // 이 구간을 실제로 지났다(관리자는 여기 안 온다)
+  return null;
+}
 
 async function handle(context) {
   const { request, env } = context;
@@ -1826,104 +2054,103 @@ async function handle(context) {
     if (method === "POST") {
       let pbody = {};
       try { pbody = await request.clone().json(); } catch (_e) {}
+      //  같은 본문을 아래에서 또 파싱하지 않게 넘겨 둔다 — 사진을 실어 보내면 수백 KB 라
+      //  한 번 더 파싱하는 것만으로 요청당 CPU 한도를 갉아먹는다.
+      context.__pbody = pbody;
       const dry = !!(pbody && pbody.dryRun);
       const isAdmin = me.role === "admin";
+      /* ── 단계 진단 ─────────────────────────────────────────────────────────
+         raw 502 는 격리 환경이 통째로 죽은 것이라 우리 코드가 아무것도 못 남긴다.
+         그래서 "어디서 죽었는지" 를 알아내는 유일한 길은, 한 요청에서 한 단계씩만
+         돌려 보고 어느 요청이 502 로 돌아오는지 보는 것이다.
+           auth    — 로그인까지만
+           body    — 본문 읽기까지만 (사진이 클 때 여기가 무거운지)
+           gate    — 회원 과금 계산까지 (관리자는 원래 안 타는 그 구간. 관리자도 강제로 태운다)
+           payload — 제공사에 보낼 값 만들기까지 (dryRun 과 같은 자리)
+         진단 페이지가 이 값을 하나씩 넣어 부른다. 실제 생성 코드를 그대로 태운다 —
+         따로 흉내 낸 코드를 재면 진짜 원인을 못 찾는다. */
+      const diag = String((pbody && pbody.diagStage) || "");
+      //  발자국 — 죽어도 남는다(위 traceMark 주석 참조)
+      context.__trace = String((pbody && pbody.traceId) || "").slice(0, 40) || null;
+      if (context.__trace) await traceMark(env, context.__trace, "본문 읽음",
+        "회원=" + (isAdmin ? "관리자" : "회원") + " · 본문 " + (function () {
+          try { return JSON.stringify(pbody).length; } catch (_e) { return "?"; }
+        })() + "글자");
+      if (diag === "auth") {
+        return json({ diag: "auth", ok: true, admin: isAdmin, credits: Number(me.credits) || 0 });
+      }
+      if (diag === "body") {
+        let bytes = 0;
+        try { bytes = JSON.stringify(pbody).length; } catch (_e) {}
+        const sz = (v) => (typeof v === "string" ? v.length : 0);
+        return json({ diag: "body", ok: true, bodyChars: bytes,
+                      firstFrame: sz(pbody.firstFrame), lastFrame: sz(pbody.lastFrame),
+                      refImages: (Array.isArray(pbody.refImages) ? pbody.refImages : []).map(sz) });
+      }
+      //  gate 진단은 관리자도 회원과 똑같이 태운다 — 그래야 둘을 나란히 비교할 수 있다.
+      const forceGate = diag === "gate";
       if (!dry && !isAdmin && !(Number(me.credits) > 0)) {
         return json({ error: "크레딧이 부족합니다. 요금제를 활성화해 주세요.", needPlan: true }, 402);
       }
-      if (!dry && !isAdmin && db && me.id) {
-        // ── 남용 방지 ①: 사전 잔액 게이트 — 예상 과금 이상 보유해야 생성 시작 ──
-        //  유료 제공사 호출 "이전"에 차단하므로, 잔액이 부족하면 제공사 비용 자체가 발생하지 않는다.
-        //  precheck 와 동일한 공식(computeCharge)을 서버에서 재계산해 클라이언트 우회를 무력화한다.
+      if ((forceGate || (!dry && !isAdmin)) && db && me.id) {
+        const _blocked = await billingGate(context, env, u, db, me, pbody);
+        if (_blocked) return _blocked;
+      }
+      /*  ⚠ 여기는 과금 구간 "밖" 이다 — 관리자는 그 안을 아예 안 지나가고 여기로 온다.
+          그냥 "과금 계산 끝" 이라고 찍으면 관리자도 지나간 것처럼 보인다(실제로 그렇게 찍혔다).
+          지났는지 건너뛰었는지를 그대로 적는다 — 관리자와 회원을 나란히 놓고 볼 수 있어야 한다. */
+      if (context.__trace) await traceMark(env, context.__trace,
+        context.__gateRan ? "과금 계산 끝" : "과금 구간 건너뜀",
+        context.__gateRan ? "" : (isAdmin ? "관리자라 안 지나감" : dry ? "검증 요청이라 안 지나감" : "해당 없음"));
+      if (diag === "gate") return json({ diag: "gate", ok: true, admin: isAdmin, token: !!context.__chargeToken });
+      if (diag === "payload") pbody.dryRun = true;   // 아래 dryRun 자리에서 페이로드만 만들고 끝낸다
+      /* outbound — 제공사에 "같은 크기의 본문" 을 실제로 보내 보되, 만들어지지는 않게 한다.
+         남은 미지수가 "큰 본문 + 과금 계산 + 실제 제출" 조합 하나뿐인데, 그걸 재려면
+         돈이 드는 생성을 매번 돌려야 했다. 모델 이름만 없는 것으로 바꿔 보내면
+         제공사가 곧바로 거절하므로 — 나가는 양·경로·과금 구간은 그대로 재면서 돈은 안 든다. */
+      if (diag === "outbound") {
+        const t0 = Date.now();
+        let out = { diag: "outbound", ok: false };
         try {
-          const asked = String(pbody.model || "");
-          //  단가표에 없는 이름(또는 빈 값)이면 제공사로 정해지는 기능인지 본다 — 위 표 참조.
-          const mdl = MODEL_COST[asked] ? asked : (PROVIDER_BILL_MODEL[String(pbody.provider || "")] || asked);
-          if (mdl && MODEL_COST[mdl]) {
-            /* 서로 딴 값이라 순서가 필요 없다 — 하나씩 기다리면 왕복이 그만큼 쌓이고,
-               Cloudflare 의 요청당 서브리퀘스트 한도를 갉아먹는다(넘으면 raw 502). */
-            const [rate, mk, ckw] = await Promise.all([
-              getUsdKrw(db),
-              resolveMarkup(db, me.id, mdl, Number(me.credit_markup) || 0),
-              creditPriceFor(db, me),
-            ]);
-            //  게이트도 "실제로 생성될 길이·해상도" 기준이어야 확정 과금과 어긋나지 않는다.
-            /* 'img'(장당) 말고 '3d'(모델 1개당)·'tok'(호출 1회당)도 "단위 1개" 정액이다.
-               'img' 만 보고 있어서 3D·프롬프트 모델이 초당 계산을 타 8배로 추정됐다 —
-               확정 과금(usage/record·precheck·/api/v1)은 이미 u!=='sec' 로 맞춰 두었는데
-               이 게이트만 남아, 잔액이 충분한 사람을 "크레딧 부족" 으로 막을 수 있었다. */
-            const isImg = MODEL_COST[mdl] && MODEL_COST[mdl].u !== "sec";
-            let gUnits = isImg ? 1 : effectiveUnits({ ...pbody, model: mdl }, env);
-            /* 결과 길이가 원본 영상에서 정해지는 기능들(업스케일·V2V·나레이션·립싱크·Aleph·루마 편집 등)은
-               요청에 길이 필드가 없어 빌더에 물어볼 수 없다. 그래서 여태 신고값을 그대로 청구했고,
-               짧게 신고하면 그만큼 덜 냈다. 원본을 직접 재서 그 값으로 청구한다.
-               못 재면(webm·비공개 URL·네트워크 실패) 신고값으로 물러난다 — 생성을 막지는 않는다. */
-            if (!isImg && SOURCE_LENGTH_MODELS.has(mdl)) {
-              let src = sourceVideoUrl(pbody);
-              if (src && src.startsWith("/")) src = u.origin + src;      // 우리 R2 는 상대경로로 온다
-              const measured = src ? await probeRemoteVideoSeconds(src) : null;
-              if (measured && measured > 0) gUnits = Math.min(3600, Math.max(1, Math.round(measured)));
-            }
-            const gRes = isImg ? undefined : effectiveRes({ ...pbody, model: mdl }, env);
-            /* 값을 바꾸는 나머지 옵션도 여기서 한 번에 확정한다 — 아래 게이트 계산과 토큰이
-               같은 값을 써야 "통과시켜 놓고 더 크게 빠지는" 일이 없다.
-                 · hdr·exr : 스튜디오는 lumaHdr·lumaExr 라는 이름으로 보낸다. 예전엔 pbody.hdr 만
-                   봐서 루마 HDR 생성이 표준 요금으로 잡혔다(원가는 2배·EXR 3배인데 덜 받았다).
-                   effectiveFlags 를 태워 "실제 요청에 실릴 값" 만 인정한다.
-                 · 비율 : 표에 없는 값은 빌더가 정사각으로 떨어뜨린다 → 1.5배를 붙이면 안 된다. */
-            const gFlags = effectiveFlags({ ...pbody, model: mdl,
-                                            hdr: pbody.hdr === true || pbody.lumaHdr === true,
-                                            exr: pbody.exr === true || pbody.lumaExr === true });
-            const gRatio = effectiveRatio({ ...pbody, model: mdl });
-            const gRefs = Array.isArray(pbody.refImages) ? pbody.refImages.length
-                        : Math.max(0, Number(pbody.refCount) || Number(pbody.refs) || 0);
-            const cnCount = Math.max(0, (pbody.controlnets && pbody.controlnets.length) || Number(pbody.cn) || 0);
-            //  이 셋도 서로 독립이다 — 함께 부른다.
-            const [ovUsd, surPct, cnPct] = await Promise.all([
-              resolveCostOverride(db, mdl),   // 실측 단가가 있으면 게이트도 그 값으로
-              resolveRefSurcharge(db, me.id),
-              cnCount > 0 ? resolveCnSurcharge(db) : Promise.resolve(0),
-            ]);
-            const cc = computeCharge({ model: mdl, units: gUnits, res: gRes, audio: !!pbody.generateAudio,
-                                       refs: gRefs, hdr: gFlags.hdr, exr: gFlags.exr, ratio: gRatio }, rate, mk, ckw, ovUsd);
-            const refMult = 1 + (surPct / 100) * gRefs;
-            const cnMult = cnCount > 0 ? 1 + cnPct / 100 : 1;
-            const need = Math.round(cc.credits * refMult * cnMult * 100) / 100;
-            if (need > 0 && Number(me.credits) < need) {
-              return json({ error: `크레딧이 부족합니다. 필요 ${need.toLocaleString("ko-KR")}크레딧 · 보유 ${Number(me.credits).toLocaleString("ko-KR")}크레딧`, need, balance: Number(me.credits), needPlan: true }, 402);
-            }
-            /* 여기까지 오면 "무엇을 얼마나 만들지" 를 서버가 확정한 상태다.
-               차감은 /api/usage/record 가 하는데 거기서는 모델을 요청 본문에서 받아 썼다 —
-               비싼 모델로 만들고 싼 모델로 신고하면 차액만큼 덜 냈다.
-               확정값을 토큰에 묶어 두고 차감할 때 그 값을 쓰게 한다. */
-            context.__chargeToken = await issueGenCharge(db, me.id, {
-              model: mdl, units: gUnits, res: gRes, audio: !!pbody.generateAudio,
-              ratio: gRatio, refs: gRefs, cn: cnCount, hdr: gFlags.hdr, exr: gFlags.exr,
-            });
-          }
-        } catch (_e) { /* 추정 실패 시 credits>0 게이트로 통과 (락아웃 방지) */ }
-        // ── 남용 방지 ②: 레이트리밋(분/시/일) + 15초 버스트 가드 (denial-of-wallet 완화) ──
-        try { await ensureApiKeysSchema(db); } catch (_e) {}
-        const rl = await enforceRateLimit(db, me.id, "post", false);
-        if (!rl.ok) return json({ error: rl.reason || "요청이 너무 많습니다. 잠시 후 다시 시도하세요.", retryAfter: rl.retryAfter || 30 }, 429);
-        try {
-          const burst = await db.prepare(
-            "SELECT COUNT(*) AS n FROM api_rate WHERE user_id=? AND kind='post' AND ts>?"
-          ).bind(String(me.id), new Date(Date.now() - 15000).toISOString()).first();
-          if (Number(burst && burst.n || 0) > 5) return json({ error: "짧은 시간에 너무 많은 생성을 요청했습니다. 잠시 후 다시 시도하세요.", retryAfter: 15 }, 429);
-        } catch (_e) { /* 집계 실패는 통과 (락아웃 방지) */ }
+          const payload = buildSeedancePayload({ ...pbody, model: "Seedance 2.0" }, env);
+          payload.model = "__diag_no_such_model__";
+          const bodyStr = JSON.stringify(payload);
+          const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: "Bearer " + (k.seedance || "none") },
+            body: bodyStr,
+          }, 20000);
+          const txt = await r.text();
+          out = { diag: "outbound", ok: true, sentBytes: bodyStr.length, status: r.status,
+                  ms: Date.now() - t0, reply: txt.slice(0, 200) };
+        } catch (e) {
+          out = { diag: "outbound", ok: false, ms: Date.now() - t0,
+                  error: String((e && e.message) || e).slice(0, 200) };
+        }
+        return json(out);
       }
     }
   }
 
   /* ══ GET: 상태 폴링 / 파일 프록시 ══ */
   if (request.method === "GET") {
+    /* 죽은 요청의 발자국을 꺼내 본다 — 502 로 아무것도 못 받은 뒤에 부른다.
+       자기 요청에 자기가 붙인 표(임의의 긴 문자열)로만 조회되므로 남의 것은 못 본다. */
+    if (u.searchParams.get("trace")) {
+      const tid = String(u.searchParams.get("trace")).slice(0, 40);
+      const tdb = resolveDB(env);
+      if (!tdb) return json({ trace: tid, marks: [] });
+      const rows = await tdb.prepare(
+        `SELECT step, note, at FROM gen_trace WHERE id = ? ORDER BY at ASC, seq ASC`,
+      ).bind(tid).all().catch(() => null);
+      return json({ trace: tid, marks: ((rows && rows.results) || []) });
+    }
     if (u.searchParams.has("health")) { // 제공사 키 설정 여부 점검 (키 값은 절대 노출 안 함) — ?health 또는 ?health=1 모두 허용
       // 루마는 "키가 있다" 와 "그 키가 통한다" 가 다르다 — 실제로 확인한다(아래 lumaUsable 주석 참조)
       const lumaOk = await lumaUsable(k.luma);
       return json({
         version:  "2026-07-13-v56 (remove-keys-page)", // 이 필드가 보이면 최신 코드가 프로덕션에 반영된 것
-        build:    "2026-07-31-v57",                      // 스튜디오 STUDIO_BUILD 와 정확히 일치해야 최신
+        build:    "2026-08-02-v62",                      // 스튜디오 STUDIO_BUILD_TAG 와 정확히 일치해야 최신 (배포마다 함께 올린다)
         runway:   !!k.runway,
         xai:      !!k.xai,
         google:   !!(k.google || gcpCreds(env)),
@@ -1996,32 +2223,339 @@ async function handle(context) {
         srcVideo: u.searchParams.get("vid") || null,
         audioUrl: u.searchParams.get("aud") || null,
         generateAudio: u.searchParams.get("genaudio") === "1",
-        watermark: u.searchParams.get("wm") === "1"
+        watermark: u.searchParams.get("wm") === "1",
+        provider: "seedance",
       };
+      /* ⚠ 여기가 오래 새고 있었다. 이 우회로는 POST 안에 있는 잔액 게이트·과금 토큰 구간을
+         지나지 않아서, 이 길로 만들어진 영상은 제공사 비용만 나가고 회원에게는 한 푼도
+         청구되지 않았다(토큰이 없으면 정산이 소비할 것도 없다). POST 가 막힐 때만 타는
+         길이라 눈에도 안 띈다 — 그래서 더 오래 갔다.
+         이제 POST 와 같은 자리를 지난다. 잔액이 모자라면 여기서 막히고(제공사 호출 전),
+         통과하면 같은 공식으로 만든 토큰이 붙어 제출 성공 시 정확히 한 번 차감된다. */
+      {
+        const gdb = resolveDB(env);
+        const gme = context.__genUser;
+        if (gdb && gme && gme.id && gme.role !== "admin") {
+          if (!(Number(gme.credits) > 0))
+            return json({ error: "크레딧이 부족합니다. 요금제를 활성화해 주세요.", needPlan: true }, 402);
+          const blocked = await billingGate(context, env, u, gdb, gme, b);
+          if (blocked) return blocked;
+        }
+      }
       // POST 와 같은 이유로 이 경로도 제출을 붙잡고 있으면 플랫폼 502 가 난다 — 똑같이 인계한다.
       const work = (async () => {
         const payload = buildSeedancePayload(b, env);
         let r, j; const t0 = Date.now();
         try {
-          r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+          //  본 제출 경로와 같은 주소 해석을 쓴다(arkBase) — 여기만 ARK_HOSTS 를 직접 보고 있어서
+          //  ARK_HOST_OVERRIDE 로 제공사를 흉내 내는 검사가 이 길만 못 태웠다.
+          r = await fetchT(arkBase(env, "bp") + "/contents/generations/tasks", {
             method: "POST",
             headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
             body: JSON.stringify(payload)
           }, 22000);
           j = await r.json().catch(() => ({}));
         } catch (e) {
-          return json({ error: "Seedance 제출 실패(" + (Date.now() - t0) + "ms): " + String((e && e.message) || e).slice(0, 140) }, 502);
+          return json({ error: "Seedance 제출 실패(" + (Date.now() - t0) + "ms): " + String((e && e.message) || e).slice(0, 140) }, FAIL);
         }
         if (r.ok && j.id)
           return json({ statusUrl: "/api/generate?provider=seedance&host=bp&task=" + encodeURIComponent(j.id) });
         return json({ error: "Seedance HTTP " + r.status + " " +
-          String((j.error && (j.error.message || j.error.code)) || JSON.stringify(j)).slice(0, 180) }, 502);
+          String((j.error && (j.error.message || j.error.code)) || JSON.stringify(j)).slice(0, 180) }, FAIL);
       })();
       return await handoffSubmit(context, work, "seedance");
     }
     // 진단(2.0 공식 형식): BytePlus 공식 샘플 URL(이미지+영상)로 정확한 2.0 페이로드 제출.
     // bp 자기네 공개 URL이라 즉시 로드됨 → 형식/키/네트워크가 맞으면 무조건 태스크ID 반환.
     //   /api/generate?diag=seedance2
+    /* 진단(실사 인물 자산): 얼굴이 든 사진은 그대로 못 보낸다 —
+         HTTP 400 <InputImageSensitiveContentDetected.PrivacyInformation>
+         "input image may contain real person"
+       모델이 못 하는 게 아니라, 확인되지 않은 얼굴을 API 등급에서 막는 정책이다.
+       제공사 문서에는 "본인 확인을 거친 인물 자산" 이라는 별도 통로가 있다고 되어 있는데,
+       그 문서 페이지가 밖에서 안 열려(403) 정확한 주소·필드를 확인할 수 없었다.
+       그래서 추측 대신 API 에 직접 물어본다 — 어느 주소가 살아 있는지 상태 코드로 답이 나온다.
+         /api/generate?diag=arkassets     (관리자 전용 · 위 게이트에서 막는다)
+       ⚠ 만드는 요청이 아니라 목록을 읽는 요청만 보낸다. 아무것도 생성되지 않고 돈도 안 나간다.
+       ⚠ 자산 라이브러리는 인증 방식이 다를 수 있다(중국 볼케이노는 AK/SK 서명 + 다른 호스트).
+         그렇다면 지금 우리가 가진 키로는 401/403 이 돌아올 것이고, 그 자체가 답이 된다. */
+    if (u.searchParams.get("diag") === "arkassets") {
+      if (!k.seedance) return json({ diag: "arkassets", error: "Seedance 키가 서버에 없음" });
+      /*  ⚠ 상태 코드만 보면 안 된다 — 처음에 그렇게 만들었다가 스스로 속을 뻔했다.
+            이 관문은 GET 으로 아무 주소나 물어도 "200 + 빈 본문" 을 준다.
+            내가 지어낸 /human_assets · /characters 까지 전부 200 이었다.
+          그래서 두 가지를 바꾼다.
+            ① 대조군 — 절대 있을 리 없는 주소를 같이 넣는다. 그것과 답이 같으면 그 주소는 없는 것이다.
+            ② POST 로 빈 본문을 보내고 "무엇이 틀렸다" 는 답을 읽는다.
+               있는 주소는 "파라미터가 틀렸다"(InvalidParameter 등) 라고 답하고,
+               없는 주소는 "그런 건 없다"(NotFound·InvalidEndpointOrModel) 라고 답한다.
+               이 구분은 이 파일이 모델 ID 를 찾을 때 이미 쓰고 있는 방법이다. */
+      const CONTROL = "/__bygency_control_" + Math.random().toString(36).slice(2, 8) + "__";
+      const paths = [
+        CONTROL,
+        "/contents/assets", "/assets", "/content_assets", "/asset_groups",
+        "/contents/asset_groups", "/digital_humans", "/characters",
+        "/contents/generations/assets", "/human_assets",
+      ];
+      const probe = async (p, method) => {
+        const t0 = Date.now();
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + p, {
+            method,
+            headers: { Authorization: "Bearer " + k.seedance, "Content-Type": "application/json" },
+            ...(method === "POST" ? { body: "{}" } : {}),
+          }, 8000);
+          const t = await r.text();
+          let code = "";
+          try { const j = JSON.parse(t); code = (j && j.error && (j.error.code || j.error.type)) || ""; } catch (_e) {}
+          return { status: r.status, ms: Date.now() - t0, bytes: t.length, code,
+                   body: String(t).replace(/\s+/g, " ").slice(0, 180) };
+        } catch (e) {
+          return { error: String((e && e.message) || e).slice(0, 90), ms: Date.now() - t0 };
+        }
+      };
+      const out = [];
+      for (const p of paths) out.push({ path: p, GET: await probe(p, "GET"), POST: await probe(p, "POST") });
+      const ctl = out[0];
+      const sig = (x) => (x.GET.status + "/" + x.GET.bytes + "|" + x.POST.status + "/" + x.POST.code + "/" + x.POST.bytes);
+      const ctlSig = sig(ctl);
+      const differs = out.slice(1).filter((x) => sig(x) !== ctlSig);
+      return json({
+        diag: "arkassets", host: ARK_HOSTS.bp,
+        대조군: { path: CONTROL, 답: ctlSig, body: ctl.POST.body || ctl.GET.body || "(빈 본문)" },
+        probes: out,
+        대조군과다른주소: differs.map((x) => x.path + " → " + sig(x) + (x.POST.code ? " <" + x.POST.code + ">" : "")),
+        해석: differs.length
+          ? "대조군과 답이 다른 주소가 있다 — 그 주소는 실재한다. 아래 오류 코드를 보고 무엇을 더 보내야 하는지 정한다."
+          : "모든 주소가 대조군과 똑같이 답한다 — 이 호스트·이 키로는 자산 통로가 없다. "
+            + "(자산 라이브러리는 다른 호스트에 AK/SK 서명을 쓴다는 문서 설명과 들어맞는다)",
+      });
+    }
+    /* 진단(모델 목록): "필터가 완화된 전용 모델이 따로 있다" 는 이야기를 확인한다.
+         /api/generate?diag=arkmodels     (관리자 전용)
+       계정 카탈로그를 통째로 보여 주고, 완화 모델이라 이름 붙은 후보들이 실재하는지 본다.
+       ⚠ 대조군을 넣는다 — 아무렇게나 지어낸 ID 를 같이 던져서, 그것과 답이 같으면 없는 것이다.
+         (앞서 대조군 없이 만들었다가 "다 있다" 로 잘못 읽을 뻔했다)
+       ⚠ 만드는 요청이 아니다. 최소 본문을 보내고 "무엇이 틀렸다" 는 답만 읽는다 — 돈이 안 나간다. */
+    if (u.searchParams.get("diag") === "arkmodels") {
+      if (!k.seedance) return json({ diag: "arkmodels", error: "Seedance 키가 서버에 없음" });
+      const base = "dreamina-seedance-2-0-260128";
+      const cands = [
+        "__control_" + Math.random().toString(36).slice(2, 8),   // 대조군 — 있을 리 없는 ID
+        base,
+        base + "-less-restriction", base + "-lessrestriction",
+        "dreamina-seedance-2-0-less-restriction",
+        "seedance-2-0-less-restriction",
+        base + "-portrait", "dreamina-seedance-2-0-portrait",
+        base + "-realhuman", "dreamina-seedance-2-0-real-human",
+      ];
+      const shot = async (mid) => {
+        const t0 = Date.now();
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: mid, content: [{ type: "text", text: "t" }], duration: 5 }),
+          }, 12000);
+          const t = await r.text();
+          let code = "", msg = "";
+          try { const j = JSON.parse(t); code = (j.error && j.error.code) || ""; msg = (j.error && j.error.message) || ""; } catch (_e) {}
+          return { model: mid, status: r.status, code, msg: String(msg).slice(0, 120), ms: Date.now() - t0 };
+        } catch (e) { return { model: mid, error: String((e && e.message) || e).slice(0, 90) }; }
+      };
+      const res = [];
+      for (const c of cands) res.push(await shot(c));
+      const ctl = res[0];
+      const same = (x) => x.status === ctl.status && x.code === ctl.code;
+      let catalog = null;
+      try { catalog = await arkModelCatalog(k.seedance); } catch (_e) {}
+      return json({
+        diag: "arkmodels",
+        대조군: { model: ctl.model, 답: ctl.status + " " + ctl.code, msg: ctl.msg },
+        시험결과: res.slice(1).map((x) => x.model + " → " + x.status + " " + (x.code || "") +
+                                        (same(x) ? "  (대조군과 같음 = 없는 모델)" : "  ← 대조군과 다름")),
+        대조군과다른모델: res.slice(1).filter((x) => !same(x)).map((x) => x.model),
+        계정카탈로그수: catalog ? catalog.length : null,
+        계정카탈로그: catalog || null,
+        얼굴관련후보: catalog ? catalog.filter((x) => /portrait|human|face|restrict|avatar|digital/i.test(x)) : null,
+        해석: res.slice(1).filter((x) => !same(x)).length
+          ? "대조군과 다르게 답한 ID 가 있다 — 그 이름은 실재한다."
+          : "대조군과 전부 같다 — 그런 이름의 모델은 이 계정에 없다. "
+            + "'필터 완화 전용 모델' 이야기는 이 계정 기준으로는 사실이 아니다.",
+      });
+    }
+    /* 진단(얼굴 사진을 받아 주는 모델 찾기):
+         /api/generate?diag=faceok&img=<공개 이미지 주소>     (관리자 전용)
+       같은 사진을 계정에 실제로 열려 있는 씨댄스 변형들에 하나씩 던져 보고,
+       어느 것이 얼굴을 이유로 거절하는지 오류 코드로 가른다.
+       ⚠ 거절당하면 0원이다(생성 전에 막힌다). 받아 주면 영상이 실제로 만들어져 돈이 나간다 —
+         그런데 그게 바로 우리가 찾던 답이라, 그 비용은 감수한다. 최저 설정으로만 던진다.
+       ⚠ 카탈로그에 실재하는 ID 만 쓴다(diag=arkmodels 로 확인한 것). 지어낸 이름은 넣지 않는다. */
+    if (u.searchParams.get("diag") === "faceok") {
+      if (!k.seedance) return json({ diag: "faceok", error: "Seedance 키가 서버에 없음" });
+      const img = String(u.searchParams.get("img") || "").trim();
+      if (!/^https?:\/\//.test(img))
+        return json({ diag: "faceok", error: "img 에 공개 이미지 주소(https://…)를 넣어 주세요. 얼굴이 있는 사진이어야 의미가 있습니다." });
+      const variants = [
+        "dreamina-seedance-2-5-260628",       // 스튜디오에 아직 없는 최신 — 가장 기대되는 후보
+        "dreamina-seedance-2-0-260128",       // 지금 쓰는 것 (거절당하는 그 모델)
+        "dreamina-seedance-2-0-fast-260128",
+        "dreamina-seedance-2-0-mini-260615",
+        "seedance-1-5-pro-251215",
+        "seedance-1-0-pro-250528",
+        "seedance-1-0-lite-i2v-250428",
+      ];
+      const out = [];
+      for (const mid of variants) {
+        const t0 = Date.now();
+        try {
+          //  2.x 는 content 배열, 1.x 는 image_url 단일 — 각자 받는 모양으로 보낸다.
+          const body = /seedance-2/.test(mid)
+            ? { model: mid, content: [{ type: "text", text: "a gentle portrait, subtle motion" },
+                                      { type: "image_url", image_url: { url: img }, role: "first_frame" }],
+                ratio: "16:9", resolution: "480p", duration: 5, watermark: false }
+            : { model: mid, content: [{ type: "text", text: "a gentle portrait, subtle motion --resolution 480p --dur 5" },
+                                      { type: "image_url", image_url: { url: img } }] };
+          const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }, 25000);
+          const t = await r.text();
+          let j = null; try { j = JSON.parse(t); } catch (_e) {}
+          const code = (j && j.error && j.error.code) || "";
+          const face = /SensitiveContent|Privacy|real person/i.test(code + " " + ((j && j.error && j.error.message) || t));
+          out.push({ model: mid, status: r.status, code,
+                     판정: r.ok && j && j.id ? "받아 줌 — 영상이 만들어집니다"
+                          : face ? "얼굴 때문에 거절"
+                          : "다른 이유로 실패",
+                     taskId: (j && j.id) || undefined,
+                     msg: String((j && j.error && j.error.message) || t).replace(/\s+/g, " ").slice(0, 150),
+                     ms: Date.now() - t0 });
+        } catch (e) {
+          out.push({ model: mid, 판정: "호출 실패", msg: String((e && e.message) || e).slice(0, 100), ms: Date.now() - t0 });
+        }
+      }
+      const okList = out.filter((x) => x.taskId).map((x) => x.model);
+      const faceBlocked = out.filter((x) => /얼굴 때문에/.test(x.판정)).map((x) => x.model);
+      return json({ diag: "faceok", image: img.slice(0, 120), 결과: out,
+                    받아준모델: okList, 얼굴로거절한모델: faceBlocked,
+                    해석: okList.length
+                      ? "이 사진을 받아 주는 모델이 있다 — 스튜디오에서 그 모델을 쓰면 된다."
+                      : "계정에 열린 씨댄스 전 모델이 이 사진을 거절했다. 씨댄스 계열로는 이 사진을 못 쓴다." });
+    }
+    /* 진단(같은 모델에 "보내는 모양"만 바꿔 보기):
+         /api/generate?diag=faceshape&img=<사진 주소>[&model=<모델ID>]     (관리자 전용)
+
+       faceok 은 모델을 바꿔 가며 물어본다. 여기는 반대다 — 모델은 회원이 고른 그대로 두고,
+       같은 사진을 제공사가 인정하는 여러 "모양" 으로 보내 어느 모양이 통과하는지 본다.
+       사장님 지시(다른 모델로 우회 금지)를 지키면서 열 수 있는 문은 이쪽뿐이다.
+
+       ⚠ 반드시 대조군(사람 없는 사진)을 같은 모양으로 함께 던진다.
+         대조군까지 막히면 그 모양 자체가 안 되는 것이지 얼굴 때문이 아니다.
+         (예전에 대조군 없이 재다가 "통로가 있다" 고 잘못 읽은 적이 있다)
+       ⚠ 거절은 0원이다. 통과하면 영상이 실제로 만들어져 돈이 나가지만, 그게 찾던 답이라 감수한다.
+         최저 설정(480p·5초)으로만 던진다. */
+    if (u.searchParams.get("diag") === "faceshape") {
+      if (!k.seedance) return json({ diag: "faceshape", error: "Seedance 키가 서버에 없음" });
+      const raw = String(u.searchParams.get("img") || "").trim();
+      const img = /^https?:\/\//.test(raw) ? raw : (raw ? new URL(u.origin + (raw.startsWith("/") ? raw : "/" + raw)).href : "");
+      if (!img) return json({ diag: "faceshape", error: "img 에 사진 주소를 넣어 주세요(https://… 또는 /api/media/…). 얼굴이 있는 사진이어야 의미가 있습니다." });
+      const mid = String(u.searchParams.get("model") || "dreamina-seedance-2-0-260128");
+      //  대조군 — 사람이 없는 사진. 제공사 문서에 실린 공개 이미지를 쓴다.
+      const CTRL = "https://ark-doc.tos-ap-southeast-1.bytepluses.com/doc_image/r2v_tea_pic1.jpg";
+      //  실어 보내기(base64) 모양도 재려면 사진을 직접 읽어 와야 한다.
+      let dataUri = "", b64skip = "";
+      try {
+        const ir = await fetchT(img, {}, 15000);
+        if (!ir.ok) b64skip = "사진을 못 읽음 HTTP " + ir.status;
+        else {
+          const buf = new Uint8Array(await ir.arrayBuffer());
+          if (buf.length > 4 * 1024 * 1024) b64skip = "사진이 4MB 를 넘음(" + Math.round(buf.length / 1024) + "KB)";
+          else {
+            let s = ""; for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+            dataUri = "data:" + (ir.headers.get("content-type") || "image/jpeg") + ";base64," + btoa(s);
+          }
+        }
+      } catch (e) { b64skip = String((e && e.message) || e).slice(0, 100); }
+
+      const PROMPT = "a gentle portrait, subtle motion";
+      const NEUTRAL = "slow cinematic camera push in, soft light";
+      const shape = (name, src, opts) => ({
+        name,
+        body: Object.assign({
+          model: (opts && opts.model) || mid,
+          content: [{ type: "text", text: (opts && opts.text) || PROMPT }].concat(
+            (opts && opts.role) === null
+              ? [{ type: "image_url", image_url: { url: src } }]
+              : [{ type: "image_url", image_url: { url: src }, role: (opts && opts.role) || "first_frame" }]),
+          ratio: "16:9", resolution: "480p", duration: 5, watermark: false,
+        }, (opts && opts.extra) || {}),
+      });
+      const tries = [
+        shape("① 첫 프레임 · 주소 (지금 방식)", img, {}),
+        shape("② 레퍼런스로 (i2v 가 아니라 레퍼런스 모드)", img, { role: "reference_image" }),
+        shape("③ 역할 표시 없이", img, { role: null }),
+        shape("④ 첫 프레임 · 워터마크 켬", img, { extra: { watermark: true } }),
+        shape("⑤ 첫 프레임 · 사람을 언급하지 않는 문구", img, { text: NEUTRAL }),
+      ];
+      if (dataUri) tries.push(shape("⑥ 첫 프레임 · 실어 보내기(base64)", dataUri, {}));
+      /*  같은 씨댄스 2.0 계열의 다른 갈래도 함께 물어본다 — 2.5 가 같은 사진을 받아 준 것을
+          보면 검열은 "모델마다" 다르게 걸려 있다. 그러면 fast·mini 도 다를 수 있다.
+          ⚠ 이건 어디까지나 "어느 문이 열려 있는지" 를 재는 것이다. 생성이 저절로 그쪽으로
+            넘어가지는 않는다 — 모델은 사장님이 목록에서 직접 고르셔야 바뀐다. */
+      const FAMILY = [
+        ["dreamina-seedance-2-0-fast-260128", "Seedance 2.0 Fast"],
+        ["dreamina-seedance-2-0-mini-260615", "Seedance 2.0 Mini"],
+        ["dreamina-seedance-2-5-260628", "Seedance 2.5"],
+      ].filter(([id]) => id !== mid);
+      FAMILY.forEach(([id, label], i) => {
+        tries.push(shape("⑦" + "abc"[i] + " 참고 — " + label + " · 첫 프레임", img, { model: id }));
+      });
+      tries.push(shape("⑧ 대조군 — 사람 없는 사진 · 첫 프레임", CTRL, { text: NEUTRAL }));
+      tries.push(shape("⑨ 대조군 — 사람 없는 사진 · 레퍼런스", CTRL, { text: NEUTRAL, role: "reference_image" }));
+
+      const out = [];
+      for (const t of tries) {
+        const t0 = Date.now();
+        try {
+          const r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify(t.body),
+          }, 25000);
+          const txt = await r.text();
+          let j = null; try { j = JSON.parse(txt); } catch (_e) {}
+          const code = (j && j.error && j.error.code) || "";
+          const msg = String((j && j.error && j.error.message) || txt).replace(/\s+/g, " ").slice(0, 160);
+          const face = /SensitiveContent|Privacy|real person/i.test(code + " " + msg);
+          out.push({ 모양: t.name, 모델: t.body.model, status: r.status, code,
+                     판정: (r.ok && j && j.id) ? "통과 — 영상이 만들어집니다" : face ? "얼굴 때문에 거절" : "다른 이유로 실패",
+                     taskId: (j && j.id) || undefined, msg, ms: Date.now() - t0 });
+        } catch (e) {
+          out.push({ 모양: t.name, 판정: "호출 실패", msg: String((e && e.message) || e).slice(0, 120), ms: Date.now() - t0 });
+        }
+      }
+      const passed = out.filter((x) => x.taskId);
+      const ctrlOk = out.filter((x) => /대조군/.test(x.모양) && x.taskId).length;
+      //  "지금 고른 모델 그대로 통과한 모양" 과 "다른 모델이라 통과한 것" 을 반드시 갈라 본다.
+      //  섞어서 세면 "되는 길이 있다" 고 잘못 읽는다.
+      const realPass = passed.filter((x) => !/대조군|참고 —/.test(x.모양)).map((x) => x.모양);
+      const famPass = passed.filter((x) => /참고 —/.test(x.모양)).map((x) => x.모양.replace(/^\S+ 참고 — /, ""));
+      return json({
+        diag: "faceshape", model: mid, image: img.slice(0, 140),
+        실어보내기잼: !!dataUri, 실어보내기건너뛴이유: dataUri ? undefined : (b64skip || "알 수 없음"), 결과: out,
+        통과한모양: realPass, 이사진을받아준다른모델: famPass, 대조군통과: ctrlOk,
+        해석: !ctrlOk
+          ? "대조군(사람 없는 사진)까지 막혔다 — 이번 측정은 못 믿는다(키·모델·통신 문제). 다시 재야 한다."
+          : realPass.length
+            ? "고른 모델 그대로 통과하는 모양이 있다 — 스튜디오가 그 모양으로 보내도록 바꾸면 된다: " + realPass.join(", ")
+            : famPass.length
+              ? "이 모델(" + mid + ")로는 어떤 모양으로도 막힌다. 다만 같은 계열의 " + famPass.join(", ")
+                + " 는 이 사진을 받아 준다 — 목록에서 그 모델을 고르시면 된다(자동으로 넘어가지는 않는다)."
+              : "대조군은 통과하는데 이 사진은 어떤 모양·어떤 씨댄스 모델로도 막힌다 — 요청 모양이 아니라 계정 권한(실인물 허용)의 문제다.",
+      });
+    }
     if (u.searchParams.get("diag") === "seedance2") {
       if (!k.seedance) return json({ diag: "seedance2", error: "Seedance 키가 서버에 없음" });
       const model = u.searchParams.get("model") || "dreamina-seedance-2-0-260128";
@@ -3890,7 +4424,7 @@ async function handle(context) {
         task = String(row.task); hostId = row.host === "vc" ? "vc" : "bp";
       }
       if (!task || !k.seedance) return json({ status: "failed", error: "no task/key" }, 400);
-      const r = await fetchT(ARK_HOSTS[hostId] + "/contents/generations/tasks/" + encodeURIComponent(task), {
+      const r = await fetchT(arkBase(env, hostId) + "/contents/generations/tasks/" + encodeURIComponent(task), {
         headers: { "Authorization": "Bearer " + k.seedance }
       });
       const j = await r.json();
@@ -4031,7 +4565,9 @@ async function handle(context) {
   const cl = Number(request.headers.get("Content-Length") || 0);
   if (cl > 3 * 1024 * 1024)
     return json({ error: "요청 데이터가 너무 큽니다(" + Math.round(cl / 1024 / 1024) + "MB). 이미지가 R2로 업로드되지 않고 원본이 통째로 실렸습니다 — Ctrl+Shift+R(강력 새로고침) 후 다시 시도하세요." }, 413);
-  let b; try { b = await request.json(); } catch { return json({ error: "bad json" }, 400); }
+  //  위 인증 단계에서 이미 파싱해 뒀으면 그것을 쓴다(같은 본문을 두 번 읽지 않는다)
+  let b = context.__pbody && typeof context.__pbody === "object" ? context.__pbody : null;
+  if (!b) { try { b = await request.json(); } catch { return json({ error: "bad json" }, 400); } }
   applyCameraPreset(b);   // 카메라 모션 프리셋(b.camera) → 프롬프트에 시네마틱 지시문 주입
   // ── 브랜드 킷 자동 적용 ──
   //  계정에 저장해 둔 톤앤매너·컬러·금지 요소를 모든 생성에 자동으로 얹는다.
@@ -4122,7 +4658,7 @@ async function handle(context) {
       // 모델 이름 문제가 아니면(잔액·검열·파라미터) 다른 ID 로 바꿔도 결과가 같다
       if (!/model|not\s*found|invalid|unsupported|deprecat|sunset/i.test(rwMsg)) break;
     }
-    return json({ error: "Runway HTTP " + rwStatus + ": " + rwMsg }, 502);
+    return json({ error: "Runway HTTP " + rwStatus + ": " + rwMsg }, FAIL);
   }
 
   /* ── V2V 자동 라우팅 (정확도 최상) ──
@@ -4145,7 +4681,7 @@ async function handle(context) {
       });
       const j = await r.json().catch(() => ({}));
       if (r.ok && j.id) return json({ statusUrl: "/api/generate?provider=runway&task=" + encodeURIComponent(j.id), routed: "runway_aleph" });
-      if (!k.seedance) return json({ error: "Runway Aleph V2V 실패 HTTP " + r.status + ": " + String(j.error || j.message || JSON.stringify(j)).slice(0, 200) }, 502);
+      if (!k.seedance) return json({ error: "Runway Aleph V2V 실패 HTTP " + r.status + ": " + String(j.error || j.message || JSON.stringify(j)).slice(0, 200) }, FAIL);
       // Aleph 실패 → Seedance 로 폴백
     }
 
@@ -4158,7 +4694,7 @@ async function handle(context) {
       for (const hostId of hosts) {
         let r, j;
         try {
-          r = await fetchT(ARK_HOSTS[hostId] + "/contents/generations/tasks", {
+          r = await fetchT(arkBase(env, hostId) + "/contents/generations/tasks", {
             method: "POST",
             headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
             body: JSON.stringify(payload)
@@ -4169,7 +4705,7 @@ async function handle(context) {
         lastErr = "HTTP " + r.status + " " + ((j.error && (j.error.message || j.error.code)) || "");
         if (r.status !== 401 && r.status !== 403 && r.status !== 404) break;
       }
-      return json({ error: "Seedance V2V 실패: " + String(lastErr).slice(0, 200) }, 502);
+      return json({ error: "Seedance V2V 실패: " + String(lastErr).slice(0, 200) }, FAIL);
     }
 
     // 3순위: 모션 전이(fal) — 원본 영상의 움직임을 유지하며 스타일 변환 (base 모델 무관 공통 레이어)
@@ -4199,7 +4735,7 @@ async function handle(context) {
         const j = await r.json().catch(() => ({}));
         if (r.ok && j.code === 0 && j.data && j.data.task_id)
           return json({ statusUrl: "/api/generate?provider=kling&task=" + encodeURIComponent(j.data.task_id) + "&ep=image2video", routed: "kling_bridge" });
-        return json({ error: "V2V 브리지(Kling) 실패: " + String(j.message || JSON.stringify(j)).slice(0, 200) }, 502);
+        return json({ error: "V2V 브리지(Kling) 실패: " + String(j.message || JSON.stringify(j)).slice(0, 200) }, FAIL);
       }
       /* 클링 브리지도 공식 API 로만 간다(위 분기). fal 경유는 같은 모델을 중개로 부르는 것이라 없앴다. */
     }
@@ -4216,7 +4752,7 @@ async function handle(context) {
       return json({ error: "나레이션을 입힐 영상의 공개 URL이 필요합니다. (출력 노드의 영상을 음성 노드에 연결하세요)" }, 400);
     const origin = new URL(request.url).origin;
     const tts = await synthTTSUrl(env, origin, b, fetchT, request.headers.get("cookie"));
-    if (tts.error) return json({ error: "나레이션 " + tts.error }, tts.status || 502);
+    if (tts.error) return json({ error: "나레이션 " + tts.error }, FAIL);
     // fal ffmpeg — 원본 영상 + 나레이션 오디오 병합 (env 로 모델 교체 가능)
     const model = pick(env, ["FAL_MERGE_MODEL", "fal_merge_model"]) || "fal-ai/ffmpeg-api/merge-audio-video";
     const r = await falFetch("narrate", FAL_QUEUE + model, {
@@ -4225,7 +4761,7 @@ async function handle(context) {
     });
     const j = await r.json().catch(() => ({}));
     const reqId = j.request_id || j.requestId;
-    if (!r.ok || !reqId) return json({ error: "나레이션 합성(fal " + model + ") 실패: " + String(j.detail || j.error || JSON.stringify(j)).slice(0, 220) }, 502);
+    if (!r.ok || !reqId) return json({ error: "나레이션 합성(fal " + model + ") 실패: " + String(j.detail || j.error || JSON.stringify(j)).slice(0, 220) }, FAIL);
     return json({ statusUrl: "/api/generate?provider=falq&task=" + encodeURIComponent(reqId) + "&model=" + encodeURIComponent(model), audioUrl: tts.audioUrl });
   }
 
@@ -4238,7 +4774,7 @@ async function handle(context) {
       return json({ error: "립싱크할 영상의 공개 URL이 필요합니다. (얼굴/인물이 나오는 영상을 연결하세요)" }, 400);
     const origin = new URL(request.url).origin;
     const tts = await synthTTSUrl(env, origin, b, fetchT, request.headers.get("cookie"));
-    if (tts.error) return json({ error: "립싱크 " + tts.error }, tts.status || 502);
+    if (tts.error) return json({ error: "립싱크 " + tts.error }, FAIL);
     // fal 립싱크 모델 (env 로 교체 가능). sync-lipsync 은 video_url+audio_url 규격.
     const model = pick(env, ["FAL_LIPSYNC_MODEL", "fal_lipsync_model"]) || "fal-ai/sync-lipsync";
     const payload = { video_url: videoUrl, audio_url: tts.audioUrl, sync_mode: "cut_off" };
@@ -4248,7 +4784,7 @@ async function handle(context) {
     });
     const j = await r.json().catch(() => ({}));
     const reqId = j.request_id || j.requestId;
-    if (!r.ok || !reqId) return json({ error: "립싱크(fal " + model + ") 실패: " + String(j.detail || j.error || JSON.stringify(j)).slice(0, 220) }, 502);
+    if (!r.ok || !reqId) return json({ error: "립싱크(fal " + model + ") 실패: " + String(j.detail || j.error || JSON.stringify(j)).slice(0, 220) }, FAIL);
     return json({ statusUrl: "/api/generate?provider=falq&task=" + encodeURIComponent(reqId) + "&model=" + encodeURIComponent(model), audioUrl: tts.audioUrl });
   }
 
@@ -4268,7 +4804,7 @@ async function handle(context) {
 
     // 1) 추출 음성 가져오기
     const ar = await fetchT(audioUrl, {}, 30000);
-    if (!ar.ok) return json({ error: "추출한 음성을 불러오지 못했습니다." }, 502);
+    if (!ar.ok) return json({ error: "추출한 음성을 불러오지 못했습니다." }, FAIL);
     const inBuf = await ar.arrayBuffer();
     if (!inBuf || inBuf.byteLength < 128) return json({ error: "추출한 음성이 비어 있습니다(영상에 말소리가 없을 수 있습니다)." }, 400);
     const inType = ar.headers.get("content-type") || "audio/wav";
@@ -4281,9 +4817,9 @@ async function handle(context) {
     fd.append("remove_background_noise", "true");
     const sr = await fetchT("https://api.elevenlabs.io/v1/speech-to-speech/" + encodeURIComponent(voice),
       { method: "POST", headers: { "xi-api-key": el, "accept": "audio/mpeg" }, body: fd }, 120000);
-    if (!sr.ok) { let et = ""; try { et = await sr.text(); } catch {} return json({ error: "일레븐랩스 목소리 교체 실패 HTTP " + sr.status + ": " + et.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 220) }, 502); }
+    if (!sr.ok) { let et = ""; try { et = await sr.text(); } catch {} return json({ error: "일레븐랩스 목소리 교체 실패 HTTP " + sr.status + ": " + et.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 220) }, FAIL); }
     const newBuf = await sr.arrayBuffer();
-    if (!newBuf || newBuf.byteLength < 128) return json({ error: "교체된 음성이 비어 있습니다." }, 502);
+    if (!newBuf || newBuf.byteLength < 128) return json({ error: "교체된 음성이 비어 있습니다." }, FAIL);
 
     // 3) R2 호스팅
     const bucket = r2BucketOf(env);
@@ -4300,7 +4836,7 @@ async function handle(context) {
     });
     const j2 = await r2.json().catch(() => ({}));
     const reqId2 = j2.request_id || j2.requestId;
-    if (!r2.ok || !reqId2) return json({ error: "립싱크(fal " + model + ") 실패: " + String(j2.detail || j2.error || JSON.stringify(j2)).slice(0, 220) }, 502);
+    if (!r2.ok || !reqId2) return json({ error: "립싱크(fal " + model + ") 실패: " + String(j2.detail || j2.error || JSON.stringify(j2)).slice(0, 220) }, FAIL);
     return json({ statusUrl: "/api/generate?provider=falq&task=" + encodeURIComponent(reqId2) + "&model=" + encodeURIComponent(model), audioUrl: newAudioUrl });
   }
 
@@ -4316,7 +4852,7 @@ async function handle(context) {
     });
     const j = await r.json().catch(() => ({}));
     const reqId = j.request_id || j.requestId;
-    if (!r.ok || !reqId) return json({ error: "모션 전이(fal " + model + ") 실패: " + String(j.detail || j.error || JSON.stringify(j)).slice(0, 200) }, 502);
+    if (!r.ok || !reqId) return json({ error: "모션 전이(fal " + model + ") 실패: " + String(j.detail || j.error || JSON.stringify(j)).slice(0, 200) }, FAIL);
     return json({ statusUrl: "/api/generate?provider=falq&task=" + encodeURIComponent(reqId) + "&model=" + encodeURIComponent(model) });
   }
 
@@ -4340,7 +4876,7 @@ async function handle(context) {
       // 모델 이름 문제가 아니면(잔액·검열·파라미터) 다른 ID 를 시도해도 결과가 같다.
       if (!/model|not\s*found|invalid|unsupported|deprecat/i.test(lastMsg)) break;
     }
-    return json({ error: "Runway Aleph HTTP " + lastStatus + ": " + lastMsg }, 502);
+    return json({ error: "Runway Aleph HTTP " + lastStatus + ": " + lastMsg }, FAIL);
   }
 
   if (provider === "xai") {
@@ -4366,7 +4902,7 @@ async function handle(context) {
       if (direct) return json({ url: direct, kind: "video" });
       const id = j.request_id || j.id || null;
       if (r.ok && id) return json({ statusUrl: "/api/generate?provider=xai&task=" + encodeURIComponent(id), kind: "video" });
-      return json({ error: "Grok 영상 HTTP " + r.status + ": " + String(JSON.stringify(j.error || j)).slice(0, 220) }, 502);
+      return json({ error: "Grok 영상 HTTP " + r.status + ": " + String(JSON.stringify(j.error || j)).slice(0, 220) }, FAIL);
     }
     const r = await fetchT("https://api.x.ai/v1/images/generations", {
       method: "POST",
@@ -4375,7 +4911,7 @@ async function handle(context) {
     });
     const j = await r.json().catch(() => ({}));
     const url = j.data?.[0]?.url || null;
-    if (!r.ok || !url) return json({ error: "Grok HTTP " + r.status + ": " + String(JSON.stringify(j.error || j)).slice(0, 220) }, 502);
+    if (!r.ok || !url) return json({ error: "Grok HTTP " + r.status + ": " + String(JSON.stringify(j.error || j)).slice(0, 220) }, FAIL);
     return json({ url, kind: "image" });
   }
 
@@ -4404,8 +4940,8 @@ async function handle(context) {
         const j0 = await r0.json();
         if (r0.ok && j0.name)
           return json({ statusUrl: "/api/generate?provider=google&sop=" + encodeURIComponent(j0.name) });
-        if (j0.error) return json({ error: "Vertex(SA): " + j0.error.message }, 502);
-      } catch (e) { return json({ error: "Vertex(SA): " + String(e.message || e).slice(0, 200) }, 502); }
+        if (j0.error) return json({ error: "Vertex(SA): " + j0.error.message }, FAIL);
+      } catch (e) { return json({ error: "Vertex(SA): " + String(e.message || e).slice(0, 200) }, FAIL); }
     }
     if (!k.google) return json({ error: "Veo 연동이 설정되지 않았습니다" }, 500);
     // ① Vertex AI Express (지역 우회)
@@ -4428,7 +4964,7 @@ async function handle(context) {
       // 모델 이름 문제가 아니면(키·할당량·검열) 다른 이름으로 바꿔도 결과가 같다
       if (!/model|not found|unsupported|invalid/i.test(lastErr)) break;
     }
-    return json({ error: "Veo: " + (vj.error?.message || "") + " / " + lastErr }, 502);
+    return json({ error: "Veo: " + (vj.error?.message || "") + " / " + lastErr }, FAIL);
   }
 
   /* ── 3D 생성 제출 (Hyper3D / Hitem3D) ──
@@ -4477,7 +5013,7 @@ async function handle(context) {
         tried.push(alt + "=" + r.status);
       }
     } catch (_e) { /* 카탈로그 조회 실패는 무시 */ }
-    return json({ error: "3D 생성 제출 실패 — " + (lastErr || "원인 불명"), tried }, 502);
+    return json({ error: "3D 생성 제출 실패 — " + (lastErr || "원인 불명"), tried }, FAIL);
   }
   if (provider === "seedance") {
     if (!k.seedance) return json({ error: "Seedance 연동이 설정되지 않았습니다" }, 500);
@@ -4506,19 +5042,25 @@ async function handle(context) {
           // 스튜디오가 실제로 보낸 값을 에러에 그대로 실어, 노드에 원인이 보이게 한다.
           const imgN = payload.content.filter(c => c.type === "image_url").length;
           let r, j; const t0 = Date.now();
+          if (context.__trace) await traceMark(env, context.__trace, "제공사 호출 직전",
+            mid + " · 사진 " + imgN + "장 · " + JSON.stringify(payload).length + "글자");
           try {
             // fetchT 의 unhandled-rejection 차단으로 raw 502 는 사라졌으므로, bp 가 이미지
             // 검증 등으로 제출이 느려도(태스크 ID 반환까지 십수 초) 안전하게 기다린다.
             // 초과 시엔 crash 없이 읽을 수 있는 "시간 초과" JSON 이 노드에 표시된다.
-            r = await fetchT(ARK_HOSTS[hostId] + "/contents/generations/tasks", {
+            r = await fetchT(arkBase(env, hostId) + "/contents/generations/tasks", {
               method: "POST",
               headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
               body: JSON.stringify(payload)
             }, Math.min(22000, leftMs));
             j = await r.json().catch(() => ({}));
+            if (context.__trace) await traceMark(env, context.__trace, "제공사 응답 받음",
+              mid + " · HTTP " + r.status + " · " + (Date.now() - t0) + "ms");
           } catch (e) {
             lastErr = hostId + " 제출 실패(" + (Date.now() - t0) + "ms): " + String((e && e.message) || e).slice(0, 140);
             tried.push(mid + "=ERR");
+            if (context.__trace) await traceMark(env, context.__trace, "제공사 호출 실패",
+              mid + " · " + lastErr.slice(0, 120));
             continue;   // 다음 후보/호스트로
           }
           if (r.ok && j.id)
@@ -4539,6 +5081,78 @@ async function handle(context) {
           if (!(seedreamModelMissing(r.status, j) || r.status >= 500)) break outer;
         }
       }
+      /* ── 얼굴이 든 사진이 거절됐을 때: 같은 모델·같은 사진으로 남은 길을 차례로 다 해 본다 ──
+         제공사 검열은 "무엇을 보냈나" 만 보는 게 아니라 "어떻게 쓰겠다고 선언했나" 도 본다.
+         씨댄스 2.0 은 같은 사진을 여러 방식으로 받는데, 그 방식마다 검열이 다르게 걸린다.
+         그래서 거절당하면 남은 방식을 차례로 던져 본다.
+
+           ① (앞에서 이미 한 것) 첫 프레임 — "이 사진이 영상의 첫 장면"
+           ② 외형 참고           — 공식 R2V 모드. 사진을 그대로 재현하지 않는다
+           ③ 역할 표시 없이       — 어떻게 쓰겠다는 선언 자체를 뺀다
+           ④ 워터마크 켬          — 인물이 든 결과물에 표시를 요구하는 정책이 있을 수 있다
+
+         ⚠ 모델은 절대 안 바뀐다. 사진도 프롬프트도 요금도 그대로다.
+           바뀌는 것은 "이 사진을 어떻게 건네고 어떻게 쓰겠다고 말하는가" 뿐이다.
+         ⚠ 결과물이 달라지는 단계(②·④)는 반드시 회원에게 알린다(notice).
+         ⚠ 막히는 건 0원이다. 통과한 단계에서만 비용이 생기고, 그게 회원이 원하던 그 영상이다.
+         ⚠ 한 바퀴만 돈다. 통과하면 즉시 끝내고, 다 막히면 무엇을 해 봤는지 그대로 남긴다. */
+      const faceBlocked = /InputImageSensitiveContentDetected|PrivacyInformation|may contain real person/i
+        .test(String(lastErr || ""));
+      const hasImg = !!(b.firstFrame || b.lastFrame || (Array.isArray(b.refImages) && b.refImages.length) || b.refImage);
+      /*  ⚠ 사다리 결과를 lastErr 에 이어 붙이면 안 된다 — 마지막에 200자로 자르기 때문에
+          "무엇을 더 해 봤는지" 가 통째로 잘려 나간다(실제로 잘렸다). 따로 모아 뒤에 붙인다. */
+      const ladderNotes = [];
+      if (faceBlocked && hasImg && !b.__faceLadder) {
+        const mid2 = candidates[0];
+        //  첫/마지막 프레임을 레퍼런스 자리로 옮긴 몸통(순서는 그대로 지킨다)
+        const asRef = Object.assign({}, b, {
+          firstFrame: null, lastFrame: null, refLabels: [],
+          refImages: [b.firstFrame, b.lastFrame]
+            .concat(Array.isArray(b.refImages) ? b.refImages : [])
+            .filter((x, i, a) => x && a.indexOf(x) === i),
+        });
+        const hasFrame = !!(b.firstFrame || b.lastFrame);
+        const rungs = [];
+        //  ② 는 프레임이 있을 때만 뜻이 있다(이미 레퍼런스로 보낸 요청이면 같은 몸통이다)
+        if (hasFrame) rungs.push({ tag: "레퍼런스", body: asRef,
+          notice: "넣으신 사진을 '첫 장면'으로 쓰는 길은 제공사가 막아, 같은 모델에서 '외형 참고'로 바꿔 만들었습니다. "
+                + "모델과 요금은 그대로입니다 — 다만 사진이 첫 장면에 그대로 나오지는 않고, 사진 속 인물·피사체의 외형을 살려 만듭니다." });
+        rungs.push({ tag: "역할없이", body: Object.assign({}, b, { __noRole: true }), notice: null });
+        rungs.push({ tag: "워터마크", body: Object.assign({}, b, { watermark: true }),
+          notice: "제공사가 인물이 든 사진을 그냥은 받지 않아, 워터마크를 켠 상태로 만들었습니다. "
+                + "모델과 요금은 그대로입니다 — 다만 결과 영상에 제공사 워터마크가 들어갑니다." });
+
+        for (const rung of rungs) {
+          const leftMs = BUDGET_MS + 25000 - (Date.now() - started);
+          if (leftMs < 6000) {
+            ladderNotes.push("시간이 모자라 " + rung.tag + " 는 못 해 봤습니다 — 다시 한 번 눌러 주세요");
+            break;
+          }
+          if (context.__trace) await traceMark(env, context.__trace, "얼굴 거절 — 다시 시도", mid2 + " · " + rung.tag);
+          try {
+            const rr = await fetchT(arkBase(env, "bp") + "/contents/generations/tasks", {
+              method: "POST",
+              headers: { Authorization: "Bearer " + k.seedance, "Content-Type": "application/json" },
+              body: JSON.stringify(buildSeedancePayload(Object.assign({ __faceLadder: true }, rung.body), env, mid2)),
+            }, Math.min(22000, leftMs));
+            const jj = await rr.json().catch(() => ({}));
+            tried.push(mid2 + "=" + rr.status + "(" + rung.tag + ")");
+            if (rr.ok && jj.id) {
+              return json({
+                statusUrl: "/api/generate?provider=seedance&host=bp&task=" + encodeURIComponent(jj.id),
+                modelId: mid2, usedFallbackShape: rung.tag,
+                usedRefMode: rung.tag === "레퍼런스" || undefined,
+                notice: rung.notice || undefined,
+              });
+            }
+            ladderNotes.push(rung.tag + " 로도 거절됨"
+              + ((jj.error && jj.error.code) ? " <" + jj.error.code + ">" : ""));
+          } catch (e) {
+            tried.push(mid2 + "=ERR(" + rung.tag + ")");
+            ladderNotes.push(rung.tag + " 재시도 실패: " + String((e && e.message) || e).slice(0, 80));
+          }
+        }
+      }
       // 모든 후보가 "모델 없음" 으로 끝났다면, 계정 카탈로그에서 같은 계열의 실제 ID 를 찾아 1회 더 시도한다.
       //  (콘솔에서 개통했는데 날짜 접미사가 우리 표와 다른 경우 — 코드 수정 없이 자동으로 맞춘다)
       //  카탈로그 조회(최대 4회 탐침)까지 무한정 붙이면 제출 한 건이 1분을 훌쩍 넘긴다 —
@@ -4549,7 +5163,7 @@ async function handle(context) {
           const cat = await arkModelCatalog(k.seedance);
           const alt = arkPickByStem(cat, candidates);
           if (alt) {
-            const r2 = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+            const r2 = await fetchT(arkBase(env, "bp") + "/contents/generations/tasks", {
               method: "POST",
               headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
               body: JSON.stringify(buildSeedancePayload(b, env, alt))
@@ -4595,9 +5209,14 @@ async function handle(context) {
                   new Date().toISOString()).run();
         }
       } catch (_e) { /* 로깅 실패가 생성 응답을 막지 않도록 */ }
-      return json({ error: "Seedance " + tag + ": " + String(lastErr).slice(0, 200) + trail }, 502);
+      if (context.__trace) await traceMark(env, context.__trace, "제출 실패로 마무리", String(lastErr).slice(0, 150));
+      const ladderTrail = ladderNotes.length ? " | " + ladderNotes.join(" | ") : "";
+      return json({ error: "Seedance " + tag + ": " + String(lastErr).slice(0, 200) + trail + ladderTrail }, FAIL);
     })();
-    return await handoffSubmit(context, work, "seedance");
+    if (context.__trace) await traceMark(env, context.__trace, "인계 대기 시작", "");
+    const _out = await handoffSubmit(context, work, "seedance");
+    if (context.__trace) await traceMark(env, context.__trace, "인계 끝 · 응답 만듦", "HTTP " + _out.status);
+    return _out;
   }
 
   if (provider === "seedream") {
@@ -4632,7 +5251,7 @@ async function handle(context) {
         if (!(seedreamModelMissing(r.status, j) || r.status >= 500)) break outer;
       }
     }
-    return json({ error: "Seedream " + tag + ": " + String(lastErr).slice(0, 220) }, 502);
+    return json({ error: "Seedream " + tag + ": " + String(lastErr).slice(0, 220) }, FAIL);
   }
 
   if (provider === "flux") {
@@ -4644,7 +5263,7 @@ async function handle(context) {
       body: JSON.stringify(body)
     });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.id) return json({ error: "Flux: " + (j.error || JSON.stringify(j) || "").slice(0, 200) }, 502);
+    if (!r.ok || !j.id) return json({ error: "Flux: " + (j.error || JSON.stringify(j) || "").slice(0, 200) }, FAIL);
     const poll = j.polling_url || (FLUX_BASE + "get_result?id=" + encodeURIComponent(j.id));
     return json({ statusUrl: "/api/generate?provider=flux&poll=" + encodeURIComponent(poll) });
   }
@@ -4662,12 +5281,12 @@ async function handle(context) {
       body: JSON.stringify(body)
     }, 30000);
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) return json({ error: "fal HTTP " + r.status + ": " + String((j.detail && (j.detail.msg || JSON.stringify(j.detail))) || j.error || JSON.stringify(j)).slice(0, 220) }, 502);
+    if (!r.ok) return json({ error: "fal HTTP " + r.status + ": " + String((j.detail && (j.detail.msg || JSON.stringify(j.detail))) || j.error || JSON.stringify(j)).slice(0, 220) }, FAIL);
     // fal 이 동기로 바로 결과를 준 경우
     const sync = j.images && j.images[0] && j.images[0].url;
     if (sync) return json({ url: sync, kind: "image" });
     const st = j.status_url, rs = j.response_url;
-    if (!st || !rs) return json({ error: "fal: 응답에 status_url/이미지 없음: " + JSON.stringify(j).slice(0, 180) }, 502);
+    if (!st || !rs) return json({ error: "fal: 응답에 status_url/이미지 없음: " + JSON.stringify(j).slice(0, 180) }, FAIL);
     return json({ statusUrl: "/api/generate?provider=falcontrol&status=" + encodeURIComponent(st) + "&result=" + encodeURIComponent(rs) });
   }
 
@@ -4678,7 +5297,7 @@ async function handle(context) {
     const payload = JSON.stringify(buildNanoPayload(Object.assign({}, b, { _refs: nanoRefs })));
     let nanoUrl, nanoHeaders;
     if (sa) {   // Vertex(서비스계정) — Veo와 동일 인증
-      let tok; try { tok = await gcpToken(sa.email, sa.pem); } catch (e) { return json({ error: "나노바나나 토큰 실패: " + String((e && e.message) || e).slice(0, 160) }, 502); }
+      let tok; try { tok = await gcpToken(sa.email, sa.pem); } catch (e) { return json({ error: "나노바나나 토큰 실패: " + String((e && e.message) || e).slice(0, 160) }, FAIL); }
       nanoUrl = "https://" + VERTEX_LOC + "-aiplatform.googleapis.com/v1/projects/" + sa.pid + "/locations/" + VERTEX_LOC + "/publishers/google/models/" + NANO_MODEL + ":generateContent";
       nanoHeaders = { "Authorization": "Bearer " + tok, "Content-Type": "application/json" };
     } else {    // AI Studio 키
@@ -4691,12 +5310,12 @@ async function handle(context) {
       r = await fetchT(nanoUrl, { method: "POST", headers: nanoHeaders, body: nanoPayloadNoRatio(payload) }, 60000);
     }
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) return json({ error: "나노바나나 HTTP " + r.status + ": " + String((j.error && j.error.message) || JSON.stringify(j)).slice(0, 220) }, 502);
+    if (!r.ok) return json({ error: "나노바나나 HTTP " + r.status + ": " + String((j.error && j.error.message) || JSON.stringify(j)).slice(0, 220) }, FAIL);
     const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
     const inline = (parts.map(p => p.inlineData || p.inline_data).find(Boolean));
     if (!inline || !inline.data) {
       const fr = j.promptFeedback || (j.candidates && j.candidates[0] && j.candidates[0].finishReason);
-      return json({ error: "나노바나나: 응답에 이미지 없음(안전필터 가능): " + String(JSON.stringify(fr || j)).slice(0, 200) }, 502);
+      return json({ error: "나노바나나: 응답에 이미지 없음(안전필터 가능): " + String(JSON.stringify(fr || j)).slice(0, 200) }, FAIL);
     }
     return json({ url: "data:" + (inline.mimeType || inline.mime_type || "image/png") + ";base64," + inline.data, kind: "image" });
   }
@@ -4741,11 +5360,11 @@ async function handle(context) {
         body: JSON.stringify(p) }, 90000);
     }
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) return json({ error: "OpenAI HTTP " + r.status + ": " + String((j.error && j.error.message) || JSON.stringify(j)).slice(0, 220) }, 502);
+    if (!r.ok) return json({ error: "OpenAI HTTP " + r.status + ": " + String((j.error && j.error.message) || JSON.stringify(j)).slice(0, 220) }, FAIL);
     const d0 = j.data && j.data[0];
     if (d0 && d0.b64_json) return json({ url: "data:image/png;base64," + d0.b64_json, kind: "image" });
     if (d0 && d0.url) return json({ url: d0.url, kind: "image" });
-    return json({ error: "OpenAI: 응답에 이미지 없음: " + JSON.stringify(j).slice(0, 180) }, 502);
+    return json({ error: "OpenAI: 응답에 이미지 없음: " + JSON.stringify(j).slice(0, 180) }, FAIL);
   }
 
   if (provider === "hailuo") {
@@ -4757,7 +5376,7 @@ async function handle(context) {
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.task_id)
-      return json({ error: "Hailuo: " + ((j.base_resp && j.base_resp.status_msg) || JSON.stringify(j) || "").slice(0, 200) }, 502);
+      return json({ error: "Hailuo: " + ((j.base_resp && j.base_resp.status_msg) || JSON.stringify(j) || "").slice(0, 200) }, FAIL);
     return json({ statusUrl: "/api/generate?provider=hailuo&task=" + encodeURIComponent(j.task_id) });
   }
 
@@ -4822,18 +5441,20 @@ async function handle(context) {
         }
       } catch (e) { errs.push(eng + ": " + String((e && e.message) || e).slice(0, 100)); }
     }
-    return json({ error: "음악 생성 실패 — " + errs.join(" · ").slice(0, 300) }, 502);
+    return json({ error: "음악 생성 실패 — " + errs.join(" · ").slice(0, 300) }, FAIL);
   }
 
   /* ── 영상 업스케일 (4K 화질 향상) — fal Topaz. 원본 영상 URL 필요 ── */
-  /* ── 업스케일: 서버 경로 폐지 ──
-     화질 올리기는 스튜디오(브라우저)에서 우리 자체 초해상 모델로 처리한다. 무료여야 하므로
-     외부 유료 API 로 나가는 이 경로를 남겨 두지 않는다 — 남겨 두면 언젠가 다시 타게 되고
-     그 순간 회원 크레딧이 빠진다. 옛 그래프·직접 호출이 들어와도 여기서 끝난다(요금 0). */
+  /* ── 업스케일: 외부 유료 API 경로 폐지 ──
+     화질 올리기는 스튜디오(브라우저)에서 우리 자체 초해상 모델로 처리한다.
+     외부 유료 API(fal Topaz)로 나가는 이 경로는 남겨 두지 않는다 — 남겨 두면 언젠가
+     다시 타게 되고, 우리 모델 단가가 아니라 남의 단가로 청구된다.
+     ⚠ "무료" 라고 적어 두었던 안내는 지운다 — 업스케일은 과금으로 바뀌었는데
+        이 문구만 남아 회원에게 사실과 다른 말을 하고 있었다(단가표 UPSCALE_IMG/UPSCALE_VID). */
   if (provider === "upscale") {
     return json({
       error: "화질 올리기는 결과 영상·이미지 아래 [화질 올리기] 버튼으로 하세요. " +
-             "우리 자체 모델로 브라우저에서 처리하며 크레딧이 들지 않습니다.",
+             "우리 자체 모델로 브라우저에서 처리합니다.",
       upscaleMovedToClient: true,
     }, 400);
   }
@@ -4847,7 +5468,7 @@ async function handle(context) {
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.id)
-      return json({ error: "Luma: " + (JSON.stringify(j.detail || j) || "").slice(0, 200) }, 502);
+      return json({ error: "Luma: " + (JSON.stringify(j.detail || j) || "").slice(0, 200) }, FAIL);
     return json({ statusUrl: "/api/generate?provider=luma&task=" + encodeURIComponent(j.id) });
   }
 
@@ -4872,7 +5493,7 @@ async function handle(context) {
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || j.code !== 0 || !(j.data && j.data.task_id))
-      return json({ error: "Kling 확장: " + String(j.message || JSON.stringify(j) || "요청 실패").slice(0, 200) }, 502);
+      return json({ error: "Kling 확장: " + String(j.message || JSON.stringify(j) || "요청 실패").slice(0, 200) }, FAIL);
     return json({ statusUrl: "/api/generate?provider=kling&task=" + encodeURIComponent(j.data.task_id) + "&ep=video-extend", kind: "video" });
   }
 
@@ -4898,7 +5519,7 @@ async function handle(context) {
         // 모델명 문제가 아니면(잔액·검열·파라미터 등) 다른 후보를 시도해도 의미가 없다.
         if (!/model|not\s*exist|not\s*found|invalid.*name|不存在/i.test(lastMsg)) break;
       }
-      return json({ error: "Kling: " + lastMsg.slice(0, 220) }, 502);
+      return json({ error: "Kling: " + lastMsg.slice(0, 220) }, FAIL);
     }
     /* 예전엔 여기서 fal.ai 를 경유해 같은 클링 모델을 불렀다. 지금은 하지 않는다 —
        클링은 공식 오픈플랫폼 API 를 직접 연동해 두었고, 같은 모델을 제공하는 중개(fal)로

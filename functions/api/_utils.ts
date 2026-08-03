@@ -102,6 +102,90 @@ export function json(data: unknown, status = 200, headers: Record<string, string
 }
 
 /** 스키마 자동 부트스트랩 (users/sessions/transactions/activity_log/notifications) */
+/* ── 표 만들기를 요청 경로에서 걷어낸다 ──────────────────────────────────
+   CREATE TABLE / CREATE INDEX / ALTER 은 한 번만 하면 되는 일인데, 지금까지는
+   요청마다(정확히는 새 isolate 의 첫 요청마다) 스무 개 넘게 다시 돌았다.
+   Cloudflare 는 D1 질의 하나를 서브리퀘스트 하나로 세고 요청당 한도가 있다.
+   실측: 새 isolate 첫 요청 40회 · 같은 isolate 두 번째 11회 · 관리자 6회.
+   isolate 는 자주 새로 생기므로, 회원 요청 중 일부만 유독 무거워진다.
+
+   ⚠ 이 40회가 회원 502 의 원인이라고 한동안 적어 두었는데, 그건 확인된 사실이 아니다.
+     당시 무료 요금제로 알고(요청당 한도 50) 계산한 것인데 실제 계정은 Workers 유료였다
+     — 유료는 한도가 1000 이라 40 은 근처에도 못 간다. 502 의 원인은 따로 있다.
+     여기 있는 값은 "왕복을 줄여 더 빠르고 싸게 만든다" 는 근거일 뿐이다.
+
+   표를 다 만들었다는 표시를 settings 에 남기고, 그 다음부터는 질의 한 번으로 건너뛴다.
+   ⚠ 표시만 믿으면 안 된다. 표시는 있는데 표가 없는 상태가 실제로 생긴다 —
+     · 표 만들기가 한 번 실패했는데(그 안에 catch 가 있다) 표시는 남은 경우
+     · 표를 손으로 지운 경우
+     그러면 그 자리는 영영 500 이 되고, 왜 그런지 알아내기가 아주 어렵다.
+     그래서 표시를 읽는 그 한 번의 질의에 "지금 있는 표 목록" 을 같이 실어 온다.
+     표시가 있어도 표가 하나라도 비면 다시 만든다 — 스스로 낫는다. 왕복은 그대로 한 번이다.
+   ⚠ 열(column)이 늘어난 것까지는 못 본다. 나중에 열을 더하는 등 스키마를 바꾸면
+     표시의 판(v)을 올려야 기존 배포에서도 다시 돈다. 판을 안 올리면 새 열이 영영 안 생긴다. */
+const __ensured = new Map<string, Promise<void>>()
+//  표시를 하나씩 물어보면 그것만으로 왕복이 여섯 번이다 — 한 번에 다 읽어 온다.
+type Marks = { keys: Set<string>; tables: Set<string> }
+let __marks: Promise<Marks> | null = null
+function loadMarks(db: D1Database): Promise<Marks> {
+  if (__marks) return __marks
+  __marks = (async () => {
+    const keys = new Set<string>(), tables = new Set<string>()
+    try {
+      //  표시와 표 목록을 한 질의로 — 앞은 'k:열쇠', 뒤는 't:표이름' 으로 구분한다.
+      const r: any = await db.prepare(
+        "SELECT 'k:' || key AS m FROM settings WHERE key LIKE 'schema\\_%' ESCAPE '\\' AND value = '1'" +
+        " UNION ALL SELECT 't:' || name AS m FROM sqlite_master WHERE type = 'table'",
+      ).all()
+      for (const x of ((r && r.results) || []) as any[]) {
+        const m = String(x.m || '')
+        if (m.startsWith('k:')) keys.add(m.slice(2))
+        else if (m.startsWith('t:')) tables.add(m.slice(2))
+      }
+    } catch { /* 못 읽으면 표시가 없는 셈 치고 전부 만든다 — 고치기 전과 같은 동작 */ }
+    return { keys, tables }
+  })()
+  return __marks
+}
+export async function ensureOnce(
+  db: D1Database,
+  key: string,
+  run: () => Promise<void>,
+  tables: string[] = [],
+): Promise<void> {
+  const hit = __ensured.get(key)
+  if (hit) return hit
+  const job = (async () => {
+    const marks = await loadMarks(db)
+    //  표시가 있고, 그 표시가 책임지는 표가 실제로 다 있을 때만 건너뛴다
+    if (marks.keys.has(key) && tables.every((t) => marks.tables.has(t))) return
+    await run()
+    for (const t of tables) marks.tables.add(t)
+    const mark = () => db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').bind(key, '1').run()
+    try {
+      await mark()
+      marks.keys.add(key)
+    } catch {
+      //  표시를 둘 곳(settings)이 아직 없을 수 있다 — 처음 배포된 빈 DB 에서 /api/generate 가
+      //  첫 요청인 경우다. 그때만 한 번 만들고 다시 남긴다(성공하는 길에는 이 왕복이 없다).
+      //  여기서 또 실패해도 동작에는 지장 없다 — 표시가 없으니 다음 isolate 에서 또 만들 뿐이다.
+      try {
+        await db.prepare('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)').run()
+        await mark()
+        marks.keys.add(key)
+      } catch { }
+    }
+  })().catch((e) => { __ensured.delete(key); __marks = null; throw e })
+  /* ⚠ 이 약속(promise)은 실패를 다시 던지고, 그대로 전역 표에 담긴다.
+     지금은 부르는 쪽이 모두 await 하므로 그 실패를 누군가 받는다. 그런데 나중에 누가
+     await 를 빠뜨리면, 아무도 받지 않는 실패가 되어 워커에서는 함수 자체가 죽는다
+     (그 신호가 정확히 우리가 오래 헤맨 raw 502 다 — fetchT 주석 참고).
+     담아 두는 쪽에는 빈 받이를 하나 달아 둔다. 부르는 쪽이 받는 것과는 별개다. */
+  job.catch(() => {})
+  __ensured.set(key, job)
+  return job
+}
+
 export async function ensureSchema(db: D1Database) {
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS users (
@@ -862,6 +946,11 @@ export async function purgeUserData(db: D1Database, uid: string, env?: any): Pro
   await del('DELETE FROM studio_brandkit WHERE user_id = ?', uid)
   await del('DELETE FROM api_calls WHERE user_id = ?', uid)
   await del('DELETE FROM api_keys WHERE user_id = ?', uid)
+  /*  모델 대여 — 그 회원이 어떤 모델을 언제 빌려 갔는지가 남는다.
+      표를 새로 만들면서 이 목록에 넣는 걸 빠뜨렸다(검사가 잡았다).
+      ⚠ 매출 원장(payments·refunds·세금계산서·gen_charges·subscriptions)은 일부러 남긴다 —
+        회원과의 연결은 users 를 지우면서 끊긴다. 대여 기록은 원장이 아니라 이용 기록이라 지운다. */
+  await del('DELETE FROM model_leases WHERE user_id = ?', uid)
   await del('DELETE FROM video_gallery WHERE CAST(user_id AS TEXT) = CAST(? AS TEXT)', uid)
   // 퍼널 — 신청자(이름·전화·이메일)까지 아래에서 위로 지운다
   await del(`DELETE FROM funnel_applicants WHERE landing_page_id IN (

@@ -1,3 +1,4 @@
+import { ensureOnce } from './_utils'
 // 회원 API 키 시스템 (_ 프리픽스 = 라우팅 제외, import 전용)
 //  - 노드형 AI 영상 플랜 보유자가 직접 API 로 이미지·영상 모델을 호출.
 //  - 키 1개로 모든 모델 호출 가능. 크레딧은 UI 사용과 동일하게 차감.
@@ -33,16 +34,12 @@ export function maskApiKey(plain: string): string {
 /* 표를 만드는 일은 한 번만 하면 된다. 그런데 여태 생성 요청마다 12개 DDL 을 하나씩
    실행했다 — Cloudflare 는 D1 질의 하나를 서브리퀘스트 하나로 세고, 요청당 한도를 넘으면
    함수가 통째로 끊겨 우리 try/catch 가 손댈 수 없는 raw 502 가 난다.
-   (관리자는 이 경로를 안 타서 멀쩡하고 회원만 502 가 나던 원인이다 — 실측 회원 41회 · 관리자 5회)
+   (관리자는 이 경로를 아예 안 탄다 — 실측 회원 41회 · 관리자 5회)
+   ⚠ 이 차이가 회원 502 의 원인이라고 적어 두었는데 확인된 게 아니다: 당시 무료 요금제로 알고
+     계산했지만 실제 계정은 Workers 유료였다. 왕복을 줄이는 근거일 뿐이다.
    같은 isolate 안에서는 한 번만 하고 넘어간다. 실패하면 다음 요청에서 다시 시도한다. */
-const __apiKeysReady = new WeakMap<object, Promise<void>>()
 export async function ensureApiKeysSchema(db: D1Database) {
-  const key = db as unknown as object
-  const done = __apiKeysReady.get(key)
-  if (done) return done
-  const run = __ensureApiKeysSchema(db).catch((e) => { __apiKeysReady.delete(key); throw e })
-  __apiKeysReady.set(key, run)
-  return run
+  return ensureOnce(db, 'schema_apikeys_v1', () => __ensureApiKeysSchema(db), ['api_keys', 'api_calls', 'api_rate'])
 }
 async function __ensureApiKeysSchema(db: D1Database) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS api_keys (
@@ -98,9 +95,10 @@ export const API_RATE = { postMin: 20, postHour: 300, postDay: 2000, getMin: 120
  *  관리자는 면제. kind: 'post'(생성) | 'get'(상태조회) */
 export async function enforceRateLimit(
   db: D1Database, userId: string, kind: 'post' | 'get', isAdmin?: boolean,
-): Promise<{ ok: boolean; retryAfter?: number; reason?: string }> {
+): Promise<{ ok: boolean; retryAfter?: number; reason?: string; burst?: number }> {
   if (isAdmin) return { ok: true }
   const now = Date.now()
+  let burst = 0
   const iso = (ms: number) => new Date(now - ms).toISOString()
   try {
     await db.prepare(`INSERT INTO api_rate (id, user_id, kind, ts) VALUES (?, ?, ?, ?)`)
@@ -108,23 +106,37 @@ export async function enforceRateLimit(
   } catch { /* 기록 실패해도 계속 (락아웃 방지) */ }
   // 오래된 히트 정리 (가끔)
   try { if (Math.random() < 0.04) await db.prepare(`DELETE FROM api_rate WHERE ts < ?`).bind(iso(25 * 3600000)).run() } catch {}
-  const cnt = async (ms: number, k: string): Promise<number> => {
-    try { const r: any = await db.prepare(`SELECT COUNT(*) AS n FROM api_rate WHERE user_id=? AND kind=? AND ts>?`).bind(userId, k, iso(ms)).first(); return Number(r?.n || 0) } catch { return 0 }
-  }
-  if (kind === 'post') {
-    if (await cnt(60000, 'post') > API_RATE.postMin) return { ok: false, retryAfter: 60, reason: `분당 생성 요청 한도(${API_RATE.postMin})를 초과했습니다. 잠시 후 다시 시도하세요.` }
-    if (await cnt(3600000, 'post') > API_RATE.postHour) return { ok: false, retryAfter: 600, reason: `시간당 생성 요청 한도(${API_RATE.postHour})를 초과했습니다.` }
-    if (await cnt(86400000, 'post') > API_RATE.postDay) return { ok: false, retryAfter: 3600, reason: `일일 생성 요청 한도(${API_RATE.postDay})를 초과했습니다.` }
-    // 동시 진행 중(pending) 생성 제한
-    try {
+  /* ⚠ 분·시·일 한도를 따로 세면 왕복이 세 번, 동시 진행까지 네 번이다.
+     Cloudflare 는 D1 질의 하나를 서브리퀘스트 하나로 세고 요청당 한도가 있어서,
+     이런 잔 왕복이 쌓이면 넘는 순간 함수가 통째로 끊긴다(회원만 502 나던 그 자리).
+     같은 표를 세 번 훑을 이유가 없다 — 한 번에 세 구간을 함께 센다. */
+  try {
+    if (kind === 'post') {
+      //  15초 버스트까지 같은 한 번에 센다 — 부르는 쪽이 또 훑지 않게 값을 돌려준다
+      const r: any = await db.prepare(
+        `SELECT SUM(CASE WHEN ts > ?1 THEN 1 ELSE 0 END) AS b,
+                SUM(CASE WHEN ts > ?2 THEN 1 ELSE 0 END) AS m,
+                SUM(CASE WHEN ts > ?3 THEN 1 ELSE 0 END) AS h,
+                COUNT(*) AS d
+           FROM api_rate WHERE user_id = ?4 AND kind = 'post' AND ts > ?5`,
+      ).bind(iso(15000), iso(60000), iso(3600000), userId, iso(86400000)).first()
+      burst = Number(r?.b || 0)
+      if (Number(r?.m || 0) > API_RATE.postMin) return { ok: false, retryAfter: 60, reason: `분당 생성 요청 한도(${API_RATE.postMin})를 초과했습니다. 잠시 후 다시 시도하세요.` }
+      if (Number(r?.h || 0) > API_RATE.postHour) return { ok: false, retryAfter: 600, reason: `시간당 생성 요청 한도(${API_RATE.postHour})를 초과했습니다.` }
+      if (Number(r?.d || 0) > API_RATE.postDay) return { ok: false, retryAfter: 3600, reason: `일일 생성 요청 한도(${API_RATE.postDay})를 초과했습니다.` }
+      // 동시 진행 중(pending) 생성 제한
       const p: any = await db.prepare(`SELECT COUNT(*) AS n FROM api_calls WHERE user_id=? AND status='pending' AND created_at>?`).bind(userId, iso(300000)).first()
       if (Number(p?.n || 0) >= API_RATE.concurrent) return { ok: false, retryAfter: 15, reason: `동시에 진행 중인 생성이 너무 많습니다(최대 ${API_RATE.concurrent}). 완료 후 다시 시도하세요.` }
-    } catch {}
-  } else {
-    if (await cnt(60000, 'get') > API_RATE.getMin) return { ok: false, retryAfter: 30, reason: `분당 상태 조회 한도를 초과했습니다.` }
-    if (await cnt(3600000, 'get') > API_RATE.getHour) return { ok: false, retryAfter: 600, reason: `시간당 상태 조회 한도를 초과했습니다.` }
-  }
-  return { ok: true }
+    } else {
+      const r: any = await db.prepare(
+        `SELECT SUM(CASE WHEN ts > ?1 THEN 1 ELSE 0 END) AS m, COUNT(*) AS h
+           FROM api_rate WHERE user_id = ?2 AND kind = 'get' AND ts > ?3`,
+      ).bind(iso(60000), userId, iso(3600000)).first()
+      if (Number(r?.m || 0) > API_RATE.getMin) return { ok: false, retryAfter: 30, reason: `분당 상태 조회 한도를 초과했습니다.` }
+      if (Number(r?.h || 0) > API_RATE.getHour) return { ok: false, retryAfter: 600, reason: `시간당 상태 조회 한도를 초과했습니다.` }
+    }
+  } catch { /* 집계 실패는 통과 (락아웃 방지) */ }
+  return { ok: true, burst }
 }
 
 /** 생성 시작 시 pending 호출 기록 (동시성 카운트·감사 로그). 반환: callId */

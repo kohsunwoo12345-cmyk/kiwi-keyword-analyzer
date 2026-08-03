@@ -1,3 +1,4 @@
+import { ensureOnce } from '../_utils'
 // 스튜디오 AI 생성 과금 규칙 (서버 권위 계산) — precheck·record 공용
 //  · 실제 AI 비용(원) = 제공사 공개 단가(USD) × 환율
 //  · 판매가 = 실제 비용 × 마크업.  마크업: 씨댄스 2.0 계열·이미지 모델 = 2.5배, 그 외 = 3배
@@ -8,24 +9,54 @@ export const USD_KRW = 1400 // 폴백 기본 환율 (API 실패 시)
 export const CREDIT_KRW = 50 // 50원 = 1크레딧
 
 /** 무료 FX API 에서 현재 USD→KRW 환율 조회 (키 불필요, 여러 소스 폴백) */
-async function fetchUsdKrw(): Promise<number | null> {
+/* ⚠ 반드시 시간 제한을 건다.
+   예전에는 제한이 없었다. 이 함수는 남의 서버 세 곳을 차례로 부르는데, 그중 하나가
+   응답을 안 주면 우리 요청이 거기 매달린 채로 끝나지 않았다.
+   더 나쁜 건 이 자리가 회원만 지나가는 길이라는 것이다 — 관리자는 과금 계산을 안 하니
+   환율을 볼 일이 없다. "관리자는 되는데 회원만 안 된다" 가 나올 수 있는 모양이다.
+   그리고 실패하면 아무것도 저장하지 않으므로, 한 번 막히면 그 뒤 모든 회원 요청이
+   같은 세 곳을 다시 부른다(하루 한 번이 아니다). */
+async function fetchUsdKrw(timeoutMs = 2500): Promise<number | null> {
   const sources: { url: string; pick: (j: any) => any }[] = [
     { url: 'https://open.er-api.com/v6/latest/USD', pick: (j) => j?.rates?.KRW },
     { url: 'https://api.frankfurter.app/latest?from=USD&to=KRW', pick: (j) => j?.rates?.KRW },
     { url: 'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json', pick: (j) => j?.usd?.krw },
   ]
   for (const s of sources) {
+    const ctl = new AbortController()
+    const t = setTimeout(() => ctl.abort(), timeoutMs)
     try {
-      const r = await fetch(s.url)
+      const r = await fetch(s.url, { signal: ctl.signal })
       if (!r.ok) continue
       const j: any = await r.json()
       const v = Number(s.pick(j))
       if (v && v > 300 && v < 3000) return Math.round(v)
     } catch {
       /* 다음 소스로 */
+    } finally {
+      clearTimeout(t)
     }
   }
   return null
+}
+
+/* 오늘 환율을 받아 저장한다 — 응답을 내보낸 뒤(waitUntil) 부르는 용도다.
+   요청 경로에서는 절대 부르지 않는다(위 주석 참조). 이미 오늘 것이 있으면 아무것도 안 한다. */
+let __fxCheckedDay = ''
+export async function refreshUsdKrw(db: D1Database): Promise<void> {
+  try {
+    const today = new Date().toISOString().slice(0, 10)
+    //  이 isolate 에서 오늘 것을 이미 확인했으면 아무것도 하지 않는다 —
+    //  안 그러면 요청마다 조회가 하나씩 늘어난다(줄이려고 한 일을 되돌리는 셈이다).
+    if (__fxCheckedDay === today) return
+    const cached: any = await db.prepare('SELECT usd_krw FROM fx_rates WHERE date = ?').bind(today).first().catch(() => null)
+    if (cached && Number(cached.usd_krw) > 0) { __fxCheckedDay = today; return }
+    const fetched = await fetchUsdKrw()
+    if (!fetched) return   // 못 받아왔으면 표시를 남기지 않는다 — 다음 isolate 가 다시 해 본다
+    await db.prepare('INSERT OR REPLACE INTO fx_rates (date, usd_krw, updated_at) VALUES (?, ?, ?)')
+      .bind(today, fetched, new Date().toISOString()).run().catch(() => {})
+    __fxCheckedDay = today
+  } catch { /* 환율 갱신 실패는 아무것도 막지 않는다 */ }
 }
 
 /** 전역 모델별 배수 (settings.model_markups JSON). {모델명: 배수}. 없으면 {}. */
@@ -111,17 +142,12 @@ async function __resolveMarkup(db: D1Database, userId: string, model: string, us
    Veo 오디오 등급처럼 문서가 애매한 항목도 같은 방법으로 바로잡는다.
    단위는 단가표와 같다: 'sec' 모델은 초당 USD, 나머지는 1건당 USD. */
 /* ⚠ 표 만들기는 한 번이면 된다. 요청마다 반복하면 Cloudflare 가 D1 질의 하나하나를
-   서브리퀘스트로 세어 요청당 한도를 넘기고, 그 순간 함수가 통째로 끊겨 우리 try/catch 로는
-   손댈 수 없는 raw 502 가 난다(회원만 502 가 나던 원인 — 실측 회원 41회 · 관리자 5회).
+   서브리퀘스트로 세어 요청당 한도를 갉아먹는다(실측 회원 41회 · 관리자 5회 — 관리자는
+   이 경로를 아예 안 탄다). ⚠ 이 차이가 회원 502 의 원인이라고 적어 두었는데 확인된 게 아니다:
+   당시 무료 요금제로 알고 계산했지만 실제 계정은 Workers 유료였다. 왕복을 줄이는 근거일 뿐이다.
    같은 isolate 안에서는 한 번만 하고, 실패하면 다음 요청에서 다시 시도한다. */
-const __ready_ensureCostOverrides = new WeakMap<object, Promise<void>>()
 export async function ensureCostOverrides(db: D1Database): Promise<void> {
-  const key = db as unknown as object
-  const done = __ready_ensureCostOverrides.get(key)
-  if (done) return done
-  const run = __ensureCostOverrides(db).catch((e) => { __ready_ensureCostOverrides.delete(key); throw e })
-  __ready_ensureCostOverrides.set(key, run)
-  return run
+  return ensureOnce(db, 'schema_costov_v1', () => __ensureCostOverrides(db), ['model_cost_overrides'])
 }
 async function __ensureCostOverrides(db: D1Database): Promise<void> {
   await db.prepare(
@@ -146,26 +172,26 @@ async function __resolveCostOverride(db: D1Database, model: string): Promise<num
 }
 
 /** 오늘자 USD→KRW 환율 (하루 1회 조회 후 D1 캐시). 결제/생성 시점의 그날 환율을 반환. */
-const __fxReady = new WeakMap<object, Promise<void>>()
 export async function getUsdKrw(db: D1Database): Promise<number> {
   return cachedRead('fx', () => __getUsdKrw(db))
 }
 async function __getUsdKrw(db: D1Database): Promise<number> {
   const today = new Date().toISOString().slice(0, 10)
   //  표 만들기는 한 번이면 된다 — 요청마다 반복하면 서브리퀘스트 한도를 갉아먹는다(위 주석 참조)
-  {
-    const key = db as unknown as object
-    let done = __fxReady.get(key)
-    if (!done) {
-      done = db.prepare(`CREATE TABLE IF NOT EXISTS fx_rates (date TEXT PRIMARY KEY, usd_krw REAL NOT NULL, updated_at TEXT)`)
-        .run().then(() => {}).catch(() => { __fxReady.delete(key) })
-      __fxReady.set(key, done)
-    }
-    await done
-  }
-  const cached: any = await db.prepare('SELECT usd_krw FROM fx_rates WHERE date = ?').bind(today).first().catch(() => null)
-  if (cached && Number(cached.usd_krw) > 0) return Number(cached.usd_krw)
-
+  await ensureOnce(db, 'schema_fxrates_v1', async () => {
+    await db.prepare(`CREATE TABLE IF NOT EXISTS fx_rates (date TEXT PRIMARY KEY, usd_krw REAL NOT NULL, updated_at TEXT)`).run().catch(() => {})
+  }, ['fx_rates'])
+  /* 오늘 것과 마지막 것을 한 번에 읽는다 — 왕복 하나로 끝난다. */
+  const r: any = await db.prepare(
+    'SELECT usd_krw, (date = ?) AS is_today FROM fx_rates ORDER BY (date = ?) DESC, date DESC LIMIT 1',
+  ).bind(today, today).first().catch(() => null)
+  const v = Number(r?.usd_krw)
+  /* ⚠ 오늘 것이 없어도 여기서 받아오지 않는다.
+     남의 서버를 부르는 일이라 늦어지거나 막히면 회원의 생성 요청이 통째로 매달린다.
+     환율은 하루 사이 몇 원 움직이는 값이라 어제 값으로 계산해도 요금 차이가 없다시피 하다.
+     오늘 값은 응답을 내보낸 뒤 refreshUsdKrw() 가 따로 받아 채운다(generate.js onRequest 참조). */
+  if (v > 0) return v
+  /* 저장된 값이 하나도 없을 때(첫 배포)만 어쩔 수 없이 받아온다 — 시간 제한이 걸려 있다. */
   const fetched = await fetchUsdKrw()
   if (fetched) {
     await db
@@ -175,9 +201,7 @@ async function __getUsdKrw(db: D1Database): Promise<number> {
       .catch(() => {})
     return fetched
   }
-  // API 실패 → 마지막으로 저장된 환율, 그것도 없으면 기본값
-  const last: any = await db.prepare('SELECT usd_krw FROM fx_rates ORDER BY date DESC LIMIT 1').first().catch(() => null)
-  return last && Number(last.usd_krw) > 0 ? Number(last.usd_krw) : USD_KRW
+  return USD_KRW
 }
 
 /** 해상도별 실제 픽셀 크기. 토큰 과금 계산과 배율 산출의 공통 기준이다. */
@@ -253,6 +277,7 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
      여기 usd 값은 그 함수를 타지 못했을 때의 폴백이자 관리자 화면 표시용이며,
      100만 토큰당 단가로 1080p 초당 원가를 환산해 맞춰 둔다(1080p 1초 = 48,600토큰).
      audio 는 토큰과 별개로 붙는 항목이라 seedanceUsd() 에서도 그대로 더한다. */
+  'Seedance 2.5': { u: 'sec', usd: 0.4116, audio: 0.02, prov: 'seedance' },
   'Seedance 2.0': { u: 'sec', usd: 0.3430, audio: 0.02, prov: 'seedance' },
   'Seedance 2.0 Fast': { u: 'sec', usd: 0.2744, audio: 0.02, prov: 'seedance' },
   'Seedance 2.0 Mini': { u: 'sec', usd: 0.1715, audio: 0.02, prov: 'seedance' },
@@ -382,7 +407,36 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
   'gemini-2.5-pro': { u: 'tok', usd: 0.0036, prov: 'promptgen' },
   'gemini-2.5-flash': { u: 'tok', usd: 0.0009, prov: 'promptgen' },
   'gemini-2.5-flash-lite': { u: 'tok', usd: 0.00017, prov: 'promptgen' },
+  /* ── 화질 올리기(업스케일) — 우리 자체 초해상 모델 ──
+     다른 항목과 성격이 다르다. 여기 적힌 usd 는 "제공사에 나가는 원가" 가 아니다 —
+     추론이 사용자 기기(브라우저 WASM)나 빌려간 쪽에서 돌아 우리가 내는 돈은 0이다.
+     그래서 이 값은 우리가 매긴 값이며, 아래 크레딧이 목표치가 되도록 거꾸로 잡았다.
+       크레딧 = usd × 환율(1400) × 마크업 ÷ 50원
+       이미지: 0.014 × 1400 × 2.5 ÷ 50 ≈ 1.0크레딧 / 장
+       영상  : 0.0024 × 1400 × 3.0 ÷ 50 ≈ 0.2크레딧 / 초  (46초 영상 ≈ 9.3크레딧)
+     영상은 목표 화질(4K 등)에 따라 RES_MULT 가 곱해진다 — 더 큰 결과가 더 비싸진다.
+     값을 바꾸려면 코드를 고칠 필요 없다: 관리자 → 모델 단가(model_cost_overrides)에서
+     이 이름으로 실측 단가를 넣으면 그 값이 이긴다. */
+  '화질 올리기 (이미지 초해상 ×4)': { u: 'img', usd: 0.014, prov: 'upscale' },
+  '화질 올리기 (영상 초해상 ×4)': { u: 'sec', usd: 0.0024, prov: 'upscale' },
+  /* ControlNet 생성 — fal.ai 의 flux-general + ControlNet Union 으로 나간다.
+     스튜디오에서는 회원이 고른 이미지 모델 이름으로 청구돼서 이 이름이 필요 없었지만,
+     API·MCP 로 바로 부를 때는 청구할 이름이 없어 표에 없는 모델이 되고 — 그러면
+     이미지 기본값($0.05)으로 잡히거나 아예 안 잡힌다. 그래서 자기 줄을 만든다.
+     ⚠ 이 값($0.035/장)은 미확인 추정이다. fal 의 flux-general 공식 단가 원문을 못 구했다.
+        확실한 확인은 제공사 청구서를 그 달 장수로 나눠 역산하는 것이고, 그때
+        관리자 → 모델 단가에서 이 이름으로 실측값을 넣으면 그 값이 이긴다.
+     여기에 ControlNet 가산(기본 +10%)이 따로 곱해진다. */
+  'ControlNet 이미지 (Canny·Depth·Pose)': { u: 'img', usd: 0.035, prov: 'falcontrol' },
+  /* 외부에 모델을 빌려줄 때(대여 1건 = 발급된 리스 토큰 1개). 유효기간 동안 그 기기에서 돌린다.
+     'tok' 은 1건 과금이라 마크업이 2.5다: 0.30 × 1400 × 2.5 ÷ 50 = 21크레딧 / 대여 */
+  '모델 대여 (초해상 ×4)': { u: 'tok', usd: 0.30, prov: 'lease' },
 }
+//  과금 이름을 한 곳에서만 쓰도록 묶는다 — 문자열을 여기저기 적으면 표와 어긋난다
+export const UPSCALE_IMG = '화질 올리기 (이미지 초해상 ×4)'
+export const UPSCALE_VID = '화질 올리기 (영상 초해상 ×4)'
+export const LEASE_SR = '모델 대여 (초해상 ×4)'
+export const CONTROLNET_IMG = 'ControlNet 이미지 (Canny·Depth·Pose)'
 
 export const PROV_LABEL: Record<string, string> = {
   google: 'Google Veo', runway: 'Runway', runway_aleph: 'Runway Aleph', v2v_auto: 'V2V 자동', motion: '모션 전이', seedance: 'Seedance', seedream: 'Seedream',
@@ -481,6 +535,8 @@ const seedanceFrames = (secs: number) => SEEDANCE_FPS * secs + 1
    1.x 계열과 1.5 Pro 영상 단가는 이 청구서에 항목이 없어 아직 미확인이다
    (1.5 Pro 는 "inference-audio" 줄만 있었다 — $0.0024/K). */
 export const SEEDANCE_PER_M: Record<string, number> = {
+  'Seedance 2.5': 8.4,                // 미확인(요금 미공개) — 2.0 의 1.2배로 안전하게 높게.
+                                      //  덜 받으면 손해라서 높은 쪽으로 기울였다. 실측 정산이 차액을 되돌린다.
   'Seedance 2.0': 7.0,                // 실측 — 청구서 $0.007/K
   'Seedance 2.0 Fast': 5.6,           // 실측 — 청구서 $0.0056/K
   'Seedance 2.0 Mini': 3.5,           // 추정 — 2.0 의 0.5배(위 두 값과 같은 보정 배수)
@@ -628,22 +684,19 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
     return Number.isFinite(n) && n > 0 ? Math.min(n, max) : dflt
   }
   input = { ...input, units: fin(input.units, 0, 3600), refs: fin((input as any).refs, 0, 64) }
-  const model = String(input.model || '')
-  /* ── 화질 올리기(업스케일)는 언제나 0원이다 ──
-     브라우저에서 우리 자체 초해상 모델로 처리하므로 제공사에 나가는 비용이 없다.
-     단가표에서 뺐고 서버 경로도 막았지만, 요금이 만들어지는 자리에서 한 번 더 못을 박는다 —
-     누군가 나중에 단가표에 되살리거나 다른 경로로 이 이름을 넣어도 크레딧이 빠지지 않게.
-     (방어는 여러 겹이어야 한 겹이 뚫려도 회원 돈이 안 나간다) */
-  if (/업스케일|화질 올리기|upscale/i.test(model)) {
-    /* ChargeResult 를 그대로 만든다 — 예전에는 priceKrw(존재하지 않는 칸)를 넣고 profitKrw 를 빠뜨린 채
-       'as ChargeResult' 로 눌러 놨다. 그러면 순이익을 읽는 쪽(관리자 정산·MCP 추정)이 undefined 를 받아
-       합계가 NaN 이 된다. 캐스팅을 없애면 컴파일러가 이런 누락을 대신 잡아 준다. */
-    const free: ChargeResult = {
-      model, provider: 'upscale', kind: 'video',
-      usd: 0, usdKrw: rate, costKrw: 0, costKrwExact: 0,
-      markup: 1, credits: 0, revenueKrw: 0, profitKrw: 0,
-    }
-    return free
+  let model = String(input.model || '')
+  /* ── 화질 올리기(업스케일) 과금 ──
+     예전에는 여기서 무조건 0원으로 되돌렸다. 브라우저에서 우리 모델로 돌아 제공사 비용이
+     0이라는 이유였고, "절대 유료가 되면 안 된다" 는 지시에 따라 다섯 겹으로 막아 뒀었다.
+     그 방침이 뒤집혔다 — 업스케일도 과금한다(스튜디오·외부 대여 모두).
+     제공사 원가가 0이라 이 값은 원가 보전이 아니라 우리가 매기는 값이다. 그래서
+     추정식에 맡기지 않고 아래 MODEL_COST 에 이름을 올려 두고, 관리자가 실제 단가
+     override(admin/model-pricing)로 언제든 바꿀 수 있게 한다.
+     이름을 못 알아본 옛 그래프가 들어와도 업스케일로 잡히도록 별칭을 여기서 정규화한다 —
+     안 그러면 표에 없는 이름이 되어 영상 기본값($0.06/초)으로 청구된다(25배 과청구). */
+  if (/업스케일|화질 올리기|upscale/i.test(model) && !MODEL_COST[model]) {
+    const asImg = input.kind === 'image' || /이미지|image|img/i.test(model)
+    model = asImg ? UPSCALE_IMG : UPSCALE_VID
   }
   const m = MODEL_COST[model]
   // 'img'(장당) 외에 '3d'(모델 1개당)·'tok'(호출 1회당) 도 "단위 1개" 과금이다 — 초당 계산을 타면 안 된다.
@@ -701,14 +754,8 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
 
 /** ai_usage 테이블 보장 + 정산 컬럼 마이그레이션 */
 /* 위와 같은 이유로 한 번만 한다 — 요청마다 반복하면 서브리퀘스트 한도를 갉아먹는다. */
-const __aiUsageReady = new WeakMap<object, Promise<void>>()
 export async function ensureAiUsage(db: D1Database): Promise<void> {
-  const key = db as unknown as object
-  const done = __aiUsageReady.get(key)
-  if (done) return done
-  const run = __ensureAiUsage(db).catch((e) => { __aiUsageReady.delete(key); throw e })
-  __aiUsageReady.set(key, run)
-  return run
+  return ensureOnce(db, 'schema_aiusage_v1', () => __ensureAiUsage(db), ['ai_usage'])
 }
 async function __ensureAiUsage(db: D1Database): Promise<void> {
   await db

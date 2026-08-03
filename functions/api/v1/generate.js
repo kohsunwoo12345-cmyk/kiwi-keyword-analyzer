@@ -5,7 +5,7 @@
 import { onRequest as generateApi, effectiveUnits, effectiveRes, effectiveFlags, effectiveRatio } from "../generate.js";
 import { resolveDB, ensureSchema, json } from "../_utils";
 import { getUserByApiKey, logApiCall, hasVideoApiAccess, ensureApiKeysSchema, enforceRateLimit, beginApiCall, finishApiCall, attachApiCallTask, refundFailedTask } from "../_apikeys";
-import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage, resolveCostOverride, MODEL_COST } from "../studio/_pricing";
+import { computeCharge, getUsdKrw, resolveMarkup, ensureAiUsage, resolveCostOverride, resolveRefSurcharge, resolveCnSurcharge, MODEL_COST } from "../studio/_pricing";
 
 // 크레딧 차감 + 사용/거래 기록 (스튜디오 usage/record 와 동일)
 async function commitCharge(db, me, c, units) {
@@ -98,6 +98,17 @@ export const onRequestPost = async ({ request, env }) => {
     est = computeCharge({ model, units, kind, res: billRes, audio: !!body.audio,
                           refs: refsV, hdr: fl.hdr, exr: fl.exr,
                           ratio: effectiveRatio({ ...body, model }) }, rate, markup, undefined, await resolveCostOverride(db, model));
+    /* 가산율은 스튜디오(generate.js 게이트)와 같아야 한다 — 여기에만 없었다.
+       레퍼런스 1장당 +0.5%, ControlNet 사용 시 +10%(전역 설정값). 빠져 있으면
+       같은 생성이 API 로 부를 때만 싸게 나간다. ControlNet 을 정식으로 열면서 실제로
+       돈이 새는 자리라 함께 막는다. */
+    const cnCount = Math.max(0, (Array.isArray(body.controlnets) && body.controlnets.length) || Number(body.cn) || 0);
+    const [surPct, cnPct] = await Promise.all([
+      resolveRefSurcharge(db, me.id),
+      cnCount > 0 ? resolveCnSurcharge(db) : Promise.resolve(0),
+    ]);
+    const mult = (1 + (surPct / 100) * refsV) * (cnCount > 0 ? 1 + cnPct / 100 : 1);
+    if (est && mult !== 1) est = { ...est, credits: Math.round(est.credits * mult * 100) / 100 };
     if (!isAdmin && (Number(me.credits) || 0) < (est?.credits || 0)) {
       return json({ ok: false, error: "크레딧이 부족합니다.", need: est?.credits, have: Number(me.credits) || 0, needPlan: true }, 402);
     }
