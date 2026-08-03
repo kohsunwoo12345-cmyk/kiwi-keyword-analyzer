@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Images, RefreshCw, Download, Search, Film, Image as ImageIcon, User, Clock } from 'lucide-react'
+import { Images, RefreshCw, Download, Search, Film, Image as ImageIcon, User, Clock, Wand2 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button } from '@/components/ui'
-import { adminAiGenerations, adminGenStatus, type AiGenerationRow, type GenStatusResp } from '@/lib/auth'
+import { adminAiGenerations, adminGenStatus, adminGenRecover, type AiGenerationRow, type GenStatusResp } from '@/lib/auth'
 import { kstDateTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
 
@@ -76,6 +76,25 @@ export default function AdminAiGenerationsPage() {
 
   const runSearch = () => setQ(qInput.trim())
 
+  /* 결과 주소를 잃은 기록을 제공사에서 되찾아 온다.
+     한 번에 다 하면 그 요청이 죽으므로 서버가 조금씩 처리하고 "남았다" 를 알려 준다 —
+     여기서 끝날 때까지 다시 부른다. 되찾은 게 없는데 남았다고만 하면 무한히 돌 수 있으니
+     "이번에 하나도 못 되찾았으면 멈춘다" 는 조건을 같이 둔다. */
+  const [rec, setRec] = useState<{ busy: boolean; ok: number; fail: number; run: number; gone: number; done: boolean } | null>(null)
+  const recover = async () => {
+    setRec({ busy: true, ok: 0, fail: 0, run: 0, gone: 0, done: false })
+    let ok = 0, fail = 0, run = 0, gone = 0
+    for (let i = 0; i < 60; i++) {
+      const r = await adminGenRecover()
+      if (!r.ok) { setRec({ busy: false, ok, fail, run, gone, done: true }); return }
+      ok += r.recovered || 0; fail += r.failed || 0; run += r.running || 0; gone += r.gone || 0
+      setRec({ busy: true, ok, fail, run, gone, done: false })
+      if (!(r.remaining || 0) || !(r.recovered || 0)) break
+    }
+    setRec({ busy: false, ok, fail, run, gone, done: true })
+    load(true, 0, kind, q)
+  }
+
   return (
     <div>
       <PageHeader
@@ -117,11 +136,33 @@ export default function AdminAiGenerationsPage() {
         <Button variant="soft" size="sm" onClick={() => csvDownload(items)} disabled={!items.length}>
           <Download size={14} /> CSV
         </Button>
+        <Button variant="soft" size="sm" onClick={recover} disabled={!!rec && rec.busy}>
+          <Wand2 size={14} /> {rec?.busy ? '되찾는 중…' : '결과물 되찾기'}
+        </Button>
         <div className="ml-auto flex items-center gap-3 text-xs text-[var(--text-soft)]">
           <span>총 <b className="text-[var(--text)]">{total.toLocaleString('ko-KR')}</b>건</span>
           {todayRate != null && <span>오늘 환율 <b className="text-[var(--text)]">₩{Math.round(todayRate).toLocaleString('ko-KR')}</b>/$</span>}
         </div>
       </div>
+
+      {/* 되찾기 결과 — 무엇을 못 되찾았는지도 같이 말한다. "몇 건 복구" 만 쓰면
+          나머지가 왜 그대로인지 알 수 없어 같은 단추를 계속 누르게 된다. */}
+      {rec && (
+        <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-4 py-3 text-sm">
+          <b className="text-[var(--text)]">{rec.busy ? '제공사에서 되찾는 중…' : '되찾기 완료'}</b>
+          <span className="ml-2 text-[var(--text-soft)]">
+            되찾음 <b className="text-emerald-500">{rec.ok}</b>건
+            {rec.run > 0 && <> · 아직 진행 중 {rec.run}건</>}
+            {rec.fail > 0 && <> · 제공사에서 실패했던 건 {rec.fail}건</>}
+            {rec.gone > 0 && <> · 원본이 이미 사라진 건 {rec.gone}건</>}
+          </span>
+          {rec.done && (rec.fail > 0 || rec.gone > 0) && (
+            <div className="mt-1 text-xs text-[var(--text-dim)]">
+              실패했던 건은 애초에 결과물이 없고, 원본이 사라진 건은 제공사 쪽에서 이미 지워져 되살릴 수 없습니다.
+            </div>
+          )}
+        </div>
+      )}
 
       {items.length === 0 && !loading ? (
         <Panel><p className="py-16 text-center text-sm text-[var(--text-dim)]">생성 기록이 없습니다.</p></Panel>

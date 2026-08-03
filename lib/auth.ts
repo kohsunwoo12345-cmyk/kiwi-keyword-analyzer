@@ -502,6 +502,22 @@ export interface GenStatusResp {
   provider?: { http?: number; state: string; url?: string; error?: string; raw?: string; usageTokens?: number }
   cost?: string
 }
+/** 관리자: 결과 주소를 잃은 기록을 제공사에서 되찾아 R2 에 보관 */
+export interface GenRecoverResp {
+  ok: boolean
+  error?: string
+  tried?: number
+  recovered?: number
+  failed?: number
+  running?: number
+  gone?: number
+  remaining?: number
+  details?: { id: string; state: string; url?: string; note?: string }[]
+}
+export async function adminGenRecover(): Promise<GenRecoverResp> {
+  const r = await fetch('/api/admin/gen-recover', { method: 'POST', credentials: 'include', cache: 'no-store' })
+  return (await r.json().catch(() => ({ ok: false, error: '응답을 읽지 못했습니다' }))) as GenRecoverResp
+}
 export async function adminGenStatus(id: string): Promise<GenStatusResp> {
   const r = await fetch('/api/admin/gen-status?id=' + encodeURIComponent(id), { credentials: 'include', cache: 'no-store' })
   return (await r.json().catch(() => ({ ok: false, error: '응답을 읽지 못했습니다' }))) as GenStatusResp
