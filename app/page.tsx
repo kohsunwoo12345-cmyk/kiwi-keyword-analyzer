@@ -1093,6 +1093,10 @@ export default function Home() {
                 <Reveal key={f.slug} variant="rise" delay={i * 90}>
                   <Link
                     href={`/features/${f.slug}`}
+                    /* 미리 받아 두지 않는다. 이 카드가 화면에 들어오는 것만으로 Next 가
+                       /features/[slug] 묶음(71KB)을 통째로 내려받는데, 홈에 온 사람 대부분은
+                       그 페이지로 가지 않는다. 눌렀을 때 받아도 늦지 않다. */
+                    prefetch={false}
                     className="group card hover-lift relative flex h-full items-start gap-4 overflow-hidden p-5"
                   >
                     {mark}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { onIdle } from '@/lib/idle'
 import { usePathname } from 'next/navigation'
 import { MessageCircle, X, Send, Headset, Check } from 'lucide-react'
 import { chatSend, chatThread, type ChatMsg } from '@/lib/auth'
@@ -79,9 +80,10 @@ export function SupportChat() {
 
   useEffect(() => {
     if (hidden) return
-    poll()
+    //  닫혀 있는 상담 창은 첫 화면과 상관이 없다 — 다 그려진 뒤에 처음 물어본다
+    const cancelIdle = open ? (poll(), () => {}) : onIdle(poll)
     const iv = setInterval(poll, open ? 3500 : 30000)
-    return () => clearInterval(iv)
+    return () => { cancelIdle(); clearInterval(iv) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, convId, hidden])
 

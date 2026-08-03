@@ -287,11 +287,26 @@ body {
 }
 
 /* ---- scroll reveal ---- */
+/* ⚠ 여기가 첫 화면이 늦게 보이던 진짜 이유였다.
+   등장 효과를 주려고 처음엔 opacity:0 으로 숨겨 두고, React 가 붙은 뒤
+   IntersectionObserver 가 .in-view 를 달아 주면 나타나게 했다.
+   그런데 그 말은 "자바스크립트 묶음이 다 내려와 실행될 때까지 화면이 통째로 비어 있다" 는 뜻이다.
+   느린 회선에서 재 보니 HTML 은 758ms 에 도착했는데 첫 글자는 1,756ms 에야 보였다 —
+   그 1초는 순전히 우리가 숨겨 둔 시간이었다.
+
+   그래서 못 보이는 시간에 상한을 둔다. JS 가 제때 오면 예전처럼 스크롤에 맞춰 나타나고,
+   늦으면 0.6초 뒤 CSS 혼자 보여 준다. 효과를 위해 글을 안 보여 주는 건 앞뒤가 바뀐 것이다. */
 .reveal {
   opacity: 0;
   transform: translateY(28px);
   transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: reveal-failsafe 0.4s ease-out 0.6s forwards;
 }
+@keyframes reveal-failsafe {
+  to { opacity: 1; transform: none; }
+}
+/*  스크롤로 나타난 뒤에는 위 안전장치가 다시 끼어들면 안 된다 */
+.reveal.in-view { animation: none; }
 .reveal.in-view {
   opacity: 1;
   transform: none;
