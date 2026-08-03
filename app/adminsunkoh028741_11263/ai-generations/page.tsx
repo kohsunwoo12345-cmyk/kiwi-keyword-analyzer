@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Images, RefreshCw, Download, Search, Film, Image as ImageIcon, User, Clock } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button } from '@/components/ui'
-import { adminAiGenerations, type AiGenerationRow } from '@/lib/auth'
+import { adminAiGenerations, adminGenStatus, type AiGenerationRow, type GenStatusResp } from '@/lib/auth'
 import { kstDateTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
 
@@ -144,6 +144,51 @@ export default function AdminAiGenerationsPage() {
   )
 }
 
+/* "미리보기 없음" 한 줄로는 세 가지가 구분되지 않는다 —
+   ㉠ 영상은 나왔는데 주소만 안 붙음 ㉡ 회원이 지움 ㉢ 제공사에서 실패.
+   ㉢ 만 제공사 요금이 안 나간 경우라, 이걸 못 가르면 "돈이 어디로 갔나" 를 영영 못 본다.
+   그래서 눌러서 제공사에 직접 물어보게 한다(조회만 · 아무것도 고치지 않는다). */
+function ProviderCheck({ id }: { id: string }) {
+  const [st, setSt] = useState<GenStatusResp | null>(null)
+  const [busy, setBusy] = useState(false)
+  const go = async () => {
+    setBusy(true)
+    try { setSt(await adminGenStatus(id)) } finally { setBusy(false) }
+  }
+  const p = st?.provider
+  const tone = p?.state === 'succeeded' ? 'text-emerald-500'
+    : p?.state === 'failed' ? 'text-rose-500'
+    : p?.state === 'running' ? 'text-amber-500' : 'text-[var(--text-dim)]'
+  const label = p?.state === 'succeeded' ? '제공사: 완료됨'
+    : p?.state === 'failed' ? '제공사: 실패'
+    : p?.state === 'running' ? '제공사: 진행 중' : '제공사: 알 수 없음'
+  return (
+    <div className="col-span-2 mt-1 rounded-md border border-[var(--border-soft)] bg-[var(--panel-2)] px-2 py-1.5 text-[10px]">
+      {!st ? (
+        <button onClick={go} disabled={busy} className="font-semibold text-violet-500 hover:underline disabled:opacity-50">
+          {busy ? '제공사에 묻는 중…' : '제공사에 직접 조회 →'}
+        </button>
+      ) : !st.ok ? (
+        <span className="text-rose-500">조회 실패: {st.error || '알 수 없음'}</span>
+      ) : !st.found ? (
+        <span className="text-[var(--text-dim)]">{st.note}</span>
+      ) : (
+        <div className="space-y-0.5">
+          <div className={cn('font-semibold', tone)}>{label}{p?.raw ? ` (${p.raw})` : ''}</div>
+          <div className="text-[var(--text-dim)]">{st.cost}</div>
+          {st.charge?.refunded && <div className="font-semibold text-sky-500">환불됨 — {st.charge.credits} 크레딧 돌려줌</div>}
+          {p?.error && <div className="break-words text-rose-500">{p.error}</div>}
+          {p?.url && (
+            <a href={p.url} target="_blank" rel="noopener" className="text-violet-500 hover:underline">
+              제공사에 남아 있는 결과 열기 →
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function GenCard({ r }: { r: AiGenerationRow }) {
   const isVideo = looksVideo(r.resultUrl, r.resultKind || r.kind)
   return (
@@ -228,6 +273,14 @@ function GenCard({ r }: { r: AiGenerationRow }) {
               <Meta k="당일 환율" v={r.usdKrw ? `₩${Math.round(r.usdKrw).toLocaleString('ko-KR')}/$` : '-'} />
             </>
           )}
+          {/* 환불된 건은 목록에서 바로 보이게 한다 — 눌러 봐야만 알면 스무 장을 다 눌러야 한다 */}
+          {r.chargeStatus === 'refunded' && (
+            <div className="col-span-2 rounded-md bg-sky-500/10 px-2 py-1.5 text-[10px] font-semibold text-sky-500">
+              환불됨 — 생성이 실패해 크레딧을 돌려줬습니다.
+            </div>
+          )}
+          {/* 결과물이 없는 건만 조회 통로를 연다. 잘 나온 건은 물어볼 것이 없다. */}
+          {!r.resultUrl && r.hasTask && <ProviderCheck id={r.id} />}
         </div>
       </div>
     </div>

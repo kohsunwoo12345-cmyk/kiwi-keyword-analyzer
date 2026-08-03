@@ -487,6 +487,24 @@ export interface AiGenerationRow {
   refs: string[]
   resultUrl: string
   resultKind: string
+  /** 과금 줄의 상태 — charged | refunded | ''(옛 기록). 환불 여부는 ai_usage 에 없어 따로 읽는다 */
+  chargeStatus?: string
+  /** 제공사에 물어볼 작업 번호가 남아 있는가(즉시 결과형 생성은 없다) */
+  hasTask?: boolean
+}
+/** 관리자: 이 생성이 제공사 쪽에서 어떻게 끝났는지 */
+export interface GenStatusResp {
+  ok: boolean
+  error?: string
+  found?: boolean
+  note?: string
+  charge?: { credits: number; status: string; refunded: boolean; taskKey: string; at: string }
+  provider?: { http?: number; state: string; url?: string; error?: string; raw?: string; usageTokens?: number }
+  cost?: string
+}
+export async function adminGenStatus(id: string): Promise<GenStatusResp> {
+  const r = await fetch('/api/admin/gen-status?id=' + encodeURIComponent(id), { credentials: 'include', cache: 'no-store' })
+  return (await r.json().catch(() => ({ ok: false, error: '응답을 읽지 못했습니다' }))) as GenStatusResp
 }
 export interface AiGenerationsResp {
   ok: boolean
