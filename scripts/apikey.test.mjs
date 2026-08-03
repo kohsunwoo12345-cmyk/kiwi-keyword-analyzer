@@ -97,9 +97,17 @@ console.log('\n① 키가 유효할 때만 회원을 찾아 준다')
   ok((await lookup(makeDB(base), 'Bearer bg_live_없는키값입니다')) === null, '없는 키는 통과하지 못한다')
   ok((await lookup(makeDB(base), 'Bearer ' + PLAIN.slice(0, -1) + 'X')) === null, '한 글자만 달라도 통과하지 못한다')
   ok((await lookup(makeDB(base), null)) === null, '헤더가 없으면 통과하지 못한다')
-  /* 접두사 검사가 없으면 아무 문자열이나 해시를 계산해 조회한다 —
-     쓸데없는 D1 왕복이 늘고, 키 형식이 아닌 값도 인증 후보가 된다. */
-  ok((await lookup(makeDB(base), 'Bearer ' + HASH)) === null, '키 형식(bg_live_)이 아니면 조회조차 하지 않는다')
+  /* 접두사 검사가 없으면 아무 문자열이나 해시를 계산해 조회한다.
+     Cloudflare 는 D1 질의 하나를 서브리퀘스트 하나로 세고 요청당 한도가 있어서,
+     아무 헤더에나 왕복이 붙으면 정상 요청이 한도에 걸려 함수째로 끊긴다.
+     그래서 "막혔다" 만으로는 부족하고 "조회 자체를 안 했다" 를 봐야 한다. */
+  for (const bad of ['Bearer ' + HASH, 'Bearer sk_live_someoneelse', 'Bearer 아무말', 'Basic abc']) {
+    const db = makeDB(base)
+    ok((await lookup(db, bad)) === null, `키 형식이 아니면 막힌다 — ${bad.slice(0, 22)}`)
+    ok(!db.__state.sql.some((q) => /FROM api_keys/i.test(q.s)),
+       `키 형식이 아니면 조회조차 하지 않는다 — ${bad.slice(0, 22)}`,
+       String(db.__state.sql.length) + '회 질의')
+  }
 }
 
 console.log('\n② 정지된 회원의 키는 통하지 않는다')
