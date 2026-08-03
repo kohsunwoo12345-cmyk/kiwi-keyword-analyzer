@@ -12,6 +12,9 @@ import {
 } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
+/* 배수로 쓸 수 있는 값인가. 서버도 같은 기준으로 막지만 화면에서 먼저 막는다 —
+   눌러 놓고 거절당하는 것보다, 애초에 못 누르는 편이 무엇이 잘못됐는지 분명하다. */
+const okMk = (v: any) => { const n = Number(String(v ?? '').trim()); return String(v ?? '').trim() !== '' && Number.isFinite(n) && n >= 1 && n <= 100 }
 const r2 = (n: number) => Math.round((n || 0) * 100) / 100
 
 /** 각 AI 모델별 크레딧 차감 배수 — 전체(전역) / 특정 회원 단위로 조절 */
@@ -106,8 +109,11 @@ export function ModelPricing() {
               <label className="mb-1 block text-[11px] text-[var(--text-dim)]">모든 모델 배수 일괄</label>
               <input value={bulk} onChange={(e) => setBulk(e.target.value.replace(/[^0-9.]/g, ''))} className="w-24 rounded-lg border border-[var(--border-soft)] bg-white px-3 py-2 text-sm" />
             </div>
-            <Button size="sm" disabled={busy} onClick={() => act(scope === 'user' ? 'set_user_all' : 'set_global_all', scope === 'user' ? { userId: activeUserId, markup: Number(bulk) } : { markup: Number(bulk) }, `모든 모델을 ×${r2(Number(bulk))} 로 적용했습니다.`)}>
-              <Layers size={14} /> 전체 모델 ×{r2(Number(bulk) || 0)} 적용
+            {/* ⚠ 빈칸으로 누를 수 있게 두면 안 된다. 예전에는 눌렸고, 서버가 그 빈칸을 ×1
+                   (=원가 그대로)로 받아 모든 모델이 마진 0 이 됐다. 라벨은 "×0 적용" 이라고
+                   적혀 있었는데 실제로 저장된 값은 1 이라, 화면만 봐서는 알 수도 없었다. */}
+            <Button size="sm" disabled={busy || !okMk(bulk)} onClick={() => act(scope === 'user' ? 'set_user_all' : 'set_global_all', scope === 'user' ? { userId: activeUserId, markup: Number(bulk) } : { markup: Number(bulk) }, `모든 모델을 ×${r2(Number(bulk))} 로 적용했습니다.`)}>
+              <Layers size={14} /> {okMk(bulk) ? `전체 모델 ×${r2(Number(bulk))} 적용` : '배수를 입력하세요 (1 이상)'}
             </Button>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => act(scope === 'user' ? 'reset_user' : 'reset_global_all', scope === 'user' ? { userId: activeUserId } : {}, '기본 배수로 초기화했습니다.')}>기본값으로 초기화</Button>
           </div>
@@ -187,7 +193,7 @@ function FragmentRows({ cat, list, edits, setEdits, costEdits, setCostEdits, bus
             <td className="px-2 py-2 font-semibold text-violet-600">{credits} 크레딧</td>
             <td className="px-2 py-2 text-right">
               <div className="flex items-center justify-end gap-1">
-                <Button size="sm" variant="outline" disabled={busy} onClick={async () => {
+                <Button size="sm" variant="outline" disabled={busy || !okMk(val)} title={okMk(val) ? '' : '배수를 1 이상으로 입력하세요'} onClick={async () => {
                   /* 실측 단가를 입력했으면 그것부터 저장한다 — 원가가 바뀌면 배수 계산의 기준도 바뀐다. */
                   const cv = costEdits[m.model]
                   if (cv != null && cv !== '' && Number(cv) > 0 && Number(cv) !== m.costOverrideUsd)

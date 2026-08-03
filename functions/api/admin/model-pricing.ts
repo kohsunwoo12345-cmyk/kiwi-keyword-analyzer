@@ -3,7 +3,19 @@ import { MODEL_COST, PROV_LABEL, computeCharge, getUsdKrw, getModelMarkups, CRED
 
 const clampPct = (v: any) => Math.max(0, Math.min(100, Math.round((Number(v) || 0) * 1000) / 1000))
 
-const clampMk = (v: any) => Math.max(1, Math.min(100, Math.round((Number(v) || 1) * 100) / 100))
+/* ⚠ 배수를 못 읽었을 때 1 로 채우면 안 된다.
+   예전 코드는 `Number(v) || 1` 이었다. 빈칸·공백·문자·0 이 전부 1 이 되고, 1 은
+   "원가 그대로 팔아라" 라는 뜻이다. 화면의 [전체 모델 ×N 적용] 은 입력칸을 비운 채로도
+   눌리므로, 한 번의 실수로 모든 모델·모든 회원이 마진 0 이 된다.
+   실제로 그렇게 찍힌 기록을 봤다 — Seedance 2.0 5초, 차감 ₩2,471 · 원가 ₩2,472 · 마진 ₩-1.
+   못 읽으면 저장하지 않고 되돌려 보낸다. "모르겠으니 공짜로" 는 어느 쪽으로도 안전하지 않다.
+   기본 배수로 되돌리는 것은 별도 동작(reset_*)이 따로 있다. */
+const readMk = (v: any): number | null => {
+  const n = Number(v)
+  if (!Number.isFinite(n) || n < 1 || n > 100) return null
+  return Math.round(n * 100) / 100
+}
+const MK_ERR = { ok: false, error: '배수를 1 이상 100 이하의 숫자로 입력하세요. (기본 배수로 되돌리려면 [기본값으로 초기화])' }
 const unitsFor = (kind: string) => (kind === 'video' ? 8 : 1)   // 영상만 8초 기준, 나머지(이미지·3D·LLM)는 1단위
 
 // GET /api/admin/model-pricing[?userId=]  → 모델별 원가/배수/적용 크레딧
@@ -143,10 +155,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const action = String(b.action || '')
 
   if (action === 'set_global') {
+    const mk = readMk(b.markup)
+    if (mk == null) return json(MK_ERR, 400)
     const gm = await getModelMarkups(db)
-    gm[String(b.model)] = clampMk(b.markup)
+    gm[String(b.model)] = mk
     await setSetting(db, 'model_markups', JSON.stringify(gm))
-    await logAudit(db, admin, 'model_markup_global', String(b.model), '×' + clampMk(b.markup), 'info', ip)
+    await logAudit(db, admin, 'model_markup_global', String(b.model), '×' + mk, 'info', ip)
     return json({ ok: true })
   }
   /* 실측 원가 입력 — 청구서를 보고 "실제로 우리가 낸 값" 을 넣는다.
@@ -177,7 +191,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: true })
   }
   if (action === 'set_global_all') {
-    const mk = clampMk(b.markup); const gm: Record<string, number> = {}
+    const mk = readMk(b.markup)
+    if (mk == null) return json(MK_ERR, 400)
+    const gm: Record<string, number> = {}
     for (const k of Object.keys(MODEL_COST)) gm[k] = mk
     await setSetting(db, 'model_markups', JSON.stringify(gm))
     await logAudit(db, admin, 'model_markup_global_all', '전체', '×' + mk, 'high', ip)
@@ -189,12 +205,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
   if (action === 'set_user') {
     const uid = String(b.userId || ''); if (!uid) return json({ ok: false, error: '회원을 선택하세요.' }, 400)
-    await db.prepare('INSERT OR REPLACE INTO user_model_markups (user_id, model, multiplier) VALUES (?, ?, ?)').bind(uid, String(b.model), clampMk(b.markup)).run()
+    const mkU = readMk(b.markup)
+    if (mkU == null) return json(MK_ERR, 400)
+    await db.prepare('INSERT OR REPLACE INTO user_model_markups (user_id, model, multiplier) VALUES (?, ?, ?)').bind(uid, String(b.model), mkU).run()
     return json({ ok: true })
   }
   if (action === 'set_user_all') {
     const uid = String(b.userId || ''); if (!uid) return json({ ok: false, error: '회원을 선택하세요.' }, 400)
-    const mk = clampMk(b.markup)
+    const mk = readMk(b.markup)
+    if (mk == null) return json(MK_ERR, 400)
     for (const k of Object.keys(MODEL_COST)) await db.prepare('INSERT OR REPLACE INTO user_model_markups (user_id, model, multiplier) VALUES (?, ?, ?)').bind(uid, k, mk).run()
     await logAudit(db, admin, 'model_markup_user_all', uid, '×' + mk, 'info', ip)
     return json({ ok: true })
@@ -209,7 +228,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (action === 'set_user_overall') {
     const uid = String(b.userId || '')
     if (!uid) return json({ ok: false, error: 'userId 필요' }, 400)
-    const mk = clampMk(b.markup)
+    const mk = readMk(b.markup)
+    if (mk == null) return json(MK_ERR, 400)
     await db.prepare('UPDATE users SET credit_markup = ? WHERE id = ?').bind(mk, uid).run()
     await logAudit(db, admin, 'user_markup_overall', uid, '×' + mk, 'info', ip)
     return json({ ok: true, markup: mk })
@@ -252,7 +272,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
   // 프롬프트 작성(GPT·Gemini) 배수(원가율) — 전역, 원가 이하(1 미만) 불가
   if (action === 'set_promptgen') {
-    const mk = clampMk(b.markup)
+    const mk = readMk(b.markup)
+    if (mk == null) return json(MK_ERR, 400)
     await setSetting(db, 'promptgen_markup', String(mk))
     await logAudit(db, admin, 'promptgen_markup', '전역', '×' + mk, 'info', ip)
     return json({ ok: true, markup: mk })
