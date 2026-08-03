@@ -23,9 +23,19 @@ function ctExt(ct: string): string {
   if (c.includes('audio')) return '.mp3'
   return ''
 }
-// 생성 미디어를 저장 가능한 URL 로 변환.
-//  · data: URL → R2 업로드(가능 시) → /api/media/<key>. R2 없으면 작은 이미지만 인라인 보관.
-//  · http(s)/상대경로 → 그대로 저장(재업로드로 인한 대용량 전송 회피).
+/* 생성 미디어를 "평생 남는 주소" 로 바꾼다.
+     · data: URL     → R2 에 올리고 /api/media/<key>
+     · 제공사 http(s) → 받아서 R2 에 올리고 /api/media/<key>
+     · 이미 우리 주소 → 그대로
+
+   ⚠ 예전엔 http(s) 를 그대로 저장했다. "재업로드로 인한 대용량 전송 회피" 라고 적혀 있었는데,
+     그 대가가 컸다. 제공사 결과 URL 은 며칠이면 만료된다 — 저장한 그 순간에는 잘 보이니
+     아무도 모르다가, 나중에 보관함과 관리자 화면에서 한꺼번에 죽는다.
+     아낀 건 전송량이고 잃은 건 회원의 결과물이라, 바꿀 이유가 분명하다.
+
+   실패하면 원본 주소로 물러난다 — 지금 당장은 보이는 게 아무것도 없는 것보다 낫다.
+   (뒤늦게라도 옮기는 경로가 따로 있다: 스튜디오 healGallery) */
+const MAX_PERSIST_BYTES = 200_000_000     // 20분 4K 영상도 이 아래다. 넘으면 원본 주소로 둔다.
 async function persistMedia(env: any, url: string): Promise<string> {
   if (!url || typeof url !== 'string') return ''
   try {
@@ -42,10 +52,27 @@ async function persistMedia(env: any, url: string): Promise<string> {
       }
       return ct.startsWith('image/') && url.length <= 600_000 ? url : ''
     }
-    return url // http(s) or /api/...
+    if (!/^https?:\/\//i.test(url)) return url          // 이미 우리 주소(/api/media/…)
+    const bucket = resolveBucket(env)
+    if (!bucket) return url
+    const r = await fetch(url)
+    if (!r.ok || !r.body) return url
+    const ct = r.headers.get('content-type') || 'application/octet-stream'
+    const len = Number(r.headers.get('content-length') || 0)
+    if (len > MAX_PERSIST_BYTES) return url
+    //  스트리밍으로 넘긴다 — 통째로 메모리에 올리면 큰 영상에서 워커가 죽는다.
+    const key = 'gen/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + (ctExt(ct) || guessExt(url))
+    await bucket.put(key, r.body, { httpMetadata: { contentType: ct } })
+    return '/api/media/' + key
   } catch {
     return url.startsWith('data:') ? '' : url
   }
+}
+/* 제공사가 content-type 을 엉뚱하게 주는 경우가 있어 주소의 확장자도 본다.
+   확장자가 틀리면 나중에 브라우저가 영상을 못 연다(.mp4 를 .bin 으로 받으면 재생 안 됨). */
+function guessExt(url: string): string {
+  const m = /\.([a-z0-9]{2,5})(?:\?|#|$)/i.exec(String(url || ''))
+  return m ? '.' + m[1].toLowerCase() : ''
 }
 
 // POST /api/usage/record { model, kind, units, res?, audio?, provider? }
@@ -166,7 +193,26 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
      못 붙였을 때만 아래에서 별도 줄을 만들고, 금액 칸은 0 이라 합계를 흔들지 않는다. */
   /* 클라이언트가 chargeRef 를 돌려주지 않아도(오래된 캐시 등) 토큰에 적어 둔 줄 번호로 찾는다.
      못 찾으면 아래에서 별도 줄이 생기는데, 그러면 관리자 "생성 건수" 가 한 생성에 두 번 세어진다. */
-  const chargeRef = String(b.chargeRef || staked?.usageId || '').slice(0, 40)
+  /* ⚠ 새로고침해서 이어받은 생성(resumePendingJobs)은 줄 번호도 토큰도 못 보낸다 —
+     둘 다 제출 응답에만 실려 왔고, 새로고침하는 순간 메모리에서 사라지기 때문이다.
+     그래서 결과물이 어디에도 안 붙고, 돈이 붙은 줄은 빈 채로 남았다
+     (관리자 화면의 "미리보기 없음 (아카이브 안 됨)" 이 바로 이것이다).
+     회원 입장에서는 만들어 놓은 영상이 보관함에서 사라진 것으로 보인다.
+
+     브라우저는 줄 번호를 모르지만 서버는 안다 — 작업 주소(taskKey)와 줄 번호가
+     gen_charges 한 줄에 나란히 있다. 이어받을 때도 작업 주소는 그대로 넘어오므로
+     그것으로 찾는다. 클라이언트는 고칠 것이 없다. */
+  let byTask = ''
+  if (!b.chargeRef && !staked?.usageId && b.taskKey) {
+    try {
+      const row: any = await db
+        .prepare(`SELECT usage_id FROM gen_charges WHERE task_key = ? AND user_id = ? AND usage_id != '' LIMIT 1`)
+        .bind(String(b.taskKey).slice(0, 300), me.id)
+        .first()
+      byTask = String(row?.usage_id || '')
+    } catch { /* 표가 없거나 조회 실패 — 아래에서 별도 줄로 남긴다 */ }
+  }
+  const chargeRef = String(b.chargeRef || staked?.usageId || byTask || '').slice(0, 40)
   if (chargeRef) {
     try {
       const upd: any = await db
