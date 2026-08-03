@@ -178,6 +178,26 @@ const MUTATIONS = [
   { g: '소유권', name: '신청자 일부만 내 것이어도 통과시킨다',
     file: 'functions/api/funnel/_own.ts',
     from: 'return Number(r?.n || 0) === ids.length', to: 'return Number(r?.n || 0) > 0' },
+  // ── 문자 발송 (건당 유료) ────────────────────────────────────────────────
+  { g: '문자', name: '알리고 묶음 상한 500을 넘긴다 (규격 초과 → 통째 실패)',
+    file: 'functions/api/_aligo.ts', from: 'const CHUNK = 500', to: 'const CHUNK = 5000' },
+  { g: '문자', name: '잘못된 번호를 걸러내지 않는다 (쓰레기 번호에 요금이 나간다)',
+    file: 'functions/api/_aligo.ts',
+    from: '.filter((i) => i.to.length >= 10 && i.message.trim())', to: '' },
+  { g: '문자', name: '짧은 문자도 LMS 로 보낸다 (요금이 더 나간다)',
+    file: 'functions/api/_aligo.ts',
+    from: "const msgType = opts.msgType || (longest > 90 ? 'LMS' : 'SMS')", to: "const msgType = opts.msgType || 'LMS'" },
+  { g: '문자', name: '긴 문자를 SMS 로 보낸다 (잘려서 나간다)',
+    file: 'functions/api/_aligo.ts',
+    from: 'const longest = list.reduce((a, c) => Math.max(a, byteLen(c.message)), 0)', to: 'const longest = 0' },
+  { g: '문자', name: '제공사가 실패로 답해도 성공으로 집계한다',
+    file: 'functions/api/_aligo.ts',
+    from: '      errorCnt += part.length\n      lastReason = r.data?.message || `알리고 응답코드 ${r.data?.result_code ?? r.status}`',
+    to: '      successCnt += part.length' },
+  { g: '문자', name: '발신번호가 없어도 발송을 시도한다',
+    file: 'functions/api/_aligo.ts',
+    from: "if (!sender) return { sent: false, successCnt: 0, errorCnt: items.length, reason: '발신번호가 없습니다. 발신번호를 등록·승인 받아 선택해 주세요.' }",
+    to: '' },
 ]
 
 const filter = process.argv[2] || ''
