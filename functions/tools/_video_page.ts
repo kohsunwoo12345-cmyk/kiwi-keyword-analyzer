@@ -378,7 +378,9 @@ export const videoMakerPage = `<!DOCTYPE html>
 
     /* ── RIGHT PANEL ── */
     .rp{
-      background:linear-gradient(160deg,#f2f5ff 0%,#eaedff 60%,#f0f0ff 100%);
+      /* 화면에서 가장 넓은 면인데 라벤더(#eaedff 계열)가 그대로 깔려 보라기가 과했다.
+         푸른 기만 살짝 남기고 한 톤 어둡게 — 가운데 영상 미리보기가 더 또렷하게 뜬다. */
+      background:linear-gradient(160deg,#e7e9f0 0%,#dee1ea 60%,#e3e4ed 100%);
       display:flex;flex-direction:column;overflow:hidden;
     }
     .rp-top{
@@ -392,7 +394,9 @@ export const videoMakerPage = `<!DOCTYPE html>
     }
     .canvas-outer{
       display:inline-block;
-      box-shadow:0 16px 56px rgba(124,58,237,.25),0 4px 16px rgba(0,0,0,.1),0 0 0 1px rgba(124,58,237,.1);
+      /* 56px 짜리 보라 번짐이 배경 위로 넓게 퍼져 보라기를 더 키우고 있었다.
+         회색 그림자로 바꿔 깊이는 그대로 두고 색만 뺀다. */
+      box-shadow:0 16px 56px rgba(30,32,48,.16),0 4px 16px rgba(0,0,0,.1),0 0 0 1px rgba(124,58,237,.1);
       border-radius:18px;overflow:visible;
     }
     #pv{ border-radius:18px; }
@@ -1317,8 +1321,10 @@ export const videoMakerPage = `<!DOCTYPE html>
     <div id="render-modal-scene" style="display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-bottom:12px;min-height:22px"></div>
     <!-- 로그 -->
     <div id="render-modal-log" style="background:rgba(0,0,0,.35);border-radius:10px;padding:10px 12px;font-size:10px;color:#64748b;font-family:monospace;text-align:left;max-height:80px;overflow-y:auto;margin-bottom:16px;border:1px solid rgba(255,255,255,.06)"></div>
-    <button onclick="cancelMake()" style="background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.25);border-radius:12px;padding:10px 28px;font-size:12px;font-weight:800;cursor:pointer;transition:all .2s" onmouseover="this.style.background='rgba(239,68,68,.22)'" onmouseout="this.style.background='rgba(239,68,68,.12)'">
-      ⏹ 제작 취소
+    <!-- 스스로 그만두는 버튼이라 빨강(위험)일 이유가 없다. 진행 중 화면에서 빨강은
+         "무언가 잘못됐다" 로 읽히고 보라색 진행바와도 부딪혔다 — 차분한 회색 보조 버튼으로 바꾼다. -->
+    <button onclick="cancelMake()" style="background:rgba(255,255,255,.06);color:#cbd5e1;border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:10px 28px;font-size:12px;font-weight:800;cursor:pointer;transition:all .2s" onmouseover="this.style.background='rgba(255,255,255,.13)';this.style.color='#f1f5f9'" onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.color='#cbd5e1'">
+      ⏹ Cancel
     </button>
   </div>
 </div>
@@ -7070,7 +7076,7 @@ function startRecording(preFetchedTTS){
         if(a&&a._blobUrl){try{URL.revokeObjectURL(a._blobUrl);}catch(e){}}
       });
 
-      if(cancelledRender){ addLog('✋ 취소'); _safeUI(); return; }
+      if(cancelledRender){ addLog('✋ Cancelled'); _safeUI(); return; }
 
       var tb = recChunks.reduce(function(s,c){return s+c.size;},0);
       addLog('⏹ 종료 | 청크 '+recChunks.length+'개 | '+Math.round(tb/1024)+'KB');
@@ -7811,7 +7817,7 @@ function cancelMake(){
   try{document.getElementById('prog-box').style.display='none';}catch(e){}
   try{document.getElementById('make-btn').disabled=false;}catch(e){}
   hideRenderModal();
-  setStatus('취소됨');
+  setStatus('Cancelled');
 }
 
 function showErr(msg){

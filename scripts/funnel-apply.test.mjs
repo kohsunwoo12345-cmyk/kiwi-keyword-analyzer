@@ -95,7 +95,9 @@ async function post(db, body) {
 
 const APPLICANT = { slug: 'verify-apply', name: '홍길동', phone: '010-1234-5678', email: 'Test@Example.COM' }
 const inserted = (db) => db.__sqls.filter((s) => /INSERT INTO funnel_applicants/.test(s.sql))
-const releasedLimit = (db) => db.__sqls.some((s) => /DELETE FROM rate_hits/.test(s.sql))
+/* rateLimitOk 은 2% 확률로 오래된 기록을 청소한다(DELETE FROM rate_hits WHERE at < ?).
+   그것까지 "되돌림" 으로 세면 가끔 실패하는 테스트가 된다 — 되돌리기 구문만 골라 본다. */
+const releasedLimit = (db) => db.__sqls.some((s) => /DELETE FROM rate_hits WHERE rowid/.test(s.sql))
 
 console.log('\n① 정상 신청은 저장되고 성공으로 답한다')
 {
