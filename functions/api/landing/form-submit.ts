@@ -1,7 +1,7 @@
 // SUPERPLACE 이식: POST /api/landing/form-submit — 외부 임베드/랜딩 폼 제출 공개 엔드포인트
 //  1) funnel_landing_pages(active) 매칭 시 → DB중복방지 후 funnel_applicants 저장 + 자동응답(문자/이메일) 발송
 //  2) 아니면 landing_pages → form_submissions 폴백
-import { resolveDB, ensureSchema, clientIp, rateLimitOk, normPhoneKR } from '../_utils'
+import { resolveDB, ensureSchema, clientIp, rateLimitOk, releaseRateLimit, normPhoneKR } from '../_utils'
 import { ensureFunnelSchema } from '../funnel/_schema'
 import { fireAutoResponses } from '../funnel/_autofire'
 import { alertOwnerOfLead } from '../_leadalert'
@@ -71,10 +71,20 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
           if (dup) return j({ success: false, duplicate: true, message: '이전에 신청이 완료 되셨습니다.' })
         } catch (e) {}
       }
+      let saved = true
       try {
         await db.prepare(`INSERT INTO funnel_applicants (landing_page_id, name, phone, email, additional_data, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
           .bind(funnelPage.id, name || '', phone || '', email || '', additionalData, new Date().toISOString()).run()
-      } catch (e) {}
+      } catch (e) { saved = false }
+      /* 저장이 실패했는데 "신청이 완료되었습니다" 라고 답하면 안 된다.
+         방문자는 접수된 줄 알고 떠나고, 자동응답 문자가 나가고(건당 유료),
+         주인에게는 "신청 들어왔다" 알림까지 가는데 정작 신청자 명단은 비어 있다.
+         게다가 번호 제한을 위에서 이미 썼기 때문에 곧바로 다시 넣으면
+         "이미 신청이 접수되었습니다" 로 막힌다 — 그대로 놓치는 손님이 된다. */
+      if (!saved) {
+        if (phoneDigits) await releaseRateLimit(db, `apply:slug:${landing_slug}:${phoneDigits}`)
+        return j({ success: false, error: '신청 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.' }, 503)
+      }
       // 자동응답(문자/알림톡/이메일) 발송 — best-effort
       try { await fireAutoResponses(env, db, funnelPage, { name, phone, email }, { slug: landing_slug }) } catch (e) {}
       // 페이지 주인에게 "신청 들어왔다" 자동 알림 — 규칙을 안 만들어 뒀어도 반드시 알린다
@@ -94,6 +104,8 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     const page: any = await db.prepare('SELECT id, user_id, title FROM landing_pages WHERE slug = ?').bind(landing_slug).first().catch(() => null)
     if (!page) return j({ success: false, error: 'Landing page not found' })
     const landingTitle = page.title || ''
+    //  구버전 스키마를 위한 3단 폴백 — 어느 하나라도 들어갔으면 저장된 것이다
+    let stored = true
     try {
       await db.prepare(`INSERT INTO form_submissions (form_id, landing_page_id, name, phone, email, additional_data, landing_slug, landing_title, created_at) VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .bind(page.id, name || '', phone || '', email || '', additionalData, landing_slug, landingTitle, new Date().toISOString()).run()
@@ -102,9 +114,16 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
         await db.prepare(`INSERT INTO form_submissions (form_id, landing_page_id, name, phone, email, additional_data, created_at) VALUES (0, ?, ?, ?, ?, ?, ?)`)
           .bind(page.id, name || '', phone || '', email || '', additionalData, new Date().toISOString()).run()
       } catch (e2) {
-        await db.prepare(`INSERT INTO form_submissions (form_id, name, phone, email, created_at) VALUES (0, ?, ?, ?, ?)`)
-          .bind(name || '', phone || '', email || '', new Date().toISOString()).run().catch(() => {})
+        try {
+          await db.prepare(`INSERT INTO form_submissions (form_id, name, phone, email, created_at) VALUES (0, ?, ?, ?, ?)`)
+            .bind(name || '', phone || '', email || '', new Date().toISOString()).run()
+        } catch (e3) { stored = false }
       }
+    }
+    //  퍼널 쪽과 같은 이유 — 저장 못 했으면 완료라고 답하지 않는다
+    if (!stored) {
+      if (phoneDigits) await releaseRateLimit(db, `apply:slug:${landing_slug}:${phoneDigits}`)
+      return j({ success: false, error: '신청 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.' }, 503)
     }
     // 빌더로 만든 일반 랜딩페이지에는 알림이 아예 없었다 — 주인이 신청 DB 화면을 직접
     //  열어보기 전엔 신청이 들어온 줄도 몰랐다. 여기서도 똑같이 알린다.

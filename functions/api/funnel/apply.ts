@@ -2,7 +2,7 @@
 //  POST /api/funnel/apply { slug, name?, phone, email?, extra? }
 //   1) funnel_applicants 저장
 //   2) 매칭되는 자동응답(trigger=form_submit) 을 즉시/KST예약 발송 (문자, 가능 시 알림톡)
-import { resolveDB, ensureSchema, clientIp, rateLimitOk } from '../_utils'
+import { resolveDB, ensureSchema, clientIp, rateLimitOk, releaseRateLimit } from '../_utils'
 import { ensureFunnelSchema } from './_schema'
 import { fireAutoResponses } from './_autofire'
 
@@ -74,10 +74,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
      "이미 신청이 접수되었습니다" 로 10분간 막힌다 — 그대로 놓치는 손님이 된다.
      그래서 제한을 되돌려 바로 재시도할 수 있게 하고, 실패를 그대로 알린다. */
   if (!saved) {
-    if (phone) {
-      await db.prepare('DELETE FROM rate_hits WHERE rowid = (SELECT MAX(rowid) FROM rate_hits WHERE k = ?)')
-        .bind(`apply:${page.id}:${phone}`).run().catch(() => {})
-    }
+    if (phone) await releaseRateLimit(db, `apply:${page.id}:${phone}`)
     return j({ success: false, applicantSaved: false, error: '신청 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.' }, 503)
   }
 

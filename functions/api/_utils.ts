@@ -1206,6 +1206,16 @@ export async function rateLimitOk(db: D1Database, key: string, limit: number, wi
   }
 }
 
+/** 방금 쓴 제한 한 칸을 돌려준다.
+ *  공개 폼은 "제한 확인 → 저장" 순서라, 저장이 실패하면 제한만 축나고 방문자는
+ *  곧바로 다시 넣을 수 없다 — 중복이 아닌데 "이미 신청이 접수되었습니다" 로 막혀
+ *  그대로 놓치는 손님이 된다. 그래서 실패한 요청이 쓴 칸은 되돌린다. */
+export async function releaseRateLimit(db: D1Database, key: string): Promise<void> {
+  if (!key) return
+  await db.prepare('DELETE FROM rate_hits WHERE rowid = (SELECT MAX(rowid) FROM rate_hits WHERE k = ?)')
+    .bind(key).run().catch(() => {})
+}
+
 export async function isBlocked(db: D1Database, ip: string): Promise<boolean> {
   if (!ip || ip === 'unknown') return false
   const row = await db.prepare('SELECT ip FROM blocked_ips WHERE ip = ?').bind(ip).first()
