@@ -530,6 +530,28 @@ console.log('\n⑧ 실측 정산과 실패 환불이 맞물려도 잔액이 정�
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── */
+console.log('\n⑧-b 환불 요청이 겹쳐 들어와도 한 번만 나간다')
+{
+  /* 실패 통보와 폴링이 동시에 들어오면 둘 다 SELECT 에서 "아직 charged" 를 보고 통과한다.
+     조건부 UPDATE(status = 'charged' 일 때만) 가 없으면 그대로 두 번 환불된다 —
+     회원 잔액이 쓰지도 않은 만큼 늘어난다.
+     순서대로 부르면 두 번째가 SELECT 에서 걸러져 이 경로를 못 밟는다. 반드시 동시에 던진다. */
+  const db = makeDB(USER)
+  const t = await gc.issueGenCharge(db, '1', { model: 'Seedance 2.0', units: 5, res: '1080p' })
+  const key = '/api/generate?task=' + t
+  const charged = (await gc.settleGenCharge(db, USER, t, key, DEPS)).credits
+  ok(charged > 0, '먼저 정상 청구된다', String(charged))
+
+  const both = await Promise.all([gc.refundGenCharge(db, key), gc.refundGenCharge(db, key)])
+  const paid = both.filter((v) => v > 0)
+  ok(paid.length === 1, '환불은 한쪽만 성공한다', JSON.stringify(both))
+  ok(near(paid[0] || 0, charged, 0.011), '환불액은 청구액과 같다', `청구 ${charged} · 환불 ${paid[0]}`)
+
+  //  결국 잔액은 정확히 제자리여야 한다 — 두 번 환불되면 여기서 어긋난다
+  const net = db.__deductions.reduce((a, b) => a + b, 0)
+  ok(Math.abs(net) < 0.011, '청구와 환불이 정확히 상쇄된다(두 번 나가면 음수가 된다)', `합계 ${net}`)
+}
+
 console.log('\n⑨ 관리자는 청구하지 않는다')
 {
   /* 관리자 계정으로 도는 점검·시연·복구 생성까지 회원 요금표로 청구하면
