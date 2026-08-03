@@ -2110,6 +2110,9 @@ var STUDIO_BUILD_TAG='2026-08-02-v62';   // /api/generate?health=1 의 build 와
    한 번은 조용히 새로 받아 보고, 그래도 다르면 눈에 보이게 알린다
    (배포 도중에는 잠깐 어긋나는 게 정상이라 무한 새로고침은 막는다). */
 try{ setTimeout(function(){
+  //  안 보이는 창(백그라운드 탭·자동화)에서는 굳이 묻지 않는다 — 창이 닫히는 중에
+  //  걸쳐 있는 요청이 늘면 개발용 런타임이 통째로 죽는 일이 있다(제품 동작과 무관).
+  if(typeof document!=='undefined' && document.visibilityState==='hidden') return;
   fetch('/api/generate?health=1',{cache:'no-store'}).then(function(r){ return r.json(); }).then(function(h){
     var srv=String((h&&h.build)||''); if(!srv || srv===STUDIO_BUILD_TAG) return;
     var once='bg_reloaded_'+srv;
@@ -2125,7 +2128,7 @@ try{ setTimeout(function(){
     b.appendChild(x);
     (document.body||document.documentElement).appendChild(b);
   }).catch(function(){});
-},1500); }catch(_e){}
+},3000); }catch(_e){}
 // (검증용) ?cnexport=1 접속 시 전처리 함수만 window 로 노출 — 순수 이미지 함수라 보안 영향 없음
 try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('cnexport=1')>=0){ setTimeout(function(){ try{ window.__cn={ cannyPreview:cannyPreview, depthPreview:depthPreview, posePreview:posePreview, renderOpenPose:renderOpenPose, mpToOpenPose:mpToOpenPose, centerPose:centerPose, openImageLightbox:openImageLightbox, openPoseEditor:openPoseEditor, openJointDetail:openJointDetail, openJointAdd:openJointAdd, _guidedRefine:_guidedRefine, _boxSum:_boxSum, upscaleImageURL:upscaleImageURL }; }catch(_e){} },0); } }catch(_e){}
 // (검증용) ?refexport=1 접속 시 레퍼런스 번호 관련 함수만 노출 — 번호가 연결 순서대로
@@ -6505,10 +6508,17 @@ function paintFaceProbe(info){
     return;
   }
   box.innerHTML='<button class="api-ghost" id="errProbeBtn">이 사진으로 통로 찾기</button>'+
-    '<div class="err-stg-v" id="errProbeOut">같은 모델·같은 사진을 여러 모양으로 던져 봅니다. 거절은 0원, 통과하면 480p·5초 1건 비용이 나갑니다.'+
+    '<div class="err-stg-v" id="errProbeOut">같은 모델·같은 사진을 여러 모양으로 던져 봅니다. 막히면 0원이고, 되는 모양이 있을 때만 480p·5초 1건 값이 나갑니다.'+
     (img?'':' (붙여 넣은 사진이라 먼저 우리 서버에 한 번 올립니다)')+'</div>';
   var btn=document.getElementById('errProbeBtn'), out=document.getElementById('errProbeOut');
+  /*  ⚠ 눌러 달라고 해서는 답이 안 나온다. 같은 벽에 부딪힐 때마다 창을 닫고 다시 시도하게
+      되기 때문이다. 그래서 관리자에게는 창이 뜨는 즉시 스스로 잰다.
+      · 같은 사진은 한 번만 잰다(창을 다시 열어도 또 돌지 않는다).
+      · 거절은 0원이다. 통과하는 모양이 있을 때만 480p·5초 1건 값이 나가는데,
+        그게 바로 우리가 찾던 답이라 그 비용은 감수한다. */
+  var _autoKey = 'probe:' + (img || dat.slice(0, 64)) + ':' + (window.__lastFaceModel || '');
   btn.onclick=async function(){
+    try{ window.__probeDone = window.__probeDone || {}; window.__probeDone[_autoKey] = 1; }catch(_pk){}
     btn.disabled=true; btn.textContent='재는 중… (최대 2분)';
     out.textContent='제공사에 하나씩 던지고 있습니다…';
     /*  주소가 없으면 먼저 만든다 — 제공사는 base64 를 "가져가는" 게 아니라 받기만 하는데,
@@ -6547,6 +6557,16 @@ function paintFaceProbe(info){
       })
       .catch(function(e){ out.textContent='진단 실패: '+String(e&&e.message||e); btn.disabled=false; btn.textContent='다시 시도'; });
   };
+  try{
+    window.__probeDone = window.__probeDone || {};
+    //  ⚠ "돌았다" 표시는 누를 때가 아니라 걸어 둘 때 남긴다. 누르기 전에 창을 다시 그리면
+    //    또 하나가 걸려 같은 사진을 두 번 재게 된다(그만큼 돈이 더 나갈 수 있다).
+    if(!window.__probeDone[_autoKey]){
+      window.__probeDone[_autoKey] = 1;
+      setTimeout(function(){ try{ btn.click(); }catch(_ac){} }, 400);
+    }
+    else out.textContent = '이 사진은 이미 재 봤습니다 — 다시 재려면 단추를 누르세요.';
+  }catch(_ae){}
 }
 //  스튜디오의 보이는 이름 → 제공사 모델 ID. 진단은 제공사가 아는 이름으로 물어봐야 한다.
 function SEEDANCE_DIAG_ID(name){
