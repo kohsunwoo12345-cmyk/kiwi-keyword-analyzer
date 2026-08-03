@@ -11,6 +11,7 @@ import { getSessionUser, resolveDB, resolveBucket, getUserByMcpToken } from "./_
 import { getUserByApiKey, enforceRateLimit, ensureApiKeysSchema } from "./_apikeys";
 import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from "./studio/_pricing";
 import { getBrandKit, applyBrandKit } from "./studio/brandkit";
+import { modelIdOf as registryModelIdOf, listEnabled as registryList } from "./studio/_registry";
 import { issueGenCharge, settleGenCharge, refundGenCharge, reconcileGenCharge } from "./studio/_gencharge";
 import { probeRemoteVideoSeconds, SOURCE_LENGTH_MODELS, sourceVideoUrl } from "./studio/_vidlen";
 import { ensureAiUsage, resolveCostOverride, refreshUsdKrw } from "./studio/_pricing";
@@ -618,7 +619,17 @@ export function arkPickByStem(catalog, candidates) {
   }
   return null;
 }
+/*  등록부(model_registry)로 추가된 모델은 스튜디오가 제공사 모델 ID 를 함께 보낸다.
+    ⚠ 이 값을 그대로 믿으면 안 된다 — 회원이 아무 ID나 적어 보내면 값비싼 모델을
+      요금표에 없는 이름으로 부를 수 있다. onRequest 에서 등록부와 대조해 맞을 때만
+      b.modelIdOverride 를 남긴다(아래 __verifyRegistryId 참조). 여기 오는 값은 검증된 것이다. */
+function registryModelId(b) {
+  const v = b && typeof b.modelIdOverride === "string" && b.modelIdOverride.trim();
+  return v || "";
+}
 export function seedanceModelIds(b, env) {
+  const reg = registryModelId(b);
+  if (reg) return [reg];
   const custom = b && typeof b.seedanceModel === "string" && b.seedanceModel.trim();
   if (custom) return [custom];                     // 노드에서 직접 입력한 모델 ID 최우선
   const override = env && pick(env, ["SEEDANCE_MODEL_ID", "seedance_model_id"]);
@@ -858,6 +869,8 @@ export const SEEDREAM_IDS = {
 };
 /* 이 모델에 시도할 ID 후보들(우선순위 순). 직접입력·환경변수가 있으면 그것만 사용. */
 export function seedreamModelIds(b, env) {
+  const reg = registryModelId(b);
+  if (reg) return [reg];
   const custom = b && typeof b.seedreamModel === "string" && b.seedreamModel.trim();
   if (custom) return [custom];                     // 노드에서 직접 입력한 모델 ID 최우선
   const override = env && pick(env, ["SEEDREAM_MODEL_ID", "seedream_model_id"]);
@@ -1117,6 +1130,13 @@ async function klingAuth(cr) {
    콘솔 표기가 갈릴 수 있어 후보를 순서대로 시도한다 — Seedance 와 같은 방식. */
 export const KLING_ALT = { "kling-v3-master": ["kling-v3", "kling-v3-master", "kling-v3-std"] };
 export const KLING_API = {
+  /*  o1 · 2.6 은 키를 새로 받을 필요가 없다 — 같은 Kling 계정에 모델 이름만 다르다.
+      ⚠ 이 ID 들은 관리자 화면의 "모델 확인"(무과금)으로 실제 존재를 확인한 뒤 쓰는 것이 맞다.
+        확인에서 없다고 나오면 목록에서 빼면 된다(코드 수정 없이 등록부로도 관리 가능). */
+  "Kling o1 (텍스트→영상)": { m: "kling-o1", mode: "pro", ep: "text2video" },
+  "Kling o1 (이미지→영상)": { m: "kling-o1", mode: "pro", ep: "image2video" },
+  "Kling 2.6 (텍스트→영상)": { m: "kling-v2-6", mode: "pro", ep: "text2video" },
+  "Kling 2.6 (이미지→영상)": { m: "kling-v2-6", mode: "pro", ep: "image2video" },
   "Kling 3.0 Pro (텍스트→영상)": { m: "kling-v3-master", mode: "pro", ep: "text2video" },
   "Kling 3.0 Pro (이미지→영상)": { m: "kling-v3-master", mode: "pro", ep: "image2video" },
   "Kling 3.0 Fast (텍스트→영상)": { m: "kling-v3-master", mode: "std", ep: "text2video" },
@@ -1132,7 +1152,12 @@ export const KLING_API = {
   "Kling 1.6": { m: "kling-v1-6", mode: "pro", ep: "image2video" },
 };
 export function klingApiSpec(b) {
-  const base = KLING_API[b.model] || { m: "kling-v2-master", mode: "pro", ep: "text2video" };
+  const reg = registryModelId(b);
+  const base = KLING_API[b.model]
+    || (reg ? { m: reg, mode: /Fast|Standard/i.test(String(b.model || "")) ? "std" : "pro",
+               ep: /텍스트→영상|T2V/i.test(String(b.model || "")) ? "text2video" : "image2video" } : null)
+    || { m: "kling-v2-master", mode: "pro", ep: "text2video" };
+  if (reg && KLING_API[b.model]) base.m = reg;
   // 원본 프레임(영상 브리지)이 있으면 image2video 로 강제 → 어떤 클링 모델이든 V2V처럼 변환
   return { ...base, ep: hasSrcFrame(b) ? "image2video" : base.ep };
 }
@@ -2558,6 +2583,135 @@ async function handle(context) {
                 + " 는 이 사진을 받아 준다 — 목록에서 그 모델을 고르시면 된다(자동으로 넘어가지는 않는다)."
               : "대조군은 통과하는데 이 사진은 어떤 모양·어떤 씨댄스 모델로도 막힌다 — 요청 모양이 아니라 계정 권한(실인물 허용)의 문제다.",
       });
+    }
+    /* ── 모델 등록부 도우미 ──────────────────────────────────────────────
+         GET /api/generate?diag=model-discover              (관리자 전용)
+           제공사 계정에 열려 있는 모델 중 "우리 표에도 등록부에도 없는" 것을 찾아 준다.
+           ⚠ 목록을 주는 제공사는 BytePlus(ModelArk) 뿐이다. 나머지는 공개 목록 API 가
+             없어서 자동으로 못 찾는다 — 그건 사실대로 말한다(없는 걸 지어내지 않는다).
+         GET /api/generate?diag=model-verify&provider=..&id=..   (관리자 전용)
+           "그 모델이 실제로 있고 이 계정에서 부를 수 있는가" 를 무과금으로 확인한다.
+           필수 항목을 비운 채 물어보므로 작업이 만들어지지 않는다 = 돈이 안 나간다. */
+    if (u.searchParams.get("diag") === "model-discover") {
+      const known = new Set();
+      for (const t of [SEEDANCE_IDS, SEEDREAM_IDS, ARK3D_IDS]) {
+        for (const v of Object.values(t)) (Array.isArray(v) ? v : [v]).forEach((x) => known.add(String(x)));
+      }
+      try {
+        const rdb = resolveDB(env);
+        if (rdb) for (const row of await registryList(rdb)) known.add(String(row.modelId));
+      } catch (_e) { /* 등록부가 없어도 발견은 돌아간다 */ }
+      let catalog = null, err = null;
+      if (k.seedance) { try { catalog = await arkModelCatalog(k.seedance); } catch (e) { err = String((e && e.message) || e).slice(0, 140); } }
+      const fresh = (catalog || []).filter((x) => !known.has(String(x)));
+      const guess = (id) => /seedance|video/i.test(id) ? "seedance"
+                          : /seedream|seededit|image/i.test(id) ? "seedream"
+                          : /3d|rodin|hitem|hyper/i.test(id) ? "ark3d" : "seedance";
+      return json({
+        diag: "model-discover",
+        제공사목록을주는곳: k.seedance ? ["BytePlus ModelArk"] : [],
+        목록을안주는곳: ["Kling", "Runway", "Google Veo", "Flux(BFL)", "OpenAI", "Luma", "MiniMax", "xAI"],
+        계정카탈로그수: catalog ? catalog.length : 0,
+        새로보이는모델: fresh.map((id) => ({ id, 추정제공사: guess(id) })),
+        오류: err,
+        해석: !k.seedance ? "BytePlus 키가 없어 자동 발견을 못 한다."
+            : fresh.length ? "우리 표에 없는 모델이 계정에 있다. 아래 확인을 거쳐 등록하면 노드에 나타난다."
+            : "계정에 열린 모델 중 우리가 모르는 것은 없다.",
+        참고: "목록을 안 주는 제공사는 공식 문서에서 모델 ID 를 보고 직접 넣은 뒤 확인하면 된다.",
+      });
+    }
+    if (u.searchParams.get("diag") === "model-verify") {
+      const prov = String(u.searchParams.get("provider") || "").trim();
+      const mid = String(u.searchParams.get("id") || "").trim();
+      if (!prov || !mid) return json({ diag: "model-verify", ok: false, error: "provider 와 id 가 필요합니다." });
+      const t0 = Date.now();
+      /*  ⚠ "제공사가 실제로 답했는가" 를 먼저 본다.
+          예전에는 통신이 막혀 게이트웨이가 403 을 줘도 "모델 없음 표시가 없으니 있는 것" 으로
+          읽어 통과시켰다 — 없는 모델 이름으로도 확인이 통과했다(실제로 그랬다).
+          제공사의 JSON 응답이 없으면 그건 "있다" 가 아니라 "못 물어봤다" 다.
+          인증·차단(401/403)도 마찬가지 — 그 상태로는 존재 여부를 알 수 없다. */
+      const answered = (r, j) => !!j && r.status !== 401 && r.status !== 403 && r.status !== 407;
+      const unknown = (r, txt, how) =>
+        json({ diag: "model-verify", ok: false, provider: prov, id: mid, status: r ? r.status : 0,
+               확인못함: true, 확인방법: how,
+               message: "제공사가 판단할 수 있는 답을 주지 않았습니다(통신 차단·인증 오류 등). "
+                      + "확인이 안 된 것이라 '있다' 로 보지 않습니다. 원문: " + String(txt || "").replace(/\s+/g, " ").slice(0, 180),
+               ms: Date.now() - t0 });
+      const done = (ok, status, code, message, how) =>
+        json({ diag: "model-verify", ok, provider: prov, id: mid, status, code, message: String(message || "").slice(0, 240), 확인방법: how, ms: Date.now() - t0 });
+      try {
+        //  BytePlus 계열 — 필수 항목을 비워 제출. 있으면 400(파라미터), 없으면 404.
+        if (prov === "seedance" || prov === "ark3d") {
+          if (!k.seedance) return done(false, 0, "", "Seedance/BytePlus 키가 서버에 없습니다.", "키 없음");
+          const r = await fetchT(arkBase(env, "bp") + "/contents/generations/tasks", {
+            method: "POST", headers: { Authorization: "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: mid, content: [] }) }, 15000);
+          const txt = await r.text(); let j = null; try { j = JSON.parse(txt); } catch (_e) {}
+          if (!answered(r, j)) return unknown(r, txt, "빈 요청 제출 — 작업이 안 만들어져 무과금");
+          const missing = seedreamModelMissing(r.status, j);
+          return done(!missing, r.status, (j && j.error && j.error.code) || "",
+                      (j && j.error && j.error.message) || txt, "빈 요청 제출 — 작업이 안 만들어져 무과금");
+        }
+        if (prov === "seedream") {
+          if (!k.seedance) return done(false, 0, "", "Seedream(=BytePlus) 키가 서버에 없습니다.", "키 없음");
+          const r = await fetchT(arkBase(env, "bp") + "/images/generations", {
+            method: "POST", headers: { Authorization: "Bearer " + k.seedance, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: mid, prompt: "" }) }, 15000);
+          const txt = await r.text(); let j = null; try { j = JSON.parse(txt); } catch (_e) {}
+          if (!answered(r, j)) return unknown(r, txt, "빈 프롬프트 제출 — 무과금");
+          const missing = seedreamModelMissing(r.status, j);
+          return done(!missing, r.status, (j && j.error && j.error.code) || "",
+                      (j && j.error && j.error.message) || txt, "빈 프롬프트 제출 — 무과금");
+        }
+        if (prov === "kling") {
+          const cr = klingCreds(env);
+          if (!cr) return done(false, 0, "", "Kling 키가 서버에 없습니다.", "키 없음");
+          const auth = await klingAuth(cr);
+          const r = await fetchT(cr.base + "/v1/videos/text2video", {
+            method: "POST", headers: { Authorization: auth, "Content-Type": "application/json" },
+            body: JSON.stringify({ model_name: mid, prompt: "", mode: "pro", duration: "5" }) }, 15000);
+          const txt = await r.text(); let j = null; try { j = JSON.parse(txt); } catch (_e) {}
+          if (!answered(r, j)) return unknown(r, txt, "빈 프롬프트 제출 — 반려되므로 무과금");
+          const msg = String((j && (j.message || j.error)) || txt);
+          const bad = /model|not\s*exist|not\s*found|unsupported/i.test(msg);
+          return done(!bad, r.status, String((j && j.code) || ""), msg, "빈 프롬프트 제출 — 반려되므로 무과금");
+        }
+        if (prov === "openai") {
+          if (!k.openai) return done(false, 0, "", "OpenAI 키가 서버에 없습니다.", "키 없음");
+          const r = await fetchT(openaiBase(env) + "/v1/models/" + encodeURIComponent(mid),
+            { headers: { Authorization: "Bearer " + k.openai } }, 12000);
+          const txt = await r.text();
+          if (r.status === 401 || r.status === 403 || r.status === 407) return unknown(r, txt, "모델 조회(GET) — 생성하지 않음");
+          return done(r.status === 200, r.status, "", txt, "모델 조회(GET) — 생성하지 않음");
+        }
+        if (prov === "runway") {
+          if (!k.runway) return done(false, 0, "", "Runway 키가 서버에 없습니다.", "키 없음");
+          const r = await fetchT("https://api.dev.runwayml.com/v1/image_to_video", {
+            method: "POST", headers: { Authorization: "Bearer " + k.runway, "X-Runway-Version": RUNWAY_VER, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: mid, promptText: "", ratio: "1280:720", duration: 5 }) }, 15000);
+          const txt = await r.text(); let j = null; try { j = JSON.parse(txt); } catch (_e) {}
+          if (!answered(r, j)) return unknown(r, txt, "이미지 없이 제출 — 반려되므로 무과금");
+          const msg = String((j && (j.error || j.message)) || txt);
+          const bad = /model|not\s*found|invalid|unsupported|deprecat/i.test(msg);
+          return done(!bad, r.status, "", msg, "이미지 없이 제출 — 반려되므로 무과금");
+        }
+        if (prov === "flux") {
+          if (!k.flux) return done(false, 0, "", "Flux(BFL) 키가 서버에 없습니다.", "키 없음");
+          const r = await fetchT(FLUX_BASE + "/" + mid.replace(/^\/+/, ""), {
+            method: "POST", headers: { "x-key": k.flux, "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: "probe", output_format: "__probe_invalid__" }) }, 15000);
+          const txt = await r.text(); let j = null; try { j = JSON.parse(txt); } catch (_e) {}
+          if (!answered(r, j)) return unknown(r, txt, "잘못된 값으로 제출 — 검증에서 끊겨 무과금");
+          //  422 = 그 엔드포인트가 있고 값만 틀렸다 = 존재. 404 면 없다.
+          return done(r.status === 422 || r.status === 400, r.status, "", txt, "잘못된 값으로 제출 — 검증에서 끊겨 무과금");
+        }
+        return json({ diag: "model-verify", ok: false, provider: prov, id: mid,
+          error: "이 제공사는 무과금으로 확인하는 방법이 아직 없습니다. 확인 없이 등록하지 않습니다.",
+          확인가능한제공사: ["seedance", "seedream", "kling", "runway", "openai", "flux", "ark3d"] });
+      } catch (e) {
+        return json({ diag: "model-verify", ok: false, provider: prov, id: mid,
+                      error: String((e && e.message) || e).slice(0, 200) });
+      }
     }
     if (u.searchParams.get("diag") === "seedance2") {
       if (!k.seedance) return json({ diag: "seedance2", error: "Seedance 키가 서버에 없음" });
@@ -4591,6 +4745,20 @@ async function handle(context) {
         }
       }
     } catch (_e) { /* 브랜드 킷 실패가 생성을 막지는 않는다 */ }
+  }
+  /*  등록부로 추가된 모델 — 스튜디오가 제공사 모델 ID 를 함께 보낸다.
+      ⚠ 그대로 믿으면 안 된다. 회원이 아무 ID 나 적어 보내면 요금표에 없는 이름으로
+        값비싼 모델을 부를 수 있다(청구는 이름으로 계산한다). 등록부와 대조해
+        "그 이름에 실제로 그 ID 가 적혀 있을 때" 만 남기고, 아니면 버린다.
+      ⚠ 값이 있을 때만 DB 를 한 번 읽는다 — 평소 경로에는 왕복이 늘지 않는다. */
+  if (b && typeof b.modelIdOverride === "string" && b.modelIdOverride.trim()) {
+    let okId = false;
+    try {
+      const rdb = resolveDB(env);
+      const reg = rdb ? await registryModelIdOf(rdb, String(b.model || "")) : null;
+      okId = !!(reg && reg.modelId === String(b.modelIdOverride).trim());
+    } catch (_e) { okId = false; }
+    if (!okId) { b = { ...b }; delete b.modelIdOverride; }
   }
   const provider = b.provider;
 

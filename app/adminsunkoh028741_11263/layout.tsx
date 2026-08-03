@@ -70,6 +70,8 @@ type NavGroup = { label: string; items: NavItem[] }
 // 영상 관련 관리 페이지 — 영상 대시보드(/video)에 카드로도 모아 보여준다.
 export const VIDEO_NAV: NavItem[] = [
   { title: 'AI 모델 목록', href: `${ADMIN_BASE}/ai-models`, icon: Boxes },
+  //  제공사가 새 모델을 내놓으면 여기서 확인하고 등록한다 — 배포 없이 노드에 나타난다.
+  { title: '모델 등록부', href: `${ADMIN_BASE}/model-sync`, icon: Boxes },
   { title: '노드 관리', href: `${ADMIN_BASE}/studio-nodes`, icon: Boxes },
   { title: 'AI 생성 기록', href: `${ADMIN_BASE}/ai-generations`, icon: Images },
   { title: 'AI 정산', href: `${ADMIN_BASE}/ai-usage`, icon: Wallet },

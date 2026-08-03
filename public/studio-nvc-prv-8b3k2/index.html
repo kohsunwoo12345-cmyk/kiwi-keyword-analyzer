@@ -2266,6 +2266,8 @@ var MODELS = [
  ['영상','MiniMax Hailuo 02'],['영상','MiniMax T2V-01 Director'],['영상','MiniMax I2V-01 Director'],
  ['영상','Luma Ray 3.2'],
  ['영상 → 영상','Luma Ray 3.2 (영상 편집)'],['영상 → 영상','Luma Ray 3.2 (비율 변경)'],
+ ['영상 · Kling','Kling o1 (텍스트→영상)'],['영상 · Kling','Kling o1 (이미지→영상)'],
+ ['영상 · Kling','Kling 2.6 (텍스트→영상)'],['영상 · Kling','Kling 2.6 (이미지→영상)'],
  ['영상 · Kling','Kling 3.0 Pro (텍스트→영상)'],['영상 · Kling','Kling 3.0 Pro (이미지→영상)'],
  ['영상 · Kling','Kling 3.0 Fast (텍스트→영상)'],['영상 · Kling','Kling 3.0 Fast (이미지→영상)'],
  ['영상 · Kling','Kling 2.1 Master (텍스트→영상)'],['영상 · Kling','Kling 2.1 Master (이미지→영상)'],
@@ -2420,6 +2422,10 @@ var MODEL_COST = {
   'Luma Ray 3.2 (비율 변경)':          { u:'sec', usd:0.36,  prov:'luma' },
   'Luma Uni 1':                      { u:'img', usd:0.04,  prov:'luma' },
   'Luma Uni 1 Max':                  { u:'img', usd:0.08,  prov:'luma' },
+  'Kling o1 (텍스트→영상)':       { u:'sec', usd:0.11,  prov:'kling' },
+  'Kling o1 (이미지→영상)':       { u:'sec', usd:0.11,  prov:'kling' },
+  'Kling 2.6 (텍스트→영상)':       { u:'sec', usd:0.11,  prov:'kling' },
+  'Kling 2.6 (이미지→영상)':       { u:'sec', usd:0.11,  prov:'kling' },
   'Kling 3.0 Pro (텍스트→영상)':       { u:'sec', usd:0.11,  prov:'kling' },
   'Kling 3.0 Pro (이미지→영상)':       { u:'sec', usd:0.11,  prov:'kling' },
   'Kling 3.0 Fast (텍스트→영상)':      { u:'sec', usd:0.055, prov:'kling' },
@@ -2864,6 +2870,8 @@ var MODEL_PROVIDER = {
   'Luma Uni 1':'luma','Luma Uni 1 Max':'luma',
   'Luma Ray 2':'luma','Luma Ray Flash 2':'luma','Luma Ray 1.6':'luma','Luma Ray2':'luma',   // 예전 그래프 호환
   // Kling — 서버 프록시가 클링 공식 API(KLING_ACCESS_KEY/KLING_SECRET_KEY 또는 KLING_API_KEY)로 호출
+  'Kling o1 (텍스트→영상)':'kling','Kling o1 (이미지→영상)':'kling',
+  'Kling 2.6 (텍스트→영상)':'kling','Kling 2.6 (이미지→영상)':'kling',
   'Kling 3.0 Pro (텍스트→영상)':'kling','Kling 3.0 Pro (이미지→영상)':'kling',
   'Kling 3.0 Fast (텍스트→영상)':'kling','Kling 3.0 Fast (이미지→영상)':'kling',
   'Kling 2.1 Master (텍스트→영상)':'kling','Kling 2.1 Master (이미지→영상)':'kling',
@@ -3022,6 +3030,10 @@ var VIDEO_MODEL_SPEC = {
   //     에서만 aspect_ratio 를 싣는다. 그런데 노드에는 비율 선택기가 떠 있어서, 회원이
   //     9:16 을 골라도 아무 데도 전달되지 않고 원본 이미지 비율로 나왔다.
   //     선택기 자체를 감춰 "고를 수 있는데 안 먹는" 상태를 없앤다.
+  'Kling o1 (텍스트→영상)':    { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling o1 (이미지→영상)':    { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 2.6 (텍스트→영상)':    { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
+  'Kling 2.6 (이미지→영상)':    { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
   'Kling 3.0 Pro (텍스트→영상)':    { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
   'Kling 3.0 Pro (이미지→영상)':    { secs:[5,10], ratios:[], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
   'Kling 3.0 Fast (텍스트→영상)':   { secs:[5,10], ratios:['16:9','9:16','1:1'], res:[], audio:false, watermark:false, neg:true, cfg:true, seed:false },
@@ -3059,6 +3071,54 @@ var VIDEO_MODEL_SPEC = {
   '모션 전이 (원본 움직임 유지·Motion Transfer)': { secs:[], ratios:[], res:[], audio:false, watermark:false, neg:false, cfg:false, seed:false },
   'Runway Aleph (영상→실사 V2V)':   { secs:[], ratios:[], res:[], audio:false, watermark:false, neg:false, cfg:false, seed:false },
 };
+/* ── 등록부 모델 얹기 — 코드를 고치지 않고 늘린 모델을 여기서 표에 붙인다 ──────────
+   관리자 화면에서 "확인 → 등록" 한 모델이 /api/studio/models 로 내려온다.
+   ⚠ 확인을 통과한 것만 등록되므로, 여기 오는 모델은 제공사가 실제로 아는 것들이다.
+   ⚠ 코드에 이미 있는 이름은 덮지 않는다 — 손으로 맞춰 둔 값이 더 정확하다.
+   ⚠ 못 받아 와도 아무 일도 없어야 한다. 기본 모델 목록은 그대로 뜬다. */
+var REGISTRY_IDS = {};           // 표시명 → 제공사 모델 ID (생성할 때 함께 보낸다)
+function mergeRegistryModels(rows){
+  if(!rows || !rows.length) return 0;
+  var added=0;
+  rows.forEach(function(r){
+    var name=String(r.name||''); if(!name || MODEL_COST[name]) return;   // 이미 있는 건 안 건드린다
+    MODEL_COST[name]     = { u:String(r.unit||'sec'), usd:Number(r.usd)||0, prov:String(r.provider||'') };
+    MODEL_PROVIDER[name] = String(r.provider||'');
+    REGISTRY_IDS[name]   = String(r.modelId||'');
+    var o=r.opts||{};
+    VIDEO_MODEL_SPEC[name] = {
+      secs:   Array.isArray(o.secs)   ? o.secs   : [5,10],
+      ratios: Array.isArray(o.ratios) ? o.ratios : ['16:9','9:16','1:1'],
+      res:    Array.isArray(o.res)    ? o.res    : ['720p','1080p'],
+      audio: !!o.audio, watermark: !!o.watermark,
+      neg: o.neg !== false, cfg: !!o.cfg, seed: !!o.seed
+    };
+    MODELS.push([String(r.cat||'영상'), name]);
+    added++;
+  });
+  if(added){
+    //  파생 목록은 MODELS 에서 그때그때 다시 만든다 — 새 항목이 피커에 실제로 뜨게.
+    VIDEO_MODELS.length=0;
+    MODELS.filter(function(m){ return /^영상/.test(m[0]); }).forEach(function(m){ VIDEO_MODELS.push(m); });
+    IMG_MODELS.length=0;
+    MODELS.filter(function(m){ return /^이미지/.test(m[0]); }).forEach(function(m){ IMG_MODELS.push(m); });
+  }
+  return added;
+}
+/* (검증용) ?refexport=1 일 때만 모델 표를 내보낸다 — 등록부가 표에 제대로 얹혔는지 재려면
+   표를 볼 수 있어야 한다. 스튜디오 스크립트는 감싸여 있어 전역으로는 안 보인다. */
+try{ if(typeof location!=='undefined' && String(location.search||'').indexOf('refexport=1')>=0){
+  window.__models={ MODELS:MODELS, MODEL_COST:MODEL_COST, MODEL_PROVIDER:MODEL_PROVIDER,
+                    VIDEO_MODEL_SPEC:VIDEO_MODEL_SPEC, VIDEO_MODELS:VIDEO_MODELS, IMG_MODELS:IMG_MODELS,
+                    get REGISTRY_IDS(){ return REGISTRY_IDS; } };
+} }catch(_e){}
+try{
+  fetch('/api/studio/models',{cache:'no-store'}).then(function(r){ return r.json(); }).then(function(d){
+    var n=mergeRegistryModels((d&&d.models)||[]);
+    if(n){ try{ render(); }catch(_r){} }   // 이미 그려진 화면이면 다시 그려 새 모델이 보이게
+  }).catch(function(){});
+}catch(_e){}
+
 function videoModelOpts(model){
   var m=String(model||'').trim();
   // 제공사가 아니라 "모델 하나하나" 기준. 근거는 각 제공사 개발문서.
@@ -3827,6 +3887,10 @@ async function generateWithAPI(params){
   if((params.controlnets && params.controlnets.length) ||
      params.controlnet==='canny'||params.controlnet==='depth'||params.controlnet==='pose') prov='falcontrol';
   params=Object.assign({provider:prov, apiKey:API_CONFIG[prov]||''}, params);
+  /*  등록부로 늘린 모델은 제공사 모델 ID 를 우리가 알고 있다 — 함께 보낸다.
+      ⚠ 서버는 이 값을 그대로 믿지 않는다. 등록부에 "그 이름에 그 ID" 로 적혀 있을 때만 쓴다
+        (안 그러면 요금표에 없는 이름으로 비싼 모델을 부를 수 있다). */
+  try{ if(REGISTRY_IDS[params.model]) params.modelIdOverride = REGISTRY_IDS[params.model]; }catch(_ri){}
   // ── 크레딧 사전 확인: 잔액 부족 시 생성 차단 + 요금제 유도 ──
   try{
     // 'img' 외에 '3d'(모델 1개당)·'tok'(호출 1회당)도 단위 1개 정액 — 서버 computeCharge 와 같은 기준
