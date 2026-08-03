@@ -290,6 +290,21 @@ const MUTATIONS = [
   { g: '게이트', name: '게이트 계산을 신고값 그대로 쓴다 (짧게 신고하면 덜 낸다)',
     file: 'functions/api/generate.js',
     from: 'let gUnits = isImg ? 1 : effectiveUnits({ ...pbody, model: mdl }, env)', to: 'let gUnits = isImg ? 1 : Number(pbody.duration || 8)' },
+  // ── 관리자 고위험 조작 ───────────────────────────────────────────────────
+  { g: '관리', name: '크레딧 전체 회수에서 확인 문자열을 없앤다 (실수 한 번에 전원 0)',
+    file: 'functions/api/admin/credits-recall.ts',
+    from: "if (String(b.confirm || '') !== 'RECALL')", to: 'if (false)' },
+  { g: '관리', name: '크레딧 전체 회수를 아무나 하게 한다',
+    file: 'functions/api/admin/credits-recall.ts',
+    from: '  const guard = await requireAdminUser(request, db)\n  if (guard.error) return guard.error\n  const admin = { id: guard.me.id, email: guard.me.email }',
+    to: '  const guard = await requireAdminUser(request, db)\n  const admin = { id: guard.me?.id, email: guard.me?.email }' },
+  { g: '관리', name: '관리자 제외 조건을 무시하고 관리자 크레딧까지 회수한다',
+    file: 'functions/api/admin/credits-recall.ts',
+    from: "const where = includeAdmin ? 'credits > 0' : \"credits > 0 AND role != 'admin'\"",
+    to: "const where = 'credits > 0'" },
+  { g: '관리', name: '회수 기록(감사 로그)을 남기지 않는다',
+    file: 'functions/api/admin/credits-recall.ts',
+    from: "  await logAudit(db, admin, 'credits_recall_all',", to: "  if (false) await logAudit(db, admin, 'credits_recall_all'," },
 ]
 
 const filter = process.argv[2] || ''
