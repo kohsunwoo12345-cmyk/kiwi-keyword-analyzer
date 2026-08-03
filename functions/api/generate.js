@@ -283,7 +283,10 @@ async function handoffSubmit(context, work, provider) {
   const finish = async () => {
     const o = await safe;
     let task = null, host = "bp", err = null;
-    if (o.e) err = String((o.e && o.e.message) || o.e).slice(0, 300);
+    /*  ⚠ 300자로 자르면 안 된다. 제공사 오류 원문만 200자가 넘고, 그 뒤에 "무엇을 더 해 봤는지"
+        (시도 목록 · 사다리 결과)가 붙는다. 실제로 그 증거가 통째로 잘려 나가서,
+        네 단계를 다 돌고도 어디서 막혔는지 화면에서 확인할 수 없었다. 넉넉히 남긴다. */
+    if (o.e) err = String((o.e && o.e.message) || o.e).slice(0, 1200);
     else {
       let body = null;
       try { body = await o.r.clone().json(); } catch (_e2) { body = null; }
@@ -294,7 +297,7 @@ async function handoffSubmit(context, work, provider) {
           task = q.get("task"); host = q.get("host") || "bp";
         } catch (_e3) { /* 형식이 어긋나면 아래에서 실패로 처리 */ }
       }
-      if (!task) err = String((body && body.error) || "제출 결과를 확인하지 못했습니다.").slice(0, 300);
+      if (!task) err = String((body && body.error) || "제출 결과를 확인하지 못했습니다.").slice(0, 1200);
     }
     await db.prepare(`UPDATE gen_submits SET task = ?, host = ?, error = ?, done_at = ? WHERE id = ?`)
       .bind(task, host, err, new Date().toISOString(), sid).run().catch(() => {});
@@ -2150,7 +2153,7 @@ async function handle(context) {
       const lumaOk = await lumaUsable(k.luma);
       return json({
         version:  "2026-07-13-v56 (remove-keys-page)", // 이 필드가 보이면 최신 코드가 프로덕션에 반영된 것
-        build:    "2026-08-02-v62",                      // 스튜디오 STUDIO_BUILD_TAG 와 정확히 일치해야 최신 (배포마다 함께 올린다)
+        build:    "2026-08-02-v63",                      // 스튜디오 STUDIO_BUILD_TAG 와 정확히 일치해야 최신 (배포마다 함께 올린다)
         runway:   !!k.runway,
         xai:      !!k.xai,
         google:   !!(k.google || gcpCreds(env)),
