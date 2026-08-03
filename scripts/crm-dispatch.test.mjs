@@ -195,6 +195,26 @@ console.log('\n⑥ 승인된 발신번호가 없으면 보내지 않고 전액 �
   ok(smsCalls.length === 0, '문자를 보내지 않는다', String(smsCalls.length))
   const net = db.__state.spends.reduce((a, b) => a + b, 0) - db.__state.refunds.reduce((a, b) => a + b, 0)
   ok(Math.abs(net) < 0.011, '먼저 뺀 포인트를 전액 돌려준다', `순차감 ${net}`)
+  /* 발신번호는 등록·승인만 받으면 그대로 다시 보낼 수 있는 상태다.
+     'failed' 로 굳혀 버리면 회원이 집행을 처음부터 다시 만들어야 한다. */
+  ok(db.__state.camp.status === 'draft', '집행을 되돌려 다시 보낼 수 있게 남긴다', db.__state.camp.status)
+}
+
+console.log('\n⑥-b 수동 발송과 예약 크론이 겹쳐도 한 번만 나간다')
+{
+  /* 맨 앞의 status 검사는 읽기 시점 기준이라 동시 요청을 막지 못한다.
+     둘 다 'draft' 를 읽고 통과하면, 조건부 선점이 없는 한 같은 집행이 두 번 나가고
+     회원 포인트가 두 배로 빠진다. 순서대로 부르면 앞 검사에 걸려 이 경로를 못 밟는다. */
+  reset()
+  const db = makeDB({ members: MEMBERS(10) })
+  const both = await Promise.all([
+    crm.dispatchCampaign(db, ENV, 'e1'),
+    crm.dispatchCampaign(db, ENV, 'e1'),
+  ])
+  const wins = both.filter((r) => r.ok === true).length
+  ok(wins === 1, '한쪽만 발송된다', JSON.stringify(both.map((r) => [r.ok, r.error])))
+  ok(smsCalls.length === 1, '문자 요청도 한 번뿐이다', `${smsCalls.length}회`)
+  ok(db.__state.spends.length === 1, '포인트도 한 번만 빠진다', JSON.stringify(db.__state.spends))
 }
 
 console.log('\n⑦ 보낼 대상이 없거나 문구가 비면 아무 일도 하지 않는다')
