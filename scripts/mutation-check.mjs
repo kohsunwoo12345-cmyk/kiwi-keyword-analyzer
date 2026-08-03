@@ -269,6 +269,27 @@ const MUTATIONS = [
   { g: '미들웨어', name: '자동 차단 임계값을 없앤다 (스크래핑 무제한)',
     file: 'functions/_middleware.ts',
     from: 'if (recent > ABUSE_THRESHOLD) {', to: 'if (false) {' },
+  // ── 생성 게이트 (제공사 호출 전 마지막 문) ───────────────────────────────
+  { g: '게이트', name: '잔액 부족을 통과시킨다 (제공사 비용이 우리 몫이 된다)',
+    file: 'functions/api/generate.js',
+    from: 'if (need > 0 && Number(me.credits) < need) {', to: 'if (false) {' },
+  { g: '게이트', name: '과금 토큰을 발급하지 않는다 (생성은 되고 청구는 안 된다)',
+    file: 'functions/api/generate.js',
+    from: '      context.__chargeToken = await issueGenCharge(db, me.id, {', to: '      context.__chargeToken = null && await issueGenCharge(db, me.id, {' },
+  { g: '게이트', name: '레퍼런스·CN 가산을 게이트에서 뺀다 (통과시켜 놓고 더 크게 빠진다)',
+    file: 'functions/api/generate.js',
+    from: 'const need = Math.round(cc.credits * refMult * cnMult * 100) / 100', to: 'const need = Math.round(cc.credits * 100) / 100' },
+  { g: '게이트', name: '생성 요청 한도를 게이트에서 뺀다',
+    file: 'functions/api/generate.js',
+    from: 'if (!rl.ok) return json({ error: rl.reason || "요청이 너무 많습니다. 잠시 후 다시 시도하세요.", retryAfter: rl.retryAfter || 30 }, 429)',
+    to: 'if (false) return json({ error: "", retryAfter: 30 }, 429)' },
+  { g: '게이트', name: '15초 버스트 가드를 없앤다',
+    file: 'functions/api/generate.js',
+    from: 'if (Number(rl.burst || 0) > 5) return json({ error: "짧은 시간에 너무 많은 생성을 요청했습니다. 잠시 후 다시 시도하세요.", retryAfter: 15 }, 429)',
+    to: 'if (false) return json({ error: "", retryAfter: 15 }, 429)' },
+  { g: '게이트', name: '게이트 계산을 신고값 그대로 쓴다 (짧게 신고하면 덜 낸다)',
+    file: 'functions/api/generate.js',
+    from: 'let gUnits = isImg ? 1 : effectiveUnits({ ...pbody, model: mdl }, env)', to: 'let gUnits = isImg ? 1 : Number(pbody.duration || 8)' },
 ]
 
 const filter = process.argv[2] || ''
