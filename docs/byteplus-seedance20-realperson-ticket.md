@@ -2,10 +2,14 @@
 
 씨댄스 2.0 은 제공사(BytePlus) 서버에서 인물 사진 입력을 거절합니다. 우리 코드로는 못 바꿉니다.
 
-두 가지가 이 티켓의 근거입니다.
+세 가지가 이 티켓의 근거입니다.
 1. **넣은 사진은 AI 로 만든 것이고 실제 인물이 아닙니다.** 그런데도 2.0 은 `may contain real person`
    으로 거절합니다 — 오탐(false positive)입니다.
-2. **같은 계정·같은 사진으로 씨댄스 2.5 는 통과합니다.** 계정 권한이 아니라 2.0 하나의 정책입니다.
+2. **같은 계정·같은 사진으로 씨댄스 2.5 는 통과합니다.** 모델 한계가 아니라 켜고 끌 수 있는
+   설정이라는 뜻입니다 — 2.5 에서는 켜져 있고 2.0 에서는 안 켜져 있을 뿐입니다.
+3. **다른 서비스(Higgsfield · Figma Weave 등)는 씨댄스 2.0 으로 인물 사진 영상을 상용으로 팝니다.**
+   그러니 2.0 에 그 기능이 없는 게 아니라, 우리 계정에만 안 열려 있는 것입니다.
+   → 그래서 요청은 "기능을 만들어 달라" 가 아니라 **"우리 계정에도 같은 설정을 켜 달라"** 입니다.
 
 ## 보내는 곳
 
@@ -45,10 +49,17 @@ BytePlus 콘솔 → 우측 상단 **Support** → **Submit a ticket**
 >
 > So this is not a malformed-request issue.
 >
-> **Key observation.** With the *same account*, the *same API key*, and the *same image*,
+> **Key observation 1.** With the *same account*, the *same API key*, and the *same image*,
 > `dreamina-seedance-2-5-260628` **accepts** the request and generates the video successfully.
-> Only `dreamina-seedance-2-0-260128` rejects it. This indicates the restriction is applied
-> per model, not per account.
+> Only `dreamina-seedance-2-0-260128` rejects it. This indicates the restriction is a
+> per-model configuration, not a model capability limit.
+>
+> **Key observation 2.** Several commercial products (e.g. Higgsfield, Figma Weave) offer
+> photo-to-video with human subjects on Seedance 2.0 today. So the capability clearly exists
+> on 2.0 — it simply is not enabled for our account.
+>
+> We are therefore not asking for a new feature. We are asking for the same configuration
+> that 2.5 already has on our account, and that other Seedance 2.0 integrators already have.
 >
 > **Request.** Please either
 > (a) fix / relax the false positive so AI-generated faces are not rejected as real persons on
