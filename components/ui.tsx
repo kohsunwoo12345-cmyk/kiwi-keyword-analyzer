@@ -40,6 +40,8 @@ interface BtnProps {
   variant?: BtnVariant
   size?: BtnSize
   href?: string
+  /** 목적지를 미리 받아 둘지. 홍보 화면 기본값은 false — 위 주석 참조 */
+  prefetch?: boolean
   onClick?: () => void
   className?: string
   type?: 'button' | 'submit'
@@ -54,6 +56,7 @@ export function Button({
   variant = 'primary',
   size = 'md',
   href,
+  prefetch = false,
   onClick,
   className,
   type = 'button',
@@ -72,8 +75,13 @@ export function Button({
           {children}
         </a>
       )
+    /* 미리 받아 두지 않는다(prefetch={false}).
+       Next 는 <Link> 가 화면에 들어오면 그 페이지 묶음을 통째로 내려받는다. 홍보 화면의
+       단추는 대부분 "가 볼 수도 있는 곳" 이라, 방문자 하나가 들어올 때마다 안 볼 페이지
+       여러 개를 같이 받는 셈이 된다. 홈을 실물로 재 보니 /features/[slug] 하나만 71KB 였다.
+       누른 뒤 받아도 늦지 않다 — 그때는 이미 그 페이지를 보러 가는 중이다. */
     return (
-      <Link href={href} className={cls} aria-label={ariaLabel} title={title}>
+      <Link href={href} prefetch={prefetch} className={cls} aria-label={ariaLabel} title={title}>
         {children}
       </Link>
     )

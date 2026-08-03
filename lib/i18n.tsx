@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { onIdle } from '@/lib/idle'
 
 export type Lang = 'ko' | 'en' | 'zh' | 'hi' | 'es' | 'ar' | 'fr' | 'pt' | 'ru' | 'id' | 'ja' | 'de' | 'it'
 
@@ -80,6 +81,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     setReady(true)
     // 3) 접속 IP(국가) 기반으로 언어 확정 — 미선택 사용자만, localStorage에 저장하지 않음
     let aborted = false
+    /* 브라우저 언어로 이미 화면을 그린 뒤다 — 국가 확정은 한가해진 다음에 해도 늦지 않다.
+       첫 화면과 겹쳐 보내면 남은 스크립트·이미지와 연결만 나눠 쓴다. */
+    onIdle(() => { if (aborted) return
     fetch('/api/geo', { credentials: 'include' })
       .then((r) => r.json())
       .then((d: { lang?: string }) => {
@@ -92,7 +96,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         /* geo 실패 시 브라우저 추정 유지 */
-      })
+      }) })
     return () => {
       aborted = true
     }

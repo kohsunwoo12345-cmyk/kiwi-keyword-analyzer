@@ -81,7 +81,7 @@ export function Navbar() {
               </button>
             </div>
             {LINKS.map((n) => (
-              <Link
+              <Link prefetch={false}
                 key={n.href}
                 href={n.href}
                 className="group relative rounded-lg px-3.5 py-2 text-sm font-medium text-slate-300 transition-colors hover:text-white"
@@ -102,7 +102,7 @@ export function Navbar() {
               </Button>
             ) : (
               <>
-                <Link
+                <Link prefetch={false}
                   href="/login"
                   className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-300 transition-colors hover:text-white"
                 >
@@ -150,7 +150,7 @@ export function Navbar() {
                 {FEATURES.map((f) => {
                   const Icon = f.icon
                   return (
-                    <Link
+                    <Link prefetch={false}
                       key={f.slug}
                       href={`/features/${f.slug}`}
                       onClick={() => setMega(false)}
@@ -202,7 +202,7 @@ export function Navbar() {
                 {FEATURES.map((f) => {
                   const Icon = f.icon
                   return (
-                    <Link
+                    <Link prefetch={false}
                       key={f.slug}
                       href={`/features/${f.slug}`}
                       onClick={() => setOpen(false)}
@@ -218,7 +218,7 @@ export function Navbar() {
               </div>
             )}
             {LINKS.map((n) => (
-              <Link
+              <Link prefetch={false}
                 key={n.href}
                 href={n.href}
                 onClick={() => setOpen(false)}

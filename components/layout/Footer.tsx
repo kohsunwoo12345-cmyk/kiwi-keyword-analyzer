@@ -73,7 +73,7 @@ export function Footer() {
             <ul className="mt-4 space-y-2.5">
               {FEATURES.slice(0, 4).map((f) => (
                 <li key={f.slug}>
-                  <Link href={`/features/${f.slug}`} className="text-sm text-slate-400 transition-colors hover:text-blue-300">
+                  <Link prefetch={false} href={`/features/${f.slug}`} className="text-sm text-slate-400 transition-colors hover:text-blue-300">
                     {f.title}
                   </Link>
                 </li>
@@ -86,13 +86,13 @@ export function Footer() {
             <ul className="mt-4 space-y-2.5">
               {FEATURES.slice(4).map((f) => (
                 <li key={f.slug}>
-                  <Link href={`/features/${f.slug}`} className="text-sm text-slate-400 transition-colors hover:text-blue-300">
+                  <Link prefetch={false} href={`/features/${f.slug}`} className="text-sm text-slate-400 transition-colors hover:text-blue-300">
                     {f.title}
                   </Link>
                 </li>
               ))}
               <li>
-                <Link href="/pricing" className="text-sm text-slate-400 transition-colors hover:text-blue-300">
+                <Link prefetch={false} href="/pricing" className="text-sm text-slate-400 transition-colors hover:text-blue-300">
                   {t('요금제')}
                 </Link>
               </li>
@@ -127,6 +127,7 @@ export function Footer() {
             { href: '/legal/regional', label: t('지역별 적용 부속서') },
           ].map((l) => (
             <Link
+              prefetch={false}
               key={l.href}
               href={l.href}
               className="font-medium text-slate-400 transition-colors hover:text-blue-300"
