@@ -8,6 +8,13 @@ export const onRequestGet: PagesFunction = async ({ request, env, params }) => {
     const raw = params.key
     const rawKey = Array.isArray(raw) ? raw.join('/') : String(raw || '')
     const key = decodeURIComponent(rawKey)
+    /* 이 경로는 인증이 없다 — 키만 알면 누구나 받는다.
+       그런데 키를 URL 에서 그대로 받으므로, 막지 않으면 버킷 안 무엇이든 나간다.
+       실제로 sender-docs/ (신분증·사업자등록증) 가 그대로 나갔다.
+       /api/media 는 그 접두사를 404 로 막아 두었는데 이 문은 열려 있어
+       인증 검사를 통째로 우회할 수 있었다(실측: 쿠키 없이 200 + 서류 내용).
+       업로드가 만드는 키는 언제나 videos/<회원id>/... 다. 그 밖은 내보내지 않는다. */
+    if (!/^videos\//.test(key) || key.includes('..')) return cjson({ error: '파일 없음' }, 404)
     const R2: any = resolveBucket(env)
     if (!R2) return cjson({ error: 'R2 not configured' }, 503)
 

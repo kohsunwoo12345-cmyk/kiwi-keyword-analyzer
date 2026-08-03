@@ -90,11 +90,13 @@ const ENDPOINTS = [
     params: { key: ['u', 'ad.webm'] },
   },
   {
+    /* 이 문은 videos/ 접두사만 내보낸다(승인 서류 유출을 막은 자리 —
+       scripts/media-access.test.mjs 참고). 그러니 실제 보관함 키로 본다. */
     label: '/api/videos/file',
     mod: await load('functions/api/videos/file/[[key]].ts'),
-    url: 'https://bygency.com/api/videos/file/u/ad.webm',
-    key: 'u/ad.webm',
-    params: { key: ['u', 'ad.webm'] },
+    url: 'https://bygency.com/api/videos/file/videos/9/ad.webm',
+    key: 'videos/9/ad.webm',
+    params: { key: ['videos', '9', 'ad.webm'] },
   },
 ]
 
@@ -161,7 +163,8 @@ for (const ep of ENDPOINTS) {
   {
     const request = new Request(ep.url.replace('ad.webm', 'none.webm'), { headers: { Range: 'bytes=0-99' } })
     const res = await ep.mod.onRequestGet({
-      request, env: { BUCKET: makeR2(ep.key) }, params: { key: ['u', 'none.webm'] },
+      request, env: { BUCKET: makeR2(ep.key) },
+      params: { key: ep.params.key.slice(0, -1).concat('none.webm') },
       waitUntil: () => {}, next: async () => new Response(''),
     })
     ok(res.status === 404, '404 다', String(res.status))
