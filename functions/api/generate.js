@@ -1911,6 +1911,98 @@ const PROVIDER_BILL_MODEL = {
   v2v_auto: "V2V 자동 (최고정확도·모델 자동선택)",
 };
 
+/* ── 잔액 게이트 + 과금 토큰 발급 ──
+   원래 이 구간은 POST 안에만 있었다. 그런데 씨댄스는 POST 가 (원인불명) 플랫폼 502 로
+   막힐 때 GET(?submit=seedance)으로 한 번 더 제출한다 — 스튜디오가 그렇게 만들어 뒀다.
+   그 길로 만들어진 영상은 여기를 안 지나가서 과금 토큰이 없었고, 토큰이 없으면
+   정산(settleGenCharge)이 소비할 것도 없다. 즉 제공사 비용은 우리가 내고
+   회원에게는 한 푼도 청구되지 않았다. 우회로는 예외 상황에서만 타므로 눈에도 안 띈다.
+
+   두 길이 같은 자리를 지나가게 한다. 어느 쪽으로 들어와도 같은 공식으로 계산하고
+   같은 토큰을 발급한다 — 우회로라고 싸지거나 공짜가 되면 안 된다.
+
+   막을 일이 있으면 Response 를 돌려주고(402·429), 통과면 null 을 돌려준다. */
+async function billingGate(context, env, u, db, me, pbody) {
+  // ── 남용 방지 ①: 사전 잔액 게이트 — 예상 과금 이상 보유해야 생성 시작 ──
+  //  유료 제공사 호출 "이전"에 차단하므로, 잔액이 부족하면 제공사 비용 자체가 발생하지 않는다.
+  //  precheck 와 동일한 공식(computeCharge)을 서버에서 재계산해 클라이언트 우회를 무력화한다.
+  try {
+    const asked = String(pbody.model || "");
+    //  단가표에 없는 이름(또는 빈 값)이면 제공사로 정해지는 기능인지 본다 — 위 표 참조.
+    const mdl = MODEL_COST[asked] ? asked : (PROVIDER_BILL_MODEL[String(pbody.provider || "")] || asked);
+    if (mdl && MODEL_COST[mdl]) {
+      /* 서로 딴 값이라 순서가 필요 없다 — 하나씩 기다리면 왕복이 그만큼 쌓이고,
+         Cloudflare 의 요청당 서브리퀘스트 한도를 갉아먹는다(넘으면 raw 502). */
+      const [rate, mk, ckw] = await Promise.all([
+        getUsdKrw(db),
+        resolveMarkup(db, me.id, mdl, Number(me.credit_markup) || 0),
+        creditPriceFor(db, me),
+      ]);
+      //  게이트도 "실제로 생성될 길이·해상도" 기준이어야 확정 과금과 어긋나지 않는다.
+      /* 'img'(장당) 말고 '3d'(모델 1개당)·'tok'(호출 1회당)도 "단위 1개" 정액이다.
+         'img' 만 보고 있어서 3D·프롬프트 모델이 초당 계산을 타 8배로 추정됐다 —
+         확정 과금(usage/record·precheck·/api/v1)은 이미 u!=='sec' 로 맞춰 두었는데
+         이 게이트만 남아, 잔액이 충분한 사람을 "크레딧 부족" 으로 막을 수 있었다. */
+      const isImg = MODEL_COST[mdl] && MODEL_COST[mdl].u !== "sec";
+      let gUnits = isImg ? 1 : effectiveUnits({ ...pbody, model: mdl }, env);
+      /* 결과 길이가 원본 영상에서 정해지는 기능들(업스케일·V2V·나레이션·립싱크·Aleph·루마 편집 등)은
+         요청에 길이 필드가 없어 빌더에 물어볼 수 없다. 그래서 여태 신고값을 그대로 청구했고,
+         짧게 신고하면 그만큼 덜 냈다. 원본을 직접 재서 그 값으로 청구한다.
+         못 재면(webm·비공개 URL·네트워크 실패) 신고값으로 물러난다 — 생성을 막지는 않는다. */
+      if (!isImg && SOURCE_LENGTH_MODELS.has(mdl)) {
+        let src = sourceVideoUrl(pbody);
+        if (src && src.startsWith("/")) src = u.origin + src;      // 우리 R2 는 상대경로로 온다
+        const measured = src ? await probeRemoteVideoSeconds(src) : null;
+        if (measured && measured > 0) gUnits = Math.min(3600, Math.max(1, Math.round(measured)));
+      }
+      const gRes = isImg ? undefined : effectiveRes({ ...pbody, model: mdl }, env);
+      /* 값을 바꾸는 나머지 옵션도 여기서 한 번에 확정한다 — 아래 게이트 계산과 토큰이
+         같은 값을 써야 "통과시켜 놓고 더 크게 빠지는" 일이 없다.
+           · hdr·exr : 스튜디오는 lumaHdr·lumaExr 라는 이름으로 보낸다. 예전엔 pbody.hdr 만
+             봐서 루마 HDR 생성이 표준 요금으로 잡혔다(원가는 2배·EXR 3배인데 덜 받았다).
+             effectiveFlags 를 태워 "실제 요청에 실릴 값" 만 인정한다.
+           · 비율 : 표에 없는 값은 빌더가 정사각으로 떨어뜨린다 → 1.5배를 붙이면 안 된다. */
+      const gFlags = effectiveFlags({ ...pbody, model: mdl,
+                                      hdr: pbody.hdr === true || pbody.lumaHdr === true,
+                                      exr: pbody.exr === true || pbody.lumaExr === true });
+      const gRatio = effectiveRatio({ ...pbody, model: mdl });
+      const gRefs = Array.isArray(pbody.refImages) ? pbody.refImages.length
+                  : Math.max(0, Number(pbody.refCount) || Number(pbody.refs) || 0);
+      const cnCount = Math.max(0, (pbody.controlnets && pbody.controlnets.length) || Number(pbody.cn) || 0);
+      //  이 셋도 서로 독립이다 — 함께 부른다.
+      const [ovUsd, surPct, cnPct] = await Promise.all([
+        resolveCostOverride(db, mdl),   // 실측 단가가 있으면 게이트도 그 값으로
+        resolveRefSurcharge(db, me.id),
+        cnCount > 0 ? resolveCnSurcharge(db) : Promise.resolve(0),
+      ]);
+      const cc = computeCharge({ model: mdl, units: gUnits, res: gRes, audio: !!pbody.generateAudio,
+                                 refs: gRefs, hdr: gFlags.hdr, exr: gFlags.exr, ratio: gRatio }, rate, mk, ckw, ovUsd);
+      const refMult = 1 + (surPct / 100) * gRefs;
+      const cnMult = cnCount > 0 ? 1 + cnPct / 100 : 1;
+      const need = Math.round(cc.credits * refMult * cnMult * 100) / 100;
+      if (need > 0 && Number(me.credits) < need) {
+        return json({ error: `크레딧이 부족합니다. 필요 ${need.toLocaleString("ko-KR")}크레딧 · 보유 ${Number(me.credits).toLocaleString("ko-KR")}크레딧`, need, balance: Number(me.credits), needPlan: true }, 402);
+      }
+      /* 여기까지 오면 "무엇을 얼마나 만들지" 를 서버가 확정한 상태다.
+         차감은 /api/usage/record 가 하는데 거기서는 모델을 요청 본문에서 받아 썼다 —
+         비싼 모델로 만들고 싼 모델로 신고하면 차액만큼 덜 냈다.
+         확정값을 토큰에 묶어 두고 차감할 때 그 값을 쓰게 한다. */
+      context.__chargeToken = await issueGenCharge(db, me.id, {
+        model: mdl, units: gUnits, res: gRes, audio: !!pbody.generateAudio,
+        ratio: gRatio, refs: gRefs, cn: cnCount, hdr: gFlags.hdr, exr: gFlags.exr,
+      });
+    }
+  } catch (_e) { /* 추정 실패 시 credits>0 게이트로 통과 (락아웃 방지) */ }
+  // ── 남용 방지 ②: 레이트리밋(분/시/일) + 15초 버스트 가드 (denial-of-wallet 완화) ──
+  try { await ensureApiKeysSchema(db); } catch (_e) {}
+  const rl = await enforceRateLimit(db, me.id, "post", false);
+  if (!rl.ok) return json({ error: rl.reason || "요청이 너무 많습니다. 잠시 후 다시 시도하세요.", retryAfter: rl.retryAfter || 30 }, 429);
+  //  같은 표를 또 훑지 않는다 — 위 레이트리밋이 15초 치를 함께 세어 돌려준다.
+  if (Number(rl.burst || 0) > 5) return json({ error: "짧은 시간에 너무 많은 생성을 요청했습니다. 잠시 후 다시 시도하세요.", retryAfter: 15 }, 429);
+  context.__gateRan = true;   // 이 구간을 실제로 지났다(관리자는 여기 안 온다)
+  return null;
+}
+
 async function handle(context) {
   const { request, env } = context;
   const k = keys(env);
@@ -1994,83 +2086,8 @@ async function handle(context) {
         return json({ error: "크레딧이 부족합니다. 요금제를 활성화해 주세요.", needPlan: true }, 402);
       }
       if ((forceGate || (!dry && !isAdmin)) && db && me.id) {
-        // ── 남용 방지 ①: 사전 잔액 게이트 — 예상 과금 이상 보유해야 생성 시작 ──
-        //  유료 제공사 호출 "이전"에 차단하므로, 잔액이 부족하면 제공사 비용 자체가 발생하지 않는다.
-        //  precheck 와 동일한 공식(computeCharge)을 서버에서 재계산해 클라이언트 우회를 무력화한다.
-        try {
-          const asked = String(pbody.model || "");
-          //  단가표에 없는 이름(또는 빈 값)이면 제공사로 정해지는 기능인지 본다 — 위 표 참조.
-          const mdl = MODEL_COST[asked] ? asked : (PROVIDER_BILL_MODEL[String(pbody.provider || "")] || asked);
-          if (mdl && MODEL_COST[mdl]) {
-            /* 서로 딴 값이라 순서가 필요 없다 — 하나씩 기다리면 왕복이 그만큼 쌓이고,
-               Cloudflare 의 요청당 서브리퀘스트 한도를 갉아먹는다(넘으면 raw 502). */
-            const [rate, mk, ckw] = await Promise.all([
-              getUsdKrw(db),
-              resolveMarkup(db, me.id, mdl, Number(me.credit_markup) || 0),
-              creditPriceFor(db, me),
-            ]);
-            //  게이트도 "실제로 생성될 길이·해상도" 기준이어야 확정 과금과 어긋나지 않는다.
-            /* 'img'(장당) 말고 '3d'(모델 1개당)·'tok'(호출 1회당)도 "단위 1개" 정액이다.
-               'img' 만 보고 있어서 3D·프롬프트 모델이 초당 계산을 타 8배로 추정됐다 —
-               확정 과금(usage/record·precheck·/api/v1)은 이미 u!=='sec' 로 맞춰 두었는데
-               이 게이트만 남아, 잔액이 충분한 사람을 "크레딧 부족" 으로 막을 수 있었다. */
-            const isImg = MODEL_COST[mdl] && MODEL_COST[mdl].u !== "sec";
-            let gUnits = isImg ? 1 : effectiveUnits({ ...pbody, model: mdl }, env);
-            /* 결과 길이가 원본 영상에서 정해지는 기능들(업스케일·V2V·나레이션·립싱크·Aleph·루마 편집 등)은
-               요청에 길이 필드가 없어 빌더에 물어볼 수 없다. 그래서 여태 신고값을 그대로 청구했고,
-               짧게 신고하면 그만큼 덜 냈다. 원본을 직접 재서 그 값으로 청구한다.
-               못 재면(webm·비공개 URL·네트워크 실패) 신고값으로 물러난다 — 생성을 막지는 않는다. */
-            if (!isImg && SOURCE_LENGTH_MODELS.has(mdl)) {
-              let src = sourceVideoUrl(pbody);
-              if (src && src.startsWith("/")) src = u.origin + src;      // 우리 R2 는 상대경로로 온다
-              const measured = src ? await probeRemoteVideoSeconds(src) : null;
-              if (measured && measured > 0) gUnits = Math.min(3600, Math.max(1, Math.round(measured)));
-            }
-            const gRes = isImg ? undefined : effectiveRes({ ...pbody, model: mdl }, env);
-            /* 값을 바꾸는 나머지 옵션도 여기서 한 번에 확정한다 — 아래 게이트 계산과 토큰이
-               같은 값을 써야 "통과시켜 놓고 더 크게 빠지는" 일이 없다.
-                 · hdr·exr : 스튜디오는 lumaHdr·lumaExr 라는 이름으로 보낸다. 예전엔 pbody.hdr 만
-                   봐서 루마 HDR 생성이 표준 요금으로 잡혔다(원가는 2배·EXR 3배인데 덜 받았다).
-                   effectiveFlags 를 태워 "실제 요청에 실릴 값" 만 인정한다.
-                 · 비율 : 표에 없는 값은 빌더가 정사각으로 떨어뜨린다 → 1.5배를 붙이면 안 된다. */
-            const gFlags = effectiveFlags({ ...pbody, model: mdl,
-                                            hdr: pbody.hdr === true || pbody.lumaHdr === true,
-                                            exr: pbody.exr === true || pbody.lumaExr === true });
-            const gRatio = effectiveRatio({ ...pbody, model: mdl });
-            const gRefs = Array.isArray(pbody.refImages) ? pbody.refImages.length
-                        : Math.max(0, Number(pbody.refCount) || Number(pbody.refs) || 0);
-            const cnCount = Math.max(0, (pbody.controlnets && pbody.controlnets.length) || Number(pbody.cn) || 0);
-            //  이 셋도 서로 독립이다 — 함께 부른다.
-            const [ovUsd, surPct, cnPct] = await Promise.all([
-              resolveCostOverride(db, mdl),   // 실측 단가가 있으면 게이트도 그 값으로
-              resolveRefSurcharge(db, me.id),
-              cnCount > 0 ? resolveCnSurcharge(db) : Promise.resolve(0),
-            ]);
-            const cc = computeCharge({ model: mdl, units: gUnits, res: gRes, audio: !!pbody.generateAudio,
-                                       refs: gRefs, hdr: gFlags.hdr, exr: gFlags.exr, ratio: gRatio }, rate, mk, ckw, ovUsd);
-            const refMult = 1 + (surPct / 100) * gRefs;
-            const cnMult = cnCount > 0 ? 1 + cnPct / 100 : 1;
-            const need = Math.round(cc.credits * refMult * cnMult * 100) / 100;
-            if (need > 0 && Number(me.credits) < need) {
-              return json({ error: `크레딧이 부족합니다. 필요 ${need.toLocaleString("ko-KR")}크레딧 · 보유 ${Number(me.credits).toLocaleString("ko-KR")}크레딧`, need, balance: Number(me.credits), needPlan: true }, 402);
-            }
-            /* 여기까지 오면 "무엇을 얼마나 만들지" 를 서버가 확정한 상태다.
-               차감은 /api/usage/record 가 하는데 거기서는 모델을 요청 본문에서 받아 썼다 —
-               비싼 모델로 만들고 싼 모델로 신고하면 차액만큼 덜 냈다.
-               확정값을 토큰에 묶어 두고 차감할 때 그 값을 쓰게 한다. */
-            context.__chargeToken = await issueGenCharge(db, me.id, {
-              model: mdl, units: gUnits, res: gRes, audio: !!pbody.generateAudio,
-              ratio: gRatio, refs: gRefs, cn: cnCount, hdr: gFlags.hdr, exr: gFlags.exr,
-            });
-          }
-        } catch (_e) { /* 추정 실패 시 credits>0 게이트로 통과 (락아웃 방지) */ }
-        // ── 남용 방지 ②: 레이트리밋(분/시/일) + 15초 버스트 가드 (denial-of-wallet 완화) ──
-        try { await ensureApiKeysSchema(db); } catch (_e) {}
-        const rl = await enforceRateLimit(db, me.id, "post", false);
-        if (!rl.ok) return json({ error: rl.reason || "요청이 너무 많습니다. 잠시 후 다시 시도하세요.", retryAfter: rl.retryAfter || 30 }, 429);
-        //  같은 표를 또 훑지 않는다 — 위 레이트리밋이 15초 치를 함께 세어 돌려준다.
-        if (Number(rl.burst || 0) > 5) return json({ error: "짧은 시간에 너무 많은 생성을 요청했습니다. 잠시 후 다시 시도하세요.", retryAfter: 15 }, 429);
-        context.__gateRan = true;   // 이 구간을 실제로 지났다(관리자는 여기 안 온다)
+        const _blocked = await billingGate(context, env, u, db, me, pbody);
+        if (_blocked) return _blocked;
       }
       /*  ⚠ 여기는 과금 구간 "밖" 이다 — 관리자는 그 안을 아예 안 지나가고 여기로 온다.
           그냥 "과금 계산 끝" 이라고 찍으면 관리자도 지나간 것처럼 보인다(실제로 그렇게 찍혔다).
@@ -2199,14 +2216,33 @@ async function handle(context) {
         srcVideo: u.searchParams.get("vid") || null,
         audioUrl: u.searchParams.get("aud") || null,
         generateAudio: u.searchParams.get("genaudio") === "1",
-        watermark: u.searchParams.get("wm") === "1"
+        watermark: u.searchParams.get("wm") === "1",
+        provider: "seedance",
       };
+      /* ⚠ 여기가 오래 새고 있었다. 이 우회로는 POST 안에 있는 잔액 게이트·과금 토큰 구간을
+         지나지 않아서, 이 길로 만들어진 영상은 제공사 비용만 나가고 회원에게는 한 푼도
+         청구되지 않았다(토큰이 없으면 정산이 소비할 것도 없다). POST 가 막힐 때만 타는
+         길이라 눈에도 안 띈다 — 그래서 더 오래 갔다.
+         이제 POST 와 같은 자리를 지난다. 잔액이 모자라면 여기서 막히고(제공사 호출 전),
+         통과하면 같은 공식으로 만든 토큰이 붙어 제출 성공 시 정확히 한 번 차감된다. */
+      {
+        const gdb = resolveDB(env);
+        const gme = context.__genUser;
+        if (gdb && gme && gme.id && gme.role !== "admin") {
+          if (!(Number(gme.credits) > 0))
+            return json({ error: "크레딧이 부족합니다. 요금제를 활성화해 주세요.", needPlan: true }, 402);
+          const blocked = await billingGate(context, env, u, gdb, gme, b);
+          if (blocked) return blocked;
+        }
+      }
       // POST 와 같은 이유로 이 경로도 제출을 붙잡고 있으면 플랫폼 502 가 난다 — 똑같이 인계한다.
       const work = (async () => {
         const payload = buildSeedancePayload(b, env);
         let r, j; const t0 = Date.now();
         try {
-          r = await fetchT(ARK_HOSTS.bp + "/contents/generations/tasks", {
+          //  본 제출 경로와 같은 주소 해석을 쓴다(arkBase) — 여기만 ARK_HOSTS 를 직접 보고 있어서
+          //  ARK_HOST_OVERRIDE 로 제공사를 흉내 내는 검사가 이 길만 못 태웠다.
+          r = await fetchT(arkBase(env, "bp") + "/contents/generations/tasks", {
             method: "POST",
             headers: { "Authorization": "Bearer " + k.seedance, "Content-Type": "application/json" },
             body: JSON.stringify(payload)
