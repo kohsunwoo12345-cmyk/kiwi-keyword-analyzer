@@ -335,6 +335,22 @@ const MUTATIONS = [
   { g: '쿠폰', name: '적용 대상(플랜) 제한을 무시한다',
     file: 'functions/api/_coupons.ts',
     from: 'if (c.scope_plan && c.scope_plan !== opts.plan) return fail(', to: 'if (false) return fail(' },
+  // ── CRM 집행 (포인트로 문자를 산다) ─────────────────────────────────────
+  { g: 'CRM', name: '실패한 건의 포인트를 환불하지 않는다',
+    file: 'functions/api/crm/_dispatch.ts',
+    from: 'if (failed > 0) await refundPoints(db, c.user_id, unit * failed,', to: 'if (false) await refundPoints(db, c.user_id, unit * failed,' },
+  { g: 'CRM', name: '포인트를 먼저 빼지 않고 발송한다 (무료 발송)',
+    file: 'functions/api/crm/_dispatch.ts',
+    from: '  if (!spend.ok) {', to: '  if (false) {' },
+  { g: 'CRM', name: '이미 발송 중인 집행을 또 보낸다 (중복 발송·이중 차감)',
+    file: 'functions/api/crm/_dispatch.ts',
+    from: "if (!claim || Number(claim.meta?.changes || 0) === 0) return { ok: false, error: '이미 발송 처리 중입니다.' }", to: '' },
+  { g: 'CRM', name: '발신번호가 없어도 발송하고 환불하지 않는다',
+    file: 'functions/api/crm/_dispatch.ts',
+    from: '    if (!from) {', to: '    if (false) {' },
+  { g: 'CRM', name: '성공 건수를 수신자 수로 덮어쓴다 (실패를 성공으로 집계)',
+    file: 'functions/api/crm/_dispatch.ts',
+    from: 'sent = Math.max(0, Math.min(targets.length, r.successCnt))', to: 'sent = targets.length' },
 ]
 
 const filter = process.argv[2] || ''
