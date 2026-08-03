@@ -777,10 +777,17 @@ export function buildSeedancePayload(b, env, forceModel) {
       text = (text ? text + "\n\n" : "") + "[레퍼런스 바인딩: " + tags.join(", ") + " — " + hint.join(", ") + "]";
     }
     const content = [{ type: "text", text: cut(text, 1500) }];
+    /*  ⚠ __noRole 은 얼굴 거절 뒤의 마지막 되돌리기용이다 — 역할표를 아예 붙이지 않고 사진만 보낸다.
+        제공사 검열이 "이 사진을 첫 장면으로 쓰겠다"는 선언을 보고 더 엄해지는 경우가 있어,
+        선언을 빼고 같은 사진을 같은 모델에 보내 본다. 평상시 경로는 이 갈래를 타지 않는다. */
+    const noRole = b.__noRole === true;
     // 첫/마지막 프레임은 전용 role 로. last_frame 은 공식적으로 first_frame 이 있을 때만 유효하다.
-    if (firstF) content.push({ type: "image_url", image_url: { url: firstF }, role: "first_frame" });
-    if (firstF && lastF) content.push({ type: "image_url", image_url: { url: lastF }, role: "last_frame" });
-    for (const u of refs)    content.push({ type: "image_url", image_url: { url: u }, role: "reference_image" });
+    if (firstF) content.push(noRole ? { type: "image_url", image_url: { url: firstF } }
+                                    : { type: "image_url", image_url: { url: firstF }, role: "first_frame" });
+    if (firstF && lastF) content.push(noRole ? { type: "image_url", image_url: { url: lastF } }
+                                             : { type: "image_url", image_url: { url: lastF }, role: "last_frame" });
+    for (const u of refs)    content.push(noRole ? { type: "image_url", image_url: { url: u } }
+                                                 : { type: "image_url", image_url: { url: u }, role: "reference_image" });
     for (const u of useVids) content.push({ type: "video_url", video_url: { url: u }, role: "reference_video" });
     for (const u of useAuds) content.push({ type: "audio_url", audio_url: { url: u }, role: "reference_audio" });
     // 오디오 생성 기본 OFF — 2.0 은 기본으로 오디오를 만드는데, 그 오디오가 콘텐츠 검열
@@ -5074,57 +5081,76 @@ async function handle(context) {
           if (!(seedreamModelMissing(r.status, j) || r.status >= 500)) break outer;
         }
       }
-      /* ── 얼굴이 든 사진이 거절됐을 때: 같은 모델·같은 사진을 "레퍼런스 모드" 로 한 번 더 ──
-         씨댄스 2.0 은 사진을 두 가지로 받는다.
-           · first_frame     — "이 사진이 영상의 첫 장면" (사진을 그대로 재현한다)
-           · reference_image — "이 사람/피사체의 외형을 참고해서 만들어" (공식 R2V 모드)
-         제공사 검열은 이 둘을 다르게 다룰 수 있다. 첫 장면은 사진을 그대로 되살리는 것이라
-         더 엄하게 보는 게 자연스럽다. 그래서 거절당하면 레퍼런스 모드로 한 번 더 물어본다.
+      /* ── 얼굴이 든 사진이 거절됐을 때: 같은 모델·같은 사진으로 남은 길을 차례로 다 해 본다 ──
+         제공사 검열은 "무엇을 보냈나" 만 보는 게 아니라 "어떻게 쓰겠다고 선언했나" 도 본다.
+         씨댄스 2.0 은 같은 사진을 여러 방식으로 받는데, 그 방식마다 검열이 다르게 걸린다.
+         그래서 거절당하면 남은 방식을 차례로 던져 본다.
 
-         ⚠ 모델은 그대로다. 사진도 프롬프트도 요금도 그대로다. 바뀌는 것은 "이 사진을 어떻게
-           쓸 것인가" 뿐이다. 회원이 고른 모델과 다른 모델로 넘기는 일은 여전히 하지 않는다.
-         ⚠ 결과물의 성격은 달라진다(첫 장면 고정 → 외형 참고). 그래서 반드시 알린다(notice).
-         ⚠ 거절은 0원이다. 이 재시도가 통과해야만 비용이 생기고, 그건 회원이 원하던 그 영상이다. */
+           ① (앞에서 이미 한 것) 첫 프레임 — "이 사진이 영상의 첫 장면"
+           ② 외형 참고           — 공식 R2V 모드. 사진을 그대로 재현하지 않는다
+           ③ 역할 표시 없이       — 어떻게 쓰겠다는 선언 자체를 뺀다
+           ④ 워터마크 켬          — 인물이 든 결과물에 표시를 요구하는 정책이 있을 수 있다
+
+         ⚠ 모델은 절대 안 바뀐다. 사진도 프롬프트도 요금도 그대로다.
+           바뀌는 것은 "이 사진을 어떻게 건네고 어떻게 쓰겠다고 말하는가" 뿐이다.
+         ⚠ 결과물이 달라지는 단계(②·④)는 반드시 회원에게 알린다(notice).
+         ⚠ 막히는 건 0원이다. 통과한 단계에서만 비용이 생기고, 그게 회원이 원하던 그 영상이다.
+         ⚠ 한 바퀴만 돈다. 통과하면 즉시 끝내고, 다 막히면 무엇을 해 봤는지 그대로 남긴다. */
       const faceBlocked = /InputImageSensitiveContentDetected|PrivacyInformation|may contain real person/i
         .test(String(lastErr || ""));
-      const hasFrame = !!(b.firstFrame || b.lastFrame);
-      if (faceBlocked && hasFrame && !b.__refMode) {
-        const leftMs = BUDGET_MS + 15000 - (Date.now() - started);
-        if (leftMs > 6000) {
-          //  첫/마지막 프레임을 레퍼런스 자리로 옮긴다. 순서는 그대로 지킨다.
-          const asRef = Object.assign({}, b, {
-            __refMode: true, firstFrame: null, lastFrame: null, refLabels: [],
-            refImages: [b.firstFrame, b.lastFrame]
-              .concat(Array.isArray(b.refImages) ? b.refImages : [])
-              .filter((x, i, a) => x && a.indexOf(x) === i),
-          });
-          const mid2 = candidates[0];
-          if (context.__trace) await traceMark(env, context.__trace, "레퍼런스 모드로 재시도", mid2);
+      const hasImg = !!(b.firstFrame || b.lastFrame || (Array.isArray(b.refImages) && b.refImages.length) || b.refImage);
+      /*  ⚠ 사다리 결과를 lastErr 에 이어 붙이면 안 된다 — 마지막에 200자로 자르기 때문에
+          "무엇을 더 해 봤는지" 가 통째로 잘려 나간다(실제로 잘렸다). 따로 모아 뒤에 붙인다. */
+      const ladderNotes = [];
+      if (faceBlocked && hasImg && !b.__faceLadder) {
+        const mid2 = candidates[0];
+        //  첫/마지막 프레임을 레퍼런스 자리로 옮긴 몸통(순서는 그대로 지킨다)
+        const asRef = Object.assign({}, b, {
+          firstFrame: null, lastFrame: null, refLabels: [],
+          refImages: [b.firstFrame, b.lastFrame]
+            .concat(Array.isArray(b.refImages) ? b.refImages : [])
+            .filter((x, i, a) => x && a.indexOf(x) === i),
+        });
+        const hasFrame = !!(b.firstFrame || b.lastFrame);
+        const rungs = [];
+        //  ② 는 프레임이 있을 때만 뜻이 있다(이미 레퍼런스로 보낸 요청이면 같은 몸통이다)
+        if (hasFrame) rungs.push({ tag: "레퍼런스", body: asRef,
+          notice: "넣으신 사진을 '첫 장면'으로 쓰는 길은 제공사가 막아, 같은 모델에서 '외형 참고'로 바꿔 만들었습니다. "
+                + "모델과 요금은 그대로입니다 — 다만 사진이 첫 장면에 그대로 나오지는 않고, 사진 속 인물·피사체의 외형을 살려 만듭니다." });
+        rungs.push({ tag: "역할없이", body: Object.assign({}, b, { __noRole: true }), notice: null });
+        rungs.push({ tag: "워터마크", body: Object.assign({}, b, { watermark: true }),
+          notice: "제공사가 인물이 든 사진을 그냥은 받지 않아, 워터마크를 켠 상태로 만들었습니다. "
+                + "모델과 요금은 그대로입니다 — 다만 결과 영상에 제공사 워터마크가 들어갑니다." });
+
+        for (const rung of rungs) {
+          const leftMs = BUDGET_MS + 25000 - (Date.now() - started);
+          if (leftMs < 6000) {
+            ladderNotes.push("시간이 모자라 " + rung.tag + " 는 못 해 봤습니다 — 다시 한 번 눌러 주세요");
+            break;
+          }
+          if (context.__trace) await traceMark(env, context.__trace, "얼굴 거절 — 다시 시도", mid2 + " · " + rung.tag);
           try {
-            const r3 = await fetchT(arkBase(env, "bp") + "/contents/generations/tasks", {
+            const rr = await fetchT(arkBase(env, "bp") + "/contents/generations/tasks", {
               method: "POST",
               headers: { Authorization: "Bearer " + k.seedance, "Content-Type": "application/json" },
-              body: JSON.stringify(buildSeedancePayload(asRef, env, mid2)),
+              body: JSON.stringify(buildSeedancePayload(Object.assign({ __faceLadder: true }, rung.body), env, mid2)),
             }, Math.min(22000, leftMs));
-            const j3 = await r3.json().catch(() => ({}));
-            tried.push(mid2 + "=" + r3.status + "(레퍼런스)");
-            if (r3.ok && j3.id) {
+            const jj = await rr.json().catch(() => ({}));
+            tried.push(mid2 + "=" + rr.status + "(" + rung.tag + ")");
+            if (rr.ok && jj.id) {
               return json({
-                statusUrl: "/api/generate?provider=seedance&host=bp&task=" + encodeURIComponent(j3.id),
-                modelId: mid2, usedRefMode: true,
-                notice: "넣으신 사진을 '첫 장면'으로 쓰는 길은 제공사가 막아, 같은 모델에서 "
-                      + "'외형 참고'로 바꿔 만들었습니다. 모델과 요금은 그대로입니다 — "
-                      + "다만 사진이 첫 장면에 그대로 나오지는 않고, 사진 속 인물·피사체의 외형을 살려 만듭니다.",
+                statusUrl: "/api/generate?provider=seedance&host=bp&task=" + encodeURIComponent(jj.id),
+                modelId: mid2, usedFallbackShape: rung.tag,
+                usedRefMode: rung.tag === "레퍼런스" || undefined,
+                notice: rung.notice || undefined,
               });
             }
-            lastErr = String(lastErr) + " | 레퍼런스 모드로도 거절됨"
-              + ((j3.error && j3.error.code) ? " <" + j3.error.code + ">" : "");
+            ladderNotes.push(rung.tag + " 로도 거절됨"
+              + ((jj.error && jj.error.code) ? " <" + jj.error.code + ">" : ""));
           } catch (e) {
-            tried.push(mid2 + "=ERR(레퍼런스)");
-            lastErr = String(lastErr) + " | 레퍼런스 모드 재시도 실패: " + String((e && e.message) || e).slice(0, 90);
+            tried.push(mid2 + "=ERR(" + rung.tag + ")");
+            ladderNotes.push(rung.tag + " 재시도 실패: " + String((e && e.message) || e).slice(0, 80));
           }
-        } else {
-          lastErr = String(lastErr) + " | (시간이 모자라 레퍼런스 모드를 못 해 봤습니다 — 다시 한 번 눌러 주세요)";
         }
       }
       // 모든 후보가 "모델 없음" 으로 끝났다면, 계정 카탈로그에서 같은 계열의 실제 ID 를 찾아 1회 더 시도한다.
@@ -5184,7 +5210,8 @@ async function handle(context) {
         }
       } catch (_e) { /* 로깅 실패가 생성 응답을 막지 않도록 */ }
       if (context.__trace) await traceMark(env, context.__trace, "제출 실패로 마무리", String(lastErr).slice(0, 150));
-      return json({ error: "Seedance " + tag + ": " + String(lastErr).slice(0, 200) + trail }, FAIL);
+      const ladderTrail = ladderNotes.length ? " | " + ladderNotes.join(" | ") : "";
+      return json({ error: "Seedance " + tag + ": " + String(lastErr).slice(0, 200) + trail + ladderTrail }, FAIL);
     })();
     if (context.__trace) await traceMark(env, context.__trace, "인계 대기 시작", "");
     const _out = await handoffSubmit(context, work, "seedance");
