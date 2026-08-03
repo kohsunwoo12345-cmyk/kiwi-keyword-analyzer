@@ -43,7 +43,7 @@ const ok = (c, name, detail = '') => {
    'full'  = 신구 컬럼 모두 있는 지금 스키마만 성공
    'legacy'= 첫 INSERT 는 실패하고 구버전 폴백만 성공
    'none'  = 둘 다 실패 (디스크 오류·제약 위반 등) */
-function makeDB({ applicantInsert = 'full', phoneHits = 0 } = {}) {
+function makeDB({ applicantInsert = 'full', phoneHits = 0, pageStatus = 'active' } = {}) {
   const sqls = []
   const run = async (sql, args) => {
     sqls.push({ sql, args })
@@ -56,7 +56,16 @@ function makeDB({ applicantInsert = 'full', phoneHits = 0 } = {}) {
   }
   const first = async (sql, args) => {
     sqls.push({ sql, args })
-    if (/FROM funnel_landing_pages WHERE slug/.test(sql)) return { id: 7, group_id: 3, title: '검증 랜딩' }
+    if (/FROM funnel_landing_pages WHERE slug/.test(sql)) {
+      /* 실제 SQL 은 status 조건을 달고 온다. 그 조건을 여기서 그대로 적용해야
+         "초안은 접수하지 않는다" 를 볼 수 있다 — 조건을 무시하면 늘 통과해 헛돈다. */
+      const cond = /status/.test(sql)
+      const openToDraft = /status IS NULL OR status = '' OR status = 'active'/.test(sql)
+      const passes = !cond || (openToDraft
+        ? (pageStatus == null || pageStatus === '' || pageStatus === 'active')
+        : pageStatus === 'active')
+      return passes ? { id: 7, group_id: 3, title: '검증 랜딩' } : null
+    }
     if (/COUNT\(\*\) AS c FROM rate_hits/.test(sql)) {
       //  번호 제한만 조종한다 — IP 제한은 늘 통과시킨다
       return { c: String(args[0] || '').startsWith('apply:7:') ? phoneHits : 0 }
@@ -260,6 +269,24 @@ console.log('\n⑪ 임베드 폼: 저장이 실패하면 번호 제한을 되돌
   const db = makeDB2({ applicantInsert: 'none' })
   await postForm(db, FORM)
   ok(releasedLimit(db), '제한 기록을 지운다 (안 지우면 10분간 재제출이 막힌다)')
+}
+
+console.log('\n⑫ 초안·중지된 랜딩페이지는 공개 접수를 받지 않는다')
+{
+  /* 아직 다 만들지 않은 초안이나 일부러 내린 페이지가 접수를 받으면
+     신청자는 응답 없는 곳에 정보를 남기고, 유료 자동응답까지 나간다. */
+  for (const st of ['draft', 'paused', 'archived']) {
+    const db = makeDB({ pageStatus: st })
+    const r = await post(db, APPLICANT)
+    ok(r.status === 404, `status=${st} 는 404 로 거절한다`, String(r.status))
+    ok(inserted(db).length === 0, `status=${st} — 저장하지 않는다`, String(inserted(db).length))
+  }
+  //  status 가 비어 있는 옛 데이터는 활성으로 봐야 한다 — 쓰던 페이지가 갑자기 죽으면 안 된다
+  for (const st of ['active', '', null]) {
+    const db = makeDB({ pageStatus: st })
+    const r = await post(db, APPLICANT)
+    ok(r.body.success === true, `status=${JSON.stringify(st)} 는 그대로 접수된다`, JSON.stringify(r.body).slice(0, 60))
+  }
 }
 
 console.log(failed === 0 ? '\n퍼널 신청 — 실패 0\n' : `\n실패 ${failed}건\n`)

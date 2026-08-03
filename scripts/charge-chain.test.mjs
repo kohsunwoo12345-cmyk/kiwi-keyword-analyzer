@@ -88,7 +88,9 @@ function makeDB(user) {
           }
           if (/UPDATE gen_charges SET consumed_at/i.test(s)) {
             const r = charges.get(bound[1])
-            if (!r || r.consumed_at) return { success: true, meta: { changes: 0 } }
+            //  실제 SQL 의 조건을 그대로 따른다 — 조건이 빠지면 여기서도 통과해야 한다
+            const guarded = /consumed_at IS NULL/i.test(s)
+            if (!r || (guarded && r.consumed_at)) return { success: true, meta: { changes: 0 } }
             r.consumed_at = bound[0]
           }
           if (/UPDATE gen_charges SET credits = \?, task_key/i.test(s)) {
@@ -97,14 +99,19 @@ function makeDB(user) {
           if (/UPDATE gen_charges SET usage_id/i.test(s)) { const r = charges.get(bound[1]); if (r) r.usage_id = bound[0] }
           if (/UPDATE gen_charges SET reconciled_at/i.test(s)) {
             const r = charges.get(bound[1])
-            if (!r || r.reconciled_at) return { success: true, meta: { changes: 0 } }
+            const guarded = /reconciled_at IS NULL/i.test(s)
+            if (!r || (guarded && r.reconciled_at)) return { success: true, meta: { changes: 0 } }
             r.reconciled_at = bound[0]
           }
           if (/UPDATE gen_charges SET credits = \? WHERE/i.test(s)) { const r = charges.get(bound[1]); if (r) r.credits = bound[0] }
-          /* 실패 환불은 조건부다 — status 가 'charged' 일 때만 한 번 통과해야 두 번 환불되지 않는다. */
+          /* 실패 환불은 조건부다 — status 가 'charged' 일 때만 한 번 통과해야 두 번 환불되지 않는다.
+             ⚠ 조건을 여기서 무조건 걸면, 진짜 SQL 에서 조건이 빠져도 가짜가 대신 막아 줘서
+                테스트가 통과해 버린다(돌연변이 점검에서 실제로 그렇게 살아남았다).
+                그래서 SQL 에 조건이 실제로 붙어 있을 때만 적용한다. */
           if (/UPDATE gen_charges SET status = 'refunded'/i.test(s)) {
             const r = charges.get(bound[0])
-            if (!r || r.status !== 'charged') return { success: true, meta: { changes: 0 } }
+            const guarded = /status\s*=\s*'charged'/i.test(s)
+            if (!r || (guarded && r.status !== 'charged')) return { success: true, meta: { changes: 0 } }
             r.status = 'refunded'
           }
           if (/UPDATE users SET credits/i.test(s)) {
@@ -520,6 +527,66 @@ console.log('\n⑧ 실측 정산과 실패 환불이 맞물려도 잔액이 정�
   const late = await gc.reconcileGenCharge(db2, k2, est / 2, DEPS)
   ok(r2 > 0 && late === 0, '환불된 작업에는 뒤늦은 실측 정산이 붙지 않는다', `환불 ${r2} · 정산 ${late}`)
   ok(Math.abs(db2.__deductions.reduce((a, b) => a + b, 0) - afterRefund) < 1e-9, '환불 뒤 잔액이 더 움직이지 않는다')
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+console.log('\n⑨ 관리자는 청구하지 않는다')
+{
+  /* 관리자 계정으로 도는 점검·시연·복구 생성까지 회원 요금표로 청구하면
+     매출·정산 숫자가 실제 판매와 어긋난다. 게이트와 같은 기준으로 면제한다. */
+  const ADMIN = { ...USER, id: 'admin1', user_id: 'admin1', email: 'a@x.co', role: 'admin' }
+  const db = makeDB(ADMIN)
+  const token = await gc.issueGenCharge(db, 'admin1', { model: 'Seedance 2.0', units: 5, res: '1080p' })
+  const r = await gc.settleGenCharge(db, ADMIN, token, '/api/generate?task=admin', DEPS)
+  ok(r.credits === 0, '관리자 생성은 0크레딧이다', String(r.credits))
+  ok(db.__deductions.length === 0, '잔액을 건드리지 않는다', JSON.stringify(db.__deductions))
+  ok(r.usageId === '', '매출 기록도 남기지 않는다', JSON.stringify(r.usageId))
+
+  //  같은 생성을 일반 회원이 하면 반드시 청구돼야 한다 — 면제가 전원에게 걸리면 안 된다
+  const db2 = makeDB(USER)
+  const t2 = await gc.issueGenCharge(db2, '1', { model: 'Seedance 2.0', units: 5, res: '1080p' })
+  const r2 = await gc.settleGenCharge(db2, USER, t2, '/api/generate?task=user', DEPS)
+  ok(r2.credits > 0, '일반 회원은 그대로 청구된다', String(r2.credits))
+}
+
+console.log('\n⑩ 레퍼런스·ControlNet 가산이 실제로 붙는다')
+{
+  /* 레퍼런스 장수만큼, ControlNet 을 쓰면 그만큼 더 든다. 이 가산을 빼먹으면
+     쓸수록 손해가 나는데 화면에는 아무 표시도 나지 않는다. */
+  const base = await (async () => {
+    const db = makeDB(USER)
+    const t = await gc.issueGenCharge(db, '1', { model: 'Seedance 2.0', units: 5, res: '1080p', refs: 0, cn: 0 })
+    return (await gc.settleGenCharge(db, USER, t, '/api/generate?task=base', DEPS)).credits
+  })()
+  ok(base > 0, '기준 생성이 청구된다', String(base))
+
+  const withRefs = await (async () => {
+    const db = makeDB(USER)
+    const t = await gc.issueGenCharge(db, '1', { model: 'Seedance 2.0', units: 5, res: '1080p', refs: 4, cn: 0 })
+    return (await gc.settleGenCharge(db, USER, t, '/api/generate?task=refs', DEPS)).credits
+  })()
+  //  기본 가산율 0.5% × 레퍼런스 4장 = 2%
+  const expRefs = Math.round(base * (1 + 0.005 * 4) * 100) / 100
+  ok(withRefs > base, '레퍼런스를 넣으면 더 청구된다', `${base} → ${withRefs}`)
+  ok(near(withRefs, expRefs, 0.02), '레퍼런스 가산이 장수에 비례한다', `기대 ${expRefs} · 실제 ${withRefs}`)
+
+  const withCn = await (async () => {
+    const db = makeDB(USER)
+    const t = await gc.issueGenCharge(db, '1', { model: 'Seedance 2.0', units: 5, res: '1080p', refs: 0, cn: 1 })
+    return (await gc.settleGenCharge(db, USER, t, '/api/generate?task=cn', DEPS)).credits
+  })()
+  //  ControlNet 기본 가산 10%
+  const expCn = Math.round(base * 1.1 * 100) / 100
+  ok(withCn > base, 'ControlNet 을 쓰면 더 청구된다', `${base} → ${withCn}`)
+  ok(near(withCn, expCn, 0.02), 'ControlNet 가산이 10% 다', `기대 ${expCn} · 실제 ${withCn}`)
+
+  const both = await (async () => {
+    const db = makeDB(USER)
+    const t = await gc.issueGenCharge(db, '1', { model: 'Seedance 2.0', units: 5, res: '1080p', refs: 4, cn: 1 })
+    return (await gc.settleGenCharge(db, USER, t, '/api/generate?task=both', DEPS)).credits
+  })()
+  const expBoth = Math.round(base * (1 + 0.005 * 4) * 1.1 * 100) / 100
+  ok(near(both, expBoth, 0.03), '둘 다 쓰면 둘 다 곱해진다', `기대 ${expBoth} · 실제 ${both}`)
 }
 
 console.log(failed === 0 ? '\n과금 연쇄 — 실패 0\n' : `\n실패 ${failed}건\n`)

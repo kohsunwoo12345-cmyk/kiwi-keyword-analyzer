@@ -525,5 +525,42 @@ console.log('\n⑯ 방문자 id 가 없는 기록은 아예 받지 않는다 (�
   ok(s3.views.total >= 1, '노출도 세어져 전환이 노출을 넘지 않는다', `노출 ${s3.views.total} · 전환 ${s3.conversions.total}`)
 }
 
+console.log('\n⑰ 다른 사이트에서 보낸 기록 요청은 받지 않는다 (CSRF)')
+{
+  /* 이 POST 는 로그인 없이도 통하는 공개 엔드포인트다. 출처를 안 보면
+     남의 사이트가 방문자 브라우저를 빌려 전환·읽음·스누즈를 마음대로 찍을 수 있다 —
+     광고 성과가 조작되고, 남의 광고를 방문자 몰래 "보지 않기" 로 꺼 버릴 수도 있다. */
+  const db = makeDB(ADMIN)
+  const sent = await send(db, { ...AD, snoozeDays: 3 })
+  ok(sent.body.ok === true, '집행이 만들어졌다(뒤 단언들이 헛돌지 않게 먼저 확인)', JSON.stringify(sent.body))
+  const id = sent.body.campaignId
+  await visit(db, { visitor: 'vz_csrf' })
+
+  const evil = async (kind) => {
+    const request = new Request('https://bygency.com/api/public-notices', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'https://evil.example.com' },
+      body: JSON.stringify({ campaignId: id, visitor: 'vz_csrf', kind, days: 3, path: '/' }),
+    })
+    const res = await publicNotices.onRequestPost(ctx(db, request))
+    return { status: res.status, body: await res.json() }
+  }
+
+  const c = await evil('convert')
+  ok(c.status === 403, '다른 사이트의 전환 기록은 403 이다', String(c.status))
+  const s0 = await statsOf(db, id)
+  ok(s0.conversions.total === 0, '전환으로 세지 않는다', String(s0.conversions.total))
+
+  const sn = await evil('snooze')
+  ok(sn.status === 403, '다른 사이트의 스누즈도 403 이다', String(sn.status))
+  ok((await statsOf(db, id)).snoozes === 0, '스누즈로도 세지 않는다')
+  ok((await visit(db, { visitor: 'vz_csrf' })).length === 1, '남의 사이트가 광고를 대신 꺼 버리지 못한다')
+
+  //  우리 사이트에서 온 것은 그대로 통해야 한다
+  const good = await act(db, { campaignId: id, visitor: 'vz_csrf', kind: 'convert' })
+  ok(good.body.ok === true, '우리 사이트에서 온 기록은 정상 처리된다', JSON.stringify(good.body))
+  ok((await statsOf(db, id)).conversions.total === 1, '정상 전환만 1건으로 센다')
+}
+
 console.log(failed === 0 ? '\n강력 알림 — 실패 0\n' : `\n실패 ${failed}건\n`)
 process.exit(failed ? 1 : 0)
