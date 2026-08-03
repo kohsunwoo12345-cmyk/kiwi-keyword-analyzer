@@ -51,14 +51,35 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
   const data = { name, phone: b.phone || '', email: String(b.email || '').slice(0, 120), extra }
   // 신구 컬럼 병행 저장: 빌더가 읽는 name/phone/email/additional_data + 레거시 data_json
   const additionalData = JSON.stringify(extra && typeof extra === 'object' ? extra : { extra: extra || '' })
-  await db.prepare('INSERT INTO funnel_applicants (landing_page_id, name, phone, email, additional_data, data_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .bind(page.id, name, b.phone || '', email, additionalData, JSON.stringify(data), new Date().toISOString())
-    .run()
-    .catch(async () => {
+  const save = async (): Promise<boolean> => {
+    try {
+      await db.prepare('INSERT INTO funnel_applicants (landing_page_id, name, phone, email, additional_data, data_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .bind(page.id, name, b.phone || '', email, additionalData, JSON.stringify(data), new Date().toISOString()).run()
+      return true
+    } catch {
       // 구버전 스키마(name 등 컬럼 없음) 폴백
-      await db.prepare('INSERT INTO funnel_applicants (landing_page_id, data_json, created_at) VALUES (?, ?, ?)')
-        .bind(page.id, JSON.stringify(data), new Date().toISOString()).run().catch(() => {})
-    })
+      try {
+        await db.prepare('INSERT INTO funnel_applicants (landing_page_id, data_json, created_at) VALUES (?, ?, ?)')
+          .bind(page.id, JSON.stringify(data), new Date().toISOString()).run()
+        return true
+      } catch { return false }
+    }
+  }
+  const saved = await save()
+
+  /* 저장이 실패했는데 성공이라고 답하면 안 된다.
+     방문자는 신청됐다고 믿고 떠나고, 자동응답 문자까지 "접수되었습니다" 라고 나간다
+     (건당 유료다). 그런데 신청자 정보는 어디에도 없어 영업이 연락할 길이 사라진다.
+     게다가 번호 제한을 위에서 이미 한 칸 썼기 때문에, 방문자가 곧바로 다시 넣으면
+     "이미 신청이 접수되었습니다" 로 10분간 막힌다 — 그대로 놓치는 손님이 된다.
+     그래서 제한을 되돌려 바로 재시도할 수 있게 하고, 실패를 그대로 알린다. */
+  if (!saved) {
+    if (phone) {
+      await db.prepare('DELETE FROM rate_hits WHERE rowid = (SELECT MAX(rowid) FROM rate_hits WHERE k = ?)')
+        .bind(`apply:${page.id}:${phone}`).run().catch(() => {})
+    }
+    return j({ success: false, applicantSaved: false, error: '신청 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.' }, 503)
+  }
 
   // 매칭 자동응답(문자/알림톡/이메일) 실행 — 공용 헬퍼
   const fired = await fireAutoResponses(env, db, page, { name, phone: b.phone || '', email })
