@@ -187,9 +187,15 @@ console.log('\n⑤ 같은 주문을 두 번 승인해도 한 번만 지급한다
   tossOk = true; tossCalls = []
   const db = makeDB({ users: [A], orders: [ORDER] })
   await doConfirm(db, { paymentKey: 'pk_1', orderId: 'ord_1', amount: 6500 })
+  const afterFirst = tossCalls.length
   const second = await doConfirm(db, { paymentKey: 'pk_1', orderId: 'ord_1', amount: 6500 })
   ok(second.status === 409, '두 번째는 409 다', String(second.status))
   ok(db.__state.users[0].credits === 100, '크레딧은 100 그대로다(두 배가 되면 안 된다)', String(db.__state.users[0].credits))
+  /* 이미 결제된 주문이면 제공사를 다시 부를 이유가 없다. 부르면 승인 API 를 헛되이
+     때리고(호출 한도·로그 오염), 그쪽이 "이미 승인됨" 으로 거절하면 응답이 409 가 아니라
+     결제 실패(402)로 나가 회원이 "결제가 안 됐다" 고 오해한다. */
+  ok(tossCalls.length === afterFirst, '이미 결제된 주문은 제공사를 다시 부르지 않는다',
+     `${afterFirst} → ${tossCalls.length}`)
 }
 
 console.log('\n⑥ 동시에 두 번 들어와도 한 번만 지급한다')
