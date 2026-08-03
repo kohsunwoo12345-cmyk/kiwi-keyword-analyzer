@@ -24,12 +24,43 @@ function addSessionDismissed(id: string) {
   try { const s = sessionDismissed(); s.add(id); sessionStorage.setItem('bg_notice_dismissed', JSON.stringify([...s])) } catch { /* noop */ }
 }
 
+/* 저장소를 못 쓰는 브라우저가 실제로 있다 — 시크릿 모드, "사이트 데이터 차단",
+   third-party 저장이 막힌 iframe. 예전에는 그럴 때 빈 방문자 id 를 돌려줬는데,
+   그러면 이렇게 됐다(실측):
+    · 노출은 아예 기록되지 않고(서버가 빈 id 를 건너뛴다)
+    · 전환은 서로 다른 사람이 전부 한 줄로 뭉쳐 집계가 어긋나고
+    · "N일 보지 않기" 가 저장되지 않는다 — 서버는 ok 라고 답하는데 0건이 남는다.
+      강력 알림은 화면을 통째로 가로막으므로, 그 방문자는 페이지를 넘길 때마다
+      다시 막히고 끄는 방법이 없다.
+   그래서 localStorage → 쿠키 → 메모리 순으로 물러난다. 어느 단계든 id 는 안정적이다. */
+let memVisitor = ''
+
+function readCookie(name: string): string {
+  try {
+    const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'))
+    return m ? decodeURIComponent(m[1]) : ''
+  } catch { return '' }
+}
+
 function getVisitorId(): string {
   try {
-    let v = localStorage.getItem('bg_visitor') || ''
-    if (!v) { v = 'vz_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('bg_visitor', v) }
-    return v
-  } catch { return '' }
+    const v = localStorage.getItem('bg_visitor')
+    if (v) return v
+  } catch { /* 저장소 차단 — 아래로 물러난다 */ }
+
+  //  쿠키는 전체 새로고침을 넘어서도 남는다 — 메모리보다 먼저 본다
+  const fromCookie = readCookie('bg_visitor')
+  if (fromCookie) {
+    try { localStorage.setItem('bg_visitor', fromCookie) } catch { /* noop */ }
+    return fromCookie
+  }
+  if (memVisitor) return memVisitor
+
+  const fresh = 'vz_' + Math.random().toString(36).slice(2) + Date.now().toString(36)
+  memVisitor = fresh   //  둘 다 막혀 있어도 이 페이지 세션 안에서는 일관된다
+  try { localStorage.setItem('bg_visitor', fresh) } catch { /* noop */ }
+  try { document.cookie = `bg_visitor=${fresh}; max-age=31536000; path=/; SameSite=Lax` } catch { /* noop */ }
+  return fresh
 }
 
 // 홈페이지·공개페이지 방문자(비회원 포함) 팝업 알림 — "접속 전체" 발송.

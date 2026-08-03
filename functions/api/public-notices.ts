@@ -57,6 +57,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const visitor = String(b.visitor || '').slice(0, 64)
     const path = String(b.path || '/').slice(0, 200)
     if (!campaignId) return json({ ok: false, error: 'campaignId 필요' }, 400)
+    /* 방문자 id 가 없으면 아무것도 남기지 않는다.
+       노출(GET)은 이미 빈 id 를 건너뛰므로, 여기서만 받아 주면 집계가 어긋난다 —
+       서로 다른 사람의 전환이 (campaign_id, '', kind) 한 줄로 뭉쳐 1건으로 세지고,
+       노출 0 인데 전환이 있는 화면이 나온다. 스누즈도 저장 키가 방문자라 남지 않는데
+       ok 라고 답해서 "보지 않기가 안 먹는다" 는 걸 아무도 몰랐다.
+       (화면 쪽은 저장소가 막혀도 쿠키·메모리로 id 를 만들어 여기까지 온다) */
+    if (!visitor) return json({ ok: false, error: '방문자 식별 불가' }, 200)
     // "N일 보지 않기" 스누즈
     if (b.kind === 'snooze') {
       const days = Math.max(1, Math.min(30, Number(b.days) || 3))

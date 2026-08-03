@@ -588,6 +588,86 @@ console.log('\n⑰ 관리자 폼에서 강력 알림을 실제로 집행한다')
   await ctx.close()
 }
 
+console.log('\n⑱ 저장소가 막힌 브라우저(시크릿·사이트 데이터 차단)에서도 방문자를 식별한다')
+{
+  /* 실제로 이런 브라우저가 있다. 예전에는 그럴 때 방문자 id 가 빈 값이 돼서
+       · 노출이 기록되지 않고
+       · 서로 다른 사람의 전환이 한 줄로 뭉치고
+       · "N일 보지 않기" 가 저장되지 않아 강력 알림이 매 페이지마다 다시 화면을 가로막았다.
+     쿠키·메모리로 물러나 안정적인 id 를 만드는지 본다. */
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+  await ctx.addInitScript(() => {
+    const boom = () => { throw new DOMException('저장소 차단', 'SecurityError') }
+    for (const name of ['localStorage', 'sessionStorage']) {
+      Object.defineProperty(window, name, {
+        configurable: true,
+        get: () => ({ getItem: boom, setItem: boom, removeItem: boom, clear: boom }),
+      })
+    }
+  })
+  const page = await ctx.newPage()
+  const posts = []
+  await page.route('**/api/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }))
+  await page.route('**/__t/ad.webm', (r) => r.fulfill({ status: 200, contentType: 'video/webm', body: VIDEO }))
+  await page.route('**/__t/ad.png', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }))
+  const gets = []
+  await page.route('**/api/public-notices*', async (r) => {
+    if (r.request().method() === 'POST') {
+      posts.push(JSON.parse(r.request().postData() || '{}'))
+      return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, snoozedDays: 3 }) })
+    }
+    gets.push(new URL(r.request().url()).searchParams.get('visitor') || '')
+    return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, notices: [NOTICE] }) })
+  })
+
+  await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
+  await page.locator('[role="dialog"]').waitFor({ state: 'visible', timeout: 15000 })
+  ok(true, '저장소가 막혀도 강력 알림은 정상 표시된다')
+
+  const first = gets.find((v) => v)
+  ok(!!first, '노출 조회에 방문자 id 가 실려 나간다 (빈 값이면 노출이 기록되지 않는다)', JSON.stringify(gets[0]))
+
+  //  "N일 보지 않기" 를 누르면 그 id 로 스누즈가 나가야 한다
+  await page.getByRole('button', { name: /보지 않기/ }).first().click()
+  await page.waitForTimeout(600)
+  const sn = posts.find((p) => p.kind === 'snooze')
+  ok(!!sn, '보지 않기 요청이 나간다')
+  ok(!!sn && !!sn.visitor, '스누즈에 방문자 id 가 실려 있다 (빈 값이면 서버에 아무것도 안 남는다)', JSON.stringify(sn && sn.visitor))
+  ok(!!sn && sn.visitor === first, '조회 때와 같은 id 다 — 스누즈가 그 방문자에게 걸린다')
+
+  //  전체 새로고침을 해도 같은 사람으로 남아야 한다(쿠키로 물러난 경우)
+  gets.length = 0
+  await page.goto(BASE + '/pricing', { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(900)
+  const after = gets.find((v) => v)
+  ok(after === first, '새로고침·페이지 이동 후에도 같은 방문자 id 다', `${JSON.stringify(first)} → ${JSON.stringify(after)}`)
+
+  //  서로 다른 사람은 서로 다른 id 여야 한다(뭉쳐서 1건으로 세지면 안 된다)
+  const ctx2 = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+  await ctx2.addInitScript(() => {
+    const boom = () => { throw new DOMException('저장소 차단', 'SecurityError') }
+    for (const name of ['localStorage', 'sessionStorage']) {
+      Object.defineProperty(window, name, {
+        configurable: true,
+        get: () => ({ getItem: boom, setItem: boom, removeItem: boom, clear: boom }),
+      })
+    }
+  })
+  const page2 = await ctx2.newPage()
+  const gets2 = []
+  await page2.route('**/api/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }))
+  await page2.route('**/api/public-notices*', async (r) => {
+    gets2.push(new URL(r.request().url()).searchParams.get('visitor') || '')
+    return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, notices: [] }) })
+  })
+  await page2.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
+  await page2.waitForTimeout(900)
+  const other = gets2.find((v) => v)
+  ok(!!other && other !== first, '다른 방문자는 다른 id 를 받는다 (한 줄로 뭉치지 않는다)', `${JSON.stringify(first)} vs ${JSON.stringify(other)}`)
+  await ctx2.close()
+  await ctx.close()
+}
+
 await browser.close()
 server.close()
 console.log(failed === 0 ? '\n강력 알림 브라우저 검증 — 실패 0\n' : `\n실패 ${failed}건\n`)
