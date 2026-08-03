@@ -490,5 +490,40 @@ async function statsOf(db, id) {
   return n.getVisitorStats(db, id)
 }
 
+console.log('\n⑯ 방문자 id 가 없는 기록은 아예 받지 않는다 (집계가 스스로 어긋나지 않게)')
+{
+  /* 노출(GET)은 빈 id 를 건너뛴다. 그런데 POST 만 받아 주면
+       · 서로 다른 사람의 전환이 (campaign, '', kind) 한 줄로 뭉쳐 1건으로 세지고
+       · 노출 0 인데 전환이 있는 화면이 나오고
+       · 스누즈는 저장 키가 방문자라서 남지 않는데 ok 라고 답한다.
+     시크릿 모드처럼 저장소가 막힌 브라우저에서 실제로 그랬다. */
+  const db = makeDB(ADMIN)
+  const sent = await send(db, { ...AD, snoozeDays: 3 })
+  ok(sent.body.ok === true, '집행이 만들어졌다(뒤 단언들이 헛돌지 않게 먼저 확인)', JSON.stringify(sent.body))
+  const id = sent.body.campaignId
+
+  const conv = await act(db, { campaignId: id, visitor: '', kind: 'convert' })
+  ok(conv.body.ok === false && /방문자/.test(String(conv.body.error)), '방문자 id 없는 전환은 거절한다', JSON.stringify(conv.body))
+  const s1 = await statsOf(db, id)
+  ok(s1.conversions.total === 0, '거절했으니 전환으로 세지 않는다', String(s1.conversions.total))
+
+  const rd = await act(db, { campaignId: id, visitor: '', kind: 'read' })
+  ok(rd.body.ok === false && /방문자/.test(String(rd.body.error)), '방문자 id 없는 읽음도 거절한다', JSON.stringify(rd.body))
+
+  const sn = await act(db, { campaignId: id, visitor: '', kind: 'snooze', days: 3 })
+  ok(sn.body.ok === false && /방문자/.test(String(sn.body.error)), '저장도 못 하면서 스누즈를 성공이라고 답하지 않는다', JSON.stringify(sn.body))
+  ok(sn.body.snoozedDays === undefined, '보지 않기 일수를 알려 주지 않는다')
+  const s2 = await statsOf(db, id)
+  ok(s2.snoozes === 0, '스누즈로도 세지 않는다', String(s2.snoozes))
+
+  //  정상 방문자는 그대로 세어야 한다 — 막느라 기능을 죽이지 않았다
+  await visit(db, { visitor: 'vz_ok1' })
+  const good = await act(db, { campaignId: id, visitor: 'vz_ok1', kind: 'convert' })
+  ok(good.body.ok === true, '방문자 id 가 있으면 정상 기록된다', JSON.stringify(good.body))
+  const s3 = await statsOf(db, id)
+  ok(s3.conversions.total === 1, '정상 전환은 정확히 1건으로 센다', String(s3.conversions.total))
+  ok(s3.views.total >= 1, '노출도 세어져 전환이 노출을 넘지 않는다', `노출 ${s3.views.total} · 전환 ${s3.conversions.total}`)
+}
+
 console.log(failed === 0 ? '\n강력 알림 — 실패 0\n' : `\n실패 ${failed}건\n`)
 process.exit(failed ? 1 : 0)
