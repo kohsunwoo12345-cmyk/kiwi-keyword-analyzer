@@ -131,6 +131,28 @@ const run = async (taskKey) => { CALLS = []; const r = await cancel.cancelAtProv
   ok('⑤-h 끝나면 취소 표시를 걷는다', /delete _cancelWant\[id\]; delete _taskOf\[id\];/.test(studio))
 }
 
+/* ⑥ 앞 30% 는 아직 아무것도 안 보낸 구간이다
+   이 구간이 있어야 "취소하면 한 푼도 안 나간다" 를 지킬 수 있다. 제공사 취소 규격이
+   전부 "아직 시작 안 한 작업만" 이라, 보내고 나면 되돌린다는 말을 지킬 방법이 없다. */
+{
+  ok('⑥ 보내기 전 대기 구간이 있다', /function holdBeforeSend\(/.test(studio))
+  ok('⑥-b 대기가 끝나야 생성으로 넘어간다', /return holdBeforeSend\(id\);/.test(studio),
+     '이 줄이 빠지면 대기가 그림일 뿐이고 요청은 곧바로 나간다')
+  ok('⑥-c 대기 중 취소하면 아예 안 보낸다', /if\(_cancelWant\[id\]\) return rej\(new CancelledError\(\)\);/.test(studio))
+  //  3초가 끝나는 그 찰나에 누른 취소를 흘려보내면 이 구간을 둔 이유가 통째로 무너진다
+  ok('⑥-d 대기가 끝나는 순간에도 한 번 더 본다',
+     (studio.match(/if\(_cancelWant\[id\]\) return rej\(new CancelledError\(\)\);/g) || []).length >= 2)
+  ok('⑥-e 막대는 30% 에서 이어 붙는다', /var HOLD_MS=\d+, HOLD_PCT=30;/.test(studio))
+  ok('⑥-f 보낸 뒤에는 취소 버튼을 없앤다',
+     /var xb=box\.querySelector\('\.rl-x'\); if\(xb\) xb\.remove\(\);/.test(studio),
+     '누를 수는 있는데 제공사는 안 멈추는 버튼이 제일 나쁘다')
+  //  진행률은 원래 어림이라 매 초 "(예상)" 이라고 되뇔 말이 아니다
+  ok('⑥-g 퍼센트에 "(예상)" 을 붙이지 않는다', !/\+'% \(예상\)'/.test(studio))
+  //  이어받은 작업은 이미 나간 것이다 — 대기 구간을 다시 보여 주면 거짓말이 된다
+  ok('⑥-h 이어받은 생성은 대기 구간을 건너뛴다',
+     /_liveSt\[nid\]\.phase='run'/.test(studio))
+}
+
 console.log(fails.length === 0
   ? '\n제작 취소 — 실패 0 (제공사 중지 · 무조건 환불 · 남의 작업 차단 · 재제출 방지)'
   : `\n실패 ${fails.length}건:`)

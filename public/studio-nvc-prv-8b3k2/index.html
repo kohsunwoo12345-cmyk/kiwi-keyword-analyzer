@@ -7012,6 +7012,9 @@ function resumePendingJobs(){
        접수 번호(url)는 이미 알고 있으므로 누르는 즉시 제공사에 중지를 알릴 수 있다. */
     _runningNodes[nid]=1; _taskOf[nid]=url; delete _cancelWant[nid];
     startLive(nid); _taskOf[nid]=url;      // startLive 가 표시를 초기화하므로 번호는 그 뒤에 다시 넣는다
+    /* 이건 이미 제공사로 나간 작업이다 — 대기 구간(앞 30%)을 다시 보여 주면
+       "아직 안 보냈다" 는 뜻의 [취소] 가 붙는데, 그건 사실이 아니다. 바로 뒤 구간으로 넘긴다. */
+    if(_liveSt[nid]){ _liveSt[nid].phase='run'; _liveSt[nid].t0=Date.now(); }
     var _rstop=function(){ return !!_cancelWant[nid]; };
     var _rdone=function(){ delete _runningNodes[nid]; delete _taskOf[nid]; delete _cancelWant[nid]; stopLive(nid); };
     pollJob(url,{},function(st){
@@ -9396,20 +9399,25 @@ function clearExecOne(id){
     var p=edges.querySelector('path.link[data-idx="'+idx+'"]'); if(p)p.classList.remove('exec'); } });
 }
 /* ══════ 제작 진행률 · 취소 ══════
-   예전엔 [실행] 뒤 10초를 세고 그 사이에 취소할 수 있게 했다. 잘못 눌렀을 때 되돌리려던
-   것인데, 매번 10초를 기다려야 해서 정상 사용이 더 불편했다 — 없앴다. 이제 바로 시작하고,
-   대신 도는 동안 언제든 [취소] 를 누를 수 있다.
+   막대 하나로 0→100% 를 보여 주되, 앞의 30% 는 아직 아무것도 안 보낸 구간이다.
+   그 동안만 [취소] 가 있고, 30% 를 넘는 순간 제공사로 나가면서 버튼이 사라진다.
 
-   ⚠ 취소가 정확히 무엇을 되돌리는지는 구간마다 다르다. 뭉뚱그리면 거짓말이 된다.
-     ㉠ 아직 서버로 안 보냈다      → 제공사에 접수조차 안 됐다. 한 푼도 안 나간다.
-     ㉡ 보냈지만 접수 번호가 오기 전 → 우리도 아직 모르는 상태다. 번호가 오는 즉시 취소를 던진다.
-     ㉢ 접수 후, 제공사 대기열      → 제공사 취소 API 가 통한다. 대개 안 나간다.
-     ㉣ 이미 돌기 시작한 뒤        → 못 멈춘다. 제공사 원가는 나간다.
-   확인해 본 제공사들의 취소 규격이 하나같이 "아직 시작 안 한 작업만" 이라고 못 박는다
-   (fal·Luma·ModelArk). Kling·Hailuo·FLUX·Veo·Grok 은 취소 규격 자체가 없다.
-   그래서 회원에게 하는 약속은 하나로 좁힌다 — 언제 눌렀든 회원 크레딧은 전액 돌려준다.
-   ㉣ 에서 나간 제공사 원가는 우리가 떠안고, 화면에도 그렇게 적는다(서버 cancel.ts 참조). */
-var _live={};
+   왜 이렇게 하나 — "취소했는데 왜 돈이 나갔냐" 를 애초에 만들지 않기 위해서다.
+   확인해 본 제공사들의 취소 규격이 하나같이 "아직 시작 안 한 작업만 취소된다" 고
+   못 박는다(fal·Luma·ModelArk). Kling·Hailuo·FLUX·Veo·Grok 은 취소 규격 자체가 없다.
+   즉 한 번 보내고 나면 되돌린다는 말을 지킬 수 있는 방법이 없다.
+   그래서 되돌릴 수 있는 구간에서만 되돌릴 수 있게 하고, 그 뒤로는 버튼을 없앤다 —
+   누를 수 있는데 안 되는 것보다, 없는 편이 정직하다.
+
+   예전엔 이 대기가 10초짜리 별도 화면("제작 대기")이었다. 매번 10초를 기다려야 해서
+   정상 사용이 더 불편했고, 그래서 없앴다. 지금은 진행률 막대 안에 접혀 들어가 있고
+   3초다 — 잘못 누른 것을 알아채기엔 충분하고, 기다린다는 느낌이 들 만큼 길지는 않다.
+
+   그래도 30% 뒤의 취소 경로(제공사 중지 + 환불)는 서버에 그대로 둔다.
+   29.9% 에 누른 취소가 제출과 겹치는 순간이 있고, 그때 기댈 곳이 있어야 한다. */
+var _live={}, _liveSt={};
+/* 보내기 전에 붙잡는 시간. 이 값만 바꾸면 대기 길이가 바뀐다(막대의 30% 지점은 그대로). */
+var HOLD_MS=3000, HOLD_PCT=30;
 /* 취소 상태 — 노드 하나당 하나. 폴링 루프와 제출 응답 양쪽이 같은 값을 본다.
    _cancelWant : [취소] 를 눌렀다(아직 접수 번호가 없을 수도 있다)
    _taskOf     : 그 노드가 지금 붙들고 있는 작업 주소(접수 번호). 취소 요청에 이게 필요하다. */
@@ -9430,17 +9438,22 @@ function tellCancel(id, key){
     .then(function(j){ toast(j&&j.message ? String(j.message).slice(0,160) : '취소했습니다'); })
     .catch(function(){ toast('취소했지만 서버에 알리지 못했습니다 — 잠시 후 크레딧을 확인해 주세요'); });
 }
-/* 실제 제작이 도는 동안의 진행률.
-   제공사 API 는 "몇 % 됐다" 를 알려 주지 않는다. 그래서 지나간 시간을 그 모델의
-   보통 걸리는 시간으로 나눠 어림한다 — 어림값이라는 걸 화면에도 적는다.
-   끝나기 전에 100% 로 보이면 안 되므로 95% 에서 멈춰 두고, 끝나면 그때 지운다. */
+/* 진행률 막대 하나로 두 구간을 이어 그린다.
+     0 → 30%  보내기 전. 우리 브라우저 안에서만 시간이 간다. 여기서만 취소가 된다.
+    30 → 95%  실제 제작. 제공사 API 는 "몇 % 됐다" 를 알려 주지 않아서, 지나간 시간을
+              그 모델이 보통 걸리는 시간으로 나눠 어림한다.
+   뒤 구간이 어림값이라 예전엔 "(예상)" 이라고 붙여 두었는데, 진행률은 원래 다 어림이라
+   굳이 매 초 되뇔 말이 아니었다 — 숫자만 남긴다.
+   끝나기 전에 100% 로 보이면 안 되므로 95% 에서 멈춰 두고, 끝나면 그때 지운다.
+   phase 를 startLive 밖(_liveSt)에 두는 이유: 제출로 넘어가는 순간을 실행 흐름이
+   알려 줘야 하는데(beginSend), 그 함수는 이 타이머 밖에 있다. */
 function startLive(id){
   stopLive(id);
   delete _cancelWant[id]; delete _taskOf[id];
   var n=(state.nodes||[]).find(function(x){ return x.id===id; });
   var secs=(n&&effVideoSec(n))||8;
-  var expect=Math.max(20000, secs*9000);      // 8초 영상이면 대략 70초쯤
-  var t0=Date.now();
+  var st={ phase:'hold', t0:Date.now(), expect:Math.max(20000, secs*9000) };   // 8초 영상이면 대략 70초쯤
+  _liveSt[id]=st;
   _live[id]=setInterval(function(){
     /* 끝났으면 스스로 걷는다.
        처음엔 생성 promise 의 then/catch 에서만 지웠는데, 실제로 돌려 보니 어떤 경로로
@@ -9456,22 +9469,49 @@ function startLive(id){
       box.innerHTML='<div class="rl-top"><span>제작 중</span>'
         +'<span><span class="rl-pct">0%</span> '
         +'<button class="rl-x" data-cancelrun>취소</button></span></div>'
-        +'<div class="rl-bar"><i></i></div>';
+        +'<div class="rl-bar"><i></i></div>'
+        +'<div class="rl-note">지금 취소하면 요금이 발생하지 않습니다.</div>';
       body.appendChild(box);
     }
-    //  100% 가 되기 전까지만 취소할 수 있다 — 어차피 95% 에서 멈춰 두므로 도는 내내 눌린다.
-    var pct=Math.min(95, Math.round((Date.now()-t0)/expect*100));
+    var pct;
+    if(st.phase==='hold'){
+      pct=Math.min(HOLD_PCT, Math.round((Date.now()-st.t0)/HOLD_MS*HOLD_PCT));
+    }else{
+      pct=HOLD_PCT+Math.min(95-HOLD_PCT, Math.round((Date.now()-st.t0)/st.expect*(95-HOLD_PCT)));
+      /* 보낸 뒤에는 취소와 안내를 같이 걷는다. 여기서 남겨 두면 "누를 수는 있는데
+         제공사는 안 멈추는" 버튼이 된다 — 그게 제일 나쁜 상태다. */
+      var xb=box.querySelector('.rl-x'); if(xb) xb.remove();
+      var nt=box.querySelector('.rl-note'); if(nt) nt.remove();
+    }
     if(_cancelWant[id]){
       box.querySelector('.rl-top').firstChild.textContent='취소하는 중';
-      var xb=box.querySelector('.rl-x'); if(xb){ xb.disabled=true; xb.textContent='취소 중…'; }
+      var xb2=box.querySelector('.rl-x'); if(xb2){ xb2.disabled=true; xb2.textContent='취소 중…'; }
     }
-    box.querySelector('.rl-pct').textContent=pct+'% (예상)';
+    box.querySelector('.rl-pct').textContent=pct+'%';
     box.querySelector('.rl-bar i').style.width=pct+'%';
-  }, 300);
+  }, 100);   // 앞 구간이 3초뿐이라 300ms 로는 숫자가 뚝뚝 끊겨 보인다
+}
+/* 보내기 전 대기 — 여기를 지나야 제공사로 나간다.
+   기다리는 동안 취소가 눌리면 그대로 던진다(= 아무것도 안 보낸 채로 끝난다).
+   ⚠ 마지막에 한 번 더 본다. 3초가 끝나는 그 찰나에 누른 취소를 흘려보내면
+     "눌렀는데 그대로 나갔다" 가 되고, 그건 이 구간을 둔 이유를 통째로 무너뜨린다. */
+function holdBeforeSend(id){
+  return new Promise(function(res, rej){
+    var t0=Date.now();
+    (function tick(){
+      if(_cancelWant[id]) return rej(new CancelledError());
+      if(Date.now()-t0>=HOLD_MS){
+        if(_cancelWant[id]) return rej(new CancelledError());
+        var st=_liveSt[id]; if(st){ st.phase='run'; st.t0=Date.now(); }
+        return res();
+      }
+      setTimeout(tick, 60);
+    })();
+  });
 }
 function stopLive(id){
   //  끝났으면 취소 표시도 같이 걷는다 — 남겨 두면 다음 실행이 시작하자마자 취소된다.
-  delete _cancelWant[id]; delete _taskOf[id];
+  delete _cancelWant[id]; delete _taskOf[id]; delete _liveSt[id];
   if(_live[id]){ clearInterval(_live[id]); delete _live[id]; }
   var el=document.getElementById('nd-'+id); if(!el)return;
   var box=el.querySelector('.run-live'); if(box)box.remove();
@@ -9690,7 +9730,9 @@ function runQueue(onlyId){
                 });
               }
             }).then(function(){
-            startLive(id);              // 여기서부터 진짜로 제작이 돈다 → 진행률(예상)을 띄운다
+            startLive(id);              // 막대가 0% 부터 오른다 — 앞 30% 는 아직 안 보낸 구간
+            return holdBeforeSend(id);  // 여기를 지나야 제공사로 나간다(그 전엔 취소가 진짜 0원)
+            }).then(function(){
             return generateWithAPI({   // 영상은 ControlNet 미적용(이미지 노드 전용)
               model:chosenModel,
               camera: camSel,
