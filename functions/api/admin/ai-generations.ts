@@ -39,6 +39,23 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   const todayRate = await getUsdKrw(db)
 
+  /* 환불된 건인지는 여기 표(ai_usage)에 없다 — 환불은 gen_charges.status 에만 남는다.
+     그래서 "미리보기 없음" 카드가 실패 환불 건인지 아닌지 화면에서 구분되지 않았다.
+     이번 화면에 나온 줄들만 한 번에 물어본다(줄마다 묻지 않는다 — D1 왕복이 그만큼 늘어난다). */
+  const chargeBy: Record<string, { status: string; taskKey: string }> = {}
+  try {
+    const ids = rows.map((r: any) => String(r.id)).filter(Boolean)
+    if (ids.length) {
+      const marks = ids.map(() => '?').join(',')
+      const cr: any = await db
+        .prepare(`SELECT usage_id, status, task_key FROM gen_charges WHERE usage_id IN (${marks})`)
+        .bind(...ids)
+        .all()
+      for (const c of cr.results || [])
+        chargeBy[String((c as any).usage_id)] = { status: String((c as any).status || ''), taskKey: String((c as any).task_key || '') }
+    }
+  } catch { /* 표가 없던 시절 기록 — 없으면 없는 대로 보여 준다 */ }
+
   const items = rows.map((r: any) => {
     let refs: string[] = []
     try { refs = r.refs ? JSON.parse(r.refs) : [] } catch { refs = [] }
@@ -69,6 +86,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       refs,
       resultUrl: r.result_url || '',
       resultKind: r.result_kind || r.kind || '',
+      //  charged | refunded | '' (옛 기록) — 화면이 "환불됨" 을 표시하고, 조회 버튼을 붙일지 정한다
+      chargeStatus: chargeBy[String(r.id)]?.status || '',
+      hasTask: !!chargeBy[String(r.id)]?.taskKey,
     }
   })
 
