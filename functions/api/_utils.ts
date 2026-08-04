@@ -1025,7 +1025,6 @@ export async function purgeUserData(db: D1Database, uid: string, env?: any): Pro
   await del('DELETE FROM user_model_markups WHERE user_id = ?', uid)
   // 발송·수신 기록
   await del('DELETE FROM alimtalk_logs WHERE user_id = ?', uid)
-  await del('DELETE FROM crm_campaign_sends WHERE user_id = ?', uid)
   await delU('campaign_logs')
   await delU('campaign_events')
   await del('DELETE FROM notice_receipts WHERE user_id = ?', uid)

@@ -366,6 +366,10 @@ const MUTATIONS = [
     file: 'functions/api/naver-place/tracking/[id].ts',
     from: "UPDATE naver_place_tracking SET status = 'deleted' WHERE id = ? AND user_id = ?",
     to: "UPDATE naver_place_tracking SET status = 'deleted' WHERE id = ?" },
+  { g: '스키마', name: '푸시 "결제 회원" 대상을 없는 표로 되돌린다 (아무에게도 안 나간다)',
+    file: 'functions/api/_marketing.ts',
+    from: "SELECT DISTINCT user_id FROM payments WHERE status != 'refunded' AND created_at >= datetime('now','-90 days'))\",",
+    to: "SELECT DISTINCT user_id FROM orders WHERE created_at >= datetime('now','-90 days'))\"," },
 ]
 
 const filter = process.argv[2] || ''
