@@ -50,17 +50,37 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
 
+      # ── 이 우회로가 설정돼 있는가 ────────────────────────────────────────────
+      #  ⚠ 시크릿이 없다고 푸시마다 빨간 X 를 띄우면 안 된다.
+      #    이 워크플로는 우회로이고, 기본은 Cloudflare Workers Builds 다(맨 위 설명 참고).
+      #    그쪽을 쓰는 동안에는 여기 시크릿이 비어 있는 게 정상인데, 그때마다 실패로
+      #    찍히면 "배포가 깨졌다" 로 읽힌다 — 실제로 12번 내리 빨간 X 가 쌓여 있었고,
+      #    그러면 진짜 고장이 났을 때 아무도 안 쳐다본다.
+      #  단, 손으로 돌렸을 때(workflow_dispatch)는 "지금 배포해 달라" 는 뜻이므로
+      #    시크릿이 없으면 분명히 실패시킨다. 조용히 넘어가면 배포된 줄 알게 된다.
       - name: 준비물 확인
+        id: pre
         env:
           CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
         run: |
-          # 토큰이 없으면 wrangler 가 알아보기 힘든 에러를 뱉는다 → 먼저 명확히 실패시킨다
-          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error::CLOUDFLARE_API_TOKEN 시크릿이 없습니다."; exit 1; }
-          [ -n "$CRON_TOKEN" ] || { echo "::error::CRON_TOKEN 시크릿이 없습니다."; exit 1; }
+          MISSING=""
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || MISSING="$MISSING CLOUDFLARE_API_TOKEN"
+          [ -n "$CRON_TOKEN" ] || MISSING="$MISSING CRON_TOKEN"
+          if [ -n "$MISSING" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              echo "::error::시크릿이 없습니다:$MISSING — GitHub → Settings → Secrets and variables → Actions 에 넣어 주세요."
+              exit 1
+            fi
+            echo "::notice::이 우회로는 설정되지 않았습니다(없는 시크릿:$MISSING). Cloudflare Workers Builds 로 배포 중이라면 정상입니다. 이 워크플로로 배포하려면 위 시크릿을 넣으세요."
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
           npx --yes wrangler@4 whoami
 
       - name: 워커 배포
         id: deploy
+        if: steps.pre.outputs.ready == 'true'
         run: |
           set -eo pipefail   # tee 때문에 wrangler 실패가 성공으로 보이면 안 된다
           SITE="${{ vars.SITE_URL }}"
@@ -73,6 +93,7 @@ jobs:
           echo "배포된 주소: ${URL:-(출력에서 찾지 못함)}"
 
       - name: 워커에 CRON_TOKEN 심기
+        if: steps.pre.outputs.ready == 'true'
         env:
           CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
         run: |
@@ -80,12 +101,13 @@ jobs:
           printf '%s' "$CRON_TOKEN" | npx --yes wrangler@4 secret put CRON_TOKEN
 
       - name: 등록된 크론 확인
+        if: steps.pre.outputs.ready == 'true'
         run: |
           # wrangler deploy 가 이미 Cron Trigger 를 적용한다. 배포 출력에서 그 부분만 다시 보여준다.
           grep -iA4 -E 'schedule|cron' deploy.log || echo '(배포 출력에 크론 표기가 없습니다 — wrangler.toml 의 [triggers] 확인)'
 
       - name: 배포 검증 (/health)
-        if: steps.deploy.outputs.url != ''
+        if: steps.pre.outputs.ready == 'true' && steps.deploy.outputs.url != ''
         run: |
           URL="${{ steps.deploy.outputs.url }}"
           # 배포 직후 전파에 몇 초 걸릴 수 있어 재시도한다
@@ -99,6 +121,7 @@ jobs:
           echo "::notice::워커 정상 — $URL"
 
       - name: Pages 연결 확인 (토큰 일치 여부)
+        if: steps.pre.outputs.ready == 'true'
         env:
           CRON_TOKEN: ${{ secrets.CRON_TOKEN }}
         run: |
