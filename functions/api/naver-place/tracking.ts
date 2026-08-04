@@ -38,7 +38,9 @@ export const onRequestGet: PagesFunction = async (context) => {
 
     if (!db) {
       console.error('[Tracking List] No DB binding found')
-      return c.json({ success: true, keywords: [] })
+      /*  못 불러온 것을 "추적 키워드 없음" 으로 보여 주면 안 된다 —
+          화면이 그 빈 목록을 진짜 값으로 캐시해서 다음 방문에도 없는 것처럼 보인다. */
+      return c.json({ success: false, error: '추적 목록을 불러오지 못했습니다.', keywords: [] }, 503)
     }
 
     // 실제 세션 인증 — 로그인한 본인만 접근 가능
@@ -106,7 +108,7 @@ export const onRequestGet: PagesFunction = async (context) => {
     })
   } catch (error) {
     console.error('Error fetching tracking keywords:', error)
-    return c.json({ success: true, keywords: [] })
+    return c.json({ success: false, error: '추적 목록을 불러오지 못했습니다.', keywords: [] }, 500)
   }
 }
 
@@ -137,47 +139,14 @@ export const onRequestPost: PagesFunction = async (context) => {
     const me: any = await getSessionUser(context.request, db)
     if (!me) return c.json({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
 
-    // ✅ place_tracking_limit 한도 체크 (관리자 제외)
-    try {
-      const userId = me.id
-      const userRow = await db.prepare(`SELECT academy_id, role FROM users WHERE id = ?`).bind(userId).first() as any
-      const isAdmin = userRow?.role === 'admin' || userRow?.role === 'superadmin' || me.email === 'kohsunwoo12345@gmail.com'
+    /* 한도 검사는 여기 있었지만 한 번도 돈 적이 없다 — 이식된 학원 SaaS 의 스키마를 본다.
+       users.academy_id · subscriptions.academy_id · subscriptions.place_tracking_limit ·
+       subscriptions.subscription_end_date 는 이 제품 어디에도 없는 칸이다.
+       그래서 첫 질의가 곧바로 던지고 아래 catch 가 "등록 허용" 으로 넘겼다.
+       즉 한도는 지금까지 아무에게도 걸린 적이 없다(추적 하나당 실패 질의만 한 번씩 더 나갔다).
+       이 제품엔 플랜별 추적 한도라는 개념 자체가 없으므로, 있는 척하는 코드를 지운다.
+       한도를 두려면 그때 요금제 쪽에 칸을 만들고 여기서 읽으면 된다. */
 
-      if (!isAdmin && userRow) {
-        const academyId = userRow.academy_id || userId
-
-        // 현재 활성 추적 키워드 수 (학원 전체 기준 - academy 소속 모든 사용자 합산)
-        let currentCount = 0
-        try {
-          const countRow = await db.prepare(`
-            SELECT COUNT(*) as cnt FROM naver_place_tracking npt
-            JOIN users u ON u.id = npt.user_id
-            WHERE (u.academy_id = ? OR u.id = ?) AND npt.status = 'active'
-          `).bind(academyId, academyId).first() as any
-          currentCount = countRow?.cnt || 0
-        } catch (e) { /* 테이블 없으면 무시 */ }
-
-        // 구독에서 place_tracking_limit 조회
-        const sub = await db.prepare(`
-          SELECT place_tracking_limit FROM subscriptions
-          WHERE academy_id = ? AND status = 'active' AND subscription_end_date >= date('now')
-          ORDER BY created_at DESC LIMIT 1
-        `).bind(academyId).first() as any
-
-        const trackingLimit = sub?.place_tracking_limit || 0
-        if (trackingLimit > 0 && currentCount >= trackingLimit) {
-          return c.json({
-            success: false,
-            error: `⛔ 네이버 플레이스 순위 추적 키워드 한도에 도달했습니다.\n\n현재 추적 중: ${currentCount}개 / 한도: ${trackingLimit}개\n\n기존 키워드를 삭제하거나 상위 플랜으로 업그레이드해주세요.`
-          }, 403)
-        }
-        console.log(`[Tracking] 한도 체크 통과: ${currentCount}/${trackingLimit || '무제한'}`)
-      }
-    } catch (limitErr: any) {
-      // 한도 체크 실패해도 등록 허용 (graceful degradation)
-      console.warn('[Tracking] 한도 체크 실패 (등록 허용):', limitErr.message)
-    }
-    
     // 중복 확인
     let existing = null
     try {

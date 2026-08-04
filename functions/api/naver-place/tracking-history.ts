@@ -35,7 +35,8 @@ export const onRequestGet: PagesFunction = async (context) => {
 
     const db = resolveDB(c.env) || c.env.DB || c.env.marketing
     if (db) await ensurePlaceSchema(db as any)
-    if (!db) return c.json({ success: true, history: [], summary: {} })
+    /*  못 불러온 것을 "없음" 으로 보여 주면 안 된다 — 화면이 빈 목록을 진짜 값으로 캐시한다. */
+    if (!db) return c.json({ success: false, error: '순위 이력을 불러오지 못했습니다.', history: [], summary: {} }, 503)
 
     // 실제 세션 인증 — 본인 소유 추적만 조회
     const me: any = await getSessionUser(context.request, db)
@@ -92,10 +93,10 @@ export const onRequestGet: PagesFunction = async (context) => {
       return c.json({ success: true, history: dailyHistory, summary })
     } catch(e) {
       console.warn('[Tracking History] error:', e)
-      return c.json({ success: true, history: [], summary: {} })
+      return c.json({ success: false, error: '순위 이력을 불러오지 못했습니다.', history: [], summary: {} }, 500)
     }
   } catch (error) {
     console.error('Error fetching tracking history:', error)
-    return c.json({ success: true, history: [], summary: {} })
+    return c.json({ success: false, error: '순위 이력을 불러오지 못했습니다.', history: [], summary: {} }, 500)
   }
 }

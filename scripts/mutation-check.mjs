@@ -360,7 +360,7 @@ const MUTATIONS = [
     from: 'await db.prepare(`CREATE TABLE IF NOT EXISTS naver_place_ranks (', to: 'if (false) await db.prepare(`CREATE TABLE IF NOT EXISTS naver_place_ranks (' },
   { g: '스키마', name: '옛 표에 칸을 덧대는 마이그레이션을 뺀다 (운영 DB 에서 공유 설정이 죽는다)',
     file: 'functions/api/naver-place/_schema.ts',
-    from: "  for (const col of ['share_title TEXT', 'share_subtitle TEXT', 'share_thumbnail TEXT', 'location TEXT', 'last_check TEXT'])\n    await db.prepare(`ALTER TABLE naver_place_tracking ADD COLUMN ${col}`).run().catch(() => {})",
+    from: "  for (const col of ['share_title TEXT', 'share_subtitle TEXT', 'share_thumbnail TEXT', 'location TEXT', 'last_check TEXT', 'last_rank INTEGER'])\n    await db.prepare(`ALTER TABLE naver_place_tracking ADD COLUMN ${col}`).run().catch(() => {})",
     to: '' },
   { g: '스키마', name: '추적 삭제에서 주인 조건을 뺀다 (남의 추적을 지울 수 있다)',
     file: 'functions/api/naver-place/tracking/[id].ts',
@@ -370,6 +370,49 @@ const MUTATIONS = [
     file: 'functions/api/_marketing.ts',
     from: "SELECT DISTINCT user_id FROM payments WHERE status != 'refunded' AND created_at >= datetime('now','-90 days'))\",",
     to: "SELECT DISTINCT user_id FROM orders WHERE created_at >= datetime('now','-90 days'))\"," },
+  { g: '스키마', name: 'UPDATE 의 칸 이름에 오타를 낸다 (조용히 저장이 안 된다)',
+    file: 'functions/api/naver-place/tracking/[id]/share-settings.ts',
+    from: 'SET share_title = ?', to: 'SET share_titl = ?' },
+  { g: '스키마', name: 'WHERE 의 칸 이름에 오타를 낸다 (한도·소유권 검사가 조용히 헛돈다)',
+    file: 'functions/api/funnel/_own.ts',
+    from: 'SELECT 1 AS ok FROM funnels WHERE id = ? AND user_id = ?',
+    to: 'SELECT 1 AS ok FROM funnels WHERE id = ? AND owner_id = ?' },
+  { g: '스키마', name: '칸 대조에서 빼는 표를 다시 넓힌다 (검사가 조용히 헐거워진다)',
+    file: 'scripts/schema-consistency.test.mjs',
+    from: 'const dynamic = new Set([...maybeDynamic].filter((t) => !resolvedDyn.has(t)))',
+    to: 'const dynamic = new Set(maybeDynamic)' },
+  // ── 엔드포인트 인증 ─────────────────────────────────────────────────────
+  { g: '인증문', name: '관리자 매출 API 에서 관리자 검사를 뺀다 (아무나 매출을 본다)',
+    file: 'functions/api/admin/revenue.ts',
+    from: '  const guard = await requireAdminUser(request, db)\n  if (guard.error) return guard.error', to: '' },
+  { g: '인증문', name: '관리자 API 를 로그인만 보고 통과시킨다 (아무 회원이나 관리자 데이터를 본다)',
+    file: 'functions/api/admin/coupons.ts',
+    from: 'requireAdminUser', to: 'getSessionUser', all: true },
+  { g: '인증문', name: '문자 발송 API 의 인증을 통째로 뺀다 (아무나 남의 돈으로 문자를 보낸다)',
+    file: 'functions/api/sms/send.ts',
+    from: 'getSessionUser', to: 'nonAuthUser', all: true },
+  { g: '인증문', name: '신청자 삭제에서 주인 확인을 뺀다 (남의 신청자 명단을 지운다)',
+    file: 'functions/api/funnel/applicants/[id].ts',
+    from: 'ownsApplicants', to: 'skipOwnCheck', all: true },
+  { g: '인증문', name: '랜딩페이지 삭제에서 주인 확인을 뺀다 (남의 페이지를 지운다)',
+    file: 'functions/api/funnel/landing-pages/[id].ts',
+    from: 'ownsPage', to: 'skipOwnCheck', all: true },
+  // ── 정직한 실패 ─────────────────────────────────────────────────────────
+  { g: '정직', name: '신청자 목록 오류를 다시 "신청자 없음" 으로 답한다',
+    file: 'functions/api/landing/all-submissions.ts',
+    from: "return j({ success: false, error: '신청자 목록을 불러오지 못했습니다.', submissions: [] }, 500)",
+    to: 'return j({ success: true, submissions: [] })' },
+  { g: '정직', name: '퍼널 목록 오류를 다시 "퍼널 없음" 으로 답한다',
+    file: 'functions/api/funnels/index.ts',
+    from: "return j({ success: false, error: '퍼널 목록을 불러오지 못했습니다.', funnels: [] }, 500)",
+    to: 'return j({ success: true, funnels: [] })' },
+  { g: '정직', name: '추적 목록 오류를 다시 "추적 키워드 없음" 으로 답한다 (화면이 빈 목록을 캐시한다)',
+    file: 'functions/api/naver-place/tracking.ts',
+    from: "return c.json({ success: false, error: '추적 목록을 불러오지 못했습니다.', keywords: [] }, 500)",
+    to: 'return c.json({ success: true, keywords: [] })' },
+  { g: '정직', name: '랜딩 조회 기록을 다시 응답 뒤로 던져 놓는다 (조회수·유입 분석이 조용히 샌다)',
+    file: 'functions/landing/[slug].ts',
+    from: '  waitUntil(db.batch([', to: '  void (db.batch([' },
   // ── 크론 계약 ───────────────────────────────────────────────────────────
   { g: '크론', name: '순위 추적 응답의 hasMore 이름을 바꾼다 (하루 20건에서 멈춘다)',
     file: 'functions/api/naver-place/update-all-tracking.ts', from: 'hasMore', to: 'has_more' },
@@ -404,7 +447,8 @@ for (const m of list) {
     console.log(`  건너뜀 ⚠  ${m.name}   (대상 코드를 찾지 못함 — 돌연변이 정의가 낡았다)`)
     continue
   }
-  fs.writeFileSync(m.file, src.replace(m.from, m.to))
+  //  all: 이름을 바꾸는 돌연변이는 한 군데만 바꾸면 다른 곳이 남아 검사가 통과해 버린다
+  fs.writeFileSync(m.file, m.all ? src.split(m.from).join(m.to) : src.replace(m.from, m.to))
   let caught = false, by = ''
   try {
     execSync('npm test', { stdio: 'pipe', encoding: 'utf8', timeout: 900_000 })

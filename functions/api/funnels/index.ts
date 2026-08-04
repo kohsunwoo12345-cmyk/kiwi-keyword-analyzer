@@ -9,7 +9,8 @@ const j = (o: any, status = 200) =>
 export const onRequestGet: PagesFunction = async ({ request, env }) => {
   try {
     const db = resolveDB(env)
-    if (!db) return j({ success: true, funnels: [] })
+    /*  못 불러온 것을 "없음" 으로 보여 주면 안 된다 — 화면이 빈 목록을 진짜 값으로 캐시한다. */
+    if (!db) return j({ success: false, error: '퍼널 목록을 불러오지 못했습니다.', funnels: [] }, 503)
     await ensureFunnelSchema(db)
     const me: any = await getSessionUser(request, db)
     if (!me) return j({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
@@ -32,7 +33,7 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     } catch (e) { funnels = [] }
     return j({ success: true, funnels })
   } catch (err) {
-    return j({ success: true, funnels: [] })
+    return j({ success: false, error: '퍼널 목록을 불러오지 못했습니다.', funnels: [] }, 500)
   }
 }
 
