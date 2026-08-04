@@ -2266,6 +2266,184 @@ async function handle(context) {
        생성은 안 하더라도 남의 계정 키로 제공사를 두들기고 키 지문까지 보여 주는 통로가 된다.
        진단은 예외 없이 게이트 뒤다. */
     /* ── 알리바바 DashScope(Wan) 반응 확인 — 생성은 하지 않는다 ──
+       GET /api/generate?diag=alibaba            (관리자 전용)
+       GET /api/generate?diag=alibaba&models=1   (실존 모델 이름 확인까지 · 사람이 켤 때만)
+
+       왜 이런 모양인가:
+        · 알리바바는 아직 연동되어 있지 않다. 키만 콘솔에 들어와 있어서, 무엇이 되는지부터 알아야 한다.
+        · 생성을 걸면 돈이 나간다. 그래서 **생성 파이프라인을 건드리지 않는 요청**부터 쓴다.
+        · 리전(베이징·싱가포르)은 키·엔드포인트·모델 목록이 완전히 분리돼 있다. 교차 호출은 실패한다.
+          그래서 **"한쪽 200, 한쪽 401" 이 정상**이고, **양쪽 다 401 이라야 키가 죽은 것**이다.
+          한 호스트만 보고 "안 된다" 고 하면 틀린다.
+
+       판정 원칙: "요청이 성공했는가" 가 아니라 **"인증이 통과했는가"** 를 본다.
+         401 만 키 문제다. 400·403·404·429 는 전부 "키는 살아 있고 다른 이유로 거절" 이다. */
+    if (u.searchParams.get("diag") === "alibaba") {
+      if (!k.alibaba) return json({ diag: "alibaba", ok: false, error: "alibaba_API_KEY 가 설정되어 있지 않습니다." }, 400);
+      //  검사에서 가짜 서버로 돌리기 위한 통로(환경변수로만 바꿀 수 있다 — 회원 요청으로는 못 바꾼다)
+      const ov = pick(env, ["DASHSCOPE_HOST_OVERRIDE", "dashscope_host_override"]);
+      const HOSTS = ov ? [{ id: "override", base: String(ov) }] : [
+        { id: "intl(싱가포르)", base: "https://dashscope-intl.aliyuncs.com" },
+        { id: "cn(베이징)",     base: "https://dashscope.aliyuncs.com" },
+      ];
+      /* 오류 본문이 두 모양으로 온다 — 엔드포인트로 결정되지 않고 섞여 나온다.
+           평평형 { code, message }        봉투형 { error: { code, message } }
+         그리고 PascalCase 와 snake_case 는 같은 오류의 별칭이다(InvalidApiKey = invalid_api_key).
+         메시지는 뒤에 안내 URL·공백이 붙으므로 완전일치로 비교하면 안 된다. */
+      const normErr = (j) => {
+        const raw = (j && (j.code || (j.error && j.error.code) || (j.output && j.output.code))) || "";
+        const msg = (j && (j.message || (j.error && j.error.message) || (j.output && j.output.message))) || "";
+        return { raw: String(raw), key: String(raw).toLowerCase().replace(/[._-]/g, ""), msg: String(msg) };
+      };
+      const cut = (t) => String(t == null ? "" : t).slice(0, 600);
+      const one = async (label, url, init) => {
+        const t0 = Date.now();
+        try {
+          const r = await fetchT(url, init, 15000);
+          const text = await r.text().catch(() => "");
+          let parsed = null; try { parsed = JSON.parse(text); } catch { /* JSON 이 아닐 수 있다 */ }
+          const e = normErr(parsed);
+          return { 검사: label, url, status: r.status, ms: Date.now() - t0,
+                   code: e.raw || null, codeKey: e.key || null, message: e.msg || null, 본문: cut(text) };
+        } catch (err) {
+          return { 검사: label, url, status: 0, ms: Date.now() - t0, 오류: String((err && err.message) || err).slice(0, 200) };
+        }
+      };
+      //  조회에는 Authorization 하나만 붙인다. Content-Type·X-DashScope-Async 를 붙이면 안 된다.
+      const GET_H = { "Authorization": "Bearer " + k.alibaba };
+      //  제출에는 셋 다 필수 — X-DashScope-Async 가 빠지면 "동기 호출 미지원" 으로 100% 거절된다.
+      const POST_H = { "Authorization": "Bearer " + k.alibaba, "Content-Type": "application/json",
+                       "X-DashScope-Async": "enable" };
+
+      const results = [];
+      for (const h of HOSTS) {
+        /* ① 모델 목록 — 가장 안전하고 가장 정보가 많다. 토큰을 만들지 않는 조회이고,
+              200 이면 이 키가 어느 리전에서 어떤 모델에 닿는지가 응답에 그대로 나온다.
+              (모델 이름 표기 흔들림도 여기서 실측으로 정리된다) */
+        results.push(await one(h.id + " · 모델 목록(OpenAI 호환) [읽기]", h.base + "/compatible-mode/v1/models", { method: "GET", headers: GET_H }));
+        results.push(await one(h.id + " · 모델 목록(네이티브) [읽기]", h.base + "/api/v1/models", { method: "GET", headers: GET_H }));
+        /* ② 날조한 태스크 번호 조회 — 생성 파이프라인을 아예 건드리지 않는다.
+              200(UNKNOWN)·400·404 중 무엇이 오든 401 과는 구분되므로 키 판정에는 문제없다. */
+        results.push(await one(h.id + " · 없는 태스크 조회 [읽기]",
+          h.base + "/api/v1/tasks/00000000-0000-0000-0000-000000000000", { method: "GET", headers: GET_H }));
+        /* ③ 없는 모델로 제출 — 큐에 들어갈 수 없다. 경로가 맞는지(400)와 아닌지(404)를 가른다.
+              ②보다 위험한 이유: POST 이고 "검증이 큐 적재보다 먼저" 라는 전제에 기댄다. */
+        for (const p of [
+          { id: "영상 wan2.7/신규", path: "/api/v1/services/aigc/video-generation/video-synthesis" },
+          { id: "영상 첫끝프레임/립싱크", path: "/api/v1/services/aigc/image2video/video-synthesis" },
+          { id: "이미지 t2i(레거시)", path: "/api/v1/services/aigc/text2image/image-synthesis" },
+          { id: "이미지 편집 i2i", path: "/api/v1/services/aigc/image2image/image-synthesis" },
+          { id: "이미지 wan2.6+ 비동기", path: "/api/v1/services/aigc/image-generation/generation" },
+        ]) {
+          results.push(await one(
+            h.id + " · " + p.id + " · 없는 모델로 제출",
+            h.base + p.path,
+            { method: "POST", headers: POST_H,
+              body: JSON.stringify({ model: "__bygency_probe_nonexistent__", input: { prompt: "probe" }, parameters: {} }) },
+          ));
+        }
+      }
+
+      /* ④ 실존 모델 이름 확인 — 조사에서 "가장 위험" 으로 분류된 방법이라 기본은 꺼 둔다.
+            필수값(prompt)을 빼고 보내 "모델 없음" 과 "값 틀림" 을 가르는 방식인데,
+            검증이 큐보다 먼저 돈다는 보장을 문서로 못 받았다.
+            ①의 모델 목록이 200 으로 오면 이건 아예 필요 없다 — 목록에 다 나온다. */
+      const MODELS = [
+        // 영상 — 조사에서 확인한 실제 ID
+        "wan2.7-t2v", "wan2.6-t2v", "wan2.5-t2v-preview", "wan2.2-t2v-plus", "wanx2.1-t2v-turbo",
+        "wan2.7-i2v", "wan2.6-i2v", "wan2.5-i2v-preview", "wan2.2-i2v-plus",
+        // 이미지
+        "wan2.6-t2i", "wanx2.1-t2i-turbo", "wanx2.1-imageedit",
+      ];
+      const pathForModel = (id) => /t2i|imageedit|-image/.test(id)
+        ? (/wan2\.[67]/.test(id) ? "/api/v1/services/aigc/image-generation/generation"
+                                 : "/api/v1/services/aigc/text2image/image-synthesis")
+        : "/api/v1/services/aigc/video-generation/video-synthesis";
+      if (u.searchParams.get("models") === "1") {
+        const only = String(u.searchParams.get("only") || "");
+        const list = only ? only.split(",").map((x) => x.trim()).filter(Boolean) : MODELS;
+        for (const h of HOSTS) for (const id of list) {
+          results.push(await one(
+            h.id + " · 모델 있나: " + id + " (필수값 뺌)",
+            h.base + pathForModel(id),
+            { method: "POST", headers: POST_H, body: JSON.stringify({ model: id, input: {}, parameters: {} }) },
+          ));
+        }
+      }
+
+      /* 사람이 읽을 한 줄. 요약이 틀려도 위 원문이 남으니 판단 근거는 원문이다. */
+      const 해석 = results.map((r) => {
+        if (r.status === 0) return r.검사 + " → 닿지 않음(" + (r.오류 || "?") + ")";
+        const kk = r.codeKey || "";
+        if (r.status === 401 || kk === "invalidapikey" || kk === "invalidapikey")
+          return r.검사 + " → ✗ 이 리전에서 키 거부(401)";
+        if (r.status >= 200 && r.status < 300) {
+          if (/모델 있나|없는 모델/.test(r.검사))
+            return r.검사 + " → ⚠ 2xx · 접수됐을 수 있다. 콘솔 사용량 확인 후 태스크 취소 필요";
+          return r.검사 + " → ✓ 통과(200) · 키 유효";
+        }
+        if (r.status === 403 || /accessdenied|commoditynotpurchased/.test(kk))
+          return r.검사 + " → 키는 유효 · 권한/미개통(" + (r.code || 403) + ")";
+        if (/arrearage/.test(kk)) return r.검사 + " → 키는 유효 · 연체 상태";
+        if (r.status === 429 || /throttling|insufficientquota/.test(kk))
+          return r.검사 + " → 키는 유효 · 한도 초과(" + (r.code || 429) + ")";
+        if (/모델 있나/.test(r.검사)) {
+          if (/modelnotfound|modelnotsupported/.test(kk) || /model not exist/i.test(r.message || ""))
+            return r.검사 + " → ✗ 그런 모델이 없다";
+          return r.검사 + " → ✓ 모델은 있는 듯(값 오류로 거절: " + (r.code || r.status) + ")";
+        }
+        if (r.status === 404 && !/modelnotfound/.test(kk))
+          return r.검사 + " → 경로 없음(404) · 이 엔드포인트가 아니다";
+        return r.검사 + " → " + r.status + " " + (r.code || "") + " · 키는 통하고 값이 거절됨";
+      });
+
+      /* 종합 판정 — 리전 분리 때문에 호스트별로 따로 내야 한다.
+         "양쪽 다 401" 일 때만 키가 죽은 것이다. */
+      const 호스트별 = HOSTS.map((h) => {
+        const mine = results.filter((r) => r.검사.startsWith(h.id));
+        const 닿음 = mine.filter((r) => r.status > 0);
+        const 전부401 = 닿음.length > 0 && 닿음.every((r) => r.status === 401);
+        const 하나라도통과 = mine.some((r) => r.status >= 200 && r.status < 300);
+        return { 호스트: h.base,
+                 판정: !닿음.length ? "닿지 않음" : 전부401 ? "이 리전에서는 키가 안 통함"
+                       : 하나라도통과 ? "키 유효" : "키는 통함(값·권한 문제로 거절)" };
+      });
+      const 살아있나 = 호스트별.some((x) => x.판정 === "키 유효" || x.판정 === "키는 통함(값·권한 문제로 거절)");
+
+      return json({
+        diag: "alibaba",
+        주의: "생성 파이프라인을 건드리는 요청은 보내지 않는다. models=1 을 켠 경우만 POST 로 모델 이름을 확인한다.",
+        키지문: String(k.alibaba).slice(0, 6) + "…" + String(k.alibaba).slice(-4),
+        키길이: String(k.alibaba).length,
+        키살아있음: 살아있나,
+        호스트별,
+        해석,
+        결과: results,
+      });
+    }
+    // (보안) 키 값/환경변수 조회 엔드포인트는 제거됨 — API 키는 어떤 응답에도 절대 노출하지 않습니다.
+    if (u.searchParams.get("diag") === "keys") {
+      return json({ error: "이 엔드포인트는 보안상 제거되었습니다. API 키는 노출되지 않습니다." }, 410);
+    }
+    // ── 남용 방지: 진단(diag) 엔드포인트는 실제 유료 제공사 생성 태스크를 제출하므로 관리자 전용 ──
+    //  (익명 GET 으로 Seedance/Flux/Veo 등 유료 호출을 소진하는 denial-of-wallet 차단)
+    {
+      const diagVal = u.searchParams.get("diag");
+      if (diagVal && diagVal !== "keys") {
+        const ddb = resolveDB(env);
+        let dme = ddb ? await getSessionUser(request, ddb) : null;
+        if (!dme || dme.role !== "admin") {
+          const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+          const gtok = env.MCP_AUTH_TOKEN || env.mcp_auth_token || "";
+          if (gtok && bearer && ctEqStr(bearer, String(gtok))) dme = { role: "admin" };
+        }
+        if (!dme || dme.role !== "admin") return json({ error: "진단 엔드포인트는 관리자 전용입니다.", needAdmin: true }, 403);
+      }
+    }
+    /* ⚠ 이 아래에 둔다. 처음엔 게이트 "위" 에 뒀다가 검사에서 비로그인도 200 을 받는 것을 봤다 —
+       생성은 안 하더라도 남의 계정 키로 제공사를 두들기고 키 지문까지 보여 주는 통로가 된다.
+       진단은 예외 없이 게이트 뒤다. */
+    /* ── 알리바바 DashScope(Wan) 반응 확인 — 생성은 하지 않는다 ──
        GET /api/generate?diag=alibaba   (관리자 전용 · 아래 진단 게이트가 막아 준다)
 
        왜 이런 모양인가:
