@@ -370,6 +370,13 @@ const MUTATIONS = [
     file: 'functions/api/_marketing.ts',
     from: "SELECT DISTINCT user_id FROM payments WHERE status != 'refunded' AND created_at >= datetime('now','-90 days'))\",",
     to: "SELECT DISTINCT user_id FROM orders WHERE created_at >= datetime('now','-90 days'))\"," },
+  { g: '스키마', name: 'UPDATE 의 칸 이름에 오타를 낸다 (조용히 저장이 안 된다)',
+    file: 'functions/api/naver-place/tracking/[id]/share-settings.ts',
+    from: 'SET share_title = ?', to: 'SET share_titl = ?' },
+  { g: '스키마', name: '칸 대조에서 빼는 표를 다시 넓힌다 (검사가 조용히 헐거워진다)',
+    file: 'scripts/schema-consistency.test.mjs',
+    from: 'const dynamic = new Set([...maybeDynamic].filter((t) => !resolvedDyn.has(t)))',
+    to: 'const dynamic = new Set(maybeDynamic)' },
   // ── 크론 계약 ───────────────────────────────────────────────────────────
   { g: '크론', name: '순위 추적 응답의 hasMore 이름을 바꾼다 (하루 20건에서 멈춘다)',
     file: 'functions/api/naver-place/update-all-tracking.ts', from: 'hasMore', to: 'has_more' },

@@ -25,6 +25,7 @@ async function build(db: D1Database): Promise<void> {
     share_subtitle TEXT,
     share_thumbnail TEXT,
     last_check TEXT,
+    last_rank INTEGER,
     created_at TEXT DEFAULT (datetime('now'))
   )`).run().catch(() => {})
   await db.prepare(`CREATE TABLE IF NOT EXISTS naver_place_ranks (
@@ -44,7 +45,11 @@ async function build(db: D1Database): Promise<void> {
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_npr_place_kw ON naver_place_ranks(place_id, keyword, created_at)`).run().catch(() => {})
   await db.prepare(`CREATE INDEX IF NOT EXISTS idx_npt_user ON naver_place_tracking(user_id, status)`).run().catch(() => {})
   //  이식 당시의 표가 이미 있으면 위 CREATE 는 지나간다 — 그때 빠져 있을 수 있는 칸만 덧댄다
-  for (const col of ['share_title TEXT', 'share_subtitle TEXT', 'share_thumbnail TEXT', 'location TEXT', 'last_check TEXT'])
+  /* last_rank: 크론이 매 확인마다 적는 칸인데 어디서도 만들지 않았다.
+     없으면 UPDATE 가 던지고 아래 단계에서 시각만 다시 적는다 —
+     추적 한 줄마다 매 회차 실패 질의가 한 번씩 더 나갔다(서브리퀘스트 한도를 갉아먹는다).
+     목록은 이 칸이 아니라 순위 이력에서 최신값을 뽑아 쓰므로 화면은 멀쩡해 보였다. */
+  for (const col of ['share_title TEXT', 'share_subtitle TEXT', 'share_thumbnail TEXT', 'location TEXT', 'last_check TEXT', 'last_rank INTEGER'])
     await db.prepare(`ALTER TABLE naver_place_tracking ADD COLUMN ${col}`).run().catch(() => {})
   for (const col of ['location TEXT', 'place_name TEXT', 'total_count INTEGER'])
     await db.prepare(`ALTER TABLE naver_place_ranks ADD COLUMN ${col}`).run().catch(() => {})
