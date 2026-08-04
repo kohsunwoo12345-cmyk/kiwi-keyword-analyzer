@@ -764,8 +764,14 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
 
 /** ai_usage 테이블 보장 + 정산 컬럼 마이그레이션 */
 /* 위와 같은 이유로 한 번만 한다 — 요청마다 반복하면 서브리퀘스트 한도를 갉아먹는다. */
+/* ⚠ 아래 cols 에 칸을 새로 추가하면 이 열쇠의 번호를 반드시 올려야 한다.
+     ensureOnce 는 "표시가 있고 그 표가 있으면" 통째로 건너뛴다 — 표는 이미 있으므로
+     번호를 그대로 두면 새 칸은 이미 도는 DB(=운영)에 영영 안 생긴다.
+     실제로 archive_tries 가 그랬다: 보관 그물의 질의가 없는 칸을 읽어 조용히 터지고,
+     catch 에 걸려 "옮길 것 0건" 으로 답했다. 크론은 멀쩡히 도는데 아무것도 안 옮긴다.
+     v1 → v2: archive_tries 추가. */
 export async function ensureAiUsage(db: D1Database): Promise<void> {
-  return ensureOnce(db, 'schema_aiusage_v1', () => __ensureAiUsage(db), ['ai_usage'])
+  return ensureOnce(db, 'schema_aiusage_v2', () => __ensureAiUsage(db), ['ai_usage'])
 }
 async function __ensureAiUsage(db: D1Database): Promise<void> {
   await db
