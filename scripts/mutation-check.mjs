@@ -431,6 +431,12 @@ const MUTATIONS = [
     file: 'functions/api/cron/media-archive.ts',
     from: "      WHERE result_url LIKE 'http%' AND COALESCE(archive_tries,0) < ?`).bind(MAX_TRIES).first()",
     to: "      WHERE result_url LIKE 'http%'`).first()" },
+  { g: '주소날짜', name: '실패 기록의 중복 방지를 SELECT 하나에만 맡긴다 (폴링이 겹치면 같은 줄이 쌓인다)',
+    file: 'functions/api/studio/_genfail.ts',
+    from: "  await db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_genfail_task_stage\n    ON gen_failures(task_key, stage) WHERE task_key <> ''`).run().catch(() => {})", to: '' },
+  { g: '주소날짜', name: '뒤늦은 환불액을 단계 구분 없이 적는다 (관리자 합계가 두 배로 보인다)',
+    file: 'functions/api/studio/_genfail.ts',
+    from: "WHERE task_key = ? AND stage = 'run' AND refunded = 0", to: 'WHERE task_key = ? AND refunded = 0' },
   // ── 크론 계약 ───────────────────────────────────────────────────────────
   { g: '크론', name: '순위 추적 응답의 hasMore 이름을 바꾼다 (하루 20건에서 멈춘다)',
     file: 'functions/api/naver-place/update-all-tracking.ts', from: 'hasMore', to: 'has_more' },
