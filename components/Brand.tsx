@@ -47,12 +47,17 @@ export function LogoMark({ size = 36, className }: { size?: number; className?: 
   )
 }
 
-/** 앱 아이콘(라운드 흰 타일 + 마크) — 첨부된 로고 이미지 사용. public/brand/app-icon.png 교체 시 자동 반영 */
+/* 앱 아이콘(라운드 흰 타일 + 마크).
+   ⚠ 512×512 PNG(28KB) 원본을 그대로 쓰고 있었다. 화면에는 36~44px 로 그리는데
+     28KB 를 받는 셈이고, 게다가 헤더에 있어 첫 화면에서 가장 먼저 받는 파일이었다.
+     같은 그림을 144px webp 로 줄이니 2.5KB — 11배 작다(레티나 44px×2 를 덮는다).
+     원본 PNG(app-icon.png)는 남겨 둔다. 나중에 큰 크기가 필요할 때의 원본이다.
+   교체할 때는 원본을 바꾸고 scripts/ 의 변환을 다시 돌리면 된다. */
 export function AppIcon({ size = 36, className }: { size?: number; className?: string }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src="/brand/app-icon.png"
+      src="/brand/app-icon-144.webp"
       alt="BYGENCY"
       width={size}
       height={size}

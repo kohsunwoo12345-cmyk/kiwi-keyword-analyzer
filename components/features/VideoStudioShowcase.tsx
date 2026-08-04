@@ -1,4 +1,5 @@
 'use client'
+import '@/app/styles/features-showcase.css'
 
 import { useEffect, useRef, useState } from 'react'
 import {
