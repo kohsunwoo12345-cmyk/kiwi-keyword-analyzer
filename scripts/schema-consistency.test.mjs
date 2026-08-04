@@ -13,6 +13,12 @@
  *  1) 코드가 쓰는 표 이름이 어딘가에서 CREATE 되는가
  *  2) INSERT 에 적은 칸이 그 표의 스키마에 있는가
  *     (CREATE 본문 + ALTER ADD COLUMN + 컬럼 보강 헬퍼를 모두 모아 본다)
+ *  3) UPDATE ... SET 이 고치는 칸이 있는가
+ *  4) SELECT · WHERE 가 읽는 칸이 있는가 (단일 표 질의만 — 확실한 것만 본다)
+ *
+ * 2~4 는 조용한 정도가 다르다. INSERT 는 실패가 그 요청에 드러나지만,
+ * UPDATE 와 SELECT 는 대개 "실패해도 진행" 하는 catch 밑에 있어서
+ * 기능이 도는 것처럼 보이면서 실제로는 한 번도 돈 적이 없다.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -193,7 +199,88 @@ console.log('\n③ UPDATE 가 고치는 칸은 모두 그 표에 있다')
   ok(bad.length === 0, '없는 칸을 고치는 UPDATE 가 없다', [...new Set(bad)].join('\n         '))
 }
 
-console.log('\n④ 스키마 수집이 실제로 동작한다 (검사가 헛돌지 않게)')
+/* ── 5) 읽는 칸 대조 (SELECT · WHERE) ──────────────────────────────────── */
+/* 가장 조용한 자리다. 없는 칸을 읽으면 그 질의가 던지는데, 그 위에 대개
+   "실패해도 진행" 하는 catch 가 있다. 그러면 기능이 도는 것처럼 보이면서
+   실제로는 한 번도 돈 적이 없다. 실제로 플레이스 추적 한도 검사가 그랬다 —
+   이식된 학원 SaaS 의 칸을 읽고 있어서 한도가 아무에게도 걸리지 않았다.
+
+   대조가 확실한 것만 본다: 문자열 리터럴 하나가 통째로 SQL 이고, 표가 하나뿐이고,
+   서브쿼리도 ${} 도 없는 경우. 나머지는 별칭·조인 때문에 오탐이 나므로 건너뛴다. */
+console.log('\n④ SELECT · WHERE 가 읽는 칸도 모두 그 표에 있다')
+{
+  /* 표를 안 쓰는 이름(SQL 함수·키워드·리터럴)은 칸이 아니다. */
+  const KW = new Set(('and or not in is null like between exists select from where order by group limit offset desc asc ' +
+    'case when then else end union all having on collate nocase escape glob rowid oid ' +
+    'datetime date time now localtime utc start of day month year strftime julianday unixepoch ' +
+    'count sum max min avg total group_concat coalesce ifnull nullif iif cast as distinct ' +
+    'substr length lower upper trim instr replace abs round random printf hex typeof ' +
+    'json_extract json_each json_object json_array json_group_array integer text real blob numeric true false')
+    .split(' '))
+
+  /** 소스에서 문자열 리터럴만 꺼낸다 — SQL 의 끝을 리터럴 경계로 정확히 잡는다. */
+  const literals = (src) => {
+    const out = []
+    for (let i = 0; i < src.length; i++) {
+      const q = src[i]
+      if (q !== '`' && q !== "'" && q !== '"') continue
+      let j = i + 1, bad = false
+      for (; j < src.length; j++) {
+        if (src[j] === '\\') { j++; continue }
+        if (src[j] === q) break
+        if (q !== '`' && src[j] === '\n') { bad = true; break }
+      }
+      if (bad || j >= src.length) continue
+      out.push(src.slice(i + 1, j)); i = j
+    }
+    return out
+  }
+
+  /* 학생 기능은 표 자체가 없고 화면에서 부르는 곳도 없다(이식 잔재).
+     지울지 살릴지는 제품 결정이라 남겨 두되, 여기 적어 눈에 보이게 둔다. */
+  const KNOWN_DEAD = new Set(['functions/api/students/export-with-landing.ts'])
+
+  const bad = []
+  let checked = 0, skipped = 0
+  for (const [p, raw] of sources) {
+    const rel = path.relative(ROOT, p)
+    for (const lit of literals(raw)) {
+      const sql = lit.replace(/--[^\n]*/g, ' ')
+      if (!/\bSELECT\b/i.test(sql) && !/\bWHERE\b/i.test(sql)) continue
+      if (/\$\{/.test(sql)) { skipped++; continue }                       // 조립되는 SQL
+      const froms = [...sql.matchAll(/\b(?:FROM|JOIN|UPDATE|INTO)\s+[`"[]?(\w+)[`"\]]?/gi)].map((x) => x[1].toLowerCase())
+      if (froms.length !== 1) { skipped++; continue }                     // 조인·다중 표
+      if (/\(\s*SELECT\b/i.test(sql)) { skipped++; continue }             // 서브쿼리
+      const t = froms[0]
+      if (!schema.has(t) || schema.get(t).size === 0 || dynamic.has(t)) { skipped++; continue }
+
+      const parts = []
+      const wi = sql.search(/\bWHERE\b/i)
+      if (wi >= 0) parts.push(['WHERE', sql.slice(wi + 5)
+        .replace(/\border\s+by[\s\S]*$/i, ' ').replace(/\bgroup\s+by[\s\S]*$/i, ' ').replace(/\blimit\b[\s\S]*$/i, ' ')])
+      const sm = /^\s*SELECT\s+(?:DISTINCT\s+)?([\s\S]*?)\s+FROM\b/i.exec(sql)
+      if (sm && !/\*/.test(sm[1]))
+        //  expr AS alias 의 alias 는 칸이 아니다
+        parts.push(['SELECT', splitTop(sm[1]).map((x) => x.replace(/\s+AS\s+[A-Za-z_]\w*\s*$/i, ' ')).join(',')])
+      if (!parts.length) { skipped++; continue }
+
+      checked++
+      for (const [kind, clause] of parts)
+        for (const id of clause.replace(/'[^']*'/g, ' ? ').replace(/\b\d+\b/g, ' ')
+          .matchAll(/([A-Za-z_]\w*)\s*\.\s*([A-Za-z_]\w*)|([A-Za-z_]\w*)/g)) {
+          const c = (id[2] || id[3] || '').toLowerCase()
+          if (!c || KW.has(c) || schema.get(t).has(c)) continue
+          if (KNOWN_DEAD.has(rel)) continue
+          bad.push(`[${kind}] ${t}.${c}  ←  ${rel}\n           ${sql.replace(/\s+/g, ' ').trim().slice(0, 120)}`)
+        }
+    }
+  }
+  ok(checked > 500, `단일 표 SQL 을 충분히 모았다 (${checked}곳 · 건너뜀 ${skipped})`, String(checked))
+  ok(bad.length === 0, '없는 칸을 읽는 SQL 이 없다', [...new Set(bad)].join('\n         '))
+  ok(KNOWN_DEAD.size <= 1, `예외로 둔 파일이 늘지 않았다 (${KNOWN_DEAD.size}개)`, [...KNOWN_DEAD].join(', '))
+}
+
+console.log('\n⑤ 스키마 수집이 실제로 동작한다 (검사가 헛돌지 않게)')
 {
   //  아무것도 못 모았는데 "문제 없음" 이라고 답하면 최악이다 — 표본으로 확인한다
   ok(schema.size > 100, `표를 충분히 모았다 (${schema.size}개)`, String(schema.size))

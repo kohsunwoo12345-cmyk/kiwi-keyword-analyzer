@@ -31,7 +31,7 @@ export const onRequestGet: PagesFunction<any> = async ({ request, env }) => {
     } catch (_) {}
 
     // 본인 user_id 기준 채널 조회
-    let rows = await db
+    const rows = await db
       .prepare(
         `SELECT channel_id, channel_name, search_id, phone_number, category_code, created_at
          FROM kakao_channels WHERE user_id = ? ORDER BY created_at DESC`,
@@ -39,26 +39,10 @@ export const onRequestGet: PagesFunction<any> = async ({ request, env }) => {
       .bind(userId)
       .all()
 
-    // 같은 학원(academy_id) admin 채널도 조회 (본인 채널 없을 때)
-    if (!(rows.results || []).length) {
-      try {
-        const meRow: any = await db.prepare('SELECT academy_id, parent_user_id FROM users WHERE id = ?').bind(userId).first()
-        const academyId = meRow?.academy_id || meRow?.parent_user_id
-        if (academyId) {
-          const adminRows = await db
-            .prepare(
-              `SELECT kc.channel_id, kc.channel_name, kc.search_id, kc.phone_number, kc.category_code, kc.created_at
-               FROM kakao_channels kc
-               INNER JOIN users u ON u.id = CAST(kc.user_id AS INTEGER)
-               WHERE (u.academy_id = ? OR u.id = ?) AND u.id != ?
-               ORDER BY kc.created_at DESC`,
-            )
-            .bind(academyId, academyId, userId)
-            .all()
-          if ((adminRows.results || []).length) rows = adminRows
-        }
-      } catch (_) {}
-    }
+    /* 여기 있던 "같은 학원의 admin 채널도 보여 준다" 대체 경로를 지웠다.
+       users.academy_id · users.parent_user_id 는 이 제품에 없는 칸이라 첫 질의가 곧바로 던지고
+       catch 가 삼켰다 — 채널이 없는 회원마다 실패 질의만 한 번씩 더 나갔을 뿐,
+       한 번도 채널을 더 보여 준 적이 없다. 이 제품엔 학원 소속이라는 개념이 없다. */
 
     let channels = (rows.results || []).map((r: any) => ({
       channelId: r.channel_id || '',
