@@ -1,4 +1,5 @@
 import { ensureOnce } from '../_utils'
+import { ALIBABA_MODELS } from './_alibaba'
 // 스튜디오 AI 생성 과금 규칙 (서버 권위 계산) — precheck·record 공용
 //  · 실제 AI 비용(원) = 제공사 공개 단가(USD) × 환율
 //  · 판매가 = 실제 비용 × 마크업.  마크업: 씨댄스 2.0 계열·이미지 모델 = 2.5배, 그 외 = 3배
@@ -432,6 +433,15 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
      'tok' 은 1건 과금이라 마크업이 2.5다: 0.30 × 1400 × 2.5 ÷ 50 = 21크레딧 / 대여 */
   '모델 대여 (초해상 ×4)': { u: 'tok', usd: 0.30, prov: 'lease' },
 }
+
+/* ── 알리바바 Wan·Qwen 이미지/영상 ──
+   56줄을 손으로 여기 옮겨 적으면 _alibaba.ts 와 어긋나는 날이 반드시 온다
+   (루마·클링이 그렇게 어긋나 있었다). 표는 한 군데만 두고 여기서는 얹기만 한다.
+   ⚠ 단가는 잠정이다 — 근거와 이유는 _alibaba.ts 머리말에 적어 뒀다.
+     관리자 → 모델 단가(model_cost_overrides)가 언제나 이 값을 이긴다. */
+for (const r of ALIBABA_MODELS) {
+  MODEL_COST[r.name] = { u: r.unit as CostUnit, usd: r.usd, prov: 'alibaba' }
+}
 //  과금 이름을 한 곳에서만 쓰도록 묶는다 — 문자열을 여기저기 적으면 표와 어긋난다
 export const UPSCALE_IMG = '화질 올리기 (이미지 초해상 ×4)'
 export const UPSCALE_VID = '화질 올리기 (영상 초해상 ×4)'
@@ -442,7 +452,7 @@ export const PROV_LABEL: Record<string, string> = {
   google: 'Google Veo', runway: 'Runway', runway_aleph: 'Runway Aleph', v2v_auto: 'V2V 자동', motion: '모션 전이', seedance: 'Seedance', seedream: 'Seedream',
   ark3d: '3D 생성 (ModelArk)', promptgen: '프롬프트 작성 LLM',
   hailuo: 'MiniMax Hailuo', luma: 'Luma', xai: 'Grok', flux: 'Flux', falcontrol: 'fal ControlNet',
-  nanobanana: 'Nano Banana', openai: 'GPT Image', kling: 'Kling', narrate: '나레이션', lipsync: '립싱크', music: '음악 생성', upscale: '업스케일',
+  nanobanana: 'Nano Banana', openai: 'GPT Image', kling: 'Kling', narrate: '나레이션', lipsync: '립싱크', music: '음악 생성', upscale: '업스케일', alibaba: '알리바바 Wan(Model Studio)',
 }
 
 export interface ChargeInput {

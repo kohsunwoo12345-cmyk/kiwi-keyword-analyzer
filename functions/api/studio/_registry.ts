@@ -9,6 +9,7 @@
      확인 없이 넣으면 회원이 고를 수는 있는데 누르면 404 가 나는 모델이 생긴다.
    ══════════════════════════════════════════════════════════════════════════ */
 import { ensureOnce } from '../_utils'
+import { ALIBABA_MODELS } from './_alibaba'
 
 export type ModelRow = {
   name: string          // 스튜디오 표시명 (모델 표의 열쇠)
@@ -41,8 +42,34 @@ async function create(db: D1Database) {
        created_at TEXT
      )`).run()
 }
-export function ensureRegistry(db: D1Database) {
-  return ensureOnce(db, 'schema_modelreg_v1', () => create(db), ['model_registry'])
+export async function ensureRegistry(db: D1Database) {
+  await ensureOnce(db, 'schema_modelreg_v1', () => create(db), ['model_registry'])
+  await seedAlibaba(db)
+}
+
+/* ── 알리바바 모델을 등록부에 한 번 심는다 ──────────────────────────────
+   56개를 관리자가 손으로 등록하게 두면 반드시 몇 개가 빠진다. 코드에 표가 이미
+   있으니(_alibaba.ts) 그대로 심는다. 심고 나면 다른 모델과 똑같이 다뤄진다 —
+   관리자 화면에서 켜고 끄고, 단가를 덮고, 노드 피커에 뜬다.
+
+   ⚠ INSERT OR IGNORE 다. 두 번 심지 않는다는 뜻이 아니라 **관리자가 손댄 것을
+     덮지 않는다** 는 뜻이다. 껐거나 단가를 고쳐 둔 줄을 배포할 때마다 되돌리면
+     관리자 화면이 아무 소용이 없어진다.
+   ⚠ 실패해도 아무것도 막지 않는다. 등록부는 "있으면 더 보이는" 것이지
+     없다고 스튜디오가 안 뜨면 안 된다. */
+export async function seedAlibaba(db: D1Database) {
+  return ensureOnce(db, 'seed_alibaba_v1', async () => {
+    for (const r of ALIBABA_MODELS) {
+      await db.prepare(
+        `INSERT OR IGNORE INTO model_registry
+           (name, cat, provider, model_id, kind, unit, usd, opts, enabled, verified_at, note, created_at)
+         VALUES (?,?,?,?,?,?,?,?,1,?,?,?)`)
+        .bind(r.name, r.cat, 'alibaba', r.id, r.kind, r.unit, r.usd,
+              JSON.stringify(r.opts || {}), new Date().toISOString(),
+              '알리바바 목록 API 로 확인된 모델' + (r.pinned ? ' · 날짜 고정판' : '') + ' · 단가 잠정',
+              new Date().toISOString()).run()
+    }
+  }, ['model_registry'])
 }
 
 const parseOpts = (s: any) => { try { return JSON.parse(String(s || '{}')) } catch { return {} } }

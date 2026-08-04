@@ -330,6 +330,13 @@ export default function AdminAiModelsPage() {
                           <td className="whitespace-nowrap px-4 py-2.5 text-right text-[var(--text-soft)]">
                             ${m.usd}{UNIT_LABEL[m.unit] || '/장'}
                             {m.audioUsd > 0 && <span className="text-[11px] text-[var(--text-dim)]"> +${m.audioUsd}/초(음성)</span>}
+                            {/* 단가가 확정값처럼 보이면 그걸 믿고 판다. 잠정이면 잠정이라고 적는다. */}
+                            {m.costProvisional && (
+                              <span className="ml-1 rounded border border-amber-200 bg-amber-50 px-1 py-px text-[10px] font-medium text-amber-700"
+                                    title="공식 가격표를 아직 원문으로 확인하지 못해 공개값 중 비싼 쪽으로 잡아 둔 값입니다. [모델 단가]에서 실측값을 넣으면 그 값이 우선합니다.">
+                                잠정
+                              </span>
+                            )}
                           </td>
                           <td className="whitespace-nowrap px-4 py-2.5 text-right font-medium">
                             {m.credits}
