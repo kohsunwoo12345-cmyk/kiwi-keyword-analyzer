@@ -59,6 +59,9 @@ export function keys(env) {
     hailuo: pick(env, ["Hailuo_API_KEY", "HAILUO_API_KEY", "hailuo_api_key", "MINIMAX_API_KEY"]),
     luma: pick(env, ["Luma_API_KEY", "LUMA_API_KEY", "luma_api_key"]),
     fal: pick(env, ["Fal_API_KEY", "FAL_API_KEY", "fal_api_key", "FAL_KEY", "Fal_KEY"]),
+    //  알리바바 DashScope(Wan/만상) — 콘솔에 alibaba_API_KEY 로 넣어 두었다. 대소문자 변형도 함께 본다.
+    alibaba: pick(env, ["alibaba_API_KEY", "ALIBABA_API_KEY", "Alibaba_API_KEY", "alibaba_api_key",
+                        "DASHSCOPE_API_KEY", "dashscope_api_key"]),
     openai: pick(env, ["GPT_API_KEY", "OPENAI_API_KEY", "gpt_api_key", "openai_api_key"])
   };
 }
@@ -2189,6 +2192,10 @@ async function handle(context) {
         luma:     lumaOk,          // 키 유무가 아니라 "그 키가 실제로 통하는가"
         lumaKeySet: !!k.luma,      // 키 자체는 있는지(진단용) — 키는 있는데 luma:false 면 키가 거부된 것
         fal:      !!k.fal,
+        //  알리바바 DashScope — 아직 생성 경로는 없고 진단(diag=alibaba)만 있다.
+        //  스튜디오가 이 값을 보고 모델을 숨기므로, 연동이 끝나기 전에는 true 를 주면 안 된다.
+        alibabaKeySet: !!k.alibaba,
+        alibabaKeyId: k.alibaba ? (String(k.alibaba).slice(0, 6) + "…" + String(k.alibaba).slice(-4)) : null,
         /* 클링은 공식 오픈플랫폼 API 로만 나간다(중개 폴백 제거). fal 키가 있어도 대체되지 않으므로
            공식 키가 없으면 여기서 false 를 돌려 스튜디오가 클링 모델을 아예 숨기게 한다.
            예전엔 (klingCreds || fal) 로 답해, 공식 키가 없어도 모델이 목록에 남아 매번 실패했다. */
@@ -2234,6 +2241,148 @@ async function handle(context) {
         }
         if (!dme || dme.role !== "admin") return json({ error: "진단 엔드포인트는 관리자 전용입니다.", needAdmin: true }, 403);
       }
+    }
+    /* ⚠ 이 아래에 둔다. 처음엔 게이트 "위" 에 뒀다가 검사에서 비로그인도 200 을 받는 것을 봤다 —
+       생성은 안 하더라도 남의 계정 키로 제공사를 두들기고 키 지문까지 보여 주는 통로가 된다.
+       진단은 예외 없이 게이트 뒤다. */
+    /* ── 알리바바 DashScope(Wan) 반응 확인 — 생성은 하지 않는다 ──
+       GET /api/generate?diag=alibaba   (관리자 전용 · 아래 진단 게이트가 막아 준다)
+
+       왜 이런 모양인가:
+        · 우리는 아직 알리바바를 연동하지 않았다. 키만 콘솔에 들어와 있다.
+          그래서 "이 키로 무엇이 되는지" 부터 알아야 붙일 수 있다.
+        · 그런데 생성을 실제로 걸면 돈이 나간다. 그래서 **생성이 되지 않는 요청만** 보낸다:
+            ㉠ 없는 태스크 번호 조회 — 조회는 만들지 않는다. 인증만 확인된다.
+            ㉡ 없는 모델 이름으로 제출 — 파라미터 검증에서 거절되므로 만들어지지 않는다.
+          둘 다 401(키 문제)과 그 밖의 오류(키는 통했고 값만 틀림)를 갈라 준다.
+        · 엔드포인트 경로와 모델 이름은 문서마다 다르게 적혀 있고 국제판·중국판도 다르다.
+          하나만 넣고 "안 된다" 고 결론 내리면 틀리기 쉬워서, **후보를 전부 찔러 보고
+          돌아온 것을 그대로 보여 준다.** 판단은 응답을 보고 한다.
+
+       ⚠ 키 값은 어떤 경우에도 응답에 넣지 않는다. 앞 6자·뒤 4자 지문만 보여 준다. */
+    if (u.searchParams.get("diag") === "alibaba") {
+      if (!k.alibaba) return json({ diag: "alibaba", ok: false, error: "alibaba_API_KEY 가 설정되어 있지 않습니다." }, 400);
+      //  검사에서 가짜 서버로 돌리기 위한 통로(환경변수로만 바꿀 수 있다 — 회원 요청으로는 못 바꾼다)
+      const ov = pick(env, ["DASHSCOPE_HOST_OVERRIDE", "dashscope_host_override"]);
+      const HOSTS = ov ? [{ id: "override", base: String(ov) }] : [
+        { id: "intl", base: "https://dashscope-intl.aliyuncs.com" },   // 국제(싱가포르) 계정
+        { id: "cn",   base: "https://dashscope.aliyuncs.com" },        // 중국 본토 계정
+      ];
+      /*  후보 경로. 어느 것이 맞는지는 응답이 알려 준다 —
+          404 면 그 경로가 아닌 것이고, 400(InvalidParameter)이면 경로는 맞고 값만 틀린 것이다. */
+      const PATHS = [
+        { id: "video", path: "/api/v1/services/aigc/video-generation/video-synthesis" },
+        { id: "image", path: "/api/v1/services/aigc/text2image/image-synthesis" },
+        { id: "image-i2i", path: "/api/v1/services/aigc/image2image/image-synthesis" },
+      ];
+      const TASK_PROBE = "/api/v1/tasks/nonexistent-task-probe-bygency";
+      /*  모델 이름이 실제로 있는지 — 이것도 만들지 않고 확인한다.
+          필수값(prompt)을 일부러 빼고 보낸다. 제공사는 큐에 넣기 전에 값을 검사하므로
+            · 모델이 없으면  "모델 없음" 계열 오류
+            · 모델이 있으면  "prompt 가 없다" 계열 오류
+          로 갈린다. 어느 쪽이든 생성은 시작되지 않는다.
+          ⚠ 이건 "검증이 큐보다 먼저 돈다" 는 전제 위에 서 있다. 흔한 설계지만 알리바바가
+            그렇다는 것을 문서로 확인하지는 못했다 — 그래서 기본값은 끄고, 볼 때만 켠다
+            (&models=1). 처음 켤 때는 콘솔에서 사용량이 0 인지 같이 봐야 한다. */
+      const MODEL_CANDIDATES = [
+        //  검색으로 이름을 확인한 것들. 계정 권한·지역에 따라 없을 수 있다.
+        { kind: "video", path: "/api/v1/services/aigc/video-generation/video-synthesis", id: "wan2.5-t2v-preview" },
+        { kind: "video", path: "/api/v1/services/aigc/video-generation/video-synthesis", id: "wan2.2-t2v-plus" },
+        { kind: "video", path: "/api/v1/services/aigc/video-generation/video-synthesis", id: "wan2.2-i2v-plus" },
+        { kind: "video", path: "/api/v1/services/aigc/video-generation/video-synthesis", id: "wanx2.1-t2v-turbo" },
+        { kind: "image", path: "/api/v1/services/aigc/text2image/image-synthesis", id: "wan2.6-t2i" },
+        { kind: "image", path: "/api/v1/services/aigc/text2image/image-synthesis", id: "wan2.5-t2i-preview" },
+        { kind: "image", path: "/api/v1/services/aigc/text2image/image-synthesis", id: "wanx2.1-t2i-turbo" },
+        { kind: "image", path: "/api/v1/services/aigc/text2image/image-synthesis", id: "wanx2.1-imageedit" },
+      ];
+      const cut = (t) => String(t == null ? "" : t).slice(0, 700);
+      const one = async (label, url, init) => {
+        const t0 = Date.now();
+        try {
+          const r = await fetchT(url, init, 15000);
+          const text = await r.text().catch(() => "");
+          let parsed = null; try { parsed = JSON.parse(text); } catch { /* 본문이 JSON 이 아닐 수 있다 */ }
+          return { 검사: label, url, status: r.status, ms: Date.now() - t0,
+                   code: parsed && (parsed.code || (parsed.error && parsed.error.code)) || null,
+                   message: parsed && (parsed.message || (parsed.error && parsed.error.message)) || null,
+                   본문: cut(text) };
+        } catch (e) {
+          return { 검사: label, url, status: 0, ms: Date.now() - t0, 오류: String((e && e.message) || e).slice(0, 200) };
+        }
+      };
+      const H = { "Authorization": "Bearer " + k.alibaba, "Content-Type": "application/json" };
+      const results = [];
+      for (const h of HOSTS) {
+        //  ㉠ 없는 태스크 조회 — 만들지 않는다. 키가 통하는지만 본다.
+        results.push(await one(h.id + " · 없는 태스크 조회(생성 없음)", h.base + TASK_PROBE, { method: "GET", headers: H }));
+        //  ㉡ 없는 모델로 제출 — 검증에서 거절되므로 만들어지지 않는다.
+        for (const p of PATHS) {
+          results.push(await one(
+            h.id + " · " + p.id + " 없는 모델로 제출(생성 없음)",
+            h.base + p.path,
+            { method: "POST",
+              headers: { ...H, "X-DashScope-Async": "enable" },
+              body: JSON.stringify({ model: "__bygency_probe__", input: { prompt: "probe" }, parameters: {} }) },
+          ));
+        }
+      }
+      /*  모델 이름 확인 — 기본으로는 하지 않는다(&models=1 일 때만).
+          필수값을 빼고 보내는 요청이라 만들어지지 않지만, "검증이 먼저 돈다" 는 전제가
+          틀리면 돈이 나갈 수 있는 유일한 자리다. 켜는 것은 사람이 정한다. */
+      if (u.searchParams.get("models") === "1") {
+        const only = String(u.searchParams.get("only") || "");
+        const list = only
+          ? only.split(",").map((x) => x.trim()).filter(Boolean).map((id) => ({
+              kind: /t2i|imageedit|-image/.test(id) ? "image" : "video",
+              path: /t2i|imageedit|-image/.test(id)
+                ? "/api/v1/services/aigc/text2image/image-synthesis"
+                : "/api/v1/services/aigc/video-generation/video-synthesis",
+              id,
+            }))
+          : MODEL_CANDIDATES;
+        for (const h of HOSTS) {
+          for (const m of list) {
+            results.push(await one(
+              h.id + " · 모델 있나: " + m.id + " (필수값 빼고 보냄 · 생성 없음)",
+              h.base + m.path,
+              { method: "POST",
+                headers: { ...H, "X-DashScope-Async": "enable" },
+                body: JSON.stringify({ model: m.id, input: {}, parameters: {} }) },
+            ));
+          }
+        }
+      }
+      /*  응답을 사람 말로 한 줄 정리한다. 상태 코드만 늘어놓으면 결국 다시 읽어 봐야 한다.
+          단, 여기 요약은 거들 뿐이고 판단 근거는 위 원문이다 — 요약이 틀려도 원문은 남는다. */
+      const 해석 = results.map((r) => {
+        if (r.status === 0) return r.검사 + " → 닿지 않음(" + (r.오류 || "?") + ")";
+        if (r.status === 401 || /InvalidApiKey|Unauthorized/i.test(String(r.code) + String(r.message)))
+          return r.검사 + " → ✗ 키가 거부됨(401)";
+        if (r.status === 404) return r.검사 + " → 경로 없음(404) · 이 엔드포인트가 아니다";
+        if (r.status === 403) return r.검사 + " → 권한 없음(403) · 키는 읽혔지만 이 모델/지역 권한이 없다";
+        if (r.status >= 200 && r.status < 300) {
+          //  ⚠ 모델 확인에서 2xx 가 나오면 접수됐다는 뜻이다 = 만들어졌을 수 있다. 크게 알린다.
+          if (/모델 있나/.test(r.검사))
+            return r.검사 + " → ⚠ 2xx · 검증 없이 접수됐을 수 있다. 콘솔에서 사용량을 확인할 것";
+          return r.검사 + " → 통과(2xx)";
+        }
+        if (/모델 있나/.test(r.검사)) {
+          const t = String(r.code) + " " + String(r.message);
+          if (/model.*(not|no).*exist|InvalidParameter.*model|ModelNotFound|UnsupportedModel/i.test(t))
+            return r.검사 + " → ✗ 그런 모델이 없다";
+          return r.검사 + " → ✓ 모델은 있는 듯(값 오류로 거절: " + (r.code || r.status) + ")";
+        }
+        return r.검사 + " → " + r.status + " " + (r.code || "") + " · 키는 통하고 값이 거절된 것으로 보인다";
+      });
+      return json({
+        diag: "alibaba",
+        주의: "이 진단은 생성 요청을 만들지 않는다 — 없는 태스크 조회와 없는 모델 제출뿐이다.",
+        키지문: String(k.alibaba).slice(0, 6) + "…" + String(k.alibaba).slice(-4),
+        키길이: String(k.alibaba).length,
+        호스트: HOSTS.map((h) => h.base),
+        해석,
+        결과: results,
+      });
     }
     // GET 기반 Seedance 제출 — 스튜디오 POST 가 (원인불명) 플랫폼 502 날 때의 우회 경로.
     // 이미지/영상은 이미 공개 URL 이라 쿼리스트링으로 충분하고, GET 은 진단들처럼 안정적이다.
