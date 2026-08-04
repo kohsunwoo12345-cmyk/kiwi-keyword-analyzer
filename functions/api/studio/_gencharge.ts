@@ -262,6 +262,52 @@ export async function reconcileGenCharge(
   }
 }
 
+/* ── 결과물을 서버가 직접 보관한다 ────────────────────────────────────────
+   여태 결과 주소는 브라우저가 /api/usage/record 로 신고해 줘야만 남았다.
+   그래서 회원이 완료 직전에 탭을 닫거나·새로고침하거나·인터넷이 끊기면, 영상은
+   제공사에 멀쩡히 있는데 우리 표에는 아무것도 안 남았다 — 노드에도 보관함에도
+   관리자 생성기록에도 안 나온다. 회원 눈에는 "만든 영상이 사라졌다" 다.
+
+   완료를 확인하는 자리는 서버다(폴링 응답이 서버를 지나간다). 거기서 우리가 직접 넣는다.
+   브라우저 신고는 그대로 둔다 — 프롬프트·레퍼런스는 브라우저만 알고, 이쪽은
+   이미 주소가 있으면 건드리지 않으므로 서로 덮어쓰지 않는다.
+   ⚠ 응답을 붙잡지 않는다. 부르는 쪽이 waitUntil 로 응답 뒤에 돌린다. */
+export async function archiveGenResult(
+  db: D1Database,
+  taskKey: string,
+  resultUrl: string,
+  kind: string,
+  save: (url: string) => Promise<{ url: string; moved: boolean }>,
+): Promise<'saved' | 'already' | 'skip'> {
+  if (!db || !taskKey || !resultUrl) return 'skip'
+  try {
+    await ensureGenCharges(db)
+    /* 가장 최근 것을 본다. 작업 주소는 제공사가 주는 값이라 우리가 유일함을 보장하지 못한다 —
+       같은 주소가 두 번 나오면 옛 줄을 집어서 "이미 있다" 로 끝나고, 새 생성은 영영 안 붙는다.
+       (검사에서 실제로 그렇게 걸렸다) */
+    const row: any = await db.prepare(
+      `SELECT usage_id FROM gen_charges WHERE task_key = ? AND usage_id != ''
+        ORDER BY created_at DESC LIMIT 1`,
+    ).bind(String(taskKey).slice(0, 300)).first()
+    const usageId = String(row?.usage_id || '')
+    if (!usageId) return 'skip'                 // 요금 줄이 없다(관리자 생성 등) — 붙일 자리가 없다
+    //  이미 주소가 있으면 아무것도 안 한다. 브라우저가 먼저 넣었을 수도 있다.
+    const cur: any = await db.prepare('SELECT result_url FROM ai_usage WHERE id = ? LIMIT 1').bind(usageId).first()
+    if (!cur) return 'skip'
+    if (String(cur.result_url || '')) return 'already'
+    const saved = await save(String(resultUrl))
+    if (!saved.url) return 'skip'
+    /* 그 사이에 브라우저가 넣었을 수 있다 — 빈 줄일 때만 쓴다(서로 덮어쓰지 않는다). */
+    await db.prepare(
+      `UPDATE ai_usage SET result_url = ?, result_kind = COALESCE(NULLIF(result_kind,''), ?)
+        WHERE id = ? AND COALESCE(result_url,'') = ''`,
+    ).bind(saved.url, String(kind || 'video'), usageId).run()
+    return 'saved'
+  } catch {
+    return 'skip'
+  }
+}
+
 /** 비동기 생성이 실패로 확정되면 제출 때 뺀 금액을 정확히 한 번만 되돌린다. */
 export async function refundGenCharge(db: D1Database, taskKey: string): Promise<number> {
   if (!db || !taskKey) return 0

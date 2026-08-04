@@ -487,6 +487,8 @@ export interface AiGenerationRow {
   refs: string[]
   resultUrl: string
   resultKind: string
+  /** 아직 제공사 주소를 붙들고 있다 — 며칠이면 만료돼 사라진다. [결과물 되찾기]로 옮길 수 있다 */
+  external?: boolean
   /** 과금 줄의 상태 — charged | refunded | ''(옛 기록). 환불 여부는 ai_usage 에 없어 따로 읽는다 */
   chargeStatus?: string
   /** 제공사에 물어볼 작업 번호가 남아 있는가(즉시 결과형 생성은 없다) */

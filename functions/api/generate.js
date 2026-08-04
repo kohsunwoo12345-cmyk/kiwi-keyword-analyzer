@@ -12,7 +12,8 @@ import { getUserByApiKey, enforceRateLimit, ensureApiKeysSchema } from "./_apike
 import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from "./studio/_pricing";
 import { getBrandKit, applyBrandKit } from "./studio/brandkit";
 import { modelIdOf as registryModelIdOf, listEnabled as registryList } from "./studio/_registry";
-import { issueGenCharge, settleGenCharge, refundGenCharge, reconcileGenCharge } from "./studio/_gencharge";
+import { issueGenCharge, settleGenCharge, refundGenCharge, reconcileGenCharge, archiveGenResult } from "./studio/_gencharge";
+import { saveMediaToR2 } from "./_media";
 import { probeRemoteVideoSeconds, SOURCE_LENGTH_MODELS, sourceVideoUrl } from "./studio/_vidlen";
 import { ensureAiUsage, resolveCostOverride, refreshUsdKrw } from "./studio/_pricing";
 import { MODEL_COST as MODEL_COST_SRV } from "./studio/_pricing";
@@ -1911,6 +1912,25 @@ export async function onRequest(context) {
     /*  완료 응답에 제공사가 실제로 쓴 토큰 수가 실려 오면(ModelArk 계열) 제출 때 매긴
         추정치와의 차액을 정확히 한 번 맞춘다 — 더 받았으면 돌려주고 덜 받았으면 더 뺀다.
         (차감 자체는 제출 시점에 끝났고, 그때는 제공사가 얼마를 쓸지 알 수 없다.) */
+    /*  ── 완성된 결과물은 서버가 직접 보관한다 ──
+        여태 브라우저가 /api/usage/record 로 신고해 줘야만 남았다. 탭을 닫거나 인터넷이
+        끊기면 영상은 제공사에 있는데 우리 표에는 아무것도 안 남아, 노드·보관함·관리자
+        생성기록 어디에도 안 나왔다. 완료를 보는 자리는 여기니 여기서 넣는다.
+        ⚠ 응답을 붙잡으면 안 된다 — 받아서 R2 에 올리는 동안 회원 화면이 멈춘다.
+          응답을 내보낸 뒤(waitUntil) 돌린다. 이미 주소가 있으면 아무것도 안 한다. */
+    if (context.request.method === "GET" && body.url && !body.error) {
+      const gu = new URL(context.request.url);
+      const key = gu.pathname + gu.search;
+      const kind = String(body.kind || "video");
+      const rurl = String(body.url);
+      const job = async () => {
+        try {
+          await archiveGenResult(resolveDB(context.env), key, rurl, kind,
+                                 (u) => saveMediaToR2(context.env, u));
+        } catch (_a) { /* 보관 실패가 회원의 생성을 망치면 안 된다 */ }
+      };
+      if (context.waitUntil) context.waitUntil(job()); else job().catch(() => {});
+    }
     if (context.request.method === "GET" && body.url && Number(body.usageTokens) > 0) {
       const gu = new URL(context.request.url);
       const diff = await reconcileGenCharge(resolveDB(context.env), gu.pathname + gu.search,
@@ -2178,7 +2198,7 @@ async function handle(context) {
       const lumaOk = await lumaUsable(k.luma);
       return json({
         version:  "2026-07-13-v56 (remove-keys-page)", // 이 필드가 보이면 최신 코드가 프로덕션에 반영된 것
-        build:    "2026-08-02-v63",                      // 스튜디오 STUDIO_BUILD_TAG 와 정확히 일치해야 최신 (배포마다 함께 올린다)
+        build:    "2026-08-04-v64",                      // 스튜디오 STUDIO_BUILD_TAG 와 정확히 일치해야 최신 (배포마다 함께 올린다)
         runway:   !!k.runway,
         xai:      !!k.xai,
         google:   !!(k.google || gcpCreds(env)),
