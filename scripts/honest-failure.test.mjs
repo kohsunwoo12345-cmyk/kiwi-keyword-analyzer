@@ -86,12 +86,15 @@ function brokenDB({ userRow = { id: 'u1', email: 'a@b.c', role: 'user' } } = {})
     async first() {
       if (/FROM sessions/i.test(sql) || /JOIN users/i.test(sql)) return userRow
       if (/FROM users/i.test(sql)) return userRow
+      //  소유 확인과 퍼널 한 줄은 통과시켜야 목록 조회까지 도달한다
+      if (/SELECT 1 AS ok FROM funnels/i.test(sql)) return { ok: 1 }
+      if (/SELECT \* FROM funnels WHERE id/i.test(sql)) return { id: 1, name: 'f' }
       return null
     },
     async run() { return { meta: { changes: 1 } } },
     async all() {
       //  목록 질의만 터뜨린다 — 스키마 보장은 통과시켜야 진짜 경로까지 간다
-      if (/form_submissions|funnel_applicants|funnel_landing_pages|FROM funnels|naver_place/i.test(sql))
+      if (/form_submissions|funnel_applicants|funnel_landing_pages|FROM funnels|funnel_groups|funnel_group_connections|funnel_auto_responses|naver_place/i.test(sql))
         throw new Error('D1_ERROR: no such table')
       return { results: [] }
     },
@@ -102,10 +105,10 @@ function brokenDB({ userRow = { id: 'u1', email: 'a@b.c', role: 'user' } } = {})
   }
 }
 
-const call = async (mod, url, db) => {
+const call = async (mod, url, db, params = {}) => {
   const res = await mod.onRequestGet({
     request: new Request(url, { headers: { host: 'bygency.com', cookie: 'bygency_session=t' } }),
-    env: { DB: db }, params: {}, waitUntil: () => {}, next: async () => new Response(''),
+    env: { DB: db }, params, waitUntil: () => {}, next: async () => new Response(''),
   })
   let body = {}
   try { body = JSON.parse(await res.text()) } catch { /* noop */ }
@@ -115,13 +118,17 @@ const call = async (mod, url, db) => {
 console.log('\n② 실제로 목록 질의가 터지면 성공이라고 답하지 않는다')
 {
   const cases = [
-    ['functions/api/landing/all-submissions.ts', 'https://bygency.com/api/landing/all-submissions?limit=10', '신청자'],
-    ['functions/api/funnels/index.ts', 'https://bygency.com/api/funnels', '퍼널'],
-    ['functions/api/funnel/landing-pages.ts', 'https://bygency.com/api/funnel/landing-pages', '랜딩페이지'],
+    ['functions/api/landing/all-submissions.ts', 'https://bygency.com/api/landing/all-submissions?limit=10', {}],
+    ['functions/api/funnels/index.ts', 'https://bygency.com/api/funnels', {}],
+    ['functions/api/funnel/landing-pages.ts', 'https://bygency.com/api/funnel/landing-pages', {}],
+    //  아래 셋은 조회를 try 로 감싸고 로그만 남긴 뒤 성공으로 흘려보내던 자리다
+    ['functions/api/funnel/groups.ts', 'https://bygency.com/api/funnel/groups', {}],
+    ['functions/api/funnel/auto-responses.ts', 'https://bygency.com/api/funnel/auto-responses', {}],
+    ['functions/api/funnels/[id].ts', 'https://bygency.com/api/funnels/1', { id: '1' }],
   ]
-  for (const [file, url] of cases) {
+  for (const [file, url, params] of cases) {
     const mod = await load(file)
-    const r = await call(mod, url, brokenDB())
+    const r = await call(mod, url, brokenDB(), params)
     const name = file.replace('functions/api/', '')
     ok(r.body.success !== true, `${name} — 성공이라고 답하지 않는다`, JSON.stringify(r.body).slice(0, 120))
     ok(r.status >= 500, `${name} — 상태 코드로도 알린다`, String(r.status))

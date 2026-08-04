@@ -16,10 +16,10 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     const me: any = await getSessionUser(request, db)
     if (!me) return j({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
 
-    let results: any[] = []
-
-    try {
-      const data = await db.prepare(`
+    /* ⚠ 여기도 조회를 try 로 감싸고 실패하면 console.warn 만 남긴 뒤 그대로
+       success: true · 빈 목록을 돌려주고 있었다. 화면에는 "자동응답이 없습니다" 가 뜬다 —
+       신청이 들어와도 문자가 안 나가는데 설정은 비어 보이니, 회원은 설정을 다시 만든다. */
+    const data = await db.prepare(`
         SELECT far.*,
           flp.title as page_title,
           fg.name as group_name
@@ -29,11 +29,7 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
         WHERE far.user_id = ?
         ORDER BY far.created_at DESC
       `).bind(me.id).all()
-
-      results = (data.results as any[]) || []
-    } catch (dbError) {
-      console.warn('DB error, returning empty responses', dbError)
-    }
+    const results = ((data.results as any[]) || [])
 
     return j({ success: true, rules: results, responses: results })
   } catch (error) {
