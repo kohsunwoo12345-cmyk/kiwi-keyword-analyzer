@@ -35,7 +35,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const since = new Date(Date.now() - days * 86400000).toISOString()
 
   //  ㉠ 적어 둔 실패
-  const w: string[] = ['created_at > ?']
+  /*  사유가 없는 줄은 화면에 빈 상자만 그린다 — 보여 줄 이유가 없다.
+      기록하는 쪽(recordGenFailure)이 이미 사유 없는 건 안 넣지만, 밖에서 들어온 줄
+      (옛 자료·검사 흔적)이 섞이면 그대로 나간다. 읽는 쪽에서도 한 번 거른다. */
+  const w: string[] = ['created_at > ?', "COALESCE(reason,'') != ''"]
   const b: any[] = [since]
   if (q) { w.push('(email LIKE ? OR name LIKE ? OR model LIKE ? OR reason LIKE ? OR prompt LIKE ?)'); const l = `%${q}%`; b.push(l, l, l, l, l) }
   const logged: any = await db.prepare(

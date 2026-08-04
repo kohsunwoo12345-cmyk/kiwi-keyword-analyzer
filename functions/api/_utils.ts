@@ -896,6 +896,9 @@ export async function purgeUserData(db: D1Database, uid: string, env?: any): Pro
   await del('DELETE FROM notifications WHERE user_id = ?', uid)
   await del('DELETE FROM activity_log WHERE user_id = ?', uid)
   await del('DELETE FROM ai_usage WHERE user_id = ?', uid)
+  /*  생성 실패 기록 — 이메일·이름과 그 회원이 쓴 프롬프트가 그대로 들어 있다.
+      실패 기록이라고 개인정보가 아닌 게 아니다. 탈퇴하면 같이 지운다. */
+  await del('DELETE FROM gen_failures WHERE user_id = ?', uid)
   // 신청·주문
   await del('DELETE FROM plan_requests WHERE user_id = ?', uid)
   await del('DELETE FROM point_requests WHERE user_id = ?', uid)
