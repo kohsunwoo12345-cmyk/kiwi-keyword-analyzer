@@ -1,4 +1,5 @@
 'use client'
+import '@/app/styles/marketing-node.css'
 
 /**
  * 마케팅 노드 스튜디오 디자인 시스템
