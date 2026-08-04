@@ -12,6 +12,7 @@ import { getUserByApiKey, enforceRateLimit, ensureApiKeysSchema } from "./_apike
 import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from "./studio/_pricing";
 import { getBrandKit, applyBrandKit } from "./studio/brandkit";
 import { modelIdOf as registryModelIdOf, listEnabled as registryList } from "./studio/_registry";
+import { ALIBABA_BY_NAME, ALIBABA_BY_ID, ALIBABA_BASE, alibabaPath, alibabaUsesMessages } from "./studio/_alibaba";
 import { issueGenCharge, settleGenCharge, refundGenCharge, reconcileGenCharge, archiveGenResult } from "./studio/_gencharge";
 import { saveMediaToR2 } from "./_media";
 import { recordGenFailure } from "./studio/_genfail";
@@ -1082,7 +1083,7 @@ const FAL_ALLOWED = new Set(["motion", "narrate", "lipsync", "revoice", "music",
 /* 공식 API 를 연동해 둔 제공사 — 이 이름으로는 fal 호출이 불가능하다(아래 falFetch 가 던진다) */
 const OFFICIAL_ONLY = new Set(["seedance", "seedream", "ark3d", "promptgen", "kling", "klingextend",
                                "luma", "google", "nanobanana", "runway", "runway_aleph", "hailuo",
-                               "flux", "openai", "xai"]);
+                               "flux", "openai", "xai", "alibaba"]);
 /* fal 로 나가는 모든 요청은 이 함수를 거친다. 허가 목록 밖이면 호출 자체가 막힌다.
    (예전엔 클링·씨댄스가 fal 로 새는 코드가 실제로 있었다 — 지우는 것만으로는 또 들어온다.) */
 function falFetch(routeName, url, init, timeoutMs) {
@@ -2014,6 +2015,13 @@ export async function onRequest(context) {
    스튜디오가 model 을 안 실어 보냈다 — 예전에는 클라이언트가 recordCost 로 직접 신고했으니
    문제가 없었지만, 차감이 생성 시점으로 옮겨진 뒤로는 토큰이 없으면 제공사 비용만 나가고
    한 푼도 안 받는다. 클라이언트가 무엇을 빠뜨리든 서버가 이름을 채운다. */
+/* 알리바바 구형 t2i 는 비율이 아니라 "가로*세로" 를 받는다(SDK 의 size 인자).
+   비율만 주면 기본값으로 떨어져서 회원이 고른 비율이 조용히 무시된다. */
+const ALI_IMG_SIZE = {
+  "1:1": "1328*1328", "16:9": "1664*928", "9:16": "928*1664",
+  "4:3": "1472*1140", "3:4": "1140*1472", "3:2": "1584*1056", "2:3": "1056*1584",
+};
+
 const PROVIDER_BILL_MODEL = {
   narrate:  "나레이션 (AI 음성 해설)",
   lipsync:  "립싱크 (인물 말하기)",
@@ -2266,8 +2274,10 @@ async function handle(context) {
         luma:     lumaOk,          // 키 유무가 아니라 "그 키가 실제로 통하는가"
         lumaKeySet: !!k.luma,      // 키 자체는 있는지(진단용) — 키는 있는데 luma:false 면 키가 거부된 것
         fal:      !!k.fal,
-        //  알리바바 DashScope — 아직 생성 경로는 없고 진단(diag=alibaba)만 있다.
-        //  스튜디오가 이 값을 보고 모델을 숨기므로, 연동이 끝나기 전에는 true 를 주면 안 된다.
+        /* 알리바바 DashScope(Wan·Qwen) — 이제 생성 경로가 있다.
+           키가 없으면 false 를 줘서 스튜디오가 알리바바 모델을 아예 숨기게 한다.
+           클링에서 배운 것과 같다 — 키 없이 목록에만 남아 있으면 누를 때마다 실패한다. */
+        alibaba:  !!k.alibaba,
         alibabaKeySet: !!k.alibaba,
         alibabaKeyId: k.alibaba ? (String(k.alibaba).slice(0, 6) + "…" + String(k.alibaba).slice(-4)) : null,
         /* 클링은 공식 오픈플랫폼 API 로만 나간다(중개 폴백 제거). fal 키가 있어도 대체되지 않으므로
@@ -5123,6 +5133,42 @@ async function handle(context) {
       const url = (rj.video && rj.video.url) || rj.url || (rj.output && rj.output.video && rj.output.video.url) || (Array.isArray(rj.videos) && rj.videos[0] && rj.videos[0].url);
       return url ? json({ url, kind: "video" }) : json({ status: "failed", error: "모션 전이: 결과 영상 URL 없음" });
     }
+    /* ══ 알리바바 폴링 ══
+       ⚠ FAILED 를 반드시 실패로 넘긴다. 이 제공사는 파라미터 검사를 큐 뒤에 하므로
+         "제출은 됐는데 형식이 틀려서 실패" 가 흔하다. 여기서 실패로 안 넘기면
+         회원 돈만 잡아 두고 아무것도 안 돌려주는 상태로 남는다(환불이 안 돈다). */
+    if (provider === "alibaba") {
+      const ak = keys(env).alibaba;
+      if (!ak) return json({ status: "failed", error: "알리바바 연동이 설정되지 않았습니다" }, 400);
+      const task = u.searchParams.get("task");
+      if (!task) return json({ status: "failed", error: "no task" }, 400);
+      const kind = u.searchParams.get("kind") === "image" ? "image" : "video";
+      const r = await fetchT(ALIBABA_BASE + "/api/v1/tasks/" + encodeURIComponent(task),
+        { headers: { "Authorization": "Bearer " + ak } });   // 조회에는 Content-Type·Async 헤더를 붙이면 안 된다
+      const j = await r.json().catch(() => ({}));
+      const out = (j && j.output) || {};
+      const st = String(out.task_status || "").toUpperCase();
+      if (st === "FAILED" || st === "CANCELED" || st === "CANCELLED" || st === "UNKNOWN") {
+        const why = String(out.message || out.code || j.message || (st === "UNKNOWN" ? "작업을 찾을 수 없습니다" : "생성 실패"));
+        return json({ status: "failed", error: "알리바바: " + why.slice(0, 200) });
+      }
+      if (st !== "SUCCEEDED") return json({ status: (st || "processing").toLowerCase() });
+      /* 결과 자리가 셋이다 — 영상은 output.video_url, 구형 이미지는 output.results[].url,
+         대화형 이미지는 output.choices[].message.content[].image. 셋 다 본다. */
+      let url = out.video_url || null;
+      if (!url && Array.isArray(out.results)) url = (out.results[0] && (out.results[0].url || out.results[0].image)) || null;
+      if (!url && Array.isArray(out.choices)) {
+        for (const c of out.choices) {
+          const cont = (c && c.message && c.message.content) || [];
+          for (const el of (Array.isArray(cont) ? cont : [])) if (el && el.image) { url = el.image; break; }
+          if (url) break;
+        }
+      }
+      if (!url) return json({ status: "failed", error: "알리바바: 결과 주소가 없습니다" });
+      //  usage 를 그대로 넘긴다 — 제공사 실측값이 있으면 정산이 그걸로 다시 맞춘다
+      return json({ url, kind, usage: j.usage || out.usage || null });
+    }
+
     if (provider === "kling") {
       // 1순위: 클링 공식 API 폴링
       const cr = klingCreds(env);
@@ -6106,6 +6152,82 @@ async function handle(context) {
     if (!r.ok || j.code !== 0 || !(j.data && j.data.task_id))
       return json({ error: "Kling 확장: " + String(j.message || JSON.stringify(j) || "요청 실패").slice(0, 200) }, FAIL);
     return json({ statusUrl: "/api/generate?provider=kling&task=" + encodeURIComponent(j.data.task_id) + "&ep=video-extend", kind: "video" });
+  }
+
+  /* ══ 알리바바 DashScope(Wan·Qwen) — 영상·이미지 제출 ══
+     요청 형식은 공식 SDK(dashscope 1.26.5) 소스에서 읽은 그대로이고,
+     실제로 제출해 보고 받은 오류가 그걸 확인해 줬다:
+       영상   input.prompt (r2v 는 input.media 도)   이미지  input.messages
+     ⚠ 이 제공사는 파라미터 검사를 **큐에 넣은 뒤** 한다. 즉 형식이 틀려도 202 가 오고
+       나중에 FAILED 로 끝난다 — 그래서 "제출됐다 = 맞게 보냈다" 가 아니다.
+       폴링에서 FAILED 를 반드시 실패로 넘겨야 환불이 돈다(아래 GET 쪽 참조). */
+  if (provider === "alibaba") {
+    const ak = keys(env).alibaba;
+    if (!ak) return json({ error: "알리바바 연동이 설정되지 않았습니다. 환경변수 alibaba_API_KEY 를 넣어주세요." }, 500);
+    const want = String(b.model || "");
+    const row = ALIBABA_BY_NAME[want] || ALIBABA_BY_ID[want];
+    if (!row) return json({ error: "알리바바에 없는 모델입니다: " + want.slice(0, 80) }, 400);
+
+    const first = b.firstFrame || (b.refImages && b.refImages[0]) || b.refImage || null;
+    const last = b.lastFrame || null;
+    const prompt = String(b.prompt || "").slice(0, 2000);
+    const neg = b.negative ? String(b.negative).slice(0, 500) : null;
+
+    let input, parameters;
+    if (row.kind === "image" && alibabaUsesMessages(row)) {
+      /* 대화형 스키마 — t2i 인데 messages 다. 실측 오류가 그렇게 알려 줬다
+         ("Field required: input.messages"). content 는 [{text},{image}] 배열이다. */
+      const content = [];
+      for (const u2 of [first, b.refImages && b.refImages[1], b.refImages && b.refImages[2]]) {
+        if (u2) content.push({ image: String(u2) });
+      }
+      content.push({ text: prompt + (neg ? "\n피해야 할 것: " + neg : "") });
+      input = { messages: [{ role: "user", content }] };
+      parameters = { n: 1, watermark: false };
+    } else if (row.kind === "image") {
+      //  구형(wan2.1/2.2) t2i — 옛 image-synthesis 경로는 평평한 prompt 를 받는다
+      input = { prompt };
+      if (neg) input.negative_prompt = neg;
+      parameters = { n: 1, size: ALI_IMG_SIZE[String(b.ratio || "1:1")] || "1328*1328" };
+    } else {
+      input = { prompt };
+      if (neg) input.negative_prompt = neg;
+      if (first) input.img_url = String(first);
+      if (first && last) { input.first_frame_url = String(first); input.last_frame_url = String(last); }
+      //  r2v(레퍼런스→영상)는 media 배열을 따로 요구한다 — 실측 오류에 그대로 나왔다
+      if (/-r2v/.test(row.id)) {
+        const media = [];
+        for (const u2 of [first, b.refImages && b.refImages[1], b.refImages && b.refImages[2]]) {
+          if (u2) media.push({ url: String(u2), type: "reference_image" });
+        }
+        if (b.srcVideo) media.push({ url: String(b.srcVideo), type: "reference_video" });
+        if (media.length) input.media = media;
+      }
+      if (/videoedit|vace|animate/.test(row.id) && b.srcVideo) input.video_url = String(b.srcVideo);
+      const secs = Math.max(1, Math.round(Number(b.seconds) || 5));
+      parameters = {
+        duration: secs,
+        resolution: (String(b.res || "1080p").toUpperCase().replace("P", "P")),
+        prompt_extend: true,
+        watermark: !!b.watermark,
+      };
+      if (b.ratio) parameters.ratio = String(b.ratio);
+      if (Number.isFinite(Number(b.seed))) parameters.seed = Number(b.seed) % 4294967295;
+    }
+
+    const r = await fetchT(ALIBABA_BASE + alibabaPath(row), {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + ak, "Content-Type": "application/json",
+                 "X-DashScope-Async": "enable" },   // 빠지면 "동기 호출 미지원" 으로 100% 거절된다
+      body: JSON.stringify({ model: row.id, input, parameters }),
+    }, 60000);
+    const j = await r.json().catch(() => ({}));
+    const tid = j && j.output && j.output.task_id;
+    if (r.ok && tid)
+      return json({ statusUrl: "/api/generate?provider=alibaba&task=" + encodeURIComponent(tid) +
+                               "&kind=" + row.kind, modelId: row.id });
+    const msg = String((j && (j.message || (j.error && j.error.message))) || "요청 실패");
+    return json({ error: "알리바바: " + msg.slice(0, 220) }, FAIL);
   }
 
   if (provider === "kling") {

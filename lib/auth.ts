@@ -632,6 +632,8 @@ export interface AiModelRow {
   keyConfigured: boolean
   isPipeline: boolean
   idUnverified: boolean
+  //  모델 ID 는 확인됐지만 단가가 아직 잠정인 모델(현재 알리바바). 화면에 그렇게 표시한다.
+  costProvisional?: boolean
   status: 'live' | 'unverified' | 'nokey'
 }
 export interface AiModelsResp {
