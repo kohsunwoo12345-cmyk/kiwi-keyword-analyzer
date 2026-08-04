@@ -9,9 +9,19 @@
  *
  * 실제 SQLite 엔진에 대고 확인한다 — 문자열만 보면 그 SQL 이 도는지 알 수 없다.
  */
-import { DatabaseSync } from 'node:sqlite'
 import fs from 'node:fs'
 import path from 'node:path'
+
+/* node:sqlite 는 Node 22+ 에만 있다. 없는 환경에서 빨간 실패로 보이면 안 된다 —
+   건너뛴 사실은 화면에 남긴다.
+   ⚠ 이걸 빼먹어서 배포가 통째로 죽었다. Cloudflare Pages 빌드는 Node 20 이고,
+     이 검사는 prebuild 로 도는 npm test 안에 있어서 여기서 터지면 사이트가 안 올라간다.
+     내 컴퓨터는 Node 22 라 통과했고, 그래서 아무도 못 봤다. */
+let DatabaseSync
+try { ({ DatabaseSync } = await import('node:sqlite')) } catch {
+  console.log('\n건너뜀 — 이 Node 에는 node:sqlite 가 없습니다(22+ 필요).\n')
+  process.exit(0)
+}
 
 const ROOT = new URL('../', import.meta.url).pathname
 
