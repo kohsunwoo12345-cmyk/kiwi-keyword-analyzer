@@ -1,5 +1,5 @@
 import { ensureOnce } from '../_utils'
-import { ALIBABA_MODELS } from './_alibaba'
+import { ALIBABA_MODELS, ALIBABA_BY_NAME } from './_alibaba'
 // 스튜디오 AI 생성 과금 규칙 (서버 권위 계산) — precheck·record 공용
 //  · 실제 AI 비용(원) = 제공사 공개 단가(USD) × 환율
 //  · 판매가 = 실제 비용 × 마크업.  마크업: 씨댄스 2.0 계열·이미지 모델 = 2.5배, 그 외 = 3배
@@ -593,6 +593,25 @@ function seedanceUsd(input: ChargeInput): number | null {
 }
 
 /** 루마 모델이면 실측 표로 원가(USD)를 낸다. 아니면 null → 일반 공식으로 간다. */
+/* ── 알리바바 Wan 영상 — 해상도 구간이 화소비를 안 따른다 ──
+   우리 기본 계산은 1080p 값에 화소비(720p = 0.444)를 곱한다. 그런데 알리바바 공개
+   단가는 720P ¥0.6 / 1080P ¥1.0 — 화소비가 아니라 0.6 배다.
+   기본 계산에 맡기면 720p 를 실제 원가의 74%(0.444/0.6)만 받는다. 26% 를 우리가 물고
+   파는 셈이고, 회원이 720p 를 주로 쓰면 그게 그대로 손실이 된다.
+   그래서 구간 값을 표에 적어 두고 여기서 그대로 쓴다(루마·Veo 와 같은 방식이다).
+   ⚠ wan2.7·wan2.6 만 출처 둘이 일치하는 값이고(근거 A), 나머지는 우리 추정(C)이다.
+     추정은 1080p 의 0.6 배로 두었다 — 확인된 표가 그 비율이기 때문이다. */
+function wanUsd(input: ChargeInput): number | null {
+  const row = (ALIBABA_BY_NAME as any)[String(input.model || '')]
+  if (!row || row.kind !== 'video') return null
+  const units = Math.max(1, Math.round(Number(input.units) || 5))
+  const res = String(input.res || '1080p')
+  //  1080p 미만은 720p 값을 쓴다 — 더 싸게 주는 구간이 공개돼 있지 않다.
+  //  모르는 구간을 임의로 깎으면 그만큼 우리가 손해를 본다.
+  const per = /1080|4K|2160/i.test(res) ? row.usd : (row.usd720 || row.usd)
+  return per * units
+}
+
 function lumaUsd(input: ChargeInput): number | null {
   const model = String(input.model || '')
   if (!/^Luma /.test(model)) return null
@@ -719,7 +738,7 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
   const hasOv = Number.isFinite(ov) && ov > 0
   const lu = hasOv
     ? (isFlat ? ov : ov * Math.max(1, Math.round(Number(input.units) || 8)))
-    : (lumaUsd(input) ?? veoUsd(input) ?? fluxUsd(input) ?? runwayUsd(input) ?? seedanceUsd(input) ?? openaiImgUsd(input))   // 공식 요금표가 있는 제공사 우선
+    : (wanUsd(input) ?? lumaUsd(input) ?? veoUsd(input) ?? fluxUsd(input) ?? runwayUsd(input) ?? seedanceUsd(input) ?? openaiImgUsd(input))   // 공식 요금표가 있는 제공사 우선
   if (lu != null) {
     usd = lu
   } else if (isImg) {

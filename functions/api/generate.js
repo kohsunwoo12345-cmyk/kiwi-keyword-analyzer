@@ -2463,10 +2463,12 @@ async function handle(context) {
               200 이면 이 키가 어느 리전에서 어떤 모델에 닿는지가 응답에 그대로 나온다.
               (모델 이름 표기 흔들림도 여기서 실측으로 정리된다) */
         const ids = [];
+        const 원본페이지 = [];   // 목록 응답 원본 — 이름 말고 다른 칸(단가 등)이 있는지 보려고 들고 있는다
+        const 원본샘플 = [];
         const compat = await one(h.id + " · 모델 목록(OpenAI 호환) [읽기]",
           h.base + "/compatible-mode/v1/models", { method: "GET", headers: GET_H }, { keep: true });
         results.push(compat);
-        if (compat.status >= 200 && compat.status < 300) ids.push(...idsFrom(compat._json));
+        if (compat.status >= 200 && compat.status < 300) { ids.push(...idsFrom(compat._json)); 원본페이지.push(compat._json); }
 
         /*  네이티브 목록은 한 번에 다 안 준다 — 실측 응답이 total 234 · page_size 20 이었다.
             첫 장만 보고 "wan 이 없다" 고 하면 234개 중 20개만 보고 내린 결론이 된다.
@@ -2487,11 +2489,29 @@ async function handle(context) {
           if (r.status < 200 || r.status >= 300) break;
           const got = idsFrom(r._json);
           ids.push(...got);
+          원본페이지.push(r._json);
           nativeCount += got.length;
           const out = (r._json && r._json.output) || {};
           if (total == null && Number(out.total) > 0) total = Number(out.total);
           if (!got.length) break;                                   // 더 없다
           if (total != null && nativeCount >= total) break;          // 다 받았다
+        }
+
+        /* 목록 응답에서 **이름 말고 나머지 칸** 도 한 번 본다.
+           제공사가 목록에 단가·과금단위를 같이 실어 주는 일이 드물지 않다. 그러면
+           남의 블로그를 뒤질 필요 없이 여기서 공식 단가가 그대로 나온다 —
+           내가 이름만 뽑고 나머지를 버려서 여태 못 봤다. wan 이 든 줄 몇 개를 통째로 싣는다. */
+        if (!원본샘플.length) {
+          for (const j2 of 원본페이지) {
+            const box = (j2 && (j2.output || j2.data || j2)) || {};
+            let arr = Array.isArray(box) ? box : null;
+            if (!arr) for (const v of Object.values(box)) if (Array.isArray(v)) { arr = v; break; }
+            for (const it of (arr || [])) {
+              const s = JSON.stringify(it);
+              if (/wan|qwen-image/i.test(s) && 원본샘플.length < 3) 원본샘플.push(it);
+            }
+            if (원본샘플.length >= 3) break;
+          }
         }
 
         const uniq = Array.from(new Set(ids.map((x) => String(x).trim()).filter(Boolean))).sort();
@@ -2510,6 +2530,8 @@ async function handle(context) {
           호스트: h.base,
           받은개수: uniq.length,
           목록이_말한_총개수: total,
+          //  ⚠ 여기에 단가나 과금단위 칸이 있으면 그게 공식 값이다. 남의 블로그보다 이게 먼저다.
+          "목록_원본_예시(단가 칸이 있나 보려고)": 원본샘플,
           wan계열: wan,
           "wan_영상후보": wan.filter(영상인가),
           "wan_이미지후보": wan.filter(이미지인가),
