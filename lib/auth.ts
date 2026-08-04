@@ -514,11 +514,60 @@ export interface GenRecoverResp {
   running?: number
   gone?: number
   remaining?: number
+  /** 아직 제공사 주소였던 줄을 우리 R2 로 옮긴 수 — 만료되기 전에 건진 것들 */
+  moved?: number
+  moveFailed?: number
+  extLeft?: number
   details?: { id: string; state: string; url?: string; note?: string }[]
 }
 export async function adminGenRecover(): Promise<GenRecoverResp> {
   const r = await fetch('/api/admin/gen-recover', { method: 'POST', credentials: 'include', cache: 'no-store' })
   return (await r.json().catch(() => ({ ok: false, error: '응답을 읽지 못했습니다' }))) as GenRecoverResp
+}
+
+/** 관리자: 생성이 안 된 것들과 그 사유 */
+export interface GenFailureRow {
+  id: string
+  source: 'logged' | 'missing'
+  createdAt: string
+  userId: string
+  email: string
+  name: string
+  provider: string
+  model: string
+  kind: string
+  /** submit | run | archive | missing */
+  stage: string
+  stageLabel: string
+  reason: string
+  taskKey: string
+  usageId: string
+  refunded: number
+  prompt: string
+  credits?: number
+  revenueKrw?: number
+  chargeStatus?: string
+  /** 제공사에 아직 남아 있을 수 있어 [결과물 되찾기]로 살릴 여지가 있는가 */
+  recoverable: boolean
+}
+export interface GenFailuresResp {
+  ok: boolean
+  error?: string
+  total?: number
+  limit?: number
+  offset?: number
+  items?: GenFailureRow[]
+}
+export async function adminGenFailures(
+  opts: { limit?: number; offset?: number; q?: string; days?: number } = {},
+): Promise<GenFailuresResp> {
+  const p = new URLSearchParams()
+  if (opts.limit) p.set('limit', String(opts.limit))
+  if (opts.offset) p.set('offset', String(opts.offset))
+  if (opts.q) p.set('q', opts.q)
+  if (opts.days) p.set('days', String(opts.days))
+  const r = await fetch('/api/admin/gen-failures?' + p.toString(), { credentials: 'include', cache: 'no-store' })
+  return (await r.json().catch(() => ({ ok: false, error: '응답을 읽지 못했습니다' }))) as GenFailuresResp
 }
 export async function adminGenStatus(id: string): Promise<GenStatusResp> {
   const r = await fetch('/api/admin/gen-status?id=' + encodeURIComponent(id), { credentials: 'include', cache: 'no-store' })

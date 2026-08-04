@@ -7,6 +7,7 @@
  *
  *   /api/cron/video-schedules            — 정기 자동 생성(회원이 고른 현지 시각 기준)
  *   /api/naver-place/update-all-tracking — 네이버 플레이스 순위 추적(20건씩 배치)
+ *   /api/cron/media-archive              — 생성물 영구 보관 그물(제공사 주소 → 우리 R2)
  *
  * 인증은 두 엔드포인트 모두 X-Cron-Token 규약을 쓴다. Pages 환경변수의 CRON_TOKEN 과
  * 이 워커의 시크릿 CRON_TOKEN 이 같아야 한다.
@@ -17,6 +18,11 @@
  */
 
 const CRON_NAVER = '5 0 * * *'
+/* 생성물 보관 그물 — 제공사 주소는 며칠이면 만료된다. 평소에는 생성이 끝나는 자리에서
+   바로 옮기고, 거기서 실패한 것만 여기서 줍는다. 원본이 살아 있는 동안 주워야 하므로
+   드물게 돌면 의미가 없다(하루에 한 번이면 그 사이에 만료된다). */
+const CRON_ARCHIVE = '20 * * * *'
+const MAX_ARCHIVE_CALLS = 6
 
 /** 무료 플랜은 요청 하나당 하위 요청(subrequest) 50개가 상한이다. 넉넉히 아래로 잡는다. */
 const MAX_VIDEO_CALLS = 5
@@ -79,10 +85,30 @@ async function runNaverTracking(env) {
   return steps
 }
 
+/** 생성물 보관 — 아직 제공사 주소를 붙들고 있는 줄을 우리 R2 로 옮긴다. */
+async function runMediaArchive(env) {
+  const steps = []
+  const due = await hit(env, '/api/cron/media-archive', 'GET')
+  steps.push(due)
+  if (!due.ok) return steps
+  if (/"due"\s*:\s*0\b/.test(due.body)) return steps      // 다 우리 것이다 — 두드릴 필요 없다
+
+  for (let i = 0; i < MAX_ARCHIVE_CALLS; i++) {
+    const r = await hit(env, '/api/cron/media-archive', 'POST')
+    steps.push(r)
+    if (!r.ok) break
+    //  이미 만료된 줄만 남으면 hasMore 가 false 로 온다 — 영원히 같은 묶음을 다시 집지 않는다
+    if (!/"hasMore"\s*:\s*true/.test(r.body)) break
+  }
+  return steps
+}
+
 export default {
   async scheduled(event, env, ctx) {
     if (!env.CRON_TOKEN) { console.error('[cron] CRON_TOKEN 시크릿이 없습니다 — 설정 → Variables and Secrets 에 추가하세요'); return }
-    const job = event.cron === CRON_NAVER ? runNaverTracking : runVideoSchedules
+    const job = event.cron === CRON_NAVER ? runNaverTracking
+              : event.cron === CRON_ARCHIVE ? runMediaArchive
+              : runVideoSchedules
     ctx.waitUntil(job(env).then((s) => {
       // 실패 사유를 요약 줄에 같이 싣는다. 따로 남긴 error 줄을 찾아 헤매지 않도록.
       const bad = s.filter((x) => !x.ok)
@@ -106,7 +132,9 @@ export default {
       return jsonRes({ ok: false, error: '인증 실패' }, 401)
 
     const job = url.searchParams.get('job') || 'video'
-    const steps = job === 'naver' ? await runNaverTracking(env) : await runVideoSchedules(env)
+    const steps = job === 'naver' ? await runNaverTracking(env)
+                : job === 'archive' ? await runMediaArchive(env)
+                : await runVideoSchedules(env)
     return jsonRes({ ok: steps.every((s) => s.ok), job, steps })
   },
 }

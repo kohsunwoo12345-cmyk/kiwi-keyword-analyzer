@@ -126,8 +126,49 @@ const ok = (name, cond, detail = '') => {
   ok('③-g 못 옮겨도 지우지 않는다', !/DELETE FROM ai_usage/.test(gal))
 }
 
+// ⑥ 아무도 안 눌러도 옮겨진다 — 사람 손에 기대면 그건 "평생 남는다" 가 아니다
+{
+  const cron = fs.readFileSync(ROOT + 'functions/api/cron/media-archive.ts', 'utf8')
+  const wk = fs.readFileSync(ROOT + 'workers/cron/src/index.js', 'utf8')
+  const toml = fs.readFileSync(ROOT + 'workers/cron/wrangler.toml', 'utf8')
+  ok('⑥ 정기 실행 경로가 있다', /onRequestPost/.test(cron) && /result_url LIKE 'http%'/.test(cron))
+  ok('⑥-b 토큰 없이는 못 돈다', /X-Cron-Token/.test(cron) && /인증 실패/.test(cron))
+  ok('⑥-c 한 번에 조금씩만 한다', /const BATCH/.test(cron),
+     '수백 건을 한 요청에서 올리면 그 요청이 죽고 아무것도 안 옮겨진다')
+  ok('⑥-d 못 옮기는 것만 남으면 멈춘다', /left > 0 && moved > 0/.test(cron),
+     '이미 만료된 줄이 남아 있으면 워커가 영원히 같은 묶음을 다시 집는다')
+  ok('⑥-e 워커가 그 경로를 두드린다', /media-archive/.test(wk) && /runMediaArchive/.test(wk))
+  ok('⑥-f 실제로 예약돼 있다', /media-archive|20 \* \* \* \*/.test(toml) && /"20 \* \* \* \*"/.test(toml))
+}
+
+// ⑦ 되찾기가 "만료 위험" 줄도 쓸어 담는다
+{
+  const rec = fs.readFileSync(ROOT + 'functions/api/admin/gen-recover.ts', 'utf8')
+  ok('⑦ 되찾기가 제공사 주소 줄도 옮긴다', /result_url LIKE 'http%'/.test(rec),
+     '예전엔 주소가 빈 줄만 봤다 — 만료 위험 줄은 아무도 안 고쳤다')
+  ok('⑦-b 옮긴 수를 돌려준다', /moved,/.test(rec) && /extLeft/.test(rec))
+}
+
+// ⑧ 생성이 안 되면 사유가 남는다
+{
+  const gf = fs.readFileSync(ROOT + 'functions/api/studio/_genfail.ts', 'utf8')
+  const api = fs.readFileSync(ROOT + 'functions/api/admin/gen-failures.ts', 'utf8')
+  ok('⑧ 실패를 적는 자리가 있다', /export async function recordGenFailure/.test(gf))
+  ok('⑧-b 제출·진행·보관 세 단계를 다 적는다',
+     /logFail\(context, "submit"/.test(gen) && /logFail\(context, "run"/.test(gen) && /logFail\(context, "archive"/.test(gen),
+     '제출 단계가 빠지면 얼굴 거절 같은 건 아무 데도 안 남는다')
+  ok('⑧-c 실패를 적다가 생성을 죽이지 않는다', /catch \{ \/\* 실패를 적다가 생성을 죽이지 않는다 \*\/ \}/.test(gf))
+  ok('⑧-d 같은 실패를 두 번 적지 않는다', /alreadyLogged/.test(gf),
+     '폴링으로 여러 번 조회되면 실패 응답도 여러 번 지나간다')
+  ok('⑧-e 관리자만 본다 — 확인이 표 만들기보다 먼저다',
+     api.indexOf('requireAdminUser') < api.indexOf('ensureGenFailures'),
+     '표 만들기가 앞이면 로그인 안 한 요청이 DDL 을 돌리고, 401 이어야 할 응답이 500 으로 나간다')
+  ok('⑧-f "미리보기 없음" 줄도 함께 보여 준다', /COALESCE\(a\.result_url,''\) = ''/.test(api),
+     '사장님이 가장 먼저 보고 싶어 하는 것이 이것이다')
+}
+
 console.log(fails.length === 0
-  ? '\n생성물 영구 보관 — 실패 0 (R2 로 옮김 · 이어받은 생성도 같은 줄 · 예전 기록 뒤늦게 복구)'
+  ? '\n생성물 영구 보관 — 실패 0 (R2 로 옮김 · 크론 자동 · 실패 사유 기록 · 예전 기록 복구)'
   : `\n실패 ${fails.length}건:`)
 fails.forEach((f) => console.log('  ✗ ' + f))
 process.exit(fails.length ? 1 : 0)

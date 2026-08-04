@@ -4,7 +4,10 @@ import { useEffect, useState, useCallback } from 'react'
 import { Images, RefreshCw, Download, Search, Film, Image as ImageIcon, User, Clock, Wand2 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button } from '@/components/ui'
-import { adminAiGenerations, adminGenStatus, adminGenRecover, type AiGenerationRow, type GenStatusResp } from '@/lib/auth'
+import {
+  adminAiGenerations, adminGenStatus, adminGenRecover, adminGenFailures,
+  type AiGenerationRow, type GenStatusResp, type GenFailureRow,
+} from '@/lib/auth'
 import { kstDateTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
 
@@ -49,7 +52,67 @@ const KIND_TABS: { key: string; label: string }[] = [
   { key: '', label: '전체' },
   { key: 'image', label: '이미지' },
   { key: 'video', label: '영상' },
+  //  실패는 다른 표를 읽는다(gen_failures + 결과물이 안 붙은 정산 줄) — 같은 자리에서 넘겨 본다
+  { key: 'fail', label: '실패' },
 ]
+
+/* 실패 한 건. "무엇이 왜 안 됐는지" 가 핵심이라 사유를 접지 않고 그대로 보여 준다 —
+   줄여 놓으면 결국 서버 로그를 뒤지게 되고, 그러면 이 화면이 있으나 마나다. */
+const STAGE_TONE: Record<string, string> = {
+  submit: 'bg-rose-500/10 text-rose-500 border-rose-500/30',
+  run: 'bg-amber-500/10 text-amber-500 border-amber-500/30',
+  archive: 'bg-sky-500/10 text-sky-500 border-sky-500/30',
+  missing: 'bg-slate-500/10 text-[var(--text-soft)] border-[var(--border)]',
+}
+function FailCard({ r }: { r: GenFailureRow }) {
+  return (
+    <div className="flex flex-col gap-2.5 rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-bold', STAGE_TONE[r.stage] || STAGE_TONE.missing)}>
+          {r.stageLabel}
+        </span>
+        {r.refunded > 0 && (
+          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-500">
+            {r.refunded} 크레딧 환불됨
+          </span>
+        )}
+        {r.recoverable && (
+          <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-bold text-violet-500">
+            [결과물 되찾기]로 살릴 수 있음
+          </span>
+        )}
+        <span className="ml-auto flex items-center gap-1 text-[11px] text-[var(--text-dim)]">
+          <Clock size={12} /> {kstDateTime(r.createdAt)}
+        </span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+        <span className="flex items-center gap-1.5 font-semibold">
+          <User size={13} className="text-violet-500" />
+          {r.name || '(이름 없음)'}
+        </span>
+        {r.email && <span className="text-[var(--text-dim)]">{r.email}</span>}
+        <span className="text-[var(--text-soft)]">{r.model || r.provider || '(모델 미상)'}</span>
+      </div>
+
+      {/* 사유 — 제공사가 준 원문 그대로 */}
+      <div className="rounded-lg border border-[var(--border-soft)] bg-[var(--panel-2)] px-2.5 py-2 text-xs leading-relaxed">
+        <div className="mb-1 font-semibold text-[var(--text-dim)]">사유</div>
+        <div className="whitespace-pre-wrap break-words text-[var(--text-soft)]">{r.reason}</div>
+      </div>
+
+      {r.prompt && (
+        <div className="rounded-lg border border-[var(--border-soft)] bg-[var(--panel-2)] px-2.5 py-2 text-xs leading-relaxed">
+          <span className="mr-1 font-semibold text-[var(--text-dim)]">프롬프트</span>
+          <span className="whitespace-pre-wrap break-words text-[var(--text-soft)]">{r.prompt}</span>
+        </div>
+      )}
+
+      {/* 결과물이 안 붙은 줄은 제공사에 직접 물어볼 수 있다 */}
+      {r.source === 'missing' && r.usageId && <ProviderCheck id={r.usageId} />}
+    </div>
+  )
+}
 
 export default function AdminAiGenerationsPage() {
   const [items, setItems] = useState<AiGenerationRow[]>([])
@@ -61,8 +124,20 @@ export default function AdminAiGenerationsPage() {
   const [loading, setLoading] = useState(false)
   const [offset, setOffset] = useState(0)
 
+  const [fails, setFails] = useState<GenFailureRow[]>([])
+
   const load = useCallback(async (reset: boolean, nextOffset: number, useKind: string, useQ: string) => {
     setLoading(true)
+    //  실패 탭은 다른 표를 읽는다 — 생성 목록과 섞지 않는다
+    if (useKind === 'fail') {
+      const f = await adminGenFailures({ limit: PAGE, offset: nextOffset, q: useQ, days: 3650 })
+      setLoading(false)
+      if (!f.ok) return
+      setTotal(f.total ?? 0)
+      setFails((prev) => (reset ? f.items || [] : [...prev, ...(f.items || [])]))
+      setOffset(nextOffset + (f.items?.length || 0))
+      return
+    }
     const r = await adminAiGenerations({ limit: PAGE, offset: nextOffset, kind: useKind, q: useQ, days: 3650 })
     setLoading(false)
     if (!r.ok) return
@@ -80,18 +155,24 @@ export default function AdminAiGenerationsPage() {
      한 번에 다 하면 그 요청이 죽으므로 서버가 조금씩 처리하고 "남았다" 를 알려 준다 —
      여기서 끝날 때까지 다시 부른다. 되찾은 게 없는데 남았다고만 하면 무한히 돌 수 있으니
      "이번에 하나도 못 되찾았으면 멈춘다" 는 조건을 같이 둔다. */
-  const [rec, setRec] = useState<{ busy: boolean; ok: number; fail: number; run: number; gone: number; done: boolean } | null>(null)
+  const [rec, setRec] = useState<
+    { busy: boolean; ok: number; fail: number; run: number; gone: number; moved: number; done: boolean } | null>(null)
   const recover = async () => {
-    setRec({ busy: true, ok: 0, fail: 0, run: 0, gone: 0, done: false })
-    let ok = 0, fail = 0, run = 0, gone = 0
+    setRec({ busy: true, ok: 0, fail: 0, run: 0, gone: 0, moved: 0, done: false })
+    let ok = 0, fail = 0, run = 0, gone = 0, moved = 0
     for (let i = 0; i < 60; i++) {
       const r = await adminGenRecover()
-      if (!r.ok) { setRec({ busy: false, ok, fail, run, gone, done: true }); return }
+      if (!r.ok) { setRec({ busy: false, ok, fail, run, gone, moved, done: true }); return }
       ok += r.recovered || 0; fail += r.failed || 0; run += r.running || 0; gone += r.gone || 0
-      setRec({ busy: true, ok, fail, run, gone, done: false })
-      if (!(r.remaining || 0) || !(r.recovered || 0)) break
+      moved += r.moved || 0
+      setRec({ busy: true, ok, fail, run, gone, moved, done: false })
+      /* ⚠ "되찾은 게 없으면 멈춘다" 만 보면 안 된다. 되찾을 건 없는데 옮길 건 남은 경우
+         (= 제공사 주소를 붙들고 있는 만료 위험 줄)에 첫 묶음만 옮기고 끝났다고 보고한다.
+         한 바퀴에서 되찾은 것도 옮긴 것도 없을 때만 멈춘다. */
+      if (!(r.remaining || 0)) break
+      if (!(r.recovered || 0) && !(r.moved || 0)) break
     }
-    setRec({ busy: false, ok, fail, run, gone, done: true })
+    setRec({ busy: false, ok, fail, run, gone, moved, done: true })
     load(true, 0, kind, q)
   }
 
@@ -133,15 +214,15 @@ export default function AdminAiGenerationsPage() {
         <Button variant="soft" size="sm" onClick={() => load(true, 0, kind, q)}>
           <RefreshCw size={14} /> 새로고침
         </Button>
-        <Button variant="soft" size="sm" onClick={() => csvDownload(items)} disabled={!items.length}>
+        <Button variant="soft" size="sm" onClick={() => csvDownload(items)} disabled={kind === 'fail' || !items.length}>
           <Download size={14} /> CSV
         </Button>
         <Button variant="soft" size="sm" onClick={recover} disabled={!!rec && rec.busy}>
           <Wand2 size={14} /> {rec?.busy ? '되찾는 중…' : '결과물 되찾기'}
         </Button>
         <div className="ml-auto flex items-center gap-3 text-xs text-[var(--text-soft)]">
-          <span>총 <b className="text-[var(--text)]">{total.toLocaleString('ko-KR')}</b>건</span>
-          {todayRate != null && <span>오늘 환율 <b className="text-[var(--text)]">₩{Math.round(todayRate).toLocaleString('ko-KR')}</b>/$</span>}
+          <span>{kind === 'fail' ? '실패' : '총'} <b className={kind === 'fail' ? 'text-rose-500' : 'text-[var(--text)]'}>{total.toLocaleString('ko-KR')}</b>건</span>
+          {kind !== 'fail' && todayRate != null && <span>오늘 환율 <b className="text-[var(--text)]">₩{Math.round(todayRate).toLocaleString('ko-KR')}</b>/$</span>}
         </div>
       </div>
 
@@ -151,6 +232,8 @@ export default function AdminAiGenerationsPage() {
         <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-4 py-3 text-sm">
           <b className="text-[var(--text)]">{rec.busy ? '제공사에서 되찾는 중…' : '되찾기 완료'}</b>
           <span className="ml-2 text-[var(--text-soft)]">
+            {/* 만료되기 전에 우리 것으로 옮긴 수 — 되찾기보다 이쪽이 급하다 */}
+            우리 저장소로 옮김 <b className="text-violet-500">{rec.moved}</b>건 ·
             되찾음 <b className="text-emerald-500">{rec.ok}</b>건
             {rec.run > 0 && <> · 아직 진행 중 {rec.run}건</>}
             {rec.fail > 0 && <> · 제공사에서 실패했던 건 {rec.fail}건</>}
@@ -164,7 +247,15 @@ export default function AdminAiGenerationsPage() {
         </div>
       )}
 
-      {items.length === 0 && !loading ? (
+      {kind === 'fail' ? (
+        fails.length === 0 && !loading ? (
+          <Panel><p className="py-16 text-center text-sm text-[var(--text-dim)]">실패한 생성이 없습니다.</p></Panel>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {fails.map((r) => <FailCard key={r.source + r.id} r={r} />)}
+          </div>
+        )
+      ) : items.length === 0 && !loading ? (
         <Panel><p className="py-16 text-center text-sm text-[var(--text-dim)]">생성 기록이 없습니다.</p></Panel>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

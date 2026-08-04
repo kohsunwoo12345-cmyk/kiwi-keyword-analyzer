@@ -33,6 +33,31 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const origin = u.origin
   const cookie = request.headers.get('cookie') || ''
 
+  /* ── 먼저: 제공사 주소를 아직 붙들고 있는 줄을 우리 R2 로 옮긴다 ──
+     이게 없어서 "제공사 주소 · 만료 위험" 딱지가 붙은 줄은 아무도 안 고쳤다.
+     되찾기는 "주소가 빈 줄" 만 봤고, 보관함은 그 회원이 열 때 3개씩만 옮겼다.
+     제일 급한 건 이쪽이다 — 지금은 보이지만 며칠 뒤 사라질 것들이라, 원본이
+     살아 있는 동안 옮겨야 한다. 빈 줄은 이미 사라진 뒤라 급하지 않다. */
+  let moved = 0, moveFail = 0
+  const ext: any = await db.prepare(
+    `SELECT id, result_url FROM ai_usage
+      WHERE result_url LIKE 'http%' ORDER BY created_at DESC LIMIT ?`)
+    .bind(BATCH).all().catch(() => ({ results: [] }))
+  const extLeftRow: any = await db.prepare(
+    `SELECT COUNT(*) AS c FROM ai_usage WHERE result_url LIKE 'http%'`).first().catch(() => ({ c: 0 }))
+  const details: any[] = []
+  for (const r of (ext.results || []) as any[]) {
+    const saved = await saveMediaToR2(env, String((r as any).result_url))
+    if (saved.moved) {
+      await db.prepare('UPDATE ai_usage SET result_url = ? WHERE id = ?')
+        .bind(saved.url, String((r as any).id)).run().catch(() => {})
+      moved++; details.push({ id: String((r as any).id), state: 'moved', url: saved.url })
+    } else {
+      moveFail++
+      details.push({ id: String((r as any).id), state: 'move-failed', note: saved.reason || '옮기지 못함' })
+    }
+  }
+
   /* 대상: 결과 주소가 빈 줄 중, 제공사에 물어볼 작업 번호가 남아 있는 것.
      실패로 확정돼 환불까지 끝난 건은 물어볼 필요가 없다 — 결과가 있을 리 없다. */
   const sql = `SELECT a.id AS id, g.id AS charge_id, g.task_key AS task_key
@@ -43,7 +68,6 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const rows: any = await db.prepare(sql + ' LIMIT ?').bind(BATCH).all().catch(() => ({ results: [] }))
 
   let recovered = 0, failed = 0, running = 0, gone = 0
-  const details: any[] = []
   for (const r of rows.results || []) {
     const id = String((r as any).id)
     const taskKey = String((r as any).task_key)
@@ -88,6 +112,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
      그냥 "남은 수" 를 그대로 주면 화면이 영원히 다시 부른다.
      이번에 못 고친 건수를 빼서 "이번 방식으로 더 고칠 수 있는 수" 를 준다. */
   const stuck = failed + running + gone
-  const remaining = Math.max(0, (Number(totalRow?.c) || 0) - recovered - stuck)
-  return json({ ok: true, tried: (rows.results || []).length, recovered, failed, running, gone, remaining, details })
+  /* 남은 수에는 "옮겨야 할 제공사 주소 줄" 도 함께 센다 — 화면이 그 수가 0 이 될 때까지
+     다시 부른다. 이걸 빼먹으면 만료 위험 줄을 몇 개만 옮기고 끝났다고 보고하게 된다. */
+  const extLeft = Math.max(0, (Number(extLeftRow?.c) || 0) - moved)
+  const remaining = Math.max(0, (Number(totalRow?.c) || 0) - recovered - stuck) + extLeft
+  return json({ ok: true, tried: (rows.results || []).length + (ext.results || []).length,
+                moved, moveFailed: moveFail, extLeft,
+                recovered, failed, running, gone, remaining, details })
 }

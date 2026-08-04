@@ -14,6 +14,7 @@ import { getBrandKit, applyBrandKit } from "./studio/brandkit";
 import { modelIdOf as registryModelIdOf, listEnabled as registryList } from "./studio/_registry";
 import { issueGenCharge, settleGenCharge, refundGenCharge, reconcileGenCharge, archiveGenResult } from "./studio/_gencharge";
 import { saveMediaToR2 } from "./_media";
+import { recordGenFailure } from "./studio/_genfail";
 import { probeRemoteVideoSeconds, SOURCE_LENGTH_MODELS, sourceVideoUrl } from "./studio/_vidlen";
 import { ensureAiUsage, resolveCostOverride, refreshUsdKrw } from "./studio/_pricing";
 import { MODEL_COST as MODEL_COST_SRV } from "./studio/_pricing";
@@ -1883,6 +1884,42 @@ export function effectiveRes(body, env) {
    금액은 토큰에 묶인 서버 확정값이라 신고 내용과 무관하다. */
 const BILL_DEPS = { computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge, creditPriceFor, ensureAiUsage, resolveCostOverride };
 
+/* 생성이 안 된 자리마다 "누가·무엇을·왜" 를 남긴다.
+   관리자 생성기록의 [실패] 화면이 이걸 읽는다. 여태는 아무 데도 안 남아서,
+   회원이 "안 돼요" 라고 하면 재현해 보는 것 말고는 확인할 길이 없었다.
+   ⚠ 절대 던지지 않는다 — 실패를 적다가 응답이 깨지면 그게 더 큰 문제다. */
+async function logFail(context, stage, reason, taskKey, refunded) {
+  try {
+    const db = resolveDB(context.env);
+    if (!db) return;
+    const me = context.__genUser || null;
+    const b = context.__pbody || {};
+    /*  조회(GET)에는 요청 본문이 없다 — 무엇을 만들다 실패했는지 모른 채로 적히면
+        화면에 모델 칸이 빈 줄만 쌓인다. 작업 주소로 요금 줄을 찾아 모델을 채운다. */
+    let model = String(b.model || ""), usageId = "";
+    if (!model && taskKey) {
+      const row = await db.prepare(
+        "SELECT model, usage_id FROM gen_charges WHERE task_key = ? ORDER BY created_at DESC LIMIT 1")
+        .bind(String(taskKey).slice(0, 300)).first().catch(() => null);
+      if (row) { model = String(row.model || ""); usageId = String(row.usage_id || ""); }
+    }
+    await recordGenFailure(db, {
+      userId: String((me && me.id) || ""),
+      email: String((me && me.email) || ""),
+      name: String((me && me.name) || ""),
+      provider: String(b.provider || ""),
+      model,
+      usageId,
+      kind: String(b.kind || ""),
+      stage,
+      reason: String(reason || ""),
+      taskKey: String(taskKey || ""),
+      refunded: Number(refunded) || 0,
+      prompt: String(b.prompt || ""),
+    });
+  } catch (_e) { /* 삼킨다 */ }
+}
+
 export async function onRequest(context) {
   try {
     const res = await handle(context);
@@ -1908,7 +1945,10 @@ export async function onRequest(context) {
     //  실패로 확정된 비동기 작업이면 제출 때 뺀 금액을 되돌린다(정확히 1회).
     if (context.request.method === "GET" && (body.status === "failed" || (body.error && !body.url))) {
       const gu = new URL(context.request.url);
-      const back = await refundGenCharge(resolveDB(context.env), gu.pathname + gu.search);
+      const key = gu.pathname + gu.search;
+      const back = await refundGenCharge(resolveDB(context.env), key);
+      //  왜 실패했는지 남긴다 — 여태 환불만 하고 사유는 버렸다(관리자 [실패] 화면이 이걸 읽는다)
+      await logFail(context, "run", String(body.error || body.reason || "제공사가 실패로 끝냈습니다."), key, back);
       if (back > 0) return json({ ...body, credits_refunded: back }, res.status);
       return res;
     }
@@ -1928,8 +1968,15 @@ export async function onRequest(context) {
       const rurl = String(body.url);
       const job = async () => {
         try {
-          await archiveGenResult(resolveDB(context.env), key, rurl, kind,
-                                 (u) => saveMediaToR2(context.env, u));
+          let why = "";
+          await archiveGenResult(resolveDB(context.env), key, rurl, kind, async (u) => {
+            const r = await saveMediaToR2(context.env, u);
+            if (!r.moved) why = r.reason || "우리 저장소로 옮기지 못했습니다.";
+            return r;
+          });
+          /*  영상은 나왔는데 우리 R2 로 못 옮겼다 = 남의 주소를 붙들고 있다는 뜻이고,
+              그건 며칠 뒤 사라진다. 조용히 넘기면 사라지고 나서야 안다 — 지금 남긴다. */
+          if (why) await logFail(context, "archive", why, key, 0);
         } catch (_a) { /* 보관 실패가 회원의 생성을 망치면 안 된다 */ }
       };
       if (context.waitUntil) context.waitUntil(job()); else job().catch(() => {});
@@ -1940,6 +1987,13 @@ export async function onRequest(context) {
                                             Number(body.usageTokens), BILL_DEPS);
       if (diff !== 0) return json({ ...body, credits_adjusted: diff }, res.status);
     }
+    /*  제출 단계에서 막힌 것 — 여기가 여태 통째로 비어 있던 자리다.
+        얼굴 거절·모델 미개통·키 문제로 막히면 ai_usage 줄조차 안 생기므로,
+        관리자는 "회원이 무엇을 하다 막혔는지" 를 볼 방법이 아예 없었다.
+        (조회 GET 은 위에서 이미 다뤘다 — 여기는 실제 생성 요청만 본다) */
+    if (context.request.method === "POST" && body.error && !body.url && !body.statusUrl)
+      await logFail(context, "submit", String(body.error), "", 0);
+
     const tok = context.__chargeToken;
     if (!tok || res.status !== 200) return res;
     //  성공한 생성만 청구 — 즉시 결과(url) 또는 접수된 비동기 작업(statusUrl).
@@ -2201,7 +2255,7 @@ async function handle(context) {
       const lumaOk = await lumaUsable(k.luma);
       return json({
         version:  "2026-07-13-v56 (remove-keys-page)", // 이 필드가 보이면 최신 코드가 프로덕션에 반영된 것
-        build:    "2026-08-04-v64",                      // 스튜디오 STUDIO_BUILD_TAG 와 정확히 일치해야 최신 (배포마다 함께 올린다)
+        build:    "2026-08-04-v65",                      // 스튜디오 STUDIO_BUILD_TAG 와 정확히 일치해야 최신 (배포마다 함께 올린다)
         runway:   !!k.runway,
         xai:      !!k.xai,
         google:   !!(k.google || gcpCreds(env)),
