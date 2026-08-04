@@ -41,14 +41,17 @@ export type AliRow = {
   id: string            // 제공사 모델 ID
   kind: 'video' | 'image'
   unit: 'sec' | 'img'
-  usd: number           // 영상=1080p 기준 초당 · 이미지=장당 (⚠ 잠정)
+  usd: number           // 영상=1080p 기준 초당 · 이미지=장당
+  usd720?: number       // 영상만 — 720p 초당. 화소비로 깎으면 실제보다 싸진다(아래 설명)
+  근거?: 'A' | 'C'      // A = 서로 다른 출처 둘이 같은 값 · C = 우리 추정(더 비싸게 잡음)
   cat: string           // 피커 분류
   pinned?: boolean      // 날짜 고정판(같은 모델의 다른 이름)
   opts?: any
 }
 
-const V = (name: string, id: string, usd: number, opts?: any, pinned?: boolean): AliRow =>
-  ({ name, id, kind: 'video', unit: 'sec', usd, cat: '영상 · Wan(알리바바)', pinned, opts })
+const V = (name: string, id: string, usd: number, opts?: any, pinned?: boolean,
+           usd720?: number, 근거: 'A' | 'C' = 'C'): AliRow =>
+  ({ name, id, kind: 'video', unit: 'sec', usd, usd720, 근거, cat: '영상 · Wan(알리바바)', pinned, opts })
 const I = (name: string, id: string, usd: number, opts?: any, pinned?: boolean): AliRow =>
   ({ name, id, kind: 'image', unit: 'img', usd, cat: '이미지 · 알리바바', pinned, opts })
 
@@ -61,33 +64,33 @@ const IOPT = { secs: [], ratios: ['1:1', '16:9', '9:16', '4:3', '3:4'], res: [],
 
 export const ALIBABA_MODELS: AliRow[] = [
   /* ── 영상 27개 — diag=alibaba 가 받아 온 wan 영상 후보 그대로 ── */
-  V('Wan 2.7 (텍스트→영상)',            'wan2.7-t2v', 0.15, VOPT_LONG),
-  V('Wan 2.7 (텍스트→영상 · 04-25판)',  'wan2.7-t2v-2026-04-25', 0.15, VOPT_LONG, true),
-  V('Wan 2.7 (텍스트→영상 · 06-12판)',  'wan2.7-t2v-2026-06-12', 0.15, VOPT_LONG, true),
-  V('Wan 2.7 (이미지→영상)',            'wan2.7-i2v', 0.15, VOPT_LONG),
-  V('Wan 2.7 (이미지→영상 · 04-25판)',  'wan2.7-i2v-2026-04-25', 0.15, VOPT_LONG, true),
-  V('Wan 2.7 (레퍼런스→영상)',          'wan2.7-r2v', 0.15, VOPT_LONG),
-  V('Wan 2.7 (레퍼런스→영상 · 06-12판)', 'wan2.7-r2v-2026-06-12', 0.15, VOPT_LONG, true),
-  V('Wan 2.7 (영상 편집)',              'wan2.7-videoedit', 0.15, VOPT_LONG),
-  V('Wan 2.6 (텍스트→영상)',            'wan2.6-t2v', 0.15, VOPT_LONG),
-  V('Wan 2.6 (이미지→영상)',            'wan2.6-i2v', 0.15, VOPT_LONG),
-  V('Wan 2.6 Flash (이미지→영상)',      'wan2.6-i2v-flash', 0.10, VOPT),
-  V('Wan 2.6 (레퍼런스→영상)',          'wan2.6-r2v', 0.15, VOPT_LONG),
-  V('Wan 2.6 Flash (레퍼런스→영상)',    'wan2.6-r2v-flash', 0.10, VOPT),
-  V('Wan 2.5 (텍스트→영상)',            'wan2.5-t2v-preview', 0.15, VOPT),
-  V('Wan 2.5 (이미지→영상)',            'wan2.5-i2v-preview', 0.15, VOPT),
-  V('Wan 2.2 Plus (텍스트→영상)',       'wan2.2-t2v-plus', 0.10, VOPT),
-  V('Wan 2.2 Plus (이미지→영상)',       'wan2.2-i2v-plus', 0.10, VOPT),
-  V('Wan 2.2 Flash (이미지→영상)',      'wan2.2-i2v-flash', 0.06, VOPT),
-  V('Wan 2.2 Flash (첫·끝 프레임→영상)', 'wan2.2-kf2v-flash', 0.06, VOPT),
-  V('Wan 2.2 (동작 합성·Animate Mix)',  'wan2.2-animate-mix', 0.10, VOPT),
-  V('Wan 2.2 (동작 전이·Animate Move)', 'wan2.2-animate-move', 0.10, VOPT),
-  V('Wan 2.1 Plus (텍스트→영상)',       'wan2.1-t2v-plus', 0.10, VOPT),
-  V('Wan 2.1 Turbo (텍스트→영상)',      'wan2.1-t2v-turbo', 0.06, VOPT),
-  V('Wan 2.1 Plus (이미지→영상)',       'wan2.1-i2v-plus', 0.10, VOPT),
-  V('Wan 2.1 Turbo (이미지→영상)',      'wan2.1-i2v-turbo', 0.06, VOPT),
-  V('Wan 2.1 Plus (첫·끝 프레임→영상)', 'wan2.1-kf2v-plus', 0.10, VOPT),
-  V('Wan 2.1 VACE (영상 편집·참조)',    'wan2.1-vace-plus', 0.10, VOPT),
+  V('Wan 2.7 (텍스트→영상)', 'wan2.7-t2v', 0.144, VOPT_LONG, false, 0.086, 'A'),
+  V('Wan 2.7 (텍스트→영상 · 04-25판)', 'wan2.7-t2v-2026-04-25', 0.144, VOPT_LONG, true, 0.086, 'A'),
+  V('Wan 2.7 (텍스트→영상 · 06-12판)', 'wan2.7-t2v-2026-06-12', 0.144, VOPT_LONG, true, 0.086, 'A'),
+  V('Wan 2.7 (이미지→영상)', 'wan2.7-i2v', 0.144, VOPT_LONG, false, 0.086, 'A'),
+  V('Wan 2.7 (이미지→영상 · 04-25판)', 'wan2.7-i2v-2026-04-25', 0.144, VOPT_LONG, true, 0.086, 'A'),
+  V('Wan 2.7 (레퍼런스→영상)', 'wan2.7-r2v', 0.144, VOPT_LONG, false, 0.086, 'A'),
+  V('Wan 2.7 (레퍼런스→영상 · 06-12판)', 'wan2.7-r2v-2026-06-12', 0.144, VOPT_LONG, true, 0.086, 'A'),
+  V('Wan 2.7 (영상 편집)', 'wan2.7-videoedit', 0.144, VOPT_LONG, false, 0.086, 'A'),
+  V('Wan 2.6 (텍스트→영상)', 'wan2.6-t2v', 0.12, VOPT_LONG, false, 0.08, 'A'),
+  V('Wan 2.6 (이미지→영상)', 'wan2.6-i2v', 0.12, VOPT_LONG, false, 0.08, 'A'),
+  V('Wan 2.6 Flash (이미지→영상)', 'wan2.6-i2v-flash', 0.10, VOPT, false, 0.06, 'C'),
+  V('Wan 2.6 (레퍼런스→영상)', 'wan2.6-r2v', 0.12, VOPT_LONG, false, 0.08, 'A'),
+  V('Wan 2.6 Flash (레퍼런스→영상)', 'wan2.6-r2v-flash', 0.10, VOPT, false, 0.06, 'C'),
+  V('Wan 2.5 (텍스트→영상)', 'wan2.5-t2v-preview', 0.15, VOPT, false, 0.09, 'C'),
+  V('Wan 2.5 (이미지→영상)', 'wan2.5-i2v-preview', 0.15, VOPT, false, 0.09, 'C'),
+  V('Wan 2.2 Plus (텍스트→영상)', 'wan2.2-t2v-plus', 0.10, VOPT, false, 0.06, 'C'),
+  V('Wan 2.2 Plus (이미지→영상)', 'wan2.2-i2v-plus', 0.10, VOPT, false, 0.06, 'C'),
+  V('Wan 2.2 Flash (이미지→영상)', 'wan2.2-i2v-flash', 0.06, VOPT, false, 0.036, 'C'),
+  V('Wan 2.2 Flash (첫·끝 프레임→영상)', 'wan2.2-kf2v-flash', 0.06, VOPT, false, 0.036, 'C'),
+  V('Wan 2.2 (동작 합성·Animate Mix)', 'wan2.2-animate-mix', 0.10, VOPT, false, 0.06, 'C'),
+  V('Wan 2.2 (동작 전이·Animate Move)', 'wan2.2-animate-move', 0.10, VOPT, false, 0.06, 'C'),
+  V('Wan 2.1 Plus (텍스트→영상)', 'wan2.1-t2v-plus', 0.10, VOPT, false, 0.06, 'C'),
+  V('Wan 2.1 Turbo (텍스트→영상)', 'wan2.1-t2v-turbo', 0.06, VOPT, false, 0.036, 'C'),
+  V('Wan 2.1 Plus (이미지→영상)', 'wan2.1-i2v-plus', 0.10, VOPT, false, 0.06, 'C'),
+  V('Wan 2.1 Turbo (이미지→영상)', 'wan2.1-i2v-turbo', 0.06, VOPT, false, 0.036, 'C'),
+  V('Wan 2.1 Plus (첫·끝 프레임→영상)', 'wan2.1-kf2v-plus', 0.10, VOPT, false, 0.06, 'C'),
+  V('Wan 2.1 VACE (영상 편집·참조)', 'wan2.1-vace-plus', 0.10, VOPT, false, 0.06, 'C'),
 
   /* ── 이미지 10개(Wan) ── */
   I('Wan 2.7 이미지 Pro',        'wan2.7-image-pro', 0.10, IOPT),

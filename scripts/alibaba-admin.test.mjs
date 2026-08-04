@@ -140,7 +140,30 @@ console.log('\n④ 표가 서로 어긋나지 않는다')
   ok(/ALIBABA_BY_NAME/.test(aim), '관리자 화면도 같은 표에서 모델 ID 를 가져온다')
 }
 
+console.log('\n⑤ 해상도 구간 — 720p 를 화소비로 깎으면 원가보다 싸게 판다')
+{
+  /* 알리바바 공개 단가는 720P ¥0.6 / 1080P ¥1.0 — 0.6 배다. 화소비(0.444)가 아니다.
+     기본 계산에 맡기면 720p 를 실제 원가의 74%만 받는다. 그 26% 는 우리가 문다. */
+  const pricing = await load('functions/api/studio/_pricing.ts')
+  const { computeCharge } = pricing
+  const M = 'Wan 2.7 (텍스트→영상)'
+  const at = (res) => computeCharge({ model: M, units: 5, kind: 'video', res }, 1400, 1)  // 배수 1 = 원가 그대로
+  const k1080 = at('1080p').costKrw, k720 = at('720p').costKrw
+  ok(k1080 > 0 && k720 > 0, '두 구간 다 값이 나온다', `${k720} / ${k1080}`)
+  ok(Math.abs(k720 / k1080 - 0.6) < 0.02,
+     '720p 가 1080p 의 0.6 배다(공개 표 그대로)', `실제 비율 ${(k720 / k1080).toFixed(3)}`)
+  ok(k720 / k1080 > 0.5,
+     '화소비(0.444)로 깎이지 않는다 — 깎이면 720p 를 26% 덜 받는다', `${(k720 / k1080).toFixed(3)}`)
+  //  5초 × $0.086 × 1400 = 602원
+  ok(Math.abs(k720 - 602) <= 2, '720p 5초 원가가 공개 단가와 맞는다(5초 × $0.086 × 1400 = ₩602)', String(k720))
+  ok(Math.abs(k1080 - 1008) <= 2, '1080p 5초 원가가 맞는다(5초 × $0.144 × 1400 = ₩1,008)', String(k1080))
+  //  배수를 태우면 반드시 원가보다 커야 한다
+  const sell = computeCharge({ model: M, units: 5, kind: 'video', res: '720p' }, 1400)
+  ok(sell.costKrw < sell.revenueKrw, '기본 배수로 팔면 원가보다 크다',
+     `원가 ${sell.costKrw} → 매출 ${sell.revenueKrw}`)
+}
+
 console.log(failed === 0
-  ? '\n알리바바 관리자 노출 — 실패 0 (모델 화면 · 단가 화면 · 등록부 · 표 일치)'
+  ? '\n알리바바 관리자 노출 — 실패 0 (모델 화면 · 단가 화면 · 등록부 · 표 일치 · 해상도 구간)'
   : `\n실패 ${failed}건`)
 process.exit(failed ? 1 : 0)
