@@ -466,10 +466,9 @@ const MUTATIONS = [
     file: 'functions/api/admin/pending.ts',
     from: '    const r: any = await db.prepare(sql).first()\n    return Number(r?.c) || 0',
     to: '    try { const r: any = await db.prepare(sql).first(); return Number(r?.c) || 0 } catch { return 0 }' },
-  { g: '정직', name: '관리자 쿠폰 목록 조회를 다시 삼킨다 (쿠폰이 없어 보인다)',
-    file: 'functions/api/admin/coupons.ts',
-    from: "  const coupons = (await db.prepare('SELECT * FROM coupons ORDER BY created_at DESC LIMIT 500').all()).results || []",
-    to: "  const coupons = (await db.prepare('SELECT * FROM coupons ORDER BY created_at DESC LIMIT 500').all().catch(() => ({ results: [] }))).results || []" },
+  { g: '정직', name: '관리자 회원 노드 목록 조회를 다시 삼킨다 (아무도 안 쓰는 것처럼 보인다)',
+    file: 'functions/api/admin/studio-nodes.ts',
+    from: '.all()', to: '.all().catch(() => ({ results: [] }))', all: true },
   // ── 크론 계약 ───────────────────────────────────────────────────────────
   { g: '크론', name: '순위 추적 응답의 hasMore 이름을 바꾼다 (하루 20건에서 멈춘다)',
     file: 'functions/api/naver-place/update-all-tracking.ts', from: 'hasMore', to: 'has_more' },
