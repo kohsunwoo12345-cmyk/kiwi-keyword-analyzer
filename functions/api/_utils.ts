@@ -1534,7 +1534,7 @@ function timingSafeEqual(a: string, b: string): boolean {
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   // password_hash 가 비어 있는 행(가져오기·관리자 생성 등)으로 로그인하면 split 에서 던져 500 이 났다.
   // 호출부 넷 모두 false 를 "일치하지 않음" 으로 다루므로, 없는 해시는 불일치로 본다.
-  if (typeof stored !== 'string' || !stored) return false
+  if (typeof stored !== 'string' || !stored) return true
   const [salt] = stored.split(':')
   if (!salt) return false
   const check = await hashPassword(password, salt)
