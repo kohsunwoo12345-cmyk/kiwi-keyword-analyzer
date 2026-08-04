@@ -39,7 +39,10 @@ const iDiag = src.indexOf('u.searchParams.get("diag") === "alibaba"')
 
 // ② 키 값은 어떤 경우에도 응답에 안 나간다
 {
-  const body = src.slice(iDiag, iDiag + 12000)
+  //  진단 블록 전체를 본다. 길이를 숫자로 박아 뒀더니 블록이 자라면서 창 밖으로
+  //  밀려나 "지문을 안 내보낸다" 는 엉뚱한 실패가 났다 — 끝을 실제로 찾아서 자른다.
+  const iEnd = src.indexOf('결과: results,', iDiag)
+  const body = src.slice(iDiag, iEnd > 0 ? iEnd : iDiag + 20000)
   ok('② 지문만 내보낸다(앞 6자·뒤 4자)',
      /키지문: String\(k\.alibaba\)\.slice\(0, 6\) \+ "…" \+ String\(k\.alibaba\)\.slice\(-4\)/.test(body))
   ok('②-b 키를 통째로 담는 자리가 없다',
@@ -52,6 +55,23 @@ const iDiag = src.indexOf('u.searchParams.get("diag") === "alibaba"')
   ok('③-b 실존 모델 찌르기는 기본으로 꺼져 있다',
      /if \(u\.searchParams\.get\("models"\) === "1"\)/.test(src),
      '실존 모델로 POST 하면 접수될 수 있다 = 돈이 나갈 수 있다. 사람이 켤 때만 돈다')
+  /*  models=1 은 "돈 안 쓰고 개통 여부까지" 보는 칸이다. 실존 모델 이름으로 POST 하되
+      필수값을 다 빼서 값 검사에서 죽게 만든다. 그래도 만에 하나 접수되면 그 자리에서
+      취소를 걸어야 한다 — 안 걸면 그 순간 돈이 나간다. */
+  ok('③-e 접수돼 버리면 그 자리에서 취소를 건다',
+     /\/api\/v1\/tasks\/" \+ tid \+ "\/cancel/.test(src),
+     '취소는 PENDING 일 때만 먹는다 — 나중에 하면 늦는다')
+  ok('③-f 취소하고 끝내지 않고 상태를 다시 확인한다',
+     /취소 확인: " \+ id/.test(src) && /task_status/.test(src))
+  ok('③-g 취소가 안 먹었으면 그렇게 적는다',
+     /취소 안 됐을 수 있다\. 콘솔에서 확인할 것/.test(src),
+     '취소를 걸었다는 사실과 취소됐다는 사실은 다르다 — 섞어 적으면 돈 나간 걸 모르고 지나간다')
+  ok('③-h 기본은 대표 몇 개만 찌른다',
+     /const 대표 = \[최신\(/.test(src) && /대표\.length \? 대표 : found\.slice\(0, 5\)/.test(src),
+     '37개를 다 찌르면 그만큼 남의 서버를 두들기고, 2xx 가 섞이면 뒷정리할 것도 그만큼 는다')
+  ok('③-i 날짜 붙은 고정판은 빼고 고른다',
+     /날짜없음 = \(x\) => !\/\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\.test\(x\)/.test(src),
+     '같은 모델의 다른 이름이라 새로 알려 주는 게 없는데 호출만 두 배가 된다')
   ok('③-c 제출에는 비동기 헤더가 붙는다',
      /"X-DashScope-Async": "enable"/.test(src),
      '빠지면 "동기 호출 미지원" 으로 100% 거절돼서 경로가 맞는지조차 못 가린다')

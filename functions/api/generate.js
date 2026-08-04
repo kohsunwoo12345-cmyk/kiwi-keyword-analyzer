@@ -2345,6 +2345,7 @@ async function handle(context) {
 
       const results = [];
       const 모델목록 = [];
+      const 취소된것 = [];   // 만에 하나 접수된 것을 취소한 기록 — 비어 있어야 정상이다
       for (const h of HOSTS) {
         /* ① 모델 목록 — 가장 안전하고 가장 정보가 많다. 토큰을 만들지 않는 조회이고,
               200 이면 이 키가 어느 리전에서 어떤 모델에 닿는지가 응답에 그대로 나온다.
@@ -2428,34 +2429,73 @@ async function handle(context) {
         }
       }
 
-      /* ④ 실존 모델 이름 확인 — 조사에서 "가장 위험" 으로 분류된 방법이라 기본은 꺼 둔다.
-            필수값(prompt)을 빼고 보내 "모델 없음" 과 "값 틀림" 을 가르는 방식인데,
-            검증이 큐보다 먼저 돈다는 보장을 문서로 못 받았다.
-            ①의 모델 목록이 200 으로 오면 이건 아예 필요 없다 — 목록에 다 나온다. */
-      const MODELS = [
-        // 영상 — 조사에서 확인한 실제 ID
-        "wan2.7-t2v", "wan2.6-t2v", "wan2.5-t2v-preview", "wan2.2-t2v-plus", "wanx2.1-t2v-turbo",
-        "wan2.7-i2v", "wan2.6-i2v", "wan2.5-i2v-preview", "wan2.2-i2v-plus",
-        // 이미지
-        "wan2.6-t2i", "wanx2.1-t2i-turbo", "wanx2.1-imageedit",
-      ];
-      const pathForModel = (id) => /t2i|imageedit|-image/.test(id)
-        ? (/wan2\.[67]/.test(id) ? "/api/v1/services/aigc/image-generation/generation"
-                                 : "/api/v1/services/aigc/text2image/image-synthesis")
-        : "/api/v1/services/aigc/video-generation/video-synthesis";
+      /* ④ 실존 모델이 이 키로 열려 있는지 — 돈 안 쓰고 갈 수 있는 마지막 칸
+            (GET /api/generate?diag=alibaba&models=1)
+
+         목록에 이름이 있다고 쓸 수 있는 건 아니다. 개통이 안 됐거나 권한이 없으면
+         제출하는 순간 403 이 온다. 그건 실제로 제출해 봐야 안다 — 그런데 제출은
+         돈이 나갈 수 있는 일이다. 그래서 **만들어질 수 없는 제출** 을 보낸다:
+         실존 모델 이름 + 필수값(prompt·이미지) 전부 뺌. 그러면 답이 셋으로 갈린다.
+           "Model not exist"        → 이 경로/이 키로는 그 모델이 없다
+           "prompt 가 필요하다" 류   → **모델도 있고 권한도 있다.** 값 검사까지 돌았다는 뜻
+           403 AccessDenied 류       → 이름은 아는데 우리 계정에 안 열려 있다
+
+         큐에 들어가기 전에 검증이 도는가? 문서로는 보장을 못 받았지만 **우리가 이미
+         실측했다** — 없는 모델로 제출했을 때 400 이 그 자리에서 왔고 task_id 는 안 왔다.
+         값 검증은 같은 자리에서 도는 검사다. 그래도 만에 하나 2xx 로 접수되면
+         **그 자리에서 취소를 걸고** 취소됐는지 다시 확인해서 그대로 보고한다.
+         (DashScope 취소는 PENDING 상태에서만 먹는다 — 그래서 지체 없이 건다) */
+      const VIDEO_NEW = "/api/v1/services/aigc/video-generation/video-synthesis";   // wan2.7 신 프로토콜
+      const VIDEO_OLD = "/api/v1/services/aigc/image2video/video-synthesis";        // kf2v·s2v 등 레거시
+      const IMAGE_ASYNC = "/api/v1/services/aigc/image-generation/generation";      // wan2.6+ 이미지
+      const IMAGE_OLD = "/api/v1/services/aigc/text2image/image-synthesis";         // 레거시 t2i
+      const 영상모델 = (id) => /t2v|i2v|r2v|s2v|kf2v|videoedit|animate|vace/i.test(id);
+      const pathsFor = (id) => 영상모델(id)
+        ? (/^wan2\.[67]/i.test(id) ? [VIDEO_NEW, VIDEO_OLD] : [VIDEO_OLD, VIDEO_NEW])
+        : (/^wan2\.[567]|^qwen-image|^z-image/i.test(id) ? [IMAGE_ASYNC, IMAGE_OLD] : [IMAGE_OLD, IMAGE_ASYNC]);
+
       if (u.searchParams.get("models") === "1") {
         const only = String(u.searchParams.get("only") || "");
-        //  목록이 실제로 내려왔다면 그걸 쓴다 — 내가 적어 둔 MODELS 는 조사에서 옮겨 적은 것이라
-        //  틀릴 수 있다. 실측 목록이 있는데 굳이 추측을 찌를 이유가 없다.
         const found = 모델목록.flatMap((m) => m.wan계열 || []);
+        /*  기본은 대표 5개만 본다. 37개를 다 찌르면 그만큼 남의 서버를 두들기는 것이고,
+            2xx 가 하나라도 섞이면 그만큼 뒷정리할 것이 늘어난다. 필요하면 &only= 로 지정한다.
+            날짜가 붙은 고정판은 뺀다 — 같은 모델의 다른 이름이라 새로 알려 주는 게 없다. */
+        const 날짜없음 = (x) => !/\d{4}-\d{2}-\d{2}$/.test(x);
+        const 최신 = (re) => found.filter((x) => 날짜없음(x) && re.test(x)).sort().pop();
+        const 대표 = [최신(/-t2v/i), 최신(/-i2v$|-i2v-/i), 최신(/-r2v/i), 최신(/-image/i), 최신(/-t2i/i)]
+          .filter(Boolean);
         const list = only ? only.split(",").map((x) => x.trim()).filter(Boolean)
-                          : (found.length ? found : MODELS);
+                          : (대표.length ? 대표 : found.slice(0, 5));
+
         for (const h of HOSTS) for (const id of list) {
-          results.push(await one(
-            h.id + " · 모델 있나: " + id + " (필수값 뺌)",
-            h.base + pathForModel(id),
-            { method: "POST", headers: POST_H, body: JSON.stringify({ model: id, input: {}, parameters: {} }) },
-          ));
+          //  경로를 잘못 골라도 "그런 모델 없다" 가 온다 — 그러면 다른 경로로 한 번 더 본다.
+          //  두 번까지만. 아니면 모델 하나에 다섯 번씩 두들기게 된다.
+          for (const path of pathsFor(id)) {
+            const r = await one(
+              h.id + " · 모델 열려 있나: " + id + " (필수값 뺌 · " + path.split("/").slice(-2)[0] + ")",
+              h.base + path,
+              { method: "POST", headers: POST_H, body: JSON.stringify({ model: id, input: {}, parameters: {} }) },
+              { keep: true },
+            );
+            results.push(r);
+
+            /*  ⚠ 접수돼 버린 경우 — 여기서 손 놓으면 돈이 나간다. 그 자리에서 취소한다. */
+            const tid = r._json && r._json.output && r._json.output.task_id;
+            if (r.status >= 200 && r.status < 300 && tid) {
+              const c = await one(h.id + " · ⚠ 접수됨 → 즉시 취소: " + id,
+                h.base + "/api/v1/tasks/" + tid + "/cancel", { method: "POST", headers: GET_H });
+              const s = await one(h.id + " · 취소 확인: " + id,
+                h.base + "/api/v1/tasks/" + tid, { method: "GET", headers: GET_H }, { keep: true });
+              results.push(c, s);
+              const st = (s._json && s._json.output && s._json.output.task_status) || "?";
+              취소된것.push({ 모델: id, task_id: tid, 취소요청: c.status, 지금상태: st,
+                             메모: /CANCELED|CANCELLED/i.test(st) ? "취소됨 — 과금 없어야 한다"
+                                   : "⚠ 취소 안 됐을 수 있다. 콘솔에서 확인할 것" });
+            }
+            //  "그런 모델 없다" 가 아니면 답을 얻은 것이다 — 다른 경로까지 갈 필요 없다
+            const kk2 = r.codeKey || "";
+            if (!/modelnotfound|modelnotsupported/.test(kk2) && !/model not exist/i.test(r.message || "")) break;
+          }
         }
       }
 
@@ -2466,19 +2506,21 @@ async function handle(context) {
         if (r.status === 401 || kk === "invalidapikey" || kk === "invalidapikey")
           return r.검사 + " → ✗ 이 리전에서 키 거부(401)";
         if (r.status >= 200 && r.status < 300) {
-          if (/모델 있나|없는 모델/.test(r.검사))
-            return r.검사 + " → ⚠ 2xx · 접수됐을 수 있다. 콘솔 사용량 확인 후 태스크 취소 필요";
+          if (/모델 열려 있나|없는 모델/.test(r.검사))
+            return r.검사 + " → ⚠ 2xx · 접수됐다. 그 자리에서 취소를 걸었다(아래 취소된것 확인)";
           return r.검사 + " → ✓ 통과(200) · 키 유효";
         }
         if (r.status === 403 || /accessdenied|commoditynotpurchased/.test(kk))
-          return r.검사 + " → 키는 유효 · 권한/미개통(" + (r.code || 403) + ")";
+          return r.검사 + " → ✗ 이름은 아는데 우리 계정에 안 열려 있다(" + (r.code || 403) + ")";
         if (/arrearage/.test(kk)) return r.검사 + " → 키는 유효 · 연체 상태";
         if (r.status === 429 || /throttling|insufficientquota/.test(kk))
           return r.검사 + " → 키는 유효 · 한도 초과(" + (r.code || 429) + ")";
-        if (/모델 있나/.test(r.검사)) {
+        if (/모델 열려 있나/.test(r.검사)) {
           if (/modelnotfound|modelnotsupported/.test(kk) || /model not exist/i.test(r.message || ""))
-            return r.검사 + " → ✗ 그런 모델이 없다";
-          return r.검사 + " → ✓ 모델은 있는 듯(값 오류로 거절: " + (r.code || r.status) + ")";
+            return r.검사 + " → ✗ 이 경로로는 그런 모델이 없다";
+          //  값 검사까지 갔다 = 모델도 있고 권한도 있다. 여기가 "돈 안 쓰고" 얻는 최종 답이다.
+          return r.검사 + " → ✓ 열려 있다(값 검사에서 거절: " + (r.code || r.status) + " · " +
+                 String(r.message || "").slice(0, 80) + ")";
         }
         if (r.status === 404 && !/modelnotfound/.test(kk))
           return r.검사 + " → 경로 없음(404) · 이 엔드포인트가 아니다";
@@ -2508,6 +2550,7 @@ async function handle(context) {
         키살아있음: 살아있나,
         호스트별,
         모델목록,
+        취소된것,
         해석,
         결과: results,
       });
