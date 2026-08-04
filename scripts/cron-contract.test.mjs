@@ -105,8 +105,19 @@ console.log('\n① 토큰이 맞아야만 돈다')
   const good = await call(vs, 'GET', '/api/cron/video-schedules', db)
   ok(good.status === 200, '맞는 토큰이면 200', String(good.status))
 
+  /* POST 쪽이 더 중요하다 — 이 문이 열리면 아무나 예약 생성을 돌려
+     회원 크레딧과 제공사 요금을 태울 수 있다. GET 은 개수만 알려 준다. */
+  const postNo = await call(vs, 'POST', '/api/cron/video-schedules', db, '')
+  ok(postNo.status === 401, 'POST 도 토큰이 없으면 401 (여기가 열리면 아무나 생성을 돌린다)', String(postNo.status))
+  const postWrong = await call(vs, 'POST', '/api/cron/video-schedules', db, 'X'.repeat(TOKEN.length))
+  ok(postWrong.status === 401, 'POST 도 길이만 같은 틀린 토큰은 401', String(postWrong.status))
+  const postOk = await call(vs, 'POST', '/api/cron/video-schedules', db)
+  ok(postOk.status === 200, 'POST 도 맞는 토큰이면 200', String(postOk.status))
+
   const ntNo = await call(nt, 'POST', '/api/naver-place/update-all-tracking?limit=20', db, '')
   ok(ntNo.status === 401, '순위 추적도 토큰이 없으면 401', String(ntNo.status))
+  const ntWrong = await call(nt, 'POST', '/api/naver-place/update-all-tracking?limit=20', db, 'X'.repeat(TOKEN.length))
+  ok(ntWrong.status === 401, '순위 추적도 틀린 토큰은 401', String(ntWrong.status))
 }
 
 console.log('\n② 워커가 읽는 "due" 를 엔드포인트가 실제로 내놓는다')
