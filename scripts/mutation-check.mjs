@@ -391,6 +391,12 @@ const MUTATIONS = [
   { g: '인증문', name: '문자 발송 API 의 인증을 통째로 뺀다 (아무나 남의 돈으로 문자를 보낸다)',
     file: 'functions/api/sms/send.ts',
     from: 'getSessionUser', to: 'nonAuthUser', all: true },
+  { g: '인증문', name: '신청자 삭제에서 주인 확인을 뺀다 (남의 신청자 명단을 지운다)',
+    file: 'functions/api/funnel/applicants/[id].ts',
+    from: 'ownsApplicants', to: 'skipOwnCheck', all: true },
+  { g: '인증문', name: '랜딩페이지 삭제에서 주인 확인을 뺀다 (남의 페이지를 지운다)',
+    file: 'functions/api/funnel/landing-pages/[id].ts',
+    from: 'ownsPage', to: 'skipOwnCheck', all: true },
   // ── 크론 계약 ───────────────────────────────────────────────────────────
   { g: '크론', name: '순위 추적 응답의 hasMore 이름을 바꾼다 (하루 20건에서 멈춘다)',
     file: 'functions/api/naver-place/update-all-tracking.ts', from: 'hasMore', to: 'has_more' },
