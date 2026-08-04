@@ -936,6 +936,10 @@ export async function purgeUserData(db: D1Database, uid: string, env?: any): Pro
   //  user_id 로만 지우면 옛 행에 user_id 가 비어 있을 때 새어 나가므로 집행 id 로도 훑는다.
   await del('DELETE FROM crm_execution_sends WHERE campaign_id IN (SELECT id FROM crm_executions WHERE user_id = ?)', uid)
   await del('DELETE FROM crm_execution_sends WHERE user_id = ?', uid)
+  /*  옛 이름의 발송 표. 지금 코드는 이 표를 안 만들지만, 예전 스키마로 시작한 DB 에는
+      그대로 남아 있고 그 안에는 그 회원 고객들의 이름·전화번호가 들어 있다.
+      코드에서 안 쓴다고 개인정보가 사라지는 게 아니다 — 탈퇴하면 같이 지운다. */
+  await del('DELETE FROM crm_campaign_sends WHERE user_id = ?', uid)
   await del('DELETE FROM crm_executions WHERE user_id = ?', uid)
   // 알림 발송 내역 — 받는 사람 이름·전화번호·문구가 남는다
   await del('DELETE FROM notify_log WHERE user_id = ?', uid)
@@ -989,6 +993,8 @@ export async function purgeUserData(db: D1Database, uid: string, env?: any): Pro
   } catch { /* 버킷 미설정이면 넘어간다 */ }
   // 순위 추적
   await del('DELETE FROM naver_place_tracking WHERE user_id = ?', uid)
+  //  순위 이력 — 그 회원이 어느 업체·어떤 키워드를 쫓고 있었는지가 그대로 남는다
+  await del('DELETE FROM naver_place_ranks WHERE user_id = ?', uid)
   await del('DELETE FROM blog_rank_track_history WHERE track_id IN (SELECT id FROM blog_rank_tracks WHERE user_id = ?)', uid)
   await del('DELETE FROM blog_rank_tracks WHERE user_id = ?', uid)
   // 인스타그램 DM 자동화 (회원별로 나뉘어 있다 — 규칙·발송내역·웹훅내역·연결 토큰)
