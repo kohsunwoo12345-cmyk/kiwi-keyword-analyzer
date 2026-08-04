@@ -2346,6 +2346,38 @@ async function handle(context) {
       const results = [];
       const 모델목록 = [];
       const 취소된것 = [];   // 만에 하나 접수된 것을 취소한 기록 — 비어 있어야 정상이다
+
+      /* ⓪ 이미 만들어진 태스크의 최종 상태 조회 — 조회뿐이라 돈이 안 든다.
+            GET /api/generate?diag=alibaba&task=<id>,<id>...
+            왜 필요했나: models=1 이 실제로 태스크를 만들어 버렸다(아래 ④ 참고).
+            만든 것들이 정말 실패로 끝났는지 — 즉 계산이 안 돌았는지 — 확인해야 한다. */
+      const taskQ = String(u.searchParams.get("task") || "").split(",").map((x) => x.trim()).filter(Boolean);
+      if (taskQ.length) {
+        const base = ov ? String(ov) : "https://dashscope-intl.aliyuncs.com";
+        const 상태 = [];
+        for (const tid of taskQ.slice(0, 20)) {
+          const r = await one("태스크 상태: " + tid, base + "/api/v1/tasks/" + tid,
+            { method: "GET", headers: { "Authorization": "Bearer " + k.alibaba } }, { keep: true });
+          const o = (r._json && r._json.output) || {};
+          상태.push({
+            task_id: tid, http: r.status, 상태: o.task_status || "?",
+            오류: o.code || o.message || r.code || null,
+            제출시각: o.submit_time || null, 종료시각: o.end_time || null,
+            //  실제로 계산이 돌았는지의 유일한 단서다. 실패면 보통 없다.
+            사용량: o.usage || (r._json && r._json.usage) || null,
+          });
+        }
+        return json({
+          diag: "alibaba", 조회: "태스크 상태(읽기 전용 · 돈 안 듦)",
+          해석: 상태.map((s) => s.task_id + " → " + s.상태 +
+            (/FAILED/i.test(s.상태) ? " · 실패로 끝났다(계산이 안 돌았으므로 과금이 없어야 한다)"
+             : /SUCCEEDED/i.test(s.상태) ? " · ⚠ 성공했다 = 만들어졌다. 콘솔에서 청구를 확인할 것"
+             : /CANCELED|CANCELLED/i.test(s.상태) ? " · 취소됨"
+             : " · 아직 진행 중이거나 상태를 모른다") +
+            (s.사용량 ? " · 사용량 있음: " + JSON.stringify(s.사용량) : " · 사용량 없음")),
+          상태,
+        });
+      }
       for (const h of HOSTS) {
         /* ① 모델 목록 — 가장 안전하고 가장 정보가 많다. 토큰을 만들지 않는 조회이고,
               200 이면 이 키가 어느 리전에서 어떤 모델에 닿는지가 응답에 그대로 나온다.
@@ -2429,22 +2461,27 @@ async function handle(context) {
         }
       }
 
-      /* ④ 실존 모델이 이 키로 열려 있는지 — 돈 안 쓰고 갈 수 있는 마지막 칸
-            (GET /api/generate?diag=alibaba&models=1)
+      /* ④ 실존 모델이 이 키로 열려 있는지 — ⚠ 이 칸은 **실제로 태스크를 만든다**
+            (GET /api/generate?diag=alibaba&models=1&confirm=creates-tasks)
 
-         목록에 이름이 있다고 쓸 수 있는 건 아니다. 개통이 안 됐거나 권한이 없으면
-         제출하는 순간 403 이 온다. 그건 실제로 제출해 봐야 안다 — 그런데 제출은
-         돈이 나갈 수 있는 일이다. 그래서 **만들어질 수 없는 제출** 을 보낸다:
-         실존 모델 이름 + 필수값(prompt·이미지) 전부 뺌. 그러면 답이 셋으로 갈린다.
-           "Model not exist"        → 이 경로/이 키로는 그 모델이 없다
-           "prompt 가 필요하다" 류   → **모델도 있고 권한도 있다.** 값 검사까지 돌았다는 뜻
-           403 AccessDenied 류       → 이름은 아는데 우리 계정에 안 열려 있다
+         ── 내가 틀렸던 것을 그대로 적어 둔다 ────────────────────────────────
+         원래 계획은 "만들어질 수 없는 제출" 이었다. 실존 모델 이름 + 필수값 전부 뺌 →
+         값 검사에서 그 자리에서 죽으니 아무것도 안 만들어진다, 고 생각했다.
+         근거는 우리 실측이었다 — 없는 **모델 이름** 으로 보냈을 때 400 이 그 자리에서
+         왔고 task_id 는 안 왔다. 그래서 값 검사도 같은 자리에서 돌 거라고 봤다.
 
-         큐에 들어가기 전에 검증이 도는가? 문서로는 보장을 못 받았지만 **우리가 이미
-         실측했다** — 없는 모델로 제출했을 때 400 이 그 자리에서 왔고 task_id 는 안 왔다.
-         값 검증은 같은 자리에서 도는 검사다. 그래도 만에 하나 2xx 로 접수되면
-         **그 자리에서 취소를 걸고** 취소됐는지 다시 확인해서 그대로 보고한다.
-         (DashScope 취소는 PENDING 상태에서만 먹는다 — 그래서 지체 없이 건다) */
+         **틀렸다.** DashScope 는 모델 이름만 그 자리에서 보고, **파라미터 검사는 큐에
+         넣은 뒤에 한다.** 운영에서 돌려 보니 5건 전부 200 + task_id 로 접수됐고,
+         나중에 조회하니 FAILED "Field required: input.prompt" 였다.
+         취소도 못 걸었다 — PENDING 을 이미 지나서 전부 400 UnsupportedOperation.
+
+         얻은 것: 5개 모델 다 접수됐다 = **이 키로 열려 있다**(권한 확인됨).
+         치른 것: 실제 태스크 5건. 파라미터 오류로 실패했으니 계산은 안 돌았고
+                  과금도 없어야 하지만, "없어야 한다" 와 "없다" 는 다르다.
+                  최종 상태는 위 ⓪(&task=) 으로 확인하고, 청구는 콘솔이 정답이다.
+
+         그래서 기본으로 못 돌게 막았다. 켜려면 confirm=creates-tasks 를 같이 줘야 한다.
+         이름도 바꾼다 — "돈 안 드는 확인" 이 아니라 "태스크를 만드는 확인" 이다. */
       const VIDEO_NEW = "/api/v1/services/aigc/video-generation/video-synthesis";   // wan2.7 신 프로토콜
       const VIDEO_OLD = "/api/v1/services/aigc/image2video/video-synthesis";        // kf2v·s2v 등 레거시
       const IMAGE_ASYNC = "/api/v1/services/aigc/image-generation/generation";      // wan2.6+ 이미지
@@ -2454,7 +2491,16 @@ async function handle(context) {
         ? (/^wan2\.[67]/i.test(id) ? [VIDEO_NEW, VIDEO_OLD] : [VIDEO_OLD, VIDEO_NEW])
         : (/^wan2\.[567]|^qwen-image|^z-image/i.test(id) ? [IMAGE_ASYNC, IMAGE_OLD] : [IMAGE_OLD, IMAGE_ASYNC]);
 
-      if (u.searchParams.get("models") === "1") {
+      const 태스크만듦경고 = [];
+      if (u.searchParams.get("models") === "1" && u.searchParams.get("confirm") !== "creates-tasks") {
+        태스크만듦경고.push(
+          "models=1 은 실제로 태스크를 만든다. 알리바바는 모델 이름만 그 자리에서 보고 " +
+          "파라미터는 큐에 넣은 뒤에 검사한다 — 필수값을 빼도 200 + task_id 로 접수된다(실측). " +
+          "PENDING 을 지나 버려서 취소도 안 걸렸다. 정말 돌리려면 &confirm=creates-tasks 를 함께 줄 것. " +
+          "만들어진 태스크의 최종 상태는 ?diag=alibaba&task=<id> 로 확인한다(조회는 돈이 안 든다).",
+        );
+      }
+      if (u.searchParams.get("models") === "1" && u.searchParams.get("confirm") === "creates-tasks") {
         const only = String(u.searchParams.get("only") || "");
         const found = 모델목록.flatMap((m) => m.wan계열 || []);
         /*  기본은 대표 5개만 본다. 37개를 다 찌르면 그만큼 남의 서버를 두들기는 것이고,
@@ -2544,7 +2590,9 @@ async function handle(context) {
 
       return json({
         diag: "alibaba",
-        주의: "생성 파이프라인을 건드리는 요청은 보내지 않는다. models=1 을 켠 경우만 POST 로 모델 이름을 확인한다.",
+        주의: "기본 진단은 조회와 '없는 모델 이름으로 제출' 뿐이라 태스크가 만들어지지 않는다. " +
+              "⚠ models=1&confirm=creates-tasks 는 다르다 — 실제 태스크를 만든다(파라미터 검사가 큐 뒤에 돈다).",
+        태스크만듦경고: 태스크만듦경고.length ? 태스크만듦경고 : undefined,
         키지문: String(k.alibaba).slice(0, 6) + "…" + String(k.alibaba).slice(-4),
         키길이: String(k.alibaba).length,
         키살아있음: 살아있나,
