@@ -381,6 +381,16 @@ const MUTATIONS = [
     file: 'scripts/schema-consistency.test.mjs',
     from: 'const dynamic = new Set([...maybeDynamic].filter((t) => !resolvedDyn.has(t)))',
     to: 'const dynamic = new Set(maybeDynamic)' },
+  // ── 엔드포인트 인증 ─────────────────────────────────────────────────────
+  { g: '인증문', name: '관리자 매출 API 에서 관리자 검사를 뺀다 (아무나 매출을 본다)',
+    file: 'functions/api/admin/revenue.ts',
+    from: '  const guard = await requireAdminUser(request, db)\n  if (guard.error) return guard.error', to: '' },
+  { g: '인증문', name: '관리자 API 를 로그인만 보고 통과시킨다 (아무 회원이나 관리자 데이터를 본다)',
+    file: 'functions/api/admin/coupons.ts',
+    from: 'requireAdminUser', to: 'getSessionUser', all: true },
+  { g: '인증문', name: '문자 발송 API 의 인증을 통째로 뺀다 (아무나 남의 돈으로 문자를 보낸다)',
+    file: 'functions/api/sms/send.ts',
+    from: 'getSessionUser', to: 'nonAuthUser', all: true },
   // ── 크론 계약 ───────────────────────────────────────────────────────────
   { g: '크론', name: '순위 추적 응답의 hasMore 이름을 바꾼다 (하루 20건에서 멈춘다)',
     file: 'functions/api/naver-place/update-all-tracking.ts', from: 'hasMore', to: 'has_more' },
@@ -415,7 +425,8 @@ for (const m of list) {
     console.log(`  건너뜀 ⚠  ${m.name}   (대상 코드를 찾지 못함 — 돌연변이 정의가 낡았다)`)
     continue
   }
-  fs.writeFileSync(m.file, src.replace(m.from, m.to))
+  //  all: 이름을 바꾸는 돌연변이는 한 군데만 바꾸면 다른 곳이 남아 검사가 통과해 버린다
+  fs.writeFileSync(m.file, m.all ? src.split(m.from).join(m.to) : src.replace(m.from, m.to))
   let caught = false, by = ''
   try {
     execSync('npm test', { stdio: 'pipe', encoding: 'utf8', timeout: 900_000 })
