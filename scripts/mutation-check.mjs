@@ -351,6 +351,20 @@ const MUTATIONS = [
   { g: 'CRM', name: '성공 건수를 수신자 수로 덮어쓴다 (실패를 성공으로 집계)',
     file: 'functions/api/crm/_dispatch.ts',
     from: 'sent = Math.max(0, Math.min(targets.length, r.successCnt))', to: 'sent = targets.length' },
+  // ── 스키마 보장 ─────────────────────────────────────────────────────────
+  { g: '스키마', name: '플레이스 추적 표 생성을 지운다 (기능이 통째로 죽는다)',
+    file: 'functions/api/naver-place/_schema.ts',
+    from: 'await db.prepare(`CREATE TABLE IF NOT EXISTS naver_place_tracking (', to: 'if (false) await db.prepare(`CREATE TABLE IF NOT EXISTS naver_place_tracking (' },
+  { g: '스키마', name: '순위 기록 표 생성을 지운다',
+    file: 'functions/api/naver-place/_schema.ts',
+    from: 'await db.prepare(`CREATE TABLE IF NOT EXISTS naver_place_ranks (', to: 'if (false) await db.prepare(`CREATE TABLE IF NOT EXISTS naver_place_ranks (' },
+  { g: '스키마', name: '공유 설정 칸을 스키마에서 뺀다',
+    file: 'functions/api/naver-place/_schema.ts',
+    from: '    share_title TEXT,\n    share_subtitle TEXT,\n    share_thumbnail TEXT,', to: '' },
+  { g: '스키마', name: '추적 삭제에서 주인 조건을 뺀다 (남의 추적을 지울 수 있다)',
+    file: 'functions/api/naver-place/tracking/[id].ts',
+    from: "UPDATE naver_place_tracking SET status = 'deleted' WHERE id = ? AND user_id = ?",
+    to: "UPDATE naver_place_tracking SET status = 'deleted' WHERE id = ?" },
 ]
 
 const filter = process.argv[2] || ''
