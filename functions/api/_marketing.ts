@@ -1003,8 +1003,10 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
           THEN ps.id END) AS dormant_users,
         COUNT(DISTINCT CASE
           WHEN u.id IN (
-            SELECT DISTINCT user_id FROM orders
-            WHERE created_at >= datetime('now','-90 days')
+            /* 결제 원장은 payments 다 — 예전엔 orders 라는 없는 표를 보고 있어서
+               "결제 회원" 이 늘 0명이었다(질의가 통째로 실패하고 조용히 null 이 됐다). */
+            SELECT DISTINCT user_id FROM payments
+            WHERE status != 'refunded' AND created_at >= datetime('now','-90 days')
           ) THEN ps.id END) AS payment_users
       FROM push_subscriptions ps
       LEFT JOIN users u ON u.id = ps.user_id
@@ -1056,7 +1058,8 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
         new:     "ps.user_id IS NOT NULL AND u.created_at >= datetime('now','-7 days')",
         active:  "ps.user_id IS NOT NULL AND COALESCE(u.last_login, u.created_at) >= datetime('now','-30 days')",
         dormant: "ps.user_id IS NOT NULL AND COALESCE(u.last_login, u.created_at) < datetime('now','-30 days')",
-        payment: "ps.user_id IS NOT NULL AND u.id IN (SELECT DISTINCT user_id FROM orders WHERE created_at >= datetime('now','-90 days'))",
+        //  위와 같은 이유 — 없는 표(orders)를 보면 이 대상은 아무에게도 안 나간다
+        payment: "ps.user_id IS NOT NULL AND u.id IN (SELECT DISTINCT user_id FROM payments WHERE status != 'refunded' AND created_at >= datetime('now','-90 days'))",
       };
       const whereClause = segWhere[target] ?? '1=1';
       const subs = await env.DB.prepare(

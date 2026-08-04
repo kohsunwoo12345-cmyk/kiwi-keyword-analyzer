@@ -2,6 +2,7 @@
 // 시스템/크론 엔드포인트: CRON_TOKEN 게이트 유지. 토큰이 없으면 실제 세션으로 fallback하되
 // 본인 추적만 처리하여 교차 사용자 데이터 노출/수정을 방지한다.
 import { getSessionUser, resolveDB } from '../_utils'
+import { ensurePlaceSchema } from './_schema'
 function makeC(context: any): any {
   const { request, env, params } = context
   return {
@@ -49,6 +50,7 @@ export const onRequestPost: PagesFunction = async (context) => {
     const tokenOk = knownTokens.length > 0 && knownTokens.includes(cronToken || '')
 
     const db = resolveDB(c.env) || c.env.DB || c.env.marketing
+    if (db) await ensurePlaceSchema(db as any)
     if (!db) return c.json({ success: false, error: 'DB 바인딩 없음' }, 500)
 
     // 크론 토큰이 없으면 실제 세션으로 fallback — 이 경우 본인 추적만 처리(교차 사용자 차단)

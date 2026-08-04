@@ -1,4 +1,5 @@
 'use client'
+import '@/app/styles/legal.css'
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'

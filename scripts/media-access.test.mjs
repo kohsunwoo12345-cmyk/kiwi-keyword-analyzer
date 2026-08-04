@@ -41,6 +41,12 @@ const SECRET = '주민등록증-스캔본-절대-공개-금지'
 const DOC_KEY = 'sender-docs/1/7/idcard_1754000000000_ab12cd34.png'
 const VIDEO_KEY = 'videos/9/1754000000000-a1b2c3d4e5f6.mp4'
 const STUDIO_KEY = 'studio/9/result.png'
+/* SVG·HTML 은 스크립트를 품을 수 있다. 같은 도메인에서 인라인으로 열리면
+   그 스크립트가 우리 쿠키·세션에 접근한다(동일 출처 XSS). 업로드로 들어올 수 있는
+   경로가 있는 한, 서빙 쪽에서 타입을 중화하고 강제 다운로드로 내려야 한다. */
+const SVG_KEY = 'studio/9/evil.svg'
+const HTML_KEY = 'studio/9/evil.html'
+const XSS = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(document.cookie)<\/script></svg>'
 
 /* 버킷에는 서류도 영상도 스튜디오 결과물도 함께 들어 있다 — 실제와 같다. */
 function makeR2() {
@@ -48,6 +54,9 @@ function makeR2() {
     [DOC_KEY]: { body: SECRET, ct: 'image/png' },
     [VIDEO_KEY]: { body: 'VIDEO-BYTES', ct: 'video/mp4' },
     [STUDIO_KEY]: { body: 'PNG-BYTES', ct: 'image/png' },
+    //  업로드 때 image/svg+xml 로 저장됐다고 치자 — 서빙이 그대로 믿으면 안 된다
+    [SVG_KEY]: { body: XSS, ct: 'image/svg+xml' },
+    [HTML_KEY]: { body: XSS, ct: 'text/html' },
   }
   return {
     async put() { return {} },
@@ -151,6 +160,32 @@ console.log('\n⑤ 정상 콘텐츠는 그대로 나간다 (막느라 기능을 
      `${b.status}`)
   const c = await media(VIDEO_KEY)
   ok(c.status === 200 && c.text.includes('VIDEO-BYTES'), '/api/media 는 영상도 그대로 준다', `${c.status}`)
+}
+
+console.log('\n⑥ 스크립트를 품을 수 있는 파일은 인라인으로 열리지 않는다')
+{
+  for (const [label, key] of [['SVG', SVG_KEY], ['HTML', HTML_KEY]]) {
+    const res = await mediaMod.onRequestGet({
+      request: new Request('https://bygency.com/api/media/' + key),
+      env: { BUCKET: makeR2() }, params: { key: key.split('/') },
+      waitUntil: () => {}, next: async () => new Response(''),
+    })
+    const ct = String(res.headers.get('Content-Type') || '')
+    const cd = String(res.headers.get('Content-Disposition') || '')
+    const csp = String(res.headers.get('Content-Security-Policy') || '')
+    ok(!/svg|html|xml|javascript/i.test(ct), `${label} — 타입이 중화된다(브라우저가 실행하지 않는다)`, ct)
+    ok(/attachment/.test(cd), `${label} — 강제 다운로드로 내려간다`, cd)
+    ok(res.headers.get('X-Content-Type-Options') === 'nosniff', `${label} — 브라우저 타입 추측을 막는다`)
+    ok(/default-src 'none'/.test(csp), `${label} — 스크립트 차단 CSP 가 붙는다`, csp)
+  }
+  //  일반 이미지까지 다운로드로 바꿔 버리면 미리보기가 죽는다 — 그건 그대로여야 한다
+  const png = await mediaMod.onRequestGet({
+    request: new Request('https://bygency.com/api/media/' + STUDIO_KEY),
+    env: { BUCKET: makeR2() }, params: { key: STUDIO_KEY.split('/') },
+    waitUntil: () => {}, next: async () => new Response(''),
+  })
+  ok(/inline/.test(String(png.headers.get('Content-Disposition'))), '일반 이미지는 그대로 인라인으로 보여 준다',
+     String(png.headers.get('Content-Disposition')))
 }
 
 console.log(failed === 0 ? '\n미디어 접근 범위 — 실패 0\n' : `\n실패 ${failed}건\n`)

@@ -883,7 +883,7 @@ export default function Home() {
       </LazyMount>
 
       {/* ===== 클로드 MCP 연동 배지 ===== */}
-      <section className="border-b border-white/10 py-12">
+      <section className="defer-paint border-b border-white/10 py-12">
         <Reveal className="mx-auto max-w-3xl px-5">
           <div className="mx-auto flex flex-col items-center gap-4 rounded-2xl border border-white/12 bg-white/[0.03] px-6 py-6 text-center sm:flex-row sm:text-left">
             <span className="grid h-14 w-14 flex-shrink-0 place-items-center rounded-2xl border border-[#D97757]/30 bg-[#D97757]/10">
@@ -913,7 +913,7 @@ export default function Home() {
       </section>
 
       {/* ===== 개발자 API 소개 배지 ===== */}
-      <section className="border-b border-white/10 pb-12">
+      <section className="defer-paint border-b border-white/10 pb-12">
         <Reveal className="mx-auto max-w-3xl px-5">
           <Link
             href="/docs/api"
@@ -947,7 +947,7 @@ export default function Home() {
       </section>
 
       {/* ===== 채널 오빗 (실제 로고 공전) ===== */}
-      <section className="relative overflow-hidden border-y border-white/10 py-20 text-white">
+      <section className="defer-paint relative overflow-hidden border-y border-white/10 py-20 text-white">
         <div className="animate-drift pointer-events-none absolute left-1/2 top-1/2 h-[520px] w-[820px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-700/15 blur-[150px]" />
         <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-5 lg:grid-cols-2">
           <div className="text-center lg:text-left">
@@ -968,7 +968,7 @@ export default function Home() {
       </section>
 
       {/* ===== MARQUEE TRUST ===== */}
-      <section className="border-b border-white/10 py-8">
+      <section className="defer-paint border-b border-white/10 py-8">
         <div className="mx-auto max-w-6xl px-5">
           <p className="mb-5 text-center text-xs font-medium uppercase tracking-widest text-slate-500">
             {t('주요 마케팅 채널 데이터를 한 곳에서 통합 연동')}
@@ -988,7 +988,7 @@ export default function Home() {
 
 
       {/* ===== PAIN / AGITATION ===== */}
-      <section className="relative border-t border-white/10 py-24">
+      <section className="defer-paint relative border-t border-white/10 py-24">
         <div className="mx-auto max-w-6xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>{t('솔직히, 지금 이렇지 않나요?')}</SectionTag>
@@ -1027,7 +1027,7 @@ export default function Home() {
       </section>
 
       {/* ===== FEATURES (AI 영상 제작 중심) ===== */}
-      <section id="features" className="relative py-24">
+      <section id="features" className="defer-paint relative py-24">
         <div className="mx-auto max-w-7xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>{t('핵심 기능 · AI 영상 제작')}</SectionTag>
@@ -1093,6 +1093,10 @@ export default function Home() {
                 <Reveal key={f.slug} variant="rise" delay={i * 90}>
                   <Link
                     href={`/features/${f.slug}`}
+                    /* 미리 받아 두지 않는다. 이 카드가 화면에 들어오는 것만으로 Next 가
+                       /features/[slug] 묶음(71KB)을 통째로 내려받는데, 홈에 온 사람 대부분은
+                       그 페이지로 가지 않는다. 눌렀을 때 받아도 늦지 않다. */
+                    prefetch={false}
                     className="group card hover-lift relative flex h-full items-start gap-4 overflow-hidden p-5"
                   >
                     {mark}
@@ -1122,7 +1126,7 @@ export default function Home() {
       </section>
 
       {/* ===== HOW IT WORKS ===== */}
-      <section id="how" className="relative border-y border-white/10 bg-white/[0.015] py-24">
+      <section id="how" className="defer-paint relative border-y border-white/10 bg-white/[0.015] py-24">
         <div className="mx-auto max-w-7xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>{t('작동 방식')}</SectionTag>
@@ -1169,7 +1173,7 @@ export default function Home() {
       </section>
 
       {/* ===== BEFORE / AFTER ===== */}
-      <section className="relative py-24">
+      <section className="defer-paint relative py-24">
         <div className="mx-auto max-w-5xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>{t('무엇이 달라지나')}</SectionTag>
@@ -1224,7 +1228,7 @@ export default function Home() {
       </section>
 
       {/* ===== URGENCY / COGNITIVE-DISSONANCE BAND ===== */}
-      <section className="relative overflow-hidden border-y border-white/10 py-24 text-white">
+      <section className="defer-paint relative overflow-hidden border-y border-white/10 py-24 text-white">
         <div className="dot-grid pointer-events-none absolute inset-0 opacity-30 mask-fade-b" />
         <div className="animate-drift pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[720px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-700/25 blur-[150px]" />
         <div className="relative mx-auto max-w-3xl px-5 text-center">
@@ -1252,7 +1256,7 @@ export default function Home() {
       </section>
 
       {/* ===== SOCIAL PROOF / TRUST ===== */}
-      <section className="py-24">
+      <section className="defer-paint py-24">
         <div className="mx-auto max-w-6xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>{t('사용자 이야기')}</SectionTag>
@@ -1309,7 +1313,7 @@ export default function Home() {
       </section>
 
       {/* ===== PRICING ===== */}
-      <section id="pricing" className="border-t border-white/10 py-24">
+      <section id="pricing" className="defer-paint border-t border-white/10 py-24">
         <div className="mx-auto max-w-7xl px-5">
           <Reveal className="mx-auto max-w-2xl text-center">
             <SectionTag>{t('요금제')}</SectionTag>
@@ -1383,7 +1387,7 @@ export default function Home() {
       </section>
 
       {/* ===== CTA ===== */}
-      <section className="px-5 pb-28 pt-4">
+      <section className="defer-paint px-5 pb-28 pt-4">
         <Reveal variant="scale" className="mx-auto max-w-5xl">
           <div className="animate-gradient relative overflow-hidden rounded-3xl px-8 py-16 text-center shadow-xl shadow-blue-900/50"
             style={{ background: 'linear-gradient(120deg,#3b82f6,#2563eb,#0ea5e9,#22d3ee)' }}

@@ -636,9 +636,13 @@ console.log('\n⑱ 저장소가 막힌 브라우저(시크릿·사이트 데이�
   ok(!!sn && sn.visitor === first, '조회 때와 같은 id 다 — 스누즈가 그 방문자에게 걸린다')
 
   //  전체 새로고침을 해도 같은 사람으로 남아야 한다(쿠키로 물러난 경우)
+  /* 폴링은 첫 화면이 다 그려진 뒤(onIdle)에 돈다 — 고정 대기로는 놓칠 수 있다.
+     실제 조회 요청이 올 때까지 기다린다. */
   gets.length = 0
+  const nextPoll = page.waitForRequest((r) => /\/api\/public-notices/.test(r.url()) && r.method() === 'GET', { timeout: 15000 })
   await page.goto(BASE + '/pricing', { waitUntil: 'domcontentloaded' })
-  await page.waitForTimeout(900)
+  await nextPoll.catch(() => {})
+  await page.waitForTimeout(200)
   const after = gets.find((v) => v)
   ok(after === first, '새로고침·페이지 이동 후에도 같은 방문자 id 다', `${JSON.stringify(first)} → ${JSON.stringify(after)}`)
 
@@ -660,8 +664,10 @@ console.log('\n⑱ 저장소가 막힌 브라우저(시크릿·사이트 데이�
     gets2.push(new URL(r.request().url()).searchParams.get('visitor') || '')
     return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, notices: [] }) })
   })
+  const poll2 = page2.waitForRequest((r) => /\/api\/public-notices/.test(r.url()) && r.method() === 'GET', { timeout: 15000 })
   await page2.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
-  await page2.waitForTimeout(900)
+  await poll2.catch(() => {})
+  await page2.waitForTimeout(200)
   const other = gets2.find((v) => v)
   ok(!!other && other !== first, '다른 방문자는 다른 id 를 받는다 (한 줄로 뭉치지 않는다)', `${JSON.stringify(first)} vs ${JSON.stringify(other)}`)
   await ctx2.close()

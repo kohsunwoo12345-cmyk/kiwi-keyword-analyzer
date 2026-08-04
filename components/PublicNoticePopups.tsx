@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { onIdle } from '@/lib/idle'
 import { usePathname } from 'next/navigation'
 import { X, MoonStar } from 'lucide-react'
 import { NoticeMedia } from '@/components/NoticeMedia'
@@ -129,7 +130,8 @@ export function PublicNoticePopups() {
 
   useEffect(() => {
     if (skip) { setItems([]); return }
-    poll()
+    //  팝업은 첫 화면보다 뒤에 떠도 된다 — 다 그려진 뒤에 물어본다
+    const cancelIdle = onIdle(poll)
     const iv = setInterval(poll, 45000)
     const t = setTimeout(() => setShown(true), 60)
     /* 탭을 다시 볼 때 곧바로 확인한다 — 다른 탭에서 "보지 않기" 를 눌렀거나 집행이 끝났는데도
@@ -138,7 +140,7 @@ export function PublicNoticePopups() {
     document.addEventListener('visibilitychange', onWake)
     window.addEventListener('focus', onWake)
     return () => {
-      clearInterval(iv); clearTimeout(t)
+      cancelIdle(); clearInterval(iv); clearTimeout(t)
       document.removeEventListener('visibilitychange', onWake)
       window.removeEventListener('focus', onWake)
     }

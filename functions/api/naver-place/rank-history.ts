@@ -1,6 +1,7 @@
 // Ported from SUPERPLACE (BYGENCY) — Hono 핸들러를 Cloudflare Pages Functions로 변환.
 // Hono 컨텍스트(c) 호환 shim. 인증은 실제 세션(getSessionUser)으로 복원되어 계정별로 격리된다.
 import { getSessionUser, resolveDB } from '../_utils'
+import { ensurePlaceSchema } from './_schema'
 function makeC(context: any): any {
   const { request, env, params } = context
   return {
@@ -35,6 +36,7 @@ export const onRequestGet: PagesFunction = async (context) => {
 
     // DB 접근 시도
     const db = resolveDB(c.env) || c.env.DB || c.env.marketing
+    if (db) await ensurePlaceSchema(db as any)
 
     if (!db) {
       console.error('[Rank History] No DB binding found')

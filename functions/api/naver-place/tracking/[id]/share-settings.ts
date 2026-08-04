@@ -1,6 +1,7 @@
 // Ported from SUPERPLACE (BYGENCY) — Hono 핸들러를 Cloudflare Pages Functions로 변환.
 // Hono 컨텍스트(c) 호환 shim. 인증은 실제 세션(getSessionUser)으로 복원되어 계정별로 격리된다.
 import { getSessionUser, resolveDB } from '../../../_utils'
+import { ensurePlaceSchema } from '../../_schema'
 function makeC(context: any): any {
   const { request, env, params } = context
   return {
@@ -31,6 +32,7 @@ export const onRequestGet: PagesFunction = async (context) => {
   try {
     const id = c.req.param('id')
     const db = resolveDB(c.env) || c.env.DB || c.env.marketing
+    if (db) await ensurePlaceSchema(db as any)
     if (!db) return c.json({ share_title: null, share_subtitle: null, share_thumbnail: null })
 
     // 실제 세션 인증 — 본인 소유 추적의 공유 설정만 조회
@@ -58,6 +60,7 @@ export const onRequestPut: PagesFunction = async (context) => {
   try {
     const id = c.req.param('id')
     const db = resolveDB(c.env) || c.env.DB || c.env.marketing
+    if (db) await ensurePlaceSchema(db as any)
     if (!db) return c.json({ success: false, error: 'DB 바인딩 없음' }, 500)
 
     // 실제 세션 인증 — 본인 소유 추적의 공유 설정만 수정

@@ -10,6 +10,7 @@ import { Play, Cpu, Film, Sparkles } from 'lucide-react'
 export function MegaNodeStudio({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <Link
+      prefetch={false}
       href="/features/video"
       onClick={onNavigate}
       className="group relative block overflow-hidden rounded-2xl border border-white/10 bg-[#0a1024] p-4 shadow-lg"
