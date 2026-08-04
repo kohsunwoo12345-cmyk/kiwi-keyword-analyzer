@@ -17,6 +17,15 @@ const ATTACK_UA_RE = /(sqlmap|nikto|nmap|masscan|acunetix|nessus|dirbuster|gobus
 const ABUSE_THRESHOLD = 24
 // 정기 실행(크론) 엔드포인트 — 토큰이 맞으면 보안 휴리스틱을 건너뛴다(아래 설명 참고)
 const CRON_PATH_RE = /^\/api\/(cron\/|naver-place\/update-all-tracking)/
+/* 사람이 브라우저로 부르는 자리가 아니라, 프로그램이 부르는 자리.
+   ⚠ BAD_UA_RE 에는 curl/ 과 python-requests/ 가 들어 있다. 그건 브라우저를 흉내 내지
+   않는 스크래퍼를 잡으려는 규칙인데, 여기서는 정상 이용자가 그 모습으로 온다 —
+   우리가 문서에 curl 예시를 적어 둔 공개 API(/api/v1), MCP 클라이언트, OAuth 토큰 발급.
+   그대로 두면 10분에 24번만 부르면 그 회사 IP 가 통째로 자동 차단된다.
+   차단 사유는 "스크래핑 의심" 으로 남고, 고객은 이유도 모른 채 403 만 받는다.
+   그래서 이 경로들에서는 "도구처럼 생긴 UA" 만 눈감아 준다 —
+   경로·페이로드 의심(SUSPICIOUS_RE)과 명백한 공격 도구(ATTACK_UA_RE)는 그대로 본다. */
+const MACHINE_PATH_RE = /^\/api\/(v1\/|mcp(\/|$)|oauth\/|instagram\/webhook)/
 /** 상수시간 문자열 비교 — 타이밍으로 토큰을 캐내지 못하게 */
 function ctEqStr(a: string, b: string): boolean {
   if (a.length !== b.length) return false
@@ -111,8 +120,11 @@ export const onRequest: PagesFunction<any> = async (context) => {
     try { decoded = decodeURIComponent(decoded) } catch { /* 잘못된 인코딩 자체가 의심 신호 */ }
     const suspiciousPath = SUSPICIOUS_RE.test(decoded)
     const attackTool = ATTACK_UA_RE.test(ua)
-    const badUa = BAD_UA_RE.test(ua)
-    if (suspiciousPath || badUa) {
+    const badUa = BAD_UA_RE.test(ua) && !MACHINE_PATH_RE.test(path)
+    /* ⚠ attackTool 을 조건에 넣지 않으면 아래 "즉시 차단" 이 아예 안 돌아간다.
+       ATTACK_UA_RE 에만 있는 nuclei·feroxbuster·dirsearch 는 BAD_UA_RE 에 없어서,
+       경로가 멀쩡하면 이 블록에 들어오지도 못했다 — 즉시 차단이 이름만 있었다. */
+    if (suspiciousPath || badUa || attackTool) {
       const sev = suspiciousPath || attackTool ? 'high' : 'warn'
       await logSecurity(db, {
         ip,

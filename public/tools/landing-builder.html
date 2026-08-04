@@ -851,7 +851,10 @@ async function loadMyPages() {
     document.getElementById('statTotal').textContent = pages.length
     document.getElementById('statViews').textContent = pages.reduce((s, p) => s + (p.view_count || 0), 0).toLocaleString()
     document.getElementById('statPublished').textContent = pages.filter(p => p.status === 'active' || p.status === 'published').length
-    document.getElementById('statSubs').textContent = sData.total || 0
+    /* 못 센 것과 0건은 다르다 — 0 으로 보여 주면 "이번 달 문의가 없네" 하고
+       광고를 끄는 판단까지 이어진다. 못 셌으면 숫자 대신 – 를 띄운다. */
+    document.getElementById('statSubs').textContent =
+      typeof sData.total === 'number' ? sData.total : '–'
 
     if (pages.length === 0) {
       list.innerHTML = `

@@ -47,6 +47,12 @@ async function create(db: D1Database) {
      )`).run()
   await db.prepare('CREATE INDEX IF NOT EXISTS idx_genfail_time ON gen_failures(created_at)').run().catch(() => {})
   await db.prepare('CREATE INDEX IF NOT EXISTS idx_genfail_user ON gen_failures(user_id, created_at)').run().catch(() => {})
+  /* 같은 작업+단계는 한 줄만. 아래 SELECT 로도 걸러 내지만, 폴링이 겹치면 둘 다
+     "아직 없다" 를 보고 둘 다 넣는다 — 그건 SELECT 로 막을 수 없다.
+     작업 주소가 없는 실패(제출 거절)는 서로 다른 건이므로 이 규칙에서 뺀다.
+     이미 중복이 쌓인 배포본에서는 이 색인이 안 만들어질 수 있다 — 그때는 예전처럼 SELECT 만으로 막는다. */
+  await db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_genfail_task_stage
+    ON gen_failures(task_key, stage) WHERE task_key <> ''`).run().catch(() => {})
 }
 export function ensureGenFailures(db: D1Database) {
   return ensureOnce(db, 'schema_genfail_v1', () => create(db), ['gen_failures'])
@@ -70,7 +76,7 @@ export async function recordGenFailure(db: D1Database | null, row: FailRow): Pro
     await ensureGenFailures(db)
     if (await alreadyLogged(db, String(row.taskKey || ''), row.stage)) return
     await db.prepare(
-      `INSERT INTO gen_failures
+      `INSERT OR IGNORE INTO gen_failures
          (id,user_id,email,name,provider,model,kind,stage,reason,task_key,usage_id,refunded,prompt,created_at)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .bind(
@@ -85,12 +91,14 @@ export async function recordGenFailure(db: D1Database | null, row: FailRow): Pro
   } catch { /* 실패를 적다가 생성을 죽이지 않는다 */ }
 }
 
-/** 이미 적어 둔 실패에 환불액을 뒤늦게 채운다(환불은 기록 뒤에 확정될 수 있다). */
+/** 이미 적어 둔 실패에 환불액을 뒤늦게 채운다(환불은 기록 뒤에 확정될 수 있다).
+ *  ⚠ 환불 대상은 'run' 뿐이다. 단계를 안 걸면 같은 작업의 'archive' 줄에도 같은 금액이
+ *  적혀 관리자 합계가 두 배로 보인다(보관 실패는 환불하지 않는다). */
 export async function markRefunded(db: D1Database | null, taskKey: string, credits: number): Promise<void> {
   if (!db || !taskKey || !(credits > 0)) return
   try {
     await ensureGenFailures(db)
-    await db.prepare('UPDATE gen_failures SET refunded = ? WHERE task_key = ? AND refunded = 0')
+    await db.prepare("UPDATE gen_failures SET refunded = ? WHERE task_key = ? AND stage = 'run' AND refunded = 0")
       .bind(credits, String(taskKey).slice(0, 300)).run()
   } catch { /* 표가 없으면 없는 대로 */ }
 }

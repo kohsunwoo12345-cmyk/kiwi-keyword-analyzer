@@ -73,9 +73,9 @@ function makeDB({ blocked = [], whitelistMode = false, whitelist = [], adminLock
 const CRON_TOKEN = 'cron-secret-token-1234567890'
 let reached = 0
 
-async function go(db, path, { ip = '203.0.113.5', ua = 'Mozilla/5.0 Chrome/126', headers = {}, env = {} } = {}) {
+async function go(db, path, { ip = '203.0.113.5', ua = 'Mozilla/5.0 Chrome/126', headers = {}, env = {}, search = '' } = {}) {
   reached = 0
-  const request = new Request('https://bygency.com' + path, {
+  const request = new Request('https://bygency.com' + path + search, {
     headers: { host: 'bygency.com', 'CF-Connecting-IP': ip, 'User-Agent': ua, ...headers },
   })
   const res = await mw.onRequest({
@@ -196,6 +196,44 @@ console.log('\n⑤ 반복 스크래핑은 자동으로 차단된다')
   const r3 = await go(db3, '/api/me', { ua: 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/126 Safari/537.36' })
   ok(r3.reached === 1, '평범한 브라우저는 그대로 통과한다', `도달 ${r3.reached}회`)
   ok(db3.__state.blockedAdds.length === 0, '평범한 브라우저는 차단되지 않는다')
+}
+
+console.log('\n⑤-b 프로그램이 부르는 API 는 UA 만으로 끊지 않는다')
+{
+  /* curl/ 과 python-requests/ 는 "브라우저를 흉내 내지 않는 스크래퍼" 를 잡는 규칙인데,
+     공개 API·MCP·OAuth 에서는 정상 이용자가 바로 그 모습으로 온다.
+     그대로 두면 10분에 24번만 불러도 그 회사 IP 가 통째로 자동 차단된다 —
+     고객은 이유도 모른 채 403 만 받고, 차단 사유는 "스크래핑 의심" 으로 남는다. */
+  for (const path of ['/api/v1/generate', '/api/v1/model-file/x.onnx', '/api/mcp/tools', '/api/oauth/token', '/api/instagram/webhook']) {
+    for (const ua of ['curl/8.0', 'python-requests/2.31.0']) {
+      const db = makeDB({ recentSuspicious: 9999 })
+      const r = await go(db, path, { ua })
+      ok(r.reached === 1, `${path} — ${ua} 로 불러도 통과한다`, `도달 ${r.reached}회`)
+      ok(db.__state.blockedAdds.length === 0, `${path} — ${ua} 때문에 IP 가 차단되지 않는다`, JSON.stringify(db.__state.blockedAdds))
+    }
+  }
+
+  //  그렇다고 아무거나 열어 주는 건 아니다 — 공격 도구와 의심 경로는 그대로 막는다
+  const db2 = makeDB({ recentSuspicious: 9999 })
+  const r2 = await go(db2, '/api/v1/generate', { ua: 'sqlmap/1.7' })
+  ok(r2.reached === 0, '공격 도구는 공개 API 경로에서도 막힌다', `도달 ${r2.reached}회`)
+  const db3 = makeDB({ recentSuspicious: 9999 })
+  const r3 = await go(db3, '/api/v1/generate', { ua: 'curl/8.0', search: '?q=union%20select%201' })
+  ok(r3.reached === 0, '의심 페이로드는 공개 API 경로에서도 막힌다', `도달 ${r3.reached}회`)
+
+  /* ATTACK_UA_RE 에만 있는 이름들 — 예전에는 경로가 멀쩡하면 이 블록에 들어오지도
+     못해서 "즉시 차단" 이 이름만 있었다. */
+  for (const ua of ['nuclei/3.1', 'feroxbuster/2.10', 'dirsearch/0.4']) {
+    const d = makeDB({ recentSuspicious: 0 })
+    const r = await go(d, '/api/me', { ua })
+    ok(r.reached === 0, `${ua} 는 첫 요청부터 막힌다`, `도달 ${r.reached}회`)
+    ok(d.__state.blockedAdds.length > 0, `${ua} 는 차단 목록에 올라간다`, JSON.stringify(d.__state.blockedAdds))
+  }
+
+  //  사람이 쓰는 경로에서는 예전 그대로다
+  const db4 = makeDB({ recentSuspicious: 9999 })
+  const r4 = await go(db4, '/api/me', { ua: 'curl/8.0' })
+  ok(r4.reached === 0, '일반 경로에서는 여전히 막는다', `도달 ${r4.reached}회`)
 }
 
 console.log('\n⑥ 정적 자원은 검사 없이 빠르게 지나간다')

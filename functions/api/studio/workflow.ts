@@ -23,7 +23,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const m: any = await db.prepare('SELECT updated_at FROM studio_workflows WHERE user_id = ?').bind(me.id).first().catch(() => null)
     return json({ ok: true, updatedAt: (m && m.updated_at) || null })
   }
-  const row: any = await db.prepare('SELECT payload, updated_at FROM studio_workflows WHERE user_id = ?').bind(me.id).first().catch(() => null)
+  const row: any = await db.prepare('SELECT payload, updated_at FROM studio_workflows WHERE user_id = ?').bind(me.id).first()
   let data: any = null
   try { data = row && row.payload ? JSON.parse(row.payload) : null } catch { data = null }
   return json({ ok: true, data, updatedAt: (row && row.updated_at) || null })

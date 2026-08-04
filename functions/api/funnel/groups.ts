@@ -14,43 +14,37 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     await ensureFunnelSchema(db)
     const me: any = await getSessionUser(request, db)
     if (!me) return j({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
-    let groups: any[] = []
+    /* ⚠ 예전에는 이 조회를 try 로 감싸고 실패하면 console.warn 만 남긴 뒤
+       그대로 success: true · groups: [] 를 돌려줬다. 회원 화면에는 "그룹이 없습니다" 가 뜬다 —
+       만들어 둔 그룹이 사라진 것처럼 보이고, 오류가 아니라서 아무도 고장을 모른다.
+       못 불러왔으면 못 불러왔다고 말한다. */
+    const result = await db.prepare(`
+      SELECT id, name, description, color, created_at, updated_at
+      FROM funnel_groups
+      WHERE (funnel_id IS NULL OR funnel_id = 0) AND user_id = ?
+      ORDER BY created_at DESC
+    `).bind(me.id).all()
+    const groups = ((result.results as any[]) || [])
 
-    try {
-      // 기본 그룹 목록 가져오기 (본인 소유만)
-      const result = await db.prepare(`
-        SELECT id, name, description, color, created_at, updated_at
-        FROM funnel_groups
-        WHERE (funnel_id IS NULL OR funnel_id = 0) AND user_id = ?
-        ORDER BY created_at DESC
-      `).bind(me.id).all()
-
-      groups = (result.results as any[]) || []
-
-      // 각 그룹의 랜딩페이지 수와 신청자 수 계산
-      for (const group of groups) {
-        try {
-          // 랜딩페이지 수
-          const lpCount: any = await db.prepare(`
-            SELECT COUNT(*) as count FROM funnel_landing_pages WHERE group_id = ?
-          `).bind(group.id).first()
-          group.landing_page_count = lpCount?.count || 0
-
-          // 신청자 수
-          const applicantCount: any = await db.prepare(`
-            SELECT COUNT(*) as count
-            FROM funnel_applicants
-            WHERE landing_page_id IN (SELECT id FROM funnel_landing_pages WHERE group_id = ?)
-          `).bind(group.id).first()
-          group.applicant_count = applicantCount?.count || 0
-        } catch (countError) {
-          console.warn('Count error for group', group.id, countError)
-          group.landing_page_count = 0
-          group.applicant_count = 0
-        }
-      }
-    } catch (dbError) {
-      console.warn('DB error, returning empty groups', dbError)
+    /* 개수는 한 번에 센다. 예전에는 그룹마다 두 번씩 물어봐서(랜딩 수·신청자 수)
+       그룹 30개면 질의가 61번이었다 — Cloudflare 는 요청 하나가 쓸 수 있는 서브리퀘스트
+       수를 세고, 넘으면 그 요청이 통째로 죽는다. 많이 만든 회원일수록 목록이 안 열린다. */
+    const counts = await db.prepare(`
+      SELECT g.id AS gid,
+             COUNT(DISTINCT p.id) AS lp,
+             COUNT(a.id)          AS ap
+        FROM funnel_groups g
+        LEFT JOIN funnel_landing_pages p ON p.group_id = g.id
+        LEFT JOIN funnel_applicants   a ON a.landing_page_id = p.id
+       WHERE (g.funnel_id IS NULL OR g.funnel_id = 0) AND g.user_id = ?
+       GROUP BY g.id
+    `).bind(me.id).all().catch(() => ({ results: [] as any[] }))
+    const byId = new Map<any, any>()
+    for (const r of ((counts as any).results || []) as any[]) byId.set(String(r.gid), r)
+    for (const g of groups) {
+      const c = byId.get(String(g.id))
+      g.landing_page_count = Number(c?.lp || 0)
+      g.applicant_count = Number(c?.ap || 0)
     }
 
     return j({ success: true, groups: groups })

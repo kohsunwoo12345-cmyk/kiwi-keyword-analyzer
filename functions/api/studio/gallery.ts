@@ -45,7 +45,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       WHERE user_id = ? AND result_url != ''
       ORDER BY created_at DESC
       LIMIT 200`,
-  ).bind(me.id).all().catch(() => ({ results: [] }))
+  ).bind(me.id).all()
 
   await healToR2(env, db, rows.results || [], me.id)
   const items = (rows.results || []).map((r: any) => ({

@@ -1,5 +1,6 @@
 import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser } from '../_utils'
 import { MODEL_COST, PROV_LABEL, computeCharge, getUsdKrw } from '../studio/_pricing'
+import { ALIBABA_BY_NAME } from '../studio/_alibaba'
 import {
   SEEDREAM_IDS, SEEDANCE_IDS, FLUX_ENDPOINTS, OPENAI_IMG_ID,
   HAILUO_IDS, LUMA_IDS, KLING_API, RUNWAY_MODELS, ARK3D_IDS, gcpCreds,
@@ -28,6 +29,9 @@ const PROVIDER_KEYS: Record<string, string[]> = {
   runway_aleph: ['Runway_API_KEY', 'RUNWAY_API_KEY', 'runway_api_key'],
   hailuo: ['Hailuo_API_KEY', 'HAILUO_API_KEY', 'hailuo_api_key', 'MINIMAX_API_KEY'],
   luma: ['Luma_API_KEY', 'LUMA_API_KEY', 'luma_api_key'],
+  //  알리바바 DashScope(Wan·Qwen) — 콘솔에 alibaba_API_KEY 로 들어와 있다
+  alibaba: ['alibaba_API_KEY', 'ALIBABA_API_KEY', 'Alibaba_API_KEY', 'alibaba_api_key',
+            'DASHSCOPE_API_KEY', 'dashscope_api_key'],
   // 3D 생성·프롬프트 작성 LLM 은 씨댄스와 같은 ByteDance ModelArk 키를 쓴다
   ark3d: ['Seedance_API_KEY', 'SEEDANCE_API_KEY', 'seedance_api_key'],
   promptgen: ['Seedance_API_KEY', 'SEEDANCE_API_KEY', 'seedance_api_key'],
@@ -41,6 +45,8 @@ const PROVIDER_KEYS: Record<string, string[]> = {
 
 // 모델ID 매핑 원본(생성 코드와 동일한 객체를 그대로 import → 값이 어긋날 수 없음)
 function modelIdOf(model: string): string {
+  //  알리바바는 표를 한 군데(_alibaba.ts)만 둔다 — 여기서 또 적으면 어긋난다
+  const ali = (ALIBABA_BY_NAME as any)[model]; if (ali) return ali.id
   const s = (SEEDREAM_IDS as any)[model]; if (s) return Array.isArray(s) ? s[0] : s
   const d = (SEEDANCE_IDS as any)[model]; if (d) return d
   const f = (FLUX_ENDPOINTS as any)[model]; if (f) return f
@@ -115,6 +121,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       keyConfigured,
       isPipeline,
       idUnverified,
+      /* 모델 ID 는 제공사 목록 API 로 확인했지만 **단가는 아직 잠정** 이다.
+         화면이 확정값처럼 보여 주면 그 값을 믿고 팔게 된다 — 그래서 따로 표시한다.
+         관리자 → 모델 단가에서 실측값을 넣으면 그 값이 이긴다. */
+      costProvisional: prov === 'alibaba',
       status,                  // live | unverified | nokey
     }
   })

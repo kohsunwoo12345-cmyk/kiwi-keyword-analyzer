@@ -14,7 +14,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!me) return json({ ok: false, error: '로그인이 필요합니다.' }, 401)
 
   const all = async (sql: string, ...b: any[]) =>
-    ((await db.prepare(sql).bind(...b).all().catch(() => ({ results: [] }))).results as any[]) || []
+    ((await db.prepare(sql).bind(...b).all()).results as any[]) || []
 
   const [landings, groups, senders, channels, templates] = await Promise.all([
     all('SELECT slug, title, status, view_count FROM landing_pages WHERE user_id = ? ORDER BY created_at DESC LIMIT 200', me.id),

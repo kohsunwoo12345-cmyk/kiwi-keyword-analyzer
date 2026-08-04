@@ -190,7 +190,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!me) return json({ ok: false, needLogin: true }, 401)
   const rows: any = await db.prepare(
     'SELECT * FROM studio_schedules WHERE user_id = ? ORDER BY created_at DESC LIMIT ?',
-  ).bind(me.id, MAX_PER_USER).all().catch(() => ({ results: [] }))
+  ).bind(me.id, MAX_PER_USER).all()
   return json({ ok: true, schedules: (rows.results || []).map(row2json) })
 }
 

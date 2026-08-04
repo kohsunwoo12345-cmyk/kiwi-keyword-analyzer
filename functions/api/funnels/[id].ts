@@ -20,10 +20,11 @@ export const onRequestGet: PagesFunction = async ({ request, env, params }) => {
     if (!(await ownsFunnel(db, me, id))) return forbidden()
     const funnel: any = await db.prepare(`SELECT * FROM funnels WHERE id = ?`).bind(id).first()
     if (!funnel) return j({ success: false, error: '퍼널을 찾을 수 없습니다.' }, 404)
-    // 그룹 목록 (랜딩페이지 수 + 신청자 수 포함)
-    let groups: any[] = []
-    try {
-      const gr = await db.prepare(`
+    /* ⚠ 아래 세 조회는 실패해도 조용히 빈 배열이 되고 그대로 success: true 로 나갔다.
+       퍼널을 열었는데 그룹도 연결선도 자동발송 규칙도 없는 빈 캔버스가 보인다 —
+       회원 눈에는 만들어 둔 퍼널이 통째로 날아간 것이다. 오류가 아니라서 아무도 모른다.
+       못 불러왔으면 바깥 catch 가 500 으로 답하게 둔다. */
+    const gr = await db.prepare(`
         SELECT fg.*,
           COUNT(DISTINCT flp.id) as lp_count,
           COUNT(DISTINCT fa.id) as applicant_count
@@ -33,18 +34,12 @@ export const onRequestGet: PagesFunction = async ({ request, env, params }) => {
         WHERE fg.funnel_id = ?
         GROUP BY fg.id ORDER BY fg.sort_order ASC, fg.id ASC
       `).bind(id).all()
-      groups = (gr.results as any[]) || []
-    } catch (e) {}
+    const groups = ((gr.results as any[]) || [])
     // 연결 목록
-    let connections: any[] = []
-    try {
-      const cn = await db.prepare(`SELECT * FROM funnel_group_connections WHERE funnel_id = ?`).bind(id).all()
-      connections = (cn.results as any[]) || []
-    } catch (e) {}
+    const cn = await db.prepare(`SELECT * FROM funnel_group_connections WHERE funnel_id = ?`).bind(id).all()
+    const connections = ((cn.results as any[]) || [])
     // 자동발송 규칙
-    let autoSms: any[] = []
-    try {
-      const as = await db.prepare(`
+    const as = await db.prepare(`
         SELECT far.*, flp.title as page_title, fg.name as group_name
         FROM funnel_auto_responses far
         LEFT JOIN funnel_landing_pages flp ON flp.id = far.landing_page_id
@@ -52,8 +47,7 @@ export const onRequestGet: PagesFunction = async ({ request, env, params }) => {
         WHERE far.group_id IN (SELECT id FROM funnel_groups WHERE funnel_id = ?) OR far.group_id IS NULL
         ORDER BY far.created_at DESC
       `).bind(id).all()
-      autoSms = (as.results as any[]) || []
-    } catch (e) {}
+    const autoSms = ((as.results as any[]) || [])
     return j({ success: true, funnel, groups, connections, autoSms })
   } catch (err) {
     return j({ success: false, error: '요청 처리 중 오류가 발생했습니다.' }, 500)

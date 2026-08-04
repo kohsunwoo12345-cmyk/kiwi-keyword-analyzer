@@ -50,7 +50,6 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         .prepare('SELECT * FROM sender_numbers WHERE user_id = ? ORDER BY created_at DESC LIMIT 50')
         .bind(me.id)
         .all()
-        .catch(() => ({ results: [] as any[] }))
     ).results || []
   const byId = await docsBySender(db, (rows as any[]).map((r) => String(r.id)))
   return json({
