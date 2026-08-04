@@ -7,7 +7,7 @@
  * 보는 방법:
  *   1) user_id / owner_id 칸을 가진 표 = 회원 소유 자원으로 본다.
  *   2) 그 표를 UPDATE·DELETE 하면서 WHERE 에 id 만 있고 주인 칸이 없으면 잡는다.
- *   3) 단, 같은 파일에서 주인을 따로 확인했으면(ownsXxx(...) · id+user_id SELECT ·
+  *   3) 단, 같은 파일에서 주인을 따로 확인했으면(ownsXxx(...) · id+user_id SELECT ·
  *      관리자·크론 검사) 통과시킨다.
  *   4) 그래도 남는 자리는 아래 OK_BY_DESIGN 에 이유와 함께 적는다.
  *
@@ -58,7 +58,7 @@ for (const t of ['funnel_landing_pages', 'funnel_applicants', 'funnel_groups', '
                  'funnel_group_connections', 'blog_rank_track_history'])
   owned.add(t)
 
-const OWNCHK = /\bowns[A-Z]\w*\s*\(|WHERE\s+id\s*=\s*\?\s+AND\s+(?:CAST\()?user_id|user_id\s*=\s*\?\s+AND\s+id\s*=\s*\?|forbidden\(\)/
+const OWNCHK = /\bowns[A-Z]\w*\s*\(|WHERE\s+id\s*=\s*\?\s+AND\s+(?:CAST\()?user_id|user_id\s*=\s*\?\s+AND\s+id\s*=\s*\?/
 const ADMIN = /requireAdminUser|isAdminUser|isIgAdmin|role\s*===\s*'(?:admin|superadmin)'|ADMIN_EMAIL|CRON_TOKEN/
 
 const endpoints = files.filter((p) => p.includes('/functions/api/') && !path.basename(p).startsWith('_'))
