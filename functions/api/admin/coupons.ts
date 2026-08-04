@@ -11,11 +11,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const guard = await requireAdminUser(request, db)
   if (guard.error) return guard.error
 
-  const coupons = (await db.prepare('SELECT * FROM coupons ORDER BY created_at DESC LIMIT 500').all().catch(() => ({ results: [] }))).results || []
+  const coupons = (await db.prepare('SELECT * FROM coupons ORDER BY created_at DESC LIMIT 500').all()).results || []
   const redeemed = (await db.prepare(
     `SELECT r.code, r.user_id, r.original_krw, r.discount_krw, r.final_krw, r.track, r.plan, r.months, r.created_at, u.name, u.email
-     FROM coupon_redemptions r LEFT JOIN users u ON u.id = r.user_id ORDER BY r.created_at DESC LIMIT 300`).all().catch(() => ({ results: [] }))).results || []
-  const agg: any = (await db.prepare('SELECT COUNT(*) AS uses, COALESCE(SUM(discount_krw),0) AS discount FROM coupon_redemptions').first().catch(() => ({}))) || {}
+     FROM coupon_redemptions r LEFT JOIN users u ON u.id = r.user_id ORDER BY r.created_at DESC LIMIT 300`).all()).results || []
+  const agg: any = (await db.prepare('SELECT COUNT(*) AS uses, COALESCE(SUM(discount_krw),0) AS discount FROM coupon_redemptions').first()) || {}
   const active = (coupons as any[]).filter((c) => Number(c.active)).length
   return json({ ok: true, coupons, redemptions: redeemed, stats: { total: coupons.length, active, totalUses: Number(agg.uses) || 0, totalDiscount: Number(agg.discount) || 0 } })
 }

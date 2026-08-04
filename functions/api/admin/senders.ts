@@ -22,7 +22,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     `SELECT s.*, u.name, u.email
      FROM sender_numbers s LEFT JOIN users u ON u.id = s.user_id
      ORDER BY (s.status='pending') DESC, s.created_at DESC LIMIT 500`,
-  ).all().catch(() => ({ results: [] }))).results || []
+  ).all()).results || []
   const byId = await docsBySender(db, (rows as any[]).map((r) => String(r.id)))
   const senders = (rows as any[]).map((r) => {
     const docs = byId[String(r.id)] || []
@@ -116,7 +116,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     // 첨부 서류(개인정보)도 같이 지운다 — 남겨두면 주인 없는 신분증 사본이 된다.
     const docs = (await docsBySender(db, [id]))[id] || []
     if (docs.length) {
-      const keys = (await db.prepare('SELECT storage_key FROM sender_documents WHERE sender_id = ?').bind(id).all().catch(() => ({ results: [] as any[] }))).results || []
+      const keys = (await db.prepare('SELECT storage_key FROM sender_documents WHERE sender_id = ?').bind(id).all()).results || []
       const R2: any = resolveBucket(env)
       for (const k of keys as any[]) {
         const sk = String(k.storage_key || '')

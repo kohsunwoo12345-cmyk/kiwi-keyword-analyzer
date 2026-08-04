@@ -42,7 +42,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const ext: any = await db.prepare(
     `SELECT id, result_url FROM ai_usage
       WHERE result_url LIKE 'http%' ORDER BY created_at DESC LIMIT ?`)
-    .bind(BATCH).all().catch(() => ({ results: [] }))
+    .bind(BATCH).all()
   const extLeftRow: any = await db.prepare(
     `SELECT COUNT(*) AS c FROM ai_usage WHERE result_url LIKE 'http%'`).first().catch(() => ({ c: 0 }))
   const details: any[] = []
@@ -65,7 +65,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
                 WHERE a.result_url = '' AND g.task_key != '' AND g.status != 'refunded'
                 ORDER BY a.created_at DESC`
   const totalRow: any = await db.prepare(`SELECT COUNT(*) AS c FROM (${sql})`).first().catch(() => ({ c: 0 }))
-  const rows: any = await db.prepare(sql + ' LIMIT ?').bind(BATCH).all().catch(() => ({ results: [] }))
+  const rows: any = await db.prepare(sql + ' LIMIT ?').bind(BATCH).all()
 
   let recovered = 0, failed = 0, running = 0, gone = 0
   for (const r of rows.results || []) {

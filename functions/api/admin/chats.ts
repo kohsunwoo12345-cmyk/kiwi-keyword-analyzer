@@ -23,11 +23,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const team: any = await db.prepare('SELECT id, name, owner_id, created_at FROM teams WHERE id = ?').bind(id).first().catch(() => null)
     const members = (await db.prepare(
       `SELECT u.id, u.name, u.email, m.role FROM team_members m JOIN users u ON u.id = m.user_id WHERE m.team_id = ? ORDER BY m.joined_at ASC`,
-    ).bind(id).all().catch(() => ({ results: [] }))).results as any[] || []
+    ).bind(id).all()).results as any[] || []
     const rows = (await db.prepare(
       `SELECT id, user_id, name, text, kind, media_key, media_name, created_at
        FROM team_messages WHERE team_id = ? ORDER BY created_at ASC LIMIT 2000`,
-    ).bind(id).all().catch(() => ({ results: [] }))).results as any[] || []
+    ).bind(id).all()).results as any[] || []
     return json({
       ok: true,
       conversation: { type: 'team', id, name: team?.name || '(삭제된 팀)', createdAt: team?.created_at || '', members },
@@ -44,11 +44,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const parts = (await db.prepare(
       `SELECT u.id, u.name, u.email FROM users u
        WHERE u.id IN (SELECT from_id FROM dm_messages WHERE conv_id = ? UNION SELECT to_id FROM dm_messages WHERE conv_id = ?)`,
-    ).bind(id, id).all().catch(() => ({ results: [] }))).results as any[] || []
+    ).bind(id, id).all()).results as any[] || []
     const rows = (await db.prepare(
       `SELECT id, from_id, to_id, text, kind, media_key, media_name, created_at
        FROM dm_messages WHERE conv_id = ? ORDER BY created_at ASC LIMIT 2000`,
-    ).bind(id).all().catch(() => ({ results: [] }))).results as any[] || []
+    ).bind(id).all()).results as any[] || []
     const nameOf: Record<string, string> = {}
     for (const p of parts) nameOf[p.id] = p.name || '(탈퇴)'
     return json({
@@ -71,7 +71,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
             (SELECT kind FROM team_messages gm WHERE gm.team_id = t.id ORDER BY created_at DESC LIMIT 1) AS last_kind,
             (SELECT created_at FROM team_messages gm WHERE gm.team_id = t.id ORDER BY created_at DESC LIMIT 1) AS last_at
      FROM teams t ORDER BY COALESCE((SELECT created_at FROM team_messages gm WHERE gm.team_id = t.id ORDER BY created_at DESC LIMIT 1), t.created_at) DESC LIMIT 300`,
-  ).all().catch(() => ({ results: [] }))).results as any[] || []
+  ).all()).results as any[] || []
 
   // 개인(DM) 채팅 — conv_id 별 집계
   const dmConvs = (await db.prepare(
@@ -79,7 +79,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
             COUNT(*) AS msg_count,
             MAX(created_at) AS last_at
      FROM dm_messages GROUP BY conv_id ORDER BY last_at DESC LIMIT 300`,
-  ).all().catch(() => ({ results: [] }))).results as any[] || []
+  ).all()).results as any[] || []
 
   const dms: any[] = []
   for (const c of dmConvs) {
@@ -89,7 +89,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const parts = (await db.prepare(
       `SELECT u.id, u.name FROM users u
        WHERE u.id IN (SELECT from_id FROM dm_messages WHERE conv_id = ? UNION SELECT to_id FROM dm_messages WHERE conv_id = ?)`,
-    ).bind(c.conv_id, c.conv_id).all().catch(() => ({ results: [] }))).results as any[] || []
+    ).bind(c.conv_id, c.conv_id).all()).results as any[] || []
     dms.push({
       id: c.conv_id,
       participants: parts.map((p) => ({ id: p.id, name: p.name || '(탈퇴)' })),

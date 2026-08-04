@@ -10,7 +10,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const guard = await requireAdminUser(request, db)
   if (guard.error) return guard.error
 
-  const rows = async (sql: string, ...b: any[]) => (await db.prepare(sql).bind(...b).all().catch(() => ({ results: [] }))).results || []
+  const rows = async (sql: string, ...b: any[]) => (await db.prepare(sql).bind(...b).all()).results || []
   const payments = await rows(
     `SELECT p.*, COALESCE(NULLIF(p.name,''), u.name) AS uname, COALESCE(NULLIF(p.email,''), u.email) AS uemail
      FROM payments p LEFT JOIN users u ON u.id = p.user_id ORDER BY p.created_at DESC LIMIT 500`)
@@ -21,7 +21,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const subscriptions = await rows(
     `SELECT s.*, u.name AS uname, u.email AS uemail FROM subscriptions s LEFT JOIN users u ON u.id = s.user_id ORDER BY s.next_billing_at ASC LIMIT 300`)
 
-  const n = async (sql: string) => { const r: any = await db.prepare(sql).first().catch(() => ({})); return Number(r?.n) || 0 }
+  const n = async (sql: string) => { const r: any = await db.prepare(sql).first(); return Number(r?.n) || 0 }
   const paidTotal = await n(`SELECT COALESCE(SUM(amount),0) AS n FROM payments WHERE status != 'refunded'`)
   const refundedTotal = await n(`SELECT COALESCE(SUM(refunded_amount),0) AS n FROM payments`)
   const stats = {

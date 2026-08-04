@@ -173,7 +173,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
            (SELECT e.is_member FROM notice_visitor_events e WHERE e.campaign_id = s.campaign_id AND e.visitor = s.visitor ORDER BY e.created_at DESC LIMIT 1) AS is_member,
            (SELECT e.member_email FROM notice_visitor_events e WHERE e.campaign_id = s.campaign_id AND e.visitor = s.visitor ORDER BY e.created_at DESC LIMIT 1) AS member_email
          FROM notice_snoozes s WHERE s.campaign_id = ? ORDER BY s.created_at DESC LIMIT 300`,
-      ).bind(id).all().catch(() => ({ results: [] }))).results as any[] || []
+      ).bind(id).all()).results as any[] || []
       return json({
         ok: true,
         campaign: {
@@ -206,7 +206,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       `SELECT s.visitor AS user_id, s.until, s.created_at, u.name, u.email
        FROM notice_snoozes s LEFT JOIN users u ON u.id = s.visitor
        WHERE s.campaign_id = ? ORDER BY s.created_at DESC LIMIT 500`,
-    ).bind(id).all().catch(() => ({ results: [] }))).results as any[] || []
+    ).bind(id).all()).results as any[] || []
     return json({
       ok: true,
       campaign: {
@@ -235,7 +235,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   // 방문자 캠페인 집계 (노출/읽음/전환)
   const vagg = (await db.prepare(
     `SELECT campaign_id, kind, COUNT(*) AS n FROM notice_visitor_events GROUP BY campaign_id, kind`,
-  ).all().catch(() => ({ results: [] }))).results || []
+  ).all()).results || []
   const vMap: Record<string, { views: number; reads: number; convert: number }> = {}
   for (const a of vagg as any[]) {
     if (!vMap[a.campaign_id]) vMap[a.campaign_id] = { views: 0, reads: 0, convert: 0 }

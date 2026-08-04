@@ -18,7 +18,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (guard.error) return guard.error
 
   const nowIso = new Date().toISOString()
-  const rows = async (sql: string, ...b: any[]) => ((await db.prepare(sql).bind(...b).all().catch(() => ({ results: [] }))) as any).results || []
+  const rows = async (sql: string, ...b: any[]) => ((await db.prepare(sql).bind(...b).all()) as any).results || []
   const one = async (sql: string, ...b: any[]) => ((await db.prepare(sql).bind(...b).first().catch(() => null)) as any) || {}
 
   const [tot, due, lastRun, schedules, fails] = await Promise.all([

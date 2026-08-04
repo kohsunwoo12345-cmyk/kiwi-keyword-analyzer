@@ -42,7 +42,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     `SELECT id, created_at, user_id, email, name, provider, model, kind, stage, reason,
             task_key, usage_id, refunded, prompt
        FROM gen_failures WHERE ${w.join(' AND ')}
-      ORDER BY created_at DESC LIMIT ? OFFSET ?`).bind(...b, limit, offset).all().catch(() => ({ results: [] }))
+      ORDER BY created_at DESC LIMIT ? OFFSET ?`).bind(...b, limit, offset).all()
 
   //  ㉡ 결과물이 안 붙은 정산 줄 (금액이 실제로 나간 것만 — 보관 전용 0원 줄은 실패가 아니다)
   const wm: string[] = ["a.created_at > ?", "COALESCE(a.result_url,'') = ''", '(a.credits > 0 OR a.cost_krw > 0)']
@@ -55,7 +55,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
             COALESCE(g.task_key,'') AS task_key, COALESCE(g.status,'') AS charge_status
        FROM ai_usage a LEFT JOIN gen_charges g ON g.usage_id = a.id
       WHERE ${wm.join(' AND ')}
-      ORDER BY a.created_at DESC LIMIT ? OFFSET ?`).bind(...bm, limit, offset).all().catch(() => ({ results: [] }))
+      ORDER BY a.created_at DESC LIMIT ? OFFSET ?`).bind(...bm, limit, offset).all()
 
   const seen = new Set<string>()
   const items: any[] = []

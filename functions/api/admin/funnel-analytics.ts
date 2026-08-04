@@ -22,7 +22,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
             (SELECT COUNT(*) FROM funnel_applicants a WHERE a.landing_page_id = p.id) AS applicants
      FROM funnel_landing_pages p LEFT JOIN funnel_groups g ON g.id = p.group_id
      ORDER BY applicants DESC, views DESC LIMIT 500`,
-  ).all().catch(() => ({ results: [] }))).results || []
+  ).all()).results || []
 
   const pageRows = (pages as any[]).map((p) => ({
     id: p.id, title: p.title, slug: p.slug, url: `/f/${p.slug}`, groupName: p.group_name || '(그룹없음)',
@@ -47,7 +47,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     `SELECT a.created_at, a.data_json, p.title AS page_title
      FROM funnel_applicants a LEFT JOIN funnel_landing_pages p ON p.id = a.landing_page_id
      WHERE a.created_at >= ? ORDER BY a.created_at DESC LIMIT 2000`,
-  ).bind(since).all().catch(() => ({ results: [] }))).results || []
+  ).bind(since).all()).results || []
 
   const dayMap: Record<string, number> = {}
   for (const r of appRows as any[]) { const d = kstDate(r.created_at); if (d) dayMap[d] = (dayMap[d] || 0) + 1 }
