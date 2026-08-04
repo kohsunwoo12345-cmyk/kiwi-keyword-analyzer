@@ -2296,15 +2296,21 @@ async function handle(context) {
         return { raw: String(raw), key: String(raw).toLowerCase().replace(/[._-]/g, ""), msg: String(msg) };
       };
       const cut = (t) => String(t == null ? "" : t).slice(0, 600);
-      const one = async (label, url, init) => {
+      /*  ⚠ 본문 600자 자르기 때문에 한 번 헛돌았다. 모델 목록이 200 으로 잘 왔는데
+          정작 목록이 600자 뒤에 있어서 "무슨 모델이 되는지" 를 못 봤다.
+          그래서 목록 응답만은 자르지 말고 파싱해서(_json) 이름만 뽑아 쓴다. */
+      const one = async (label, url, init, opt) => {
         const t0 = Date.now();
+        const keep = opt && opt.keep;
         try {
           const r = await fetchT(url, init, 15000);
           const text = await r.text().catch(() => "");
           let parsed = null; try { parsed = JSON.parse(text); } catch { /* JSON 이 아닐 수 있다 */ }
           const e = normErr(parsed);
           return { 검사: label, url, status: r.status, ms: Date.now() - t0,
-                   code: e.raw || null, codeKey: e.key || null, message: e.msg || null, 본문: cut(text) };
+                   code: e.raw || null, codeKey: e.key || null, message: e.msg || null,
+                   본문: keep ? "(목록은 아래 모델목록 항목으로 따로 정리)" : cut(text),
+                   _json: keep ? parsed : undefined };
         } catch (err) {
           return { 검사: label, url, status: 0, ms: Date.now() - t0, 오류: String((err && err.message) || err).slice(0, 200) };
         }
@@ -2315,13 +2321,78 @@ async function handle(context) {
       const POST_H = { "Authorization": "Bearer " + k.alibaba, "Content-Type": "application/json",
                        "X-DashScope-Async": "enable" };
 
+      /* 목록 응답에서 모델 이름만 뽑는다.
+         배열이 담긴 필드 이름(models/data/list)도, 이름 필드(model_name/name/id)도
+         문서마다 다르게 적혀 있다. 하나로 못 박으면 이름이 다를 때 조용히 빈 목록이 된다 —
+         그러면 "쓸 수 있는 모델이 없다" 는 틀린 결론이 나온다. 그래서 찾아서 쓴다. */
+      const idsFrom = (j) => {
+        const box = (j && (j.output || j.data || j)) || {};
+        let arr = Array.isArray(box) ? box : null;
+        if (!arr && box && typeof box === "object") {
+          for (const v of Object.values(box)) if (Array.isArray(v)) { arr = v; break; }
+        }
+        if (!arr) return [];
+        return arr.map((it) => {
+          if (typeof it === "string") return it;
+          if (!it || typeof it !== "object") return "";
+          for (const f of ["model_name", "model", "name", "id", "model_id"]) {
+            if (typeof it[f] === "string" && it[f]) return it[f];
+          }
+          const s = Object.values(it).find((v) => typeof v === "string");
+          return s || "";
+        }).filter(Boolean);
+      };
+
       const results = [];
+      const 모델목록 = [];
       for (const h of HOSTS) {
         /* ① 모델 목록 — 가장 안전하고 가장 정보가 많다. 토큰을 만들지 않는 조회이고,
               200 이면 이 키가 어느 리전에서 어떤 모델에 닿는지가 응답에 그대로 나온다.
               (모델 이름 표기 흔들림도 여기서 실측으로 정리된다) */
-        results.push(await one(h.id + " · 모델 목록(OpenAI 호환) [읽기]", h.base + "/compatible-mode/v1/models", { method: "GET", headers: GET_H }));
-        results.push(await one(h.id + " · 모델 목록(네이티브) [읽기]", h.base + "/api/v1/models", { method: "GET", headers: GET_H }));
+        const ids = [];
+        const compat = await one(h.id + " · 모델 목록(OpenAI 호환) [읽기]",
+          h.base + "/compatible-mode/v1/models", { method: "GET", headers: GET_H }, { keep: true });
+        results.push(compat);
+        if (compat.status >= 200 && compat.status < 300) ids.push(...idsFrom(compat._json));
+
+        /*  네이티브 목록은 한 번에 다 안 준다 — 실측 응답이 total 234 · page_size 20 이었다.
+            첫 장만 보고 "wan 이 없다" 고 하면 234개 중 20개만 보고 내린 결론이 된다.
+            그래서 total 을 채울 때까지 넘긴다(안전장치로 최대 20장). */
+        let total = null;
+        /* ⚠ 여기서 한 번 틀렸다. 처음엔 "지금까지 모은 개수(ids)" 를 total 과 비교했는데,
+           ids 에는 앞의 OpenAI 호환 목록이 이미 들어 있다. 그래서 첫 장만 받고도
+           229 + 20 ≥ 234 가 되어 다 받은 줄 알고 멈췄다 — 뒤쪽에 있던 wan 이 통째로 빠졌다.
+           흉내 서버로 재현해서 봤다(wan 은 200번대에 있고 호환 목록에는 안 나온다).
+           총개수는 네이티브 것이므로 **네이티브로 받은 개수만** 세서 비교한다. */
+        let nativeCount = 0;
+        for (let page = 1; page <= 20; page++) {
+          const r = await one(h.id + " · 모델 목록(네이티브) " + page + "쪽 [읽기]",
+            h.base + "/api/v1/models?page_no=" + page + "&page_size=100",
+            { method: "GET", headers: GET_H }, { keep: true });
+          //  첫 장만 판정에 남긴다 — 12장이 다 들어가면 결과가 목록으로 뒤덮인다
+          if (page === 1) results.push(r);
+          if (r.status < 200 || r.status >= 300) break;
+          const got = idsFrom(r._json);
+          ids.push(...got);
+          nativeCount += got.length;
+          const out = (r._json && r._json.output) || {};
+          if (total == null && Number(out.total) > 0) total = Number(out.total);
+          if (!got.length) break;                                   // 더 없다
+          if (total != null && nativeCount >= total) break;          // 다 받았다
+        }
+
+        const uniq = Array.from(new Set(ids.map((x) => String(x).trim()).filter(Boolean))).sort();
+        //  이름만 보고 갈라 둔다. 최종 판단은 아래 전체 목록을 보고 한다.
+        const wan = uniq.filter((x) => /^wan/i.test(x));
+        모델목록.push({
+          호스트: h.base,
+          받은개수: uniq.length,
+          목록이_말한_총개수: total,
+          wan계열: wan,
+          "wan_영상후보": wan.filter((x) => /t2v|i2v|s2v|kf2v|video|animate|vace/i.test(x)),
+          "wan_이미지후보": wan.filter((x) => /t2i|i2i|image|edit/i.test(x)),
+          전체: uniq,
+        });
         /* ② 날조한 태스크 번호 조회 — 생성 파이프라인을 아예 건드리지 않는다.
               200(UNKNOWN)·400·404 중 무엇이 오든 401 과는 구분되므로 키 판정에는 문제없다. */
         results.push(await one(h.id + " · 없는 태스크 조회 [읽기]",
@@ -2361,7 +2432,11 @@ async function handle(context) {
         : "/api/v1/services/aigc/video-generation/video-synthesis";
       if (u.searchParams.get("models") === "1") {
         const only = String(u.searchParams.get("only") || "");
-        const list = only ? only.split(",").map((x) => x.trim()).filter(Boolean) : MODELS;
+        //  목록이 실제로 내려왔다면 그걸 쓴다 — 내가 적어 둔 MODELS 는 조사에서 옮겨 적은 것이라
+        //  틀릴 수 있다. 실측 목록이 있는데 굳이 추측을 찌를 이유가 없다.
+        const found = 모델목록.flatMap((m) => m.wan계열 || []);
+        const list = only ? only.split(",").map((x) => x.trim()).filter(Boolean)
+                          : (found.length ? found : MODELS);
         for (const h of HOSTS) for (const id of list) {
           results.push(await one(
             h.id + " · 모델 있나: " + id + " (필수값 뺌)",
@@ -2410,6 +2485,8 @@ async function handle(context) {
       });
       const 살아있나 = 호스트별.some((x) => x.판정 === "키 유효" || x.판정 === "키는 통함(값·권한 문제로 거절)");
 
+      results.forEach((r) => { delete r._json; });   // 파싱본은 내부용 — 응답에 통째로 싣지 않는다
+
       return json({
         diag: "alibaba",
         주의: "생성 파이프라인을 건드리는 요청은 보내지 않는다. models=1 을 켠 경우만 POST 로 모델 이름을 확인한다.",
@@ -2417,167 +2494,7 @@ async function handle(context) {
         키길이: String(k.alibaba).length,
         키살아있음: 살아있나,
         호스트별,
-        해석,
-        결과: results,
-      });
-    }
-    // (보안) 키 값/환경변수 조회 엔드포인트는 제거됨 — API 키는 어떤 응답에도 절대 노출하지 않습니다.
-    if (u.searchParams.get("diag") === "keys") {
-      return json({ error: "이 엔드포인트는 보안상 제거되었습니다. API 키는 노출되지 않습니다." }, 410);
-    }
-    // ── 남용 방지: 진단(diag) 엔드포인트는 실제 유료 제공사 생성 태스크를 제출하므로 관리자 전용 ──
-    //  (익명 GET 으로 Seedance/Flux/Veo 등 유료 호출을 소진하는 denial-of-wallet 차단)
-    {
-      const diagVal = u.searchParams.get("diag");
-      if (diagVal && diagVal !== "keys") {
-        const ddb = resolveDB(env);
-        let dme = ddb ? await getSessionUser(request, ddb) : null;
-        if (!dme || dme.role !== "admin") {
-          const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
-          const gtok = env.MCP_AUTH_TOKEN || env.mcp_auth_token || "";
-          if (gtok && bearer && ctEqStr(bearer, String(gtok))) dme = { role: "admin" };
-        }
-        if (!dme || dme.role !== "admin") return json({ error: "진단 엔드포인트는 관리자 전용입니다.", needAdmin: true }, 403);
-      }
-    }
-    /* ⚠ 이 아래에 둔다. 처음엔 게이트 "위" 에 뒀다가 검사에서 비로그인도 200 을 받는 것을 봤다 —
-       생성은 안 하더라도 남의 계정 키로 제공사를 두들기고 키 지문까지 보여 주는 통로가 된다.
-       진단은 예외 없이 게이트 뒤다. */
-    /* ── 알리바바 DashScope(Wan) 반응 확인 — 생성은 하지 않는다 ──
-       GET /api/generate?diag=alibaba   (관리자 전용 · 아래 진단 게이트가 막아 준다)
-
-       왜 이런 모양인가:
-        · 우리는 아직 알리바바를 연동하지 않았다. 키만 콘솔에 들어와 있다.
-          그래서 "이 키로 무엇이 되는지" 부터 알아야 붙일 수 있다.
-        · 그런데 생성을 실제로 걸면 돈이 나간다. 그래서 **생성이 되지 않는 요청만** 보낸다:
-            ㉠ 없는 태스크 번호 조회 — 조회는 만들지 않는다. 인증만 확인된다.
-            ㉡ 없는 모델 이름으로 제출 — 파라미터 검증에서 거절되므로 만들어지지 않는다.
-          둘 다 401(키 문제)과 그 밖의 오류(키는 통했고 값만 틀림)를 갈라 준다.
-        · 엔드포인트 경로와 모델 이름은 문서마다 다르게 적혀 있고 국제판·중국판도 다르다.
-          하나만 넣고 "안 된다" 고 결론 내리면 틀리기 쉬워서, **후보를 전부 찔러 보고
-          돌아온 것을 그대로 보여 준다.** 판단은 응답을 보고 한다.
-
-       ⚠ 키 값은 어떤 경우에도 응답에 넣지 않는다. 앞 6자·뒤 4자 지문만 보여 준다. */
-    if (u.searchParams.get("diag") === "alibaba") {
-      if (!k.alibaba) return json({ diag: "alibaba", ok: false, error: "alibaba_API_KEY 가 설정되어 있지 않습니다." }, 400);
-      //  검사에서 가짜 서버로 돌리기 위한 통로(환경변수로만 바꿀 수 있다 — 회원 요청으로는 못 바꾼다)
-      const ov = pick(env, ["DASHSCOPE_HOST_OVERRIDE", "dashscope_host_override"]);
-      const HOSTS = ov ? [{ id: "override", base: String(ov) }] : [
-        { id: "intl", base: "https://dashscope-intl.aliyuncs.com" },   // 국제(싱가포르) 계정
-        { id: "cn",   base: "https://dashscope.aliyuncs.com" },        // 중국 본토 계정
-      ];
-      /*  후보 경로. 어느 것이 맞는지는 응답이 알려 준다 —
-          404 면 그 경로가 아닌 것이고, 400(InvalidParameter)이면 경로는 맞고 값만 틀린 것이다. */
-      const PATHS = [
-        { id: "video", path: "/api/v1/services/aigc/video-generation/video-synthesis" },
-        { id: "image", path: "/api/v1/services/aigc/text2image/image-synthesis" },
-        { id: "image-i2i", path: "/api/v1/services/aigc/image2image/image-synthesis" },
-      ];
-      const TASK_PROBE = "/api/v1/tasks/nonexistent-task-probe-bygency";
-      /*  모델 이름이 실제로 있는지 — 이것도 만들지 않고 확인한다.
-          필수값(prompt)을 일부러 빼고 보낸다. 제공사는 큐에 넣기 전에 값을 검사하므로
-            · 모델이 없으면  "모델 없음" 계열 오류
-            · 모델이 있으면  "prompt 가 없다" 계열 오류
-          로 갈린다. 어느 쪽이든 생성은 시작되지 않는다.
-          ⚠ 이건 "검증이 큐보다 먼저 돈다" 는 전제 위에 서 있다. 흔한 설계지만 알리바바가
-            그렇다는 것을 문서로 확인하지는 못했다 — 그래서 기본값은 끄고, 볼 때만 켠다
-            (&models=1). 처음 켤 때는 콘솔에서 사용량이 0 인지 같이 봐야 한다. */
-      const MODEL_CANDIDATES = [
-        //  검색으로 이름을 확인한 것들. 계정 권한·지역에 따라 없을 수 있다.
-        { kind: "video", path: "/api/v1/services/aigc/video-generation/video-synthesis", id: "wan2.5-t2v-preview" },
-        { kind: "video", path: "/api/v1/services/aigc/video-generation/video-synthesis", id: "wan2.2-t2v-plus" },
-        { kind: "video", path: "/api/v1/services/aigc/video-generation/video-synthesis", id: "wan2.2-i2v-plus" },
-        { kind: "video", path: "/api/v1/services/aigc/video-generation/video-synthesis", id: "wanx2.1-t2v-turbo" },
-        { kind: "image", path: "/api/v1/services/aigc/text2image/image-synthesis", id: "wan2.6-t2i" },
-        { kind: "image", path: "/api/v1/services/aigc/text2image/image-synthesis", id: "wan2.5-t2i-preview" },
-        { kind: "image", path: "/api/v1/services/aigc/text2image/image-synthesis", id: "wanx2.1-t2i-turbo" },
-        { kind: "image", path: "/api/v1/services/aigc/text2image/image-synthesis", id: "wanx2.1-imageedit" },
-      ];
-      const cut = (t) => String(t == null ? "" : t).slice(0, 700);
-      const one = async (label, url, init) => {
-        const t0 = Date.now();
-        try {
-          const r = await fetchT(url, init, 15000);
-          const text = await r.text().catch(() => "");
-          let parsed = null; try { parsed = JSON.parse(text); } catch { /* 본문이 JSON 이 아닐 수 있다 */ }
-          return { 검사: label, url, status: r.status, ms: Date.now() - t0,
-                   code: parsed && (parsed.code || (parsed.error && parsed.error.code)) || null,
-                   message: parsed && (parsed.message || (parsed.error && parsed.error.message)) || null,
-                   본문: cut(text) };
-        } catch (e) {
-          return { 검사: label, url, status: 0, ms: Date.now() - t0, 오류: String((e && e.message) || e).slice(0, 200) };
-        }
-      };
-      const H = { "Authorization": "Bearer " + k.alibaba, "Content-Type": "application/json" };
-      const results = [];
-      for (const h of HOSTS) {
-        //  ㉠ 없는 태스크 조회 — 만들지 않는다. 키가 통하는지만 본다.
-        results.push(await one(h.id + " · 없는 태스크 조회(생성 없음)", h.base + TASK_PROBE, { method: "GET", headers: H }));
-        //  ㉡ 없는 모델로 제출 — 검증에서 거절되므로 만들어지지 않는다.
-        for (const p of PATHS) {
-          results.push(await one(
-            h.id + " · " + p.id + " 없는 모델로 제출(생성 없음)",
-            h.base + p.path,
-            { method: "POST",
-              headers: { ...H, "X-DashScope-Async": "enable" },
-              body: JSON.stringify({ model: "__bygency_probe__", input: { prompt: "probe" }, parameters: {} }) },
-          ));
-        }
-      }
-      /*  모델 이름 확인 — 기본으로는 하지 않는다(&models=1 일 때만).
-          필수값을 빼고 보내는 요청이라 만들어지지 않지만, "검증이 먼저 돈다" 는 전제가
-          틀리면 돈이 나갈 수 있는 유일한 자리다. 켜는 것은 사람이 정한다. */
-      if (u.searchParams.get("models") === "1") {
-        const only = String(u.searchParams.get("only") || "");
-        const list = only
-          ? only.split(",").map((x) => x.trim()).filter(Boolean).map((id) => ({
-              kind: /t2i|imageedit|-image/.test(id) ? "image" : "video",
-              path: /t2i|imageedit|-image/.test(id)
-                ? "/api/v1/services/aigc/text2image/image-synthesis"
-                : "/api/v1/services/aigc/video-generation/video-synthesis",
-              id,
-            }))
-          : MODEL_CANDIDATES;
-        for (const h of HOSTS) {
-          for (const m of list) {
-            results.push(await one(
-              h.id + " · 모델 있나: " + m.id + " (필수값 빼고 보냄 · 생성 없음)",
-              h.base + m.path,
-              { method: "POST",
-                headers: { ...H, "X-DashScope-Async": "enable" },
-                body: JSON.stringify({ model: m.id, input: {}, parameters: {} }) },
-            ));
-          }
-        }
-      }
-      /*  응답을 사람 말로 한 줄 정리한다. 상태 코드만 늘어놓으면 결국 다시 읽어 봐야 한다.
-          단, 여기 요약은 거들 뿐이고 판단 근거는 위 원문이다 — 요약이 틀려도 원문은 남는다. */
-      const 해석 = results.map((r) => {
-        if (r.status === 0) return r.검사 + " → 닿지 않음(" + (r.오류 || "?") + ")";
-        if (r.status === 401 || /InvalidApiKey|Unauthorized/i.test(String(r.code) + String(r.message)))
-          return r.검사 + " → ✗ 키가 거부됨(401)";
-        if (r.status === 404) return r.검사 + " → 경로 없음(404) · 이 엔드포인트가 아니다";
-        if (r.status === 403) return r.검사 + " → 권한 없음(403) · 키는 읽혔지만 이 모델/지역 권한이 없다";
-        if (r.status >= 200 && r.status < 300) {
-          //  ⚠ 모델 확인에서 2xx 가 나오면 접수됐다는 뜻이다 = 만들어졌을 수 있다. 크게 알린다.
-          if (/모델 있나/.test(r.검사))
-            return r.검사 + " → ⚠ 2xx · 검증 없이 접수됐을 수 있다. 콘솔에서 사용량을 확인할 것";
-          return r.검사 + " → 통과(2xx)";
-        }
-        if (/모델 있나/.test(r.검사)) {
-          const t = String(r.code) + " " + String(r.message);
-          if (/model.*(not|no).*exist|InvalidParameter.*model|ModelNotFound|UnsupportedModel/i.test(t))
-            return r.검사 + " → ✗ 그런 모델이 없다";
-          return r.검사 + " → ✓ 모델은 있는 듯(값 오류로 거절: " + (r.code || r.status) + ")";
-        }
-        return r.검사 + " → " + r.status + " " + (r.code || "") + " · 키는 통하고 값이 거절된 것으로 보인다";
-      });
-      return json({
-        diag: "alibaba",
-        주의: "이 진단은 생성 요청을 만들지 않는다 — 없는 태스크 조회와 없는 모델 제출뿐이다.",
-        키지문: String(k.alibaba).slice(0, 6) + "…" + String(k.alibaba).slice(-4),
-        키길이: String(k.alibaba).length,
-        호스트: HOSTS.map((h) => h.base),
+        모델목록,
         해석,
         결과: results,
       });
