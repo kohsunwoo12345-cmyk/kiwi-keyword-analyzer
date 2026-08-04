@@ -1461,7 +1461,8 @@ export const smsPage = `    <!DOCTYPE html>
                     const matched = _landingPageCache.filter(p => (p.title || '').includes(name));
                     if (!matched.length) return '';
                     // created_at DESC 정렬 상태이므로 첫 번째가 최신
-                    return 'https://wearesuperplace.com/landing/' + matched[0].slug;
+                    //  주소는 지금 도메인을 쓴다 — 예전엔 다른 제품 도메인이 박혀 있어 문자에 남의 주소가 나갔다
+                    return location.origin + '/landing/' + matched[0].slug;
                 } catch (e) { return ''; }
             }
 

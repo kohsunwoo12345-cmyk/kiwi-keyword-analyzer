@@ -780,7 +780,8 @@ export const alimtalkPage = `<!DOCTYPE html>
           });
         }
         if (matched) {
-          studentLandingMap[st.id] = 'https://wearesuperplace.com/landing/' + matched.slug;
+          //  주소는 지금 도메인을 쓴다 — 예전엔 다른 제품 도메인이 박혀 있어 알림톡에 남의 주소가 나갔다
+          studentLandingMap[st.id] = location.origin + '/landing/' + matched.slug;
         }
       });
       /* ✅ FIX: 랜딩페이지 로드 완료 후 이미 렌더된 목록도 갱신 */

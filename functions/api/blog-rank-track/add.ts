@@ -2,7 +2,7 @@
 // 추적 등록 + 즉시 첫 순위 확인. 월 15회 제한 (admin 제외).
 import { json, resolveDB } from '../_utils'
 import { normalizeNaverBlogId, canonicalNaverBlogUrl, findNaverBlogRankDetails, BlogRankSearchResult } from '../blog-analysis/_naver'
-import { initBrtTables, getBrtUser } from './_brt'
+import { initBrtTables, getBrtUser, kstDate } from './_brt'
 
 export const onRequestPost: PagesFunction = async ({ request, env }) => {
   try {
@@ -40,7 +40,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
       `INSERT INTO blog_rank_tracks (user_id, academy_id, blog_id, blog_url, keyword, status, created_at, updated_at) VALUES (?,?,?,?,?,'active',datetime('now'),datetime('now'))`
     ).bind(auth.userId, auth.academyId, blogId, normalizedBlogUrl, cleanKeyword).run()
     const trackId = ins.meta.last_row_id
-    const today = new Date().toISOString().slice(0, 10)
+    const today = kstDate()   // 한국 날짜 — UTC 로 하면 00~09시 확인이 전날로 들어간다
 
     // 즉시 첫 순위 확인 (실패해도 last_checked_date 는 반드시 저장)
     let rank: number | null = null

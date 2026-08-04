@@ -34,6 +34,16 @@ export async function initBrtTables(db: any) {
   try { await db.prepare(`CREATE INDEX IF NOT EXISTS idx_blog_rank_history_track_date ON blog_rank_track_history(track_id, checked_date)`).run() } catch (_) {}
 }
 
+/** 한국 날짜(YYYY-MM-DD).
+ *  checked_date 는 "며칠자 순위" 를 담는 칸이라 반드시 한국 날짜여야 한다.
+ *  UTC 로 계산하면 한국 00:00~09:00 사이의 확인이 전날로 들어간다 —
+ *  아침에 한 번, 낮에 한 번 보면 같은 날인데 두 줄이 되고 7일 그래프의 하루가 통째로 빈다.
+ *  같은 이유로 "오늘 것은 지우고 다시 넣는" 중복 제거도 엉뚱한 날을 지운다. */
+export function kstDate(d: Date = new Date()): string {
+  try { return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }) }
+  catch { return new Date(d.getTime() + 9 * 3600000).toISOString().slice(0, 10) }
+}
+
 /** 세션 사용자 → { userId(TEXT), isAdmin, academyId(TEXT) }. 우리 스키마엔 academy_id/user_type 이 없으므로 role 만 사용. */
 export async function getBrtUser(request: Request, db: any): Promise<{ userId: string, isAdmin: boolean, academyId: string } | null> {
   try {

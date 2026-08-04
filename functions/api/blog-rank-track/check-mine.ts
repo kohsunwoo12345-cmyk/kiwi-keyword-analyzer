@@ -2,7 +2,7 @@
 // 현재 로그인 사용자의 모든 활성 추적 항목을 즉시 재확인 (수동 호출).
 import { json, resolveDB } from '../_utils'
 import { normalizeNaverBlogId, canonicalNaverBlogUrl, findNaverBlogRankDetails, BlogRankSearchResult } from '../blog-analysis/_naver'
-import { initBrtTables, getBrtUser } from './_brt'
+import { initBrtTables, getBrtUser, kstDate } from './_brt'
 
 export const onRequestPost: PagesFunction = async ({ request, env }) => {
   try {
@@ -11,7 +11,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     const auth = await getBrtUser(request, db)
     if (!auth) return json({ success: false, error: '로그인 필요' }, 401)
     await initBrtTables(db)
-    const today = new Date().toISOString().slice(0, 10)
+    const today = kstDate()   // 한국 날짜 — UTC 로 하면 00~09시 확인이 전날로 들어간다
     const tracks = await db.prepare(
       `SELECT * FROM blog_rank_tracks WHERE user_id=? AND status='active' ORDER BY created_at DESC`
     ).bind(auth.userId).all()

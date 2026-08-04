@@ -1256,7 +1256,7 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
               <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.7;">
                 <a href="https://developers.facebook.com/apps/" target="_blank" style="color:#833ab4;font-weight:600;">developers.facebook.com/apps</a>
                 에서 앱 ID와 시크릿을 확인하세요.<br>
-                리다이렉트 URI: <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:11px;">https://wearesuperplace.com/api/instagram/oauth/callback</code>
+                리다이렉트 URI: <code id="ig-redirect-uri" style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:11px;">/api/instagram/oauth/callback</code>
               </div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
                 <div>
@@ -1357,8 +1357,8 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
             </div>
             <div style="font-size:11px;color:var(--text3);margin-bottom:5px;">Callback URL</div>
             <div style="background:#f1f5f9;padding:7px 10px;border-radius:7px;font-family:'Menlo','Monaco',monospace;font-size:10px;color:#334155;display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:10px;">
-              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">https://wearesuperplace.com/api/instagram/webhook</span>
-              <button onclick="copyText('https://wearesuperplace.com/api/instagram/webhook')" style="background:#e2e8f0;border:none;padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer;flex-shrink:0;font-family:inherit;">복사</button>
+              <span id="webhook-url" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">/api/instagram/webhook</span>
+              <button onclick="copyWebhookUrl()" style="background:#e2e8f0;border:none;padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer;flex-shrink:0;font-family:inherit;">복사</button>
             </div>
             <div style="display:flex;gap:5px;">
               <span style="padding:3px 9px;background:#dbeafe;border-radius:12px;font-size:10px;color:#6d28d9;font-weight:700;">comments</span>
@@ -2576,7 +2576,16 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
   }
 
   // ===== WEBHOOK =====
-  function initWebhook() { document.getElementById('webhook-url').textContent = window.location.origin + '/api/instagram/webhook'; loadWebhookLogs(); }
+  /* ⚠ 이 두 주소는 메타 앱 설정에 그대로 붙여 넣는 값이다.
+     예전에는 다른 제품 도메인이 박혀 있어서, 적힌 대로 넣으면 인스타 연동이 되지 않았다.
+     지금 접속한 도메인을 그대로 보여 준다. */
+  function initWebhook() {
+    const w = document.getElementById('webhook-url');
+    if (w) w.textContent = window.location.origin + '/api/instagram/webhook';
+    const r = document.getElementById('ig-redirect-uri');
+    if (r) r.textContent = window.location.origin + '/api/instagram/oauth/callback';
+    loadWebhookLogs();
+  }
   function copyWebhookUrl() { copyText(window.location.origin + '/api/instagram/webhook'); }
 
   async function loadWebhookLogs() {
@@ -2773,6 +2782,11 @@ export const instagramUnifiedPage = `<!DOCTYPE html>
   // ===== INIT =====
   (async function() {
     try { const uid=await fetchCurrentUserId(); if(uid&&uid!=='0') localStorage.setItem('userId',uid); } catch(_) {}
+    //  메타 앱에 붙여 넣을 주소는 어느 탭을 열든 맞아야 한다 — 처음에 한 번 채워 둔다
+    const _r = document.getElementById('ig-redirect-uri');
+    if (_r) _r.textContent = location.origin + '/api/instagram/oauth/callback';
+    const _w = document.getElementById('webhook-url');
+    if (_w) _w.textContent = location.origin + '/api/instagram/webhook';
     const p = new URLSearchParams(location.search).get('tab') || 'home';
     await loadDmRulesFromApi();
     showPanel(p);

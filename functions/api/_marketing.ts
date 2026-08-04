@@ -884,8 +884,8 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
   }
   if (action==='segment_users') {
     const key    = url.searchParams.get('key')||'all';
-    const page   = Math.max(1,parseInt(url.searchParams.get('page')||'1'));
-    const limit  = Math.min(100,parseInt(url.searchParams.get('limit')||'50'));
+    const page   = Math.max(1,parseInt(url.searchParams.get('page')||'1') || 1);
+    const limit  = Math.min(100,Math.max(1,parseInt(url.searchParams.get('limit')||'50') || 50));
     const offset = (page-1)*limit;
     const where  = segmentKeyToSQL(key);
     const [cnt, rows] = await Promise.all([
@@ -1086,8 +1086,11 @@ export async function handleMarketingAutomation(req: Request, env: Env): Promise
   // 웹 푸시 동의 현황 — 동의(구독자) vs 미동의 유저 목록
   // ════════════════════════════════════════════════════════════════════════════
   if (action === 'push_consent') {
-    const page    = parseInt(url.searchParams.get('page')  || '1', 10);
-    const limit   = parseInt(url.searchParams.get('limit') || '50', 10);
+    /*  숫자를 그대로 믿으면 안 된다 — limit=0 이면 NaN 바인딩으로 질의가 죽고,
+        page=0 이면 음수 OFFSET 이 되고, limit=999999 면 한 번에 전부 읽는다.
+        같은 파일 위쪽 세그먼트 조회(887행)는 이미 이렇게 막고 있다. */
+    const page    = Math.max(1, parseInt(url.searchParams.get('page')  || '1', 10) || 1);
+    const limit   = Math.min(200, Math.max(1, parseInt(url.searchParams.get('limit') || '50', 10) || 50));
     const type    = url.searchParams.get('type') || 'consented'; // 'consented' | 'not_consented'
     const search  = (url.searchParams.get('search') || '').trim();
     const offset  = (page - 1) * limit;

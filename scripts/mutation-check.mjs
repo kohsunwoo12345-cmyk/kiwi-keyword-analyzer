@@ -413,6 +413,17 @@ const MUTATIONS = [
   { g: '정직', name: '랜딩 조회 기록을 다시 응답 뒤로 던져 놓는다 (조회수·유입 분석이 조용히 샌다)',
     file: 'functions/landing/[slug].ts',
     from: '  waitUntil(db.batch([', to: '  void (db.batch([' },
+  // ── 도메인·날짜 ─────────────────────────────────────────────────────────
+  { g: '주소날짜', name: '랜딩 주소를 다시 남의 도메인으로 박는다 (회원이 그걸 문자로 뿌린다)',
+    file: 'functions/api/landing-pages.ts',
+    from: 'url: `${origin}/landing/${p.slug}`,', to: 'url: `https://wearesuperplace.com/landing/${p.slug}`,' },
+  { g: '주소날짜', name: '문자 7일 추이를 다시 UTC 날짜로 묶는다 (아침 발송이 어제로 간다)',
+    file: 'functions/api/sms/logs.ts',
+    from: "COALESCE(substr(datetime(created_at, '+9 hours'),1,10), substr(created_at,1,10)) AS d",
+    to: 'substr(created_at,1,10) AS d' },
+  { g: '주소날짜', name: '블로그 순위의 오늘을 다시 UTC 날짜로 잡는다 (같은 날이 두 줄이 된다)',
+    file: 'functions/api/blog-rank-track/add.ts',
+    from: 'const today = kstDate()', to: 'const today = new Date().toISOString().slice(0, 10)' },
   // ── 크론 계약 ───────────────────────────────────────────────────────────
   { g: '크론', name: '순위 추적 응답의 hasMore 이름을 바꾼다 (하루 20건에서 멈춘다)',
     file: 'functions/api/naver-place/update-all-tracking.ts', from: 'hasMore', to: 'has_more' },

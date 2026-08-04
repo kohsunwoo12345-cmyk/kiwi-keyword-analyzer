@@ -25,10 +25,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     ).bind(me.id).all()
 
     // 최근 7일 추이 (일자별 발송/성공)
-    const since = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10)
+    /* 날짜 칸은 UTC 로 저장된다. 그대로 잘라 쓰면 한국 00~09시 발송이 전날 막대에 붙는다 —
+       아침에 보낸 문자가 어제 것으로 보이고, 오늘 막대는 비어 있다.
+       집계도 기준일도 한국 시간으로 맞춘다. */
+    const since = new Date(Date.now() - 6 * 86400000).toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })
     const trendRows: any = await db.prepare(
-      `SELECT substr(created_at,1,10) AS d, COALESCE(SUM(recipients),0) AS reqd, COALESCE(SUM(sent),0) AS ok
-       FROM sms_logs WHERE user_id=? AND substr(created_at,1,10) >= ? GROUP BY d ORDER BY d ASC`,
+      `SELECT COALESCE(substr(datetime(created_at, '+9 hours'),1,10), substr(created_at,1,10)) AS d, COALESCE(SUM(recipients),0) AS reqd, COALESCE(SUM(sent),0) AS ok
+       FROM sms_logs WHERE user_id=? AND COALESCE(substr(datetime(created_at, '+9 hours'),1,10), substr(created_at,1,10)) >= ? GROUP BY d ORDER BY d ASC`,
     ).bind(me.id, since).all()
 
     const logsRows: any = await db.prepare(

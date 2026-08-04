@@ -1031,7 +1031,7 @@
     <div style="margin-bottom:10px;"><label class="label-sm">제목</label><input id="settingTitle" class="input-field"></div>
     <div style="margin-bottom:10px;"><label class="label-sm">슬러그</label>
       <div style="display:flex;gap:5px;align-items:center;">
-        <span style="color:#6b7280;font-size:11px;white-space:nowrap;">wearesuperplace.com/f/</span>
+        <span id="slugOriginHint" style="color:#6b7280;font-size:11px;white-space:nowrap;">/f/</span>
         <input id="settingSlug" class="input-field" placeholder="abc123">
       </div>
     </div>
@@ -1786,16 +1786,18 @@ function renderNodes() {
     el.style.left = g.pos_x + 'px';
     el.style.top  = g.pos_y + 'px';
 
-    const color = g.color || '#6366f1';
+    /* 그룹 이름·색·종류는 회원이 적는 값이다 — 그대로 innerHTML 에 넣으면
+       이름에 넣어 둔 태그가 대시보드에서 실행된다(관리자가 같은 화면을 열면 더 나쁘다). */
+    const color = safeColor(g.color, '#6366f1');
     const icon  = GROUP_TYPE_ICONS[g.group_type] || '📁';
     const label = GROUP_TYPE_LABELS[g.group_type] || g.group_type;
 
     el.innerHTML = `
       <div class="node-header">
-        <div class="node-icon" style="background:${color};">${icon}</div>
+        <div class="node-icon" style="background:${escAttr(color)};">${icon}</div>
         <div style="flex:1;min-width:0;">
-          <div class="node-type-badge">${label.toUpperCase()}</div>
-          <div class="node-title" title="${g.name}">${g.name}</div>
+          <div class="node-type-badge">${escHtml(String(label||'').toUpperCase())}</div>
+          <div class="node-title" title="${escAttr(g.name)}">${escHtml(g.name)}</div>
         </div>
       </div>
       <div class="node-stats">
@@ -2341,10 +2343,10 @@ async function openGroupSidePanel(groupId) {
   content.innerHTML = `
     <!-- 그룹 헤더 -->
     <div style="padding:12px 14px;border-bottom:1.5px solid var(--border);display:flex;align-items:center;gap:9px;flex-shrink:0;background:#fff;">
-      <div style="background:${group.color||'#6366f1'};color:#fff;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">${GROUP_TYPE_ICONS[group.group_type]||'📁'}</div>
+      <div style="background:${escAttr(safeColor(group.color,'#6366f1'))};color:#fff;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">${GROUP_TYPE_ICONS[group.group_type]||'📁'}</div>
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;font-weight:800;color:#1f2937;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(group.name)}</div>
-        <div style="font-size:10px;color:#6b7280;">${GROUP_TYPE_LABELS[group.group_type]||group.group_type} · 그룹</div>
+        <div style="font-size:10px;color:#6b7280;">${escHtml(GROUP_TYPE_LABELS[group.group_type]||group.group_type)} · 그룹</div>
       </div>
       <button onclick="event.stopPropagation();openGroupModal(allGroups.find(g=>g.id==selectedGroupId)&&JSON.parse(JSON.stringify(allGroups.find(g=>g.id==selectedGroupId))))" title="그룹 수정" style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:7px;cursor:pointer;color:#15803d;width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
       <button onclick="event.stopPropagation();deleteGroup(selectedGroupId)" title="그룹 삭제" style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:7px;cursor:pointer;color:#ef4444;font-size:14px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">🗑️</button>
@@ -2478,7 +2480,7 @@ function renderSidePanelPages(pages, group) {
       </div>
       <div style="display:flex;gap:4px;">
         <button onclick="openEditorFull(${pg})" class="btn btn-primary btn-xs" style="flex:1;font-size:11px;">✏️ 편집</button>
-        <a href="https://wearesuperplace.com/f/${p.slug}" target="_blank" class="btn btn-secondary btn-xs" style="text-decoration:none;font-size:11px;">🔗</a>
+        <a href="${location.origin}/f/${encodeURIComponent(p.slug||'')}" target="_blank" class="btn btn-secondary btn-xs" style="text-decoration:none;font-size:11px;">🔗</a>
         <button onclick="openPageScriptModal(${p.id},'${(p.title||'').replace(/'/g,"\\\\\'")}')" class="btn btn-xs" title="픽셀 스크립트 설정" style="background:#faf5ff;color:#7c3aed;border:1.5px solid #d8b4fe;font-size:11px;">📡</button>
         <button onclick="openPageSmsSettings(${p.id},'${(p.title||'').replace(/'/g,"\\\\\'")},${group.id},'${(group.name||'').replace(/'/g,"\\\\\'")}'")" class="btn btn-xs" style="background:#fef3c7;color:#d97706;border:1.5px solid #fde68a;font-size:11px;">📱</button>
         <button onclick="deleteLandingPage(${p.id})" class="btn btn-danger btn-xs" style="font-size:11px;">🗑️</button>
@@ -3904,7 +3906,7 @@ function openEditorById(id,title,slug,desc,htmlContent,status,og_title,og_descri
   document.getElementById('editTitle').value = title||'';
   document.getElementById('editDesc').value = desc||'';
   document.getElementById('htmlEditor').value = htmlContent||defaultHtmlContent();
-  document.getElementById('editorPublicLink').href = 'https://wearesuperplace.com/f/' + slug;
+  document.getElementById('editorPublicLink').href = location.origin + '/f/' + slug;
   // 공유 URL
   const edShareUrlEl = document.getElementById('edShareUrl');
   if (edShareUrlEl) edShareUrlEl.textContent = location.origin+'/f/'+slug;
@@ -11262,7 +11264,7 @@ async function loadSmsLog(groupId) {
 function updateSmsGroupOptions(preGroupId){
   const gsel=document.getElementById('smsGroupFilter');
   if(!gsel)return;
-  gsel.innerHTML='<option value="">전체 그룹 (모든 신청)</option>'+allGroups.map(g=>`<option value="${g.id}">${GROUP_TYPE_ICONS[g.group_type]||'📁'} ${g.name}</option>`).join('');
+  gsel.innerHTML='<option value="">전체 그룹 (모든 신청)</option>'+allGroups.map(g=>`<option value="${escAttr(g.id)}">${GROUP_TYPE_ICONS[g.group_type]||'📁'} ${escHtml(g.name)}</option>`).join('');
 }
 async function loadSmsPageOptions(){
   const groupId=document.getElementById('smsGroupFilter').value;
@@ -11421,8 +11423,26 @@ function saveSmsSettings(){smsSettings={sender:document.getElementById('smsSende
 function copyText(text) {
   navigator.clipboard.writeText(text).then(() => toast('복사됨!'));
 }
+/* 슬러그 입력 옆의 주소 안내는 지금 도메인을 그대로 보여 준다 —
+   예전엔 다른 제품 도메인이 박혀 있어서, 회원이 그 주소를 그대로 퍼갔다. */
+try {
+  const _hint = document.getElementById('slugOriginHint');
+  if (_hint) _hint.textContent = location.host + '/f/';
+} catch (e) {}
+
 function escHtml(str) {
   const d = document.createElement('div'); d.textContent = String(str||''); return d.innerHTML;
+}
+/* 따옴표 안(title="…", style="…")에 넣을 때는 escHtml 로 모자란다 —
+   textContent 는 " 를 그대로 두기 때문에 속성을 닫고 빠져나갈 수 있다. */
+function escAttr(str) {
+  return String(str==null?'':str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+/* 색은 값 자체가 style 안으로 들어간다 — 아는 모양만 통과시킨다. */
+function safeColor(c, fallback) {
+  const s = String(c||'').trim();
+  return /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]{3,20}|rgba?\([\d.,\s%]+\))$/.test(s) ? s : (fallback||'#6366f1');
 }
 
 // ESC 닫기

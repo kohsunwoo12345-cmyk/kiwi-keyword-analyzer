@@ -27,7 +27,7 @@ export const onRequestGet: PagesFunction<any> = async ({ request, env }) => {
       .all()
     const landingPages = landingPagesResult.results || []
 
-    const origin = 'https://wearesuperplace.com'
+    const origin = new URL(request.url).origin
     const studentLandingMap: Record<string, string> = {}
     for (const page of landingPages as any[]) {
       const title = (page.title as string) || ''

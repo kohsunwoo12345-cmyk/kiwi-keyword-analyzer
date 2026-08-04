@@ -149,7 +149,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, params })
   </div>
 
   <div class="watermark">
-    Powered by <a href="https://wearesuperplace.com" target="_blank">슈퍼플레이스</a> · 데이터는 매일 실시간 업데이트됩니다
+    Powered by <b>BYGENCY</b> · (주)넥스트 바이전시 · 데이터는 매일 실시간 업데이트됩니다
   </div>
 </div>
 
