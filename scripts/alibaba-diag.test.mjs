@@ -52,12 +52,28 @@ const iDiag = src.indexOf('u.searchParams.get("diag") === "alibaba"')
 // ③ 생성이 일어나지 않는 요청만 보낸다
 {
   ok('③ 없는 모델 이름으로만 제출한다', /model: "__bygency_probe_nonexistent__"/.test(src))
-  ok('③-b 실존 모델 찌르기는 기본으로 꺼져 있다',
-     /if \(u\.searchParams\.get\("models"\) === "1"\)/.test(src),
-     '실존 모델로 POST 하면 접수될 수 있다 = 돈이 나갈 수 있다. 사람이 켤 때만 돈다')
+  //  전에는 models=1 하나로 돌았다. 그게 태스크를 만들어 버려서 이제 두 개가 있어야 돈다.
+  ok('③-b 실존 모델 찌르기가 models=1 하나로는 안 돈다',
+     !/get\("models"\) === "1"\)\s*\{/.test(src),
+     '실존 모델로 POST 하면 접수된다 = 돈이 나갈 수 있다. 확인 하나로는 부족하다')
   /*  models=1 은 "돈 안 쓰고 개통 여부까지" 보는 칸이다. 실존 모델 이름으로 POST 하되
       필수값을 다 빼서 값 검사에서 죽게 만든다. 그래도 만에 하나 접수되면 그 자리에서
       취소를 걸어야 한다 — 안 걸면 그 순간 돈이 나간다. */
+  /*  ⚠ 여기서 내가 틀렸다. "필수값을 빼면 값 검사에서 죽으니 아무것도 안 만들어진다" 고
+      봤는데, 알리바바는 모델 이름만 그 자리에서 보고 파라미터는 큐에 넣은 뒤에 본다.
+      운영에서 5건이 전부 200 + task_id 로 접수됐고 나중에 FAILED 로 끝났다.
+      취소도 못 걸었다(PENDING 을 이미 지남). 그래서 기본으로 못 돌게 막는다. */
+  ok('③-j models=1 만으로는 안 돈다(태스크를 만들기 때문)',
+     /u\.searchParams\.get\("models"\) === "1" && u\.searchParams\.get\("confirm"\) === "creates-tasks"/.test(src),
+     '"돈 안 드는 확인" 인 줄 알고 켰다가 실제 태스크 5건을 만들었다 — 같은 일이 또 나면 안 된다')
+  ok('③-k 왜 막혔는지 응답에 적어 준다', /태스크만듦경고/.test(src))
+  ok('③-l 만든 태스크의 최종 상태를 조회할 길이 있다',
+     /const taskQ = String\(u\.searchParams\.get\("task"\)/.test(src) &&
+     /조회: "태스크 상태\(읽기 전용 · 돈 안 듦\)"/.test(src),
+     '만들어 놓고 어떻게 끝났는지 못 보면 과금됐는지도 모른다')
+  ok('③-m 상태 조회는 제출을 하지 않는다',
+     src.indexOf('const taskQ = String(u.searchParams.get("task")') < src.indexOf('모델 열려 있나: '),
+     '조회하러 들어왔는데 제출까지 돌면 확인하려다 또 만든다')
   ok('③-e 접수돼 버리면 그 자리에서 취소를 건다',
      /\/api\/v1\/tasks\/" \+ tid \+ "\/cancel/.test(src),
      '취소는 PENDING 일 때만 먹는다 — 나중에 하면 늦는다')
