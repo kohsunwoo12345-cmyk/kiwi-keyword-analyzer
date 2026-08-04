@@ -370,6 +370,18 @@ const MUTATIONS = [
     file: 'functions/api/_marketing.ts',
     from: "SELECT DISTINCT user_id FROM payments WHERE status != 'refunded' AND created_at >= datetime('now','-90 days'))\",",
     to: "SELECT DISTINCT user_id FROM orders WHERE created_at >= datetime('now','-90 days'))\"," },
+  // ── 크론 계약 ───────────────────────────────────────────────────────────
+  { g: '크론', name: '순위 추적 응답의 hasMore 이름을 바꾼다 (하루 20건에서 멈춘다)',
+    file: 'functions/api/naver-place/update-all-tracking.ts', from: 'hasMore', to: 'has_more' },
+  { g: '크론', name: '예약 생성 대기 수 이름을 바꾼다 (매분 헛되이 5번 때린다)',
+    file: 'functions/api/cron/video-schedules.ts', from: 'due:', to: 'dueCount:' },
+  { g: '크론', name: '크론 토큰 검사를 뺀다 (누구나 예약 생성을 돌릴 수 있다)',
+    file: 'functions/api/cron/video-schedules.ts',
+    from: "if (!expected || got !== expected) return json({ ok: false, error: '인증 실패' }, 401)", to: '' },
+  { g: '크론', name: '미들웨어 크론 우회를 모든 경로로 넓힌다',
+    file: 'functions/_middleware.ts',
+    from: "const CRON_PATH_RE = /^\\/api\\/(cron\\/|naver-place\\/update-all-tracking)/",
+    to: 'const CRON_PATH_RE = /^\\/api\\//' },
 ]
 
 const filter = process.argv[2] || ''
