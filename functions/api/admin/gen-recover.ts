@@ -1,4 +1,5 @@
 import { Env, json, ensureSchema, resolveDB, resolveBucket, requireAdminUser } from '../_utils'
+import { saveMediaToR2 } from '../_media'
 
 /* ── 잃어버린 결과물을 되찾아 온다 ──
    "미리보기 없음 (아카이브 안 됨)" 은 우리 표에 결과 주소가 없다는 뜻이지, 영상이 없다는
@@ -17,31 +18,6 @@ import { Env, json, ensureSchema, resolveDB, resolveBucket, requireAdminUser } f
      그건 그대로 둔다 — 못 찾은 것을 지우거나 성공으로 적지 않는다. */
 
 const BATCH = 8                       // 한 번에 시도할 건수
-const MAX_BYTES = 200_000_000
-
-async function toR2(env: any, bucket: any, url: string): Promise<string> {
-  if (!url) return ''
-  if (url.startsWith('/api/')) return url                       // 이미 우리 주소
-  if (url.startsWith('data:')) {
-    const m = /^data:([^;,]+)?(;base64)?,([\s\S]*)$/.exec(url)
-    if (!m) return ''
-    const ct = m[1] || 'application/octet-stream'
-    const bin = atob(m[3])
-    const bytes = new Uint8Array(bin.length)
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-    const key = 'gen/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + (ct.includes('mp4') ? '.mp4' : '')
-    await bucket.put(key, bytes, { httpMetadata: { contentType: ct } })
-    return '/api/media/' + key
-  }
-  const r = await fetch(url)
-  if (!r.ok || !r.body) return ''
-  if (Number(r.headers.get('content-length') || 0) > MAX_BYTES) return ''
-  const ct = r.headers.get('content-type') || 'application/octet-stream'
-  const ext = (/\.([a-z0-9]{2,5})(?:\?|#|$)/i.exec(url) || [])[1]
-  const key = 'gen/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + (ext ? '.' + ext.toLowerCase() : '')
-  await bucket.put(key, r.body, { httpMetadata: { contentType: ct } })
-  return '/api/media/' + key
-}
 
 // POST /api/admin/gen-recover   → { ok, tried, recovered, failed, running, remaining, details[] }
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -85,14 +61,18 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       const pr = await fetch(new URL(taskKey, origin).toString(), { headers: { cookie } })
       const j: any = await pr.json().catch(() => ({}))
       if (j && j.url) {
-        const stored = await toR2(env, bucket, String(j.url))
-        if (stored) {
+        const saved = await saveMediaToR2(env, String(j.url))
+        if (saved.moved) {
           await db.prepare('UPDATE ai_usage SET result_url = ?, result_kind = COALESCE(NULLIF(result_kind,\'\'), ?) WHERE id = ?')
-            .bind(stored, String(j.kind || 'video'), id).run()
-          recovered++; details.push({ id, state: 'recovered', url: stored })
+            .bind(saved.url, String(j.kind || 'video'), id).run()
+          recovered++; details.push({ id, state: 'recovered', url: saved.url })
         } else {
-          //  제공사는 "있다" 는데 받아 오지 못했다 — 원본이 방금 만료됐을 수 있다
-          gone++; details.push({ id, state: 'gone', note: '제공사 주소에서 받아 오지 못함(만료 추정)' })
+          /*  제공사는 "있다" 는데 우리가 못 가져왔다.
+              ⚠ 예전엔 이걸 전부 "만료 추정" 이라고 적었다. 그런데 실제로는 우리 쪽 보관이
+                실패한 경우가 섞여 있었고(길이를 안 알려 주는 몸통을 R2 가 거절), 그걸
+                "원본이 사라졌다" 로 적어 버리니 고칠 수 있는 건을 포기하게 만들었다.
+                이유를 그대로 적는다. */
+          gone++; details.push({ id, state: 'gone', note: saved.reason || '받아 오지 못함' })
         }
       } else if (j && (j.status === 'failed' || j.error)) {
         failed++; details.push({ id, state: 'failed', note: String(j.error || '실패').slice(0, 120) })

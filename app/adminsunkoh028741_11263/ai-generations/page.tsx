@@ -248,6 +248,13 @@ function GenCard({ r }: { r: AiGenerationRow }) {
         <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
           {isVideo ? <Film size={11} /> : <ImageIcon size={11} />} {isVideo ? '영상' : '이미지'}
         </span>
+        {/* 아직 제공사 주소인 줄 — 지금은 잘 보이지만 며칠이면 만료돼 사라진다.
+            표시가 없으면 멀쩡한 줄과 구분이 안 돼서, 사라지고 나서야 알게 된다. */}
+        {r.external && (
+          <span className="absolute bottom-2 left-2 rounded-full bg-amber-500/90 px-2 py-0.5 text-[10px] font-bold text-white">
+            제공사 주소 · 만료 위험 — [결과물 되찾기]
+          </span>
+        )}
         {r.resultUrl && (
           <a
             href={dlHref(r.resultUrl)}

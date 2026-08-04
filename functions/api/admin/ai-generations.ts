@@ -86,6 +86,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       refs,
       resultUrl: r.result_url || '',
       resultKind: r.result_kind || r.kind || '',
+      /* 아직 제공사 주소를 붙들고 있는 줄 — 며칠이면 만료돼 영상이 사라진다.
+         지금은 잘 보이니 화면만 봐서는 멀쩡한 줄과 구분이 안 된다. 표시해서
+         [결과물 되찾기] 로 우리 R2 에 옮길 수 있게 한다. */
+      external: /^https?:\/\//i.test(String(r.result_url || '')),
       //  charged | refunded | '' (옛 기록) — 화면이 "환불됨" 을 표시하고, 조회 버튼을 붙일지 정한다
       chargeStatus: chargeBy[String(r.id)]?.status || '',
       hasTask: !!chargeBy[String(r.id)]?.taskKey,

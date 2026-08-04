@@ -12,7 +12,8 @@ import { getUserByApiKey, enforceRateLimit, ensureApiKeysSchema } from "./_apike
 import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge } from "./studio/_pricing";
 import { getBrandKit, applyBrandKit } from "./studio/brandkit";
 import { modelIdOf as registryModelIdOf, listEnabled as registryList } from "./studio/_registry";
-import { issueGenCharge, settleGenCharge, refundGenCharge, reconcileGenCharge } from "./studio/_gencharge";
+import { issueGenCharge, settleGenCharge, refundGenCharge, reconcileGenCharge, archiveGenResult } from "./studio/_gencharge";
+import { saveMediaToR2 } from "./_media";
 import { probeRemoteVideoSeconds, SOURCE_LENGTH_MODELS, sourceVideoUrl } from "./studio/_vidlen";
 import { ensureAiUsage, resolveCostOverride, refreshUsdKrw } from "./studio/_pricing";
 import { MODEL_COST as MODEL_COST_SRV } from "./studio/_pricing";
@@ -59,6 +60,9 @@ export function keys(env) {
     hailuo: pick(env, ["Hailuo_API_KEY", "HAILUO_API_KEY", "hailuo_api_key", "MINIMAX_API_KEY"]),
     luma: pick(env, ["Luma_API_KEY", "LUMA_API_KEY", "luma_api_key"]),
     fal: pick(env, ["Fal_API_KEY", "FAL_API_KEY", "fal_api_key", "FAL_KEY", "Fal_KEY"]),
+    //  알리바바 DashScope(Wan/만상) — 콘솔에 alibaba_API_KEY 로 넣어 두었다. 대소문자 변형도 함께 본다.
+    alibaba: pick(env, ["alibaba_API_KEY", "ALIBABA_API_KEY", "Alibaba_API_KEY", "alibaba_api_key",
+                        "DASHSCOPE_API_KEY", "dashscope_api_key"]),
     openai: pick(env, ["GPT_API_KEY", "OPENAI_API_KEY", "gpt_api_key", "openai_api_key"])
   };
 }
@@ -1911,6 +1915,25 @@ export async function onRequest(context) {
     /*  완료 응답에 제공사가 실제로 쓴 토큰 수가 실려 오면(ModelArk 계열) 제출 때 매긴
         추정치와의 차액을 정확히 한 번 맞춘다 — 더 받았으면 돌려주고 덜 받았으면 더 뺀다.
         (차감 자체는 제출 시점에 끝났고, 그때는 제공사가 얼마를 쓸지 알 수 없다.) */
+    /*  ── 완성된 결과물은 서버가 직접 보관한다 ──
+        여태 브라우저가 /api/usage/record 로 신고해 줘야만 남았다. 탭을 닫거나 인터넷이
+        끊기면 영상은 제공사에 있는데 우리 표에는 아무것도 안 남아, 노드·보관함·관리자
+        생성기록 어디에도 안 나왔다. 완료를 보는 자리는 여기니 여기서 넣는다.
+        ⚠ 응답을 붙잡으면 안 된다 — 받아서 R2 에 올리는 동안 회원 화면이 멈춘다.
+          응답을 내보낸 뒤(waitUntil) 돌린다. 이미 주소가 있으면 아무것도 안 한다. */
+    if (context.request.method === "GET" && body.url && !body.error) {
+      const gu = new URL(context.request.url);
+      const key = gu.pathname + gu.search;
+      const kind = String(body.kind || "video");
+      const rurl = String(body.url);
+      const job = async () => {
+        try {
+          await archiveGenResult(resolveDB(context.env), key, rurl, kind,
+                                 (u) => saveMediaToR2(context.env, u));
+        } catch (_a) { /* 보관 실패가 회원의 생성을 망치면 안 된다 */ }
+      };
+      if (context.waitUntil) context.waitUntil(job()); else job().catch(() => {});
+    }
     if (context.request.method === "GET" && body.url && Number(body.usageTokens) > 0) {
       const gu = new URL(context.request.url);
       const diff = await reconcileGenCharge(resolveDB(context.env), gu.pathname + gu.search,
@@ -2178,7 +2201,7 @@ async function handle(context) {
       const lumaOk = await lumaUsable(k.luma);
       return json({
         version:  "2026-07-13-v56 (remove-keys-page)", // 이 필드가 보이면 최신 코드가 프로덕션에 반영된 것
-        build:    "2026-08-02-v63",                      // 스튜디오 STUDIO_BUILD_TAG 와 정확히 일치해야 최신 (배포마다 함께 올린다)
+        build:    "2026-08-04-v64",                      // 스튜디오 STUDIO_BUILD_TAG 와 정확히 일치해야 최신 (배포마다 함께 올린다)
         runway:   !!k.runway,
         xai:      !!k.xai,
         google:   !!(k.google || gcpCreds(env)),
@@ -2189,6 +2212,10 @@ async function handle(context) {
         luma:     lumaOk,          // 키 유무가 아니라 "그 키가 실제로 통하는가"
         lumaKeySet: !!k.luma,      // 키 자체는 있는지(진단용) — 키는 있는데 luma:false 면 키가 거부된 것
         fal:      !!k.fal,
+        //  알리바바 DashScope — 아직 생성 경로는 없고 진단(diag=alibaba)만 있다.
+        //  스튜디오가 이 값을 보고 모델을 숨기므로, 연동이 끝나기 전에는 true 를 주면 안 된다.
+        alibabaKeySet: !!k.alibaba,
+        alibabaKeyId: k.alibaba ? (String(k.alibaba).slice(0, 6) + "…" + String(k.alibaba).slice(-4)) : null,
         /* 클링은 공식 오픈플랫폼 API 로만 나간다(중개 폴백 제거). fal 키가 있어도 대체되지 않으므로
            공식 키가 없으면 여기서 false 를 돌려 스튜디오가 클링 모델을 아예 숨기게 한다.
            예전엔 (klingCreds || fal) 로 답해, 공식 키가 없어도 모델이 목록에 남아 매번 실패했다. */
@@ -2234,6 +2261,243 @@ async function handle(context) {
         }
         if (!dme || dme.role !== "admin") return json({ error: "진단 엔드포인트는 관리자 전용입니다.", needAdmin: true }, 403);
       }
+    }
+    /* ⚠ 이 아래에 둔다. 처음엔 게이트 "위" 에 뒀다가 검사에서 비로그인도 200 을 받는 것을 봤다 —
+       생성은 안 하더라도 남의 계정 키로 제공사를 두들기고 키 지문까지 보여 주는 통로가 된다.
+       진단은 예외 없이 게이트 뒤다. */
+    /* ── 알리바바 DashScope(Wan) 반응 확인 — 생성은 하지 않는다 ──
+       GET /api/generate?diag=alibaba            (관리자 전용)
+       GET /api/generate?diag=alibaba&models=1   (실존 모델 이름 확인까지 · 사람이 켤 때만)
+
+       왜 이런 모양인가:
+        · 알리바바는 아직 연동되어 있지 않다. 키만 콘솔에 들어와 있어서, 무엇이 되는지부터 알아야 한다.
+        · 생성을 걸면 돈이 나간다. 그래서 **생성 파이프라인을 건드리지 않는 요청**부터 쓴다.
+        · 리전(베이징·싱가포르)은 키·엔드포인트·모델 목록이 완전히 분리돼 있다. 교차 호출은 실패한다.
+          그래서 **"한쪽 200, 한쪽 401" 이 정상**이고, **양쪽 다 401 이라야 키가 죽은 것**이다.
+          한 호스트만 보고 "안 된다" 고 하면 틀린다.
+
+       판정 원칙: "요청이 성공했는가" 가 아니라 **"인증이 통과했는가"** 를 본다.
+         401 만 키 문제다. 400·403·404·429 는 전부 "키는 살아 있고 다른 이유로 거절" 이다. */
+    if (u.searchParams.get("diag") === "alibaba") {
+      if (!k.alibaba) return json({ diag: "alibaba", ok: false, error: "alibaba_API_KEY 가 설정되어 있지 않습니다." }, 400);
+      //  검사에서 가짜 서버로 돌리기 위한 통로(환경변수로만 바꿀 수 있다 — 회원 요청으로는 못 바꾼다)
+      const ov = pick(env, ["DASHSCOPE_HOST_OVERRIDE", "dashscope_host_override"]);
+      const HOSTS = ov ? [{ id: "override", base: String(ov) }] : [
+        { id: "intl(싱가포르)", base: "https://dashscope-intl.aliyuncs.com" },
+        { id: "cn(베이징)",     base: "https://dashscope.aliyuncs.com" },
+      ];
+      /* 오류 본문이 두 모양으로 온다 — 엔드포인트로 결정되지 않고 섞여 나온다.
+           평평형 { code, message }        봉투형 { error: { code, message } }
+         그리고 PascalCase 와 snake_case 는 같은 오류의 별칭이다(InvalidApiKey = invalid_api_key).
+         메시지는 뒤에 안내 URL·공백이 붙으므로 완전일치로 비교하면 안 된다. */
+      const normErr = (j) => {
+        const raw = (j && (j.code || (j.error && j.error.code) || (j.output && j.output.code))) || "";
+        const msg = (j && (j.message || (j.error && j.error.message) || (j.output && j.output.message))) || "";
+        return { raw: String(raw), key: String(raw).toLowerCase().replace(/[._-]/g, ""), msg: String(msg) };
+      };
+      const cut = (t) => String(t == null ? "" : t).slice(0, 600);
+      /*  ⚠ 본문 600자 자르기 때문에 한 번 헛돌았다. 모델 목록이 200 으로 잘 왔는데
+          정작 목록이 600자 뒤에 있어서 "무슨 모델이 되는지" 를 못 봤다.
+          그래서 목록 응답만은 자르지 말고 파싱해서(_json) 이름만 뽑아 쓴다. */
+      const one = async (label, url, init, opt) => {
+        const t0 = Date.now();
+        const keep = opt && opt.keep;
+        try {
+          const r = await fetchT(url, init, 15000);
+          const text = await r.text().catch(() => "");
+          let parsed = null; try { parsed = JSON.parse(text); } catch { /* JSON 이 아닐 수 있다 */ }
+          const e = normErr(parsed);
+          return { 검사: label, url, status: r.status, ms: Date.now() - t0,
+                   code: e.raw || null, codeKey: e.key || null, message: e.msg || null,
+                   본문: keep ? "(목록은 아래 모델목록 항목으로 따로 정리)" : cut(text),
+                   _json: keep ? parsed : undefined };
+        } catch (err) {
+          return { 검사: label, url, status: 0, ms: Date.now() - t0, 오류: String((err && err.message) || err).slice(0, 200) };
+        }
+      };
+      //  조회에는 Authorization 하나만 붙인다. Content-Type·X-DashScope-Async 를 붙이면 안 된다.
+      const GET_H = { "Authorization": "Bearer " + k.alibaba };
+      //  제출에는 셋 다 필수 — X-DashScope-Async 가 빠지면 "동기 호출 미지원" 으로 100% 거절된다.
+      const POST_H = { "Authorization": "Bearer " + k.alibaba, "Content-Type": "application/json",
+                       "X-DashScope-Async": "enable" };
+
+      /* 목록 응답에서 모델 이름만 뽑는다.
+         배열이 담긴 필드 이름(models/data/list)도, 이름 필드(model_name/name/id)도
+         문서마다 다르게 적혀 있다. 하나로 못 박으면 이름이 다를 때 조용히 빈 목록이 된다 —
+         그러면 "쓸 수 있는 모델이 없다" 는 틀린 결론이 나온다. 그래서 찾아서 쓴다. */
+      const idsFrom = (j) => {
+        const box = (j && (j.output || j.data || j)) || {};
+        let arr = Array.isArray(box) ? box : null;
+        if (!arr && box && typeof box === "object") {
+          for (const v of Object.values(box)) if (Array.isArray(v)) { arr = v; break; }
+        }
+        if (!arr) return [];
+        return arr.map((it) => {
+          if (typeof it === "string") return it;
+          if (!it || typeof it !== "object") return "";
+          for (const f of ["model_name", "model", "name", "id", "model_id"]) {
+            if (typeof it[f] === "string" && it[f]) return it[f];
+          }
+          const s = Object.values(it).find((v) => typeof v === "string");
+          return s || "";
+        }).filter(Boolean);
+      };
+
+      const results = [];
+      const 모델목록 = [];
+      for (const h of HOSTS) {
+        /* ① 모델 목록 — 가장 안전하고 가장 정보가 많다. 토큰을 만들지 않는 조회이고,
+              200 이면 이 키가 어느 리전에서 어떤 모델에 닿는지가 응답에 그대로 나온다.
+              (모델 이름 표기 흔들림도 여기서 실측으로 정리된다) */
+        const ids = [];
+        const compat = await one(h.id + " · 모델 목록(OpenAI 호환) [읽기]",
+          h.base + "/compatible-mode/v1/models", { method: "GET", headers: GET_H }, { keep: true });
+        results.push(compat);
+        if (compat.status >= 200 && compat.status < 300) ids.push(...idsFrom(compat._json));
+
+        /*  네이티브 목록은 한 번에 다 안 준다 — 실측 응답이 total 234 · page_size 20 이었다.
+            첫 장만 보고 "wan 이 없다" 고 하면 234개 중 20개만 보고 내린 결론이 된다.
+            그래서 total 을 채울 때까지 넘긴다(안전장치로 최대 20장). */
+        let total = null;
+        /* ⚠ 여기서 한 번 틀렸다. 처음엔 "지금까지 모은 개수(ids)" 를 total 과 비교했는데,
+           ids 에는 앞의 OpenAI 호환 목록이 이미 들어 있다. 그래서 첫 장만 받고도
+           229 + 20 ≥ 234 가 되어 다 받은 줄 알고 멈췄다 — 뒤쪽에 있던 wan 이 통째로 빠졌다.
+           흉내 서버로 재현해서 봤다(wan 은 200번대에 있고 호환 목록에는 안 나온다).
+           총개수는 네이티브 것이므로 **네이티브로 받은 개수만** 세서 비교한다. */
+        let nativeCount = 0;
+        for (let page = 1; page <= 20; page++) {
+          const r = await one(h.id + " · 모델 목록(네이티브) " + page + "쪽 [읽기]",
+            h.base + "/api/v1/models?page_no=" + page + "&page_size=100",
+            { method: "GET", headers: GET_H }, { keep: true });
+          //  첫 장만 판정에 남긴다 — 12장이 다 들어가면 결과가 목록으로 뒤덮인다
+          if (page === 1) results.push(r);
+          if (r.status < 200 || r.status >= 300) break;
+          const got = idsFrom(r._json);
+          ids.push(...got);
+          nativeCount += got.length;
+          const out = (r._json && r._json.output) || {};
+          if (total == null && Number(out.total) > 0) total = Number(out.total);
+          if (!got.length) break;                                   // 더 없다
+          if (total != null && nativeCount >= total) break;          // 다 받았다
+        }
+
+        const uniq = Array.from(new Set(ids.map((x) => String(x).trim()).filter(Boolean))).sort();
+        //  이름만 보고 갈라 둔다. 최종 판단은 아래 전체 목록을 보고 한다.
+        const wan = uniq.filter((x) => /^wan/i.test(x));
+        모델목록.push({
+          호스트: h.base,
+          받은개수: uniq.length,
+          목록이_말한_총개수: total,
+          wan계열: wan,
+          "wan_영상후보": wan.filter((x) => /t2v|i2v|s2v|kf2v|video|animate|vace/i.test(x)),
+          "wan_이미지후보": wan.filter((x) => /t2i|i2i|image|edit/i.test(x)),
+          전체: uniq,
+        });
+        /* ② 날조한 태스크 번호 조회 — 생성 파이프라인을 아예 건드리지 않는다.
+              200(UNKNOWN)·400·404 중 무엇이 오든 401 과는 구분되므로 키 판정에는 문제없다. */
+        results.push(await one(h.id + " · 없는 태스크 조회 [읽기]",
+          h.base + "/api/v1/tasks/00000000-0000-0000-0000-000000000000", { method: "GET", headers: GET_H }));
+        /* ③ 없는 모델로 제출 — 큐에 들어갈 수 없다. 경로가 맞는지(400)와 아닌지(404)를 가른다.
+              ②보다 위험한 이유: POST 이고 "검증이 큐 적재보다 먼저" 라는 전제에 기댄다. */
+        for (const p of [
+          { id: "영상 wan2.7/신규", path: "/api/v1/services/aigc/video-generation/video-synthesis" },
+          { id: "영상 첫끝프레임/립싱크", path: "/api/v1/services/aigc/image2video/video-synthesis" },
+          { id: "이미지 t2i(레거시)", path: "/api/v1/services/aigc/text2image/image-synthesis" },
+          { id: "이미지 편집 i2i", path: "/api/v1/services/aigc/image2image/image-synthesis" },
+          { id: "이미지 wan2.6+ 비동기", path: "/api/v1/services/aigc/image-generation/generation" },
+        ]) {
+          results.push(await one(
+            h.id + " · " + p.id + " · 없는 모델로 제출",
+            h.base + p.path,
+            { method: "POST", headers: POST_H,
+              body: JSON.stringify({ model: "__bygency_probe_nonexistent__", input: { prompt: "probe" }, parameters: {} }) },
+          ));
+        }
+      }
+
+      /* ④ 실존 모델 이름 확인 — 조사에서 "가장 위험" 으로 분류된 방법이라 기본은 꺼 둔다.
+            필수값(prompt)을 빼고 보내 "모델 없음" 과 "값 틀림" 을 가르는 방식인데,
+            검증이 큐보다 먼저 돈다는 보장을 문서로 못 받았다.
+            ①의 모델 목록이 200 으로 오면 이건 아예 필요 없다 — 목록에 다 나온다. */
+      const MODELS = [
+        // 영상 — 조사에서 확인한 실제 ID
+        "wan2.7-t2v", "wan2.6-t2v", "wan2.5-t2v-preview", "wan2.2-t2v-plus", "wanx2.1-t2v-turbo",
+        "wan2.7-i2v", "wan2.6-i2v", "wan2.5-i2v-preview", "wan2.2-i2v-plus",
+        // 이미지
+        "wan2.6-t2i", "wanx2.1-t2i-turbo", "wanx2.1-imageedit",
+      ];
+      const pathForModel = (id) => /t2i|imageedit|-image/.test(id)
+        ? (/wan2\.[67]/.test(id) ? "/api/v1/services/aigc/image-generation/generation"
+                                 : "/api/v1/services/aigc/text2image/image-synthesis")
+        : "/api/v1/services/aigc/video-generation/video-synthesis";
+      if (u.searchParams.get("models") === "1") {
+        const only = String(u.searchParams.get("only") || "");
+        //  목록이 실제로 내려왔다면 그걸 쓴다 — 내가 적어 둔 MODELS 는 조사에서 옮겨 적은 것이라
+        //  틀릴 수 있다. 실측 목록이 있는데 굳이 추측을 찌를 이유가 없다.
+        const found = 모델목록.flatMap((m) => m.wan계열 || []);
+        const list = only ? only.split(",").map((x) => x.trim()).filter(Boolean)
+                          : (found.length ? found : MODELS);
+        for (const h of HOSTS) for (const id of list) {
+          results.push(await one(
+            h.id + " · 모델 있나: " + id + " (필수값 뺌)",
+            h.base + pathForModel(id),
+            { method: "POST", headers: POST_H, body: JSON.stringify({ model: id, input: {}, parameters: {} }) },
+          ));
+        }
+      }
+
+      /* 사람이 읽을 한 줄. 요약이 틀려도 위 원문이 남으니 판단 근거는 원문이다. */
+      const 해석 = results.map((r) => {
+        if (r.status === 0) return r.검사 + " → 닿지 않음(" + (r.오류 || "?") + ")";
+        const kk = r.codeKey || "";
+        if (r.status === 401 || kk === "invalidapikey" || kk === "invalidapikey")
+          return r.검사 + " → ✗ 이 리전에서 키 거부(401)";
+        if (r.status >= 200 && r.status < 300) {
+          if (/모델 있나|없는 모델/.test(r.검사))
+            return r.검사 + " → ⚠ 2xx · 접수됐을 수 있다. 콘솔 사용량 확인 후 태스크 취소 필요";
+          return r.검사 + " → ✓ 통과(200) · 키 유효";
+        }
+        if (r.status === 403 || /accessdenied|commoditynotpurchased/.test(kk))
+          return r.검사 + " → 키는 유효 · 권한/미개통(" + (r.code || 403) + ")";
+        if (/arrearage/.test(kk)) return r.검사 + " → 키는 유효 · 연체 상태";
+        if (r.status === 429 || /throttling|insufficientquota/.test(kk))
+          return r.검사 + " → 키는 유효 · 한도 초과(" + (r.code || 429) + ")";
+        if (/모델 있나/.test(r.검사)) {
+          if (/modelnotfound|modelnotsupported/.test(kk) || /model not exist/i.test(r.message || ""))
+            return r.검사 + " → ✗ 그런 모델이 없다";
+          return r.검사 + " → ✓ 모델은 있는 듯(값 오류로 거절: " + (r.code || r.status) + ")";
+        }
+        if (r.status === 404 && !/modelnotfound/.test(kk))
+          return r.검사 + " → 경로 없음(404) · 이 엔드포인트가 아니다";
+        return r.검사 + " → " + r.status + " " + (r.code || "") + " · 키는 통하고 값이 거절됨";
+      });
+
+      /* 종합 판정 — 리전 분리 때문에 호스트별로 따로 내야 한다.
+         "양쪽 다 401" 일 때만 키가 죽은 것이다. */
+      const 호스트별 = HOSTS.map((h) => {
+        const mine = results.filter((r) => r.검사.startsWith(h.id));
+        const 닿음 = mine.filter((r) => r.status > 0);
+        const 전부401 = 닿음.length > 0 && 닿음.every((r) => r.status === 401);
+        const 하나라도통과 = mine.some((r) => r.status >= 200 && r.status < 300);
+        return { 호스트: h.base,
+                 판정: !닿음.length ? "닿지 않음" : 전부401 ? "이 리전에서는 키가 안 통함"
+                       : 하나라도통과 ? "키 유효" : "키는 통함(값·권한 문제로 거절)" };
+      });
+      const 살아있나 = 호스트별.some((x) => x.판정 === "키 유효" || x.판정 === "키는 통함(값·권한 문제로 거절)");
+
+      results.forEach((r) => { delete r._json; });   // 파싱본은 내부용 — 응답에 통째로 싣지 않는다
+
+      return json({
+        diag: "alibaba",
+        주의: "생성 파이프라인을 건드리는 요청은 보내지 않는다. models=1 을 켠 경우만 POST 로 모델 이름을 확인한다.",
+        키지문: String(k.alibaba).slice(0, 6) + "…" + String(k.alibaba).slice(-4),
+        키길이: String(k.alibaba).length,
+        키살아있음: 살아있나,
+        호스트별,
+        모델목록,
+        해석,
+        결과: results,
+      });
     }
     // GET 기반 Seedance 제출 — 스튜디오 POST 가 (원인불명) 플랫폼 502 날 때의 우회 경로.
     // 이미지/영상은 이미 공개 URL 이라 쿼리스트링으로 충분하고, GET 은 진단들처럼 안정적이다.

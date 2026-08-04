@@ -44,7 +44,11 @@ const ok = (name, cond, detail = '') => {
 
 // ② 못 찾은 것을 찾은 것처럼 적지 않는다
 {
-  ok('② 받아 오지 못하면 기록하지 않는다', /if \(stored\) \{/.test(src))
+  //  옮기는 코드가 _media.ts 로 합쳐지면서 이름이 stored → saved.moved 로 바뀌었다.
+  //  동작은 그대로다 — 옮겨진 것만 기록한다.
+  ok('② 받아 오지 못하면 기록하지 않는다',
+     /if \(saved\.moved\) \{/.test(src) && /gone\+\+; details\.push/.test(src),
+     '못 가져온 것을 되찾은 것처럼 적으면 화면만 멀쩡해지고 영상은 여전히 없다')
   ok('②-b 실패·진행 중은 손대지 않는다',
      /failed\+\+; details\.push/.test(src) && /running\+\+; details\.push/.test(src) &&
      !/UPDATE ai_usage[\s\S]{0,200}failed/.test(src))
@@ -67,7 +71,12 @@ const ok = (name, cond, detail = '') => {
   ok('④ 관리자 확인이 있다', /requireAdminUser\(request, db\)/.test(src))
   ok('④-b R2 가 없으면 시작도 안 한다', /if \(!bucket\) return json\(/.test(src),
      '되찾아 와도 보관할 곳이 없으면 제공사만 두들기는 셈이다')
-  ok('④-c 너무 큰 파일은 건너뛴다', /MAX_BYTES/.test(src))
+  //  상한도 _media.ts 로 옮겨 갔다. 되찾기가 그 코드를 쓰는지 + 그 코드에 상한이 있는지 둘 다 본다.
+  //  (src 에서 MAX_BYTES 만 찾으면 상한이 살아 있는데도 실패로 뜬다 — 실제로 그렇게 떴다)
+  const med = fs.readFileSync(ROOT + 'functions/api/_media.ts', 'utf8')
+  ok('④-c 너무 큰 파일은 건너뛴다',
+     /saveMediaToR2\(env, String\(j\.url\)\)/.test(src) &&
+     /MAX_STREAM_BYTES/.test(med) && /MAX_BUFFER_BYTES/.test(med))
 }
 
 // ⑤ 화면이 결과를 정직하게 말한다

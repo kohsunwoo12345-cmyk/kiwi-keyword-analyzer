@@ -1,78 +1,17 @@
 import { Env, json, ensureSchema, getSessionUser, resolveDB, logActivity, resolveBucket, rateLimitOk } from '../_utils'
+import { saveMediaToR2 } from '../_media'
 import { computeCharge, ensureAiUsage, getUsdKrw, resolveMarkup, resolveRefSurcharge, resolveCnSurcharge, MODEL_COST } from '../studio/_pricing'
 import { creditPriceFor } from '../payments/prepare'
 import { effectiveUnits, effectiveRes, effectiveFlags, effectiveRatio } from '../generate.js'
 import { consumeGenCharge } from '../studio/_gencharge'
 
-function b64ToBytes(b64: string): Uint8Array {
-  const bin = atob(b64)
-  const arr = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
-  return arr
-}
-function ctExt(ct: string): string {
-  const c = (ct || '').toLowerCase()
-  if (c.includes('png')) return '.png'
-  if (c.includes('webp')) return '.webp'
-  if (c.includes('gif')) return '.gif'
-  if (c.includes('jpeg') || c.includes('jpg')) return '.jpg'
-  if (c.includes('svg')) return '.svg'
-  if (c.includes('webm')) return '.webm'
-  if (c.includes('quicktime') || c.includes('mov')) return '.mov'
-  if (c.includes('mp4')) return '.mp4'
-  if (c.includes('audio')) return '.mp3'
-  return ''
-}
-/* 생성 미디어를 "평생 남는 주소" 로 바꾼다.
-     · data: URL     → R2 에 올리고 /api/media/<key>
-     · 제공사 http(s) → 받아서 R2 에 올리고 /api/media/<key>
-     · 이미 우리 주소 → 그대로
-
-   ⚠ 예전엔 http(s) 를 그대로 저장했다. "재업로드로 인한 대용량 전송 회피" 라고 적혀 있었는데,
-     그 대가가 컸다. 제공사 결과 URL 은 며칠이면 만료된다 — 저장한 그 순간에는 잘 보이니
-     아무도 모르다가, 나중에 보관함과 관리자 화면에서 한꺼번에 죽는다.
-     아낀 건 전송량이고 잃은 건 회원의 결과물이라, 바꿀 이유가 분명하다.
-
-   실패하면 원본 주소로 물러난다 — 지금 당장은 보이는 게 아무것도 없는 것보다 낫다.
-   (뒤늦게라도 옮기는 경로가 따로 있다: 스튜디오 healGallery) */
-const MAX_PERSIST_BYTES = 200_000_000     // 20분 4K 영상도 이 아래다. 넘으면 원본 주소로 둔다.
+/* 생성 미디어를 "평생 남는 주소" 로 바꾼다 — 실제 옮기는 일은 _media.ts 가 한다.
+   같은 코드를 세 군데(여기·보관함·관리자 되찾기)가 각자 갖고 있었고, 셋 다 같은 결함이
+   있었다: 길이를 모르는 몸통(chunked)을 R2 가 거절하는데 그걸 삼키고 만료되는 남의 주소를
+   저장했다. 한 군데로 합쳤다. 자세한 내용은 _media.ts 머리말 참조. */
 async function persistMedia(env: any, url: string): Promise<string> {
-  if (!url || typeof url !== 'string') return ''
-  try {
-    if (url.startsWith('data:')) {
-      const m = /^data:([^;,]+)?(;base64)?,([\s\S]*)$/.exec(url)
-      if (!m) return ''
-      const ct = m[1] || 'application/octet-stream'
-      const bytes = m[2] ? b64ToBytes(m[3]) : new TextEncoder().encode(decodeURIComponent(m[3]))
-      const bucket = resolveBucket(env)
-      if (bucket && bytes.length <= 30_000_000) {
-        const key = 'gen/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + ctExt(ct)
-        await bucket.put(key, bytes, { httpMetadata: { contentType: ct } })
-        return '/api/media/' + key
-      }
-      return ct.startsWith('image/') && url.length <= 600_000 ? url : ''
-    }
-    if (!/^https?:\/\//i.test(url)) return url          // 이미 우리 주소(/api/media/…)
-    const bucket = resolveBucket(env)
-    if (!bucket) return url
-    const r = await fetch(url)
-    if (!r.ok || !r.body) return url
-    const ct = r.headers.get('content-type') || 'application/octet-stream'
-    const len = Number(r.headers.get('content-length') || 0)
-    if (len > MAX_PERSIST_BYTES) return url
-    //  스트리밍으로 넘긴다 — 통째로 메모리에 올리면 큰 영상에서 워커가 죽는다.
-    const key = 'gen/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + (ctExt(ct) || guessExt(url))
-    await bucket.put(key, r.body, { httpMetadata: { contentType: ct } })
-    return '/api/media/' + key
-  } catch {
-    return url.startsWith('data:') ? '' : url
-  }
-}
-/* 제공사가 content-type 을 엉뚱하게 주는 경우가 있어 주소의 확장자도 본다.
-   확장자가 틀리면 나중에 브라우저가 영상을 못 연다(.mp4 를 .bin 으로 받으면 재생 안 됨). */
-function guessExt(url: string): string {
-  const m = /\.([a-z0-9]{2,5})(?:\?|#|$)/i.exec(String(url || ''))
-  return m ? '.' + m[1].toLowerCase() : ''
+  const r = await saveMediaToR2(env, url)
+  return r.url
 }
 
 // POST /api/usage/record { model, kind, units, res?, audio?, provider? }
@@ -220,7 +159,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         .bind(prompt, refsJson, resultUrl, resultKind, chargeRef, me.id)
         .run()
       if (upd?.meta?.changes === 1)
+        /* storedUrl — 우리가 보관한 "평생 남는 주소".
+           노드는 제공사가 준 주소를 붙들고 있는데 그건 며칠이면 죽는다. 알려 줘야 갈아탄다.
+           (보관함·관리자 화면은 서버 기록을 읽으니 이미 이 주소를 쓴다 — 노드만 몰랐다) */
         return json({ ok: true, stored: true, archiveOnly: true, charged: 0, credits: wantCredits,
+                      storedUrl: resultUrl,
                       refCount, refSurchargePct: surPct, cnCount, cnSurchargePct: cnPct })
     } catch { /* 못 붙이면 아래에서 별도 줄로 남긴다 */ }
   }
@@ -257,7 +200,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: String((e as any)?.message || e).slice(0, 160) }, 500)
   }
 
-  return json({ ok: true, stored: true, archiveOnly: true, charged: 0, credits: wantCredits, refCount, refSurchargePct: surPct, cnCount, cnSurchargePct: cnPct })
+  return json({ ok: true, stored: true, archiveOnly: true, charged: 0, credits: wantCredits, storedUrl: resultUrl,
+                refCount, refSurchargePct: surPct, cnCount, cnSurchargePct: cnPct })
 }
 
 export const onRequestOptions: PagesFunction<Env> = async () =>

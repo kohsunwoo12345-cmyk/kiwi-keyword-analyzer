@@ -1,4 +1,5 @@
-import { Env, json, ensureSchema, getSessionUser, resolveDB, resolveBucket } from '../_utils'
+import { Env, json, ensureSchema, getSessionUser, resolveDB } from '../_utils'
+import { saveMediaToR2 } from '../_media'
 import { ensureAiUsage } from './_pricing'
 
 // 보관함 서버 소스 — 계정의 생성 아카이브(ai_usage.result_url)를 보관함 목록으로 제공.
@@ -19,21 +20,14 @@ import { ensureAiUsage } from './_pricing'
    ⚠ 이미 만료된 주소는 살릴 방법이 없다 — 이건 앞으로 잃지 않기 위한 장치다. */
 const HEAL_PER_LOAD = 3
 async function healToR2(env: any, db: any, rows: any[], userId: string): Promise<void> {
-  const bucket = resolveBucket(env)
-  if (!bucket) return
   const stale = rows.filter((r) => /^https?:\/\//i.test(String(r.result_url || ''))).slice(0, HEAL_PER_LOAD)
   for (const r of stale) {
-    try {
-      const res = await fetch(String(r.result_url))
-      if (!res.ok || !res.body) continue                    // 이미 만료됐다 — 남겨 두고 넘어간다
-      const ct = res.headers.get('content-type') || 'application/octet-stream'
-      const ext = (/\.([a-z0-9]{2,5})(?:\?|#|$)/i.exec(String(r.result_url)) || [])[1]
-      const key = 'gen/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) + (ext ? '.' + ext.toLowerCase() : '')
-      await bucket.put(key, res.body, { httpMetadata: { contentType: ct } })
-      await db.prepare('UPDATE ai_usage SET result_url = ? WHERE id = ? AND user_id = ?')
-        .bind('/api/media/' + key, r.id, userId).run()
-      r.result_url = '/api/media/' + key                    // 이번 응답부터 바로 새 주소로 준다
-    } catch { /* 다음에 다시 해 본다 */ }
+    //  옮기는 일은 _media.ts 가 한다 — 길이를 안 알려 주는 몸통까지 거기서 처리한다.
+    const saved = await saveMediaToR2(env, String(r.result_url))
+    if (!saved.moved) continue                              // 못 옮겼다 — 다음에 다시 해 본다
+    await db.prepare('UPDATE ai_usage SET result_url = ? WHERE id = ? AND user_id = ?')
+      .bind(saved.url, r.id, userId).run().catch(() => {})
+    r.result_url = saved.url                                // 이번 응답부터 바로 새 주소로 준다
   }
 }
 
