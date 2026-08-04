@@ -2248,11 +2248,16 @@ async function handle(context) {
   /* ══ GET: 상태 폴링 / 파일 프록시 ══ */
   if (request.method === "GET") {
     /* 죽은 요청의 발자국을 꺼내 본다 — 502 로 아무것도 못 받은 뒤에 부른다.
-       자기 요청에 자기가 붙인 표(임의의 긴 문자열)로만 조회되므로 남의 것은 못 본다. */
+       표는 스튜디오가 요청마다 새로 만드는 임의 문자열이라 남의 것을 찍어 맞히기는 어렵다.
+       ⚠ 그래도 로그인은 요구한다. 예전에는 아무나 표만 알면 읽을 수 있어서,
+         모델 이름·차감 크레딧 같은 남의 생성 내역이 익명으로 새어 나갈 수 있었다.
+         스튜디오는 credentials:'include' 로 부르므로 회원 사용에는 지장이 없다. */
     if (u.searchParams.get("trace")) {
       const tid = String(u.searchParams.get("trace")).slice(0, 40);
       const tdb = resolveDB(env);
       if (!tdb) return json({ trace: tid, marks: [] });
+      const tme = await getSessionUser(request, tdb);
+      if (!tme) return json({ error: "로그인이 필요합니다.", needLogin: true }, 401);
       const rows = await tdb.prepare(
         `SELECT step, note, at FROM gen_trace WHERE id = ? ORDER BY at ASC, seq ASC`,
       ).bind(tid).all().catch(() => null);
@@ -2261,6 +2266,13 @@ async function handle(context) {
     if (u.searchParams.has("health")) { // 제공사 키 설정 여부 점검 (키 값은 절대 노출 안 함) — ?health 또는 ?health=1 모두 허용
       // 루마는 "키가 있다" 와 "그 키가 통한다" 가 다르다 — 실제로 확인한다(아래 lumaUsable 주석 참조)
       const lumaOk = await lumaUsable(k.luma);
+      //  키 지문만 관리자에게 준다 — 나머지(제공사 사용 가능 여부)는 스튜디오가 목록을 거르는 데 필요하다
+      let healthAdmin = false;
+      try {
+        const hdb = resolveDB(env);
+        const hme = hdb ? await getSessionUser(request, hdb) : null;
+        healthAdmin = !!(hme && hme.role === "admin");
+      } catch (_e) { healthAdmin = false; }
       return json({
         version:  "2026-07-13-v56 (remove-keys-page)", // 이 필드가 보이면 최신 코드가 프로덕션에 반영된 것
         build:    "2026-08-04-v65",                      // 스튜디오 STUDIO_BUILD_TAG 와 정확히 일치해야 최신 (배포마다 함께 올린다)
@@ -2279,7 +2291,11 @@ async function handle(context) {
            클링에서 배운 것과 같다 — 키 없이 목록에만 남아 있으면 누를 때마다 실패한다. */
         alibaba:  !!k.alibaba,
         alibabaKeySet: !!k.alibaba,
-        alibabaKeyId: k.alibaba ? (String(k.alibaba).slice(0, 6) + "…" + String(k.alibaba).slice(-4)) : null,
+        /* ⚠ 키 지문(앞뒤 몇 글자)은 관리자에게만 준다.
+           이 응답은 로그인 없이 열려 있다 — 스튜디오가 어떤 모델을 보여 줄지 고르는 데 쓰기 때문이다.
+           지문은 화면 어디에서도 쓰지 않고 관리자가 배포 키를 대조할 때만 본다.
+           그런데 공개로 두면 키의 12글자가 그대로 밖으로 나간다. */
+        alibabaKeyId: (healthAdmin && k.alibaba) ? (String(k.alibaba).slice(0, 6) + "…" + String(k.alibaba).slice(-4)) : null,
         /* 클링은 공식 오픈플랫폼 API 로만 나간다(중개 폴백 제거). fal 키가 있어도 대체되지 않으므로
            공식 키가 없으면 여기서 false 를 돌려 스튜디오가 클링 모델을 아예 숨기게 한다.
            예전엔 (klingCreds || fal) 로 답해, 공식 키가 없어도 모델이 목록에 남아 매번 실패했다. */
@@ -2289,7 +2305,7 @@ async function handle(context) {
         ark3d:    !!k.seedance,   // 3D 메시(Hyper3D·Hitem3D) — 씨댄스와 같은 ModelArk 키
         v2vAuto:  !!(k.runway || k.seedance || k.fal),
         // 배포된 ByteDance 키 지문(값 노출 없이 회원 콘솔 키와 동일한지 대조용)
-        seedanceKeyId: k.seedance ? (String(k.seedance).slice(0, 8) + "…" + String(k.seedance).slice(-4)) : null,
+        seedanceKeyId: (healthAdmin && k.seedance) ? (String(k.seedance).slice(0, 8) + "…" + String(k.seedance).slice(-4)) : null,
         motion:   !!k.fal,
         nanobanana: !!(gcpCreds(env) || k.google),
         openai:   !!k.openai,

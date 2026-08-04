@@ -469,6 +469,12 @@ const MUTATIONS = [
   { g: '정직', name: '관리자 회원 노드 목록 조회를 다시 삼킨다 (아무도 안 쓰는 것처럼 보인다)',
     file: 'functions/api/admin/studio-nodes.ts',
     from: '.all()', to: '.all().catch(() => ({ results: [] }))', all: true },
+  { g: '인증문', name: '?health 가 다시 키 지문을 공개한다 (배포 키의 12글자가 밖으로 나간다)',
+    file: 'functions/api/generate.js',
+    from: 'seedanceKeyId: (healthAdmin && k.seedance) ?', to: 'seedanceKeyId: k.seedance ?' },
+  { g: '인증문', name: '?trace 를 다시 아무나 읽게 한다 (남의 모델·차감액이 새어 나간다)',
+    file: 'functions/api/generate.js',
+    from: '      const tme = await getSessionUser(request, tdb);\n      if (!tme) return json({ error: "로그인이 필요합니다.", needLogin: true }, 401);', to: '' },
   // ── 크론 계약 ───────────────────────────────────────────────────────────
   { g: '크론', name: '순위 추적 응답의 hasMore 이름을 바꾼다 (하루 20건에서 멈춘다)',
     file: 'functions/api/naver-place/update-all-tracking.ts', from: 'hasMore', to: 'has_more' },
