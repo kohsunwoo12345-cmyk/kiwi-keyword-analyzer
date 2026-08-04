@@ -80,6 +80,49 @@ console.log('\n① 스키마 보장이 두 표를 실제로 만든다')
   ok(true, '두 번 불러도 문제없다')
 }
 
+console.log('\n①-b 이식 당시의 옛 표가 이미 있으면 빠진 칸만 덧댄다')
+{
+  /* 운영 DB 에는 이식 당시 모양의 표가 남아 있다 — CREATE IF NOT EXISTS 는 그냥 지나간다.
+     그때 share_* 같은 뒤에 생긴 칸이 없으면 공유 설정 저장이 그 자리에서 죽는다. */
+  const old = new DatabaseSync(':memory:')
+  old.exec(`CREATE TABLE naver_place_tracking (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, place_id TEXT, place_url TEXT,
+    keyword TEXT, status TEXT, created_at TEXT)`)          // 옛 모양 — location·last_check·share_* 없음
+  old.exec(`CREATE TABLE naver_place_ranks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, place_id TEXT, place_url TEXT,
+    keyword TEXT, rank_number INTEGER, created_at TEXT)`)  // 옛 모양 — location·place_name·total_count 없음
+  const oldD1 = {
+    prepare(sql) {
+      const q = String(sql)
+      const mk = (b) => ({
+        async run() { const r = old.prepare(q).run(...b); return { meta: { changes: r.changes } } },
+        async first() { return old.prepare(q).get(...b) ?? null },
+        async all() { return { results: old.prepare(q).all(...b) } },
+      })
+      return { bind: (...b) => mk(b), ...mk([]) }
+    },
+    async batch(st) { return (st || []).map(() => ({ results: [] })) },
+    async dump() { return new ArrayBuffer(0) },
+  }
+  const mod = await load('functions/api/naver-place/_schema.ts')   // 모듈 상태(1회 보장)를 새로 받는다
+  await mod.ensurePlaceSchema(oldD1)
+
+  const cols = (t) => old.prepare(`PRAGMA table_info(${t})`).all().map((r) => r.name)
+  const tcols = cols('naver_place_tracking')
+  for (const c of ['share_title', 'share_subtitle', 'share_thumbnail', 'location', 'last_check'])
+    ok(tcols.includes(c), `옛 추적 표에 ${c} 칸이 덧대어진다`, JSON.stringify(tcols))
+  const rcols = cols('naver_place_ranks')
+  for (const c of ['location', 'place_name', 'total_count'])
+    ok(rcols.includes(c), `옛 순위 표에 ${c} 칸이 덧대어진다`, JSON.stringify(rcols))
+
+  //  덧댄 뒤 실제 질의가 도는지까지 본다
+  const upd = sqlFrom('functions/api/naver-place/tracking/[id]/share-settings.ts', /UPDATE naver_place_tracking SET share_title[^`]*/)
+  old.prepare("INSERT INTO naver_place_tracking (user_id, place_id, keyword, status) VALUES ('u1','1','kw','active')").run()
+  let threw = ''
+  try { old.prepare(upd).run('제목', '부제', null, 1, 'u1') } catch (e) { threw = String(e.message) }
+  ok(!threw, '옛 표에서도 공유 설정이 저장된다', threw)
+}
+
 console.log('\n② 제품이 쓰는 질의가 그대로 돈다 (칸이 없으면 여기서 터진다)')
 {
   const insTrack = sqlFrom('functions/api/naver-place/tracking.ts', /INSERT INTO naver_place_tracking \([\s\S]*?VALUES[\s\S]*?\)\s*`/)
