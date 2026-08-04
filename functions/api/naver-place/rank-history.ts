@@ -98,8 +98,10 @@ export const onRequestGet: PagesFunction = async (context) => {
         `).bind(me.id).all()
         results = data.results || []
       }
-    } catch(e) {
+    } catch (e) {
+      //  로그만 남기고 빈 이력을 성공으로 내보내면 "순위가 없다" 로 보인다
       console.warn('[Rank History] query error:', e)
+      return c.json({ success: false, error: '순위 이력을 불러오지 못했습니다.', history: [] }, 500)
     }
     
     console.log(`[Rank History] Found ${results.length} records for place=${placeId}, keyword=${keyword}, user=${me.id}`)

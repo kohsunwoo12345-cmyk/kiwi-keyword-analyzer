@@ -25,7 +25,7 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     if (!slug) return j({ success: true, submissions: [] })
 
     // 1) 퍼널 랜딩페이지
-    const fp: any = await db.prepare('SELECT id FROM funnel_landing_pages WHERE slug = ?').bind(slug).first().catch(() => null)
+    const fp: any = await db.prepare('SELECT id FROM funnel_landing_pages WHERE slug = ?').bind(slug).first()
     if (fp) {
       if (!(await ownsPage(db, me, fp.id))) return forbidden()
       const { results } = await db.prepare(`
@@ -35,7 +35,7 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     }
 
     // 2) 일반 landing_pages → form_submissions
-    const page: any = await db.prepare('SELECT id, user_id FROM landing_pages WHERE slug = ?').bind(slug).first().catch(() => null)
+    const page: any = await db.prepare('SELECT id, user_id FROM landing_pages WHERE slug = ?').bind(slug).first()
     if (!page) return j({ success: true, submissions: [] })
     if (!isAdminUser(me) && String(page.user_id || '') !== String(me.id)) return forbidden()
     const { results } = await db.prepare(`

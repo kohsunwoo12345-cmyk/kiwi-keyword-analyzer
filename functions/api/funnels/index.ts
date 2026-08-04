@@ -14,9 +14,10 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     await ensureFunnelSchema(db)
     const me: any = await getSessionUser(request, db)
     if (!me) return j({ success: false, error: '로그인이 필요합니다.', needLogin: true }, 401)
-    let funnels: any[] = []
-    try {
-      const res = await db.prepare(`
+    /* ⚠ 여기도 조회를 try 로 감싸고 실패하면 빈 배열로 흘려보내고 있었다 —
+       바깥 catch 만 고쳐 놓으면 이 안쪽에서 삼켜서 "퍼널이 없습니다" 가 그대로 뜬다.
+       진짜로 D1 을 터뜨려 보기 전에는 고친 줄 알았다. */
+    const res = await db.prepare(`
         SELECT f.id, f.name, f.description, f.status, f.category, f.created_at, f.updated_at,
                COUNT(DISTINCT fg.id) as group_count,
                COUNT(DISTINCT fa.id) as applicant_count
@@ -29,8 +30,7 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
         GROUP BY f.id
         ORDER BY f.created_at DESC
       `).bind(me.id).all()
-      funnels = (res.results as any[]) || []
-    } catch (e) { funnels = [] }
+    const funnels = ((res.results as any[]) || [])
     return j({ success: true, funnels })
   } catch (err) {
     return j({ success: false, error: '퍼널 목록을 불러오지 못했습니다.', funnels: [] }, 500)

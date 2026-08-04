@@ -99,9 +99,13 @@ export const onRequestGet: PagesFunction = async (context) => {
         console.log(`[Tracking List] Found ${results.length} total tracking keywords for user ${me.id}`)
       }
     } catch (dbError) {
+      /* ⚠ 예전에는 여기서 로그만 남기고 그대로 success: true · 빈 목록으로 나갔다.
+         화면은 "추적 키워드 없음" 을 띄우고 그 빈 목록을 localStorage 에 캐시한다 —
+         다음 방문에도 없는 것처럼 보인다. 못 불러왔으면 못 불러왔다고 말한다. */
       console.warn('DB query failed', dbError)
+      return c.json({ success: false, error: '추적 목록을 불러오지 못했습니다.', keywords: [] }, 500)
     }
-    
+
     return c.json({
       success: true,
       keywords: results

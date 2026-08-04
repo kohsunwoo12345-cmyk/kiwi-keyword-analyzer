@@ -38,7 +38,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       ${wh}
      ORDER BY c.run_date DESC, c.created_at DESC
      LIMIT 300`
-  const camps = ((await (binds.length ? db.prepare(sql).bind(...binds) : db.prepare(sql)).all().catch(() => ({ results: [] }))).results as any[]) || []
+  const camps = ((await (binds.length ? db.prepare(sql).bind(...binds) : db.prepare(sql)).all()).results as any[]) || []
 
   // 집행별 랜딩 성과 — 집행일 00:00(KST) 이후만 그 집행의 성과로 본다.
   const rows: any[] = []

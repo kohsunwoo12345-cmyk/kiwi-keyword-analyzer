@@ -33,7 +33,6 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     .prepare('SELECT id, name, data, nodes, ts FROM studio_saved_flows WHERE user_id = ? ORDER BY ts DESC')
     .bind(me.id)
     .all()
-    .catch(() => ({ results: [] }))
   const flows = (rows.results || []).map((r: any) => {
     let data: any = null
     try { data = r.data ? JSON.parse(r.data) : null } catch { data = null }

@@ -79,6 +79,9 @@ async function load(file) {
   return sandbox.module.exports
 }
 
+/** 목록을 읽는 표들 — 여기에 닿는 질의만 터뜨린다(스키마 보장·세션 조회는 통과시킨다). */
+const LIST_TABLES = /form_submissions|funnel_applicants|funnel_landing_pages|FROM funnels\b|funnel_groups|funnel_group_connections|funnel_auto_responses|naver_place|landing_pages/i
+
 /** 로그인은 되지만 목록 질의에서 터지는 D1 */
 function brokenDB({ userRow = { id: 'u1', email: 'a@b.c', role: 'user' } } = {}) {
   const okStmt = (sql) => ({
@@ -89,25 +92,29 @@ function brokenDB({ userRow = { id: 'u1', email: 'a@b.c', role: 'user' } } = {})
       //  소유 확인과 퍼널 한 줄은 통과시켜야 목록 조회까지 도달한다
       if (/SELECT 1 AS ok FROM funnels/i.test(sql)) return { ok: 1 }
       if (/SELECT \* FROM funnels WHERE id/i.test(sql)) return { id: 1, name: 'f' }
+      if (LIST_TABLES.test(sql)) throw new Error('D1_ERROR: no such table')
       return null
     },
     async run() { return { meta: { changes: 1 } } },
     async all() {
       //  목록 질의만 터뜨린다 — 스키마 보장은 통과시켜야 진짜 경로까지 간다
-      if (/form_submissions|funnel_applicants|funnel_landing_pages|FROM funnels|funnel_groups|funnel_group_connections|funnel_auto_responses|naver_place/i.test(sql))
-        throw new Error('D1_ERROR: no such table')
+      if (LIST_TABLES.test(sql)) throw new Error('D1_ERROR: no such table')
       return { results: [] }
     },
   })
+  /* ⚠ resolveDB 는 prepare·batch·dump 가 다 있어야 D1 로 본다.
+     dump 가 없으면 db 가 null 로 잡혀서, 이 검사가 "DB 없음" 분기만 확인하고
+     정작 목록 질의 실패 경로는 한 번도 안 지나간다(실제로 그러고 있었다). */
   return {
     prepare: (sql) => okStmt(String(sql)),
     async batch(st) { return (st || []).map(() => ({ results: [] })) },
+    async dump() { return new ArrayBuffer(0) },
   }
 }
 
 const call = async (mod, url, db, params = {}) => {
   const res = await mod.onRequestGet({
-    request: new Request(url, { headers: { host: 'bygency.com', cookie: 'bygency_session=t' } }),
+    request: new Request(url, { headers: { host: 'bygency.com', cookie: 'bg_session=t' } }),
     env: { DB: db }, params, waitUntil: () => {}, next: async () => new Response(''),
   })
   let body = {}
@@ -125,14 +132,20 @@ console.log('\n② 실제로 목록 질의가 터지면 성공이라고 답하�
     ['functions/api/funnel/groups.ts', 'https://bygency.com/api/funnel/groups', {}],
     ['functions/api/funnel/auto-responses.ts', 'https://bygency.com/api/funnel/auto-responses', {}],
     ['functions/api/funnels/[id].ts', 'https://bygency.com/api/funnels/1', { id: '1' }],
+    /*  숫자만 돌려주는 자리도 같다 — 못 센 것을 0 으로 보여 주면
+        "이번 달 문의가 없네" 하고 광고를 끄는 판단까지 간다. */
+    ['functions/api/landing/total-submissions.ts', 'https://bygency.com/api/landing/total-submissions', {}],
+    ['functions/api/landing/submissions-count.ts', 'https://bygency.com/api/landing/submissions-count?slugs=a,b', {}],
   ]
   for (const [file, url, params] of cases) {
     const mod = await load(file)
     const r = await call(mod, url, brokenDB(), params)
     const name = file.replace('functions/api/', '')
-    ok(r.body.success !== true, `${name} — 성공이라고 답하지 않는다`, JSON.stringify(r.body).slice(0, 120))
+    ok(r.body.success !== true && r.body.ok !== true, `${name} — 성공이라고 답하지 않는다`, JSON.stringify(r.body).slice(0, 120))
     ok(r.status >= 500, `${name} — 상태 코드로도 알린다`, String(r.status))
     ok(typeof r.body.error === 'string' && r.body.error.length > 0, `${name} — 왜 못 불러왔는지 말해 준다`, JSON.stringify(r.body).slice(0, 120))
+    //  0 이나 빈 숫자를 진짜 값처럼 돌려주면 안 된다
+    ok(typeof r.body.total !== 'number', `${name} — 세지 못한 것을 0 으로 답하지 않는다`, JSON.stringify(r.body).slice(0, 120))
   }
 }
 

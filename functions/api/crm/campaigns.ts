@@ -49,7 +49,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       ${wh}
      ORDER BY c.run_date DESC, c.created_at DESC
      LIMIT 500`
-  const rows = ((await (binds.length ? db.prepare(sql).bind(...binds) : db.prepare(sql)).all().catch(() => ({ results: [] }))).results as any[]) || []
+  const rows = ((await (binds.length ? db.prepare(sql).bind(...binds) : db.prepare(sql)).all()).results as any[]) || []
   const rates = await getMsgRates(db, me.id)
   return json({ ok: true, campaigns: rows, rates: rates.charge, isAdmin })
 }

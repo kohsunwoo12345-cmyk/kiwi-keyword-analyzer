@@ -25,10 +25,18 @@ const KEY = (uid: string) => `lead_alert:${uid}`
 
 export const DEFAULT_PREFS: LeadAlertPrefs = { app: true, email: true, sms: false, extraEmail: '', extraPhone: '' }
 
+/* ⚠ 읽기가 실패했을 때 기본값을 돌려주면 안 된다.
+   화면은 "앱·이메일 켜짐, 문자 꺼짐" 을 그대로 보여 주고, 회원이 그 상태에서
+   저장을 누르면 실제로 켜 뒀던 설정이 기본값으로 덮인다 —
+   문자 알림을 켜 뒀던 사람이 조용히 꺼지고, 신청이 들어와도 모르게 된다.
+   값이 없는 것(처음)과 못 읽은 것은 다르다. 못 읽었으면 던진다. */
 export async function getLeadAlertPrefs(db: D1Database, userId: string): Promise<LeadAlertPrefs> {
+  /* getSetting 은 실패를 null 로 삼킨다(스키마가 아직 없을 때를 위한 것이라 그 자체는 맞다).
+     여기서는 "설정한 적 없음" 과 "못 읽음" 을 구분해야 하므로 직접 읽는다. */
+  const row: any = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(KEY(String(userId))).first()
+  const raw = row ? row.value : null
+  if (!raw) return { ...DEFAULT_PREFS }
   try {
-    const raw = await getSetting(db, KEY(String(userId)))
-    if (!raw) return { ...DEFAULT_PREFS }
     const o = JSON.parse(raw)
     return {
       app: o.app !== false,
@@ -38,6 +46,7 @@ export async function getLeadAlertPrefs(db: D1Database, userId: string): Promise
       extraPhone: typeof o.extraPhone === 'string' ? o.extraPhone.replace(/[^0-9]/g, '').slice(0, 12) : '',
     }
   } catch {
+    //  저장된 문자열이 깨진 경우 — 이건 읽기 실패가 아니라 값이 이상한 것이라 기본값이 맞다
     return { ...DEFAULT_PREFS }
   }
 }

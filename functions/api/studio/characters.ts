@@ -41,7 +41,7 @@ export async function listCharacters(db: D1Database, userId: string) {
   await ensureCharacters(db)
   const rows: any = await db.prepare(
     'SELECT id, name, images, note, ts FROM studio_characters WHERE user_id = ? ORDER BY ts DESC LIMIT ?',
-  ).bind(userId, MAX_CHARS).all().catch(() => ({ results: [] }))
+  ).bind(userId, MAX_CHARS).all()
   return (rows.results || []).map((r: any) => {
     let images: string[] = []
     try { images = JSON.parse(r.images) } catch {}
