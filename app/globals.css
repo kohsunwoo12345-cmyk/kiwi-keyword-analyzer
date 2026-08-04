@@ -1005,3 +1005,17 @@ img.bg-emoji {
 @media (prefers-reduced-motion: reduce) {
   .vs-scan, .vs-flow, .vs-glow { animation: none !important; }
 }
+
+/* ---- 첫 화면 밖 구역은 나중에 계산한다 ----
+   느린 회선·느린 기기에서 재 보니 CSS 는 719ms 에 다 왔는데 글자는 1,630ms 에야 보였다.
+   그 사이 900ms 동안 네트워크는 놀고 있었다 — 브라우저가 122KB 짜리 문서 전체의
+   스타일과 배치를 한 번에 계산하느라 그린 게 없었던 것이다(자바스크립트를 꺼도 같았다).
+
+   첫 화면에 안 보이는 구역까지 미리 계산할 이유가 없다. content-visibility:auto 를 주면
+   브라우저가 화면에 들어올 때까지 그 구역의 배치를 미룬다.
+   contain-intrinsic-size 는 "대충 이만한 높이" 라고 알려 주는 값이다 — 없으면 높이가 0 이
+   됐다가 스크롤할 때 튄다(스크롤바가 춤춘다). 실제 구역 높이에 가깝게 잡는다. */
+.defer-paint {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 900px;
+}
