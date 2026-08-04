@@ -77,6 +77,16 @@ const iDiag = src.indexOf('u.searchParams.get("diag") === "alibaba"')
      !/ids\.length >= total/.test(src),
      '모아 둔 전체(ids)와 비교하면 앞의 호환 목록 때문에 첫 장에서 멈춘다 — wan 이 통째로 빠졌다')
   ok('⑤-c 안 끝나는 경우를 대비한 상한이 있다', /page <= 20; page\+\+/.test(src))
+  /*  분류에서 새면 목록에는 있는데 화면에는 안 보인다 — "이게 전부" 라고 볼 뻔했다.
+      실제로 r2v(참조 이미지 → 영상) 4개가 영상에도 이미지에도 안 걸려서 빠졌다. */
+  ok('⑤-e r2v 를 영상으로 센다',
+     /t2v\|i2v\|r2v\|s2v\|kf2v\|video\|animate\|vace/.test(src),
+     'r2v 는 이름에 t2v/i2v 가 없다 — 빼면 wan 37개 중 4개가 조용히 사라진다')
+  ok('⑤-f 어느 쪽에도 안 걸린 것을 따로 보여 준다', /"wan_미분류": wan\.filter/.test(src),
+     '새는 것을 눈에 보이게 해 두지 않으면 다음에도 같은 식으로 빠진다')
+  ok('⑤-g 영상 편집 모델이 이미지로도 세어지지 않는다',
+     /이미지인가 = \(x\) => .*&& !\/video\/i\.test\(x\)/.test(src),
+     'wan2.7-videoedit 은 edit 이 들어가지만 영상이다')
   ok('⑤-d 배열·이름 필드 이름이 달라도 뽑는다',
      /"model_name", "model", "name", "id", "model_id"/.test(src),
      '문서마다 models\\/data\\/list, model_name\\/name\\/id 로 다르게 적혀 있다 — 하나로 못 박으면 조용히 빈 목록이 된다')

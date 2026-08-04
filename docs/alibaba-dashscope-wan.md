@@ -579,3 +579,77 @@ function verdict(status, parsed) {
 - `https://www.alibabacloud.com/help/en/model-studio/error-code`
 - `https://help.aliyun.com/zh/model-studio/error-code#apikey-error`
 - Wan 영상/이미지 API 레퍼런스 4종 (t2v 신·구, i2v 신·구)
+---
+
+## 부록 A. 운영 키로 실제 재 본 결과 (실측 · 근거 등급 **A**)
+
+위 본문은 조사(문서·SDK 소스)다. 아래는 **운영 콘솔에 들어온 `alibaba_API_KEY` 로 실제 두들겨 본 결과**다.
+생성은 한 번도 걸지 않았다 — 조회와 "없는 모델 이름으로 제출" 뿐이라 돈이 나가지 않는다.
+재현: `GET /api/generate?diag=alibaba` (관리자 전용)
+
+### A-1. 키와 리전
+
+| 항목 | 실측 |
+|---|---|
+| 키 지문 | `sk-ws-…3dUg` (115자 — 워크스페이스 스코프 키) |
+| `dashscope-intl.aliyuncs.com` (싱가포르) | **유효** — 모든 조회 200 |
+| `dashscope.aliyuncs.com` (베이징) | **401** 전부 |
+
+본문 §0-6 이 맞았다. 같은 401 인데 본문 모양이 두 가지로 왔다 —
+`/compatible-mode/` 는 봉투형 `{"error":{"code":"invalid_api_key"}}`,
+네이티브는 평평형 `{"code":"InvalidApiKey"}`. 한 모양만 파싱했으면 절반을 놓쳤다.
+
+**→ 붙일 때 베이징 호스트는 아예 쓰지 않는다.** 이 키로는 안 된다.
+
+### A-2. 엔드포인트 경로 — 5개 전부 살아 있다
+
+없는 모델 이름으로 제출했더니 5개 경로 **전부** `400 InvalidParameter · "Model not exist."`.
+404 가 하나도 없다 = 경로도 인증도 다 맞고, 내가 넣은 가짜 이름만 거절당했다.
+
+| 경로 | 응답 |
+|---|---|
+| `/api/v1/services/aigc/video-generation/video-synthesis` | 400 Model not exist. |
+| `/api/v1/services/aigc/image2video/video-synthesis` | 400 Model not exist. |
+| `/api/v1/services/aigc/text2image/image-synthesis` | 400 Model not exist. |
+| `/api/v1/services/aigc/image2image/image-synthesis` | 400 Model not exist. |
+| `/api/v1/services/aigc/image-generation/generation` | 400 Model not exist. |
+
+`/api/v1/tasks/<없는 UUID>` → **200** `{"task_status":"UNKNOWN"}`. 본문 §0-3 예측대로다.
+
+### A-3. 이 키로 잡히는 모델 (총 234개 중)
+
+**Wan 영상 27개**
+
+```
+wan2.7-t2v · wan2.7-t2v-2026-04-25 · wan2.7-t2v-2026-06-12
+wan2.7-i2v · wan2.7-i2v-2026-04-25 · wan2.7-r2v · wan2.7-r2v-2026-06-12 · wan2.7-videoedit
+wan2.6-t2v · wan2.6-i2v · wan2.6-i2v-flash · wan2.6-r2v · wan2.6-r2v-flash
+wan2.5-t2v-preview · wan2.5-i2v-preview
+wan2.2-t2v-plus · wan2.2-i2v-plus · wan2.2-i2v-flash · wan2.2-kf2v-flash · wan2.2-animate-mix · wan2.2-animate-move
+wan2.1-t2v-plus · wan2.1-t2v-turbo · wan2.1-i2v-plus · wan2.1-i2v-turbo · wan2.1-kf2v-plus · wan2.1-vace-plus
+```
+
+**Wan 이미지 10개**
+
+```
+wan2.7-image · wan2.7-image-pro · wan2.6-image · wan2.6-t2i
+wan2.5-t2i-preview · wan2.5-i2i-preview
+wan2.2-t2i-plus · wan2.2-t2i-flash · wan2.1-t2i-plus · wan2.1-t2i-turbo
+```
+
+**같은 키로 덤으로 잡히는 것** — 알리바바만 붙이면 이것들도 같이 들어온다
+
+- 이미지: `qwen-image-3.0-pro` · `qwen-image-2.0-pro` · `qwen-image-max` · `qwen-image-edit-max` · `z-image-turbo` 등 19개
+- 영상: `happyhorse-1.1-t2v / i2v / r2v` 등 7개
+
+> ⚠ 분류에서 한 번 새었다. `r2v`(참조 이미지 → 영상) 4개가 이름에 `t2v/i2v` 가 없어서
+> 영상에도 이미지에도 안 걸렸다. 오류는 안 나고 그냥 안 보인다 —
+> 지금은 `wan_미분류` 칸을 따로 두어 새면 눈에 띄게 했다.
+
+### A-4. 아직 확인 못 한 것
+
+| 질문 | 왜 못 했나 |
+|---|---|
+| 모델별 **실제 단가** | 본문 §8 그대로 미확정. 같은 720p 1초가 출처마다 1.7배 갈린다. 콘솔 가격표를 보기 전엔 `MODEL_COST` 에 넣지 않는다 |
+| 모델별 **개통 여부**(목록에 있어도 권한이 없을 수 있다) | 확인하려면 실존 모델 이름으로 POST 해야 한다 = 접수될 수 있다. `&models=1` 로 사람이 켤 때만 돈다 |
+| **취소 API** 동작 | 태스크를 만들어야 취소해 볼 수 있다. 생성 없이는 확인 불가 |

@@ -2382,15 +2382,28 @@ async function handle(context) {
         }
 
         const uniq = Array.from(new Set(ids.map((x) => String(x).trim()).filter(Boolean))).sort();
-        //  이름만 보고 갈라 둔다. 최종 판단은 아래 전체 목록을 보고 한다.
+        /* 이름만 보고 갈라 둔다. 최종 판단은 아래 전체 목록을 보고 한다.
+           ⚠ 처음 판에서 r2v 를 어느 쪽에도 못 넣었다. r2v(참조 이미지 → 영상)는 이름에
+             t2v/i2v 가 안 들어가서 영상에도 이미지에도 안 걸렸고, wan 37개 중 4개가
+             조용히 빠졌다(wan2.6-r2v · wan2.6-r2v-flash · wan2.7-r2v · wan2.7-r2v-2026-06-12).
+             빠진 줄도 모르고 "이게 전부" 라고 볼 뻔했다.
+           그리고 wan 만 보면 안 된다 — 같은 키로 qwen-image·happyhorse 계열도 잡힌다.
+           쓸지 말지는 나중 문제고, 무엇이 손에 들어와 있는지는 다 보여야 한다. */
+        const 영상인가 = (x) => /t2v|i2v|r2v|s2v|kf2v|video|animate|vace/i.test(x);
+        const 이미지인가 = (x) => /t2i|i2i|image|imageedit/i.test(x) && !/video/i.test(x);
         const wan = uniq.filter((x) => /^wan/i.test(x));
+        const 기타 = uniq.filter((x) => !/^wan/i.test(x));
         모델목록.push({
           호스트: h.base,
           받은개수: uniq.length,
           목록이_말한_총개수: total,
           wan계열: wan,
-          "wan_영상후보": wan.filter((x) => /t2v|i2v|s2v|kf2v|video|animate|vace/i.test(x)),
-          "wan_이미지후보": wan.filter((x) => /t2i|i2i|image|edit/i.test(x)),
+          "wan_영상후보": wan.filter(영상인가),
+          "wan_이미지후보": wan.filter(이미지인가),
+          //  분류에서 새는 것이 있으면 여기 뜬다. 비어 있어야 정상이다.
+          "wan_미분류": wan.filter((x) => !영상인가(x) && !이미지인가(x)),
+          "기타_영상후보": 기타.filter(영상인가),
+          "기타_이미지후보": 기타.filter(이미지인가),
           전체: uniq,
         });
         /* ② 날조한 태스크 번호 조회 — 생성 파이프라인을 아예 건드리지 않는다.
