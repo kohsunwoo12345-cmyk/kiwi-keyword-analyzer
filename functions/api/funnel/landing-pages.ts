@@ -10,7 +10,8 @@ const j = (o: any, status = 200) =>
 export const onRequestGet: PagesFunction = async ({ request, env }) => {
   try {
     const db = resolveDB(env)
-    if (!db) return j({ success: true, pages: [] })
+    /*  못 불러온 것을 "없음" 으로 보여 주면 안 된다 — 화면이 빈 목록을 진짜 값으로 캐시한다. */
+    if (!db) return j({ success: false, error: '랜딩페이지 목록을 불러오지 못했습니다.', pages: [] }, 503)
     await ensureFunnelSchema(db)
     // ⚠ 인증이 없어 groupId 없이 부르면 전 회원의 랜딩페이지 500건이 그대로 나왔다
     const me: any = await getSessionUser(request, db)
@@ -47,7 +48,7 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     }
     return j({ success: true, pages: rows })
   } catch {
-    return j({ success: true, pages: [] })
+    return j({ success: false, error: '랜딩페이지 목록을 불러오지 못했습니다.', pages: [] }, 500)
   }
 }
 

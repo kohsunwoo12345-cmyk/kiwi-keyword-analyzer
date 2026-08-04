@@ -39,8 +39,9 @@ export const onRequestGet: PagesFunction = async (context) => {
     if (db) await ensurePlaceSchema(db as any)
 
     if (!db) {
+    /*  못 불러온 것을 "없음" 으로 보여 주면 안 된다 — 화면이 빈 목록을 진짜 값으로 캐시한다. */
       console.error('[Rank History] No DB binding found')
-      return c.json({ success: true, history: [] })
+      return c.json({ success: false, error: '순위 이력을 불러오지 못했습니다.', history: [] }, 503)
     }
 
     // 실제 세션 인증 — 본인 추적 데이터만 조회
@@ -109,6 +110,6 @@ export const onRequestGet: PagesFunction = async (context) => {
     })
   } catch (error) {
     console.error('Error fetching rank history:', error)
-    return c.json({ success: true, history: [] })
+    return c.json({ success: false, error: '순위 이력을 불러오지 못했습니다.', history: [] }, 500)
   }
 }

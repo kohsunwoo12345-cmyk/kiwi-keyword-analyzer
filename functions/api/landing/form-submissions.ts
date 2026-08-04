@@ -11,7 +11,8 @@ const j = (o: any, status = 200) =>
 export const onRequestGet: PagesFunction = async ({ request, env }) => {
   try {
     const db = resolveDB(env as any)
-    if (!db) return j({ success: true, submissions: [] })
+    //  못 불러온 것을 "신청자 없음" 으로 보여 주면 안 된다 (all-submissions 와 같은 이유)
+    if (!db) return j({ success: false, error: '신청자 목록을 불러오지 못했습니다.', submissions: [] }, 503)
     await ensureSchema(db)
     await ensureFunnelSchema(db)
     // ⚠ 여기는 신청자의 이름·전화번호·이메일이 그대로 나오는 곳인데 인증이 전혀 없었다.
@@ -40,7 +41,7 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     const { results } = await db.prepare(`
       SELECT id, name, phone, email, additional_data, created_at, landing_slug, landing_title
       FROM form_submissions WHERE landing_page_id = ? ORDER BY created_at DESC LIMIT ?
-    `).bind(page.id, limit).all().catch(() => ({ results: [] }))
+    `).bind(page.id, limit).all()
     const submissions = ((results as any[]) || []).map((r: any) => {
       let extra: any = {}
       try { extra = JSON.parse(r.additional_data || '{}') } catch (e) {}
@@ -49,6 +50,6 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     })
     return j({ success: true, submissions })
   } catch (err) {
-    return j({ success: true, submissions: [] })
+    return j({ success: false, error: '신청자 목록을 불러오지 못했습니다.', submissions: [] }, 500)
   }
 }

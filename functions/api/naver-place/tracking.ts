@@ -38,7 +38,9 @@ export const onRequestGet: PagesFunction = async (context) => {
 
     if (!db) {
       console.error('[Tracking List] No DB binding found')
-      return c.json({ success: true, keywords: [] })
+      /*  못 불러온 것을 "추적 키워드 없음" 으로 보여 주면 안 된다 —
+          화면이 그 빈 목록을 진짜 값으로 캐시해서 다음 방문에도 없는 것처럼 보인다. */
+      return c.json({ success: false, error: '추적 목록을 불러오지 못했습니다.', keywords: [] }, 503)
     }
 
     // 실제 세션 인증 — 로그인한 본인만 접근 가능
@@ -106,7 +108,7 @@ export const onRequestGet: PagesFunction = async (context) => {
     })
   } catch (error) {
     console.error('Error fetching tracking keywords:', error)
-    return c.json({ success: true, keywords: [] })
+    return c.json({ success: false, error: '추적 목록을 불러오지 못했습니다.', keywords: [] }, 500)
   }
 }
 
