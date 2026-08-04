@@ -3595,6 +3595,19 @@ async function handle(context) {
                  "https://app.klingai.com/global/dev/document-api/productBilling/prePaidResourcePackage",
                  "https://docs.qingque.cn/d/home/eZQDvbNVLLlvsdM4SLmfhLcNn", "https://klingai.com/global/dev/pricing"] },
         /* BytePlus — 문서가 자바스크립트로 그려진다(본문에 "Copy Page" 만 온다). 원문 주소를 먼저. */
+        /* 알리바바 백련(Model Studio) — Wan 영상·이미지.
+           이 개발 환경에서는 alibabacloud.com·help.aliyun.com 이 전부 403 이라 원문을 못 본다.
+           워커는 다른 곳에서 나가므로 여기서 읽히는지 보고, 읽히면 그게 1차 근거가 된다.
+           ⚠ 중국어 표는 값이 "$" 가 아니라 "元" 으로 적혀 있다 — 아래 값 추리기도 같이 넓혔다.
+           그리고 국제판(싱가포르)과 중국판은 단가가 다르다. 우리 키는 국제판이므로
+           en 페이지를 먼저 시도하고, 안 되면 중국어 표라도 본다(구조 파악용). */
+        { 제공사: "알리바바 Model Studio (Wan)", 말: ["wan", "video", "image", "元", "秒", "per second"],
+          넓게: ["wan2.7", "wan2.6", "wan2.5", "Video generation", "视频生成"],
+          urls: ["https://www.alibabacloud.com/help/en/model-studio/models",
+                 "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+                 "https://help.aliyun.com/zh/model-studio/model-pricing",
+                 "https://www.alibabacloud.com/help/zh/model-studio/model-pricing",
+                 "https://help.aliyun.com/zh/model-studio/models"] },
         { 제공사: "BytePlus ModelArk (씨댄스·씨드림)", 말: ["Seedance", "Seedream", "price", "per second"],
           넓게: ["Seedance", "Seedream"],
           urls: ["https://docs.byteplus.com/en/docs/ModelArk/Pricing.md", "https://docs.byteplus.com/en/docs/ModelArk/llms.txt",
@@ -3623,7 +3636,12 @@ async function handle(context) {
             .replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
           const spa = /enable JavaScript|__NEXT_DATA__/i.test(raw) && text.length < 6000;
           // "$0.40" 처럼 값이 있는 줄만 추린다 — 전체를 실으면 응답이 감당이 안 된다
-          const priceLines = [...new Set((text.match(/[^\n]{0,120}\$\s?\d[\d.,]*\s?[^\n]{0,120}/g) || []))]
+          /*  달러만 찾고 있었다. 알리바바 중국어 표는 "0.7元/秒" 처럼 적혀 있어서
+              달러만 보면 값이 하나도 안 잡힌다 — 문서를 잘 읽어 놓고 "못 찾음" 이 된다. */
+          const priceLines = [...new Set([
+            ...(text.match(/[^\n]{0,120}\$\s?\d[\d.,]*\s?[^\n]{0,120}/g) || []),
+            ...(text.match(/[^\n]{0,120}\d[\d.,]*\s?[元¥￥][^\n]{0,120}/g) || []),
+          ])]
             .filter((ln) => t.말.some((w) => new RegExp(w, "i").test(ln)) || /per (second|image|video|clip|megapixel)/i.test(ln))
             .slice(0, 40);
           /* 단가 한 줄만 봐서는 어느 모델·해상도인지 모른다 — Veo 가 그랬다
