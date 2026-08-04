@@ -424,6 +424,13 @@ const MUTATIONS = [
   { g: '주소날짜', name: '블로그 순위의 오늘을 다시 UTC 날짜로 잡는다 (같은 날이 두 줄이 된다)',
     file: 'functions/api/blog-rank-track/add.ts',
     from: 'const today = kstDate()', to: 'const today = new Date().toISOString().slice(0, 10)' },
+  { g: '주소날짜', name: '보관 그물이 시도 횟수를 세지 않는다 (앞줄 만료 건에 영원히 막힌다)',
+    file: 'functions/api/cron/media-archive.ts',
+    from: "      await db.prepare('UPDATE ai_usage SET archive_tries = COALESCE(archive_tries,0) + 1 WHERE id = ?')\n        .bind(String(r.id)).run().catch(() => {})", to: '' },
+  { g: '주소날짜', name: '보관 그물이 포기한 줄까지 세서 due 를 부풀린다 (워커가 매번 헛되이 POST 한다)',
+    file: 'functions/api/cron/media-archive.ts',
+    from: "      WHERE result_url LIKE 'http%' AND COALESCE(archive_tries,0) < ?`).bind(MAX_TRIES).first()",
+    to: "      WHERE result_url LIKE 'http%'`).first()" },
   // ── 크론 계약 ───────────────────────────────────────────────────────────
   { g: '크론', name: '순위 추적 응답의 hasMore 이름을 바꾼다 (하루 20건에서 멈춘다)',
     file: 'functions/api/naver-place/update-all-tracking.ts', from: 'hasMore', to: 'has_more' },

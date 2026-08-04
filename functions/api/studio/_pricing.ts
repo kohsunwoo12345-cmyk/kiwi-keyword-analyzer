@@ -779,6 +779,11 @@ async function __ensureAiUsage(db: D1Database): Promise<void> {
     refs: "refs TEXT DEFAULT ''", // 레퍼런스 URL JSON 배열
     result_url: "result_url TEXT DEFAULT ''", // 결과 이미지/영상 URL(가능하면 R2 durable)
     result_kind: "result_kind TEXT DEFAULT ''", // image | video
+    /* 보관 그물이 몇 번이나 시도했는지. 제공사 주소는 며칠이면 만료되고 그 뒤로는
+       몇 번을 해도 못 가져온다 — 세지 않으면 그 줄들이 목록 맨 앞에 영원히 남아
+       정기 실행마다 같은 여섯 건을 다시 내려받으려 하고, 그 뒤에 있는
+       아직 살릴 수 있는 줄에는 영영 닿지 못한다. */
+    archive_tries: 'archive_tries INTEGER DEFAULT 0',
   }
   for (const [name, ddl] of Object.entries(cols)) {
     await db.prepare(`ALTER TABLE ai_usage ADD COLUMN ${ddl}`).run().catch(() => {})
