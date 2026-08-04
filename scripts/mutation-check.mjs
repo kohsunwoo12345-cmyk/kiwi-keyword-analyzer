@@ -360,7 +360,7 @@ const MUTATIONS = [
     from: 'await db.prepare(`CREATE TABLE IF NOT EXISTS naver_place_ranks (', to: 'if (false) await db.prepare(`CREATE TABLE IF NOT EXISTS naver_place_ranks (' },
   { g: '스키마', name: '옛 표에 칸을 덧대는 마이그레이션을 뺀다 (운영 DB 에서 공유 설정이 죽는다)',
     file: 'functions/api/naver-place/_schema.ts',
-    from: "  for (const col of ['share_title TEXT', 'share_subtitle TEXT', 'share_thumbnail TEXT', 'location TEXT', 'last_check TEXT'])\n    await db.prepare(`ALTER TABLE naver_place_tracking ADD COLUMN ${col}`).run().catch(() => {})",
+    from: "  for (const col of ['share_title TEXT', 'share_subtitle TEXT', 'share_thumbnail TEXT', 'location TEXT', 'last_check TEXT', 'last_rank INTEGER'])\n    await db.prepare(`ALTER TABLE naver_place_tracking ADD COLUMN ${col}`).run().catch(() => {})",
     to: '' },
   { g: '스키마', name: '추적 삭제에서 주인 조건을 뺀다 (남의 추적을 지울 수 있다)',
     file: 'functions/api/naver-place/tracking/[id].ts',
