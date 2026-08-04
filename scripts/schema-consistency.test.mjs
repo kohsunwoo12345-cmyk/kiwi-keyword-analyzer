@@ -124,9 +124,25 @@ for (const [p, src] of sources)
     usedTables.get(t).add(path.relative(ROOT, p))
   }
 
+/* 옛 표를 "지우기만" 하는 것은 예외다.
+   더 이상 만들지 않는 표라도, 예전 스키마로 시작한 DB 에는 그대로 남아 있고 그 안에
+   회원의 개인정보가 들어 있다(예: crm_campaign_sends 에는 그 회원 고객들의 이름·전화번호).
+   코드에서 안 쓴다고 개인정보가 사라지지 않으므로, 탈퇴할 때는 지워야 한다.
+   ⚠ 예외는 "오직 DELETE 로만 쓰는 표" 에만 준다. 읽거나 쓰는 곳이 하나라도 있으면
+     그건 진짜 실수다(없는 표를 읽으면 조용히 빈 결과가 나온다) — 그때는 그대로 걸린다. */
+const purgeOnly = (t) => sources.every(([, src]) => {
+  const all = [...src.matchAll(new RegExp(`\\b(?:FROM|JOIN|INTO|UPDATE)\\s+[\`"[]?${t}\\b`, 'gi'))].length
+  const del = [...src.matchAll(new RegExp(`DELETE\\s+FROM\\s+[\`"[]?${t}\\b`, 'gi'))].length
+  return all === del
+})
+
 console.log('\n① 코드가 쓰는 표는 모두 어딘가에서 만들어진다')
 {
-  const missing = [...usedTables].filter(([t]) => !schema.has(t))
+  const all = [...usedTables].filter(([t]) => !schema.has(t))
+  const legacy = all.filter(([t]) => purgeOnly(t))
+  const missing = all.filter(([t]) => !purgeOnly(t))
+  if (legacy.length)
+    console.log('       (지우기만 하는 옛 표라 넘어감: ' + legacy.map(([t]) => t).join(', ') + ')')
   ok(missing.length === 0,
      `만들어지지 않는 표가 없다 (참조 ${usedTables.size}개 · 스키마 ${schema.size}개)`,
      missing.map(([t, fs_]) => `${t}  ←  ${[...fs_].slice(0, 2).join(', ')}`).join('\n         '))
