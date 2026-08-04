@@ -11,7 +11,7 @@ async function segmentEmails(db: D1Database, segment: string, plan?: string): Pr
   const binds: any[] = []
   if (segment === 'plan' && plan) { sql += ' AND plan = ?'; binds.push(plan) }
   else if (segment === 'active') { sql += " AND last_active IS NOT NULL AND last_active >= ?"; binds.push(new Date(Date.now() - 30 * 864e5).toISOString()) }
-  const rows = (await db.prepare(sql).bind(...binds).all().catch(() => ({ results: [] }))).results || []
+  const rows = (await db.prepare(sql).bind(...binds).all()).results || []
   return (rows as any[]).map((r) => ({ email: String(r.email || '').trim().toLowerCase(), name: r.name || '' })).filter((r) => isEmail(r.email))
 }
 
@@ -29,7 +29,7 @@ async function segmentPhones(db: D1Database, segment: string, plan?: string): Pr
   const binds: any[] = []
   if (segment === 'plan' && plan) { sql += ' AND plan = ?'; binds.push(plan) }
   else if (segment === 'active') { sql += " AND last_active IS NOT NULL AND last_active >= ?"; binds.push(new Date(Date.now() - 30 * 864e5).toISOString()) }
-  const rows = (await db.prepare(sql).bind(...binds).all().catch(() => ({ results: [] }))).results || []
+  const rows = (await db.prepare(sql).bind(...binds).all()).results || []
   return (rows as any[]).map((r) => ({ phone: digits(r.phone), name: r.name || '' })).filter((r) => r.phone.length >= 10)
 }
 
@@ -42,11 +42,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   // 세그먼트별 대상 수 미리보기 (마케팅 동의 회원)
   const all = (await segmentPhones(db, 'all')).length
   const active = (await segmentPhones(db, 'active')).length
-  const planRows = (await db.prepare(`SELECT plan, COUNT(*) AS n FROM users WHERE phone IS NOT NULL AND phone != '' AND marketing_consent = 1 AND status != 'deleted' GROUP BY plan`).all().catch(() => ({ results: [] }))).results || []
+  const planRows = (await db.prepare(`SELECT plan, COUNT(*) AS n FROM users WHERE phone IS NOT NULL AND phone != '' AND marketing_consent = 1 AND status != 'deleted' GROUP BY plan`).all()).results || []
   // 이메일 세그먼트 대상 수
   const emailAll = (await segmentEmails(db, 'all')).length
   const emailActive = (await segmentEmails(db, 'active')).length
-  const campaigns = (await db.prepare(`SELECT id, segment, plan, channel, content, sender, schedule_at, total, sent, reserved, status, created_at FROM crm_campaigns ORDER BY created_at DESC LIMIT 100`).all().catch(() => ({ results: [] }))).results || []
+  const campaigns = (await db.prepare(`SELECT id, segment, plan, channel, content, sender, schedule_at, total, sent, reserved, status, created_at FROM crm_campaigns ORDER BY created_at DESC LIMIT 100`).all()).results || []
   return json({ ok: true, preview: { all, active, byPlan: planRows, emailAll, emailActive }, campaigns })
 }
 

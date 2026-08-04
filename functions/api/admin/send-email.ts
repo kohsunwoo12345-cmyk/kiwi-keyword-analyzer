@@ -12,7 +12,7 @@ async function segmentEmails(db: D1Database, segment: string, plan?: string) {
   const binds: any[] = []
   if (segment === 'plan' && plan) { sql += ' AND plan = ?'; binds.push(plan) }
   else if (segment === 'active') { sql += " AND last_active IS NOT NULL AND last_active >= ?"; binds.push(new Date(Date.now() - 30 * 864e5).toISOString()) }
-  const rows = (await db.prepare(sql).bind(...binds).all().catch(() => ({ results: [] }))).results || []
+  const rows = (await db.prepare(sql).bind(...binds).all()).results || []
   return (rows as any[]).map((r) => ({ email: String(r.email || '').trim().toLowerCase(), name: r.name || '' })).filter((r) => isEmail(r.email))
 }
 

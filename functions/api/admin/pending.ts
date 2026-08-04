@@ -8,8 +8,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const guard = await requireAdminUser(request, db)
   if (guard.error) return guard.error
 
+  /* ⚠ 예전에는 세다가 실패하면 0 을 돌려줬다. 사이드바 배지가 0 이 되면
+     발신번호 승인·플랜 신청이 쌓여도 관리자는 처리할 게 없다고 본다.
+     0건과 못 셈은 다르다 — 못 셌으면 이 화면 전체가 실패했다고 말한다. */
   const cnt = async (sql: string): Promise<number> => {
-    try { const r: any = await db.prepare(sql).first(); return Number(r?.c) || 0 } catch { return 0 }
+    const r: any = await db.prepare(sql).first()
+    return Number(r?.c) || 0
   }
   const [plans, credits, points, senders, team, contacts] = await Promise.all([
     cnt("SELECT COUNT(*) c FROM plan_requests WHERE status='pending'"),

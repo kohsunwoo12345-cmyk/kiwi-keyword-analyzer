@@ -53,7 +53,7 @@ async function loadLeads(db: D1Database, o: { userId?: string; slug?: string; li
          LEFT JOIN users u ON u.id = lp.user_id
         ${w.length ? 'WHERE ' + w.join(' AND ') : ''}
         ORDER BY fs.created_at DESC LIMIT ?`,
-    ).bind(...b, limit).all().catch(() => ({ results: [] as any[] }))).results || []) as any[]
+    ).bind(...b, limit).all()).results || []) as any[]
     for (const r of rows) out.push({ ...r, source: 'landing', source_label: '랜딩페이지', id: `l${r.id}` })
   }
 
@@ -73,7 +73,7 @@ async function loadLeads(db: D1Database, o: { userId?: string; slug?: string; li
          LEFT JOIN users u ON u.id = fg.user_id
         ${w.length ? 'WHERE ' + w.join(' AND ') : ''}
         ORDER BY fa.created_at DESC LIMIT ?`,
-    ).bind(...b, limit).all().catch(() => ({ results: [] as any[] }))).results || []) as any[]
+    ).bind(...b, limit).all()).results || []) as any[]
     for (const r of rows) out.push({ ...r, source: 'funnel', source_label: '퍼널 랜딩', id: `f${r.id}` })
   }
 
@@ -150,7 +150,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
               (SELECT COUNT(*) FROM form_submissions fs WHERE fs.landing_page_id = lp.id) AS leads,
               (SELECT MAX(fs.created_at) FROM form_submissions fs WHERE fs.landing_page_id = lp.id) AS last_lead_at
          FROM landing_pages lp WHERE lp.user_id = ?`,
-    ).bind(userId).all().catch(() => ({ results: [] as any[] }))).results || []) as any[]
+    ).bind(userId).all()).results || []) as any[]
     const fpages = ((await db.prepare(
       `SELECT flp.slug, flp.title, 'funnel' AS source, flp.status, 0 AS views, flp.created_at,
               (SELECT COUNT(*) FROM funnel_applicants fa WHERE fa.landing_page_id = flp.id) AS leads,
@@ -158,7 +158,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
          FROM funnel_landing_pages flp
          JOIN funnel_groups fg ON fg.id = flp.group_id
         WHERE fg.user_id = ?`,
-    ).bind(userId).all().catch(() => ({ results: [] as any[] }))).results || []) as any[]
+    ).bind(userId).all()).results || []) as any[]
     const all = [...pages, ...fpages]
       .map((p) => ({
         slug: p.slug || '', title: p.title || p.slug || '(제목 없음)',
@@ -187,7 +187,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
             (SELECT MAX(fs.created_at) FROM form_submissions fs JOIN landing_pages lp3 ON fs.landing_page_id = lp3.id WHERE lp3.user_id = u.id) AS last_lead_at
        FROM users u
       ORDER BY leads DESC, pages DESC LIMIT 1000`,
-  ).all().catch(() => ({ results: [] as any[] }))).results || []) as any[]
+  ).all()).results || []) as any[]
   const users = rows
     .filter((r) => Number(r.pages || 0) > 0 || Number(r.leads || 0) > 0)
     .filter((r) => !q || String(r.name || '').toLowerCase().includes(q) || String(r.email || '').toLowerCase().includes(q))

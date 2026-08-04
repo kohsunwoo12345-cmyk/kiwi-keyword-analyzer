@@ -65,11 +65,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     // 상세 활동기록
     const activity = (await db.prepare(
       'SELECT action, node_type, detail, credits, model, created_at FROM studio_activity WHERE user_id = ? ORDER BY created_at DESC LIMIT 300',
-    ).bind(userId).all().catch(() => ({ results: [] }))).results || []
+    ).bind(userId).all()).results || []
     // 크레딧 사용(ai_usage)
     const usage = (await db.prepare(
       'SELECT model, kind, credits, prompt, result_kind, created_at FROM ai_usage WHERE user_id = ? ORDER BY created_at DESC LIMIT 200',
-    ).bind(userId).all().catch(() => ({ results: [] }))).results || []
+    ).bind(userId).all()).results || []
     const creditSum = (usage as any[]).reduce((a, r) => a + (Number(r.credits) || 0), 0)
     return json({
       ok: true,
@@ -81,18 +81,18 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   // 목록: 워크플로우 보유 사용자
-  const wfs = (await db.prepare('SELECT user_id, payload, updated_at FROM studio_workflows ORDER BY updated_at DESC LIMIT 1000').all().catch(() => ({ results: [] }))).results || []
+  const wfs = (await db.prepare('SELECT user_id, payload, updated_at FROM studio_workflows ORDER BY updated_at DESC LIMIT 1000').all()).results || []
   // 사용자 정보 매핑
   const ids = (wfs as any[]).map((w) => w.user_id).filter(Boolean)
   const userMap: Record<string, any> = {}
   for (let i = 0; i < ids.length; i += 50) {
     const chunk = ids.slice(i, i + 50); if (!chunk.length) continue
     const q = chunk.map(() => '?').join(',')
-    const us = (await db.prepare(`SELECT id, name, email, plan FROM users WHERE id IN (${q})`).bind(...chunk).all().catch(() => ({ results: [] }))).results || []
+    const us = (await db.prepare(`SELECT id, name, email, plan FROM users WHERE id IN (${q})`).bind(...chunk).all()).results || []
     for (const u of us as any[]) userMap[u.id] = u
   }
   // 사용자별 크레딧 합계
-  const credAgg = (await db.prepare('SELECT user_id, ROUND(SUM(credits),2) AS c, COUNT(*) AS n FROM ai_usage GROUP BY user_id').all().catch(() => ({ results: [] }))).results || []
+  const credAgg = (await db.prepare('SELECT user_id, ROUND(SUM(credits),2) AS c, COUNT(*) AS n FROM ai_usage GROUP BY user_id').all()).results || []
   const credMap: Record<string, { c: number; n: number }> = {}
   for (const r of credAgg as any[]) credMap[r.user_id] = { c: Number(r.c) || 0, n: Number(r.n) || 0 }
 

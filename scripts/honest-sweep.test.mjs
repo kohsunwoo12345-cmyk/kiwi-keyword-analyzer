@@ -51,6 +51,18 @@ const OK_TO_DEGRADE = new Map([
   ['students.ts', '학원 SaaS 이식 잔재 — 표도 없고 부르는 화면도 없다(제품 결정 대기)'],
   ['account/mcp-token.ts', '토큰은 세션 기준으로 만든다 — 저장이 실패하면 그때 던진다'],
   ['landing/form-submissions.ts', 'slug 없이 부르면 빈 목록이 맞다(있으면 아래 정직성 검사가 따로 본다)'],
+  //  관리자 화면 중 "상태를 보고하는 것이 일" 인 자리 — 못 읽는 것도 보고할 내용이다
+  ['admin/self-test.ts', '자가진단 — 못 읽는 상태 자체를 결과로 보고한다'],
+  ['admin/security-risk.ts', '보안 점검 — 항목별 통과/실패를 세어 보여 준다'],
+  ['admin/aligo-test.ts', '문자 연동 진단 — 설정 여부를 보고한다'],
+  ['admin/api-balance.ts', '제공사 잔액 안내 — 목록은 코드에 있다'],
+  ['admin/ai-models.ts', '모델 점검 — 코드에 든 목록 위에 상태를 표시한다'],
+  //  코드에 든 기본값이 곧 정답인 설정 화면들
+  ['admin/plan-config.ts', '요금제 기본값 — DB 는 덮어쓰기용이다'],
+  ['admin/msg-rates.ts', '문자 단가 기본값 — DB 는 덮어쓰기용이다'],
+  ['admin/model-pricing.ts', '모델 단가 기본값 — DB 는 덮어쓰기용이다'],
+  //  이식된 분석 모듈 — 스키마를 PRAGMA 로 훑어 만드는 구조라 통째로 손봐야 한다(따로 다룬다)
+  ['admin/funnel-landing-analytics.ts', 'SUPERPLACE 이식 분석 모듈 — 칸 탐색부터 삼킨다(별도 정리 대상)'],
 ])
 
 async function load(file) {
@@ -67,11 +79,13 @@ async function load(file) {
 }
 
 /** 세션은 살아 있고, 그 외의 SELECT 는 전부 터지는 D1. */
-function brokenDB() {
-  const userRow = { id: 'u1', email: 'a@b.c', role: 'user', name: 'n' }
+function brokenDB(role = 'user') {
+  const userRow = { id: 'u1', email: 'a@b.c', role, name: 'n' }
   const st = (sql) => ({
     bind: () => st(sql),
     async first() {
+      //  집계는 회원 행이 아니다 — 여기서 회원 행을 돌려주면 0 이 "진짜 0" 처럼 보여 검사가 헛돈다
+      if (/\b(COUNT|SUM|AVG|MAX|MIN)\s*\(/i.test(sql)) throw new Error('D1_ERROR: boom')
       if (/FROM sessions/i.test(sql)) return userRow
       if (/FROM users/i.test(sql)) return userRow
       if (/AS ok FROM|AS x FROM|SELECT 1 /i.test(sql)) return { ok: 1, x: 1 }
@@ -106,7 +120,7 @@ for (const p of walk(path.join(ROOT, 'functions/api'))) {
   const src = fs.readFileSync(p, 'utf8')
   if (!/export const onRequestGet/.test(src)) continue
   const rel = path.relative(path.join(ROOT, 'functions/api'), p)
-  if (rel.startsWith('admin/')) continue          // 관리자 화면은 별도 검사가 본다
+  //  관리자 화면도 같이 본다 — "매출 0원" · "회원 0명" 을 오류 없이 보여 주면 더 나쁘다
   let mod
   try { mod = await load(path.relative(ROOT, p)) } catch { continue }
   if (typeof mod.onRequestGet !== 'function') continue
@@ -115,7 +129,7 @@ for (const p of walk(path.join(ROOT, 'functions/api'))) {
   try {
     res = await mod.onRequestGet({
       request: new Request(url, { headers: { host: 'bygency.com', cookie: 'bg_session=t' } }),
-      env: { DB: brokenDB() },
+      env: { DB: brokenDB(rel.startsWith('admin/') ? 'admin' : 'user') },
       params: { id: '1', key: ['x'], path: ['x'], slug: 'x', token: 'x', templateId: '1', groupId: '1' },
       waitUntil: () => {}, next: async () => new Response(''),
     })
@@ -140,7 +154,7 @@ console.log('\n② 비워도 되는 예외가 조용히 늘지 않는다')
   const have = new Set(walk(path.join(ROOT, 'functions/api')).map((p) => path.relative(path.join(ROOT, 'functions/api'), p)))
   const stale = [...OK_TO_DEGRADE.keys()].filter((k) => !have.has(k))
   ok(stale.length === 0, '없는 파일이 예외에 남아 있지 않다', stale.join(', '))
-  ok(OK_TO_DEGRADE.size <= 18, `예외가 늘지 않았다 (${OK_TO_DEGRADE.size}개)`, String(OK_TO_DEGRADE.size))
+  ok(OK_TO_DEGRADE.size <= 28, `예외가 늘지 않았다 (${OK_TO_DEGRADE.size}개)`, String(OK_TO_DEGRADE.size))
 }
 
 console.log(failed === 0 ? '\n정직성 훑기 — 실패 0\n' : `\n실패 ${failed}건\n`)

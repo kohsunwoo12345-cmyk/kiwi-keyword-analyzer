@@ -22,7 +22,7 @@ function deviceCookie(token: string): string {
 }
 
 async function loadLists(db: D1Database) {
-  const rows = (await db.prepare('SELECT id, kind, value, label, created_at FROM admin_acl ORDER BY created_at DESC').all().catch(() => ({ results: [] }))).results as any[] || []
+  const rows = (await db.prepare('SELECT id, kind, value, label, created_at FROM admin_acl ORDER BY created_at DESC').all()).results as any[] || []
   return {
     ips: rows.filter((r) => r.kind === 'ip').map((r) => ({ id: r.id, value: r.value, label: r.label || '', createdAt: r.created_at })),
     devices: rows.filter((r) => r.kind === 'device').map((r) => ({ id: r.id, value: r.value, label: r.label || '', createdAt: r.created_at })),

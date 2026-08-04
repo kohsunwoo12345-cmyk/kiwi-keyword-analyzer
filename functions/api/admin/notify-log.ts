@@ -54,7 +54,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (format === 'csv' || format === 'xlsx') {
     const rows = ((await db.prepare(
       `SELECT n.*, u.name AS owner, u.email AS owner_email ${base} ORDER BY n.created_at DESC LIMIT 100000`,
-    ).bind(...binds).all().catch(() => ({ results: [] as any[] }))).results || []) as any[]
+    ).bind(...binds).all()).results || []) as any[]
     const sheet: Sheet = {
       name: '알림발송내역',
       headers: COLS.map(([, h]) => h),
@@ -87,13 +87,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
             n.ok, n.reason, n.points, n.landing_slug, n.landing_title, n.ref_id, n.created_at,
             u.name AS owner, u.email AS owner_email
      ${base} ORDER BY n.created_at DESC LIMIT ? OFFSET ?`,
-  ).bind(...binds, PAGE, (page - 1) * PAGE).all().catch(() => ({ results: [] as any[] }))).results || []) as any[]
+  ).bind(...binds, PAGE, (page - 1) * PAGE).all()).results || []) as any[]
 
   // 구분별 집계 — 필터와 무관하게 전체 기준(상단 타일)
   const agg = ((await db.prepare(
     `SELECT trigger, COUNT(*) AS n, SUM(CASE WHEN ok=1 THEN 1 ELSE 0 END) AS okn, SUM(points) AS pts
        FROM notify_log GROUP BY trigger`,
-  ).all().catch(() => ({ results: [] as any[] }))).results || []) as any[]
+  ).all()).results || []) as any[]
   const counts: Record<string, { total: number; ok: number; points: number }> = {}
   for (const a of agg) counts[String(a.trigger || 'system')] = { total: Number(a.n || 0), ok: Number(a.okn || 0), points: Number(a.pts || 0) }
 

@@ -55,7 +55,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   // 환불(처리 완료) — 기간 내 환불액은 매출에서 차감
   const refundRow: any = (await db.prepare(
-    `SELECT COALESCE(SUM(amount),0) AS krw, COUNT(*) AS cnt FROM refunds WHERE status='done' AND decided_at > ?`).bind(since).first().catch(() => ({}))) || {}
+    `SELECT COALESCE(SUM(amount),0) AS krw, COUNT(*) AS cnt FROM refunds WHERE status='done' AND decided_at > ?`).bind(since).first()) || {}
   const refundKrw = Number(refundRow.krw) || 0
 
   const creditSalesKrw = creditCardKrw + creditApprovalKrw
