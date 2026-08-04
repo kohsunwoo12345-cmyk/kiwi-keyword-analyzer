@@ -410,6 +410,9 @@ const MUTATIONS = [
     file: 'functions/api/naver-place/tracking.ts',
     from: "return c.json({ success: false, error: '추적 목록을 불러오지 못했습니다.', keywords: [] }, 500)",
     to: 'return c.json({ success: true, keywords: [] })' },
+  { g: '정직', name: '랜딩 조회 기록을 다시 응답 뒤로 던져 놓는다 (조회수·유입 분석이 조용히 샌다)',
+    file: 'functions/landing/[slug].ts',
+    from: '  waitUntil(db.batch([', to: '  void (db.batch([' },
   // ── 크론 계약 ───────────────────────────────────────────────────────────
   { g: '크론', name: '순위 추적 응답의 hasMore 이름을 바꾼다 (하루 20건에서 멈춘다)',
     file: 'functions/api/naver-place/update-all-tracking.ts', from: 'hasMore', to: 'has_more' },

@@ -3,7 +3,7 @@ import { Env, resolveDB, ensureSchema, geoFrom, clientIp } from '../api/_utils'
 import { ensureLandingSchema } from '../api/landing/_lschema'
 import { buildShareHead, injectHead, injectBodyTop } from '../api/_htmlmeta'
 
-export const onRequestGet: PagesFunction<Env> = async ({ request, env, params }) => {
+export const onRequestGet: PagesFunction<Env> = async ({ request, env, params, waitUntil }) => {
   const slug = String((params as any).slug || '')
   const db = resolveDB(env)
   if (!db) return new Response('DB 미연결', { status: 500 })
@@ -18,16 +18,23 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, params })
       { status: 404, headers: { 'content-type': 'text/html; charset=utf-8' } },
     )
   }
-  // 조회수 + 유입 경로 로그 (UTM + 지역) — 랜딩 경로 분석용
-  db.prepare('UPDATE landing_pages SET view_count = view_count + 1 WHERE slug = ?').bind(slug).run().catch(() => {})
+  /* 조회수 + 유입 경로 로그 (UTM + 지역) — 랜딩 경로 분석용.
+     ⚠ 예전에는 await 도 waitUntil 도 없이 던져만 놨다. Workers 는 응답을 돌려준 뒤
+        남아 있는 약속을 취소할 수 있어서, 기록이 조용히 사라질 수 있었다 —
+        방문은 있었는데 조회수와 유입 분석에는 안 잡히는 상태다. 오류도 안 난다.
+        방문자를 기다리게 할 이유는 없으니 응답은 그대로 먼저 보내고,
+        기록은 waitUntil 로 끝까지 돌게 한다. 한 번에 묶어 보내 서브리퀘스트도 아낀다. */
   const url = new URL(request.url)
   const qp = (k: string) => (url.searchParams.get(k) || '').slice(0, 200)
   const geo = geoFrom(request)
-  db.prepare(`INSERT INTO landing_page_views (landing_page_id, landing_slug, user_agent, referrer, utm_source, utm_medium, utm_campaign, utm_content, utm_term, ip_address, country, region, city)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(page.id, slug, request.headers.get('user-agent') || '', request.headers.get('referer') || '',
-      qp('utm_source'), qp('utm_medium'), qp('utm_campaign'), qp('utm_content'), qp('utm_term'),
-      clientIp(request) || '', geo.country || '', geo.region || '', geo.city || '').run().catch(() => {})
+  waitUntil(db.batch([
+    db.prepare('UPDATE landing_pages SET view_count = view_count + 1 WHERE slug = ?').bind(slug),
+    db.prepare(`INSERT INTO landing_page_views (landing_page_id, landing_slug, user_agent, referrer, utm_source, utm_medium, utm_campaign, utm_content, utm_term, ip_address, country, region, city)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(page.id, slug, request.headers.get('user-agent') || '', request.headers.get('referer') || '',
+        qp('utm_source'), qp('utm_medium'), qp('utm_campaign'), qp('utm_content'), qp('utm_term'),
+        clientIp(request) || '', geo.country || '', geo.region || '', geo.city || ''),
+  ]).then(() => undefined).catch(() => undefined))
 
   // ⚠ 예전에는 html_content 만 그대로 뱉었다. 빌더의 "공유 설정" 탭에서 넣은
   //   OG 제목/설명/썸네일과 헤더 스크립트(픽셀)가 DB 에는 저장되고 편집기에도 다시 보이는데,
