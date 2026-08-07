@@ -28,6 +28,19 @@ const M: Dict = {
   '문의: 개인정보 보호책임자': { en: 'Contact: Data Protection Officer', ja: 'お問い合わせ: 個人情報保護責任者', zh: '联系: 个人信息保护负责人' },
 }
 
+/** 주소를 비교할 수 있는 모양으로 다듬는다 — '/legal/terms.html' · '/legal/terms/' → '/legal/terms'
+ *
+ *  ⚠ 왜 필요한가. 아래 "다른 문서" 목록은 지금 보고 있는 문서를 빼고 그린다.
+ *    그런데 서버(미리 그려 둔 HTML)는 항상 '/legal/terms' 기준으로 하나를 뺀 4개를 그리고,
+ *    브라우저가 '/legal/terms.html' 이나 '/legal/terms/' 로 들어오면 아무것도 못 빼서 5개를 그린다.
+ *    그리는 개수가 다르면 React 가 "서버와 다르다" 며 그 구역을 통째로 다시 그린다(에러 #418).
+ *    실제로 /legal/terms.html 로 들어가면 콘솔에 그 오류가 떴다.
+ *    주소 모양에 기대지 않도록 다듬어서 비교한다. */
+const samePath = (a: string, b: string) => {
+  const norm = (s: string) => (s || '').replace(/\.html$/i, '').replace(/\/+$/, '') || '/'
+  return norm(a) === norm(b)
+}
+
 export function LegalShell({
   title,
   effective,
@@ -70,7 +83,7 @@ export function LegalShell({
             </p>
             <nav className="flex flex-col gap-1">
               {LEGAL_DOCS.map((d) => {
-                const active = pathname === d.href
+                const active = samePath(pathname, d.href)
                 return (
                   <Link
                     key={d.href}
@@ -104,7 +117,7 @@ export function LegalShell({
 
             {/* other docs */}
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
-              {LEGAL_DOCS.filter((d) => d.href !== pathname).map((d) => (
+              {LEGAL_DOCS.filter((d) => !samePath(pathname, d.href)).map((d) => (
                 <Link
                   key={d.href}
                   href={d.href}

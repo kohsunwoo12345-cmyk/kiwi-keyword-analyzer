@@ -117,8 +117,16 @@ console.log('\n① AI 모델 화면 — 56개가 다 보이고, 연동됨으로 
   ok(t2v && t2v.modelId === 'wan2.7-t2v', '표시명이 실제 제공사 ID 로 이어진다', JSON.stringify(t2v && t2v.modelId))
   ok(t2v && Number(t2v.credits) > 0, '예상 크레딧이 계산된다 — 0 이면 사실상 공짜로 팔린다',
      JSON.stringify(t2v && t2v.credits))
-  ok(ali.length > 0 && ali.every((x) => x.costProvisional === true), '단가가 잠정이라고 화면에 넘긴다',
-     '확정값처럼 보이면 그 값을 믿고 판다')
+  /* 확정(A)과 상한(C)을 화면에서 갈라 보여 줘야 한다.
+     전부 [잠정] 이면 확정된 값까지 못 믿게 되고, 전부 확정처럼 보이면 상한을 믿고 판다. */
+  const confirmed = ali.filter((x) => !x.costProvisional)
+  const provisional = ali.filter((x) => x.costProvisional)
+  ok(confirmed.length > 0 && provisional.length > 0, '확정과 상한이 둘 다 있고 갈라져 있다',
+     `확정 ${confirmed.length} · 상한 ${provisional.length}`)
+  ok(confirmed.some((x) => x.model === 'Wan 2.7 (텍스트→영상)'),
+     '출처 둘이 일치한 값은 [잠정] 딱지가 없다', JSON.stringify(confirmed.map((x) => x.model).slice(0, 3)))
+  ok(provisional.some((x) => /Qwen/.test(x.model)),
+     '값이 안 나온 것은 [잠정] 딱지가 붙는다', String(provisional.length))
   ok((j.providers || []).some((p) => p.id === 'alibaba' && p.count === EXPECT),
      '제공사 묶음에도 알리바바가 잡힌다', JSON.stringify((j.providers || []).find((p) => p.id === 'alibaba')))
 }
@@ -177,9 +185,15 @@ console.log('\n⑤ 해상도 구간 — 720p 를 화소비로 깎으면 원가�
      '720p 가 1080p 의 0.6 배다(공개 표 그대로)', `실제 비율 ${(k720 / k1080).toFixed(3)}`)
   ok(k720 / k1080 > 0.5,
      '화소비(0.444)로 깎이지 않는다 — 깎이면 720p 를 26% 덜 받는다', `${(k720 / k1080).toFixed(3)}`)
-  //  5초 × $0.086 × 1400 = 602원
-  ok(Math.abs(k720 - 602) <= 2, '720p 5초 원가가 공개 단가와 맞는다(5초 × $0.086 × 1400 = ₩602)', String(k720))
-  ok(Math.abs(k1080 - 1008) <= 2, '1080p 5초 원가가 맞는다(5초 × $0.144 × 1400 = ₩1,008)', String(k1080))
+  //  ¥0.6/초 = $0.086 → 5초 × 1400원 = 602원. 중국 표와 국제판 공개가가 맞아떨어지는 지점이다.
+  ok(Math.abs(k720 - 602) <= 2, '720p 5초 원가가 공개 단가와 맞는다(¥0.6/초 = $0.086 → ₩602)', String(k720))
+  ok(Math.abs(k1080 - 1008) <= 2, '1080p 5초 원가가 맞는다(¥1.0/초 = $0.144 → ₩1,008)', String(k1080))
+  //  확정된 다른 구간도 같이 본다 — 하나만 맞춰 두면 나머지가 어긋나도 모른다
+  const w22 = computeCharge({ model: 'Wan 2.2 Plus (텍스트→영상)', units: 5, kind: 'video', res: '720p' }, 1400, 1)
+  ok(Math.abs(w22.costKrw - 399) <= 3, 'wan2.2 plus 720p 도 공개 단가와 맞는다(¥0.4/초 = $0.057 → ₩399)',
+     String(w22.costKrw))
+  const t2i = computeCharge({ model: 'Wan 2.6 (텍스트→이미지)', units: 1, kind: 'image' }, 1400, 1)
+  ok(Math.abs(t2i.costKrw - 41) <= 2, '이미지도 맞는다(¥0.2/장 = $0.029 → ₩41)', String(t2i.costKrw))
   //  배수를 태우면 반드시 원가보다 커야 한다
   const sell = computeCharge({ model: M, units: 5, kind: 'video', res: '720p' }, 1400)
   ok(sell.costKrw < sell.revenueKrw, '기본 배수로 팔면 원가보다 크다',

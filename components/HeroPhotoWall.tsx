@@ -6,13 +6,15 @@ import { cn } from '@/lib/utils'
 const ALL = Array.from({ length: 20 }, (_, i) => `/images/showcase/hero/${i + 1}.webp`)
 
 /** 세로로 흐르는 사진 열 — 열마다 속도·방향이 달라 자연스럽게 움직인다. */
+/*  한 열에 3장이면 충분하다 — 히어로는 900px 인데 4장이면 벽이 1,472px 이라
+    한 장은 아무도 못 보고 배치 계산만 든다(실측). 3장이면 1,104px 로 여전히 다 덮는다. */
 const COLS = [
-  ALL.slice(0, 4),
-  ALL.slice(4, 8),
-  ALL.slice(8, 12),
-  ALL.slice(12, 16),
-  ALL.slice(16, 20),
-  [ALL[2], ALL[9], ALL[13], ALL[18]],
+  ALL.slice(0, 3),
+  ALL.slice(4, 7),
+  ALL.slice(8, 11),
+  ALL.slice(12, 15),
+  ALL.slice(16, 19),
+  [ALL[2], ALL[9], ALL[13]],
 ]
 
 /**
@@ -50,12 +52,22 @@ export function HeroPhotoWall() {
               className="absolute inset-x-0 top-0"
               style={{ transform: `translateY(-${ci * 6}%)` }}
             >
-              {[...col, ...col].map((src, i) => (
+              {/*  ⚠ 여기 [...col, ...col] 로 두 벌이 들어가 있었다. 위 주석대로 흐름을 멈춘 뒤로는
+                   두 번째 벌이 화면에 한 번도 닿지 않는다 — 이어붙일 곳이 없어졌기 때문이다.
+                   실측: 데스크톱에서 48장 중 보이는 것은 18장, 벽 높이 3,024px 인데 히어로는 900px.
+                   나머지는 그리고 배치만 계산하고 아무도 못 본다(레이아웃이 그만큼 비싸진다).
+
+                   그리고 전부 lazy 였다. 이 벽이 화면에서 가장 큰 그림이라 **LCP 를 이 벽이
+                   가져간다**. 가장 큰 그림을 늦게 받게 해 두면 LCP 가 그만큼 늦다 —
+                   실측 LCP 3.07초가 전부 이 대기였다. 첫 화면에 실제로 걸리는 앞 2장만
+                   먼저 받고, 맨 앞 한 장은 우선순위를 올린다. 나머지는 그대로 lazy 다. */}
+              {col.map((src, i) => (
                 <img
                   key={i}
                   src={src}
                   alt=""
-                  loading="lazy"
+                  loading={i < 2 ? 'eager' : 'lazy'}
+                  fetchPriority={i === 0 ? 'high' : undefined}
                   decoding="async"
                   className="mb-2.5 w-full rounded-2xl object-cover shadow-lg sm:mb-3"
                   style={{ aspectRatio: '3 / 4' }}

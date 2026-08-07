@@ -146,7 +146,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       /* 모델 ID 는 제공사 목록 API 로 확인했지만 **단가는 아직 잠정** 이다.
          화면이 확정값처럼 보여 주면 그 값을 믿고 팔게 된다 — 그래서 따로 표시한다.
          관리자 → 모델 단가에서 실측값을 넣으면 그 값이 이긴다. */
-      costProvisional: prov === 'alibaba' || prov === 'ltx' || prov === 'recraft' || prov === 'bria',
+      /* 알리바바는 출처 둘이 일치하는 줄(근거 A)만 확정으로 본다 — 나머지는 잠정이다.
+         LTX·Recraft·Bria 는 아직 전부 잠정이다. 공식 가격표 원문을 못 본 상태이고,
+         근거는 각 표 파일 머리말에 적어 뒀다. 확인되면 여기가 아니라 그 표를 고친다. */
+      costProvisional: (prov === 'alibaba' && (ALIBABA_BY_NAME as any)[model]?.근거 !== 'A')
+        || prov === 'ltx' || prov === 'recraft' || prov === 'bria',
       wired,                   // false = 키는 있어도 부를 경로가 없다(회원 화면에 안 나간다)
       status,                  // live | unverified | nowire | nokey
     }

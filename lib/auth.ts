@@ -1401,6 +1401,85 @@ export async function sendSmsCampaign(to: string | string[], text: string): Prom
   return postJson('/api/sms/send', { to, text })
 }
 
+/** 승인된 발신번호 목록 — 문자·알림톡 발송 화면의 "보내는 번호" 칸 */
+export interface SenderNumber { id: string; phone_number: string; status: string }
+export async function smsSenders(): Promise<{ ok: boolean; senders: SenderNumber[]; error?: string }> {
+  try {
+    const r = await fetch('/api/sms/senders', { credentials: 'include', cache: 'no-store' })
+    const d = await r.json()
+    return { ok: !!d.success, senders: d.senders || [], error: d.error }
+  } catch { return { ok: false, senders: [], error: '네트워크 오류' } }
+}
+
+/** 문자 발송 — 발신번호·예약까지 지정한다.
+ *  sendSmsCampaign 은 문구/수신자만 받는 옛 창구다. 화면에서 고른 발신번호와 예약 시각이
+ *  서버까지 가야 "예약했다고 믿고 즉시 나가는" 사고가 안 난다. */
+export interface SmsSendResult {
+  ok: boolean; error?: string
+  sent?: number; failed?: number; total?: number
+  kind?: string; unitPoints?: number; pointsUsed?: number
+  reserved?: boolean; reservedAt?: string
+  configured?: boolean; note?: string; reason?: string
+  remainingPoints?: number; balance?: number; need?: number
+}
+export async function sendSmsNow(input: {
+  to: string[]; text: string; senderId?: string; sender?: string; reserveTime?: string
+}): Promise<SmsSendResult> {
+  return postJson('/api/sms/send', input)
+}
+
+/* ───────── 네이버 플레이스 순위 ───────── */
+export interface PlaceTracking {
+  id: number; place_id: string; place_url: string | null; keyword: string; location: string | null
+  last_rank: number | null; last_total_count: number | null; place_name: string | null; last_checked: string | null
+  created_at: string
+}
+export interface PlaceRankResult {
+  success: boolean; error?: string
+  found?: boolean; rank?: number | null; totalCount?: number
+  keyword?: string; placeId?: string; placeName?: string; percentage?: string | null; message?: string
+}
+export interface PlaceHistoryPoint { rank_number: number | null; total_count: number | null; keyword: string; place_name?: string; place_id?: string; created_at: string; date: string }
+
+export async function placeTrackings(): Promise<{ ok: boolean; keywords: PlaceTracking[]; error?: string }> {
+  try {
+    const r = await fetch('/api/naver-place/tracking', { credentials: 'include', cache: 'no-store' })
+    const d = await r.json()
+    return { ok: !!d.success, keywords: d.keywords || [], error: d.error }
+  } catch { return { ok: false, keywords: [], error: '네트워크 오류' } }
+}
+export async function placeRankCheck(input: { placeId: string; placeUrl?: string; keyword: string; location?: string }): Promise<PlaceRankResult> {
+  return postJson('/api/naver-place/rank', input)
+}
+export async function placeTrackAdd(input: { placeId: string; placeUrl?: string; keyword: string; location?: string }): Promise<{ success: boolean; id?: number; message?: string; error?: string }> {
+  return postJson('/api/naver-place/tracking', input)
+}
+export async function placeTrackDelete(id: number): Promise<{ success: boolean; error?: string }> {
+  try {
+    const r = await fetch(`/api/naver-place/tracking/${id}`, { method: 'DELETE', credentials: 'include' })
+    return await r.json()
+  } catch { return { success: false, error: '네트워크 오류' } }
+}
+export async function placeRankHistory(placeId: string, keyword?: string, days = 30): Promise<{ ok: boolean; history: PlaceHistoryPoint[]; error?: string }> {
+  try {
+    const q = new URLSearchParams({ placeId, days: String(days) })
+    if (keyword) q.set('keyword', keyword)
+    const r = await fetch(`/api/naver-place/rank-history?${q}`, { credentials: 'include', cache: 'no-store' })
+    const d = await r.json()
+    return { ok: !!d.success, history: d.history || [], error: d.error }
+  } catch { return { ok: false, history: [], error: '네트워크 오류' } }
+}
+
+/* ───────── 유튜브 (분석 외 조회) ───────── */
+export interface YtTrendingVideo { id: string; title: string; channelTitle: string; thumbnail: string; viewCount: string; likeCount: string; commentCount: string; publishedAt: string }
+export async function youtubeTrending(categoryId = '0'): Promise<{ ok: boolean; videos: YtTrendingVideo[]; error?: string }> {
+  try {
+    const r = await fetch(`/api/youtube/trending?categoryId=${encodeURIComponent(categoryId)}`, { credentials: 'include', cache: 'no-store' })
+    const d = await r.json()
+    return { ok: !!d.ok, videos: d.videos || [], error: d.error }
+  } catch { return { ok: false, videos: [], error: '네트워크 오류' } }
+}
+
 /* ───────── 발송 이력·통계 (실데이터) ───────── */
 export interface MsgLogStats { batches: number; recipients: number; sent: number; failed: number; cost: number; successRate: number }
 export interface SmsLogRow { id: string; sender: string; type: string; text: string; recipients: number; sent: number; failed: number; createdAt: string }
