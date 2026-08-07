@@ -2342,6 +2342,77 @@ async function handle(context) {
         if (!dme || dme.role !== "admin") return json({ error: "진단 엔드포인트는 관리자 전용입니다.", needAdmin: true }, 403);
       }
     }
+    /* ── 운영에서 결과물이 정말 남아 있는가 (관리자 전용 · 읽기만) ──
+       GET /api/generate?diag=archive
+
+       표에 주소가 적혀 있다고 파일이 있는 건 아니다. 그 둘이 어긋난 채로
+       며칠 지나면 "목록에는 있는데 눌러도 안 열리는" 상태가 된다 — 실제로 그렇게 잃었다.
+       그래서 세는 것과 **실물을 확인하는 것**을 같이 한다:
+         ㉠ 주소가 어느 종류인지 센다(우리 R2 · 제공사 · 빈값)
+         ㉡ 우리 주소 표본을 R2 에 직접 물어본다(head) — 없으면 그게 진짜 유실이다
+         ㉢ 아직 제공사 주소인 줄을 그대로 보여 준다 — 이게 앞으로 잃을 것들이다
+       생성도 과금도 없다. 조회뿐이라 돈이 들지 않는다. */
+    if (u.searchParams.get("diag") === "archive") {
+      const adb = resolveDB(env);
+      const abucket = resolveBucket(env);
+      if (!adb) return json({ diag: "archive", ok: false, error: "DB 바인딩 없음" }, 500);
+      await ensureAiUsage(adb);
+      const one1 = async (sql, ...b) => {
+        const r = await adb.prepare(sql).bind(...b).first().catch(() => null);
+        return Number((r && r.c) || 0);
+      };
+      const 전체 = await one1("SELECT COUNT(*) c FROM ai_usage");
+      const 우리주소 = await one1("SELECT COUNT(*) c FROM ai_usage WHERE result_url LIKE '/api/media/%'");
+      const 제공사주소 = await one1("SELECT COUNT(*) c FROM ai_usage WHERE result_url LIKE 'http%'");
+      const 빈값 = await one1("SELECT COUNT(*) c FROM ai_usage WHERE COALESCE(result_url,'') = ''");
+      const 기타 = 전체 - 우리주소 - 제공사주소 - 빈값;
+
+      /* ㉡ 실물 확인 — 최근 것과 오래된 것을 같이 본다.
+         최근 것만 보면 "지금은 잘 된다" 만 확인된다. 잃는 것은 오래된 쪽부터다. */
+      const pick = async (order) => {
+        const r = await adb.prepare(
+          `SELECT id, model, result_url, created_at FROM ai_usage
+            WHERE result_url LIKE '/api/media/%' ORDER BY created_at ${order} LIMIT 20`).all().catch(() => ({ results: [] }));
+        return (r && r.results) || [];
+      };
+      const 표본 = [...(await pick("DESC")), ...(await pick("ASC"))];
+      const 본것 = new Set();
+      const 실물 = [];
+      let 있음 = 0, 없음 = 0, 못봄 = 0;
+      for (const row of 표본) {
+        const key = String(row.result_url || "").replace(/^\/api\/media\//, "").split("?")[0];
+        if (!key || 본것.has(key)) continue;
+        본것.add(key);
+        if (!abucket) { 못봄++; continue; }
+        try {
+          const h = await abucket.head(key);
+          if (h) { 있음++; if (실물.length < 6) 실물.push({ id: row.id, 모델: row.model, 크기: h.size, 만든날: row.created_at }); }
+          else { 없음++; 실물.push({ id: row.id, 모델: row.model, 주소: row.result_url, "⚠": "표에는 있는데 R2 에 파일이 없다", 만든날: row.created_at }); }
+        } catch (_e) { 못봄++; }
+      }
+
+      /* ㉢ 아직 제공사 주소인 줄 — 원본이 만료되면 이것들이 사라진다 */
+      const 위험 = ((await adb.prepare(
+        `SELECT id, model, result_url, created_at, COALESCE(archive_tries,0) tries FROM ai_usage
+          WHERE result_url LIKE 'http%' ORDER BY created_at DESC LIMIT 20`).all().catch(() => ({ results: [] }))).results || [])
+        .map((r) => ({ id: r.id, 모델: r.model, 시도횟수: r.tries, 만든날: r.created_at,
+                       주소: String(r.result_url).slice(0, 60) }));
+
+      const 판정 = !abucket ? "⚠ R2 바인딩이 없다 — 보관 자체가 안 된다"
+        : 없음 > 0 ? `⚠ 표에는 있는데 R2 에 파일이 없는 줄이 ${없음}건 있다`
+        : 제공사주소 > 0 ? `제공사 주소를 든 줄이 ${제공사주소}건 남아 있다 — 그물이 돌면 옮겨진다`
+        : "우리 R2 주소만 남아 있고, 확인한 표본은 전부 실물이 있다";
+
+      return json({
+        diag: "archive",
+        주의: "읽기만 한다 — 생성도 과금도 없다.",
+        합계: { 전체, "우리R2주소": 우리주소, "제공사주소(아직 위험)": 제공사주소, "결과없음": 빈값, 기타 },
+        실물확인: { 확인한개수: 본것.size, 있음, "없음(유실)": 없음, "못봄": 못봄,
+                    설명: "최근 20건 + 가장 오래된 20건을 R2 에 직접 물어봤다(주소만 보지 않는다)", 표본: 실물 },
+        "아직_제공사_주소인_줄": 위험,
+        판정,
+      });
+    }
     /* ⚠ 이 아래에 둔다. 처음엔 게이트 "위" 에 뒀다가 검사에서 비로그인도 200 을 받는 것을 봤다 —
        생성은 안 하더라도 남의 계정 키로 제공사를 두들기고 키 지문까지 보여 주는 통로가 된다.
        진단은 예외 없이 게이트 뒤다. */

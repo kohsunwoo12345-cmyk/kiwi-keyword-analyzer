@@ -167,6 +167,28 @@ const ok = (name, cond, detail = '') => {
      '사장님이 가장 먼저 보고 싶어 하는 것이 이것이다')
 }
 
+// ⑥ 운영에서 "정말 남아 있나" 를 확인할 창구 (diag=archive)
+{
+  //  ⚠ 두 번 같은 실수를 했다 — 진단을 관리자 게이트 "위" 에 두어 비로그인이 200 을 받았다.
+  //    회원 생성물 목록과 주소가 그대로 새는 통로다. 자리부터 붙잡는다.
+  const iGate = gen.indexOf('진단 엔드포인트는 관리자 전용입니다.')
+  const iAud = gen.indexOf('u.searchParams.get("diag") === "archive"')
+  ok('⑥ 점검 창구가 있다', iAud > 0, 'GET /api/generate?diag=archive')
+  ok('⑥-b 관리자 게이트 뒤에 있다', iGate > 0 && iAud > iGate,
+     '위에 두면 비로그인이 회원 생성물 목록을 통째로 받아 간다 — 실제로 그렇게 200 이 나왔다')
+  //  주소만 세면 "표에는 있는데 파일이 없는" 상태를 못 잡는다. 그게 진짜 유실이다.
+  ok('⑥-c 주소만 세지 않고 R2 에 실물을 물어본다', /await abucket\.head\(key\)/.test(gen),
+     '주소가 적혀 있다고 파일이 있는 게 아니다')
+  ok('⑥-d 없으면 그 줄을 짚어 준다', /표에는 있는데 R2 에 파일이 없다/.test(gen))
+  //  최근 것만 보면 "지금은 잘 된다" 만 확인된다. 잃는 것은 오래된 쪽부터다.
+  ok('⑥-e 최근 것과 오래된 것을 같이 본다',
+     /await pick\("DESC"\)/.test(gen) && /await pick\("ASC"\)/.test(gen))
+  ok('⑥-f 아직 제공사 주소인 줄을 따로 보여 준다', /아직_제공사_주소인_줄/.test(gen),
+     '앞으로 잃을 것이 무엇인지 눈에 보여야 한다')
+  ok('⑥-g 읽기만 한다(생성·과금 없음)',
+     !/INSERT|UPDATE|DELETE/.test(gen.slice(iAud, iAud + 3600)))
+}
+
 console.log(fails.length === 0
   ? '\n생성물 영구 보관 — 실패 0 (R2 로 옮김 · 크론 자동 · 실패 사유 기록 · 예전 기록 복구)'
   : `\n실패 ${fails.length}건:`)
