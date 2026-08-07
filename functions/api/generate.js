@@ -17,6 +17,7 @@ import { ALIBABA_BY_NAME, ALIBABA_BY_ID, ALIBABA_BASE, alibabaPath, alibabaUsesM
 import { runKeyCheck, noKeyResult } from "./studio/_keycheck";
 import { LTX_KEYCHECK } from "./studio/_ltx";
 import { RECRAFT_KEYCHECK } from "./studio/_recraft";
+import { BRIA_KEYCHECK } from "./studio/_bria";
 import { issueGenCharge, settleGenCharge, refundGenCharge, reconcileGenCharge, archiveGenResult } from "./studio/_gencharge";
 import { saveMediaToR2 } from "./_media";
 import { recordGenFailure } from "./studio/_genfail";
@@ -74,6 +75,8 @@ export function keys(env) {
                     "LIGHTRICKS_API_KEY", "lightricks_api_key"]),
     //  Recraft — 벡터(SVG)를 내는 유일한 제공사. 콘솔에 Recraft_API_KEY 로 넣어 두었다.
     recraft: pick(env, ["Recraft_API_KEY", "RECRAFT_API_KEY", "recraft_api_key", "RECRAFTAI_API_KEY"]),
+    //  Bria — 라이선스 안전한 이미지. ⚠ 이 키는 Bearer 가 아니라 api_token 헤더로 나간다.
+    bria: pick(env, ["BRIA_API_KEY", "Bria_API_KEY", "bria_api_key", "BRIA_API_TOKEN"]),
     openai: pick(env, ["GPT_API_KEY", "OPENAI_API_KEY", "gpt_api_key", "openai_api_key"])
   };
 }
@@ -2316,6 +2319,10 @@ async function handle(context) {
         recraft: false,
         recraftKeySet: !!k.recraft,
         recraftKeyId: (healthAdmin && k.recraft) ? (String(k.recraft).slice(0, 6) + "…" + String(k.recraft).slice(-4)) : null,
+        //  Bria 도 같다 — 키만 있고 생성 경로가 없다.
+        bria: false,
+        briaKeySet: !!k.bria,
+        briaKeyId: (healthAdmin && k.bria) ? (String(k.bria).slice(0, 6) + "…" + String(k.bria).slice(-4)) : null,
         /* 클링은 공식 오픈플랫폼 API 로만 나간다(중개 폴백 제거). fal 키가 있어도 대체되지 않으므로
            공식 키가 없으면 여기서 false 를 돌려 스튜디오가 클링 모델을 아예 숨기게 한다.
            예전엔 (klingCreds || fal) 로 답해, 공식 키가 없어도 모델이 목록에 남아 매번 실패했다. */
@@ -2739,7 +2746,8 @@ async function handle(context) {
         ⚠ 200 하나로 판정하지 않는다 — 일부러 틀린 키로 한 번 더 읽어 인증이 갈리는지 본다. */
     {
       const kcName = u.searchParams.get("diag");
-      const KEYCHECKS = { ltx: [LTX_KEYCHECK, k.ltx], recraft: [RECRAFT_KEYCHECK, k.recraft] };
+      const KEYCHECKS = { ltx: [LTX_KEYCHECK, k.ltx], recraft: [RECRAFT_KEYCHECK, k.recraft],
+                          bria: [BRIA_KEYCHECK, k.bria] };
       if (kcName && Object.prototype.hasOwnProperty.call(KEYCHECKS, kcName)) {
         const [prov, key] = KEYCHECKS[kcName];
         if (!key) return json(noKeyResult(prov), 400);
@@ -6358,6 +6366,15 @@ async function handle(context) {
   if (provider === "recraft") {
     return json({ error: "Recraft 는 아직 연결되지 않았습니다 — 키만 등록된 상태입니다. " +
       "관리자 → Recraft 키 확인 에서 키를 확인한 뒤 연결해야 합니다. " +
+      "확인 전까지 이 모델은 노드에 나오지 않습니다." }, 400);
+  }
+  /* Bria 도 같은 상태다 — 키는 있고 경로는 없다.
+     ⚠ 연결할 때 두 가지를 같이 풀어야 한다: 인증이 api_token 헤더라는 것(Bearer 아님),
+       그리고 v2 가 비동기라 request_id·status_url 폴링과 실패 환불이 필요하다는 것
+       (_bria.ts 머리말 참고). */
+  if (provider === "bria") {
+    return json({ error: "Bria 는 아직 연결되지 않았습니다 — 키만 등록된 상태입니다. " +
+      "관리자 → Bria 키 확인 에서 키를 확인한 뒤 연결해야 합니다. " +
       "확인 전까지 이 모델은 노드에 나오지 않습니다." }, 400);
   }
   return json({ error: "지원하지 않는 provider: " + provider + " (runway/runway_aleph/xai/google/seedance/flux/hailuo/luma/kling/alibaba)" }, 400);

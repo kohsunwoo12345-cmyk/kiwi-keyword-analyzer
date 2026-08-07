@@ -3,6 +3,7 @@ import { MODEL_COST, PROV_LABEL, computeCharge, getUsdKrw } from '../studio/_pri
 import { ALIBABA_BY_NAME } from '../studio/_alibaba'
 import { LTX_BY_NAME, LTX_KEY_NAMES, LTX_WIRED } from '../studio/_ltx'
 import { RECRAFT_BY_NAME, RECRAFT_KEY_NAMES, RECRAFT_WIRED } from '../studio/_recraft'
+import { BRIA_BY_NAME, BRIA_KEY_NAMES, BRIA_WIRED } from '../studio/_bria'
 import {
   SEEDREAM_IDS, SEEDANCE_IDS, FLUX_ENDPOINTS, OPENAI_IMG_ID,
   HAILUO_IDS, LUMA_IDS, KLING_API, RUNWAY_MODELS, ARK3D_IDS, gcpCreds,
@@ -38,6 +39,8 @@ const PROVIDER_KEYS: Record<string, string[]> = {
   ltx: LTX_KEY_NAMES,
   //  Recraft — 콘솔에 Recraft_API_KEY 로 들어와 있다.
   recraft: RECRAFT_KEY_NAMES,
+  //  Bria — 콘솔에 BRIA_API_KEY 로 들어와 있다.
+  bria: BRIA_KEY_NAMES,
   // 3D 생성·프롬프트 작성 LLM 은 씨댄스와 같은 ByteDance ModelArk 키를 쓴다
   ark3d: ['Seedance_API_KEY', 'SEEDANCE_API_KEY', 'seedance_api_key'],
   promptgen: ['Seedance_API_KEY', 'SEEDANCE_API_KEY', 'seedance_api_key'],
@@ -56,6 +59,8 @@ function modelIdOf(model: string): string {
   const lt = (LTX_BY_NAME as any)[model]; if (lt) return lt.id
   //  Recraft 는 같은 ID 가 래스터·벡터로 갈린다 — ID 만 적으면 표에서 두 줄이 똑같아 보인다
   const rc = (RECRAFT_BY_NAME as any)[model]; if (rc) return rc.id + (rc.vector ? ' (벡터 경로)' : '')
+  //  Bria 는 '모델 ID' 개념이 없다 — 기능마다 경로가 다르고 그 경로가 곧 식별자다
+  const br = (BRIA_BY_NAME as any)[model]; if (br) return br.id
   const s = (SEEDREAM_IDS as any)[model]; if (s) return Array.isArray(s) ? s[0] : s
   const d = (SEEDANCE_IDS as any)[model]; if (d) return d
   const f = (FLUX_ENDPOINTS as any)[model]; if (f) return f
@@ -122,7 +127,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     /* 키는 들어와 있는데 **생성 경로가 아직 없는** 제공사가 있다(현재 LTX).
        이걸 '미확인' 으로 뭉개면 화면이 "확인만 하면 쓸 수 있다" 로 읽힌다 — 사실이 아니다.
        누르면 되는 것이 아무것도 없다는 뜻이라 따로 답한다. */
-    const wired = prov === 'ltx' ? LTX_WIRED : prov === 'recraft' ? RECRAFT_WIRED : true
+    const wired = prov === 'ltx' ? LTX_WIRED : prov === 'recraft' ? RECRAFT_WIRED : prov === 'bria' ? BRIA_WIRED : true
     const status = !keyConfigured ? 'nokey' : !wired ? 'nowire' : idUnverified ? 'unverified' : 'live'
     const c = computeCharge({ model, units: kind === 'image' ? 1 : 8, kind, res: '1080p' } as any, rate)
     return {
@@ -141,7 +146,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       /* 모델 ID 는 제공사 목록 API 로 확인했지만 **단가는 아직 잠정** 이다.
          화면이 확정값처럼 보여 주면 그 값을 믿고 팔게 된다 — 그래서 따로 표시한다.
          관리자 → 모델 단가에서 실측값을 넣으면 그 값이 이긴다. */
-      costProvisional: prov === 'alibaba' || prov === 'ltx' || prov === 'recraft',
+      costProvisional: prov === 'alibaba' || prov === 'ltx' || prov === 'recraft' || prov === 'bria',
       wired,                   // false = 키는 있어도 부를 경로가 없다(회원 화면에 안 나간다)
       status,                  // live | unverified | nowire | nokey
     }

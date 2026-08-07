@@ -1,6 +1,7 @@
 import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser, setSetting, getSetting, logAudit, clientIp } from '../_utils'
 import { LTX_HOSTS, LTX_KEY_NAMES } from '../studio/_ltx'
 import { RECRAFT_BASE, RECRAFT_KEY_NAMES, RECRAFT_UNITS_PER_USD } from '../studio/_recraft'
+import { BRIA_BASE, BRIA_KEY_NAMES, briaAuth } from '../studio/_bria'
 
 // AI 제공사 — 표시명 · 충전 URL · env 키 후보(generate.js 와 동일) · 잔액 단위.
 // 연동 상태는 실제 인증 호출(probe)로 확인한다:
@@ -24,6 +25,8 @@ const PROVIDERS: { id: string; name: string; url: string; note: string; keys: st
   { id: 'ltx', name: 'LTX (Lightricks)', url: 'https://console.ltx.video/', note: 'LTX-2 (영상) · 연결 전', keys: LTX_KEY_NAMES, unit: '크레딧' },
   //  Recraft — 잔액 API 가 있다(GET /users/me). 실시간 잔액이 잡히는 몇 안 되는 제공사다.
   { id: 'recraft', name: 'Recraft', url: 'https://www.recraft.ai/profile/api', note: '벡터(SVG)·로고 이미지 · 연결 전', keys: RECRAFT_KEY_NAMES, unit: 'USD' },
+  //  Bria — 잔액 조회 경로를 아직 못 찾았다. 연동 여부만 본다(잔액은 수동 입력).
+  { id: 'bria', name: 'Bria', url: 'https://platform.bria.ai/', note: '저작권 안전 이미지·편집 · 연결 전', keys: BRIA_KEY_NAMES },
 ]
 
 type Ov = { balance?: number | null; url?: string; updatedAt?: string }
@@ -112,6 +115,17 @@ async function probe(id: string, key: string): Promise<{ ok?: boolean; balance?:
       const units = Number(j?.credits)
       return isFinite(units) ? { ok: true, balance: units / RECRAFT_UNITS_PER_USD, unit: 'USD' } : { ok: true }
     }
+    /* Bria — 조회 전용 경로 하나로 키가 살아 있는지만 본다.
+       ⚠ 인증 헤더가 Bearer 가 아니라 api_token 이다. 헤더를 만드는 곳은 _bria.ts 한 군데다 —
+         여기서 또 적으면 한쪽만 고쳐지는 날이 온다.
+       ⚠ 생성 경로(/v2/image/…)는 건드리지 않는다. 잔액을 주는 경로는 아직 못 찾아
+         숫자를 지어내지 않는다(수동 입력 칸이 그대로 쓰인다). */
+    if (id === 'bria') {
+      const r = await tfetch(BRIA_BASE + '/v1/tailored-gen/models/', { method: 'GET', headers: { ...briaAuth(key), accept: 'application/json' } })
+      //  404 는 경로가 다른 것일 뿐 키 문제가 아니다. 인증 거절만 실패로 본다.
+      if (r.status === 401 || r.status === 403) return { ok: false, error: `HTTP ${r.status} (키 거절)` }
+      return r.ok ? { ok: true } : { ok: false, error: `HTTP ${r.status}` }
+    }
     return {} // fal/flux/kling/hailuo/seedance: 확인 API 없음 → 키 설정만으로 연동
   } catch (e: any) {
     return { ok: false, error: String(e?.name === 'AbortError' ? '시간 초과' : (e?.message || e)).slice(0, 80) }
@@ -145,7 +159,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     nanobanana: 'nanobanana', openai: 'openai', runway: 'runway', runway_aleph: 'runway',
     v2v_auto: 'runway', seedance: 'seedance', xai: 'xai',
     lipsync: 'fal', motion: 'fal', falcontrol: 'fal', narrate: 'elevenlabs',
-    ltx: 'ltx', recraft: 'recraft',
+    ltx: 'ltx', recraft: 'recraft', bria: 'bria',
   }
   const ID_TO_RAWS: Record<string, string[]> = {}
   for (const [raw, id] of Object.entries(RAW_TO_ID)) (ID_TO_RAWS[id] ||= []).push(raw)

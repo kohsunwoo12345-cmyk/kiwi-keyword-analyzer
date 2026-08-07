@@ -1,4 +1,4 @@
-/* 제공사 API 키 확인 검사 (LTX · Recraft) —  node scripts/keycheck.test.mjs
+/* 제공사 API 키 확인 검사 (LTX · Recraft · Bria) —  node scripts/keycheck.test.mjs
  *
  * 이 진단은 "아직 연동 안 된 제공사의 키로 남의 서버를 두들기는" 코드다. 알리바바에서
  * 똑같은 것을 만들다 실제로 돈을 냈다 — 확인만 한다고 보낸 요청이 태스크 5건을 만들었고
@@ -16,6 +16,9 @@
  *   ㉢ 확인도 안 된 모델을 노드 피커에 올리는 것 (등록부에 꺼진 채로 심겨야 한다)
  *   ㉣ 키 값이 응답에 실려 나가는 것 (지문 앞6·뒤4 만)
  *   ㉤ 제공사가 늘 때 판정을 한 벌 더 적는 것 (루마·클링 단가표가 그렇게 어긋났다)
+ *   ㉥ 인증 방식을 Bearer 로 단정하는 것. Bria 는 `api_token` 헤더다 — Bearer 로 물었으면
+ *      멀쩡한 키가 401 로 돌아오고 우리는 그걸 믿고 키를 재발급하러 갔을 것이다.
+ *      확인 도구가 틀린 답을 확신에 차서 말하는 게 제일 나쁘다.
  */
 import fs from 'node:fs'
 import { build } from 'esbuild'
@@ -36,6 +39,7 @@ const kc = fs.readFileSync(ROOT + 'functions/api/studio/_keycheck.ts', 'utf8')
 const reg = fs.readFileSync(ROOT + 'functions/api/studio/_registry.ts', 'utf8')
 const ltx = fs.readFileSync(ROOT + 'functions/api/studio/_ltx.ts', 'utf8')
 const rec = fs.readFileSync(ROOT + 'functions/api/studio/_recraft.ts', 'utf8')
+const bria = fs.readFileSync(ROOT + 'functions/api/studio/_bria.ts', 'utf8')
 const price = fs.readFileSync(ROOT + 'functions/api/studio/_pricing.ts', 'utf8')
 
 console.log('\n① 판정은 한 군데에만 있다')
@@ -45,7 +49,8 @@ console.log('\n① 판정은 한 군데에만 있다')
   //  제공사가 늘 때 표 한 줄만 추가하면 되는 구조인지 — 판정이 generate.js 로 새면 두 벌이 된다
   ok(!/대조키|대조거절/.test(gen), '판정 로직이 generate.js 로 새지 않았다',
      '한 벌 더 적히는 순간 한쪽만 고쳐지는 날이 온다')
-  ok(/LTX_KEYCHECK/.test(ltx) && /RECRAFT_KEYCHECK/.test(rec), '제공사 정의는 각자 표 파일에 있다')
+  ok(/LTX_KEYCHECK/.test(ltx) && /RECRAFT_KEYCHECK/.test(rec) && /BRIA_KEYCHECK/.test(bria),
+     '제공사 정의는 각자 표 파일에 있다')
 }
 
 console.log('\n② 아무나 못 부른다')
@@ -73,6 +78,27 @@ console.log('\n③ 생성이 일어날 수 없다 — 보내는 자리가 GET �
      '명세에 있는 유일한 GET(/users/me)이 계정·잔액을 주므로 그럴 이유가 없다')
 }
 
+console.log('\n③-b 인증 방식을 Bearer 로 단정하지 않는다')
+{
+  ok(/auth\?: \(key: string\) => Record<string, string>/.test(kc), '제공사가 인증 헤더를 정할 수 있다',
+     'Bearer 를 박아 두면 api_token 을 쓰는 제공사에서 멀쩡한 키가 401 로 나온다')
+  ok(/const auth = p\.auth \|\| bearerAuth/.test(kc), '안 적으면 Bearer 로 떨어진다(기존 제공사 유지)')
+  ok(/headers: \{ \.\.\.auth\(key\), Accept/.test(kc), '실제로 그 헤더로 보낸다',
+     '정의만 받아 두고 안 쓰면 아무 의미가 없다')
+  ok(/export const briaAuth = \(key: string\) => \(\{ api_token: key \}\)/.test(bria),
+     'Bria 는 api_token 헤더다', '공식 ComfyUI 노드(nodes/common.py)가 쓰는 그대로')
+  /* ⚠ 처음엔 "_bria.ts 어디에도 Bearer 라는 글자가 없다" 로 검사했다가 헛돌았다.
+     그 파일에는 화면에 보여 줄 설명("인증은 Bearer 가 아니라 api_token 입니다")이 있고,
+     그건 고쳐야 할 것이 아니라 있어야 할 문장이다. 글자를 세면 이런 걸 잡는다.
+     실제로 막아야 하는 것은 **Authorization 헤더를 만드는 것**이라 그것만 본다.
+     (진짜 보장은 아래 실행 검사가 한다 — 가짜 서버가 api_token 에서만 키를 읽는다.) */
+  ok(!/Authorization/.test(bria), 'Bria 는 Authorization 헤더를 만들지 않는다')
+  //  헤더를 만드는 곳이 두 군데면 한쪽만 고쳐지는 날이 온다
+  const bal = fs.readFileSync(ROOT + 'functions/api/admin/api-balance.ts', 'utf8')
+  ok(/briaAuth\(key\)/.test(bal) && !/api_token:\s*key/.test(bal),
+     '잔액 확인도 같은 헤더 함수를 쓴다', 'api-balance 에서 또 적으면 어긋난다')
+}
+
 console.log('\n④ 키 값은 어떤 경우에도 응답에 안 실린다')
 {
   ok(/키지문: String\(key\)\.slice\(0, 6\) \+ '…' \+ String\(key\)\.slice\(-4\)/.test(kc),
@@ -84,7 +110,8 @@ console.log('\n⑤ 확인 안 된 모델은 노드에 안 올라간다')
 {
   for (const [fn, endMark, label] of [
     ['export async function seedLtx', 'export async function seedRecraft', 'LTX'],
-    ['export async function seedRecraft', 'const parseOpts', 'Recraft'],
+    ['export async function seedRecraft', 'export async function seedBria', 'Recraft'],
+    ['export async function seedBria', 'const parseOpts', 'Bria'],
   ]) {
     const seed = reg.slice(reg.indexOf(fn), reg.indexOf(endMark))
     ok(/VALUES \(\?,\?,\?,\?,\?,\?,\?,\?,0,NULL,\?,\?\)/.test(seed), `${label}: enabled 0 · verified_at NULL 로 심는다`,
@@ -94,6 +121,7 @@ console.log('\n⑤ 확인 안 된 모델은 노드에 안 올라간다')
   ok(/LTX 공식 문서|403/.test(ltx), 'LTX: 모델 ID 를 확인 못 했다는 사실이 표에 적혀 있다')
   ok(/OpenAPI 명세/.test(rec), 'Recraft: 모델 ID 를 어디서 가져왔는지 적혀 있다',
      '출처를 안 적으면 다음 사람은 그게 추측인지 확인인지 알 수 없다')
+  ok(/ComfyUI-BRIA-API/.test(bria), 'Bria: 경로를 어디서 가져왔는지 적혀 있다')
 
   /* 켜는 순간 정말 노드에 뜨는가 — 등록부는 분류(cat)를 그대로 스튜디오에 넘기고,
      스튜디오는 '영상'/'이미지' 로 시작하는 분류만 각 피커에 싣는다. 분류를 '벡터' 처럼
@@ -103,6 +131,8 @@ console.log('\n⑤ 확인 안 된 모델은 노드에 안 올라간다')
   ok(ltxCats.length > 0 && ltxCats.every((c) => c.startsWith('영상')), 'LTX 분류가 영상 피커에 걸린다', JSON.stringify(ltxCats))
   const recCats = [...rec.matchAll(/CAT_(?:RASTER|VECTOR) = '([^']+)'/g)].map((m) => m[1])
   ok(recCats.length === 2 && recCats.every((c) => c.startsWith('이미지')), 'Recraft 분류가 이미지 피커에 걸린다', JSON.stringify(recCats))
+  const briaCats = [...bria.matchAll(/CAT_(?:GEN|EDIT) = '([^']+)'/g)].map((m) => m[1])
+  ok(briaCats.length === 2 && briaCats.every((c) => c.startsWith('이미지')), 'Bria 분류가 이미지 피커에 걸린다', JSON.stringify(briaCats))
   ok(/MODELS\.filter\(function\(m\)\{ return \/\^영상\/\.test\(m\[0\]\); \}\)/.test(studio),
      '스튜디오가 그 규칙으로 영상 목록을 만든다')
   ok(/MODELS\.filter\(function\(m\)\{ return \/\^이미지\/\.test\(m\[0\]\); \}\)/.test(studio),
@@ -112,7 +142,7 @@ console.log('\n⑤ 확인 안 된 모델은 노드에 안 올라간다')
 
 console.log('\n⑥ 켜지더라도 조용히 실패하지 않는다')
 {
-  for (const p of ['ltx', 'recraft']) {
+  for (const p of ['ltx', 'recraft', 'bria']) {
     ok(new RegExp(`if \\(provider === "${p}"\\)`).test(gen), `${p}: 생성 경로에 자리가 있다`)
     const br = gen.slice(gen.indexOf(`if (provider === "${p}")`), gen.indexOf(`if (provider === "${p}")`) + 600)
     ok(/아직 연결되지 않았습니다/.test(br), `${p}: 왜 안 되는지와 어디로 가야 하는지를 말한다`,
@@ -122,9 +152,22 @@ console.log('\n⑥ 켜지더라도 조용히 실패하지 않는다')
 
 console.log('\n⑦ 단가는 표 한 곳에서만 온다')
 {
-  ok(/for \(const r of LTX_MODELS\)/.test(price) && /for \(const r of RECRAFT_MODELS\)/.test(price),
-     '두 표를 그대로 얹는다', '단가를 두 군데 적으면 반드시 어긋난다 — 루마·클링이 그랬다')
-  ok(/ltx: 'LTX \(Lightricks\)'/.test(price) && /recraft: 'Recraft/.test(price), '제공사 이름표가 둘 다 있다')
+  ok(/for \(const r of LTX_MODELS\)/.test(price) && /for \(const r of RECRAFT_MODELS\)/.test(price)
+     && /for \(const r of BRIA_MODELS\)/.test(price),
+     '세 표를 그대로 얹는다', '단가를 두 군데 적으면 반드시 어긋난다 — 루마·클링이 그랬다')
+  ok(/ltx: 'LTX \(Lightricks\)'/.test(price) && /recraft: 'Recraft/.test(price) && /bria: 'Bria/.test(price),
+     '제공사 이름표가 셋 다 있다')
+  /* Bria 는 편집이 생성보다 싸다(배경 제거 $0.018 < 생성 $0.03). 한 값으로 뭉뚱그리면
+     편집을 비싸게 받게 된다 — 회원에게 과청구다. */
+  const bRows = [...bria.matchAll(/[GE]\('([^']+)',\s*'([^']+)',\s*([\d.]+)\)/g)]
+  ok(bRows.length >= 8, 'Bria 모델 줄을 읽었다', String(bRows.length))
+  const rmbg = bRows.find(([, , id]) => /remove_background/.test(id))
+  const gen = bRows.find(([, , id]) => id === '/v2/image/generate')
+  ok(rmbg && gen && Number(rmbg[3]) < Number(gen[3]), '배경 제거가 생성보다 싸게 잡혀 있다',
+     JSON.stringify([rmbg && rmbg[3], gen && gen[3]]))
+  //  경로가 곧 식별자다. 공식 노드에 없는 경로를 지어내면 켜는 순간 전부 실패한다.
+  ok(bRows.every(([, , id]) => id.startsWith('/v2/image/')), '경로가 전부 v2 이미지 경로다',
+     JSON.stringify(bRows.filter(([, , id]) => !id.startsWith('/v2/image/')).map((r) => r[2])))
 
   /* Recraft 는 **같은 모델 ID 가 래스터/벡터로 갈리고 단가가 두 배쯤 다르다.**
      한 줄로 합치면 벡터를 래스터 값으로 청구하게 되고 그 차액은 전부 우리 손해다. */
@@ -152,9 +195,17 @@ const out = await build({
   format: 'cjs', platform: 'neutral', target: 'es2022', external: ['node:*'],
 })
 
-const REAL = { ltx: 'ltx_live_ABCDEF_MIDDLE_SECRET_7890', recraft: 'rc_live_ZYXWVU_MIDDLE_SECRET_4321' }
-const ENVKEY = { ltx: 'LTX_API_KEY', recraft: 'Recraft_API_KEY' }
-const HOSTRE = { ltx: /\/\/api\.ltx\./, recraft: /\/\/external\.api\.recraft\.ai/ }
+const REAL = {
+  ltx: 'ltx_live_ABCDEF_MIDDLE_SECRET_7890',
+  recraft: 'rc_live_ZYXWVU_MIDDLE_SECRET_4321',
+  bria: 'bria_live_QWERTY_MIDDLE_SECRET_5678',
+}
+const ENVKEY = { ltx: 'LTX_API_KEY', recraft: 'Recraft_API_KEY', bria: 'BRIA_API_KEY' }
+const HOSTRE = {
+  ltx: /\/\/api\.ltx\./,
+  recraft: /\/\/external\.api\.recraft\.ai/,
+  bria: /\/\/engine\.prod\.bria-api\.com/,
+}
 
 let seen = []          // 요청 전부 — 환율 조회 등 이 진단과 무관한 것도 섞인다
 /* 이 진단이 제공사로 보낸 것만 센다. 같은 요청 안에서 환율(open.er-api 등)을 따로 읽는
@@ -165,9 +216,17 @@ const calls = (who) => seen.filter((x) => HOSTRE[who].test(x.url))
 function makeFetch(kind, who) {
   return async (url, init) => {
     const u = String(url)
-    const auth = String(((init && init.headers) || {})['Authorization'] || '')
-    const key = auth.replace(/^Bearer\s+/, '')
-    seen.push({ url: u, method: (init && init.method) || 'GET', hasBody: !!(init && init.body), key })
+    const H = (init && init.headers) || {}
+    /* ⚠ 제공사가 실제로 보는 헤더에서만 키를 읽는다.
+       Bria 를 Bearer 로 읽어 주면, 우리가 Bearer 로 보내도 검사가 통과해 버린다 —
+       그러면 이 검사는 "헤더가 맞는지" 를 하나도 안 보는 셈이 된다. */
+    const key = who === 'bria'
+      ? String(H['api_token'] || '')
+      : String(H['Authorization'] || '').replace(/^Bearer\s+/, '')
+    seen.push({
+      url: u, method: (init && init.method) || 'GET', hasBody: !!(init && init.body), key,
+      authHeaders: Object.keys(H).filter((h) => /^(authorization|api_token)$/i.test(h)),
+    })
     const J = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { 'content-type': 'application/json' } })
 
     if (kind === 'dead') throw new Error('getaddrinfo ENOTFOUND')
@@ -179,6 +238,9 @@ function makeFetch(kind, who) {
       if (/\/users\/me$/.test(u)) return J({ id: 'u_1', email: 'a@b.c', credits: 12500 })
       if (/\/v1\/models$/.test(u)) return J({ data: [{ id: 'ltx-2.3-pro' }, { id: 'ltx-2.3-fast' }] })
       if (/\/v1\/credits$/.test(u)) return J({ credits: 1234 })
+      //  Bria: 맞춤 모델 목록. 없는 모델은 404 — 인증은 통과했다는 뜻이다.
+      if (/\/v1\/tailored-gen\/models\/$/.test(u)) return J([{ id: 'my_brand_v1' }, { id: 'my_brand_v2' }])
+      if (/\/v1\/tailored-gen\/models\//.test(u)) return J({ message: 'model not found' }, 404)
       return J({ error: { code: 'not_found', message: 'no such job' } }, 404)
     }
     return J({}, 500)
@@ -229,7 +291,7 @@ async function runDiag(who, kind, role = 'admin', envExtra = null) {
   return { status: res.status, body, txt }
 }
 
-for (const who of ['ltx', 'recraft']) {
+for (const who of ['ltx', 'recraft', 'bria']) {
   console.log(`\n⑧ [${who}] 관리자만 부를 수 있다`)
   for (const role of [null, 'user']) {
     const r = await runDiag(who, 'real', role)
@@ -254,13 +316,27 @@ for (const who of ['ltx', 'recraft']) {
       const 모델 = (r.body.모델목록 || []).flatMap((g) => g.모델)
       ok(모델.includes('ltx-2.3-pro'), '제공사가 알려 준 모델 ID 를 그대로 보여 준다', JSON.stringify(모델))
       ok(r.body.잔액 === 1234, '잔액을 읽어 온다', String(r.body.잔액))
-    } else {
+    } else if (who === 'recraft') {
       //  12500 API unit = $12.50. 단위를 안 바꾸면 12500 이 돈인지 장수인지 아무도 모른다.
       ok(r.body.잔액 === 12.5 && r.body.잔액단위 === 'USD', '잔액을 달러로 바꿔 준다(1,000 unit = $1)',
          `${r.body.잔액} ${r.body.잔액단위}`)
       ok(calls(who).every((x) => /\/users\/me$/.test(x.url)), '읽은 주소가 /users/me 뿐이다',
          JSON.stringify(calls(who).map((x) => x.url)))
       ok(!calls(who).some((x) => /images\/generations/.test(x.url)), '생성 주소를 한 번도 부르지 않았다')
+    } else {
+      /* ⚠ 여기가 이번에 새로 막는 자리다. 가짜 Bria 서버는 api_token 헤더에서만 키를 읽는다 —
+         우리가 Bearer 로 보냈다면 키가 빈 값으로 읽혀 401 이 나고 판정이 false 로 떨어진다.
+         즉 위의 "키작동 = true" 가 통과했다는 것 자체가 헤더가 맞다는 증거다. 그래도
+         무엇을 보냈는지 눈으로 확인할 수 있게 헤더 이름까지 본다. */
+      const hs = [...new Set(calls(who).flatMap((x) => x.authHeaders))]
+      ok(hs.includes('api_token'), 'api_token 헤더로 보낸다', JSON.stringify(hs))
+      ok(!hs.some((h) => /^authorization$/i.test(h)), 'Bearer(Authorization)를 같이 보내지 않는다',
+         '두 개를 다 보내면 어느 쪽이 통했는지 알 수 없어 확인이 흐려진다')
+      const 모델 = (r.body.모델목록 || []).flatMap((g) => g.모델)
+      ok(모델.includes('my_brand_v1'), '이 계정의 맞춤 모델을 그대로 보여 준다', JSON.stringify(모델))
+      ok(calls(who).every((x) => /\/v1\/tailored-gen\/models\//.test(x.url)), '읽은 주소가 조회 전용 경로뿐이다',
+         JSON.stringify(calls(who).map((x) => x.url)))
+      ok(!calls(who).some((x) => /\/v2\/image\//.test(x.url)), '생성 주소를 한 번도 부르지 않았다')
     }
   }
 

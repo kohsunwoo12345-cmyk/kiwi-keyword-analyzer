@@ -1,7 +1,7 @@
 /* ══════════════════════════════════════════════════════════════════════════
    제공사 API 키 확인 — 읽기만 한다. 생성은 어떤 경우에도 하지 않는다.
    ──────────────────────────────────────────────────────────────────────────
-   키만 콘솔에 들어오고 연동은 아직 안 된 제공사가 계속 생긴다(LTX·Recraft…).
+   키만 콘솔에 들어오고 연동은 아직 안 된 제공사가 계속 생긴다(LTX·Recraft·Bria…).
    그때마다 답해야 하는 질문은 늘 같다: **이 키가 진짜 되는가.**
 
    처음엔 LTX 안에 그 판정을 통째로 박아 뒀다. 다음 제공사(Recraft)가 오자마자
@@ -43,6 +43,12 @@ export type KeyProvider = {
   /** 검사에서 가짜 서버로 돌리는 통로(환경변수로만 바뀐다 — 회원 요청으로는 못 바꾼다) */
   hostOverrideEnv: string[]
   probes: KeyProbe[]
+  /* 인증 헤더를 어떻게 만드는가.
+     ⚠ Bearer 가 표준인 줄 알고 박아 뒀다가 Bria 에서 걸렸다 — 거기는 `api_token: <키>` 다.
+       Bearer 로 물었으면 멀쩡한 키가 401 로 돌아오고, 우리는 그걸 보고 "키가 죽었다" 며
+       재발급을 하러 갔을 것이다. 확인 도구가 틀린 답을 확신에 차서 말하는 게 제일 나쁘다.
+       그래서 제공사마다 정하게 열어 둔다. 안 적으면 Bearer 다(LTX·Recraft). */
+  auth?: (key: string) => Record<string, string>
   /** 키 발급·충전 콘솔 주소 — 거절됐을 때 어디로 가야 하는지 */
   console: string
   /** 생성 경로가 붙었는가. false 면 키가 살아 있어도 회원 화면에는 안 나간다. */
@@ -120,14 +126,20 @@ export function modelIdsFrom(j: any): string[] {
 /** generate.js 의 fetchT 를 그대로 받는다(타임아웃·502 방지가 그 안에 들어 있다). */
 export type FetchT = (url: string, opts: any, ms: number) => Promise<Response>
 
+/** 가장 흔한 방식. 이걸 표준이라고 믿으면 안 된다 — Bria 는 `api_token` 헤더를 쓴다. */
+export const bearerAuth = (key: string) => ({ Authorization: 'Bearer ' + key })
+
 /* ⚠ 제공사로 나가는 자리는 여기 하나뿐이다. method 가 박혀 있고 body 가 없다.
    새 확인을 붙이고 싶어도 이 함수를 통해야 한다 — 그래야 "확인만 했는데 만들어졌다" 가 안 난다. */
-async function read(fetchT: FetchT, label: string, url: string, key: string, keep: boolean): Promise<KeyProbeResult> {
+async function read(
+  fetchT: FetchT, label: string, url: string, key: string, keep: boolean,
+  auth: (k: string) => Record<string, string>,
+): Promise<KeyProbeResult> {
   const t0 = Date.now()
   try {
     const r = await fetchT(url, {
       method: 'GET',
-      headers: { Authorization: 'Bearer ' + key, Accept: 'application/json' },
+      headers: { ...auth(key), Accept: 'application/json' },
     }, 8000)
     const text = await r.text().catch(() => '')
     let parsed: any = null
@@ -156,6 +168,7 @@ export async function runKeyCheck(
   p: KeyProvider, key: string, fetchT: FetchT, hostOverride?: string | null,
 ): Promise<KeyCheckResult> {
   const hosts = hostOverride ? [String(hostOverride)] : p.hosts
+  const auth = p.auth || bearerAuth
   const results: KeyProbeResult[] = []
   const 모델목록: KeyCheckResult['모델목록'] = []
   let 잔액: number | null = null
@@ -166,7 +179,7 @@ export async function runKeyCheck(
     for (let i = 0; i < p.probes.length; i++) {
       const pr = p.probes[i]
       const keep = pr.종류 === 'models'
-      const r = await read(fetchT, 이름 + ' · ' + pr.이름, base + pr.path, key, keep)
+      const r = await read(fetchT, 이름 + ' · ' + pr.이름, base + pr.path, key, keep, auth)
       results.push(r)
       //  첫 요청이 아예 안 닿으면 그 호스트는 없는 주소다. 남은 경로를 더 두들길 이유가 없다.
       if (i === 0 && r.status === 0) {
@@ -195,7 +208,7 @@ export async function runKeyCheck(
   const 통과한것 = results.filter((r) => r.status >= 200 && r.status < 300)
   const 대표 = 통과한것[0] || 답한것.find((r) => r.status !== 401 && r.status !== 403) || 답한것[0] || null
   let 대조: KeyProbeResult | null = null
-  if (대표) 대조 = await read(fetchT, '대조(일부러 틀린 키) · ' + 대표.검사, 대표.url, CONTROL_KEY, false)
+  if (대표) 대조 = await read(fetchT, '대조(일부러 틀린 키) · ' + 대표.검사, 대표.url, CONTROL_KEY, false, auth)
 
   const 대조거절 = !!대조 && (대조.status === 401 || 대조.status === 403)
   const 대조통과 = !!대조 && 대조.status >= 200 && 대조.status < 300

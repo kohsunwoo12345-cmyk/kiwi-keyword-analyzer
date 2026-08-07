@@ -12,6 +12,7 @@ import { ensureOnce } from '../_utils'
 import { ALIBABA_MODELS } from './_alibaba'
 import { LTX_MODELS } from './_ltx'
 import { RECRAFT_MODELS } from './_recraft'
+import { BRIA_MODELS } from './_bria'
 
 export type ModelRow = {
   name: string          // 스튜디오 표시명 (모델 표의 열쇠)
@@ -49,6 +50,7 @@ export async function ensureRegistry(db: D1Database) {
   await seedAlibaba(db)
   await seedLtx(db)
   await seedRecraft(db)
+  await seedBria(db)
 }
 
 /* ── 알리바바 모델을 등록부에 한 번 심는다 ──────────────────────────────
@@ -129,6 +131,32 @@ export async function seedRecraft(db: D1Database) {
               JSON.stringify(r.opts || {}),
               (r.vector ? '벡터(SVG) · 결과 표시 확인 필요 · ' : '')
                 + '연결 전 — 관리자 → Recraft 키 확인 뒤 생성 경로를 붙이고 켠다 · 단가 잠정',
+              new Date().toISOString()).run()
+    }
+  }, ['model_registry'])
+}
+
+/* ── Bria 모델도 **꺼진 채로** 심는다 ─────────────────────────────────────
+   이유는 Recraft 와 같다 — 경로(모델 이름)는 공식 노드 코드에서 그대로 읽었으니
+   이름 걱정은 없다. 못 켜는 건 **생성 경로가 아직 없어서**다.
+
+   Bria 에는 연결할 때 풀어야 할 것이 두 개 더 있다(_bria.ts 머리말):
+     ① 인증이 `api_token` 헤더다 — 다른 제공사처럼 Bearer 로 보내면 전부 401 이다
+     ② v2 는 비동기다 — request_id·status_url 폴링과 실패 환불이 붙어야 한다
+   편집 모델(needsImage)은 원본 이미지가 없으면 아무 의미가 없다는 것도 노드 쪽에서
+   같이 챙겨야 한다. 그래서 opts 에 needsImage 를 실어 둔다.
+   ⚠ INSERT OR IGNORE 다. 관리자가 켜 둔 것을 배포할 때마다 도로 끄지 않는다. */
+export async function seedBria(db: D1Database) {
+  return ensureOnce(db, 'seed_bria_v1', async () => {
+    for (const r of BRIA_MODELS) {
+      await db.prepare(
+        `INSERT OR IGNORE INTO model_registry
+           (name, cat, provider, model_id, kind, unit, usd, opts, enabled, verified_at, note, created_at)
+         VALUES (?,?,?,?,?,?,?,?,0,NULL,?,?)`)
+        .bind(r.name, r.cat, 'bria', r.id, r.kind, r.unit, r.usd,
+              JSON.stringify({ ...(r.opts || {}), needsImage: r.needsImage }),
+              (r.needsImage ? '원본 이미지 필요 · ' : '')
+                + '연결 전 — 관리자 → Bria 키 확인 뒤 생성 경로를 붙이고 켠다 · 단가 잠정',
               new Date().toISOString()).run()
     }
   }, ['model_registry'])
