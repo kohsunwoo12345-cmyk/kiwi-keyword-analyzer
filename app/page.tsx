@@ -28,7 +28,13 @@ import dynamic from 'next/dynamic'
 // 모바일 첫 로딩 렉 해소: 무거운 시각 컴포넌트는 클라이언트에서 지연 로드(메인스레드 초기 점유 축소).
 // 히어로 텍스트·기능·요금제·FAQ(SEO 핵심)는 그대로 SSR 되어 즉시 표시된다.
 const HeroOrbit = dynamic(() => import('@/components/HeroOrbit').then((m) => m.HeroOrbit), { ssr: false, loading: () => null })
-const HeroPhotoWall = dynamic(() => import('@/components/HeroPhotoWall').then((m) => m.HeroPhotoWall), { ssr: false, loading: () => null })
+/*  ⚠ 여기 ssr:false 였다. 그런데 화면에서 가장 큰 그림(LCP)이 이 벽 안에 있다 —
+    ssr:false 면 그 <img> 가 HTML 에 아예 없어서, 브라우저는 JS 를 받아 실행하고
+    React 가 그려 줄 때까지 이미지를 **발견조차 못 한다**. fetchPriority 를 아무리 올려도
+    없는 태그에는 소용이 없다. 실측 LCP 3.07초의 대부분이 그 대기였다.
+    이 컴포넌트는 상태도 이벤트도 없는 순수 마크업이라(훅이 하나도 없다) 서버에서 그려도 된다.
+    그러면 첫 HTML 에 <img> 가 들어가고 브라우저의 사전 스캐너가 즉시 받기 시작한다. */
+import { HeroPhotoWall } from '@/components/HeroPhotoWall'
 const HeroDashboard = dynamic(() => import('@/components/HeroDashboard').then((m) => m.HeroDashboard), { ssr: false, loading: () => <div className="min-h-[480px]" aria-hidden /> })
 const AIPipeline = dynamic(() => import('@/components/AIPipeline').then((m) => m.AIPipeline), { ssr: false, loading: () => <div className="min-h-[560px]" aria-hidden /> })
 const AIVideoGallery = dynamic(() => import('@/components/AIVideoGallery').then((m) => m.AIVideoGallery), { ssr: false, loading: () => <div className="min-h-[460px]" aria-hidden /> })
@@ -821,9 +827,18 @@ export default function Home() {
       {/* ===== HERO ===== */}
       <section className="relative overflow-hidden pt-36 pb-24 text-white sm:pt-40 sm:pb-28">
         {/* 배경: AI 제작 사진이 흐르는 프리미엄 포토월 — 장식이므로 유휴 시점에 마운트(초기 렉 완화) */}
-        <LazyMount minHeight={0}>
-          <HeroPhotoWall />
-        </LazyMount>
+        {/*  ⚠ 여기 LazyMount 로 감싸 유휴 시점에 마운트했었다. 첫 화면을 빨리 띄우려는
+             것이었고 그건 맞았다(FCP 1.24초). 그런데 화면에서 가장 큰 그림이 이 벽 안이라
+             **LCP 를 이 벽이 가져간다** — 마운트를 기다리느라 LCP 가 2.86초였다.
+             회원 눈에는 "글자는 떴는데 배경이 3초 뒤에 뒤늦게 채워지는" 것으로 보인다.
+             그게 렉으로 느껴지는 자리다.
+
+             실측(5회 중앙값 · 4G + CPU 4배):
+               미뤄서 마운트 + 이미지 미리받기   FCP 1,236ms · LCP 2,864ms
+               서버에서 그냥 그리기              FCP 1,424ms · LCP 1,452ms   ← 이것
+             첫 화면 190ms 를 내주고 화면 완성 1,410ms 를 벌었다. 뒤늦게 채워지는 것도 없어진다.
+             (이미지 preload 도 재 봤지만 LCP 가 안 줄었다 — 병목이 받기가 아니라 마운트라서다.) */}
+        <HeroPhotoWall />
 
         <div className="relative z-10 mx-auto max-w-4xl px-5 text-center">
           <div className="flex justify-center animate-fade-up">
