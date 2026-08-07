@@ -1,0 +1,8 @@
+{
+  "_설명": "운영 키로 GET /api/generate?diag=alibaba 를 돌려 받은 실제 목록(국제판·싱가포르). 손으로 적은 게 아니라 응답에서 그대로 옮겼다. 우리 표(_alibaba.ts)가 이것과 어긋나면 노드에 없는 모델이 뜨거나 있는 모델이 빠진다.",
+  "_받은날": "2026-08-04",
+  "_총개수": 234,
+  "wan": ["wan2.1-i2v-plus","wan2.1-i2v-turbo","wan2.1-kf2v-plus","wan2.1-t2i-plus","wan2.1-t2i-turbo","wan2.1-t2v-plus","wan2.1-t2v-turbo","wan2.1-vace-plus","wan2.2-animate-mix","wan2.2-animate-move","wan2.2-i2v-flash","wan2.2-i2v-plus","wan2.2-kf2v-flash","wan2.2-t2i-flash","wan2.2-t2i-plus","wan2.2-t2v-plus","wan2.5-i2i-preview","wan2.5-i2v-preview","wan2.5-t2i-preview","wan2.5-t2v-preview","wan2.6-i2v","wan2.6-i2v-flash","wan2.6-image","wan2.6-r2v","wan2.6-r2v-flash","wan2.6-t2i","wan2.6-t2v","wan2.7-i2v","wan2.7-i2v-2026-04-25","wan2.7-image","wan2.7-image-pro","wan2.7-r2v","wan2.7-r2v-2026-06-12","wan2.7-t2v","wan2.7-t2v-2026-04-25","wan2.7-t2v-2026-06-12","wan2.7-videoedit"],
+  "기타이미지": ["qwen-image","qwen-image-2.0","qwen-image-2.0-2026-03-03","qwen-image-2.0-pro","qwen-image-2.0-pro-2026-03-03","qwen-image-2.0-pro-2026-04-22","qwen-image-2.0-pro-2026-06-22","qwen-image-3.0-pro","qwen-image-edit","qwen-image-edit-max","qwen-image-edit-max-2026-01-16","qwen-image-edit-plus","qwen-image-edit-plus-2025-10-30","qwen-image-edit-plus-2025-12-15","qwen-image-max","qwen-image-max-2025-12-30","qwen-image-plus","qwen-image-plus-2026-01-09","z-image-turbo"],
+  "일부러_뺀것": { "happyhorse": ["happyhorse-1.0-i2v","happyhorse-1.0-r2v","happyhorse-1.0-t2v","happyhorse-1.0-video-edit","happyhorse-1.1-i2v","happyhorse-1.1-r2v","happyhorse-1.1-t2v"], "이유": "같은 플랫폼에 올라와 있지만 알리바바 자체 모델이 아니다" }
+}
