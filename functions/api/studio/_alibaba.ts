@@ -24,16 +24,27 @@
    그리고 우리가 실제로 제출해 보고 받은 오류가 이걸 확인해 줬다 —
    "Field required: input.prompt" · "input.media" · "input.messages".
 
-   ── ⚠ 단가는 아직 잠정이다 ────────────────────────────────────────────
-   알리바바 공식 가격표(help.aliyun.com·alibabacloud.com)가 이 개발 환경에서
-   403 이라 원문을 못 봤다. 그래서 공개된 값 중 **가장 비싼 쪽** 으로 잡아 뒀다.
-   조사에서 같은 720p 1초가 $0.084~$0.14 로 1.7배까지 갈렸는데,
-     싸게 잡으면 → 원가보다 싸게 팔아 우리가 손해를 본다(되돌릴 수 없다)
-     비싸게 잡으면 → 회원에게 더 받는다(확인되면 내리면 된다)
-   둘 중 되돌릴 수 있는 쪽을 고른 것이다. 모든 줄에 잠정 표시가 붙어 있고,
-   관리자 → 모델 단가(model_cost_overrides)에서 언제든 실측값으로 덮을 수 있다.
-   확정 방법: 배포된 서버에서 /api/generate?diag=prices 를 열면 워커가 알리바바
-   가격표를 대신 읽어 온다(이 환경에서만 막혀 있다).
+   ── 단가 — 어디까지 확인이고 어디부터 상한인가 ────────────────────────
+   알리바바 공식 문서 사이트(alibabacloud.com·help.aliyun.com)는 **우리 회사 egress
+   정책에서 차단**돼 있다. 우회하지 않는다. 대신 그 표를 그대로 옮겨 적은 곳
+   여럿을 교차 확인했고, 서로 어긋나지 않는 값만 확정(A)으로 올렸다.
+
+   확정(A) — 서로 다른 출처가 같은 값을 낸 것
+     wan2.7 · wan2.6 · wan2.5 영상 : ¥0.6/초(720P) · ¥1.0/초(1080P)
+                                     = $0.086 / $0.144  (국제판 공개가와 환산이 맞는다)
+     wan2.2 plus 영상             : ¥0.4/초(720P) · ¥0.6/초(1080P) = $0.057 / $0.086
+     wan2.6-t2i 이미지            : ¥0.2/장 = $0.029
+     무료 체험                    : 영상 50초 · 이미지 50장, 개통 후 90일
+                                     (실패는 과금 안 된다 — 성공한 것만 센다)
+
+   상한(C) — 값이 따로 안 나온 것. **추측해서 깎지 않고 같은 계열의 확정값을 그대로 쓴다.**
+     싸게 잡으면 원가보다 싸게 팔아 손해가 나고 되돌릴 수 없다.
+     비싸게 잡으면 회원에게 더 받고, 확인되면 내리면 된다. 되돌릴 수 있는 쪽을 고른다.
+     flash·turbo·animate·vace·kf2v·2.1 계열·Qwen 이미지가 여기 해당한다.
+
+   ⚠ 위 값은 중국(百炼) 표기다. 국제판(우리 키)은 표가 따로 있을 수 있다 —
+     다만 wan2.7 은 국제판 공개가($0.086/$0.144)가 중국 표의 환산과 정확히 맞았다.
+     실제 청구서를 보면 관리자 → 모델 단가에서 덮어쓴다(그 값이 언제나 이긴다).
    ══════════════════════════════════════════════════════════════════════════ */
 
 export type AliRow = {
@@ -52,8 +63,9 @@ export type AliRow = {
 const V = (name: string, id: string, usd: number, opts?: any, pinned?: boolean,
            usd720?: number, 근거: 'A' | 'C' = 'C'): AliRow =>
   ({ name, id, kind: 'video', unit: 'sec', usd, usd720, 근거, cat: '영상 · Wan(알리바바)', pinned, opts })
-const I = (name: string, id: string, usd: number, opts?: any, pinned?: boolean): AliRow =>
-  ({ name, id, kind: 'image', unit: 'img', usd, cat: '이미지 · 알리바바', pinned, opts })
+const I = (name: string, id: string, usd: number, opts?: any, pinned?: boolean,
+           근거: 'A' | 'C' = 'C'): AliRow =>
+  ({ name, id, kind: 'image', unit: 'img', usd, 근거, cat: '이미지 · 알리바바', pinned, opts })
 
 //  영상 옵션 — SDK 가 받는 값 그대로다(duration·resolution·ratio·seed·prompt_extend·watermark)
 const VOPT = { secs: [5, 10], ratios: ['16:9', '9:16', '1:1'], res: ['720p', '1080p'],
@@ -71,59 +83,59 @@ export const ALIBABA_MODELS: AliRow[] = [
   V('Wan 2.7 (이미지→영상 · 04-25판)', 'wan2.7-i2v-2026-04-25', 0.144, VOPT_LONG, true, 0.086, 'A'),
   V('Wan 2.7 (레퍼런스→영상)', 'wan2.7-r2v', 0.144, VOPT_LONG, false, 0.086, 'A'),
   V('Wan 2.7 (레퍼런스→영상 · 06-12판)', 'wan2.7-r2v-2026-06-12', 0.144, VOPT_LONG, true, 0.086, 'A'),
-  V('Wan 2.7 (영상 편집)', 'wan2.7-videoedit', 0.144, VOPT_LONG, false, 0.086, 'A'),
-  V('Wan 2.6 (텍스트→영상)', 'wan2.6-t2v', 0.12, VOPT_LONG, false, 0.08, 'A'),
-  V('Wan 2.6 (이미지→영상)', 'wan2.6-i2v', 0.12, VOPT_LONG, false, 0.08, 'A'),
-  V('Wan 2.6 Flash (이미지→영상)', 'wan2.6-i2v-flash', 0.10, VOPT, false, 0.06, 'C'),
-  V('Wan 2.6 (레퍼런스→영상)', 'wan2.6-r2v', 0.12, VOPT_LONG, false, 0.08, 'A'),
-  V('Wan 2.6 Flash (레퍼런스→영상)', 'wan2.6-r2v-flash', 0.10, VOPT, false, 0.06, 'C'),
-  V('Wan 2.5 (텍스트→영상)', 'wan2.5-t2v-preview', 0.15, VOPT, false, 0.09, 'C'),
-  V('Wan 2.5 (이미지→영상)', 'wan2.5-i2v-preview', 0.15, VOPT, false, 0.09, 'C'),
-  V('Wan 2.2 Plus (텍스트→영상)', 'wan2.2-t2v-plus', 0.10, VOPT, false, 0.06, 'C'),
-  V('Wan 2.2 Plus (이미지→영상)', 'wan2.2-i2v-plus', 0.10, VOPT, false, 0.06, 'C'),
-  V('Wan 2.2 Flash (이미지→영상)', 'wan2.2-i2v-flash', 0.06, VOPT, false, 0.036, 'C'),
-  V('Wan 2.2 Flash (첫·끝 프레임→영상)', 'wan2.2-kf2v-flash', 0.06, VOPT, false, 0.036, 'C'),
-  V('Wan 2.2 (동작 합성·Animate Mix)', 'wan2.2-animate-mix', 0.10, VOPT, false, 0.06, 'C'),
-  V('Wan 2.2 (동작 전이·Animate Move)', 'wan2.2-animate-move', 0.10, VOPT, false, 0.06, 'C'),
-  V('Wan 2.1 Plus (텍스트→영상)', 'wan2.1-t2v-plus', 0.10, VOPT, false, 0.06, 'C'),
-  V('Wan 2.1 Turbo (텍스트→영상)', 'wan2.1-t2v-turbo', 0.06, VOPT, false, 0.036, 'C'),
-  V('Wan 2.1 Plus (이미지→영상)', 'wan2.1-i2v-plus', 0.10, VOPT, false, 0.06, 'C'),
-  V('Wan 2.1 Turbo (이미지→영상)', 'wan2.1-i2v-turbo', 0.06, VOPT, false, 0.036, 'C'),
-  V('Wan 2.1 Plus (첫·끝 프레임→영상)', 'wan2.1-kf2v-plus', 0.10, VOPT, false, 0.06, 'C'),
-  V('Wan 2.1 VACE (영상 편집·참조)', 'wan2.1-vace-plus', 0.10, VOPT, false, 0.06, 'C'),
+  V('Wan 2.7 (영상 편집)', 'wan2.7-videoedit', 0.144, VOPT_LONG, false, 0.086, 'C'),
+  V('Wan 2.6 (텍스트→영상)', 'wan2.6-t2v', 0.144, VOPT_LONG, false, 0.086, 'A'),
+  V('Wan 2.6 (이미지→영상)', 'wan2.6-i2v', 0.144, VOPT_LONG, false, 0.086, 'A'),
+  V('Wan 2.6 Flash (이미지→영상)', 'wan2.6-i2v-flash', 0.144, VOPT, false, 0.086, 'C'),
+  V('Wan 2.6 (레퍼런스→영상)', 'wan2.6-r2v', 0.144, VOPT_LONG, false, 0.086, 'A'),
+  V('Wan 2.6 Flash (레퍼런스→영상)', 'wan2.6-r2v-flash', 0.144, VOPT, false, 0.086, 'C'),
+  V('Wan 2.5 (텍스트→영상)', 'wan2.5-t2v-preview', 0.144, VOPT, false, 0.086, 'A'),
+  V('Wan 2.5 (이미지→영상)', 'wan2.5-i2v-preview', 0.144, VOPT, false, 0.086, 'A'),
+  V('Wan 2.2 Plus (텍스트→영상)', 'wan2.2-t2v-plus', 0.086, VOPT, false, 0.057, 'A'),
+  V('Wan 2.2 Plus (이미지→영상)', 'wan2.2-i2v-plus', 0.086, VOPT, false, 0.057, 'A'),
+  V('Wan 2.2 Flash (이미지→영상)', 'wan2.2-i2v-flash', 0.086, VOPT, false, 0.057, 'C'),
+  V('Wan 2.2 Flash (첫·끝 프레임→영상)', 'wan2.2-kf2v-flash', 0.086, VOPT, false, 0.057, 'C'),
+  V('Wan 2.2 (동작 합성·Animate Mix)', 'wan2.2-animate-mix', 0.086, VOPT, false, 0.057, 'C'),
+  V('Wan 2.2 (동작 전이·Animate Move)', 'wan2.2-animate-move', 0.086, VOPT, false, 0.057, 'C'),
+  V('Wan 2.1 Plus (텍스트→영상)', 'wan2.1-t2v-plus', 0.086, VOPT, false, 0.057, 'C'),
+  V('Wan 2.1 Turbo (텍스트→영상)', 'wan2.1-t2v-turbo', 0.086, VOPT, false, 0.057, 'C'),
+  V('Wan 2.1 Plus (이미지→영상)', 'wan2.1-i2v-plus', 0.086, VOPT, false, 0.057, 'C'),
+  V('Wan 2.1 Turbo (이미지→영상)', 'wan2.1-i2v-turbo', 0.086, VOPT, false, 0.057, 'C'),
+  V('Wan 2.1 Plus (첫·끝 프레임→영상)', 'wan2.1-kf2v-plus', 0.086, VOPT, false, 0.057, 'C'),
+  V('Wan 2.1 VACE (영상 편집·참조)', 'wan2.1-vace-plus', 0.086, VOPT, false, 0.057, 'C'),
 
   /* ── 이미지 10개(Wan) ── */
-  I('Wan 2.7 이미지 Pro',        'wan2.7-image-pro', 0.10, IOPT),
-  I('Wan 2.7 이미지',            'wan2.7-image', 0.07, IOPT),
-  I('Wan 2.6 이미지',            'wan2.6-image', 0.07, IOPT),
-  I('Wan 2.6 (텍스트→이미지)',   'wan2.6-t2i', 0.07, IOPT),
-  I('Wan 2.5 (텍스트→이미지)',   'wan2.5-t2i-preview', 0.07, IOPT),
-  I('Wan 2.5 (이미지 편집)',     'wan2.5-i2i-preview', 0.07, IOPT),
-  I('Wan 2.2 Plus (텍스트→이미지)',  'wan2.2-t2i-plus', 0.05, IOPT),
-  I('Wan 2.2 Flash (텍스트→이미지)', 'wan2.2-t2i-flash', 0.03, IOPT),
-  I('Wan 2.1 Plus (텍스트→이미지)',  'wan2.1-t2i-plus', 0.05, IOPT),
-  I('Wan 2.1 Turbo (텍스트→이미지)', 'wan2.1-t2i-turbo', 0.03, IOPT),
+  I('Wan 2.7 이미지 Pro', 'wan2.7-image-pro', 0.087, IOPT, false, 'C'),
+  I('Wan 2.7 이미지', 'wan2.7-image', 0.058, IOPT, false, 'C'),
+  I('Wan 2.6 이미지', 'wan2.6-image', 0.029, IOPT, false, 'C'),
+  I('Wan 2.6 (텍스트→이미지)', 'wan2.6-t2i', 0.029, IOPT, false, 'A'),
+  I('Wan 2.5 (텍스트→이미지)', 'wan2.5-t2i-preview', 0.029, IOPT, false, 'C'),
+  I('Wan 2.5 (이미지 편집)', 'wan2.5-i2i-preview', 0.029, IOPT, false, 'C'),
+  I('Wan 2.2 Plus (텍스트→이미지)', 'wan2.2-t2i-plus', 0.029, IOPT, false, 'C'),
+  I('Wan 2.2 Flash (텍스트→이미지)', 'wan2.2-t2i-flash', 0.029, IOPT, false, 'C'),
+  I('Wan 2.1 Plus (텍스트→이미지)', 'wan2.1-t2i-plus', 0.029, IOPT, false, 'C'),
+  I('Wan 2.1 Turbo (텍스트→이미지)', 'wan2.1-t2i-turbo', 0.029, IOPT, false, 'C'),
 
   /* ── 이미지 19개(Qwen·Z) — 같은 키로 잡히는 알리바바 이미지 모델 ── */
-  I('Qwen 이미지 3.0 Pro',       'qwen-image-3.0-pro', 0.08, IOPT),
-  I('Qwen 이미지 2.0 Pro',       'qwen-image-2.0-pro', 0.08, IOPT),
-  I('Qwen 이미지 2.0 Pro (03-03판)', 'qwen-image-2.0-pro-2026-03-03', 0.08, IOPT, true),
-  I('Qwen 이미지 2.0 Pro (04-22판)', 'qwen-image-2.0-pro-2026-04-22', 0.08, IOPT, true),
-  I('Qwen 이미지 2.0 Pro (06-22판)', 'qwen-image-2.0-pro-2026-06-22', 0.08, IOPT, true),
-  I('Qwen 이미지 2.0',           'qwen-image-2.0', 0.05, IOPT),
-  I('Qwen 이미지 2.0 (03-03판)', 'qwen-image-2.0-2026-03-03', 0.05, IOPT, true),
-  I('Qwen 이미지 Max',           'qwen-image-max', 0.08, IOPT),
-  I('Qwen 이미지 Max (12-30판)', 'qwen-image-max-2025-12-30', 0.08, IOPT, true),
-  I('Qwen 이미지 Plus',          'qwen-image-plus', 0.05, IOPT),
-  I('Qwen 이미지 Plus (01-09판)', 'qwen-image-plus-2026-01-09', 0.05, IOPT, true),
-  I('Qwen 이미지',               'qwen-image', 0.05, IOPT),
-  I('Qwen 이미지 편집 Max',      'qwen-image-edit-max', 0.08, IOPT),
-  I('Qwen 이미지 편집 Max (01-16판)', 'qwen-image-edit-max-2026-01-16', 0.08, IOPT, true),
-  I('Qwen 이미지 편집 Plus',     'qwen-image-edit-plus', 0.05, IOPT),
-  I('Qwen 이미지 편집 Plus (10-30판)', 'qwen-image-edit-plus-2025-10-30', 0.05, IOPT, true),
-  I('Qwen 이미지 편집 Plus (12-15판)', 'qwen-image-edit-plus-2025-12-15', 0.05, IOPT, true),
-  I('Qwen 이미지 편집',          'qwen-image-edit', 0.05, IOPT),
-  I('Z-Image Turbo',             'z-image-turbo', 0.03, IOPT),
+  I('Qwen 이미지 3.0 Pro', 'qwen-image-3.0-pro', 0.08, IOPT, false, 'C'),
+  I('Qwen 이미지 2.0 Pro', 'qwen-image-2.0-pro', 0.08, IOPT, false, 'C'),
+  I('Qwen 이미지 2.0 Pro (03-03판)', 'qwen-image-2.0-pro-2026-03-03', 0.08, IOPT, true, 'C'),
+  I('Qwen 이미지 2.0 Pro (04-22판)', 'qwen-image-2.0-pro-2026-04-22', 0.08, IOPT, true, 'C'),
+  I('Qwen 이미지 2.0 Pro (06-22판)', 'qwen-image-2.0-pro-2026-06-22', 0.08, IOPT, true, 'C'),
+  I('Qwen 이미지 2.0', 'qwen-image-2.0', 0.05, IOPT, false, 'C'),
+  I('Qwen 이미지 2.0 (03-03판)', 'qwen-image-2.0-2026-03-03', 0.05, IOPT, true, 'C'),
+  I('Qwen 이미지 Max', 'qwen-image-max', 0.08, IOPT, false, 'C'),
+  I('Qwen 이미지 Max (12-30판)', 'qwen-image-max-2025-12-30', 0.08, IOPT, true, 'C'),
+  I('Qwen 이미지 Plus', 'qwen-image-plus', 0.05, IOPT, false, 'C'),
+  I('Qwen 이미지 Plus (01-09판)', 'qwen-image-plus-2026-01-09', 0.05, IOPT, true, 'C'),
+  I('Qwen 이미지', 'qwen-image', 0.05, IOPT, false, 'C'),
+  I('Qwen 이미지 편집 Max', 'qwen-image-edit-max', 0.08, IOPT, false, 'C'),
+  I('Qwen 이미지 편집 Max (01-16판)', 'qwen-image-edit-max-2026-01-16', 0.08, IOPT, true, 'C'),
+  I('Qwen 이미지 편집 Plus', 'qwen-image-edit-plus', 0.05, IOPT, false, 'C'),
+  I('Qwen 이미지 편집 Plus (10-30판)', 'qwen-image-edit-plus-2025-10-30', 0.05, IOPT, true, 'C'),
+  I('Qwen 이미지 편집 Plus (12-15판)', 'qwen-image-edit-plus-2025-12-15', 0.05, IOPT, true, 'C'),
+  I('Qwen 이미지 편집', 'qwen-image-edit', 0.05, IOPT, false, 'C'),
+  I('Z-Image Turbo', 'z-image-turbo', 0.03, IOPT, false, 'C'),
 ]
 
 /** 표시명 → 행. 생성 경로가 이걸로 실제 모델 ID 를 찾는다. */

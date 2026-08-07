@@ -124,7 +124,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       /* 모델 ID 는 제공사 목록 API 로 확인했지만 **단가는 아직 잠정** 이다.
          화면이 확정값처럼 보여 주면 그 값을 믿고 팔게 된다 — 그래서 따로 표시한다.
          관리자 → 모델 단가에서 실측값을 넣으면 그 값이 이긴다. */
-      costProvisional: prov === 'alibaba',
+      costProvisional: prov === 'alibaba' && (ALIBABA_BY_NAME as any)[model]?.근거 !== 'A',
       status,                  // live | unverified | nokey
     }
   })

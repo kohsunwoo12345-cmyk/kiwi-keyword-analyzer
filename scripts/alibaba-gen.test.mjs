@@ -22,6 +22,7 @@ const require_ = createRequire(import.meta.url)
 
 let calls = []            // 알리바바로 나간 요청 전부
 let nextTask = {}         // task_id → 폴링에서 돌려줄 output
+let fetched = []          // 결과 파일을 실제로 받아 갔는가
 
 async function load(file) {
   const out = await build({ entryPoints: [file], bundle: true, write: false, format: 'cjs',
@@ -31,6 +32,14 @@ async function load(file) {
     Response, Request, Headers, URL, URLSearchParams, TextEncoder, TextDecoder, crypto,
     fetch: async (url, init) => {
       const u = String(url)
+      //  결과 주소는 진짜 파일처럼 내려준다 — 길이를 알려 줘야 R2 가 스트림을 받는다
+      if (/ali\.example/.test(u)) {
+        const body = new Uint8Array(1024)
+        fetched.push(u)
+        return new Response(body, { status: 200,
+          headers: { 'content-type': /\.mp4$/.test(u) ? 'video/mp4' : 'image/png',
+                     'content-length': String(body.byteLength) } })
+      }
       if (!/aliyuncs/.test(u)) return new Response('{}', { status: 200 })
       const method = (init && init.method) || 'GET'
       const headers = Object.fromEntries(Object.entries((init && init.headers) || {}))
@@ -116,17 +125,24 @@ async function post(body) {
   return { status: res.status, body: parsed, calls: calls.slice(), db }
 }
 
-async function poll(statusUrl) {
+/* ⚠ waitUntil 로 넘긴 일은 응답을 내보낸 뒤에 돈다. 그냥 버리면 "R2 로 보관했는가" 를
+   잴 수 없다 — 보관이 바로 거기서 돌기 때문에, 버리면 안 하고도 통과한다. 끝까지 기다린다. */
+async function poll(statusUrl, opt) {
   calls = []
+  const db = (opt && opt.db) || makeDB()
+  const bucket = (opt && opt.bucket) || undefined
+  const bg = []
   const res = await gen.onRequest({
     request: new Request('https://bygency.com' + statusUrl, {
       headers: { cookie: 'bg_session=t', host: 'bygency.com' },
     }),
-    env: { ...ENV, DB: makeDB() }, params: {}, waitUntil: () => {}, next: async () => new Response(''),
+    env: { ...ENV, DB: db, BUCKET: bucket }, params: {},
+    waitUntil: (p) => bg.push(p), next: async () => new Response(''),
   })
   let parsed = {}
   try { parsed = JSON.parse(await res.text()) } catch { parsed = {} }
-  return { status: res.status, body: parsed, calls: calls.slice() }
+  await Promise.allSettled(bg)
+  return { status: res.status, body: parsed, calls: calls.slice(), db, bucket }
 }
 
 console.log('\n① 영상 제출 — 주소·헤더·본문이 실제로 맞는가')
@@ -243,7 +259,81 @@ console.log('\n⑦ r2v 는 media 배열을 따로 요구한다(실측 오류가 
      'input.media 로 레퍼런스를 보낸다', JSON.stringify(c && c.body.input))
 }
 
+console.log('\n⑧ 제공사에서 지워져도 우리 R2 에 남는가 — 이게 제일 중요하다')
+{
+  /* 알리바바 결과 주소도 며칠이면 만료된다. 그때 우리 표에 그 주소만 있으면
+     영상은 통째로 사라진다(예전에 실제로 그렇게 잃었다).
+     완료를 보는 자리에서 서버가 직접 받아 R2 에 넣어야 한다 — 브라우저 신고에 기대면
+     탭을 닫는 순간 끝이다. 새로 붙인 제공사가 그 자리를 타는지 여기서 잰다. */
+  const puts = []
+  const bucket = {
+    put: async (key, body, o) => { puts.push({ key, ct: o && o.httpMetadata && o.httpMetadata.contentType }); return {} },
+    get: async () => null, head: async () => null, list: async () => ({ objects: [] }), delete: async () => {},
+  }
+  //  요금 줄과 결과 줄이 있는 DB — archiveGenResult 가 붙일 자리를 찾을 수 있어야 한다
+  const updates = []
+  const mkDB = () => {
+    const user = { id: 'u1', email: 'a@x.co', role: 'user', status: 'active', credits: 1_000_000,
+                   credit_price: 65, credit_markup: 0, plan: 'Pro', plan_until: FUTURE,
+                   video_plan: 'Pro', video_plan_until: FUTURE }
+    const first = async (s) => {
+      if (/FROM sessions s JOIN users u/i.test(s)) return { ...user }
+      if (/FROM users WHERE id/i.test(s)) return { ...user }
+      if (/FROM api_rate WHERE user_id/i.test(s)) return { b: 0, m: 0, h: 0, d: 0 }
+      if (/SELECT usage_id FROM gen_charges WHERE task_key/i.test(s)) return { usage_id: 'US-1' }
+      if (/SELECT result_url FROM ai_usage WHERE id/i.test(s)) return { result_url: '' }
+      return null
+    }
+    return {
+      prepare(sql) {
+        const s = String(sql)
+        const mk = (b) => ({
+          first: () => first(s, b),
+          run: async () => { if (/UPDATE ai_usage SET result_url/i.test(s)) updates.push(b); return { meta: { changes: 1 } } },
+          all: async () => ({ results: [] }),
+        })
+        return { bind: (...b) => mk(b), ...mk([]) }
+      },
+      async batch(st) { return (st || []).map(() => ({ results: [] })) },
+      async dump() { return new ArrayBuffer(0) },
+    }
+  }
+
+  fetched = []
+  nextTask.__next = { task_status: 'SUCCEEDED', video_url: 'https://ali.example/out.mp4' }
+  const s = await post({ provider: 'alibaba', model: 'Wan 2.7 (텍스트→영상)', prompt: 'x', seconds: 5 })
+  const r = await poll(s.body.statusUrl, { db: mkDB(), bucket })
+
+  ok(fetched.includes('https://ali.example/out.mp4'),
+     '완료를 본 자리에서 서버가 결과 파일을 직접 받아 온다', JSON.stringify(fetched))
+  ok(puts.length === 1, 'R2 에 실제로 넣는다', JSON.stringify(puts))
+  ok(puts[0] && puts[0].ct === 'video/mp4', '영상으로 저장한다(확장자가 틀리면 브라우저가 못 연다)',
+     JSON.stringify(puts[0]))
+  ok(updates.length === 1 && /^\/api\/media\//.test(String(updates[0][0])),
+     '표에 남는 주소가 우리 주소다 — 제공사 주소를 그대로 두면 며칠 뒤 사라진다',
+     JSON.stringify(updates[0]))
+  ok(!/aliyuncs|ali\.example/.test(String(updates[0] && updates[0][0])),
+     '제공사 주소가 표에 남지 않는다', JSON.stringify(updates[0] && updates[0][0]))
+
+  //  이미지도 같은 자리를 타야 한다
+  puts.length = 0; updates.length = 0; fetched = []
+  nextTask.__next = { task_status: 'SUCCEEDED',
+                      choices: [{ message: { content: [{ image: 'https://ali.example/b.png' }] } }] }
+  const s2 = await post({ provider: 'alibaba', model: 'Wan 2.7 이미지 Pro', prompt: 'x' })
+  const r2 = await poll(s2.body.statusUrl, { db: mkDB(), bucket })
+  ok(puts.length === 1 && puts[0].ct === 'image/png', '이미지도 R2 에 넣는다', JSON.stringify(puts))
+  ok(updates.length === 1 && /^\/api\/media\//.test(String(updates[0][0])),
+     '이미지도 우리 주소로 바뀐다', JSON.stringify(updates[0]))
+
+  //  실패한 생성은 보관할 것이 없다 — 괜히 받으러 가면 안 된다
+  puts.length = 0; fetched = []
+  nextTask.__next = { task_status: 'FAILED', message: 'x' }
+  const s3 = await post({ provider: 'alibaba', model: 'Wan 2.7 (텍스트→영상)', prompt: 'x', seconds: 5 })
+  await poll(s3.body.statusUrl, { db: mkDB(), bucket })
+  ok(puts.length === 0 && fetched.length === 0, '실패한 건은 받으러 가지 않는다', JSON.stringify(fetched))
+}
+
 console.log(failed === 0
-  ? '\n알리바바 생성 경로 — 실패 0 (제출 형식 · 폴링 · 결과 3자리 · 실패 처리 · 과금 토큰)'
+  ? '\n알리바바 생성 경로 — 실패 0 (제출 형식 · 폴링 · 결과 3자리 · 실패 처리 · 과금 토큰 · R2 영구 보관)'
   : `\n실패 ${failed}건`)
 process.exit(failed ? 1 : 0)
