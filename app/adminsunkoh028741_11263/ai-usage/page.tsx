@@ -12,6 +12,8 @@ import {
   Film,
   Image as ImageIcon,
   User,
+  RotateCcw,
+  AlertTriangle,
 } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { StatCard, Panel, Button } from '@/components/ui'
@@ -87,11 +89,13 @@ export default function AdminAiUsagePage() {
     if (!t || t.revenue <= 0) return 0
     return Math.round((t.profit / t.revenue) * 100)
   }, [t])
+  const refundedCount = t?.refundedCount ?? 0
+  const openCount = data.open?.count ?? 0
 
   function exportUsers() {
     downloadCsv(
       `AI정산_회원별_${days}일.csv`,
-      ['회원', '이메일', '생성건수', '사용 모델', 'AI 비용(원)', '매출(원)', '순이익(원)', '차감 크레딧'],
+      ['회원', '이메일', '생성건수', '사용 모델', 'AI 비용(원)', '매출(원)', '순이익(원)', '차감 크레딧', '실패환불 건수', '실패환불 크레딧'],
       byUser.map((u) => [
         u.name || u.user_id || '게스트',
         u.email || '',
@@ -101,13 +105,15 @@ export default function AdminAiUsagePage() {
         Math.round(u.revenue),
         Math.round(u.profit),
         u.credits,
+        u.refundedCount ?? 0,
+        u.refundedCredits ?? 0,
       ]),
     )
   }
   function exportRecent() {
     downloadCsv(
       `AI정산_상세내역_${days}일.csv`,
-      ['시각', '회원', '이메일', '모델', '제공사', '종류', 'AI 비용(원)', '매출(원)', '순이익(원)', '배수', '크레딧'],
+      ['시각', '회원', '이메일', '모델', '제공사', '종류', 'AI 비용(원)', '매출(원)', '순이익(원)', '배수', '크레딧', '상태'],
       recent.map((r) => [
         fmtDateTime(r.created_at),
         r.name || '게스트',
@@ -120,6 +126,7 @@ export default function AdminAiUsagePage() {
         Math.round(r.profit),
         r.markup ? `${r.markup}x` : '',
         r.credits,
+        r.refunded ? '실패·환불(합계 제외)' : '정상',
       ]),
     )
   }
@@ -171,6 +178,39 @@ export default function AdminAiUsagePage() {
           </div>
         </Reveal>
 
+        {/* ── 돈이 나갔는데 결과물이 없는 자리 ──
+            위 네 칸은 "성공한 생성" 만 센다. 실패해서 돌려준 건과, 아직 성공도 실패도
+            확인되지 않은 채 빠져 있는 건은 여기 따로 적는다 — 합계에 섞으면 실패한 생성이
+            번 돈으로 보이고, 안 적으면 있는지조차 모른다. */}
+        {(refundedCount > 0 || openCount > 0) && (
+          <Reveal>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-amber-700">
+                  <RotateCcw size={15} /> 실패 · 환불 {num(refundedCount)}건
+                </div>
+                <p className="mt-1 text-xs text-amber-700/80">
+                  제공사가 실패로 끝내 <b>{num(t?.refundedCredits ?? 0)}크레딧</b>(약 {krw(t?.refundedKrw ?? 0)})을 회원에게 돌려준 건입니다.
+                  위 매출·순이익·생성 건수에는 <b>들어 있지 않습니다</b>. 상세 내역에서 &lsquo;실패·환불&rsquo; 표시로 확인할 수 있습니다.
+                </p>
+              </div>
+              <div className={cn(
+                'rounded-2xl border p-4',
+                openCount > 0 ? 'border-rose-200 bg-rose-50/60' : 'border-[var(--border)] bg-[var(--panel-2)]',
+              )}>
+                <div className={cn('flex items-center gap-2 text-sm font-semibold', openCount > 0 ? 'text-rose-700' : 'text-[var(--text-soft)]')}>
+                  <AlertTriangle size={15} /> 결말 없는 차감 {num(openCount)}건
+                </div>
+                <p className={cn('mt-1 text-xs', openCount > 0 ? 'text-rose-700/80' : 'text-[var(--text-dim)]')}>
+                  제출 시 <b>{num(data.open?.credits ?? 0)}크레딧</b>이 빠졌는데 1시간이 지나도록 성공·실패가 확인되지 않은 건입니다.
+                  매시 35분에 도는 자동 회수(<code>/api/cron/gen-sweep</code>)가 제공사에 직접 물어보고, 실패면 그 자리에서 되돌립니다.
+                  이 숫자가 줄지 않으면 회수가 안 돌고 있다는 뜻입니다.
+                </p>
+              </div>
+            </div>
+          </Reveal>
+        )}
+
         {loading && !hasData ? (
           <Panel>
             <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -218,6 +258,7 @@ export default function AdminAiUsagePage() {
                         <th className={cn(TH, 'text-right')}>매출</th>
                         <th className={cn(TH, 'text-right')}>순이익</th>
                         <th className={cn(TH, 'text-right')}>크레딧</th>
+                        <th className={cn(TH, 'text-right')}>실패 환불</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -235,6 +276,11 @@ export default function AdminAiUsagePage() {
                           <td className={cn(TD, 'text-right tabular-nums')}>{krw(u.revenue)}</td>
                           <td className={cn(TD, 'text-right font-semibold tabular-nums text-emerald-600')}>{krw(u.profit)}</td>
                           <td className={cn(TD, 'text-right tabular-nums text-[var(--text-soft)]')}>{num(u.credits)}</td>
+                          <td className={cn(TD, 'text-right tabular-nums text-[var(--text-dim)]')}>
+                            {u.refundedCount ? (
+                              <span className="text-amber-600">{num(u.refundedCount)}건 · {num(u.refundedCredits ?? 0)}C</span>
+                            ) : '-'}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -255,6 +301,9 @@ export default function AdminAiUsagePage() {
                 <p className="mb-4 text-sm text-[var(--text-soft)]">
                   제공사 청구서와 같은 기간·같은 단위(USD)로 우리가 계산한 실비입니다.
                   청구서 금액과 벌어지면 그 제공사 단가표가 틀렸다는 뜻입니다.
+                  <br />
+                  실패로 확정돼 환불한 건은 빠져 있습니다 — 실패한 작업은 제공사도 대개 청구하지 않아,
+                  넣어 두면 우리 계산이 늘 청구서보다 크게 나옵니다.
                 </p>
                 <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
                   <span className="text-[var(--text-soft)]">청구 기간</span>
@@ -443,18 +492,26 @@ export default function AdminAiUsagePage() {
                     </thead>
                     <tbody>
                       {recent.map((r, i) => (
-                        <tr key={i} className={TR}>
+                        <tr key={i} className={cn(TR, r.refunded && 'bg-amber-50/50')}>
                           <td className={cn(TD, 'text-[var(--text-soft)]')}>{fmtDateTime(r.created_at)}</td>
                           <td className={TD}>
                             <div className="text-xs font-medium">{r.name || '게스트'}</div>
                             <div className="text-[11px] text-[var(--text-dim)]">{r.email}</div>
                           </td>
-                          <td className={cn(TD, 'max-w-[200px] truncate')} title={r.model}>{r.model}</td>
+                          <td className={cn(TD, 'max-w-[200px] truncate')} title={r.model}>
+                            {r.model}
+                            {r.refunded && (
+                              <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                                실패·환불
+                              </span>
+                            )}
+                          </td>
                           <td className={cn(TD, 'text-xs text-[var(--text-soft)]')}>{r.kind === 'image' ? '이미지' : '영상'}</td>
-                          <td className={cn(TD, 'text-right tabular-nums text-rose-500')}>{krw(r.cost)}</td>
-                          <td className={cn(TD, 'text-right tabular-nums')}>{krw(r.revenue)}</td>
-                          <td className={cn(TD, 'text-right font-semibold tabular-nums text-emerald-600')}>{krw(r.profit)}</td>
-                          <td className={cn(TD, 'text-right tabular-nums text-[var(--text-soft)]')}>{num(r.credits)}</td>
+                          {/* 환불 건은 위 합계에 안 들어간다 — 금액을 그대로 보여 주되 지워진 값임을 표시한다 */}
+                          <td className={cn(TD, 'text-right tabular-nums text-rose-500', r.refunded && 'text-[var(--text-dim)] line-through')}>{krw(r.cost)}</td>
+                          <td className={cn(TD, 'text-right tabular-nums', r.refunded && 'text-[var(--text-dim)] line-through')}>{krw(r.revenue)}</td>
+                          <td className={cn(TD, 'text-right font-semibold tabular-nums text-emerald-600', r.refunded && 'font-normal text-[var(--text-dim)] line-through')}>{krw(r.profit)}</td>
+                          <td className={cn(TD, 'text-right tabular-nums text-[var(--text-soft)]', r.refunded && 'text-[var(--text-dim)] line-through')}>{num(r.credits)}</td>
                         </tr>
                       ))}
                     </tbody>

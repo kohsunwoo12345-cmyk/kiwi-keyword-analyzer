@@ -142,8 +142,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   /* 남의 작업을 취소하지 못하게 한다 — 작업 주소만 알면 되는 구조라 이 확인이 없으면
      주소를 주워 남의 생성을 멈추고 남의 크레딧을 환불 처리할 수 있다. */
   await ensureGenCharges(db)
+  //  같은 작업 주소가 두 번 나올 수 있다 — 지금 취소하는 건 가장 최근 것이다(환불이 집는 줄과 같아야 한다)
   const row: any = await db
-    .prepare(`SELECT id, user_id, status FROM gen_charges WHERE task_key = ? LIMIT 1`)
+    .prepare(`SELECT id, user_id, status FROM gen_charges WHERE task_key = ? ORDER BY created_at DESC LIMIT 1`)
     .bind(taskKey)
     .first()
     .catch(() => null)

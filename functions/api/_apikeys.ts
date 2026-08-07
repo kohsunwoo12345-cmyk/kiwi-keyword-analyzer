@@ -236,7 +236,9 @@ export async function refundFailedTask(db: D1Database, taskKey: string, reason?:
   if (!db || !taskKey) return 0
   try {
     const row: any = await db.prepare(
-      `SELECT id, user_id, credits, model FROM api_calls WHERE task_key = ? AND status = 'ok' AND credits > 0 LIMIT 1`,
+      //  같은 작업 주소가 두 번 나올 수 있다 — 실패한 것은 가장 최근 건이다(옛 줄을 집으면 금액이 어긋난다)
+      `SELECT id, user_id, credits, model FROM api_calls WHERE task_key = ? AND status = 'ok' AND credits > 0
+        ORDER BY created_at DESC LIMIT 1`,
     ).bind(String(taskKey).slice(0, 300)).first()
     if (!row) return 0
     const amt = Math.round(Number(row.credits || 0) * 100) / 100

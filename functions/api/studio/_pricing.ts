@@ -788,9 +788,10 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
      번호를 그대로 두면 새 칸은 이미 도는 DB(=운영)에 영영 안 생긴다.
      실제로 archive_tries 가 그랬다: 보관 그물의 질의가 없는 칸을 읽어 조용히 터지고,
      catch 에 걸려 "옮길 것 0건" 으로 답했다. 크론은 멀쩡히 도는데 아무것도 안 옮긴다.
-     v1 → v2: archive_tries 추가. */
+     v1 → v2: archive_tries 추가.
+     v2 → v3: refunded·refund_credits 추가. */
 export async function ensureAiUsage(db: D1Database): Promise<void> {
-  return ensureOnce(db, 'schema_aiusage_v2', () => __ensureAiUsage(db), ['ai_usage'])
+  return ensureOnce(db, 'schema_aiusage_v3', () => __ensureAiUsage(db), ['ai_usage'])
 }
 async function __ensureAiUsage(db: D1Database): Promise<void> {
   await db
@@ -819,6 +820,11 @@ async function __ensureAiUsage(db: D1Database): Promise<void> {
        정기 실행마다 같은 여섯 건을 다시 내려받으려 하고, 그 뒤에 있는
        아직 살릴 수 있는 줄에는 영영 닿지 못한다. */
     archive_tries: 'archive_tries INTEGER DEFAULT 0',
+    /* 실패로 확정돼 돌려준 건. 금액 칸은 그대로 두고 표시만 남긴다 —
+       "무엇을 얼마에 팔려다 돌려줬는지" 가 사라지면 나중에 되짚을 수 없다.
+       합계를 내는 쪽(관리자 정산)이 이 표시를 보고 매출에서 뺀다. */
+    refunded: 'refunded INTEGER DEFAULT 0',
+    refund_credits: 'refund_credits REAL DEFAULT 0',
   }
   for (const [name, ddl] of Object.entries(cols)) {
     await db.prepare(`ALTER TABLE ai_usage ADD COLUMN ${ddl}`).run().catch(() => {})

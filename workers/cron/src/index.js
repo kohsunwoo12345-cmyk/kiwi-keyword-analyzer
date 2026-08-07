@@ -8,6 +8,7 @@
  *   /api/cron/video-schedules            — 정기 자동 생성(회원이 고른 현지 시각 기준)
  *   /api/naver-place/update-all-tracking — 네이버 플레이스 순위 추적(20건씩 배치)
  *   /api/cron/media-archive              — 생성물 영구 보관 그물(제공사 주소 → 우리 R2)
+ *   /api/cron/gen-sweep                  — 결말 없는 차감 회수(실패했는데 안 돌아온 크레딧)
  *
  * 인증은 두 엔드포인트 모두 X-Cron-Token 규약을 쓴다. Pages 환경변수의 CRON_TOKEN 과
  * 이 워커의 시크릿 CRON_TOKEN 이 같아야 한다.
@@ -23,6 +24,11 @@ const CRON_NAVER = '5 0 * * *'
    드물게 돌면 의미가 없다(하루에 한 번이면 그 사이에 만료된다). */
 const CRON_ARCHIVE = '20 * * * *'
 const MAX_ARCHIVE_CALLS = 6
+/* 결말 없는 차감 회수 — 제출 때 뺀 크레딧이 성공도 실패도 확인되지 않은 채 남아 있는 건.
+   브라우저 폴링이 끊기면(탭을 닫거나 20분을 넘기면) 되돌릴 사람이 아무도 없다.
+   자주 돌 필요는 없다 — 30분 유예를 두고 확인하므로 시간당 한 번이면 충분하다. */
+const CRON_SWEEP = '35 * * * *'
+const MAX_SWEEP_CALLS = 6
 
 /** 무료 플랜은 요청 하나당 하위 요청(subrequest) 50개가 상한이다. 넉넉히 아래로 잡는다. */
 const MAX_VIDEO_CALLS = 5
@@ -103,11 +109,29 @@ async function runMediaArchive(env) {
   return steps
 }
 
+/** 결말 없는 차감 회수 — 실패로 확인되면 그 자리에서 크레딧을 되돌린다. */
+async function runGenSweep(env) {
+  const steps = []
+  const due = await hit(env, '/api/cron/gen-sweep', 'GET')
+  steps.push(due)
+  if (!due.ok) return steps
+  if (/"due"\s*:\s*0\b/.test(due.body)) return steps      // 결말을 기다리는 차감이 없다
+
+  for (let i = 0; i < MAX_SWEEP_CALLS; i++) {
+    const r = await hit(env, '/api/cron/gen-sweep', 'POST')
+    steps.push(r)
+    if (!r.ok) break
+    if (!/"hasMore"\s*:\s*true/.test(r.body)) break
+  }
+  return steps
+}
+
 export default {
   async scheduled(event, env, ctx) {
     if (!env.CRON_TOKEN) { console.error('[cron] CRON_TOKEN 시크릿이 없습니다 — 설정 → Variables and Secrets 에 추가하세요'); return }
     const job = event.cron === CRON_NAVER ? runNaverTracking
               : event.cron === CRON_ARCHIVE ? runMediaArchive
+              : event.cron === CRON_SWEEP ? runGenSweep
               : runVideoSchedules
     ctx.waitUntil(job(env).then((s) => {
       // 실패 사유를 요약 줄에 같이 싣는다. 따로 남긴 error 줄을 찾아 헤매지 않도록.
@@ -134,6 +158,7 @@ export default {
     const job = url.searchParams.get('job') || 'video'
     const steps = job === 'naver' ? await runNaverTracking(env)
                 : job === 'archive' ? await runMediaArchive(env)
+                : job === 'sweep' ? await runGenSweep(env)
                 : await runVideoSchedules(env)
     return jsonRes({ ok: steps.every((s) => s.ok), job, steps })
   },

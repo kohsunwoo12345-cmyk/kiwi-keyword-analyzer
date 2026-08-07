@@ -332,30 +332,43 @@ export async function adminVisitStats(days = 14): Promise<VisitStats> {
   } catch { return { ok: false, error: '네트워크 오류' } }
 }
 
+/* ⚠ 아래 숫자들은 모두 "실패해서 돌려준 건을 뺀" 값이다.
+   환불 건은 refundedCount·refundedCredits 로 따로 온다 — 합계에 다시 더하면 안 된다.
+   (예전에는 환불 건이 매출에 그대로 섞여 있어서, 실패한 생성이 번 돈으로 보였다) */
 export interface AiUsageUser {
   user_id: string; name: string; email: string; count: number
   credits: number; revenue: number; cost: number; profit: number; models: string
+  refundedCount?: number; refundedCredits?: number
 }
 export interface AiUsageModel {
   model: string; provider: string; kind: string; markup: number
   count: number; credits: number; revenue: number; cost: number; profit: number
+  refundedCount?: number
 }
 export interface AiUsageRow {
   created_at: string; name: string; email: string; model: string; provider: string
   kind: string; credits: number; cost: number; revenue: number; profit: number; markup: number; usdKrw?: number
+  /** 실패로 확정돼 돌려준 건 — 위 금액은 합계에 들어가 있지 않다 */
+  refunded?: boolean; refundCredits?: number
 }
 export interface AiUsageDay {
   d: string; count: number; credits: number; revenue: number; cost: number; profit: number
-  rate: number; rateMin: number; rateMax: number
+  rate: number; rateMin: number; rateMax: number; refundedCount?: number
 }
 /** 제공사 청구서 대조용 — 제공사별 실비(USD)를 청구 기간과 같은 단위로 뽑는다. */
 export interface AiUsageProvider {
   provider: string; count: number; usd: number; cost: number; credits: number; revenue: number
+  refundedCount?: number
 }
 export interface AiUsageStats {
   ok: boolean; error?: string; days?: number; todayRate?: number
   from?: string; to?: string
-  totals?: { count: number; credits: number; revenue: number; cost: number; profit: number }
+  totals?: {
+    count: number; credits: number; revenue: number; cost: number; profit: number
+    refundedCount?: number; refundedCredits?: number; refundedKrw?: number
+  }
+  /** 성공도 실패도 확인되지 않은 채 차감만 되어 있는 건(1시간 이상). 0 이어야 정상이다. */
+  open?: { count: number; credits: number }
   byUser?: AiUsageUser[]
   byModel?: AiUsageModel[]
   byDay?: AiUsageDay[]

@@ -31,8 +31,12 @@ export interface GenChargeSpec {
    이 경로를 아예 안 탄다). ⚠ 이 차이가 회원 502 의 원인이라고 적어 두었는데 확인된 게 아니다:
    당시 무료 요금제로 알고 계산했지만 실제 계정은 Workers 유료였다. 왕복을 줄이는 근거일 뿐이다.
    같은 isolate 안에서는 한 번만 하고, 실패하면 다음 요청에서 다시 시도한다. */
+/* ⚠ 아래 칸을 새로 추가하면 이 열쇠의 번호를 반드시 올려야 한다 —
+     ensureOnce 는 "표시가 있고 그 표가 있으면" 통째로 건너뛴다. 번호를 그대로 두면
+     새 칸은 이미 도는 DB(=운영)에 영영 안 생긴다(_pricing.ts ensureAiUsage 주석 참조).
+     v1 → v2: swept_at·sweep_tries 추가(방치된 차감을 되찾는 그물). */
 export async function ensureGenCharges(db: D1Database): Promise<void> {
-  return ensureOnce(db, 'schema_gencharges_v1', () => __ensureGenCharges(db), ['gen_charges'])
+  return ensureOnce(db, 'schema_gencharges_v2', () => __ensureGenCharges(db), ['gen_charges'])
 }
 async function __ensureGenCharges(db: D1Database): Promise<void> {
   await db
@@ -46,11 +50,20 @@ async function __ensureGenCharges(db: D1Database): Promise<void> {
     .catch(() => {})
   /* 실제로 얼마를 뺐는지와, 어느 제공사 작업의 것인지 — 비동기 영상이 실패했을 때
      그 금액을 되돌리려면 둘 다 필요하다(기존 표에는 없어서 추가한다). */
+  /* swept_at·sweep_tries — 결말이 안 온 차감을 서버가 뒤늦게 확인할 때 쓴다.
+     브라우저가 폴링을 끝까지 해 줘야만 환불이 일어나던 구조라, 탭을 닫거나 폴링이
+     시간을 넘기면 차감만 남았다(= 만들어지지 않았는데 돈이 나간 자리). */
   for (const col of ['credits REAL DEFAULT 0', "task_key TEXT DEFAULT ''", "status TEXT DEFAULT ''",
-                     "usage_id TEXT DEFAULT ''", 'reconciled_at TEXT'])
+                     "usage_id TEXT DEFAULT ''", 'reconciled_at TEXT',
+                     'swept_at TEXT', 'sweep_tries INTEGER DEFAULT 0'])
     await db.prepare(`ALTER TABLE gen_charges ADD COLUMN ${col}`).run().catch(() => {})
   await db
     .prepare(`CREATE INDEX IF NOT EXISTS idx_gen_charges_user ON gen_charges (user_id, created_at)`)
+    .run()
+    .catch(() => {})
+  //  그물이 매시간 훑는 조건 — 색인이 없으면 표가 커질수록 훑는 값이 비싸진다
+  await db
+    .prepare(`CREATE INDEX IF NOT EXISTS idx_gen_charges_sweep ON gen_charges (status, swept_at, created_at)`)
     .run()
     .catch(() => {})
 }
@@ -206,8 +219,10 @@ export async function reconcileGenCharge(
   if (!db || !taskKey || !(Number(usageTokens) > 0)) return 0
   try {
     await ensureGenCharges(db)
+    //  같은 작업 주소가 두 번 나올 수 있다 — 가장 최근 것이 지금 끝난 그 생성이다(환불과 같은 이유).
     const row: any = await db.prepare(
-      `SELECT * FROM gen_charges WHERE task_key = ? AND status = 'charged' AND reconciled_at IS NULL LIMIT 1`,
+      `SELECT * FROM gen_charges WHERE task_key = ? AND status = 'charged' AND reconciled_at IS NULL
+        ORDER BY created_at DESC LIMIT 1`,
     ).bind(String(taskKey).slice(0, 300)).first()
     if (!row) return 0
     // 먼저 자리를 잡는다 — 동시에 두 번 들어와도 한쪽만 통과한다.
@@ -313,17 +328,28 @@ export async function refundGenCharge(db: D1Database, taskKey: string): Promise<
   if (!db || !taskKey) return 0
   try {
     await ensureGenCharges(db)
+    /* 가장 최근 것을 본다. 작업 주소는 제공사가 주는 값이라 우리가 유일함을 보장하지 못한다 —
+       같은 주소가 두 번 나오면 옛 줄을 집어서, 실패한 것은 이번 건인데 지난 건의 금액이
+       돌아간다. 두 건의 금액이 다르면 그 차액만큼 회원이 손해를 본다.
+       (archiveGenResult 가 같은 이유로 이미 이렇게 하고 있다 — 여기만 빠져 있었다) */
     const row: any = await db.prepare(
-      `SELECT id, user_id, credits, model FROM gen_charges WHERE task_key = ? AND status = 'charged' LIMIT 1`,
+      `SELECT id, user_id, credits, model, usage_id FROM gen_charges WHERE task_key = ? AND status = 'charged'
+        ORDER BY created_at DESC LIMIT 1`,
     ).bind(String(taskKey).slice(0, 300)).first()
     if (!row) return 0
     const amt = Math.round(Number(row.credits || 0) * 100) / 100
     if (!(amt > 0)) return 0
     // 조건부 UPDATE — 동시에 두 번 들어와도 한쪽만 성공한다(환불이 두 번 나가지 않는다).
+    /* ⚠ 이 한 문장은 모양을 바꾸지 않는다 — 동시에 두 번 들어와도 한 번만 통과하는 잠금이고,
+       sql-contract·mutation-check 가 이 문장을 글자 그대로 집어 검증한다.
+       뒤처리(swept_at·ai_usage 표시)는 아래에서 따로 한다. */
     const upd: any = await db.prepare(
       `UPDATE gen_charges SET status = 'refunded' WHERE id = ? AND status = 'charged'`,
     ).bind(row.id).run()
     if (!upd?.meta?.changes) return 0
+    //  언제 결말이 났는지 남긴다(회수 그물이 다시 집지 않게 — status 로도 걸러지지만 기록이 남는다)
+    await db.prepare(`UPDATE gen_charges SET swept_at = COALESCE(swept_at, ?) WHERE id = ?`)
+      .bind(new Date().toISOString(), row.id).run().catch(() => {})
     await db.prepare('UPDATE users SET credits = ROUND(COALESCE(credits,0) + ?, 2) WHERE id = ?')
       .bind(amt, row.user_id).run()
     const u2: any = await db.prepare('SELECT credits FROM users WHERE id = ?').bind(row.user_id).first().catch(() => null)
@@ -332,6 +358,15 @@ export async function refundGenCharge(db: D1Database, taskKey: string): Promise<
       `INSERT INTO transactions (id,user_id,kind,amount,balance_after,memo,created_at) VALUES (?,?,'credit',?,?,?,?)`,
     ).bind('t_' + crypto.randomUUID().slice(0, 16), row.user_id, amt, after,
            '생성 실패 환불 · ' + String(row.model || ''), new Date().toISOString()).run().catch(() => {})
+    /* ── 관리자 정산 표에도 알린다 ──
+       환불은 여태 gen_charges 에만 남았다. 그래서 관리자 "AI 사용 · 수익 정산" 화면은
+       돌려준 건까지 매출·순이익으로 세고 있었다 — 실패해서 한 푼도 못 받은 생성이
+       화면에서는 돈을 번 것으로 보인다. 금액 칸을 지우지는 않는다(무엇을 얼마에 팔려다
+       돌려줬는지가 사라진다). 표시만 남기고, 합계를 내는 쪽이 이 표시를 보고 뺀다. */
+    if (row.usage_id)
+      await db.prepare(
+        `UPDATE ai_usage SET refunded = 1, refund_credits = ? WHERE id = ?`,
+      ).bind(amt, String(row.usage_id)).run().catch(() => {})
     return amt
   } catch {
     return 0
