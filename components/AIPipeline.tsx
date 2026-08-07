@@ -221,7 +221,7 @@ function LivePipeline({ t }: { t: (s: string) => string }) {
                 {/* 상단 광택(프리미엄 글래스) */}
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
                 {status === 'active' && (
-                  <div className="absolute inset-x-0 top-0 h-0.5" style={{ background: s.accent, animation: 'loadbar 1.1s ease-in-out infinite' }} />
+                  <div className="absolute inset-x-0 top-0 h-0.5 origin-left" style={{ background: s.accent, animation: 'loadbar 1.1s ease-in-out infinite' }} />
                 )}
                 <div
                   className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full blur-2xl transition-opacity duration-500"
@@ -264,14 +264,20 @@ function LivePipeline({ t }: { t: (s: string) => string }) {
                       boxShadow: '0 9px 18px -8px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.35)',
                     }}
                   >
+                    {/* 껍데기(튜브와 같은 크기)를 transform 으로 밀고, 알갱이는 그 안에 얹는다.
+                        left 를 움직이면 매 프레임 배치를 다시 계산하기 때문이다. */}
                     <span
-                      className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full"
+                      className="absolute inset-0"
                       style={{
-                        background: 'radial-gradient(circle, rgba(205,226,255,.98), rgba(90,140,255,.3) 58%, transparent 72%)',
                         animation: i < active ? 'pipeFlow 2s linear infinite' : 'none',
                         opacity: i < active ? 1 : 0.2,
                       }}
-                    />
+                    >
+                      <span
+                        className="absolute left-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full"
+                        style={{ background: 'radial-gradient(circle, rgba(205,226,255,.98), rgba(90,140,255,.3) 58%, transparent 72%)' }}
+                      />
+                    </span>
                   </div>
                   {/* 좌우 캡(입체 링) */}
                   <span className="absolute -left-0.5 top-1/2 h-4 w-1.5 -translate-y-1/2 rounded-full bg-[#0b1120] shadow-[inset_0_1px_0_rgba(255,255,255,.25)]" />
@@ -287,13 +293,17 @@ function LivePipeline({ t }: { t: (s: string) => string }) {
                     }}
                   >
                     <span
-                      className="absolute left-1/2 h-3.5 w-3.5 -translate-x-1/2 rounded-full"
+                      className="absolute inset-0"
                       style={{
-                        background: 'radial-gradient(circle, rgba(205,226,255,.98), rgba(90,140,255,.3) 58%, transparent 72%)',
                         animation: i < active ? 'pipeFlowV 2s linear infinite' : 'none',
                         opacity: i < active ? 1 : 0.2,
                       }}
-                    />
+                    >
+                      <span
+                        className="absolute left-1/2 top-0 h-3.5 w-3.5 -translate-x-1/2 rounded-full"
+                        style={{ background: 'radial-gradient(circle, rgba(205,226,255,.98), rgba(90,140,255,.3) 58%, transparent 72%)' }}
+                      />
+                    </span>
                   </div>
                 </div>
               </div>

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { VisitTracker } from '@/components/VisitTracker'
+import { PauseOffscreenAnimations } from '@/components/PauseOffscreenAnimations'
 import { PublicNoticePopups } from '@/components/PublicNoticePopups'
 import { EmojiParser } from '@/components/EmojiParser'
 import { SupportChat } from '@/components/SupportChat'
@@ -74,6 +75,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={inter.variable}>
         <LanguageProvider>
           <VisitTracker />
+          {/* 화면 밖에서 헛도는 애니메이션을 멈춘다 — 실측 FPS 27→? (아래 컴포넌트 머리말 참고) */}
+          <PauseOffscreenAnimations />
           <EmojiParser />
           <SitePageTransition>{children}</SitePageTransition>
           <PublicNoticePopups />

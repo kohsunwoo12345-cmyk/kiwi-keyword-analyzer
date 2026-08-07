@@ -182,9 +182,11 @@ function PipelineFunnel({ feature }: { feature: Feature }) {
                           {[0, 1, 2].map((d) => (
                             <span
                               key={d}
-                              className="absolute h-1.5 w-1.5 rounded-full bg-white/70"
-                              style={{ top: `${30 + d * 18}%`, animation: `pipeFlow ${2.6 + d * 0.5}s linear ${i * 0.3 + d * 0.7}s infinite` }}
-                            />
+                              className="absolute inset-0"
+                              style={{ animation: `pipeFlow ${2.6 + d * 0.5}s linear ${i * 0.3 + d * 0.7}s infinite` }}
+                            >
+                              <span className="absolute left-0 h-1.5 w-1.5 rounded-full bg-white/70" style={{ top: `${30 + d * 18}%` }} />
+                            </span>
                           ))}
                           <span className="relative text-[13px] font-bold tabular-nums text-white drop-shadow sm:text-[15px]">
                             <Counter to={s.n} />
@@ -490,10 +492,9 @@ function AutomationSequence({ feature }: { feature: Feature }) {
                             }}
                           />
                           {now && (
-                            <span
-                              className="absolute inset-x-0 h-2 rounded-full"
-                              style={{ background: '#fff', animation: 'pipeFlowV 1.2s linear infinite' }}
-                            />
+                            <span className="absolute inset-0" style={{ animation: 'pipeFlowV 1.2s linear infinite' }}>
+                              <span className="absolute inset-x-0 top-0 h-2 rounded-full" style={{ background: '#fff' }} />
+                            </span>
                           )}
                         </div>
                       )}
