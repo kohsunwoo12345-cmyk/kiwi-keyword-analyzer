@@ -324,7 +324,7 @@ export default function AdminAiModelsPage() {
                             {m.status === 'nowire' && (
                               <div className="mt-0.5 text-[11px] text-violet-600">
                                 키는 있으나 생성 경로 없음 ·{' '}
-                                <a href={`${ADMIN_BASE}/ltx-check`} className="font-semibold underline">키 확인부터</a>
+                                <a href={`${ADMIN_BASE}/${m.provider}-check`} className="font-semibold underline">키 확인부터</a>
                               </div>
                             )}
                           </td>

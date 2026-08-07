@@ -31,6 +31,8 @@
    되돌릴 수 있는 쪽을 고른다. 관리자 → 모델 단가(model_cost_overrides)가 언제나 이긴다.
    ══════════════════════════════════════════════════════════════════════════ */
 
+import type { KeyProvider } from './_keycheck'
+
 export type LtxRow = {
   name: string          // 스튜디오 표시명
   id: string            // 제공사 모델 ID (⚠ 미확인 — 위 머리말 참고)
@@ -75,3 +77,30 @@ export const LTX_KEY_NAMES = ['LTX_API_KEY', 'ltx_api_key', 'Ltx_API_KEY', 'LTX2
 
 /** 아직 생성 경로가 없다. 화면이 "연동됨" 으로 보이지 않게 하는 단 하나의 값. */
 export const LTX_WIRED = false
+
+/* 키 확인(무과금)에 쓸 정의. 판정 로직은 _keycheck.ts 한 군데에만 있다 —
+   제공사마다 한 벌씩 적으면 한쪽만 고쳐지는 날이 반드시 온다. */
+export const LTX_KEYCHECK: KeyProvider = {
+  id: 'ltx',
+  label: 'LTX (Lightricks)',
+  envNames: LTX_KEY_NAMES,
+  hosts: LTX_HOSTS,
+  hostOverrideEnv: ['LTX_HOST_OVERRIDE', 'ltx_host_override'],
+  console: 'https://console.ltx.video/',
+  wired: LTX_WIRED,
+  주소근거: '공식 문서(docs.ltx.video·ltx.io)가 이 환경에서 403 이라 주소를 원문으로 확인하지 못했습니다. '
+          + '그래서 후보 두 곳을 훑어 실제로 답하는 곳을 찾습니다.',
+  probes: [
+    { 이름: '모델 목록 v1', path: '/v1/models', 종류: 'models' },
+    { 이름: '모델 목록 v2', path: '/v2/models', 종류: 'models' },
+    { 이름: '잔액 조회', path: '/v1/credits', 종류: 'account' },
+    { 이름: '계정 조회', path: '/v1/me', 종류: 'account' },
+    /* 없는 작업 번호를 물어본다. 인증이 통과하면 "그런 작업 없음"(404), 키가 죽었으면 401 이다 —
+       만들지 않고 인증만 가르는 데 가장 좋은 요청이다. */
+    { 이름: '없는 작업 조회', path: '/v2/text-to-video/00000000-0000-4000-8000-000000000000', 종류: 'job' },
+  ],
+  balance: (j) => {
+    const n = Number(j && (j.credits ?? j.balance ?? j.credit_balance ?? (j.data && (j.data.credits ?? j.data.balance))))
+    return Number.isFinite(n) ? { value: n, unit: '크레딧' } : null
+  },
+}

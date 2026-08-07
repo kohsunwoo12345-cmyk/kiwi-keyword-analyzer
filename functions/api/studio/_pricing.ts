@@ -1,6 +1,7 @@
 import { ensureOnce } from '../_utils'
 import { ALIBABA_MODELS, ALIBABA_BY_NAME } from './_alibaba'
 import { LTX_MODELS, LTX_BY_NAME } from './_ltx'
+import { RECRAFT_MODELS } from './_recraft'
 // 스튜디오 AI 생성 과금 규칙 (서버 권위 계산) — precheck·record 공용
 //  · 실제 AI 비용(원) = 제공사 공개 단가(USD) × 환율
 //  · 판매가 = 실제 비용 × 마크업.  마크업: 씨댄스 2.0 계열·이미지 모델 = 2.5배, 그 외 = 3배
@@ -452,6 +453,14 @@ for (const r of ALIBABA_MODELS) {
 for (const r of LTX_MODELS) {
   MODEL_COST[r.name] = { u: r.unit as CostUnit, usd: r.usd, prov: 'ltx' }
 }
+/* ── Recraft 래스터·벡터 이미지 ──
+   장당 정액이라 따로 계산할 것이 없다 — 표 값이 그대로 원가다(u:'img' 는 단위 1개 과금).
+   ⚠ 같은 모델 ID 라도 벡터 경로가 두 배쯤 비싸다. 그래서 표시명을 나눠 두 줄로 둔 것이다.
+     한 줄로 합치면 벡터를 래스터 값으로 청구하게 되고, 그 차액은 전부 우리 손해다.
+   단가 출처와 한계는 _recraft.ts 머리말에 적어 뒀다(관리자 실측값이 언제나 이긴다). */
+for (const r of RECRAFT_MODELS) {
+  MODEL_COST[r.name] = { u: r.unit as CostUnit, usd: r.usd, prov: 'recraft' }
+}
 //  과금 이름을 한 곳에서만 쓰도록 묶는다 — 문자열을 여기저기 적으면 표와 어긋난다
 export const UPSCALE_IMG = '화질 올리기 (이미지 초해상 ×4)'
 export const UPSCALE_VID = '화질 올리기 (영상 초해상 ×4)'
@@ -463,7 +472,7 @@ export const PROV_LABEL: Record<string, string> = {
   ark3d: '3D 생성 (ModelArk)', promptgen: '프롬프트 작성 LLM',
   hailuo: 'MiniMax Hailuo', luma: 'Luma', xai: 'Grok', flux: 'Flux', falcontrol: 'fal ControlNet',
   nanobanana: 'Nano Banana', openai: 'GPT Image', kling: 'Kling', narrate: '나레이션', lipsync: '립싱크', music: '음악 생성', upscale: '업스케일', alibaba: '알리바바 Wan(Model Studio)',
-  ltx: 'LTX (Lightricks)',
+  ltx: 'LTX (Lightricks)', recraft: 'Recraft (벡터·로고)',
 }
 
 export interface ChargeInput {

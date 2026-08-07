@@ -11,6 +11,7 @@
 import { ensureOnce } from '../_utils'
 import { ALIBABA_MODELS } from './_alibaba'
 import { LTX_MODELS } from './_ltx'
+import { RECRAFT_MODELS } from './_recraft'
 
 export type ModelRow = {
   name: string          // 스튜디오 표시명 (모델 표의 열쇠)
@@ -47,6 +48,7 @@ export async function ensureRegistry(db: D1Database) {
   await ensureOnce(db, 'schema_modelreg_v1', () => create(db), ['model_registry'])
   await seedAlibaba(db)
   await seedLtx(db)
+  await seedRecraft(db)
 }
 
 /* ── 알리바바 모델을 등록부에 한 번 심는다 ──────────────────────────────
@@ -98,6 +100,35 @@ export async function seedLtx(db: D1Database) {
         .bind(r.name, r.cat, 'ltx', r.id, r.kind, r.unit, r.usd,
               JSON.stringify(r.opts || {}),
               '미확인 — 관리자 → LTX 키 확인 에서 제공사가 알려 준 모델 ID 를 본 뒤 켠다 · 단가 잠정',
+              new Date().toISOString()).run()
+    }
+  }, ['model_registry'])
+}
+
+/* ── Recraft 모델도 **꺼진 채로** 심는다 ───────────────────────────────────
+   LTX 와 이유가 조금 다르다. Recraft 는 모델 ID 를 공개 OpenAPI 명세의 enum 에서
+   그대로 옮겼으니 "이름이 틀릴까" 걱정은 LTX 보다 훨씬 적다.
+   그래도 켜지 않는 이유는 하나다 — **생성 경로가 아직 없다.** 이름이 맞든 틀리든
+   지금 켜면 누르는 순간 실패한다. 켜고 안 켜고를 가르는 것은 이름이 아니라 경로다.
+
+   그리고 벡터 모델에는 하나가 더 걸려 있다: 결과가 .svg 다. 우리 보관함·갤러리는
+   png/jpg/webp 를 전제로 돈다. 이걸 안 풀고 켜면 "만들어지긴 했는데 화면에 안 뜨는"
+   결과물이 쌓인다(_recraft.ts 머리말).
+
+   켜는 순서: ① Recraft 키 확인(무과금)으로 키를 확정 → ② 생성 경로 연결
+              → ③ 래스터부터 켜고, SVG 표시까지 되면 벡터를 켠다
+   ⚠ INSERT OR IGNORE 다. 관리자가 켜 둔 것을 배포할 때마다 도로 끄지 않는다. */
+export async function seedRecraft(db: D1Database) {
+  return ensureOnce(db, 'seed_recraft_v1', async () => {
+    for (const r of RECRAFT_MODELS) {
+      await db.prepare(
+        `INSERT OR IGNORE INTO model_registry
+           (name, cat, provider, model_id, kind, unit, usd, opts, enabled, verified_at, note, created_at)
+         VALUES (?,?,?,?,?,?,?,?,0,NULL,?,?)`)
+        .bind(r.name, r.cat, 'recraft', r.id, r.kind, r.unit, r.usd,
+              JSON.stringify(r.opts || {}),
+              (r.vector ? '벡터(SVG) · 결과 표시 확인 필요 · ' : '')
+                + '연결 전 — 관리자 → Recraft 키 확인 뒤 생성 경로를 붙이고 켠다 · 단가 잠정',
               new Date().toISOString()).run()
     }
   }, ['model_registry'])

@@ -1,5 +1,6 @@
 import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser, setSetting, getSetting, logAudit, clientIp } from '../_utils'
 import { LTX_HOSTS, LTX_KEY_NAMES } from '../studio/_ltx'
+import { RECRAFT_BASE, RECRAFT_KEY_NAMES, RECRAFT_UNITS_PER_USD } from '../studio/_recraft'
 
 // AI 제공사 — 표시명 · 충전 URL · env 키 후보(generate.js 와 동일) · 잔액 단위.
 // 연동 상태는 실제 인증 호출(probe)로 확인한다:
@@ -21,6 +22,8 @@ const PROVIDERS: { id: string; name: string; url: string; note: string; keys: st
   { id: 'elevenlabs', name: 'ElevenLabs', url: 'https://elevenlabs.io/app/subscription', note: '립싱크 · AI 음성', keys: ['ElevenLabs_API_KEY', 'ELEVENLABS_API_KEY', 'elevenlabs_api_key'], unit: '문자' },
   //  LTX(Lightricks) — 키만 들어와 있고 아직 생성 경로가 없다. 여기서는 "키가 살아 있는가" 만 본다.
   { id: 'ltx', name: 'LTX (Lightricks)', url: 'https://console.ltx.video/', note: 'LTX-2 (영상) · 연결 전', keys: LTX_KEY_NAMES, unit: '크레딧' },
+  //  Recraft — 잔액 API 가 있다(GET /users/me). 실시간 잔액이 잡히는 몇 안 되는 제공사다.
+  { id: 'recraft', name: 'Recraft', url: 'https://www.recraft.ai/profile/api', note: '벡터(SVG)·로고 이미지 · 연결 전', keys: RECRAFT_KEY_NAMES, unit: 'USD' },
 ]
 
 type Ov = { balance?: number | null; url?: string; updatedAt?: string }
@@ -98,6 +101,17 @@ async function probe(id: string, key: string): Promise<{ ok?: boolean; balance?:
       }
       return { ok: false, error: last || '응답 없음' }
     }
+    /* Recraft — 명세에 적힌 유일한 GET 이자 우리가 필요한 그 하나다.
+       credits 는 "API unit" 이라 1,000 = $1 로 나눠 달러로 보여 준다. 숫자만 띄우면
+       12345 가 돈인지 장수인지 아무도 모른다.
+       ⚠ 생성 경로(/images/generations…)는 건드리지 않는다. */
+    if (id === 'recraft') {
+      const r = await tfetch(RECRAFT_BASE + '/users/me', { method: 'GET', headers: { Authorization: `Bearer ${key}`, accept: 'application/json' } })
+      if (!r.ok) return { ok: false, error: `HTTP ${r.status}${r.status === 401 ? ' (키 거절)' : ''}` }
+      const j: any = await r.json().catch(() => null)
+      const units = Number(j?.credits)
+      return isFinite(units) ? { ok: true, balance: units / RECRAFT_UNITS_PER_USD, unit: 'USD' } : { ok: true }
+    }
     return {} // fal/flux/kling/hailuo/seedance: 확인 API 없음 → 키 설정만으로 연동
   } catch (e: any) {
     return { ok: false, error: String(e?.name === 'AbortError' ? '시간 초과' : (e?.message || e)).slice(0, 80) }
@@ -131,7 +145,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     nanobanana: 'nanobanana', openai: 'openai', runway: 'runway', runway_aleph: 'runway',
     v2v_auto: 'runway', seedance: 'seedance', xai: 'xai',
     lipsync: 'fal', motion: 'fal', falcontrol: 'fal', narrate: 'elevenlabs',
-    ltx: 'ltx',
+    ltx: 'ltx', recraft: 'recraft',
   }
   const ID_TO_RAWS: Record<string, string[]> = {}
   for (const [raw, id] of Object.entries(RAW_TO_ID)) (ID_TO_RAWS[id] ||= []).push(raw)
