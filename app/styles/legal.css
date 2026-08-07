@@ -212,14 +212,7 @@
     홈의 사진 벽(HeroPhotoWall)·AI 파이프라인·CRM 화면이다 —
     즉 정의가 없는 이름을 부르고 있었고, 사진 벽은 지금까지 한 번도 흐르지 않았다. */
 
-/* 고퀄 SVG 이모지 (Twemoji) — 텍스트 속 이모지를 인라인 이미지로 렌더 */
-img.bg-emoji {
-  display: inline-block;
-  height: 1em;
-  width: 1em;
-  margin: 0 0.05em 0 0.1em;
-  vertical-align: -0.125em;
-  object-fit: contain;
-  user-select: none;
-}
+/*  고퀄 SVG 이모지(img.bg-emoji) 크기 규칙은 globals.css 로 옮겼다.
+    여기 두면 /legal/* 에서만 적용되는데, 이모지를 만드는 EmojiParser 는 모든 페이지에서
+    돈다 — 나머지 화면에서는 크기 없는 <img> 가 부모 폭만큼 늘어났다(푸터의 ©). */
 
