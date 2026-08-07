@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { Boxes, RefreshCw, Search, CheckCircle2, AlertTriangle, XCircle, Image as ImageIcon, Clapperboard, Zap, Box, Type } from 'lucide-react'
+import { Boxes, RefreshCw, Search, CheckCircle2, AlertTriangle, XCircle, Image as ImageIcon, Clapperboard, Zap, Box, Type, Plug } from 'lucide-react'
 import { PageHeader } from '@/components/dash/PageHeader'
 import { Panel, Button, Badge } from '@/components/ui'
 import { adminAiModels, adminVerifyImageModels, type AiModelRow, type AiModelsResp } from '@/lib/auth'
 import { cn } from '@/lib/utils'
+import { ADMIN_BASE } from '../layout'
 
 const ACCENT = '#7c3aed'
 const num = (n: number) => (n || 0).toLocaleString('ko-KR')
@@ -15,6 +16,10 @@ const STATUS_META: Record<string, { label: string; cls: string; icon: any; desc:
     desc: 'API 키 연동 + 모델 ID 공식 확인 — 바로 사용 가능' },
   unverified: { label: '미확인', cls: 'border-amber-200 bg-amber-50 text-amber-700', icon: AlertTriangle,
     desc: 'API 키는 있으나 모델 ID 미확인 — 실시간 검증 필요(후보 ID 자동 폴백)' },
+  /* '미확인' 과 섞으면 안 된다. 미확인은 "부를 수는 있는데 ID 가 맞는지 모른다" 이고,
+     이건 "부를 경로 자체가 아직 없다" 다. 회원 화면에는 나가지 않는다. */
+  nowire: { label: '연결 전', cls: 'border-violet-200 bg-violet-50 text-violet-700', icon: Plug,
+    desc: 'API 키는 들어와 있으나 생성 경로가 아직 없음 — 회원 화면에는 나가지 않는다(키 확인부터)' },
   nokey: { label: '연동 없음', cls: 'border-slate-200 bg-slate-50 text-slate-500', icon: XCircle,
     desc: '해당 제공사 API 키가 서버에 없음 — 키 등록 시 즉시 사용 가능' },
 }
@@ -28,7 +33,7 @@ export default function AdminAiModelsPage() {
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
   const [kind, setKind] = useState<'all' | 'image' | 'video' | '3d' | 'llm'>('all')
-  const [status, setStatus] = useState<'all' | 'live' | 'unverified' | 'nokey'>('all')
+  const [status, setStatus] = useState<'all' | 'live' | 'unverified' | 'nowire' | 'nokey'>('all')
   const [verifying, setVerifying] = useState(false)
   const [verify, setVerify] = useState<Record<string, { ok: boolean; error?: string; modelId?: string }>>({})
   const [verifyMsg, setVerifyMsg] = useState('')
@@ -110,7 +115,7 @@ export default function AdminAiModelsPage() {
   const grouped = useMemo(() => {
     const g: Record<string, AiModelRow[]> = {}
     for (const m of filtered) (g[m.providerLabel] ||= []).push(m)
-    const rank = { live: 0, unverified: 1, nokey: 2 } as Record<string, number>
+    const rank = { live: 0, unverified: 1, nowire: 2, nokey: 3 } as Record<string, number>
     return Object.entries(g)
       .map(([label, list]) => ({ label, list: [...list].sort((a, b) => rank[a.status] - rank[b.status] || a.model.localeCompare(b.model, 'ko')) }))
       .sort((a, b) => rank[a.list[0].status] - rank[b.list[0].status] || a.label.localeCompare(b.label, 'ko'))
@@ -238,10 +243,11 @@ export default function AdminAiModelsPage() {
         )}
 
         {/* 요약 */}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <SummaryCard label="전체 모델" value={s ? num(s.total) : '—'} sub={s ? `이미지 ${s.image} · 영상 ${s.video}` : ''} color="#7c3aed" icon={Boxes} />
           <SummaryCard label="정상 작동" value={s ? num(s.live) : '—'} sub="키 연동 + ID 확인" color="#059669" icon={CheckCircle2} />
           <SummaryCard label="미확인" value={s ? num(s.unverified) : '—'} sub="실시간 검증 권장" color="#d97706" icon={AlertTriangle} />
+          <SummaryCard label="연결 전" value={s?.nowire != null ? num(s.nowire) : '—'} sub="키만 있고 경로 없음" color="#7c3aed" icon={Plug} />
           <SummaryCard label="연동 없음" value={s ? num(s.nokey) : '—'} sub="API 키 미설정" color="#64748b" icon={XCircle} />
         </div>
 
@@ -259,19 +265,19 @@ export default function AdminAiModelsPage() {
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="모델·모델ID·제공사 검색" className="w-56 bg-transparent text-sm outline-none" />
           </div>
           <Seg value={kind} onChange={setKind} options={[['all', '전체'], ['image', '이미지'], ['video', '영상'], ['3d', '3D'], ['llm', '프롬프트']]} />
-          <Seg value={status} onChange={setStatus} options={[['all', '전체'], ['live', '정상'], ['unverified', '미확인'], ['nokey', '연동없음']]} />
+          <Seg value={status} onChange={setStatus} options={[['all', '전체'], ['live', '정상'], ['unverified', '미확인'], ['nowire', '연결 전'], ['nokey', '연동없음']]} />
           <span className="ml-auto text-xs text-[var(--text-dim)]">
             {num(filtered.length)}개 표시{data?.usdKrw ? ` · 환율 $1=₩${num(Math.round(data.usdKrw))}` : ''}
           </span>
         </div>
 
         {/* 상태 설명 */}
-        <div className="grid gap-2 sm:grid-cols-3">
-          {(['live', 'unverified', 'nokey'] as const).map((k) => {
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {(['live', 'unverified', 'nowire', 'nokey'] as const).map((k) => {
             const m = STATUS_META[k]; const Icon = m.icon
             return (
               <div key={k} className="flex items-start gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2.5">
-                <Icon size={15} className="mt-0.5 flex-shrink-0" style={{ color: k === 'live' ? '#059669' : k === 'unverified' ? '#d97706' : '#94a3b8' }} />
+                <Icon size={15} className="mt-0.5 flex-shrink-0" style={{ color: k === 'live' ? '#059669' : k === 'unverified' ? '#d97706' : k === 'nowire' ? '#7c3aed' : '#94a3b8' }} />
                 <div className="min-w-0">
                   <div className="text-xs font-bold">{m.label}</div>
                   <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-dim)]">{m.desc}</div>
@@ -314,6 +320,13 @@ export default function AdminAiModelsPage() {
                           <td className="px-4 py-2.5">
                             <div className="font-medium">{m.model}</div>
                             {m.isPipeline && <div className="text-[11px] text-[var(--text-dim)]">복합 파이프라인(여러 제공사 조합)</div>}
+                            {/* 왜 못 쓰는지와 다음에 뭘 해야 하는지를 그 줄에서 바로 알려 준다 */}
+                            {m.status === 'nowire' && (
+                              <div className="mt-0.5 text-[11px] text-violet-600">
+                                키는 있으나 생성 경로 없음 ·{' '}
+                                <a href={`${ADMIN_BASE}/ltx-check`} className="font-semibold underline">키 확인부터</a>
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-2.5">
                             <code className="rounded bg-[var(--panel-2)] px-1.5 py-0.5 text-[11px] text-[var(--text-soft)]">{m.modelId}</code>

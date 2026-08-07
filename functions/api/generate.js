@@ -65,6 +65,9 @@ export function keys(env) {
     //  알리바바 DashScope(Wan/만상) — 콘솔에 alibaba_API_KEY 로 넣어 두었다. 대소문자 변형도 함께 본다.
     alibaba: pick(env, ["alibaba_API_KEY", "ALIBABA_API_KEY", "Alibaba_API_KEY", "alibaba_api_key",
                         "DASHSCOPE_API_KEY", "dashscope_api_key"]),
+    //  LTX(Lightricks) — 콘솔에 LTX_API_KEY 로 넣어 두었다. 대소문자·별칭 변형도 함께 본다.
+    ltx: pick(env, ["LTX_API_KEY", "ltx_api_key", "Ltx_API_KEY", "LTX2_API_KEY",
+                    "LIGHTRICKS_API_KEY", "lightricks_api_key"]),
     openai: pick(env, ["GPT_API_KEY", "OPENAI_API_KEY", "gpt_api_key", "openai_api_key"])
   };
 }
@@ -2296,6 +2299,13 @@ async function handle(context) {
            지문은 화면 어디에서도 쓰지 않고 관리자가 배포 키를 대조할 때만 본다.
            그런데 공개로 두면 키의 12글자가 그대로 밖으로 나간다. */
         alibabaKeyId: (healthAdmin && k.alibaba) ? (String(k.alibaba).slice(0, 6) + "…" + String(k.alibaba).slice(-4)) : null,
+        /* LTX(Lightricks) — 키만 들어와 있고 아직 생성 경로가 없다.
+           그래서 여기서 true 를 주면 안 된다. 스튜디오는 이 값을 "눌러도 되는가" 로 읽는데,
+           키가 있다고 켜 두면 회원이 고를 수는 있고 누르면 실패하는 모델이 생긴다 —
+           클링·루마에서 이미 그랬다. 연결 여부(ltx)와 키 유무(ltxKeySet)를 따로 답한다. */
+        ltx: false,
+        ltxKeySet: !!k.ltx,
+        ltxKeyId: (healthAdmin && k.ltx) ? (String(k.ltx).slice(0, 6) + "…" + String(k.ltx).slice(-4)) : null,
         /* 클링은 공식 오픈플랫폼 API 로만 나간다(중개 폴백 제거). fal 키가 있어도 대체되지 않으므로
            공식 키가 없으면 여기서 false 를 돌려 스튜디오가 클링 모델을 아예 숨기게 한다.
            예전엔 (klingCreds || fal) 로 답해, 공식 키가 없어도 모델이 목록에 남아 매번 실패했다. */
@@ -2703,6 +2713,213 @@ async function handle(context) {
         취소된것,
         해석,
         결과: results,
+      });
+    }
+    /* ── LTX(Lightricks) 키 확인 — 읽기만 한다. 생성은 어떤 경우에도 하지 않는다 ──
+       GET /api/generate?diag=ltx     (관리자 전용 · 위 게이트에서 막는다)
+
+       왜 이렇게 만들었나:
+        · LTX 는 아직 연동돼 있지 않다. 키(LTX_API_KEY)만 콘솔에 들어와 있어서
+          "이 키가 진짜 되는가" 부터 답해야 한다.
+        · 알리바바에서 한 번 데였다. 확인한다고 보낸 요청이 실제로 태스크를 만들어
+          돈이 나갔다(파라미터 검사가 큐 뒤에서 돌았다). 그래서 여기서는 규칙을 하나로 못 박는다 —
+          ⚠ **이 블록은 GET 만 보낸다.** 보내는 함수는 read() 하나뿐이고 method 가 그 안에 박혀 있다.
+             본문(body)도 붙이지 않는다. 만들 수 있는 요청이 없으니 만들어질 것도 없다.
+             scripts/ltx.test.mjs 가 이 블록에 POST 가 섞이는 것을 막는다.
+
+       왜 "대조키" 를 같이 쏘나 — 이게 이 진단의 핵심이다:
+         200 하나만 보고 "키가 된다" 고 하면 틀린다. 인증을 아예 안 보는 주소도 200 을 준다.
+         404 하나만 보고 "키가 안 된다" 고 해도 틀린다. 경로가 다른 것뿐일 수 있다.
+         그래서 **일부러 틀린 키로 같은 주소를 한 번 더 읽는다.**
+           우리 키 200 · 틀린 키 401  → 이 주소는 인증을 본다. 우리 키는 진짜 통과했다(확정).
+           우리 키 200 · 틀린 키 200  → 이 주소는 인증을 안 본다. 200 은 증거가 아니다(확정 못 함).
+           우리 키 401 · 틀린 키 401  → 우리 키가 거절된 것이다(확정).
+         "요청이 성공했는가" 가 아니라 **"인증이 갈렸는가"** 를 보는 것이다.
+
+       ⚠ 주소(호스트·경로)는 이 개발 환경에서 공식 문서(docs.ltx.video·ltx.io)가 403 이라
+         원문으로 확인하지 못했다. 그래서 하나로 못 박지 않고 **후보를 훑어 실제로 답하는 것을 찾는다.**
+         배포된 서버에서 이 진단을 열면 어느 주소가 답하는지가 그대로 나온다. */
+    if (u.searchParams.get("diag") === "ltx") {
+      if (!k.ltx)
+        return json({ diag: "ltx", 키있음: false, 키작동: false,
+                      판정: "LTX_API_KEY 가 서버에 없습니다. 값이 없으니 확인할 것도 없습니다.",
+                      error: "LTX_API_KEY 미설정" }, 400);
+
+      //  검사에서 가짜 서버로 돌리기 위한 통로(환경변수로만 바뀐다 — 회원 요청으로는 못 바꾼다)
+      const lov = pick(env, ["LTX_HOST_OVERRIDE", "ltx_host_override"]);
+      const HOSTS = lov ? [{ id: "override", base: String(lov) }] : [
+        { id: "api.ltx.video", base: "https://api.ltx.video" },
+        { id: "api.ltx.io", base: "https://api.ltx.io" },
+      ];
+      /* 읽기 전용 경로만 담는다. 어느 것도 작업을 만들지 않는다.
+         작업조회는 **없는 작업 번호**를 물어보는 자리다 — 인증이 통과하면 "그런 작업 없음"(404),
+         키가 죽었으면 401 이 온다. 만들지 않고 인증만 가르는 데 가장 좋은 요청이다. */
+      const NOJOB = "00000000-0000-4000-8000-000000000000";
+      const PATHS = [
+        { 이름: "모델 목록 v1", path: "/v1/models", 종류: "models" },
+        { 이름: "모델 목록 v2", path: "/v2/models", 종류: "models" },
+        { 이름: "잔액 조회", path: "/v1/credits", 종류: "credits" },
+        { 이름: "계정 조회", path: "/v1/me", 종류: "account" },
+        { 이름: "없는 작업 조회", path: "/v2/text-to-video/" + NOJOB, 종류: "job" },
+      ];
+      //  일부러 틀린 키. 형식은 그럴듯하되 어떤 계정에도 없는 값이다.
+      const 대조키 = "ltx-control-invalid-00000000000000000000";
+
+      const lcut = (t) => String(t == null ? "" : t).slice(0, 400);
+      const lerr = (j) => {
+        const raw = (j && (j.code || (j.error && j.error.code) || j.type)) || "";
+        const msg = (j && (j.message || (j.error && (j.error.message || j.error)) || j.detail)) || "";
+        return { code: String(raw || ""), message: String(typeof msg === "string" ? msg : JSON.stringify(msg) || "") };
+      };
+      /* ⚠ 보내는 자리는 여기 하나뿐이다. method 가 박혀 있고 body 가 없다.
+         새 확인을 붙이고 싶어도 이 함수를 통해야 한다 — 그래야 "확인만 했는데 만들어졌다" 가 안 난다. */
+      const read = async (label, url, key, keep) => {
+        const t0 = Date.now();
+        try {
+          const r = await fetchT(url, {
+            method: "GET",
+            headers: { "Authorization": "Bearer " + key, "Accept": "application/json" },
+          }, 8000);
+          const text = await r.text().catch(() => "");
+          let parsed = null; try { parsed = JSON.parse(text); } catch (_e) { /* JSON 이 아닐 수 있다 */ }
+          const e = lerr(parsed);
+          return { 검사: label, url, status: r.status, ms: Date.now() - t0,
+                   code: e.code || null, message: e.message ? e.message.slice(0, 200) : null,
+                   //  목록은 자르면 정작 봐야 할 모델 이름이 잘려 나간다(알리바바에서 그랬다) — 따로 정리한다
+                   본문: keep ? "(목록은 아래 모델목록 항목으로 따로 정리)" : lcut(text),
+                   _json: parsed };
+        } catch (err) {
+          return { 검사: label, url, status: 0, ms: Date.now() - t0,
+                   오류: String((err && err.message) || err).slice(0, 160) };
+        }
+      };
+
+      /* 목록 응답에서 모델 이름만 뽑는다. 배열이 담긴 필드 이름도, 이름 필드도 문서마다 다르다.
+         하나로 못 박으면 이름이 다를 때 조용히 빈 목록이 되고 — 그러면 "쓸 수 있는 모델이 없다"
+         는 틀린 결론이 나온다. 그래서 찾아서 쓴다(알리바바 진단과 같은 방식). */
+      const idsFromLtx = (j) => {
+        const box = (j && (j.data || j.models || j.output || j)) || {};
+        let arr = Array.isArray(box) ? box : null;
+        if (!arr && box && typeof box === "object") {
+          for (const v of Object.values(box)) if (Array.isArray(v)) { arr = v; break; }
+        }
+        if (!arr) return [];
+        return arr.map((it) => {
+          if (typeof it === "string") return it;
+          if (!it || typeof it !== "object") return "";
+          for (const f of ["id", "model", "model_id", "name", "slug"]) {
+            if (typeof it[f] === "string" && it[f]) return it[f];
+          }
+          const s = Object.values(it).find((v) => typeof v === "string");
+          return s || "";
+        }).filter(Boolean);
+      };
+
+      const results = [];
+      const 모델목록 = [];
+      let 잔액 = null;
+
+      for (const h of HOSTS) {
+        for (let i = 0; i < PATHS.length; i++) {
+          const p = PATHS[i];
+          const keep = p.종류 === "models";
+          const r = await read(h.id + " · " + p.이름, h.base + p.path, k.ltx, keep);
+          results.push(r);
+          //  첫 요청이 아예 안 닿으면 그 호스트는 없는 주소다. 남은 4개를 더 두들길 이유가 없다.
+          if (i === 0 && r.status === 0) {
+            results.push({ 검사: h.id + " · 나머지 건너뜀", url: h.base, status: 0,
+                           오류: "첫 요청이 닿지 않아 이 호스트는 더 묻지 않았습니다." });
+            break;
+          }
+          if (r.status >= 200 && r.status < 300 && r._json) {
+            if (p.종류 === "models") {
+              const ids = idsFromLtx(r._json);
+              if (ids.length) 모델목록.push({ 호스트: h.base, 경로: p.path, 개수: ids.length, 모델: ids.slice(0, 120) });
+            }
+            if (p.종류 === "credits" || p.종류 === "account") {
+              const j = r._json;
+              const n = Number((j && (j.credits ?? j.balance ?? j.credit_balance ?? (j.data && (j.data.credits ?? j.data.balance)))));
+              if (Number.isFinite(n)) 잔액 = n;
+            }
+          }
+        }
+      }
+
+      /* ── 대조 확인 ── 가장 증거가 되는 주소 하나를 골라 일부러 틀린 키로 한 번 더 읽는다.
+         2xx 가 있으면 그걸 쓰고, 없으면 "서버가 답은 한" 주소(401 이 아닌 것)를 쓴다. */
+      const 답한것 = results.filter((r) => r.status > 0);
+      const 통과한것 = results.filter((r) => r.status >= 200 && r.status < 300);
+      const 대표 = 통과한것[0] || 답한것.find((r) => r.status !== 401 && r.status !== 403) || 답한것[0] || null;
+      let 대조 = null;
+      if (대표) 대조 = await read("대조(일부러 틀린 키) · " + 대표.검사, 대표.url, 대조키, false);
+
+      /* ── 판정 ── 키작동: true(된다) · false(안 된다) · null(확정 못 함)
+         null 을 없애고 싶은 유혹이 있는데, 없애면 "모르는 것을 안다고 말하는" 화면이 된다. */
+      let 키작동 = null, 판정 = "", 근거 = "";
+      const 대조거절 = !!대조 && (대조.status === 401 || 대조.status === 403);
+      const 대조통과 = !!대조 && 대조.status >= 200 && 대조.status < 300;
+
+      if (!답한것.length) {
+        키작동 = null;
+        판정 = "확인 못 함 — LTX 서버에 닿지 않았습니다.";
+        근거 = "후보 주소 어느 곳도 응답하지 않았습니다. 키 문제가 아니라 주소가 다르거나 통신이 막힌 것입니다. "
+             + "이 진단은 배포된 서버에서 열어야 합니다.";
+      } else if (통과한것.length && 대조거절) {
+        키작동 = true;
+        판정 = "키가 작동합니다 — 확정.";
+        근거 = "우리 키는 " + 통과한것[0].status + " 로 통과했고, 같은 주소를 일부러 틀린 키로 읽으니 "
+             + 대조.status + " 로 거절됐습니다. 이 주소는 인증을 실제로 보고 있으며 우리 키가 그걸 통과했다는 뜻입니다.";
+      } else if (통과한것.length && 대조통과) {
+        키작동 = null;
+        판정 = "확인 못 함 — 이 주소는 인증을 보지 않습니다.";
+        근거 = "우리 키도 200, 일부러 틀린 키도 200 입니다. 이 200 은 키가 맞다는 증거가 아닙니다. "
+             + "인증을 요구하는 다른 경로를 찾아야 합니다.";
+      } else if (통과한것.length) {
+        키작동 = null;
+        판정 = "키는 통과한 것으로 보이나 확정하지 못했습니다.";
+        근거 = "우리 키로 " + 통과한것[0].status + " 를 받았지만 대조(틀린 키) 확인이 결론을 내지 못했습니다"
+             + (대조 ? "(대조 응답 " + 대조.status + ")" : "") + ".";
+      } else if (답한것.every((r) => r.status === 401)) {
+        키작동 = false;
+        판정 = "키가 거절됐습니다 — 확정.";
+        근거 = "응답한 모든 주소가 401 입니다. 값이 잘못됐거나 만료·비활성 키입니다. "
+             + "콘솔(console.ltx.video)에서 키를 다시 발급해 LTX_API_KEY 를 교체해야 합니다.";
+      } else if (답한것.some((r) => r.status === 401) && 답한것.some((r) => r.status === 404)) {
+        키작동 = null;
+        판정 = "확인 못 함 — 인증을 묻는 주소를 아직 못 찾았습니다.";
+        근거 = "401 과 404 가 섞여 있습니다. 404 는 그 경로가 없다는 뜻이라 키 판단에 못 씁니다. "
+             + "아래 결과에서 401 이 난 주소가 진짜 API 주소일 가능성이 높습니다.";
+      } else if (대조거절 && 대표 && 대표.status !== 401 && 대표.status !== 403) {
+        키작동 = true;
+        판정 = "키가 작동합니다 — 인증은 통과했고, 요청 자체가 다른 이유로 거절됐습니다.";
+        근거 = "우리 키는 " + 대표.status + "(인증 거절이 아님), 일부러 틀린 키는 " + 대조.status + " 입니다. "
+             + "인증이 갈렸다는 것은 우리 키가 서버에 받아들여졌다는 뜻입니다.";
+      } else {
+        키작동 = null;
+        판정 = "확인 못 함 — 서버가 판단할 수 있는 답을 주지 않았습니다.";
+        근거 = "받은 상태코드로는 인증 통과 여부를 가를 수 없습니다. 아래 결과 원문을 보고 판단해야 합니다.";
+      }
+
+      results.forEach((r) => { delete r._json; });   // 파싱본은 내부용 — 응답에 통째로 싣지 않는다
+      if (대조) delete 대조._json;
+
+      return json({
+        diag: "ltx",
+        주의: "이 진단은 GET(읽기)만 보냅니다. 영상·이미지가 만들어지지 않으므로 돈이 나가지 않습니다.",
+        키있음: true,
+        //  ⚠ 키 값은 어떤 경우에도 나가지 않는다. 배포된 키와 콘솔 키를 대조할 앞뒤 몇 글자만 준다.
+        키지문: String(k.ltx).slice(0, 6) + "…" + String(k.ltx).slice(-4),
+        키길이: String(k.ltx).length,
+        키작동,
+        판정,
+        근거,
+        잔액,
+        모델목록,
+        대조,
+        결과: results,
+        다음: 키작동 === true
+          ? "모델 목록이 함께 잡혔으면 관리자 → 모델 등록부에서 그 모델 ID 로 등록하면 노드에 나타납니다."
+          : "키가 확정되기 전에는 LTX 모델을 켜지 않습니다 — 회원이 고를 수 있는데 안 되는 모델은 만들지 않습니다.",
       });
     }
     // GET 기반 Seedance 제출 — 스튜디오 POST 가 (원인불명) 플랫폼 502 날 때의 우회 경로.
@@ -6299,7 +6516,18 @@ async function handle(context) {
     return json({ error: "Kling 연동이 설정되지 않았습니다. 환경변수 KLING_ACCESS_KEY·KLING_SECRET_KEY(또는 KLING_API_KEY) 를 넣어주세요." }, 500);
   }
 
-  return json({ error: "지원하지 않는 provider: " + provider + " (runway/runway_aleph/xai/google/seedance/flux/hailuo/luma/kling)" }, 400);
+  /* LTX(Lightricks) — 키는 콘솔에 들어와 있지만 **생성 경로는 아직 없다.**
+     여기까지 왔다는 건 등록부에서 LTX 모델이 켜졌다는 뜻이다(기본은 꺼져 있다).
+     그때 "지원하지 않는 provider" 라는 일반 문구로 떨어지면, 관리자는 오타를 의심하며
+     엉뚱한 데를 뒤진다. 무엇이 없어서 안 되는지와 어디로 가야 하는지를 그대로 말한다.
+     ⚠ 제공사에 아무것도 보내지 않는다. 과금 토큰은 제출 성공(200 + url/statusUrl)에서만
+       정산되므로 이 응답으로는 크레딧이 차감되지 않는다. */
+  if (provider === "ltx") {
+    return json({ error: "LTX 는 아직 연결되지 않았습니다 — 키만 등록된 상태입니다. " +
+      "관리자 → LTX 키 확인 에서 키와 실제 모델 ID 를 확인한 뒤 연결해야 합니다. " +
+      "확인 전까지 이 모델은 노드에 나오지 않습니다." }, 400);
+  }
+  return json({ error: "지원하지 않는 provider: " + provider + " (runway/runway_aleph/xai/google/seedance/flux/hailuo/luma/kling/alibaba)" }, 400);
 }
 
 // redeploy marker a1aedb0

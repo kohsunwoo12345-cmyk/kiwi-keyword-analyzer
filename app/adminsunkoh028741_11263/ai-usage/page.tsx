@@ -294,7 +294,12 @@ export default function AdminAiUsagePage() {
                     <tbody>
                       {byProvider.map((p) => (
                         <tr key={p.provider} className={TR}>
-                          <td className={cn(TD, 'font-medium')}>{p.provider}</td>
+                          <td className={cn(TD, 'font-medium')}>
+                            {p.providerLabel || p.provider}
+                            {p.providerLabel && p.providerLabel !== p.provider && (
+                              <span className="ml-1 text-[11px] font-normal text-[var(--text-dim)]">{p.provider}</span>
+                            )}
+                          </td>
                           <td className={cn(TD, 'text-right tabular-nums')}>{num(p.count)}</td>
                           <td className={cn(TD, 'text-right font-semibold tabular-nums')}>${p.usd.toFixed(4)}</td>
                           <td className={cn(TD, 'text-right tabular-nums text-rose-500')}>{krw(p.cost)}</td>

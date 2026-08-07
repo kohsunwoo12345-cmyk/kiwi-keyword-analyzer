@@ -10,6 +10,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 import { ensureOnce } from '../_utils'
 import { ALIBABA_MODELS } from './_alibaba'
+import { LTX_MODELS } from './_ltx'
 
 export type ModelRow = {
   name: string          // 스튜디오 표시명 (모델 표의 열쇠)
@@ -45,6 +46,7 @@ async function create(db: D1Database) {
 export async function ensureRegistry(db: D1Database) {
   await ensureOnce(db, 'schema_modelreg_v1', () => create(db), ['model_registry'])
   await seedAlibaba(db)
+  await seedLtx(db)
 }
 
 /* ── 알리바바 모델을 등록부에 한 번 심는다 ──────────────────────────────
@@ -67,6 +69,35 @@ export async function seedAlibaba(db: D1Database) {
         .bind(r.name, r.cat, 'alibaba', r.id, r.kind, r.unit, r.usd,
               JSON.stringify(r.opts || {}), new Date().toISOString(),
               '알리바바 목록 API 로 확인된 모델' + (r.pinned ? ' · 날짜 고정판' : '') + ' · 단가 잠정',
+              new Date().toISOString()).run()
+    }
+  }, ['model_registry'])
+}
+
+/* ── LTX 모델을 등록부에 심는다 — 단, **꺼진 채로** ────────────────────────
+   알리바바와 딱 한 가지가 다르다: enabled 를 0 으로 심는다.
+
+   왜 켜지 않는가. 알리바바 모델들은 운영 키로 제공사 목록 API 를 받아 "실재한다" 를
+   확인하고 넣은 것이다. LTX 는 그 확인을 아직 못 했다 — 이 개발 환경에서 LTX 공식
+   문서가 403 이라 모델 ID 표기(`ltx-2.3-pro` vs `ltx-2-3-pro`)조차 못 굳혔다.
+   그 상태로 켜면 회원 노드 피커에 "고를 수는 있는데 누르면 404" 인 모델이 올라간다.
+   이 파일 머리말이 경고하는 바로 그것이다.
+
+   켜는 방법(배포된 서버에서, 1분):
+     ① 관리자 → LTX 키 확인 을 연다 (읽기 전용 · 무과금)
+     ② 판정이 "키가 작동합니다" 이고 모델 목록이 잡히면, 거기 나온 **실제 모델 ID** 를 본다
+     ③ 관리자 → 모델 등록부 에서 그 ID 로 등록하거나, 이 줄의 스위치를 켠다
+   ⚠ INSERT OR IGNORE 다. 관리자가 켜 둔 것을 배포할 때마다 도로 끄지 않는다. */
+export async function seedLtx(db: D1Database) {
+  return ensureOnce(db, 'seed_ltx_v1', async () => {
+    for (const r of LTX_MODELS) {
+      await db.prepare(
+        `INSERT OR IGNORE INTO model_registry
+           (name, cat, provider, model_id, kind, unit, usd, opts, enabled, verified_at, note, created_at)
+         VALUES (?,?,?,?,?,?,?,?,0,NULL,?,?)`)
+        .bind(r.name, r.cat, 'ltx', r.id, r.kind, r.unit, r.usd,
+              JSON.stringify(r.opts || {}),
+              '미확인 — 관리자 → LTX 키 확인 에서 제공사가 알려 준 모델 ID 를 본 뒤 켠다 · 단가 잠정',
               new Date().toISOString()).run()
     }
   }, ['model_registry'])

@@ -1,6 +1,7 @@
 import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser } from '../_utils'
 import { MODEL_COST, PROV_LABEL, computeCharge, getUsdKrw } from '../studio/_pricing'
 import { ALIBABA_BY_NAME } from '../studio/_alibaba'
+import { LTX_BY_NAME, LTX_KEY_NAMES, LTX_WIRED } from '../studio/_ltx'
 import {
   SEEDREAM_IDS, SEEDANCE_IDS, FLUX_ENDPOINTS, OPENAI_IMG_ID,
   HAILUO_IDS, LUMA_IDS, KLING_API, RUNWAY_MODELS, ARK3D_IDS, gcpCreds,
@@ -32,6 +33,8 @@ const PROVIDER_KEYS: Record<string, string[]> = {
   //  알리바바 DashScope(Wan·Qwen) — 콘솔에 alibaba_API_KEY 로 들어와 있다
   alibaba: ['alibaba_API_KEY', 'ALIBABA_API_KEY', 'Alibaba_API_KEY', 'alibaba_api_key',
             'DASHSCOPE_API_KEY', 'dashscope_api_key'],
+  //  LTX(Lightricks) — 콘솔에 LTX_API_KEY 로 들어와 있다. 이름 목록은 _ltx.ts 한 곳만 본다.
+  ltx: LTX_KEY_NAMES,
   // 3D 생성·프롬프트 작성 LLM 은 씨댄스와 같은 ByteDance ModelArk 키를 쓴다
   ark3d: ['Seedance_API_KEY', 'SEEDANCE_API_KEY', 'seedance_api_key'],
   promptgen: ['Seedance_API_KEY', 'SEEDANCE_API_KEY', 'seedance_api_key'],
@@ -47,6 +50,7 @@ const PROVIDER_KEYS: Record<string, string[]> = {
 function modelIdOf(model: string): string {
   //  알리바바는 표를 한 군데(_alibaba.ts)만 둔다 — 여기서 또 적으면 어긋난다
   const ali = (ALIBABA_BY_NAME as any)[model]; if (ali) return ali.id
+  const lt = (LTX_BY_NAME as any)[model]; if (lt) return lt.id
   const s = (SEEDREAM_IDS as any)[model]; if (s) return Array.isArray(s) ? s[0] : s
   const d = (SEEDANCE_IDS as any)[model]; if (d) return d
   const f = (FLUX_ENDPOINTS as any)[model]; if (f) return f
@@ -105,8 +109,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const prov = m.prov as string
     const keyConfigured = !!keyOf[prov]
     const isPipeline = PIPELINES.has(model)
-    const idUnverified = UNVERIFIED_IDS.has(model)
-    const status = !keyConfigured ? 'nokey' : idUnverified ? 'unverified' : 'live'
+    /* LTX 는 모델 ID 자체가 아직 확인 전이다(_ltx.ts 머리말). 표에 손으로 적어 두면
+       모델이 늘 때 빠지므로, 그 제공사인지로 판단한다. */
+    const idUnverified = UNVERIFIED_IDS.has(model) || prov === 'ltx'
+    /* 키는 들어와 있는데 **생성 경로가 아직 없는** 제공사가 있다(현재 LTX).
+       이걸 '미확인' 으로 뭉개면 화면이 "확인만 하면 쓸 수 있다" 로 읽힌다 — 사실이 아니다.
+       누르면 되는 것이 아무것도 없다는 뜻이라 따로 답한다. */
+    const wired = prov === 'ltx' ? LTX_WIRED : true
+    const status = !keyConfigured ? 'nokey' : !wired ? 'nowire' : idUnverified ? 'unverified' : 'live'
     const c = computeCharge({ model, units: kind === 'image' ? 1 : 8, kind, res: '1080p' } as any, rate)
     return {
       model,
@@ -124,8 +134,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       /* 모델 ID 는 제공사 목록 API 로 확인했지만 **단가는 아직 잠정** 이다.
          화면이 확정값처럼 보여 주면 그 값을 믿고 팔게 된다 — 그래서 따로 표시한다.
          관리자 → 모델 단가에서 실측값을 넣으면 그 값이 이긴다. */
-      costProvisional: prov === 'alibaba',
-      status,                  // live | unverified | nokey
+      costProvisional: prov === 'alibaba' || prov === 'ltx',
+      wired,                   // false = 키는 있어도 부를 경로가 없다(회원 화면에 안 나간다)
+      status,                  // live | unverified | nowire | nokey
     }
   })
 
@@ -141,6 +152,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       total: models.length,
       live: models.filter((x) => x.status === 'live').length,
       unverified: models.filter((x) => x.status === 'unverified').length,
+      nowire: models.filter((x) => x.status === 'nowire').length,
       nokey: models.filter((x) => x.status === 'nokey').length,
       image: models.filter((x) => x.kind === 'image').length,
       video: models.filter((x) => x.kind === 'video').length,

@@ -1,4 +1,5 @@
 import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser, setSetting, getSetting, logAudit, clientIp } from '../_utils'
+import { LTX_HOSTS, LTX_KEY_NAMES } from '../studio/_ltx'
 
 // AI 제공사 — 표시명 · 충전 URL · env 키 후보(generate.js 와 동일) · 잔액 단위.
 // 연동 상태는 실제 인증 호출(probe)로 확인한다:
@@ -18,6 +19,8 @@ const PROVIDERS: { id: string; name: string; url: string; note: string; keys: st
   { id: 'nanobanana', name: 'Nano Banana', url: 'https://aistudio.google.com/', note: 'Nano Banana (Gemini 이미지)', keys: ['VEO_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY', 'Fal_API_KEY', 'FAL_API_KEY'] },
   { id: 'fal', name: 'fal', url: 'https://fal.ai/dashboard/billing', note: 'ControlNet · 립싱크 경로', keys: ['Fal_API_KEY', 'FAL_API_KEY', 'FAL_KEY', 'fal_api_key'] },
   { id: 'elevenlabs', name: 'ElevenLabs', url: 'https://elevenlabs.io/app/subscription', note: '립싱크 · AI 음성', keys: ['ElevenLabs_API_KEY', 'ELEVENLABS_API_KEY', 'elevenlabs_api_key'], unit: '문자' },
+  //  LTX(Lightricks) — 키만 들어와 있고 아직 생성 경로가 없다. 여기서는 "키가 살아 있는가" 만 본다.
+  { id: 'ltx', name: 'LTX (Lightricks)', url: 'https://console.ltx.video/', note: 'LTX-2 (영상) · 연결 전', keys: LTX_KEY_NAMES, unit: '크레딧' },
 ]
 
 type Ov = { balance?: number | null; url?: string; updatedAt?: string }
@@ -72,6 +75,29 @@ async function probe(id: string, key: string): Promise<{ ok?: boolean; balance?:
       const r = await tfetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(key), { headers: { accept: 'application/json' } })
       return r.ok ? { ok: true } : { ok: false, error: `HTTP ${r.status}` }
     }
+    /* LTX — 후보 주소를 GET 으로만 훑는다. 생성 요청은 보내지 않는다.
+       ⚠ 여기서 '연동됨' 이 뜨더라도 그것은 **키가 살아 있다**는 뜻일 뿐,
+         우리가 LTX 로 영상을 만들 수 있다는 뜻이 아니다(생성 경로가 아직 없다).
+         자세한 판정은 관리자 → LTX 키 확인(?diag=ltx)이 대조키까지 써서 낸다. */
+    if (id === 'ltx') {
+      let last = ''
+      for (const base of LTX_HOSTS) {
+        try {
+          const r = await tfetch(base + '/v1/models', { method: 'GET', headers: { Authorization: `Bearer ${key}`, accept: 'application/json' } })
+          if (r.ok) {
+            const j: any = await r.json().catch(() => null)
+            const c = Number(j?.credits ?? j?.balance ?? j?.credit_balance)
+            return isFinite(c) ? { ok: true, balance: c, unit: '크레딧' } : { ok: true }
+          }
+          //  401 만 키 문제다. 404 는 그 경로가 없다는 뜻이라 다음 후보를 본다.
+          if (r.status === 401) return { ok: false, error: 'HTTP 401 (키 거절)' }
+          last = `HTTP ${r.status}`
+        } catch (e: any) {
+          last = String(e?.name === 'AbortError' ? '시간 초과' : (e?.message || e)).slice(0, 40)
+        }
+      }
+      return { ok: false, error: last || '응답 없음' }
+    }
     return {} // fal/flux/kling/hailuo/seedance: 확인 API 없음 → 키 설정만으로 연동
   } catch (e: any) {
     return { ok: false, error: String(e?.name === 'AbortError' ? '시간 초과' : (e?.message || e)).slice(0, 80) }
@@ -105,6 +131,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     nanobanana: 'nanobanana', openai: 'openai', runway: 'runway', runway_aleph: 'runway',
     v2v_auto: 'runway', seedance: 'seedance', xai: 'xai',
     lipsync: 'fal', motion: 'fal', falcontrol: 'fal', narrate: 'elevenlabs',
+    ltx: 'ltx',
   }
   const ID_TO_RAWS: Record<string, string[]> = {}
   for (const [raw, id] of Object.entries(RAW_TO_ID)) (ID_TO_RAWS[id] ||= []).push(raw)
