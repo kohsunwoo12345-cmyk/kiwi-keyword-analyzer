@@ -18,6 +18,7 @@ import { runKeyCheck, noKeyResult } from "./studio/_keycheck";
 import { LTX_KEYCHECK } from "./studio/_ltx";
 import { RECRAFT_KEYCHECK } from "./studio/_recraft";
 import { BRIA_KEYCHECK } from "./studio/_bria";
+import { STABILITY_KEYCHECK, STABILITY_KEY_NAMES } from "./studio/_stability";
 import { issueGenCharge, settleGenCharge, refundGenCharge, reconcileGenCharge, archiveGenResult } from "./studio/_gencharge";
 import { saveMediaToR2 } from "./_media";
 import { recordGenFailure } from "./studio/_genfail";
@@ -77,6 +78,9 @@ export function keys(env) {
     recraft: pick(env, ["Recraft_API_KEY", "RECRAFT_API_KEY", "recraft_api_key", "RECRAFTAI_API_KEY"]),
     //  Bria — 라이선스 안전한 이미지. ⚠ 이 키는 Bearer 가 아니라 api_token 헤더로 나간다.
     bria: pick(env, ["BRIA_API_KEY", "Bria_API_KEY", "bria_api_key", "BRIA_API_TOKEN"]),
+    /*  Stability AI — ⚠ 받은 이름이 `Stabilitya-API-KEY` 였다(오타처럼 보이지만 진짜일 수 있다).
+        후보는 표(_stability.ts) 한 곳에만 두고 여기서는 그걸 그대로 쓴다. */
+    stability: pick(env, STABILITY_KEY_NAMES),
     openai: pick(env, ["GPT_API_KEY", "OPENAI_API_KEY", "gpt_api_key", "openai_api_key"])
   };
 }
@@ -2323,6 +2327,10 @@ async function handle(context) {
         bria: false,
         briaKeySet: !!k.bria,
         briaKeyId: (healthAdmin && k.bria) ? (String(k.bria).slice(0, 6) + "…" + String(k.bria).slice(-4)) : null,
+        //  Stability 도 같다 — 키만 있고 생성 경로가 없다.
+        stability: false,
+        stabilityKeySet: !!k.stability,
+        stabilityKeyId: (healthAdmin && k.stability) ? (String(k.stability).slice(0, 6) + "…" + String(k.stability).slice(-4)) : null,
         /* 클링은 공식 오픈플랫폼 API 로만 나간다(중개 폴백 제거). fal 키가 있어도 대체되지 않으므로
            공식 키가 없으면 여기서 false 를 돌려 스튜디오가 클링 모델을 아예 숨기게 한다.
            예전엔 (klingCreds || fal) 로 답해, 공식 키가 없어도 모델이 목록에 남아 매번 실패했다. */
@@ -2818,12 +2826,16 @@ async function handle(context) {
     {
       const kcName = u.searchParams.get("diag");
       const KEYCHECKS = { ltx: [LTX_KEYCHECK, k.ltx], recraft: [RECRAFT_KEYCHECK, k.recraft],
-                          bria: [BRIA_KEYCHECK, k.bria] };
+                          bria: [BRIA_KEYCHECK, k.bria], stability: [STABILITY_KEYCHECK, k.stability] };
       if (kcName && Object.prototype.hasOwnProperty.call(KEYCHECKS, kcName)) {
         const [prov, key] = KEYCHECKS[kcName];
         if (!key) return json(noKeyResult(prov), 400);
         const ovHost = pick(env, prov.hostOverrideEnv);
-        return json(await runKeyCheck(prov, key, fetchT, ovHost));
+        /* 어느 환경변수 이름으로 잡혔는지 함께 넘긴다.
+           ⚠ 이게 없으면 화면이 "키 없음" 과 "이름을 잘못 적었음" 을 구분해 줄 수 없다.
+             Stability 는 받은 이름 자체가 흔들려서(Stabilitya-…) 이 값이 특히 필요하다. */
+        const foundName = prov.envNames.find((n) => env[n] && String(env[n]).trim()) || null;
+        return json(await runKeyCheck(prov, key, fetchT, ovHost, foundName));
       }
     }
     // GET 기반 Seedance 제출 — 스튜디오 POST 가 (원인불명) 플랫폼 502 날 때의 우회 경로.
@@ -6446,6 +6458,14 @@ async function handle(context) {
   if (provider === "bria") {
     return json({ error: "Bria 는 아직 연결되지 않았습니다 — 키만 등록된 상태입니다. " +
       "관리자 → Bria 키 확인 에서 키를 확인한 뒤 연결해야 합니다. " +
+      "확인 전까지 이 모델은 노드에 나오지 않습니다." }, 400);
+  }
+  /* Stability 도 같은 상태다.
+     ⚠ 이쪽은 연결할 때 단가부터 실측해야 한다 — 2026년 8월에 장당 크레딧이 크게 바뀌었다는
+       보고가 있다(_stability.ts 머리말). 표가 틀린 채로 켜면 그 차액을 우리가 문다. */
+  if (provider === "stability") {
+    return json({ error: "Stability AI 는 아직 연결되지 않았습니다 — 키만 등록된 상태입니다. " +
+      "관리자 → Stability 키 확인 에서 키를 확인하고, 단가를 실측값으로 넣은 뒤 연결해야 합니다. " +
       "확인 전까지 이 모델은 노드에 나오지 않습니다." }, 400);
   }
   return json({ error: "지원하지 않는 provider: " + provider + " (runway/runway_aleph/xai/google/seedance/flux/hailuo/luma/kling/alibaba)" }, 400);

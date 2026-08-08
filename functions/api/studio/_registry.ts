@@ -13,6 +13,7 @@ import { ALIBABA_MODELS } from './_alibaba'
 import { LTX_MODELS } from './_ltx'
 import { RECRAFT_MODELS } from './_recraft'
 import { BRIA_MODELS } from './_bria'
+import { STABILITY_MODELS } from './_stability'
 
 export type ModelRow = {
   name: string          // 스튜디오 표시명 (모델 표의 열쇠)
@@ -51,6 +52,7 @@ export async function ensureRegistry(db: D1Database) {
   await seedLtx(db)
   await seedRecraft(db)
   await seedBria(db)
+  await seedStability(db)
 }
 
 /* ── 알리바바 모델을 등록부에 한 번 심는다 ──────────────────────────────
@@ -157,6 +159,31 @@ export async function seedBria(db: D1Database) {
               JSON.stringify({ ...(r.opts || {}), needsImage: r.needsImage }),
               (r.needsImage ? '원본 이미지 필요 · ' : '')
                 + '연결 전 — 관리자 → Bria 키 확인 뒤 생성 경로를 붙이고 켠다 · 단가 잠정',
+              new Date().toISOString()).run()
+    }
+  }, ['model_registry'])
+}
+
+/* ── Stability 모델도 **꺼진 채로** 심는다 ────────────────────────────────
+   앞선 셋과 이유가 하나 더 있다. 경로는 공개 명세에서 그대로 읽었고 생성 경로가 아직
+   없는 것도 같지만, 여기는 **단가가 특히 위험하다** — 2026년 8월에 장당 크레딧이 크게
+   바뀌었다는 보고가 있다(_stability.ts 머리말). 표가 틀린 채로 켜면 회원이 쓸 때마다
+   그 차액을 우리가 물고, 그건 되돌릴 수 없다.
+
+   켜는 순서: ① Stability 키 확인(무과금)으로 키 확정 → ② 생성 경로 연결
+              → ③ **관리자 → 모델 단가에 청구서 실측값을 넣고** → ④ 켠다
+   ⚠ INSERT OR IGNORE 다. 관리자가 켜 둔 것을 배포할 때마다 도로 끄지 않는다. */
+export async function seedStability(db: D1Database) {
+  return ensureOnce(db, 'seed_stability_v1', async () => {
+    for (const r of STABILITY_MODELS) {
+      await db.prepare(
+        `INSERT OR IGNORE INTO model_registry
+           (name, cat, provider, model_id, kind, unit, usd, opts, enabled, verified_at, note, created_at)
+         VALUES (?,?,?,?,?,?,?,?,0,NULL,?,?)`)
+        .bind(r.name, r.cat, 'stability', r.id, r.kind, r.unit, r.usd,
+              JSON.stringify(r.opts || {}),
+              '연결 전 — 키 확인 뒤 생성 경로를 붙이고, 단가를 실측값으로 덮은 다음 켠다 '
+              + '(2026-08 크레딧 변경 보고 있음)',
               new Date().toISOString()).run()
     }
   }, ['model_registry'])

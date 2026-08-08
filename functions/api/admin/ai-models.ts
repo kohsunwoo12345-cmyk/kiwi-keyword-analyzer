@@ -4,6 +4,7 @@ import { ALIBABA_BY_NAME } from '../studio/_alibaba'
 import { LTX_BY_NAME, LTX_KEY_NAMES, LTX_WIRED } from '../studio/_ltx'
 import { RECRAFT_BY_NAME, RECRAFT_KEY_NAMES, RECRAFT_WIRED } from '../studio/_recraft'
 import { BRIA_BY_NAME, BRIA_KEY_NAMES, BRIA_WIRED } from '../studio/_bria'
+import { STABILITY_BY_NAME, STABILITY_KEY_NAMES, STABILITY_WIRED } from '../studio/_stability'
 import {
   SEEDREAM_IDS, SEEDANCE_IDS, FLUX_ENDPOINTS, OPENAI_IMG_ID,
   HAILUO_IDS, LUMA_IDS, KLING_API, RUNWAY_MODELS, ARK3D_IDS, gcpCreds,
@@ -41,6 +42,8 @@ const PROVIDER_KEYS: Record<string, string[]> = {
   recraft: RECRAFT_KEY_NAMES,
   //  Bria — 콘솔에 BRIA_API_KEY 로 들어와 있다.
   bria: BRIA_KEY_NAMES,
+  //  Stability — ⚠ 받은 이름이 Stabilitya-API-KEY 였다. 후보는 _stability.ts 한 곳만 본다.
+  stability: STABILITY_KEY_NAMES,
   // 3D 생성·프롬프트 작성 LLM 은 씨댄스와 같은 ByteDance ModelArk 키를 쓴다
   ark3d: ['Seedance_API_KEY', 'SEEDANCE_API_KEY', 'seedance_api_key'],
   promptgen: ['Seedance_API_KEY', 'SEEDANCE_API_KEY', 'seedance_api_key'],
@@ -61,6 +64,7 @@ function modelIdOf(model: string): string {
   const rc = (RECRAFT_BY_NAME as any)[model]; if (rc) return rc.id + (rc.vector ? ' (벡터 경로)' : '')
   //  Bria 는 '모델 ID' 개념이 없다 — 기능마다 경로가 다르고 그 경로가 곧 식별자다
   const br = (BRIA_BY_NAME as any)[model]; if (br) return br.id
+  const st2 = (STABILITY_BY_NAME as any)[model]; if (st2) return st2.id
   const s = (SEEDREAM_IDS as any)[model]; if (s) return Array.isArray(s) ? s[0] : s
   const d = (SEEDANCE_IDS as any)[model]; if (d) return d
   const f = (FLUX_ENDPOINTS as any)[model]; if (f) return f
@@ -127,7 +131,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     /* 키는 들어와 있는데 **생성 경로가 아직 없는** 제공사가 있다(현재 LTX).
        이걸 '미확인' 으로 뭉개면 화면이 "확인만 하면 쓸 수 있다" 로 읽힌다 — 사실이 아니다.
        누르면 되는 것이 아무것도 없다는 뜻이라 따로 답한다. */
-    const wired = prov === 'ltx' ? LTX_WIRED : prov === 'recraft' ? RECRAFT_WIRED : prov === 'bria' ? BRIA_WIRED : true
+    const wired = prov === 'ltx' ? LTX_WIRED : prov === 'recraft' ? RECRAFT_WIRED : prov === 'bria' ? BRIA_WIRED : prov === 'stability' ? STABILITY_WIRED : true
     const status = !keyConfigured ? 'nokey' : !wired ? 'nowire' : idUnverified ? 'unverified' : 'live'
     const c = computeCharge({ model, units: kind === 'image' ? 1 : 8, kind, res: '1080p' } as any, rate)
     return {
@@ -150,7 +154,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
          LTX·Recraft·Bria 는 아직 전부 잠정이다. 공식 가격표 원문을 못 본 상태이고,
          근거는 각 표 파일 머리말에 적어 뒀다. 확인되면 여기가 아니라 그 표를 고친다. */
       costProvisional: (prov === 'alibaba' && (ALIBABA_BY_NAME as any)[model]?.근거 !== 'A')
-        || prov === 'ltx' || prov === 'recraft' || prov === 'bria',
+        || prov === 'ltx' || prov === 'recraft' || prov === 'bria' || prov === 'stability',
       wired,                   // false = 키는 있어도 부를 경로가 없다(회원 화면에 안 나간다)
       status,                  // live | unverified | nowire | nokey
     }

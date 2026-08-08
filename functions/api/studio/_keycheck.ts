@@ -70,6 +70,12 @@ export type KeyCheckResult = {
   제공사: string
   주의: string
   키있음: boolean
+  /* 후보 여러 개 중 **실제로 잡힌 환경변수 이름**.
+     ⚠ 이게 없으면 "키 없음" 과 "이름을 잘못 적었음" 을 화면에서 구분할 수 없다.
+       Stability 를 붙일 때 사장님이 적어 준 이름이 `Stabilitya-API-KEY` 였다 —
+       오타로 보이지만 진짜 그 이름으로 넣었을 수도 있다. 후보를 넓게 잡고,
+       **무엇이 잡혔는지 화면에 그대로 보여 주는 것**이 유일하게 정직한 답이다. */
+  찾은이름?: string | null
   키지문?: string
   키길이?: number
   /** true = 된다(확정) · false = 안 된다(확정) · null = 확인 못 함 */
@@ -166,6 +172,7 @@ async function read(
  */
 export async function runKeyCheck(
   p: KeyProvider, key: string, fetchT: FetchT, hostOverride?: string | null,
+  foundEnvName?: string | null,
 ): Promise<KeyCheckResult> {
   const hosts = hostOverride ? [String(hostOverride)] : p.hosts
   const auth = p.auth || bearerAuth
@@ -266,6 +273,7 @@ export async function runKeyCheck(
     제공사: p.label,
     주의: '이 진단은 GET(읽기)만 보냅니다. 이미지·영상이 만들어지지 않으므로 돈이 나가지 않습니다.',
     키있음: true,
+    찾은이름: foundEnvName || null,
     //  ⚠ 키 값은 어떤 경우에도 나가지 않는다. 배포된 키와 콘솔 키를 대조할 앞뒤 몇 글자만 준다.
     키지문: String(key).slice(0, 6) + '…' + String(key).slice(-4),
     키길이: String(key).length,
@@ -291,9 +299,13 @@ export function noKeyResult(p: KeyProvider): Partial<KeyCheckResult> & { error: 
     provider: p.id,
     제공사: p.label,
     키있음: false,
+    찾은이름: null,
     키작동: false,
     판정: p.envNames[0] + ' 가 서버에 없습니다. 값이 없으니 확인할 것도 없습니다.',
-    근거: '환경변수에 키를 넣은 뒤 다시 확인하세요. 찾는 이름: ' + p.envNames.join(' · '),
+    /* 찾은 이름이 하나도 없을 때 제일 흔한 원인은 "안 넣었다" 가 아니라 **이름이 다르다** 다.
+       그래서 우리가 무엇을 찾았는지 전부 보여 준다 — 그래야 콘솔의 이름과 눈으로 맞대 볼 수 있다. */
+    근거: '환경변수에 키를 넣은 뒤 다시 확인하세요. 이미 넣었다면 **이름이 다를 수 있습니다** — '
+        + '우리가 찾는 이름은 이것들뿐입니다: ' + p.envNames.join(' · '),
     콘솔: p.console,
     error: p.envNames[0] + ' 미설정',
   }

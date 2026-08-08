@@ -82,6 +82,7 @@ export const VIDEO_NAV: NavItem[] = [
   { title: 'LTX 키 확인', href: `${ADMIN_BASE}/ltx-check`, icon: KeyRound },
   { title: 'Recraft 키 확인', href: `${ADMIN_BASE}/recraft-check`, icon: KeyRound },
   { title: 'Bria 키 확인', href: `${ADMIN_BASE}/bria-check`, icon: KeyRound },
+  { title: 'Stability 키 확인', href: `${ADMIN_BASE}/stability-check`, icon: KeyRound },
   { title: '회원 API 키·호출', href: `${ADMIN_BASE}/api-keys`, icon: KeyRound },
   { title: '정기 실행(크론)', href: `${ADMIN_BASE}/cron`, icon: Timer },
 ]

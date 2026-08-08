@@ -32,6 +32,7 @@ export type KeyCheckRes = {
   provider?: string
   제공사?: string
   키있음?: boolean
+  찾은이름?: string | null
   키지문?: string
   키길이?: number
   키작동?: boolean | null
@@ -159,7 +160,14 @@ export function KeyCheckPanel({
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <div className="rounded-lg border border-[var(--border)] p-3">
                 <p className="text-xs text-[var(--text-dim)]">키 설정</p>
-                <p className="mt-0.5 font-semibold">{res.키있음 ? `설정됨 (${envName})` : '없음'}</p>
+                {/* ⚠ 잡힌 환경변수 **이름**을 그대로 보여 준다. 이게 없으면 "키 없음" 과
+                    "이름을 잘못 적었음" 을 화면에서 구분할 수 없다 — 멀쩡한 키를 두고 헤매게 된다. */}
+                <p className="mt-0.5 font-semibold">
+                  {res.키있음 ? (res.찾은이름 ? '설정됨' : `설정됨 (${envName})`) : '없음'}
+                </p>
+                {res.키있음 && res.찾은이름 && (
+                  <p className="mt-0.5 break-all font-mono text-[11px] text-[var(--text-dim)]">{res.찾은이름}</p>
+                )}
               </div>
               <div className="rounded-lg border border-[var(--border)] p-3">
                 <p className="text-xs text-[var(--text-dim)]">키 지문 · 길이</p>

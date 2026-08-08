@@ -1,4 +1,4 @@
-/* 제공사 API 키 확인 검사 (LTX · Recraft · Bria) —  node scripts/keycheck.test.mjs
+/* 제공사 API 키 확인 검사 (LTX · Recraft · Bria · Stability) —  node scripts/keycheck.test.mjs
  *
  * 이 진단은 "아직 연동 안 된 제공사의 키로 남의 서버를 두들기는" 코드다. 알리바바에서
  * 똑같은 것을 만들다 실제로 돈을 냈다 — 확인만 한다고 보낸 요청이 태스크 5건을 만들었고
@@ -19,6 +19,9 @@
  *   ㉥ 인증 방식을 Bearer 로 단정하는 것. Bria 는 `api_token` 헤더다 — Bearer 로 물었으면
  *      멀쩡한 키가 401 로 돌아오고 우리는 그걸 믿고 키를 재발급하러 갔을 것이다.
  *      확인 도구가 틀린 답을 확신에 차서 말하는 게 제일 나쁘다.
+ *   ㉦ "키 없음" 과 "환경변수 이름이 다름" 을 뭉뚱그리는 것. Stability 는 받은 이름이
+ *      `Stabilitya-API-KEY` 였다 — 오타처럼 보이지만 진짜 그 이름일 수 있다.
+ *      화면이 **실제로 잡힌 이름**을 보여 주지 않으면 멀쩡한 키를 두고 헤매게 된다.
  */
 import fs from 'node:fs'
 import { build } from 'esbuild'
@@ -40,17 +43,18 @@ const reg = fs.readFileSync(ROOT + 'functions/api/studio/_registry.ts', 'utf8')
 const ltx = fs.readFileSync(ROOT + 'functions/api/studio/_ltx.ts', 'utf8')
 const rec = fs.readFileSync(ROOT + 'functions/api/studio/_recraft.ts', 'utf8')
 const bria = fs.readFileSync(ROOT + 'functions/api/studio/_bria.ts', 'utf8')
+const stab = fs.readFileSync(ROOT + 'functions/api/studio/_stability.ts', 'utf8')
 const price = fs.readFileSync(ROOT + 'functions/api/studio/_pricing.ts', 'utf8')
 
 console.log('\n① 판정은 한 군데에만 있다')
 {
   ok(/export async function runKeyCheck/.test(kc), '공용 판정 함수가 있다')
-  ok(/runKeyCheck\(prov, key, fetchT, ovHost\)/.test(gen), 'generate.js 는 그걸 부르기만 한다')
+  ok(/runKeyCheck\(prov, key, fetchT, ovHost, foundName\)/.test(gen), 'generate.js 는 그걸 부르기만 한다')
   //  제공사가 늘 때 표 한 줄만 추가하면 되는 구조인지 — 판정이 generate.js 로 새면 두 벌이 된다
   ok(!/대조키|대조거절/.test(gen), '판정 로직이 generate.js 로 새지 않았다',
      '한 벌 더 적히는 순간 한쪽만 고쳐지는 날이 온다')
-  ok(/LTX_KEYCHECK/.test(ltx) && /RECRAFT_KEYCHECK/.test(rec) && /BRIA_KEYCHECK/.test(bria),
-     '제공사 정의는 각자 표 파일에 있다')
+  ok(/LTX_KEYCHECK/.test(ltx) && /RECRAFT_KEYCHECK/.test(rec) && /BRIA_KEYCHECK/.test(bria)
+     && /STABILITY_KEYCHECK/.test(stab), '제공사 정의는 각자 표 파일에 있다')
 }
 
 console.log('\n② 아무나 못 부른다')
@@ -99,6 +103,23 @@ console.log('\n③-b 인증 방식을 Bearer 로 단정하지 않는다')
      '잔액 확인도 같은 헤더 함수를 쓴다', 'api-balance 에서 또 적으면 어긋난다')
 }
 
+console.log('\n③-c "키 없음" 과 "이름이 다름" 을 구분한다')
+{
+  ok(/찾은이름\?: string \| null/.test(kc), '잡힌 환경변수 이름을 결과에 담는다')
+  ok(/찾은이름: foundEnvName \|\| null/.test(kc), '실제로 채운다')
+  ok(/const foundName = prov\.envNames\.find/.test(gen), 'generate.js 가 어느 이름이 잡혔는지 찾아 넘긴다')
+  const panel = fs.readFileSync(ROOT + 'components/admin/KeyCheckPanel.tsx', 'utf8')
+  ok(/res\.찾은이름/.test(panel), '화면이 그 이름을 보여 준다',
+     '안 보여 주면 오타인지 미설정인지 관리자가 알 수 없다')
+  //  키가 없을 때는 우리가 무슨 이름을 찾는지 전부 알려 줘야 콘솔과 맞대 볼 수 있다
+  ok(/이름이 다를 수 있습니다/.test(kc), '키가 없을 때 "이름이 다를 수 있다" 고 짚어 준다')
+  ok(/p\.envNames\.join/.test(kc), '찾는 이름을 전부 나열한다')
+  /* ⚠ 받은 이름을 오타처럼 보인다고 빼면, 진짜 그 이름일 때 "키 없음" 이라는 틀린 답이 나온다. */
+  ok(/'Stabilitya-API-KEY'/.test(stab), '받은 이름(Stabilitya-API-KEY)을 후보에 그대로 넣었다',
+     '오타로 단정하고 빼면 진짜 그 이름일 때 멀쩡한 키를 못 찾는다')
+  ok(/'STABILITY_API_KEY'/.test(stab), '표준형도 함께 본다 — 나중에 이름을 고쳐도 잡힌다')
+}
+
 console.log('\n④ 키 값은 어떤 경우에도 응답에 안 실린다')
 {
   ok(/키지문: String\(key\)\.slice\(0, 6\) \+ '…' \+ String\(key\)\.slice\(-4\)/.test(kc),
@@ -111,7 +132,8 @@ console.log('\n⑤ 확인 안 된 모델은 노드에 안 올라간다')
   for (const [fn, endMark, label] of [
     ['export async function seedLtx', 'export async function seedRecraft', 'LTX'],
     ['export async function seedRecraft', 'export async function seedBria', 'Recraft'],
-    ['export async function seedBria', 'const parseOpts', 'Bria'],
+    ['export async function seedBria', 'export async function seedStability', 'Bria'],
+    ['export async function seedStability', 'const parseOpts', 'Stability'],
   ]) {
     const seed = reg.slice(reg.indexOf(fn), reg.indexOf(endMark))
     ok(/VALUES \(\?,\?,\?,\?,\?,\?,\?,\?,0,NULL,\?,\?\)/.test(seed), `${label}: enabled 0 · verified_at NULL 로 심는다`,
@@ -122,6 +144,11 @@ console.log('\n⑤ 확인 안 된 모델은 노드에 안 올라간다')
   ok(/OpenAPI 명세/.test(rec), 'Recraft: 모델 ID 를 어디서 가져왔는지 적혀 있다',
      '출처를 안 적으면 다음 사람은 그게 추측인지 확인인지 알 수 없다')
   ok(/ComfyUI-BRIA-API/.test(bria), 'Bria: 경로를 어디서 가져왔는지 적혀 있다')
+  ok(/api-evangelist\/stability-ai|OpenAPI 명세/.test(stab), 'Stability: 경로를 어디서 가져왔는지 적혀 있다')
+  /* ⚠ Stability 는 단가가 특히 위험하다 — 2026-08 에 장당 크레딧이 크게 바뀌었다는 보고가 있다.
+     그 경고가 코드에서 사라지면 다음 사람이 표를 믿고 그냥 켠다. */
+  ok(/2026.?년? ?8월|2026-08/.test(stab) && /2026-08|2026년 8월/.test(reg),
+     'Stability: 단가가 막 바뀌었을 수 있다는 경고가 표와 등록부에 남아 있다')
 
   /* 켜는 순간 정말 노드에 뜨는가 — 등록부는 분류(cat)를 그대로 스튜디오에 넘기고,
      스튜디오는 '영상'/'이미지' 로 시작하는 분류만 각 피커에 싣는다. 분류를 '벡터' 처럼
@@ -133,6 +160,8 @@ console.log('\n⑤ 확인 안 된 모델은 노드에 안 올라간다')
   ok(recCats.length === 2 && recCats.every((c) => c.startsWith('이미지')), 'Recraft 분류가 이미지 피커에 걸린다', JSON.stringify(recCats))
   const briaCats = [...bria.matchAll(/CAT_(?:GEN|EDIT) = '([^']+)'/g)].map((m) => m[1])
   ok(briaCats.length === 2 && briaCats.every((c) => c.startsWith('이미지')), 'Bria 분류가 이미지 피커에 걸린다', JSON.stringify(briaCats))
+  const stabCats = [...stab.matchAll(/const CAT = '([^']+)'/g)].map((m) => m[1])
+  ok(stabCats.length === 1 && stabCats[0].startsWith('이미지'), 'Stability 분류가 이미지 피커에 걸린다', JSON.stringify(stabCats))
   ok(/MODELS\.filter\(function\(m\)\{ return \/\^영상\/\.test\(m\[0\]\); \}\)/.test(studio),
      '스튜디오가 그 규칙으로 영상 목록을 만든다')
   ok(/MODELS\.filter\(function\(m\)\{ return \/\^이미지\/\.test\(m\[0\]\); \}\)/.test(studio),
@@ -142,7 +171,7 @@ console.log('\n⑤ 확인 안 된 모델은 노드에 안 올라간다')
 
 console.log('\n⑥ 켜지더라도 조용히 실패하지 않는다')
 {
-  for (const p of ['ltx', 'recraft', 'bria']) {
+  for (const p of ['ltx', 'recraft', 'bria', 'stability']) {
     ok(new RegExp(`if \\(provider === "${p}"\\)`).test(gen), `${p}: 생성 경로에 자리가 있다`)
     const br = gen.slice(gen.indexOf(`if (provider === "${p}")`), gen.indexOf(`if (provider === "${p}")`) + 600)
     ok(/아직 연결되지 않았습니다/.test(br), `${p}: 왜 안 되는지와 어디로 가야 하는지를 말한다`,
@@ -153,10 +182,10 @@ console.log('\n⑥ 켜지더라도 조용히 실패하지 않는다')
 console.log('\n⑦ 단가는 표 한 곳에서만 온다')
 {
   ok(/for \(const r of LTX_MODELS\)/.test(price) && /for \(const r of RECRAFT_MODELS\)/.test(price)
-     && /for \(const r of BRIA_MODELS\)/.test(price),
-     '세 표를 그대로 얹는다', '단가를 두 군데 적으면 반드시 어긋난다 — 루마·클링이 그랬다')
-  ok(/ltx: 'LTX \(Lightricks\)'/.test(price) && /recraft: 'Recraft/.test(price) && /bria: 'Bria/.test(price),
-     '제공사 이름표가 셋 다 있다')
+     && /for \(const r of BRIA_MODELS\)/.test(price) && /for \(const r of STABILITY_MODELS\)/.test(price),
+     '네 표를 그대로 얹는다', '단가를 두 군데 적으면 반드시 어긋난다 — 루마·클링이 그랬다')
+  ok(/ltx: 'LTX \(Lightricks\)'/.test(price) && /recraft: 'Recraft/.test(price) && /bria: 'Bria/.test(price)
+     && /stability: 'Stability AI'/.test(price), '제공사 이름표가 넷 다 있다')
   /* Bria 는 편집이 생성보다 싸다(배경 제거 $0.018 < 생성 $0.03). 한 값으로 뭉뚱그리면
      편집을 비싸게 받게 된다 — 회원에게 과청구다. */
   const bRows = [...bria.matchAll(/[GE]\('([^']+)',\s*'([^']+)',\s*([\d.]+)\)/g)]
@@ -199,12 +228,19 @@ const REAL = {
   ltx: 'ltx_live_ABCDEF_MIDDLE_SECRET_7890',
   recraft: 'rc_live_ZYXWVU_MIDDLE_SECRET_4321',
   bria: 'bria_live_QWERTY_MIDDLE_SECRET_5678',
+  stability: 'sk-stab_ASDFGH_MIDDLE_SECRET_9012',
 }
-const ENVKEY = { ltx: 'LTX_API_KEY', recraft: 'Recraft_API_KEY', bria: 'BRIA_API_KEY' }
+/* ⚠ Stability 만 일부러 **받은 그대로의(오타로 보이는) 이름**으로 넣어 검사한다.
+   표준형만 검사하면 "진짜 그 이름이었을 때" 를 한 번도 안 보게 된다. */
+const ENVKEY = {
+  ltx: 'LTX_API_KEY', recraft: 'Recraft_API_KEY', bria: 'BRIA_API_KEY',
+  stability: 'Stabilitya-API-KEY',
+}
 const HOSTRE = {
   ltx: /\/\/api\.ltx\./,
   recraft: /\/\/external\.api\.recraft\.ai/,
   bria: /\/\/engine\.prod\.bria-api\.com/,
+  stability: /\/\/api\.stability\.ai/,
 }
 
 let seen = []          // 요청 전부 — 환율 조회 등 이 진단과 무관한 것도 섞인다
@@ -241,6 +277,10 @@ function makeFetch(kind, who) {
       //  Bria: 맞춤 모델 목록. 없는 모델은 404 — 인증은 통과했다는 뜻이다.
       if (/\/v1\/tailored-gen\/models\/$/.test(u)) return J([{ id: 'my_brand_v1' }, { id: 'my_brand_v2' }])
       if (/\/v1\/tailored-gen\/models\//.test(u)) return J({ message: 'model not found' }, 404)
+      //  Stability: 크레딧 잔액. 1 credit = $0.01 이라 1250 크레딧 = $12.50
+      if (/\/v1\/user\/balance$/.test(u)) return J({ credits: 1250 })
+      if (/\/v1\/user\/account$/.test(u)) return J({ id: 'u_1', email: 'a@b.c' })
+      if (/\/v1\/engines\/list$/.test(u)) return J([{ id: 'stable-diffusion-v1-6' }])
       return J({ error: { code: 'not_found', message: 'no such job' } }, 404)
     }
     return J({}, 500)
@@ -291,7 +331,7 @@ async function runDiag(who, kind, role = 'admin', envExtra = null) {
   return { status: res.status, body, txt }
 }
 
-for (const who of ['ltx', 'recraft', 'bria']) {
+for (const who of ['ltx', 'recraft', 'bria', 'stability']) {
   console.log(`\n⑧ [${who}] 관리자만 부를 수 있다`)
   for (const role of [null, 'user']) {
     const r = await runDiag(who, 'real', role)
@@ -323,6 +363,18 @@ for (const who of ['ltx', 'recraft', 'bria']) {
       ok(calls(who).every((x) => /\/users\/me$/.test(x.url)), '읽은 주소가 /users/me 뿐이다',
          JSON.stringify(calls(who).map((x) => x.url)))
       ok(!calls(who).some((x) => /images\/generations/.test(x.url)), '생성 주소를 한 번도 부르지 않았다')
+    } else if (who === 'stability') {
+      /* ⚠ 이 갈래의 핵심은 **환경변수 이름**이다. 위 runDiag 는 키를 `Stabilitya-API-KEY`
+         (받은 그대로의, 오타로 보이는 이름)로만 넣었다. 그런데도 키작동 = true 가 나왔다면
+         후보 목록이 그 이름을 실제로 잡았다는 뜻이다. 그리고 화면이 헤맬 일이 없도록
+         **무엇으로 잡혔는지**까지 돌려준다. */
+      ok(r.body.찾은이름 === 'Stabilitya-API-KEY', '잡힌 환경변수 이름을 그대로 돌려준다',
+         String(r.body.찾은이름))
+      //  1250 credit × $0.01 = $12.50. 크레딧 숫자만 띄우면 그게 돈인지 장수인지 모른다.
+      ok(r.body.잔액 === 12.5 && r.body.잔액단위 === 'USD', '크레딧을 달러로 바꿔 준다(1 credit = $0.01)',
+         `${r.body.잔액} ${r.body.잔액단위}`)
+      ok(!calls(who).some((x) => /stable-image\/generate/.test(x.url)), '생성 주소를 한 번도 부르지 않았다',
+         JSON.stringify(calls(who).map((x) => x.url)))
     } else {
       /* ⚠ 여기가 이번에 새로 막는 자리다. 가짜 Bria 서버는 api_token 헤더에서만 키를 읽는다 —
          우리가 Bearer 로 보냈다면 키가 빈 값으로 읽혀 401 이 나고 판정이 false 로 떨어진다.

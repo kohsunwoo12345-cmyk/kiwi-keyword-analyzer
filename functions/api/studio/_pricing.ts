@@ -3,6 +3,7 @@ import { ALIBABA_MODELS, ALIBABA_BY_NAME } from './_alibaba'
 import { LTX_MODELS, LTX_BY_NAME } from './_ltx'
 import { RECRAFT_MODELS } from './_recraft'
 import { BRIA_MODELS } from './_bria'
+import { STABILITY_MODELS } from './_stability'
 // 스튜디오 AI 생성 과금 규칙 (서버 권위 계산) — precheck·record 공용
 //  · 실제 AI 비용(원) = 제공사 공개 단가(USD) × 환율
 //  · 판매가 = 실제 비용 × 마크업.  마크업: 씨댄스 2.0 계열·이미지 모델 = 2.5배, 그 외 = 3배
@@ -469,6 +470,13 @@ for (const r of RECRAFT_MODELS) {
 for (const r of BRIA_MODELS) {
   MODEL_COST[r.name] = { u: r.unit as CostUnit, usd: r.usd, prov: 'bria' }
 }
+/* ── Stability AI 이미지 ──
+   장당 정액이라 따로 계산할 것이 없다.
+   ⚠ 이 표는 다른 어느 제공사보다 먼저 실측으로 덮어야 한다 — 2026년 8월에 장당 크레딧이
+     크게 바뀌었다는 보고가 있다(_stability.ts 머리말). 관리자 실측값이 언제나 이긴다. */
+for (const r of STABILITY_MODELS) {
+  MODEL_COST[r.name] = { u: r.unit as CostUnit, usd: r.usd, prov: 'stability' }
+}
 //  과금 이름을 한 곳에서만 쓰도록 묶는다 — 문자열을 여기저기 적으면 표와 어긋난다
 export const UPSCALE_IMG = '화질 올리기 (이미지 초해상 ×4)'
 export const UPSCALE_VID = '화질 올리기 (영상 초해상 ×4)'
@@ -480,7 +488,7 @@ export const PROV_LABEL: Record<string, string> = {
   ark3d: '3D 생성 (ModelArk)', promptgen: '프롬프트 작성 LLM',
   hailuo: 'MiniMax Hailuo', luma: 'Luma', xai: 'Grok', flux: 'Flux', falcontrol: 'fal ControlNet',
   nanobanana: 'Nano Banana', openai: 'GPT Image', kling: 'Kling', narrate: '나레이션', lipsync: '립싱크', music: '음악 생성', upscale: '업스케일', alibaba: '알리바바 Wan(Model Studio)',
-  ltx: 'LTX (Lightricks)', recraft: 'Recraft (벡터·로고)', bria: 'Bria (저작권 안전)',
+  ltx: 'LTX (Lightricks)', recraft: 'Recraft (벡터·로고)', bria: 'Bria (저작권 안전)', stability: 'Stability AI',
 }
 
 export interface ChargeInput {
