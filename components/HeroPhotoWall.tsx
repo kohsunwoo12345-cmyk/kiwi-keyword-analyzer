@@ -6,13 +6,15 @@ import { cn } from '@/lib/utils'
 const ALL = Array.from({ length: 20 }, (_, i) => `/images/showcase/hero/${i + 1}.webp`)
 
 /** 세로로 흐르는 사진 열 — 열마다 속도·방향이 달라 자연스럽게 움직인다. */
+/*  한 열에 3장이면 충분하다 — 히어로는 900px 인데 4장이면 벽이 1,472px 이라
+    한 장은 아무도 못 보고 배치 계산만 든다(실측). 3장이면 1,104px 로 여전히 다 덮는다. */
 const COLS = [
-  ALL.slice(0, 4),
-  ALL.slice(4, 8),
-  ALL.slice(8, 12),
-  ALL.slice(12, 16),
-  ALL.slice(16, 20),
-  [ALL[2], ALL[9], ALL[13], ALL[18]],
+  ALL.slice(0, 3),
+  ALL.slice(4, 7),
+  ALL.slice(8, 11),
+  ALL.slice(12, 15),
+  ALL.slice(16, 19),
+  [ALL[2], ALL[9], ALL[13]],
 ]
 
 /**
@@ -53,12 +55,24 @@ export function HeroPhotoWall() {
               className="absolute inset-x-0 top-0 will-change-transform [backface-visibility:hidden]"
               style={{ animation: `${ci % 2 ? 'heroWallDown' : 'heroWallUp'} ${44 + ci * 8}s linear infinite` }}
             >
+              {/*  ⚠ 두 벌(col + col)이 반드시 필요하다. 이어짐의 원리가 그렇다 —
+                   애니메이션이 -50% 까지 밀고 0 으로 되돌아가는데, 뒤쪽 절반이 앞쪽 절반과
+                   똑같아야 되돌아가는 순간이 안 보인다. 한 벌만 두면 그 순간 그림이 튄다.
+                   (흐름이 멈춰 있던 동안에는 두 번째 벌이 쓸모없어서 지웠던 자리다.
+                    다시 흐르게 했으니 되돌린다. 대신 한 열의 원본은 3장으로 줄어든 채라
+                    예전 8장이 아니라 6장이다 — 앞선 최적화를 되돌리지 않는다.)
+
+                   그리고 전부 lazy 였다. 이 벽이 화면에서 가장 큰 그림이라 **LCP 를 이 벽이
+                   가져간다**. 가장 큰 그림을 늦게 받게 해 두면 LCP 가 그만큼 늦다 —
+                   실측 LCP 3.07초가 전부 이 대기였다. 첫 화면에 실제로 걸리는 앞 2장만
+                   먼저 받고, 맨 앞 한 장은 우선순위를 올린다. 나머지는 그대로 lazy 다. */}
               {[...col, ...col].map((src, i) => (
                 <img
                   key={i}
                   src={src}
                   alt=""
-                  loading="lazy"
+                  loading={i < 2 ? 'eager' : 'lazy'}
+                  fetchPriority={i === 0 ? 'high' : undefined}
                   decoding="async"
                   className="mb-2.5 w-full rounded-2xl object-cover shadow-lg sm:mb-3"
                   style={{ aspectRatio: '3 / 4' }}

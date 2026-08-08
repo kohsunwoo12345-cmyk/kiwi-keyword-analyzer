@@ -78,6 +78,11 @@ export const VIDEO_NAV: NavItem[] = [
   { title: 'AI 정산', href: `${ADMIN_BASE}/ai-usage`, icon: Wallet },
   { title: 'AI 비용 (원가율)', href: `${ADMIN_BASE}/ai-pricing`, icon: Gauge },
   { title: 'AI API 남은 한도', href: `${ADMIN_BASE}/api-quota`, icon: Fuel },
+  //  아직 연동 전인 제공사의 키가 진짜 되는지만 본다 — 읽기(GET)뿐이라 생성도 과금도 없다.
+  { title: 'LTX 키 확인', href: `${ADMIN_BASE}/ltx-check`, icon: KeyRound },
+  { title: 'Recraft 키 확인', href: `${ADMIN_BASE}/recraft-check`, icon: KeyRound },
+  { title: 'Bria 키 확인', href: `${ADMIN_BASE}/bria-check`, icon: KeyRound },
+  { title: 'Stability 키 확인', href: `${ADMIN_BASE}/stability-check`, icon: KeyRound },
   { title: '회원 API 키·호출', href: `${ADMIN_BASE}/api-keys`, icon: KeyRound },
   { title: '정기 실행(크론)', href: `${ADMIN_BASE}/cron`, icon: Timer },
 ]

@@ -350,7 +350,7 @@ export interface AiUsageDay {
 }
 /** 제공사 청구서 대조용 — 제공사별 실비(USD)를 청구 기간과 같은 단위로 뽑는다. */
 export interface AiUsageProvider {
-  provider: string; count: number; usd: number; cost: number; credits: number; revenue: number
+  provider: string; providerLabel?: string; count: number; usd: number; cost: number; credits: number; revenue: number
 }
 export interface AiUsageStats {
   ok: boolean; error?: string; days?: number; todayRate?: number
@@ -632,15 +632,17 @@ export interface AiModelRow {
   keyConfigured: boolean
   isPipeline: boolean
   idUnverified: boolean
-  //  모델 ID 는 확인됐지만 단가가 아직 잠정인 모델(현재 알리바바). 화면에 그렇게 표시한다.
+  //  모델 ID 는 확인됐지만 단가가 아직 잠정인 모델(알리바바·LTX). 화면에 그렇게 표시한다.
   costProvisional?: boolean
-  status: 'live' | 'unverified' | 'nokey'
+  //  false = 키는 있어도 부를 생성 경로가 아직 없다(현재 LTX). '미확인' 과 다른 상태다.
+  wired?: boolean
+  status: 'live' | 'unverified' | 'nowire' | 'nokey'
 }
 export interface AiModelsResp {
   ok: boolean
   error?: string
   usdKrw?: number
-  summary?: { total: number; live: number; unverified: number; nokey: number; image: number; video: number }
+  summary?: { total: number; live: number; unverified: number; nowire?: number; nokey: number; image: number; video: number }
   providers?: { id: string; label: string; keyConfigured: boolean; count: number }[]
   models?: AiModelRow[]
 }

@@ -1,4 +1,8 @@
 import { Env, json, ensureSchema, seedAdmin, resolveDB, requireAdminUser, setSetting, getSetting, logAudit, clientIp } from '../_utils'
+import { LTX_HOSTS, LTX_KEY_NAMES } from '../studio/_ltx'
+import { RECRAFT_BASE, RECRAFT_KEY_NAMES, RECRAFT_UNITS_PER_USD } from '../studio/_recraft'
+import { BRIA_BASE, BRIA_KEY_NAMES, briaAuth } from '../studio/_bria'
+import { STABILITY_BASE, STABILITY_KEY_NAMES } from '../studio/_stability'
 
 // AI 제공사 — 표시명 · 충전 URL · env 키 후보(generate.js 와 동일) · 잔액 단위.
 // 연동 상태는 실제 인증 호출(probe)로 확인한다:
@@ -18,6 +22,14 @@ const PROVIDERS: { id: string; name: string; url: string; note: string; keys: st
   { id: 'nanobanana', name: 'Nano Banana', url: 'https://aistudio.google.com/', note: 'Nano Banana (Gemini 이미지)', keys: ['VEO_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY', 'Fal_API_KEY', 'FAL_API_KEY'] },
   { id: 'fal', name: 'fal', url: 'https://fal.ai/dashboard/billing', note: 'ControlNet · 립싱크 경로', keys: ['Fal_API_KEY', 'FAL_API_KEY', 'FAL_KEY', 'fal_api_key'] },
   { id: 'elevenlabs', name: 'ElevenLabs', url: 'https://elevenlabs.io/app/subscription', note: '립싱크 · AI 음성', keys: ['ElevenLabs_API_KEY', 'ELEVENLABS_API_KEY', 'elevenlabs_api_key'], unit: '문자' },
+  //  LTX(Lightricks) — 키만 들어와 있고 아직 생성 경로가 없다. 여기서는 "키가 살아 있는가" 만 본다.
+  { id: 'ltx', name: 'LTX (Lightricks)', url: 'https://console.ltx.video/', note: 'LTX-2 (영상) · 연결 전', keys: LTX_KEY_NAMES, unit: '크레딧' },
+  //  Recraft — 잔액 API 가 있다(GET /users/me). 실시간 잔액이 잡히는 몇 안 되는 제공사다.
+  { id: 'recraft', name: 'Recraft', url: 'https://www.recraft.ai/profile/api', note: '벡터(SVG)·로고 이미지 · 연결 전', keys: RECRAFT_KEY_NAMES, unit: 'USD' },
+  //  Bria — 잔액 조회 경로를 아직 못 찾았다. 연동 여부만 본다(잔액은 수동 입력).
+  { id: 'bria', name: 'Bria', url: 'https://platform.bria.ai/', note: '저작권 안전 이미지·편집 · 연결 전', keys: BRIA_KEY_NAMES },
+  //  Stability — 잔액 조회 경로가 있으면 크레딧을 달러로 바꿔 보여 준다(1 credit = $0.01).
+  { id: 'stability', name: 'Stability AI', url: 'https://platform.stability.ai/account/credits', note: 'Stable Image (이미지) · 연결 전', keys: STABILITY_KEY_NAMES, unit: 'USD' },
 ]
 
 type Ov = { balance?: number | null; url?: string; updatedAt?: string }
@@ -72,6 +84,74 @@ async function probe(id: string, key: string): Promise<{ ok?: boolean; balance?:
       const r = await tfetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(key), { headers: { accept: 'application/json' } })
       return r.ok ? { ok: true } : { ok: false, error: `HTTP ${r.status}` }
     }
+    /* LTX — 후보 주소를 GET 으로만 훑는다. 생성 요청은 보내지 않는다.
+       ⚠ 여기서 '연동됨' 이 뜨더라도 그것은 **키가 살아 있다**는 뜻일 뿐,
+         우리가 LTX 로 영상을 만들 수 있다는 뜻이 아니다(생성 경로가 아직 없다).
+         자세한 판정은 관리자 → LTX 키 확인(?diag=ltx)이 대조키까지 써서 낸다. */
+    if (id === 'ltx') {
+      let last = ''
+      for (const base of LTX_HOSTS) {
+        try {
+          const r = await tfetch(base + '/v1/models', { method: 'GET', headers: { Authorization: `Bearer ${key}`, accept: 'application/json' } })
+          if (r.ok) {
+            const j: any = await r.json().catch(() => null)
+            const c = Number(j?.credits ?? j?.balance ?? j?.credit_balance)
+            return isFinite(c) ? { ok: true, balance: c, unit: '크레딧' } : { ok: true }
+          }
+          //  401 만 키 문제다. 404 는 그 경로가 없다는 뜻이라 다음 후보를 본다.
+          if (r.status === 401) return { ok: false, error: 'HTTP 401 (키 거절)' }
+          last = `HTTP ${r.status}`
+        } catch (e: any) {
+          last = String(e?.name === 'AbortError' ? '시간 초과' : (e?.message || e)).slice(0, 40)
+        }
+      }
+      return { ok: false, error: last || '응답 없음' }
+    }
+    /* Recraft — 명세에 적힌 유일한 GET 이자 우리가 필요한 그 하나다.
+       credits 는 "API unit" 이라 1,000 = $1 로 나눠 달러로 보여 준다. 숫자만 띄우면
+       12345 가 돈인지 장수인지 아무도 모른다.
+       ⚠ 생성 경로(/images/generations…)는 건드리지 않는다. */
+    if (id === 'recraft') {
+      const r = await tfetch(RECRAFT_BASE + '/users/me', { method: 'GET', headers: { Authorization: `Bearer ${key}`, accept: 'application/json' } })
+      if (!r.ok) return { ok: false, error: `HTTP ${r.status}${r.status === 401 ? ' (키 거절)' : ''}` }
+      const j: any = await r.json().catch(() => null)
+      const units = Number(j?.credits)
+      return isFinite(units) ? { ok: true, balance: units / RECRAFT_UNITS_PER_USD, unit: 'USD' } : { ok: true }
+    }
+    /* Bria — 조회 전용 경로 하나로 키가 살아 있는지만 본다.
+       ⚠ 인증 헤더가 Bearer 가 아니라 api_token 이다. 헤더를 만드는 곳은 _bria.ts 한 군데다 —
+         여기서 또 적으면 한쪽만 고쳐지는 날이 온다.
+       ⚠ 생성 경로(/v2/image/…)는 건드리지 않는다. 잔액을 주는 경로는 아직 못 찾아
+         숫자를 지어내지 않는다(수동 입력 칸이 그대로 쓰인다). */
+    if (id === 'bria') {
+      const r = await tfetch(BRIA_BASE + '/v1/tailored-gen/models/', { method: 'GET', headers: { ...briaAuth(key), accept: 'application/json' } })
+      //  404 는 경로가 다른 것일 뿐 키 문제가 아니다. 인증 거절만 실패로 본다.
+      if (r.status === 401 || r.status === 403) return { ok: false, error: `HTTP ${r.status} (키 거절)` }
+      return r.ok ? { ok: true } : { ok: false, error: `HTTP ${r.status}` }
+    }
+    /* Stability — 잔액 조회를 먼저 보고, 그 경로가 없으면 계정 조회로 물러난다.
+       ⚠ 이 경로들은 공개 명세로 확정하지 못했다(생성 계열만 실려 있었다). 그래서
+         404 를 키 문제로 세지 않는다 — 401/403 만 키 거절이다.
+       ⚠ 생성 경로(/v2beta/stable-image/…)는 건드리지 않는다. */
+    if (id === 'stability') {
+      let last = ''
+      for (const path of ['/v1/user/balance', '/v1/user/account']) {
+        try {
+          const r = await tfetch(STABILITY_BASE + path, { method: 'GET', headers: { Authorization: `Bearer ${key}`, accept: 'application/json' } })
+          if (r.status === 401 || r.status === 403) return { ok: false, error: `HTTP ${r.status} (키 거절)` }
+          if (r.ok) {
+            const j: any = await r.json().catch(() => null)
+            const c = Number(j?.credits ?? j?.balance ?? j?.credit_balance)
+            //  크레딧이 곧 돈이다 — 1 credit = $0.01. 숫자만 띄우면 돈인지 장수인지 모른다.
+            return isFinite(c) ? { ok: true, balance: c * 0.01, unit: 'USD' } : { ok: true }
+          }
+          last = `HTTP ${r.status}`
+        } catch (e: any) {
+          last = String(e?.name === 'AbortError' ? '시간 초과' : (e?.message || e)).slice(0, 40)
+        }
+      }
+      return { ok: false, error: last || '응답 없음' }
+    }
     return {} // fal/flux/kling/hailuo/seedance: 확인 API 없음 → 키 설정만으로 연동
   } catch (e: any) {
     return { ok: false, error: String(e?.name === 'AbortError' ? '시간 초과' : (e?.message || e)).slice(0, 80) }
@@ -105,6 +185,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     nanobanana: 'nanobanana', openai: 'openai', runway: 'runway', runway_aleph: 'runway',
     v2v_auto: 'runway', seedance: 'seedance', xai: 'xai',
     lipsync: 'fal', motion: 'fal', falcontrol: 'fal', narrate: 'elevenlabs',
+    ltx: 'ltx', recraft: 'recraft', bria: 'bria', stability: 'stability',
   }
   const ID_TO_RAWS: Record<string, string[]> = {}
   for (const [raw, id] of Object.entries(RAW_TO_ID)) (ID_TO_RAWS[id] ||= []).push(raw)

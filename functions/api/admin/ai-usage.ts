@@ -1,5 +1,5 @@
 import { Env, json, ensureSchema, resolveDB, requireAdminUser } from '../_utils'
-import { ensureAiUsage, getUsdKrw } from '../studio/_pricing'
+import { ensureAiUsage, getUsdKrw, PROV_LABEL } from '../studio/_pricing'
 
 // GET /api/admin/ai-usage?days=30 → 스튜디오 AI 사용/정산 (사용자별·모델별 매출·비용·순이익)
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
@@ -92,6 +92,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     todayRate,
     byProvider: byProvider.map((r: any) => ({
       provider: r.provider || '(미상)',
+      /* 표에는 'ltx'·'falcontrol' 같은 내부 이름이 그대로 찍히고 있었다. 제공사 청구서와
+         맞대 보는 표인데 그 이름이 청구서 어디에도 없어서 매번 코드를 뒤져야 했다.
+         이름표는 단가표(PROV_LABEL) 한 곳에만 있으니 그걸 그대로 내려 준다. */
+      providerLabel: PROV_LABEL[String(r.provider || '')] || String(r.provider || '(미상)'),
       count: Number(r.count) || 0,
       usd: Math.round((Number(r.usd) || 0) * 10000) / 10000,
       cost: Number(r.cost) || 0,

@@ -398,11 +398,34 @@ body {
 }
 .animate-bob { animation: bob 4s ease-in-out infinite; }
 
+/* ── 고퀄 SVG 이모지(Twemoji) 크기 ──────────────────────────────────────────
+   EmojiParser 가 글 속 이모지를 <img class="bg-emoji" src="/emoji/{코드}.svg"> 로 바꾼다.
+   그 이미지를 1em 으로 묶어 두는 규칙이 여기 있어야 한다.
+
+   ⚠ 바로 아래 pipeFlow 와 똑같은 사고가 이 규칙에서도 났다. 원래 app/styles/legal.css
+     에 있었는데 그 파일은 /legal/* 에서만 불러온다. 그런데 EmojiParser 는 최상위
+     레이아웃에 붙어 **모든 페이지**에서 돈다. 그래서 약관 화면 밖에서는 크기 규칙이
+     없는 <img> 가 만들어졌고, 이 SVG 들은 viewBox 만 있고 width/height 가 없어서
+     브라우저가 부모 폭만큼 늘려 버렸다.
+     푸터의 "© 2026 …" 한 줄이 화면을 가로지르는 거대한 ⓒ 로 보인 게 그것이다
+     (© U+00A9 는 Extended_Pictographic 이라 이모지로 잡힌다). 글자 크기(text-xs)는
+     처음부터 정상이었다 — 커진 건 글자가 아니라 이미지였다.
+     Emoji.tsx 주석은 이미 "크기는 globals.css 가 담당한다" 고 적고 있었다. 이제 사실이다. */
+img.bg-emoji {
+  display: inline-block;
+  height: 1em;
+  width: 1em;
+  margin: 0 0.05em 0 0.1em;
+  vertical-align: -0.125em;
+  object-fit: contain;
+  user-select: none;
+}
+
 /* ── 히어로 사진 벽 · 3D 파이프 펄스 ─────────────────────────────────────────
    ⚠ 이 네 개는 원래 app/styles/legal.css 에 있었다. 그 파일은 /legal/* 화면에서만
      불러오는데, 쓰는 곳은 홈(HeroPhotoWall·AIPipeline)과 기능 소개(CrmFlowShowcase)다.
      정의 없는 이름을 부르고 있었던 것이라 사진 벽도 파이프 속 빛도 한 번도 흐른 적이 없다.
-     브라우저에서 getAnimations() 가 빈 배열을 돌려줘서 찾았다. */
+     브라우저에서 getAnimations() 가 빈 배열을 돌려줘서 찾았다. (바로 위 이모지 규칙도 같은 사고다) */
 @keyframes heroWallUp { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, -50%, 0); } }
 @keyframes heroWallDown { from { transform: translate3d(0, -50%, 0); } to { transform: translate3d(0, 0, 0); } }
 

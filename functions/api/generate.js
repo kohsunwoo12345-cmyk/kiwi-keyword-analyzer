@@ -13,6 +13,12 @@ import { MODEL_COST, computeCharge, getUsdKrw, resolveMarkup, resolveRefSurcharg
 import { getBrandKit, applyBrandKit } from "./studio/brandkit";
 import { modelIdOf as registryModelIdOf, listEnabled as registryList } from "./studio/_registry";
 import { ALIBABA_BY_NAME, ALIBABA_BY_ID, ALIBABA_BASE, alibabaPath, alibabaUsesMessages } from "./studio/_alibaba";
+//  키만 들어오고 아직 연동 전인 제공사들 — 확인(무과금)은 _keycheck 한 군데에서 돈다
+import { runKeyCheck, noKeyResult } from "./studio/_keycheck";
+import { LTX_KEYCHECK } from "./studio/_ltx";
+import { RECRAFT_KEYCHECK, RECRAFT_BY_NAME, RECRAFT_BASE, recraftPath } from "./studio/_recraft";
+import { BRIA_KEYCHECK } from "./studio/_bria";
+import { STABILITY_KEYCHECK, STABILITY_KEY_NAMES } from "./studio/_stability";
 import { issueGenCharge, settleGenCharge, refundGenCharge, reconcileGenCharge, archiveGenResult } from "./studio/_gencharge";
 import { saveMediaToR2 } from "./_media";
 import { recordGenFailure } from "./studio/_genfail";
@@ -65,6 +71,16 @@ export function keys(env) {
     //  알리바바 DashScope(Wan/만상) — 콘솔에 alibaba_API_KEY 로 넣어 두었다. 대소문자 변형도 함께 본다.
     alibaba: pick(env, ["alibaba_API_KEY", "ALIBABA_API_KEY", "Alibaba_API_KEY", "alibaba_api_key",
                         "DASHSCOPE_API_KEY", "dashscope_api_key"]),
+    //  LTX(Lightricks) — 콘솔에 LTX_API_KEY 로 넣어 두었다. 대소문자·별칭 변형도 함께 본다.
+    ltx: pick(env, ["LTX_API_KEY", "ltx_api_key", "Ltx_API_KEY", "LTX2_API_KEY",
+                    "LIGHTRICKS_API_KEY", "lightricks_api_key"]),
+    //  Recraft — 벡터(SVG)를 내는 유일한 제공사. 콘솔에 Recraft_API_KEY 로 넣어 두었다.
+    recraft: pick(env, ["Recraft_API_KEY", "RECRAFT_API_KEY", "recraft_api_key", "RECRAFTAI_API_KEY"]),
+    //  Bria — 라이선스 안전한 이미지. ⚠ 이 키는 Bearer 가 아니라 api_token 헤더로 나간다.
+    bria: pick(env, ["BRIA_API_KEY", "Bria_API_KEY", "bria_api_key", "BRIA_API_TOKEN"]),
+    /*  Stability AI — ⚠ 받은 이름이 `Stabilitya-API-KEY` 였다(오타처럼 보이지만 진짜일 수 있다).
+        후보는 표(_stability.ts) 한 곳에만 두고 여기서는 그걸 그대로 쓴다. */
+    stability: pick(env, STABILITY_KEY_NAMES),
     openai: pick(env, ["GPT_API_KEY", "OPENAI_API_KEY", "gpt_api_key", "openai_api_key"])
   };
 }
@@ -1083,7 +1099,7 @@ const FAL_ALLOWED = new Set(["motion", "narrate", "lipsync", "revoice", "music",
 /* 공식 API 를 연동해 둔 제공사 — 이 이름으로는 fal 호출이 불가능하다(아래 falFetch 가 던진다) */
 const OFFICIAL_ONLY = new Set(["seedance", "seedream", "ark3d", "promptgen", "kling", "klingextend",
                                "luma", "google", "nanobanana", "runway", "runway_aleph", "hailuo",
-                               "flux", "openai", "xai", "alibaba"]);
+                               "flux", "openai", "xai", "alibaba", "recraft"]);
 /* fal 로 나가는 모든 요청은 이 함수를 거친다. 허가 목록 밖이면 호출 자체가 막힌다.
    (예전엔 클링·씨댄스가 fal 로 새는 코드가 실제로 있었다 — 지우는 것만으로는 또 들어온다.) */
 function falFetch(routeName, url, init, timeoutMs) {
@@ -2017,6 +2033,16 @@ export async function onRequest(context) {
    한 푼도 안 받는다. 클라이언트가 무엇을 빠뜨리든 서버가 이름을 채운다. */
 /* 알리바바 구형 t2i 는 비율이 아니라 "가로*세로" 를 받는다(SDK 의 size 인자).
    비율만 주면 기본값으로 떨어져서 회원이 고른 비율이 조용히 무시된다. */
+/* Recraft 는 비율이 아니라 "가로x세로" 를 받는다(명세의 size).
+   비율만 주면 기본값(1024x1024)으로 떨어져서 회원이 고른 비율이 조용히 무시된다 —
+   알리바바 구형 t2i 에서 이미 같은 자리를 밟았다. */
+const RECRAFT_SIZE = {
+  "1:1": "1024x1024", "16:9": "1820x1024", "9:16": "1024x1820", "4:3": "1365x1024",
+  "3:4": "1024x1365", "3:2": "1536x1024", "2:3": "1024x1536", "2:1": "2048x1024",
+  "1:2": "1024x2048", "5:4": "1280x1024", "4:5": "1024x1280", "14:10": "1434x1024",
+  "10:14": "1024x1434", "6:10": "1024x1707",
+};
+
 const ALI_IMG_SIZE = {
   "1:1": "1328*1328", "16:9": "1664*928", "9:16": "928*1664",
   "4:3": "1472*1140", "3:4": "1140*1472", "3:2": "1584*1056", "2:3": "1056*1584",
@@ -2296,6 +2322,27 @@ async function handle(context) {
            지문은 화면 어디에서도 쓰지 않고 관리자가 배포 키를 대조할 때만 본다.
            그런데 공개로 두면 키의 12글자가 그대로 밖으로 나간다. */
         alibabaKeyId: (healthAdmin && k.alibaba) ? (String(k.alibaba).slice(0, 6) + "…" + String(k.alibaba).slice(-4)) : null,
+        /* LTX(Lightricks) — 키만 들어와 있고 아직 생성 경로가 없다.
+           그래서 여기서 true 를 주면 안 된다. 스튜디오는 이 값을 "눌러도 되는가" 로 읽는데,
+           키가 있다고 켜 두면 회원이 고를 수는 있고 누르면 실패하는 모델이 생긴다 —
+           클링·루마에서 이미 그랬다. 연결 여부(ltx)와 키 유무(ltxKeySet)를 따로 답한다. */
+        ltx: false,
+        ltxKeySet: !!k.ltx,
+        ltxKeyId: (healthAdmin && k.ltx) ? (String(k.ltx).slice(0, 6) + "…" + String(k.ltx).slice(-4)) : null,
+        /*  Recraft 는 래스터 생성 경로가 붙었다. 키가 있으면 실제로 쓸 수 있다는 뜻이다.
+            키가 없으면 false 를 줘서 스튜디오가 Recraft 모델을 아예 숨기게 한다 —
+            목록에만 남아 있으면 누를 때마다 실패한다(클링에서 배운 것). */
+        recraft: !!k.recraft,
+        recraftKeySet: !!k.recraft,
+        recraftKeyId: (healthAdmin && k.recraft) ? (String(k.recraft).slice(0, 6) + "…" + String(k.recraft).slice(-4)) : null,
+        //  Bria 도 같다 — 키만 있고 생성 경로가 없다.
+        bria: false,
+        briaKeySet: !!k.bria,
+        briaKeyId: (healthAdmin && k.bria) ? (String(k.bria).slice(0, 6) + "…" + String(k.bria).slice(-4)) : null,
+        //  Stability 도 같다 — 키만 있고 생성 경로가 없다.
+        stability: false,
+        stabilityKeySet: !!k.stability,
+        stabilityKeyId: (healthAdmin && k.stability) ? (String(k.stability).slice(0, 6) + "…" + String(k.stability).slice(-4)) : null,
         /* 클링은 공식 오픈플랫폼 API 로만 나간다(중개 폴백 제거). fal 키가 있어도 대체되지 않으므로
            공식 키가 없으면 여기서 false 를 돌려 스튜디오가 클링 모델을 아예 숨기게 한다.
            예전엔 (klingCreds || fal) 로 답해, 공식 키가 없어도 모델이 목록에 남아 매번 실패했다. */
@@ -2775,6 +2822,33 @@ async function handle(context) {
         해석,
         결과: results,
       });
+    }
+    /* ── 제공사 API 키 확인 — 읽기만 한다. 생성은 어떤 경우에도 하지 않는다 ──
+       GET /api/generate?diag=ltx        (관리자 전용 · 위 게이트에서 막는다)
+       GET /api/generate?diag=recraft    (관리자 전용)
+
+       왜 여기 코드가 거의 없나: 판정 로직이 통째로 studio/_keycheck.ts 에 있다.
+       처음엔 LTX 안에 다 박아 뒀는데, 다음 제공사(Recraft)가 오자마자 같은 60줄을
+       한 벌 더 적을 뻔했다 — 그러면 한쪽만 고쳐지는 날이 반드시 온다(루마·클링 단가표가
+       정확히 그렇게 어긋나 있었다). 제공사가 늘면 표 한 줄만 추가하면 된다.
+
+       지켜지는 것 두 가지(그쪽 파일 머리말에 근거까지 적어 뒀다):
+        ⚠ 나가는 요청은 GET 뿐이고 본문이 없다 — 만들 수 있는 요청이 없다 = 돈이 안 나간다.
+        ⚠ 200 하나로 판정하지 않는다 — 일부러 틀린 키로 한 번 더 읽어 인증이 갈리는지 본다. */
+    {
+      const kcName = u.searchParams.get("diag");
+      const KEYCHECKS = { ltx: [LTX_KEYCHECK, k.ltx], recraft: [RECRAFT_KEYCHECK, k.recraft],
+                          bria: [BRIA_KEYCHECK, k.bria], stability: [STABILITY_KEYCHECK, k.stability] };
+      if (kcName && Object.prototype.hasOwnProperty.call(KEYCHECKS, kcName)) {
+        const [prov, key] = KEYCHECKS[kcName];
+        if (!key) return json(noKeyResult(prov), 400);
+        const ovHost = pick(env, prov.hostOverrideEnv);
+        /* 어느 환경변수 이름으로 잡혔는지 함께 넘긴다.
+           ⚠ 이게 없으면 화면이 "키 없음" 과 "이름을 잘못 적었음" 을 구분해 줄 수 없다.
+             Stability 는 받은 이름 자체가 흔들려서(Stabilitya-…) 이 값이 특히 필요하다. */
+        const foundName = prov.envNames.find((n) => env[n] && String(env[n]).trim()) || null;
+        return json(await runKeyCheck(prov, key, fetchT, ovHost, foundName));
+      }
     }
     // GET 기반 Seedance 제출 — 스튜디오 POST 가 (원인불명) 플랫폼 502 날 때의 우회 경로.
     // 이미지/영상은 이미 공개 URL 이라 쿼리스트링으로 충분하고, GET 은 진단들처럼 안정적이다.
@@ -6270,6 +6344,43 @@ async function handle(context) {
      ⚠ 이 제공사는 파라미터 검사를 **큐에 넣은 뒤** 한다. 즉 형식이 틀려도 202 가 오고
        나중에 FAILED 로 끝난다 — 그래서 "제출됐다 = 맞게 보냈다" 가 아니다.
        폴링에서 FAILED 를 반드시 실패로 넘겨야 환불이 돈다(아래 GET 쪽 참조). */
+  /* ══ Recraft — 래스터 이미지 생성(동기) ══
+     키는 관리자 → Recraft 키 확인에서 확정됐다(200 · 잔액 $5.00 · 틀린 키는 401).
+     주소·모델 ID·경로는 공개 OpenAPI 명세에서 읽은 값이고 표는 _recraft.ts 한 곳에 있다.
+
+     ⚠ 결과를 꺼내는 자리를 한 곳으로 못 박지 않는다. 명세 원문을 제공사 사이트에서
+       대조하지 못했으므로(그 도메인은 이 환경에서 막혀 있다) data[].url · data[].b64_json ·
+       평평한 url 세 가지를 다 본다. 알리바바에서 결과 자리가 셋이었던 것과 같은 이유다 —
+       한 자리만 보다가 "만들어졌는데 못 찾는" 상태가 되면 회원 돈만 나간다. */
+  if (provider === "recraft") {
+    const rk = keys(env).recraft;
+    if (!rk) return json({ error: "Recraft 연동이 설정되지 않았습니다. 환경변수 Recraft_API_KEY 를 넣어주세요." }, 500);
+    const want = String(b.model || "");
+    const row = RECRAFT_BY_NAME[want];
+    if (!row) return json({ error: "Recraft 에 없는 모델입니다: " + want.slice(0, 80) }, 400);
+    /*  벡터는 아직 막아 둔다. 결과가 .svg 라 보관함·업스케일이 그대로 받는지 확인 전이다.
+        "만들어지긴 했는데 화면에 안 뜨는" 결과물이 쌓이는 쪽이 더 나쁘다. */
+    if (row.vector) return json({ error: "Recraft 벡터(SVG)는 아직 연결 전입니다. 래스터 모델을 골라 주세요." }, 400);
+
+    const prompt = String(b.prompt || "").slice(0, 1000);
+    if (!prompt) return json({ error: "프롬프트가 비어 있습니다." }, 400);
+    const body = { prompt, model: row.id, n: 1, size: RECRAFT_SIZE[String(b.ratio || "1:1")] || "1024x1024" };
+    if (b.negative) body.negative_prompt = String(b.negative).slice(0, 500);
+
+    const r = await fetchT(RECRAFT_BASE + recraftPath(row), {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + rk, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }, 120000);
+    const j = await r.json().catch(() => ({}));
+    const d0 = (j && Array.isArray(j.data) && j.data[0]) || null;
+    let url = (d0 && (d0.url || d0.image_url)) || j.url || j.image || null;
+    if (!url && d0 && d0.b64_json) url = "data:image/png;base64," + d0.b64_json;
+    if (r.ok && url) return json({ url, kind: "image", modelId: row.id });
+    const msg = String((j && (j.message || j.error || (j.detail && (j.detail.message || j.detail)))) || ("요청 실패(HTTP " + r.status + ")"));
+    return json({ error: "Recraft: " + String(msg).slice(0, 220) }, FAIL);
+  }
+
   if (provider === "alibaba") {
     const ak = keys(env).alibaba;
     if (!ak) return json({ error: "알리바바 연동이 설정되지 않았습니다. 환경변수 alibaba_API_KEY 를 넣어주세요." }, 500);
@@ -6370,7 +6481,43 @@ async function handle(context) {
     return json({ error: "Kling 연동이 설정되지 않았습니다. 환경변수 KLING_ACCESS_KEY·KLING_SECRET_KEY(또는 KLING_API_KEY) 를 넣어주세요." }, 500);
   }
 
-  return json({ error: "지원하지 않는 provider: " + provider + " (runway/runway_aleph/xai/google/seedance/flux/hailuo/luma/kling)" }, 400);
+  /* LTX(Lightricks) — 키는 콘솔에 들어와 있지만 **생성 경로는 아직 없다.**
+     여기까지 왔다는 건 등록부에서 LTX 모델이 켜졌다는 뜻이다(기본은 꺼져 있다).
+     그때 "지원하지 않는 provider" 라는 일반 문구로 떨어지면, 관리자는 오타를 의심하며
+     엉뚱한 데를 뒤진다. 무엇이 없어서 안 되는지와 어디로 가야 하는지를 그대로 말한다.
+     ⚠ 제공사에 아무것도 보내지 않는다. 과금 토큰은 제출 성공(200 + url/statusUrl)에서만
+       정산되므로 이 응답으로는 크레딧이 차감되지 않는다. */
+  if (provider === "ltx") {
+    return json({ error: "LTX 는 아직 연결되지 않았습니다 — 키만 등록된 상태입니다. " +
+      "관리자 → LTX 키 확인 에서 키와 실제 모델 ID 를 확인한 뒤 연결해야 합니다. " +
+      "확인 전까지 이 모델은 노드에 나오지 않습니다." }, 400);
+  }
+  /* Recraft 도 같은 상태다 — 키는 있고 경로는 없다.
+     ⚠ 벡터 모델은 연결할 때 결과가 .svg 라는 것까지 함께 풀어야 한다. 우리 보관함·갤러리는
+       png/jpg/webp 를 전제로 돌아간다(_recraft.ts 머리말 참고). */
+  if (provider === "recraft") {
+    return json({ error: "Recraft 는 아직 연결되지 않았습니다 — 키만 등록된 상태입니다. " +
+      "관리자 → Recraft 키 확인 에서 키를 확인한 뒤 연결해야 합니다. " +
+      "확인 전까지 이 모델은 노드에 나오지 않습니다." }, 400);
+  }
+  /* Bria 도 같은 상태다 — 키는 있고 경로는 없다.
+     ⚠ 연결할 때 두 가지를 같이 풀어야 한다: 인증이 api_token 헤더라는 것(Bearer 아님),
+       그리고 v2 가 비동기라 request_id·status_url 폴링과 실패 환불이 필요하다는 것
+       (_bria.ts 머리말 참고). */
+  if (provider === "bria") {
+    return json({ error: "Bria 는 아직 연결되지 않았습니다 — 키만 등록된 상태입니다. " +
+      "관리자 → Bria 키 확인 에서 키를 확인한 뒤 연결해야 합니다. " +
+      "확인 전까지 이 모델은 노드에 나오지 않습니다." }, 400);
+  }
+  /* Stability 도 같은 상태다.
+     ⚠ 이쪽은 연결할 때 단가부터 실측해야 한다 — 2026년 8월에 장당 크레딧이 크게 바뀌었다는
+       보고가 있다(_stability.ts 머리말). 표가 틀린 채로 켜면 그 차액을 우리가 문다. */
+  if (provider === "stability") {
+    return json({ error: "Stability AI 는 아직 연결되지 않았습니다 — 키만 등록된 상태입니다. " +
+      "관리자 → Stability 키 확인 에서 키를 확인하고, 단가를 실측값으로 넣은 뒤 연결해야 합니다. " +
+      "확인 전까지 이 모델은 노드에 나오지 않습니다." }, 400);
+  }
+  return json({ error: "지원하지 않는 provider: " + provider + " (runway/runway_aleph/xai/google/seedance/flux/hailuo/luma/kling/alibaba)" }, 400);
 }
 
 // redeploy marker a1aedb0

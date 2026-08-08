@@ -1,5 +1,9 @@
 import { ensureOnce } from '../_utils'
 import { ALIBABA_MODELS, ALIBABA_BY_NAME } from './_alibaba'
+import { LTX_MODELS, LTX_BY_NAME } from './_ltx'
+import { RECRAFT_MODELS } from './_recraft'
+import { BRIA_MODELS } from './_bria'
+import { STABILITY_MODELS } from './_stability'
 // 스튜디오 AI 생성 과금 규칙 (서버 권위 계산) — precheck·record 공용
 //  · 실제 AI 비용(원) = 제공사 공개 단가(USD) × 환율
 //  · 판매가 = 실제 비용 × 마크업.  마크업: 씨댄스 2.0 계열·이미지 모델 = 2.5배, 그 외 = 3배
@@ -442,6 +446,37 @@ export const MODEL_COST: Record<string, { u: CostUnit; usd: number; audio?: numb
 for (const r of ALIBABA_MODELS) {
   MODEL_COST[r.name] = { u: r.unit as CostUnit, usd: r.usd, prov: 'alibaba' }
 }
+/* ── LTX(Lightricks) 영상 ──
+   알리바바와 같은 이유로 표는 _ltx.ts 한 군데만 두고 여기서는 얹기만 한다.
+   ⚠ 단가는 잠정이고 모델 ID 도 아직 미확인이다 — 근거와 한계는 _ltx.ts 머리말에 적어 뒀다.
+     그래서 이 모델들은 등록부에 **꺼진 채로** 심긴다(회원에게 안 보인다).
+     그래도 단가표에는 지금 올려 둔다 — 확인 뒤 켜는 순간 요금이 0원인 모델이
+     회원 앞에 나가는 것을 막기 위해서다(과금은 이 표를 본다). */
+for (const r of LTX_MODELS) {
+  MODEL_COST[r.name] = { u: r.unit as CostUnit, usd: r.usd, prov: 'ltx' }
+}
+/* ── Recraft 래스터·벡터 이미지 ──
+   장당 정액이라 따로 계산할 것이 없다 — 표 값이 그대로 원가다(u:'img' 는 단위 1개 과금).
+   ⚠ 같은 모델 ID 라도 벡터 경로가 두 배쯤 비싸다. 그래서 표시명을 나눠 두 줄로 둔 것이다.
+     한 줄로 합치면 벡터를 래스터 값으로 청구하게 되고, 그 차액은 전부 우리 손해다.
+   단가 출처와 한계는 _recraft.ts 머리말에 적어 뒀다(관리자 실측값이 언제나 이긴다). */
+for (const r of RECRAFT_MODELS) {
+  MODEL_COST[r.name] = { u: r.unit as CostUnit, usd: r.usd, prov: 'recraft' }
+}
+/* ── Bria 이미지 생성·편집 ──
+   장당 정액이라 따로 계산할 것이 없다. 편집(배경 제거 $0.018 등)이 생성보다 싼 것이
+   실제 요금표 모양이다 — 한 값으로 뭉뚱그리면 편집을 비싸게 받게 된다.
+   단가 출처와 한계는 _bria.ts 머리말에 적어 뒀다(관리자 실측값이 언제나 이긴다). */
+for (const r of BRIA_MODELS) {
+  MODEL_COST[r.name] = { u: r.unit as CostUnit, usd: r.usd, prov: 'bria' }
+}
+/* ── Stability AI 이미지 ──
+   장당 정액이라 따로 계산할 것이 없다.
+   ⚠ 이 표는 다른 어느 제공사보다 먼저 실측으로 덮어야 한다 — 2026년 8월에 장당 크레딧이
+     크게 바뀌었다는 보고가 있다(_stability.ts 머리말). 관리자 실측값이 언제나 이긴다. */
+for (const r of STABILITY_MODELS) {
+  MODEL_COST[r.name] = { u: r.unit as CostUnit, usd: r.usd, prov: 'stability' }
+}
 //  과금 이름을 한 곳에서만 쓰도록 묶는다 — 문자열을 여기저기 적으면 표와 어긋난다
 export const UPSCALE_IMG = '화질 올리기 (이미지 초해상 ×4)'
 export const UPSCALE_VID = '화질 올리기 (영상 초해상 ×4)'
@@ -453,6 +488,7 @@ export const PROV_LABEL: Record<string, string> = {
   ark3d: '3D 생성 (ModelArk)', promptgen: '프롬프트 작성 LLM',
   hailuo: 'MiniMax Hailuo', luma: 'Luma', xai: 'Grok', flux: 'Flux', falcontrol: 'fal ControlNet',
   nanobanana: 'Nano Banana', openai: 'GPT Image', kling: 'Kling', narrate: '나레이션', lipsync: '립싱크', music: '음악 생성', upscale: '업스케일', alibaba: '알리바바 Wan(Model Studio)',
+  ltx: 'LTX (Lightricks)', recraft: 'Recraft (벡터·로고)', bria: 'Bria (저작권 안전)', stability: 'Stability AI',
 }
 
 export interface ChargeInput {
@@ -612,6 +648,21 @@ function wanUsd(input: ChargeInput): number | null {
   return per * units
 }
 
+/* ── LTX 영상 — 해상도 구간을 표에서 그대로 읽는다 ──
+   알리바바에서 배운 것과 같은 이유다. 기본 계산은 1080p 값에 화소비(720p = 0.444)를
+   곱하는데, 제공사 요금표가 그 비율을 안 따르면 우리가 차액을 물게 된다.
+   ⚠ LTX 구간 값은 아직 확인된 것이 아니다(_ltx.ts 머리말). 확인되기 전까지는
+     720p 를 1080p 의 절반 근처로 **덜 깎아** 둔다 — 모르는 구간을 임의로 깎으면
+     그만큼 우리 손해가 되고, 되돌릴 수 없다. */
+function ltxUsd(input: ChargeInput): number | null {
+  const row = (LTX_BY_NAME as any)[String(input.model || '')]
+  if (!row) return null
+  const units = Math.max(1, Math.round(Number(input.units) || 5))
+  const res = String(input.res || '1080p')
+  const per = /1080|4K|2160/i.test(res) ? row.usd : (row.usd720 || row.usd)
+  return per * units
+}
+
 function lumaUsd(input: ChargeInput): number | null {
   const model = String(input.model || '')
   if (!/^Luma /.test(model)) return null
@@ -738,7 +789,7 @@ export function computeCharge(input: ChargeInput, usdKrw: number = USD_KRW, mark
   const hasOv = Number.isFinite(ov) && ov > 0
   const lu = hasOv
     ? (isFlat ? ov : ov * Math.max(1, Math.round(Number(input.units) || 8)))
-    : (wanUsd(input) ?? lumaUsd(input) ?? veoUsd(input) ?? fluxUsd(input) ?? runwayUsd(input) ?? seedanceUsd(input) ?? openaiImgUsd(input))   // 공식 요금표가 있는 제공사 우선
+    : (wanUsd(input) ?? ltxUsd(input) ?? lumaUsd(input) ?? veoUsd(input) ?? fluxUsd(input) ?? runwayUsd(input) ?? seedanceUsd(input) ?? openaiImgUsd(input))   // 공식 요금표가 있는 제공사 우선
   if (lu != null) {
     usd = lu
   } else if (isImg) {
