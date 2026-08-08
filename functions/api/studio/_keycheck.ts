@@ -62,6 +62,10 @@ export type KeyProvider = {
 export type KeyProbeResult = {
   검사: string; url: string; status: number; ms: number
   code?: string | null; message?: string | null; 본문?: string; 오류?: string
+  /*  라우터가 "그런 길 없다" 고 뱉은 404 인가. 대조 주소를 고를 때만 쓰고 응답에서는 지운다.
+      ⚠ 이 판단은 반드시 read() 안에서 해야 한다 — 모델 목록 응답은 본문을 다른 문구로
+        바꿔 담기 때문에, 밖에서 본문을 보면 그 줄은 영영 판별되지 않는다(실제로 그랬다). */
+  _router404?: boolean
   _json?: any
 }
 
@@ -157,6 +161,7 @@ async function read(
       //  목록은 자르면 정작 봐야 할 모델 이름이 잘려 나간다(알리바바에서 그랬다) — 따로 정리한다
       본문: keep ? '(목록은 아래 모델목록 항목으로 따로 정리)' : cut(text),
       _json: parsed,
+      _router404: r.status === 404 && /Cannot (GET|POST)|<title>Error<\/title>/i.test(text),
     }
   } catch (err: any) {
     return {
@@ -210,10 +215,29 @@ export async function runKeyCheck(
   }
 
   /* ── 대조 확인 ── 가장 증거가 되는 주소 하나를 골라 일부러 틀린 키로 한 번 더 읽는다.
-     2xx 가 있으면 그걸 쓰고, 없으면 "서버가 답은 한" 주소(인증 거절이 아닌 것)를 쓴다. */
+
+     ⚠ 여기서 주소를 잘못 고르면 멀쩡한 키를 "확인 못 함" 으로 버린다. 실제로 LTX 에서
+       그랬다. 후보가 전부 404 였는데, 그 404 가 두 종류였다:
+         "Cannot GET /v1/credits"  ← 라우터가 뱉는 일반 404. 인증까지 가지도 않는다.
+         "Job 0000… not found"     ← **앱이 답한 것.** 라우팅도 인증도 지나간 자리다.
+       앞의 것을 골라 대조하면 틀린 키도 똑같이 404 라 아무것도 안 갈린다(그래서 판정 불가였다).
+       뒤의 것을 고르면 틀린 키는 401 이 날 테니 "우리 키는 통과" 가 그 자리에서 갈린다.
+
+     그래서 고르는 순서를 둔다:
+       ① 2xx (가장 확실)
+       ② 앱이 답한 것으로 보이는 비-401/403 응답 (일반 라우터 404 가 아닌 것)
+       ③ 그 밖의 비-401/403
+       ④ 아무거나 */
   const 답한것 = results.filter((r) => r.status > 0)
   const 통과한것 = results.filter((r) => r.status >= 200 && r.status < 300)
-  const 대표 = 통과한것[0] || 답한것.find((r) => r.status !== 401 && r.status !== 403) || 답한것[0] || null
+  //  라우터 404 인지는 read() 가 원문을 보고 이미 정해 두었다(여기서 본문을 보면 안 된다).
+  const 라우터404 = (r: KeyProbeResult) => !!r._router404
+  const 인증거절 = (r: KeyProbeResult) => r.status === 401 || r.status === 403
+  const 대표 =
+    통과한것[0]
+    || 답한것.find((r) => !인증거절(r) && !라우터404(r))
+    || 답한것.find((r) => !인증거절(r))
+    || 답한것[0] || null
   let 대조: KeyProbeResult | null = null
   if (대표) 대조 = await read(fetchT, '대조(일부러 틀린 키) · ' + 대표.검사, 대표.url, CONTROL_KEY, false, auth)
 
@@ -265,8 +289,9 @@ export async function runKeyCheck(
     근거 = '받은 상태코드로는 인증 통과 여부를 가를 수 없습니다. 아래 결과 원문을 보고 판단해야 합니다.'
   }
 
-  results.forEach((r) => { delete r._json })   // 파싱본은 내부용 — 응답에 통째로 싣지 않는다
-  if (대조) delete 대조._json
+  //  내부 판단용 값은 응답에 싣지 않는다
+  results.forEach((r) => { delete r._json; delete r._router404 })
+  if (대조) { delete 대조._json; delete 대조._router404 }
 
   return {
     provider: p.id,

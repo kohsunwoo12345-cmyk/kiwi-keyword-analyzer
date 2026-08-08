@@ -100,8 +100,11 @@ export const recraftPath = (row: RecraftRow) =>
 /** 키 환경변수 후보 — generate.js 의 keys() 와 같은 값이어야 한다. */
 export const RECRAFT_KEY_NAMES = ['Recraft_API_KEY', 'RECRAFT_API_KEY', 'recraft_api_key', 'RECRAFTAI_API_KEY']
 
-/** 아직 생성 경로가 없다. 화면이 "연동됨" 으로 보이지 않게 하는 단 하나의 값. */
-export const RECRAFT_WIRED = false
+/** 생성 경로가 붙었다(래스터). 화면의 "연결 전" 딱지를 가르는 단 하나의 값.
+    ⚠ 벡터(SVG)는 아직이다 — generate.js 가 벡터 모델을 명시적으로 막는다.
+      결과가 .svg 라 보관함·업스케일이 그대로 받는지 확인 전이고, 확인 없이 켜면
+      "만들어지긴 했는데 화면에 안 뜨는" 결과물이 쌓인다. 등록부에서도 벡터는 꺼져 있다. */
+export const RECRAFT_WIRED = true
 
 /* Recraft 잔액은 "API unit" 으로 온다. 1,000 unit = $1.00 (명세의 unitDefinitions).
    화면에 12345 라고만 띄우면 그게 돈인지 장수인지 아무도 모른다 — 달러로 바꿔 준다. */

@@ -51,6 +51,7 @@ export async function ensureRegistry(db: D1Database) {
   await seedAlibaba(db)
   await seedLtx(db)
   await seedRecraft(db)
+  await enableRecraftRaster(db)
   await seedBria(db)
   await seedStability(db)
 }
@@ -134,6 +135,29 @@ export async function seedRecraft(db: D1Database) {
               (r.vector ? '벡터(SVG) · 결과 표시 확인 필요 · ' : '')
                 + '연결 전 — 관리자 → Recraft 키 확인 뒤 생성 경로를 붙이고 켠다 · 단가 잠정',
               new Date().toISOString()).run()
+    }
+  }, ['model_registry'])
+}
+
+/* ── Recraft 래스터를 켠다 ────────────────────────────────────────────────
+   위 seedRecraft 는 전부 꺼진 채로 심었다. 그때는 생성 경로가 없었기 때문이다.
+   이제 래스터 경로가 붙었으므로(generate.js · provider "recraft") 래스터만 켠다.
+
+   ⚠ 벡터는 그대로 둔다. 결과가 .svg 라 보관함·업스케일이 받는지 확인 전이다.
+     "만들어지긴 했는데 화면에 안 뜨는" 결과물이 쌓이는 쪽이 더 나쁘다.
+   ⚠ 관리자가 꺼 둔 것을 되살리지 않는다 — 이미 손댄 줄인지 알 수 없으므로
+     **처음 심은 그대로(enabled=0 이고 note 가 그때 문구인)** 인 줄만 켠다.
+     관리자가 노트를 바꿨거나 켜 뒀다면 건드리지 않는다. */
+export async function enableRecraftRaster(db: D1Database) {
+  return ensureOnce(db, 'enable_recraft_raster_v1', async () => {
+    for (const r of RECRAFT_MODELS) {
+      if (r.vector) continue
+      await db.prepare(
+        `UPDATE model_registry SET enabled = 1, verified_at = ?, note = ?
+          WHERE name = ? AND provider = 'recraft' AND enabled = 0 AND note LIKE '연결 전 —%'`)
+        .bind(new Date().toISOString(),
+              '키 확인됨(계정 조회 200 · 틀린 키 401) · 래스터 생성 경로 연결됨 · 단가 잠정',
+              r.name).run()
     }
   }, ['model_registry'])
 }

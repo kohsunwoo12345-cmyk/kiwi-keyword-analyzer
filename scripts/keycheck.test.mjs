@@ -171,12 +171,31 @@ console.log('\n⑤ 확인 안 된 모델은 노드에 안 올라간다')
 
 console.log('\n⑥ 켜지더라도 조용히 실패하지 않는다')
 {
-  for (const p of ['ltx', 'recraft', 'bria', 'stability']) {
+  /*  Recraft 는 이제 진짜로 연결됐다(래스터). 그래서 "아직 연결되지 않았습니다" 를
+      기대하면 안 된다 — 그 기대는 연결 전 사실을 적어 둔 것이고 지금은 낡았다.
+      연결된 것과 아직인 것을 나눠서, 각각 맞는 것을 본다. */
+  const WIRED = ['recraft']
+  const NOT_WIRED = ['ltx', 'bria', 'stability']
+  for (const p of [...WIRED, ...NOT_WIRED]) {
     ok(new RegExp(`if \\(provider === "${p}"\\)`).test(gen), `${p}: 생성 경로에 자리가 있다`)
+  }
+  for (const p of NOT_WIRED) {
     const br = gen.slice(gen.indexOf(`if (provider === "${p}")`), gen.indexOf(`if (provider === "${p}")`) + 600)
     ok(/아직 연결되지 않았습니다/.test(br), `${p}: 왜 안 되는지와 어디로 가야 하는지를 말한다`,
        '"지원하지 않는 provider" 로 떨어지면 관리자는 오타를 의심하며 엉뚱한 데를 뒤진다')
   }
+  for (const p of WIRED) {
+    const i = gen.indexOf(`if (provider === "${p}")`)
+    const br = gen.slice(i, i + 2200)
+    ok(!/아직 연결되지 않았습니다/.test(br), `${p}: 연결됐으므로 안내문이 아니라 실제 호출을 한다`)
+    ok(/fetchT\(/.test(br), `${p}: 제공사를 실제로 부른다`)
+    //  키가 없는데 부르면 401 을 받으러 가는 셈이다. 부르기 전에 막아야 한다.
+    ok(/연동이 설정되지 않았습니다/.test(br), `${p}: 키가 없으면 부르기 전에 막고 이유를 말한다`)
+  }
+  //  "연결됨" 표시는 표 한 곳에서만 나와야 한다 — 화면과 코드가 어긋나면 관리자가 속는다
+  ok(/export const RECRAFT_WIRED = true/.test(rec), 'Recraft 표가 연결됨으로 되어 있다')
+  ok(/export const LTX_WIRED = false/.test(ltx) || !/LTX_WIRED = true/.test(ltx),
+     'LTX 표는 아직 연결 전이다')
 }
 
 console.log('\n⑦ 단가는 표 한 곳에서만 온다')

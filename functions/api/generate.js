@@ -16,7 +16,7 @@ import { ALIBABA_BY_NAME, ALIBABA_BY_ID, ALIBABA_BASE, alibabaPath, alibabaUsesM
 //  키만 들어오고 아직 연동 전인 제공사들 — 확인(무과금)은 _keycheck 한 군데에서 돈다
 import { runKeyCheck, noKeyResult } from "./studio/_keycheck";
 import { LTX_KEYCHECK } from "./studio/_ltx";
-import { RECRAFT_KEYCHECK } from "./studio/_recraft";
+import { RECRAFT_KEYCHECK, RECRAFT_BY_NAME, RECRAFT_BASE, recraftPath } from "./studio/_recraft";
 import { BRIA_KEYCHECK } from "./studio/_bria";
 import { STABILITY_KEYCHECK, STABILITY_KEY_NAMES } from "./studio/_stability";
 import { issueGenCharge, settleGenCharge, refundGenCharge, reconcileGenCharge, archiveGenResult } from "./studio/_gencharge";
@@ -1099,7 +1099,7 @@ const FAL_ALLOWED = new Set(["motion", "narrate", "lipsync", "revoice", "music",
 /* 공식 API 를 연동해 둔 제공사 — 이 이름으로는 fal 호출이 불가능하다(아래 falFetch 가 던진다) */
 const OFFICIAL_ONLY = new Set(["seedance", "seedream", "ark3d", "promptgen", "kling", "klingextend",
                                "luma", "google", "nanobanana", "runway", "runway_aleph", "hailuo",
-                               "flux", "openai", "xai", "alibaba"]);
+                               "flux", "openai", "xai", "alibaba", "recraft"]);
 /* fal 로 나가는 모든 요청은 이 함수를 거친다. 허가 목록 밖이면 호출 자체가 막힌다.
    (예전엔 클링·씨댄스가 fal 로 새는 코드가 실제로 있었다 — 지우는 것만으로는 또 들어온다.) */
 function falFetch(routeName, url, init, timeoutMs) {
@@ -2033,6 +2033,16 @@ export async function onRequest(context) {
    한 푼도 안 받는다. 클라이언트가 무엇을 빠뜨리든 서버가 이름을 채운다. */
 /* 알리바바 구형 t2i 는 비율이 아니라 "가로*세로" 를 받는다(SDK 의 size 인자).
    비율만 주면 기본값으로 떨어져서 회원이 고른 비율이 조용히 무시된다. */
+/* Recraft 는 비율이 아니라 "가로x세로" 를 받는다(명세의 size).
+   비율만 주면 기본값(1024x1024)으로 떨어져서 회원이 고른 비율이 조용히 무시된다 —
+   알리바바 구형 t2i 에서 이미 같은 자리를 밟았다. */
+const RECRAFT_SIZE = {
+  "1:1": "1024x1024", "16:9": "1820x1024", "9:16": "1024x1820", "4:3": "1365x1024",
+  "3:4": "1024x1365", "3:2": "1536x1024", "2:3": "1024x1536", "2:1": "2048x1024",
+  "1:2": "1024x2048", "5:4": "1280x1024", "4:5": "1024x1280", "14:10": "1434x1024",
+  "10:14": "1024x1434", "6:10": "1024x1707",
+};
+
 const ALI_IMG_SIZE = {
   "1:1": "1328*1328", "16:9": "1664*928", "9:16": "928*1664",
   "4:3": "1472*1140", "3:4": "1140*1472", "3:2": "1584*1056", "2:3": "1056*1584",
@@ -2319,8 +2329,10 @@ async function handle(context) {
         ltx: false,
         ltxKeySet: !!k.ltx,
         ltxKeyId: (healthAdmin && k.ltx) ? (String(k.ltx).slice(0, 6) + "…" + String(k.ltx).slice(-4)) : null,
-        //  Recraft 도 같다 — 키만 있고 생성 경로가 없다. 연결 여부와 키 유무를 따로 답한다.
-        recraft: false,
+        /*  Recraft 는 래스터 생성 경로가 붙었다. 키가 있으면 실제로 쓸 수 있다는 뜻이다.
+            키가 없으면 false 를 줘서 스튜디오가 Recraft 모델을 아예 숨기게 한다 —
+            목록에만 남아 있으면 누를 때마다 실패한다(클링에서 배운 것). */
+        recraft: !!k.recraft,
         recraftKeySet: !!k.recraft,
         recraftKeyId: (healthAdmin && k.recraft) ? (String(k.recraft).slice(0, 6) + "…" + String(k.recraft).slice(-4)) : null,
         //  Bria 도 같다 — 키만 있고 생성 경로가 없다.
@@ -6332,6 +6344,43 @@ async function handle(context) {
      ⚠ 이 제공사는 파라미터 검사를 **큐에 넣은 뒤** 한다. 즉 형식이 틀려도 202 가 오고
        나중에 FAILED 로 끝난다 — 그래서 "제출됐다 = 맞게 보냈다" 가 아니다.
        폴링에서 FAILED 를 반드시 실패로 넘겨야 환불이 돈다(아래 GET 쪽 참조). */
+  /* ══ Recraft — 래스터 이미지 생성(동기) ══
+     키는 관리자 → Recraft 키 확인에서 확정됐다(200 · 잔액 $5.00 · 틀린 키는 401).
+     주소·모델 ID·경로는 공개 OpenAPI 명세에서 읽은 값이고 표는 _recraft.ts 한 곳에 있다.
+
+     ⚠ 결과를 꺼내는 자리를 한 곳으로 못 박지 않는다. 명세 원문을 제공사 사이트에서
+       대조하지 못했으므로(그 도메인은 이 환경에서 막혀 있다) data[].url · data[].b64_json ·
+       평평한 url 세 가지를 다 본다. 알리바바에서 결과 자리가 셋이었던 것과 같은 이유다 —
+       한 자리만 보다가 "만들어졌는데 못 찾는" 상태가 되면 회원 돈만 나간다. */
+  if (provider === "recraft") {
+    const rk = keys(env).recraft;
+    if (!rk) return json({ error: "Recraft 연동이 설정되지 않았습니다. 환경변수 Recraft_API_KEY 를 넣어주세요." }, 500);
+    const want = String(b.model || "");
+    const row = RECRAFT_BY_NAME[want];
+    if (!row) return json({ error: "Recraft 에 없는 모델입니다: " + want.slice(0, 80) }, 400);
+    /*  벡터는 아직 막아 둔다. 결과가 .svg 라 보관함·업스케일이 그대로 받는지 확인 전이다.
+        "만들어지긴 했는데 화면에 안 뜨는" 결과물이 쌓이는 쪽이 더 나쁘다. */
+    if (row.vector) return json({ error: "Recraft 벡터(SVG)는 아직 연결 전입니다. 래스터 모델을 골라 주세요." }, 400);
+
+    const prompt = String(b.prompt || "").slice(0, 1000);
+    if (!prompt) return json({ error: "프롬프트가 비어 있습니다." }, 400);
+    const body = { prompt, model: row.id, n: 1, size: RECRAFT_SIZE[String(b.ratio || "1:1")] || "1024x1024" };
+    if (b.negative) body.negative_prompt = String(b.negative).slice(0, 500);
+
+    const r = await fetchT(RECRAFT_BASE + recraftPath(row), {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + rk, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }, 120000);
+    const j = await r.json().catch(() => ({}));
+    const d0 = (j && Array.isArray(j.data) && j.data[0]) || null;
+    let url = (d0 && (d0.url || d0.image_url)) || j.url || j.image || null;
+    if (!url && d0 && d0.b64_json) url = "data:image/png;base64," + d0.b64_json;
+    if (r.ok && url) return json({ url, kind: "image", modelId: row.id });
+    const msg = String((j && (j.message || j.error || (j.detail && (j.detail.message || j.detail)))) || ("요청 실패(HTTP " + r.status + ")"));
+    return json({ error: "Recraft: " + String(msg).slice(0, 220) }, FAIL);
+  }
+
   if (provider === "alibaba") {
     const ak = keys(env).alibaba;
     if (!ak) return json({ error: "알리바바 연동이 설정되지 않았습니다. 환경변수 alibaba_API_KEY 를 넣어주세요." }, 500);
