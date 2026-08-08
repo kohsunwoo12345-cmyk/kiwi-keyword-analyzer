@@ -34,6 +34,8 @@ export type KeyProbe = {
 }
 
 export type KeyProvider = {
+  /** 한 요청을 얼마나 기다릴까. 안 주면 8초. 느린 제공사만 늘린다. */
+  timeoutMs?: number
   id: string
   label: string
   /** 키 환경변수 후보. generate.js 의 keys() 와 같은 값이어야 한다. */
@@ -143,14 +145,14 @@ export const bearerAuth = (key: string) => ({ Authorization: 'Bearer ' + key })
    새 확인을 붙이고 싶어도 이 함수를 통해야 한다 — 그래야 "확인만 했는데 만들어졌다" 가 안 난다. */
 async function read(
   fetchT: FetchT, label: string, url: string, key: string, keep: boolean,
-  auth: (k: string) => Record<string, string>,
+  auth: (k: string) => Record<string, string>, timeoutMs = 8000,
 ): Promise<KeyProbeResult> {
   const t0 = Date.now()
   try {
     const r = await fetchT(url, {
       method: 'GET',
       headers: { ...auth(key), Accept: 'application/json' },
-    }, 8000)
+    }, timeoutMs)
     const text = await r.text().catch(() => '')
     let parsed: any = null
     try { parsed = JSON.parse(text) } catch { /* JSON 이 아닐 수 있다 */ }
@@ -191,15 +193,19 @@ export async function runKeyCheck(
     for (let i = 0; i < p.probes.length; i++) {
       const pr = p.probes[i]
       const keep = pr.종류 === 'models'
-      const r = await read(fetchT, 이름 + ' · ' + pr.이름, base + pr.path, key, keep, auth)
+      const r = await read(fetchT, 이름 + ' · ' + pr.이름, base + pr.path, key, keep, auth, p.timeoutMs)
       results.push(r)
-      //  첫 요청이 아예 안 닿으면 그 호스트는 없는 주소다. 남은 경로를 더 두들길 이유가 없다.
-      if (i === 0 && r.status === 0) {
+      /*  ⚠ 여기서 한 번 크게 틀렸다. 예전에는 "첫 요청이 안 닿으면 그 호스트는 없는 주소" 라며
+          남은 경로를 통째로 건너뛰었다. 그런데 **한 경로가 느린 것과 호스트가 죽은 것은 다르다.**
+          Bria 가 정확히 그 경우였다 — 첫 경로 하나가 8초를 넘겼는데, 그 이유로 나머지를
+          아예 묻지 않고 "닿지 않음" 으로 끝냈다. 뒤 경로가 답했을지는 확인조차 못 했다.
+          이제는 **모든 경로가 안 닿았을 때만** 그렇게 말한다. 시간이 조금 더 들 뿐이고,
+          잘못된 결론을 내는 것보다는 그게 낫다. */
+      if (i === p.probes.length - 1 && results.filter((x) => x.검사.startsWith(이름)).every((x) => x.status === 0)) {
         results.push({
-          검사: 이름 + ' · 나머지 건너뜀', url: base, status: 0, ms: 0,
-          오류: '첫 요청이 닿지 않아 이 호스트는 더 묻지 않았습니다.',
+          검사: 이름 + ' · 이 호스트는 어느 경로도 답하지 않음', url: base, status: 0, ms: 0,
+          오류: '경로를 모두 시도했지만 전부 닿지 않았습니다. 주소가 다르거나 통신이 막힌 것입니다.',
         })
-        break
       }
       if (r.status >= 200 && r.status < 300 && r._json) {
         if (pr.종류 === 'models') {

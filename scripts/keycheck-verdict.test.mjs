@@ -84,7 +84,42 @@ console.log('\n② 인증을 아무 데서도 안 보면 — 확정하면 안 �
   ok(!/키가 작동합니다/.test(r.판정), '작동한다고 단정하지 않는다', r.판정)
 }
 
-console.log('\n③ 키 값은 어떤 경우에도 응답에 안 실린다')
+console.log('\n③ 첫 경로가 느리다고 그 호스트를 통째로 포기하지 않는다')
+{
+  /* Bria 가 이 경우였다. 첫 경로 하나가 8초를 넘겼는데 그 이유로 나머지를 아예 묻지 않고
+     "닿지 않음" 으로 끝냈다. 뒤 경로가 답했을지는 확인조차 못 했다.
+     한 경로가 느린 것과 호스트가 죽은 것은 다르다. */
+  const SLOW = { id: 'slowtest', label: '느린곳', envNames: ['X'], hosts: ['https://api.slow.test'],
+    console: 'https://x', wired: false, 주소근거: '검사용',
+    probes: [
+      { 이름: '느린 경로', path: '/slow', 종류: 'models' },
+      { 이름: '가벼운 경로', path: '/light', 종류: 'job' },
+    ] }
+  //  첫 경로는 시간 초과(status 0), 두 번째는 인증을 보고 답한다
+  const f = async (url, init) => {
+    if (/\/slow$/.test(String(url))) throw new Error('timeout')
+    const key = String(((init && init.headers) || {}).Authorization || '').replace(/^Bearer\s+/, '')
+    return new Response(key === GOOD ? 'ok' : 'no', { status: key === GOOD ? 200 : 401 })
+  }
+  const r = await kc.runKeyCheck(SLOW, GOOD, f, null, 'X')
+  const 물어본것 = r.결과.filter((x) => /가벼운 경로/.test(x.검사))
+  ok(물어본것.length === 1, '첫 경로가 안 닿아도 뒤 경로를 계속 묻는다',
+     JSON.stringify(r.결과.map((x) => x.검사)))
+  ok(r.키작동 === true, '뒤 경로가 답하면 판정이 선다', r.판정)
+  ok(!/나머지 건너뜀/.test(JSON.stringify(r.결과)), '"나머지 건너뜀" 으로 끝내지 않는다')
+}
+
+console.log('\n④ 정말 아무 경로도 안 닿으면 그때는 그렇게 말한다')
+{
+  const DEAD = { id: 'deadtest', label: '죽은곳', envNames: ['X'], hosts: ['https://api.dead.test'],
+    console: 'https://x', wired: false, 주소근거: '검사용',
+    probes: [{ 이름: 'a', path: '/a', 종류: 'job' }, { 이름: 'b', path: '/b', 종류: 'job' }] }
+  const r = await kc.runKeyCheck(DEAD, GOOD, async () => { throw new Error('timeout') }, null, 'X')
+  ok(r.키작동 === null && /닿지 않았습니다/.test(r.판정), '전부 안 닿으면 "닿지 않음" 으로 판정한다', r.판정)
+  ok(/어느 경로도 답하지 않음/.test(JSON.stringify(r.결과)), '왜 그렇게 봤는지 남긴다')
+}
+
+console.log('\n⑤ 키 값은 어떤 경우에도 응답에 안 실린다')
 {
   const r = await run({ authChecked: true })
   const dump = JSON.stringify(r)

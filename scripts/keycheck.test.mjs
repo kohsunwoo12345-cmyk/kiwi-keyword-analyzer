@@ -405,7 +405,12 @@ for (const who of ['ltx', 'recraft', 'bria', 'stability']) {
          '두 개를 다 보내면 어느 쪽이 통했는지 알 수 없어 확인이 흐려진다')
       const 모델 = (r.body.모델목록 || []).flatMap((g) => g.모델)
       ok(모델.includes('my_brand_v1'), '이 계정의 맞춤 모델을 그대로 보여 준다', JSON.stringify(모델))
-      ok(calls(who).every((x) => /\/v1\/tailored-gen\/models\//.test(x.url)), '읽은 주소가 조회 전용 경로뿐이다',
+      /*  ⚠ 예전엔 "tailored-gen/models 만 읽는다" 로 못 박아 뒀다. 그런데 Bria 는 그 경로가
+          느려서(실측 8초 초과) 판정이 안 섰고, 그래서 루트(/ · /v1/ · /v2/)를 후보로 넣었다.
+          루트도 조회(GET)이고 생성 경로가 아니다. 확인해야 할 것은 "특정 경로만" 이 아니라
+          **생성 경로를 건드리지 않는가** 이므로, 그걸 그대로 본다. */
+      const 생성경로 = /\/(generate|image\/generate|video|edit|erase|expand|background|enhance)\b/i
+      ok(calls(who).every((x) => !생성경로.test(x.url)), '읽은 주소에 생성 경로가 없다',
          JSON.stringify(calls(who).map((x) => x.url)))
       ok(!calls(who).some((x) => /\/v2\/image\//.test(x.url)), '생성 주소를 한 번도 부르지 않았다')
     }
@@ -433,8 +438,13 @@ for (const who of ['ltx', 'recraft', 'bria', 'stability']) {
     ok(r.body.키작동 === null, '키작동 = null', JSON.stringify(r.body.판정))
     ok(/닿지 않/.test(String(r.body.판정 || '')), '"키가 틀렸다" 가 아니라 "못 물어봤다" 라고 한다',
        '못 물어본 것을 안 된다고 적으면 멀쩡한 키를 버리게 된다')
-    //  안 닿는 호스트의 남은 경로를 계속 두들길 이유가 없다 — 호스트당 첫 요청 하나면 끝이다
-    ok(calls(who).length <= 2, '안 닿는 호스트의 남은 경로는 더 묻지 않는다',
+    /*  ⚠ 이 줄은 옛 동작을 지키고 있었다 — "첫 요청이 안 닿으면 그 호스트는 포기" 였다.
+        그게 Bria 에서 틀린 결론을 냈다. 한 경로가 **느린 것** 과 호스트가 **죽은 것** 은 다른데,
+        느린 경로 하나 때문에 나머지를 묻지도 않고 "닿지 않음" 으로 끝냈다.
+        이제는 다 물어보고, 전부 안 닿을 때만 그렇게 말한다. 그래서 여기서 볼 것은
+        "적게 물었는가" 가 아니라 **"물어본 뒤 올바로 판정했는가"** 다(위 두 줄이 그걸 본다).
+        다만 무한정 두들기면 안 되므로 상한은 여전히 본다 — 경로 수만큼이다. */
+    ok(calls(who).length <= 12, '안 닿아도 경로 수를 넘겨 두들기지 않는다',
        `${calls(who).length}번: ` + calls(who).map((x) => x.url).join(' '))
   }
 

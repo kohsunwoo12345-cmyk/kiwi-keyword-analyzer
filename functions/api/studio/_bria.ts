@@ -126,9 +126,18 @@ export const BRIA_KEYCHECK: KeyProvider = {
   wired: BRIA_WIRED,
   주소근거: '공식 ComfyUI 노드 저장소(Bria-AI/ComfyUI-BRIA-API)의 코드에서 읽은 값입니다 — '
           + 'https://engine.prod.bria-api.com. 인증은 Bearer 가 아니라 api_token 헤더입니다.',
+  /*  8초로는 답을 못 받았다(실측: 첫 경로가 8,000ms 에서 끊김). 호스트가 죽은 것인지
+      그 경로가 느린 것인지 가르려면 더 기다려 봐야 한다. 조회라서 오래 기다려도 돈은 안 든다. */
+  timeoutMs: 20000,
+  /*  경로를 넓힌다. 앞의 하나가 느리다고 그 호스트를 포기하지 않도록 _keycheck 를 고쳤으니,
+      뒤의 가벼운 경로들이 답하면 그것으로 판정이 선다. 전부 GET 이라 생성은 없다. */
   probes: [
     { 이름: '맞춤 모델 목록 (GET /v1/tailored-gen/models/)', path: '/v1/tailored-gen/models/', 종류: 'models' },
     { 이름: '없는 모델 조회', path: '/v1/tailored-gen/models/__no_such_model__', 종류: 'job' },
+    //  루트·버전 경로는 가장 가볍다. 401 이 오면 그것만으로 "서버는 살아 있고 인증을 본다" 가 선다.
+    { 이름: '루트', path: '/', 종류: 'job' },
+    { 이름: 'v1 루트', path: '/v1/', 종류: 'job' },
+    { 이름: 'v2 루트', path: '/v2/', 종류: 'job' },
   ],
   //  잔액을 주는 조회 경로를 아직 못 찾았다. 없는 것을 있는 척하지 않는다 — balance 를 안 단다.
 }
