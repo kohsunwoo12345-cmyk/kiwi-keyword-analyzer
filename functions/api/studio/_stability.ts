@@ -62,14 +62,22 @@ const CAT = '이미지 · Stability AI'
 const S = (name: string, id: string, usd: number): StabilityRow =>
   ({ name, id, kind: 'image', unit: 'img', usd, cat: CAT, opts: IOPT })
 
+/* ⚠ 단가를 **천장으로 올려 잡았다.** 위 머리말의 "2026-08 에 장당 1.25 → 8 크레딧으로
+   소급 변경" 보고가 사실이면, 명세 그대로(Core 3크레딧 = $0.03)로 켜는 순간 장마다
+   차액을 우리가 문다. 그리고 그건 되돌릴 수 없다 — 이미 만들어 준 것은 못 무른다.
+   반대로 비싸게 잡아 두면 청구서를 보고 관리자 → 모델 단가에서 **내리면 그만**이다.
+   그래서 셋 다 확인된 최고치(8크레딧 = $0.08) 기준으로 둔다.
+   명세 원문 값은 지우지 않고 여기 남긴다 — 확인되면 이 줄로 되돌리면 된다:
+       Ultra $0.08(8크레딧) · Core $0.03(3크레딧) · SD3.5 $0.065(가장 비싼 변형 기준)
+   알리바바에서 쓴 근거 등급과 같은 뜻이다: A = 출처 둘이 일치, C = 우리 천장 추정. */
 export const STABILITY_MODELS: StabilityRow[] = [
   S('Stable Image Ultra', '/v2beta/stable-image/generate/ultra', 0.08),
-  S('Stable Image Core', '/v2beta/stable-image/generate/core', 0.03),
+  S('Stable Image Core', '/v2beta/stable-image/generate/core', 0.08),
   /* sd3 경로는 요청의 model 값으로 여러 변형(large·large-turbo·medium)을 가른다.
      변형마다 크레딧이 다른데 그 표를 확인하지 못했다. 한 줄로 두되 **가장 비싼 변형 기준**
      으로 잡는다 — 싸게 잡으면 회원이 큰 모델을 고를 때마다 차액을 우리가 물고,
      그건 되돌릴 수 없다. 확인되면 관리자 → 모델 단가에서 내리면 된다. */
-  S('Stable Diffusion 3.5', '/v2beta/stable-image/generate/sd3', 0.065),
+  S('Stable Diffusion 3.5', '/v2beta/stable-image/generate/sd3', 0.08),
 ]
 
 /** 표시명 → 행. */
@@ -89,8 +97,11 @@ export const STABILITY_KEY_NAMES = [
   'STABILITY_AI_API_KEY', 'SD_API_KEY',
 ]
 
-/** 아직 생성 경로가 없다. 화면이 "연동됨" 으로 보이지 않게 하는 단 하나의 값. */
-export const STABILITY_WIRED = false
+/** 생성 경로가 붙었다(v2beta · multipart). 화면의 "연결 전" 딱지를 가르는 단 하나의 값.
+    등록부에서도 켠다 — 다만 단가는 위처럼 **천장으로** 잡아 두었다. 싸게 잡고 켜는 것과
+    비싸게 잡고 켜는 것은 위험이 다르다. 전자는 못 무르고 후자는 관리자가 내리면 된다.
+    관리자 화면에는 [잠정] 딱지가 붙는다(admin/ai-models.ts costProvisional). */
+export const STABILITY_WIRED = true
 
 /* 키 확인(무과금)에 쓸 정의. 판정 로직은 _keycheck.ts 한 군데에만 있다.
 

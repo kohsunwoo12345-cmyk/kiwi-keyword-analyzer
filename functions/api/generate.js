@@ -18,7 +18,7 @@ import { runKeyCheck, noKeyResult } from "./studio/_keycheck";
 import { LTX_KEYCHECK } from "./studio/_ltx";
 import { RECRAFT_KEYCHECK, RECRAFT_BY_NAME, RECRAFT_BASE, recraftPath } from "./studio/_recraft";
 import { BRIA_KEYCHECK } from "./studio/_bria";
-import { STABILITY_KEYCHECK, STABILITY_KEY_NAMES } from "./studio/_stability";
+import { STABILITY_KEYCHECK, STABILITY_KEY_NAMES, STABILITY_BY_NAME, STABILITY_BASE } from "./studio/_stability";
 import { issueGenCharge, settleGenCharge, refundGenCharge, reconcileGenCharge, archiveGenResult } from "./studio/_gencharge";
 import { saveMediaToR2 } from "./_media";
 import { recordGenFailure } from "./studio/_genfail";
@@ -1099,7 +1099,7 @@ const FAL_ALLOWED = new Set(["motion", "narrate", "lipsync", "revoice", "music",
 /* 공식 API 를 연동해 둔 제공사 — 이 이름으로는 fal 호출이 불가능하다(아래 falFetch 가 던진다) */
 const OFFICIAL_ONLY = new Set(["seedance", "seedream", "ark3d", "promptgen", "kling", "klingextend",
                                "luma", "google", "nanobanana", "runway", "runway_aleph", "hailuo",
-                               "flux", "openai", "xai", "alibaba", "recraft"]);
+                               "flux", "openai", "xai", "alibaba", "recraft", "stability"]);
 /* fal 로 나가는 모든 요청은 이 함수를 거친다. 허가 목록 밖이면 호출 자체가 막힌다.
    (예전엔 클링·씨댄스가 fal 로 새는 코드가 실제로 있었다 — 지우는 것만으로는 또 들어온다.) */
 function falFetch(routeName, url, init, timeoutMs) {
@@ -2340,7 +2340,9 @@ async function handle(context) {
         briaKeySet: !!k.bria,
         briaKeyId: (healthAdmin && k.bria) ? (String(k.bria).slice(0, 6) + "…" + String(k.bria).slice(-4)) : null,
         //  Stability 도 같다 — 키만 있고 생성 경로가 없다.
-        stability: false,
+        /*  Stability 는 생성 경로가 붙었다. 키가 있으면 실제로 쓸 수 있다.
+            키가 없으면 false 를 줘서 스튜디오가 이 모델들을 아예 숨긴다. */
+        stability: !!k.stability,
         stabilityKeySet: !!k.stability,
         stabilityKeyId: (healthAdmin && k.stability) ? (String(k.stability).slice(0, 6) + "…" + String(k.stability).slice(-4)) : null,
         /* 클링은 공식 오픈플랫폼 API 로만 나간다(중개 폴백 제거). fal 키가 있어도 대체되지 않으므로
@@ -6512,10 +6514,45 @@ async function handle(context) {
   /* Stability 도 같은 상태다.
      ⚠ 이쪽은 연결할 때 단가부터 실측해야 한다 — 2026년 8월에 장당 크레딧이 크게 바뀌었다는
        보고가 있다(_stability.ts 머리말). 표가 틀린 채로 켜면 그 차액을 우리가 문다. */
+  /* ══ Stability AI — 이미지 생성(동기) ══
+     키는 관리자 화면에서 확정됐다(잔액 조회 200 · $10.25 · 틀린 키 401).
+
+     ⚠ 본문이 JSON 이 아니라 **multipart/form-data** 다. 이 제공사만 그렇다 —
+       JSON 으로 보내면 전부 거절된다.
+     ⚠ Accept 를 application/json 으로 준다. 그러면 이미지가 base64 로 온다.
+       image/* 로 받으면 바이트가 날것으로 와서 우리 보관 경로가 그걸 다시 감싸야 한다.
+       base64 는 data: 주소로 만들면 saveMediaToR2 가 그대로 받는다(이미 그 길이 있다).
+     ⚠ 단가가 흔들리는 제공사다(2026년 8월 크레딧 변경 보고). 표는 비싼 쪽으로 잡혀 있고
+       관리자 → 모델 단가가 언제나 이긴다. */
   if (provider === "stability") {
-    return json({ error: "Stability AI 는 아직 연결되지 않았습니다 — 키만 등록된 상태입니다. " +
-      "관리자 → Stability 키 확인 에서 키를 확인하고, 단가를 실측값으로 넣은 뒤 연결해야 합니다. " +
-      "확인 전까지 이 모델은 노드에 나오지 않습니다." }, 400);
+    const sk = keys(env).stability;
+    if (!sk) return json({ error: "Stability 연동이 설정되지 않았습니다. 환경변수 Stability_API_KEY 를 넣어주세요." }, 500);
+    const want = String(b.model || "");
+    const row = STABILITY_BY_NAME[want];
+    if (!row) return json({ error: "Stability 에 없는 모델입니다: " + want.slice(0, 80) }, 400);
+    const prompt = String(b.prompt || "").slice(0, 1000);
+    if (!prompt) return json({ error: "프롬프트가 비어 있습니다." }, 400);
+
+    const fd = new FormData();
+    fd.append("prompt", prompt);
+    fd.append("output_format", "png");
+    if (b.negative) fd.append("negative_prompt", String(b.negative).slice(0, 500));
+    if (b.ratio) fd.append("aspect_ratio", String(b.ratio));
+    if (Number.isFinite(Number(b.seed))) fd.append("seed", String(Number(b.seed) % 4294967295));
+    //  sd3 경로는 변형을 model 값으로 가른다. 안 주면 제공사 기본값이 쓰인다.
+    if (/sd3$/.test(row.id) && b.stabilityModel) fd.append("model", String(b.stabilityModel));
+
+    const r = await fetchT(STABILITY_BASE + row.id, {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + sk, "Accept": "application/json" },
+      body: fd,
+    }, 120000);
+    const j = await r.json().catch(() => ({}));
+    //  결과 자리를 한 곳으로 못 박지 않는다 — 명세를 제공사 원문으로 대조하지 못했다.
+    const b64 = j && (j.image || (Array.isArray(j.artifacts) && j.artifacts[0] && j.artifacts[0].base64));
+    if (r.ok && b64) return json({ url: "data:image/png;base64," + b64, kind: "image", modelId: row.id });
+    const msg = String((j && (j.message || j.name || (Array.isArray(j.errors) && j.errors[0]))) || ("요청 실패(HTTP " + r.status + ")"));
+    return json({ error: "Stability: " + String(msg).slice(0, 220) }, FAIL);
   }
   return json({ error: "지원하지 않는 provider: " + provider + " (runway/runway_aleph/xai/google/seedance/flux/hailuo/luma/kling/alibaba)" }, 400);
 }

@@ -35,10 +35,16 @@ const ok = (name, cond, detail = '') => {
   const iPoll = src.indexOf('await fetch(new URL(taskKey, origin)')
   ok('①-b 잠금이 조회보다 먼저다', iLock > 0 && iPoll > 0 && iLock < iPoll)
   ok('①-c 이미 잠긴 것은 덮어쓰지 않는다', /COALESCE\(reconciled_at, \?\)/.test(src))
-  //  결과 주소 말고 다른 칸을 쓰지 않는다
+  /*  되찾기가 **돈 칸을 건드리면 안 된다.** 그게 이 검사의 진짜 뜻이다.
+      원래는 "UPDATE 가 딱 하나이고 result_url 만 쓴다" 로 적혀 있었는데, 그 뒤 제품이
+      result_kind 를 COALESCE(NULLIF(...)) 로 **비어 있을 때만** 채우도록 바뀌었다
+      (_gencharge.ts 의 보관 경로와 같은 모양이다). 그건 종류가 비어 화면에서 안 뜨던 것을
+      메우는 것이라 맞는 변경이고, 돈과는 무관하다. 검사가 낡았던 것이라 뜻을 그대로 옮긴다. */
   const updates = src.match(/UPDATE ai_usage SET [^`']*/g) || []
-  ok('①-d ai_usage 는 결과 주소만 고친다',
-     updates.length === 1 && /result_url = \?/.test(updates[0]) && !/credits|revenue_krw|cost_krw|usd/.test(updates[0]),
+  ok('①-d ai_usage 에서 돈 칸은 절대 안 고친다(결과 주소·종류만)',
+     updates.length > 0
+       && updates.every((u) => /result_url = \?/.test(u))
+       && updates.every((u) => !/credits|revenue_krw|cost_krw|usd/.test(u)),
      updates.join(' | '))
 }
 
@@ -63,7 +69,13 @@ const ok = (name, cond, detail = '') => {
   ok('③-b 남은 건수를 알려 준다', /remaining/.test(src))
   //  못 고치는 건(실패·만료·진행 중)을 빼지 않으면 화면이 영원히 다시 부른다
   ok('③-c 못 고칠 건수는 남은 수에서 뺀다', /const stuck = failed \+ running \+ gone/.test(src))
-  ok('③-d 화면도 진전이 없으면 멈춘다', /if \(!\(r\.remaining \|\| 0\) \|\| !\(r\.recovered \|\| 0\)\) break/.test(page))
+  /*  낡은 검사는 `!remaining || !recovered` 한 줄을 기대했다. 그런데 그 조건은 **너무 일찍 멈춘다** —
+      되찾을 건 없는데 옮길 건(만료 위험 줄) 남은 경우 첫 묶음만 옮기고 끝났다고 보고한다.
+      제품은 그래서 두 줄로 나눠 뒀다: 남은 게 없으면 멈추고, 되찾은 것도 옮긴 것도 없을 때만 멈춘다.
+      제품이 더 맞다. 검사를 제품에 맞추되, **멈추는 조건이 사라지면 잡히도록** 둘 다 본다. */
+  ok('③-d 화면도 진전이 없으면 멈춘다(무한 반복 방지)',
+     /if \(!\(r\.remaining \|\| 0\)\) break/.test(page)
+     && /if \(!\(r\.recovered \|\| 0\) && !\(r\.moved \|\| 0\)\) break/.test(page))
 }
 
 // ④ 관리자만 · 보관할 곳이 있을 때만

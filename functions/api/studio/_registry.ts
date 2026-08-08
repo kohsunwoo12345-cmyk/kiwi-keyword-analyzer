@@ -54,6 +54,7 @@ export async function ensureRegistry(db: D1Database) {
   await enableRecraftRaster(db)
   await seedBria(db)
   await seedStability(db)
+  await enableStability(db)
 }
 
 /* ── 알리바바 모델을 등록부에 한 번 심는다 ──────────────────────────────
@@ -209,6 +210,31 @@ export async function seedStability(db: D1Database) {
               '연결 전 — 키 확인 뒤 생성 경로를 붙이고, 단가를 실측값으로 덮은 다음 켠다 '
               + '(2026-08 크레딧 변경 보고 있음)',
               new Date().toISOString()).run()
+    }
+  }, ['model_registry'])
+}
+
+/* ── Stability 를 켠다 ────────────────────────────────────────────────────
+   위 seedStability 는 꺼진 채로 심었고, 켜는 조건을 "관리자가 실측 단가를 넣을 것"
+   으로 걸어 뒀다. 그 조건을 건 이유는 단 하나 — **싸게 잡고 켜면 못 무르기 때문**이다.
+   그 위험은 단가를 천장(8크레딧 = $0.08)으로 올려 잡아 없앴다(_stability.ts 참고).
+   이제 남는 오차는 "우리가 비싸게 받았다" 쪽뿐이고, 그건 청구서를 보고 내리면 된다.
+
+   확정된 것: 키(잔액 $10.25 · 엔진 목록 응답 · 틀린 키는 거절) · 생성 경로(v2beta multipart).
+   확정 안 된 것: 단가 원문. 그래서 관리자 화면에 [잠정] 딱지가 그대로 붙는다.
+
+   ⚠ Recraft 와 같은 규칙 — **처음 심은 그대로인 줄만** 켠다. 관리자가 노트를 고쳤거나
+     이미 켜 뒀다면 건드리지 않는다. 배포할 때마다 관리자 손길을 덮어쓰지 않는다. */
+export async function enableStability(db: D1Database) {
+  return ensureOnce(db, 'enable_stability_v1', async () => {
+    for (const r of STABILITY_MODELS) {
+      await db.prepare(
+        `UPDATE model_registry SET enabled = 1, verified_at = ?, usd = ?, note = ?
+          WHERE name = ? AND provider = 'stability' AND enabled = 0 AND note LIKE '연결 전 —%'`)
+        .bind(new Date().toISOString(), r.usd,
+              '키 확인됨(잔액 조회 200 · 틀린 키 거절) · 생성 경로 연결됨(v2beta multipart) · '
+              + '단가 잠정 — 천장(8크레딧 기준)으로 잡아 둠, 청구서 확인 뒤 내리면 됨',
+              r.name).run()
     }
   }, ['model_registry'])
 }

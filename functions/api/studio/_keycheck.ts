@@ -220,32 +220,42 @@ export async function runKeyCheck(
     }
   }
 
-  /* ── 대조 확인 ── 가장 증거가 되는 주소 하나를 골라 일부러 틀린 키로 한 번 더 읽는다.
+  /* ── 대조 확인 ── 같은 주소를 일부러 틀린 키로 한 번 더 읽어, 인증이 갈리는지 본다.
 
-     ⚠ 여기서 주소를 잘못 고르면 멀쩡한 키를 "확인 못 함" 으로 버린다. 실제로 LTX 에서
-       그랬다. 후보가 전부 404 였는데, 그 404 가 두 종류였다:
-         "Cannot GET /v1/credits"  ← 라우터가 뱉는 일반 404. 인증까지 가지도 않는다.
-         "Job 0000… not found"     ← **앱이 답한 것.** 라우팅도 인증도 지나간 자리다.
-       앞의 것을 골라 대조하면 틀린 키도 똑같이 404 라 아무것도 안 갈린다(그래서 판정 불가였다).
-       뒤의 것을 고르면 틀린 키는 401 이 날 테니 "우리 키는 통과" 가 그 자리에서 갈린다.
+     ⚠ 여기서 주소를 하나만 골라 걸었다가 두 번 헛짚었다.
+       LTX  전부 404 였는데 라우터 404("Cannot GET")를 골랐다 → 틀린 키도 404 라 안 갈림
+       Bria 루트 200({})을 골랐다 → 그 주소는 인증을 안 봐서 틀린 키도 200. 안 갈림.
+            정작 답이 있던 곳은 422 였다("model_id 는 정수여야 한다"). 그건 **앱이 답한 것** —
+            라우팅도 인증도 지나가야 나오는 응답이다.
 
-     그래서 고르는 순서를 둔다:
-       ① 2xx (가장 확실)
-       ② 앱이 답한 것으로 보이는 비-401/403 응답 (일반 라우터 404 가 아닌 것)
+     그래서 하나만 고르지 않는다. **갈릴 때까지 후보를 차례로 걸어 본다.**
+     순서는 증거가 센 것부터다:
+       ① 앱이 값을 따진 응답(422·400 같은 4xx 중 401/403·라우터404 가 아닌 것)
+       ② 2xx
        ③ 그 밖의 비-401/403
-       ④ 아무거나 */
+     조회라서 몇 번 더 물어도 돈이 들지 않는다. 판정을 못 내는 쪽이 훨씬 나쁘다. */
   const 답한것 = results.filter((r) => r.status > 0)
   const 통과한것 = results.filter((r) => r.status >= 200 && r.status < 300)
   //  라우터 404 인지는 read() 가 원문을 보고 이미 정해 두었다(여기서 본문을 보면 안 된다).
   const 라우터404 = (r: KeyProbeResult) => !!r._router404
   const 인증거절 = (r: KeyProbeResult) => r.status === 401 || r.status === 403
-  const 대표 =
-    통과한것[0]
-    || 답한것.find((r) => !인증거절(r) && !라우터404(r))
-    || 답한것.find((r) => !인증거절(r))
-    || 답한것[0] || null
+  const 앱이따진것 = (r: KeyProbeResult) =>
+    r.status >= 400 && r.status < 500 && !인증거절(r) && !라우터404(r)
+
+  const 후보 = [
+    ...답한것.filter(앱이따진것),
+    ...통과한것,
+    ...답한것.filter((r) => !인증거절(r) && !앱이따진것(r) && r.status < 200 === false),
+  ].filter((r, k, a) => a.indexOf(r) === k).slice(0, 3)
+
+  let 대표: KeyProbeResult | null = null
   let 대조: KeyProbeResult | null = null
-  if (대표) 대조 = await read(fetchT, '대조(일부러 틀린 키) · ' + 대표.검사, 대표.url, CONTROL_KEY, false, auth)
+  for (const c of (후보.length ? 후보 : (답한것[0] ? [답한것[0]] : []))) {
+    const ctl = await read(fetchT, '대조(일부러 틀린 키) · ' + c.검사, c.url, CONTROL_KEY, false, auth, p.timeoutMs)
+    대표 = c; 대조 = ctl
+    //  갈렸으면 거기서 멈춘다. 안 갈렸으면 다음 후보로 — 더 나은 증거가 있을 수 있다.
+    if (ctl.status === 401 || ctl.status === 403) break
+  }
 
   const 대조거절 = !!대조 && (대조.status === 401 || 대조.status === 403)
   const 대조통과 = !!대조 && 대조.status >= 200 && 대조.status < 300

@@ -119,7 +119,36 @@ console.log('\n④ 정말 아무 경로도 안 닿으면 그때는 그렇게 말
   ok(/어느 경로도 답하지 않음/.test(JSON.stringify(r.결과)), '왜 그렇게 봤는지 남긴다')
 }
 
-console.log('\n⑤ 키 값은 어떤 경우에도 응답에 안 실린다')
+console.log('\n⑤ 인증 안 보는 200 하나에 속아 판정을 포기하지 않는다 (Bria 가 그랬다)')
+{
+  /* Bria 실측: 루트 / 는 200 {} 를 주는데 인증을 안 본다. 대조를 거기에 걸면 둘 다 200 이라
+     "인증을 보지 않는다 → 확인 못 함" 으로 끝난다. 정작 답은 422 에 있었다 —
+     "model_id 는 정수여야 한다" 는 **앱이 값을 따진 응답**이고, 인증을 지나야 나온다. */
+  const BRIA = { id: 'briatest', label: 'Bria(흉내)', envNames: ['X'], hosts: ['https://engine.test'],
+    console: 'https://x', wired: false, 주소근거: '검사용',
+    probes: [
+      { 이름: '느린 목록', path: '/v1/tailored-gen/models/', 종류: 'models' },
+      { 이름: '없는 모델', path: '/v1/tailored-gen/models/__no_such__', 종류: 'job' },
+      { 이름: '루트', path: '/', 종류: 'job' },
+    ] }
+  const f = async (url, init) => {
+    const u = String(url)
+    const key = String(((init && init.headers) || {}).Authorization || '').replace(/^Bearer\s+/, '')
+    if (/tailored-gen\/models\/$/.test(u)) throw new Error('timeout')          // 느린 경로
+    if (/__no_such__/.test(u)) {
+      if (key !== GOOD) return new Response('Unauthorized', { status: 401 })     // 인증을 본다
+      return new Response(JSON.stringify([{ type: 'int_parsing', msg: 'not an integer' }]), { status: 422 })
+    }
+    return new Response('{}', { status: 200 })                                   // 루트 — 인증 안 봄
+  }
+  const r = await kc.runKeyCheck(BRIA, GOOD, f, null, 'X')
+  ok(/__no_such__/.test(String(r.대조 && r.대조.url)),
+     '앱이 값을 따진 주소(422)로 대조한다 — 루트 200 을 고르면 안 갈린다', String(r.대조 && r.대조.url))
+  ok(r.키작동 === true, '판정: 키가 작동한다', r.판정)
+  ok(!/인증을 보지 않습니다/.test(r.판정), '"인증을 안 본다" 로 끝내지 않는다', r.판정)
+}
+
+console.log('\n⑥ 키 값은 어떤 경우에도 응답에 안 실린다')
 {
   const r = await run({ authChecked: true })
   const dump = JSON.stringify(r)

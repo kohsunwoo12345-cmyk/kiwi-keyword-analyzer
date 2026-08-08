@@ -174,8 +174,8 @@ console.log('\n⑥ 켜지더라도 조용히 실패하지 않는다')
   /*  Recraft 는 이제 진짜로 연결됐다(래스터). 그래서 "아직 연결되지 않았습니다" 를
       기대하면 안 된다 — 그 기대는 연결 전 사실을 적어 둔 것이고 지금은 낡았다.
       연결된 것과 아직인 것을 나눠서, 각각 맞는 것을 본다. */
-  const WIRED = ['recraft']
-  const NOT_WIRED = ['ltx', 'bria', 'stability']
+  const WIRED = ['recraft', 'stability']
+  const NOT_WIRED = ['ltx', 'bria']
   for (const p of [...WIRED, ...NOT_WIRED]) {
     ok(new RegExp(`if \\(provider === "${p}"\\)`).test(gen), `${p}: 생성 경로에 자리가 있다`)
   }
