@@ -22,33 +22,36 @@ const COLS = [
 export function HeroPhotoWall() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden bg-[#05070e]">
-      {/* 움직이는 사진 열 */}
-      <div className="absolute inset-0 flex justify-center gap-2.5 opacity-[0.62] [transform:scale(1.18)] sm:gap-3">
+      {/*  움직이는 사진 열
+           ──────────────────────────────────────────────────────────────────────
+           ⚠ 이 감싼 판은 예전에 `inset-0 + opacity-[0.62] + scale(1.18)` 이었다.
+             그 두 가지가 벽을 비싸게 만들었다. 왜 그런지 실측으로 갈랐다
+             (1440×900, 같은 조건 5회 번갈아 재고 중앙값 — 한 번만 재면 33~45로 널뛴다):
+
+               벽이 흐를 때 지금 그대로            FPS 38~44
+               투명도만 열마다로 옮김               FPS 23   ← 혼자서는 더 나쁘다
+               scale 만 제거                      FPS 43   ← 혼자서는 그대로
+               둘 다 (투명도 옮김 + scale 제거)     FPS 60   ← 여기서 풀린다
+
+             이유: transform 이 걸린 조상 안에서 투명도 묶음까지 씌우면, 브라우저는
+             매 프레임 여섯 열을 그 묶음 공간에 다시 합성한다. 둘 중 하나만 없애면
+             남은 하나가 그대로 붙잡는다 — 그래서 하나씩 재면 효과가 안 보였다.
+
+           ⚠ 보이는 그림은 예전과 같아야 한다.
+             scale(1.18) 은 가운데 기준으로 사방을 9% 씩 넓히는 것과 같다.
+             그래서 transform 대신 -inset-[9%] 로 판 자체를 넓힌다 — 덮는 넓이가 똑같고
+             transform 조상이 사라진다. 투명도는 열마다 주는데, 열끼리 겹치지 않으므로
+             (flex + gap) 묶음에 준 것과 결과가 같다.
+             실측: -inset 방식도 FPS 60 (scale 제거와 동일). */}
+      <div data-photo-wall className="absolute -inset-[9%] flex justify-center gap-2.5 sm:gap-3">
         {COLS.map((col, ci) => (
-          <div key={ci} className={cn('relative w-1/2 flex-shrink-0 sm:w-[16.5%]', ci >= 2 && 'hidden sm:block')}>
-            {/*  ⚠ 여기엔 원래 heroWallUp/heroWallDown 무한 스크롤이 걸려 있었다. 그런데 그
-                 keyframes 는 /legal/* 에서만 불러오는 파일(app/styles/legal.css)에 들어 있어서
-                 홈에서는 정의가 없는 이름이었다 — 즉 이 벽은 지금까지 한 번도 흐른 적이 없다.
-                 (브라우저에서 getAnimations() 가 빈 배열을 돌려줘서 찾았다.)
-
-                 keyframes 를 globals.css 로 옮겨 실제로 돌려 보고 재 봤더니:
-
-                   벽을 멈춰 둔 지금        FPS 60
-                   벽을 흐르게 하면         FPS 33~38   ← 절반
-
-                 사진 48장이 계속 움직이면 브라우저가 매 프레임 화면을 다시 굽고,
-                 그 김에 페이지 곳곳의 blur 글로우까지 같이 다시 굽는다. 레이어를 떼어내는
-                 방법 6가지(contain:paint·contain:strict·isolation·backface-visibility·
-                 will-change:opacity·사진 contain)를 전부 재 봤지만 하나도 안 통했다(33~38).
-
-                 게다가 이 움직임은 44초에 700px = 초당 16px 이라 눈에 거의 안 띈다.
-                 "보이지도 않는 효과" 와 "체감되는 렉" 을 맞바꿀 이유가 없어서,
-                 지금 사용자가 보고 있는 그대로(정지)를 유지한다.
-                 열마다 시작 높이만 어긋나게 두어 벽처럼 보이게 한다(한 번만 계산된다).
-                 흐르게 하고 싶다면 아래 transform 을 애니메이션으로 되돌리면 된다. */}
+          <div
+            key={ci}
+            className={cn('relative w-1/2 flex-shrink-0 opacity-[0.62]', 'sm:w-[16.5%]', ci >= 2 && 'hidden sm:block')}
+          >
             <div
-              className="absolute inset-x-0 top-0"
-              style={{ transform: `translateY(-${ci * 6}%)` }}
+              className="absolute inset-x-0 top-0 will-change-transform [backface-visibility:hidden]"
+              style={{ animation: `${ci % 2 ? 'heroWallDown' : 'heroWallUp'} ${44 + ci * 8}s linear infinite` }}
             >
               {[...col, ...col].map((src, i) => (
                 <img
