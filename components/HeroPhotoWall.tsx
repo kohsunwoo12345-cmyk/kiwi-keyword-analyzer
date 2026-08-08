@@ -5,17 +5,32 @@ import { cn } from '@/lib/utils'
 // 히어로 배경 전용 축소본(≈380px). 어둡게 깔리는 장식 배경이라 저용량으로 충분 — 모바일 로딩 대폭 절감.
 const ALL = Array.from({ length: 20 }, (_, i) => `/images/showcase/hero/${i + 1}.webp`)
 
-/** 세로로 흐르는 사진 열 — 열마다 속도·방향이 달라 자연스럽게 움직인다. */
-/*  한 열에 3장이면 충분하다 — 히어로는 900px 인데 4장이면 벽이 1,472px 이라
-    한 장은 아무도 못 보고 배치 계산만 든다(실측). 3장이면 1,104px 로 여전히 다 덮는다. */
+/** 세로로 흐르는 사진 열 — 열마다 속도·방향이 달라 자연스럽게 움직인다.
+ *
+ *  ⚠ 몇 장을 둘지는 취향이 아니라 계산이다. 벽은 같은 열을 두 벌 이어 붙이고
+ *    절반(-50%)만큼 밀었다가 되돌아온다 — 가장 많이 밀린 순간에도 아래가 안 비려면
+ *    **한 벌의 높이 ≥ 히어로 높이** 여야 한다. 히어로는 화면 높이의 1.18배다(-inset 9%).
+ *
+ *    장수만으로 맞추려 하면 화면 크기마다 답이 달라져서 반드시 어딘가가 빈다.
+ *    실측으로 확인한 것 —
+ *      3장  → 모바일 390×844 에서 24px 빔
+ *      3장(데스크톱만) + 4장(모바일)  → 태블릿 768×1024 에서 369px 빔
+ *        (768px 은 sm 이라 6열이 되는데, 열이 좁아져 사진이 200px 밖에 안 된다)
+ *      640×1024 같은 "좁고 긴" 화면에서는 7장이 필요해진다 — 장수로는 못 이긴다.
+ *
+ *  그래서 장수 대신 **높이 하한**으로 푼다. 사진 한 장에 min-height: 31vh 를 주면
+ *  4장짜리 한 벌은 어떤 화면에서도 124vh 이상이 되어 히어로(118vh)를 항상 덮는다.
+ *  사진은 object-cover 라 하한에 걸리면 잘려 보일 뿐 늘어나지 않는다(장식 배경이라 무해). */
 const COLS = [
-  ALL.slice(0, 3),
-  ALL.slice(4, 7),
-  ALL.slice(8, 11),
-  ALL.slice(12, 15),
-  ALL.slice(16, 19),
-  [ALL[2], ALL[9], ALL[13]],
+  ALL.slice(0, 4),
+  ALL.slice(4, 8),
+  ALL.slice(8, 12),
+  ALL.slice(12, 16),
+  ALL.slice(16, 20),
+  [ALL[2], ALL[9], ALL[13], ALL[18]],
 ]
+/** 사진 한 장의 높이 하한 — 4장 × 31vh = 124vh ≥ 히어로 118vh */
+const MIN_PHOTO_H = '31vh'
 
 /**
  * 히어로 배경 — AI 제작 사진들이 세로로 부드럽게 흐르는 프리미엄 포토월.
@@ -75,7 +90,7 @@ export function HeroPhotoWall() {
                   fetchPriority={i === 0 ? 'high' : undefined}
                   decoding="async"
                   className="mb-2.5 w-full rounded-2xl object-cover shadow-lg sm:mb-3"
-                  style={{ aspectRatio: '3 / 4' }}
+                  style={{ aspectRatio: '3 / 4', minHeight: MIN_PHOTO_H }}
                 />
               ))}
             </div>
